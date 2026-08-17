@@ -23,7 +23,7 @@ fn exact_streaming_lifecycle_profile_has_frozen_artifact_identities() {
         plan.circuit().structure().t(),
         plan.circuit().structure().max_degree(),
     )
-    .expect("shape-specific Appendix B.2 parameters");
+    .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
     let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(
         &params,
@@ -55,6 +55,33 @@ fn exact_streaming_lifecycle_profile_has_frozen_artifact_identities() {
     )
     .expect("complete base lifecycle problem export");
     let export = problem_export.profile_export();
+    let recursive_profile = export
+        .profile()
+        .arm(NebulaFPrimeStreamingLifecycleArm::Recursive);
+    let recursive_x_out = lifecycle.x_out_preimage_columns(NebulaFPrimeStreamingLifecycleArm::Recursive);
+    for (scope, binding, source_columns) in [
+        ("before", recursive_profile.before_x_out(), recursive_x_out.before()),
+        ("after", recursive_profile.after_x_out(), recursive_x_out.after()),
+    ] {
+        assert_eq!(binding.source_columns(), source_columns);
+        assert_eq!(binding.fields().len(), source_columns.len());
+        for (field, (&source_column, field_binding)) in source_columns.iter().zip(binding.fields()).enumerate() {
+            assert_eq!(field_binding.source_column(), source_column);
+            assert!(
+                !field_binding.decoder_terms().is_empty(),
+                "recursive {scope} XOut field {field} has no final decoder"
+            );
+            let stage = recursive_profile
+                .stages()
+                .iter()
+                .find(|stage| stage.source_columns().contains(&source_column))
+                .unwrap_or_else(|| panic!("recursive {scope} XOut field {field} has no physical source owner"));
+            assert!(
+                !stage.final_row_runs().is_empty(),
+                "recursive {scope} XOut field {field} has no final row owner"
+            );
+        }
+    }
 
     eprintln!(
         "streaming lifecycle identities: base={} recursive={} plan={} final={}",
@@ -63,24 +90,56 @@ fn exact_streaming_lifecycle_profile_has_frozen_artifact_identities() {
         export.final_plan_digest(),
         export.final_relation_digest(),
     );
+    eprintln!(
+        "streaming lifecycle dimensions: final=({},{},{}) base=({},{},{}) recursive=({},{},{}) problem=({},{})",
+        export.profile().final_rows(),
+        export.profile().final_columns(),
+        export.profile().final_public_columns(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Base)
+            .source_rows(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Base)
+            .source_columns(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Base)
+            .source_public_columns(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Recursive)
+            .source_rows(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Recursive)
+            .source_columns(),
+        export
+            .profile()
+            .arm(NebulaFPrimeStreamingLifecycleArm::Recursive)
+            .source_public_columns(),
+        problem_export.problem().rows.len(),
+        problem_export.problem().column_count,
+    );
 
-    assert_eq!(export.profile().final_rows(), 1_346_348);
-    assert_eq!(export.profile().final_columns(), 8_755_452);
+    assert_eq!(export.profile().final_rows(), 10_306_243);
+    assert_eq!(export.profile().final_columns(), 28_033_344);
     assert_eq!(
         export.source_artifact_digest(NebulaFPrimeStreamingLifecycleArm::Base),
-        "sha256:1cf6e47c3b6cf308056af0af2a3cba18b5513c0df26121d5453933f8e22ccb6c"
+        "sha256:c36cf17e8c4fba6dce24bf928d67f43106cb0af2bbada6a985860e79a8deb67d"
     );
     assert_eq!(
         export.source_artifact_digest(NebulaFPrimeStreamingLifecycleArm::Recursive),
-        "sha256:e2ab53022f3b7598898ffc24c0daa4213df1db0a9f19225d9c0af1f026b2b83e"
+        "sha256:3269aa2706f04e52b50b9bb92b09a9a36dfd7e68d5918ba7cec4df7aa6f4477f"
     );
     assert_eq!(
         export.final_plan_digest(),
-        "sha256:d9e9a8835c6788be21554bce015af84526da625737d6e01efca4ed51a20fd23f"
+        "sha256:7a7bf7804e6573d50836500bb59a4f773259ff4829ef70b574dbdc54ce6f0d52"
     );
     assert_eq!(
         export.final_relation_digest(),
-        "sha256:7cd1be6de8b25c32c23971d7136108c90310bd8633c992e89a6f8f280940ebd0"
+        "sha256:734880081882f75c1c3e4b826201088c505fa9f468b802347b181d45e96282e5"
     );
     assert_eq!(problem_export.problem().rows.len(), 741_068);
     assert_eq!(problem_export.problem().source.total_rows, 741_068);

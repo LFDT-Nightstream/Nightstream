@@ -32,8 +32,8 @@ use crate::paper::digest::{
     StateXOutDigestMode,
 };
 use crate::paper::f_prime::digest_circuit::{
-    alloc_constant, enforce_initial_boundary_digest_circuit, enforce_public_trace_seed_digest_circuit,
-    enforce_vk_fs_digest_circuit, enforce_vk_fs_policy_digest_circuit, StateXOutDigestInputs,
+    enforce_initial_boundary_digest_circuit, enforce_public_trace_seed_digest_circuit, enforce_vk_fs_digest_circuit,
+    enforce_vk_fs_policy_digest_circuit, StateXOutDigestInputs,
 };
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::{
@@ -86,6 +86,7 @@ pub struct NebulaFPrimeStreamingLifecycleSourceArms {
     recursive_delayed_input_fields: Range<usize>,
     phase_envelope_fields: [NebulaFPrimeStreamingPhaseEnvelopeFields; 2],
     x_out_preimage_columns: [NebulaFPrimeStreamingXOutPreimageColumns; 2],
+    x_out_preimage_values: [NebulaFPrimeStreamingXOutPreimageValues; 2],
     after_nebula_lane_columns: [NebulaFPrimeStreamingLaneSourceColumns; 2],
 }
 
@@ -104,6 +105,34 @@ impl NebulaFPrimeStreamingXOutPreimageColumns {
 
     pub fn after(&self) -> &[usize; X_OUT_PREIMAGE_FIELDS] {
         &self.after
+    }
+}
+
+/// Exact semantic values consumed by the before-state and after-state
+/// `x_out` Poseidon2 rows, captured before source-column normalization.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NebulaFPrimeStreamingXOutPreimageValues {
+    before: [F; X_OUT_PREIMAGE_FIELDS],
+    after: [F; X_OUT_PREIMAGE_FIELDS],
+}
+
+impl NebulaFPrimeStreamingXOutPreimageValues {
+    pub fn before(&self) -> &[F; X_OUT_PREIMAGE_FIELDS] {
+        &self.before
+    }
+
+    pub fn after(&self) -> &[F; X_OUT_PREIMAGE_FIELDS] {
+        &self.after
+    }
+
+    /// Check the complete typed lifecycle target against one normalized
+    /// source assignment. This compares values, not digests.
+    pub fn is_satisfied_by(&self, columns: &NebulaFPrimeStreamingXOutPreimageColumns, assignment: &[F]) -> bool {
+        self.before
+            .iter()
+            .zip(columns.before())
+            .chain(self.after.iter().zip(columns.after()))
+            .all(|(expected, column)| assignment.get(*column) == Some(expected))
     }
 }
 
@@ -206,6 +235,13 @@ impl NebulaFPrimeStreamingLifecycleSourceArms {
         &self.x_out_preimage_columns[arm.index()]
     }
 
+    pub fn x_out_preimage_values(
+        &self,
+        arm: NebulaFPrimeStreamingLifecycleArm,
+    ) -> &NebulaFPrimeStreamingXOutPreimageValues {
+        &self.x_out_preimage_values[arm.index()]
+    }
+
     pub fn after_nebula_lane_columns(
         &self,
         arm: NebulaFPrimeStreamingLifecycleArm,
@@ -225,6 +261,7 @@ struct SynthesizedLifecycleArm {
     source: SparseR1cs,
     assignment: Vec<F>,
     x_out_preimage_columns: NebulaFPrimeStreamingXOutPreimageColumns,
+    x_out_preimage_values: NebulaFPrimeStreamingXOutPreimageValues,
     after_nebula_lane_columns: NebulaFPrimeStreamingLaneSourceColumns,
 }
 
@@ -382,7 +419,7 @@ fn streaming_shape_context_from_parts<'a>(
 ) -> Result<ShapeContext<'a>, NebulaFPrimeRelationError> {
     if !params.has_production_core() {
         return Err(NebulaFPrimeRelationError::Geometry(
-            "streaming lifecycle shape does not use the SuperNeo Appendix B.2 Goldilocks core".into(),
+            "streaming lifecycle shape does not use the Nightstream Goldilocks k_rho=16 core".into(),
         ));
     }
     let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims_for_shape(
@@ -459,6 +496,7 @@ fn assemble_lifecycle_source_arms(
         recursive_delayed_input_fields,
         phase_envelope_fields,
         x_out_preimage_columns: [base.x_out_preimage_columns, recursive.x_out_preimage_columns],
+        x_out_preimage_values: [base.x_out_preimage_values, recursive.x_out_preimage_values],
         after_nebula_lane_columns: [base.after_nebula_lane_columns, recursive.after_nebula_lane_columns],
     })
 }
@@ -469,7 +507,7 @@ fn validate_streaming_preprocessing(
 ) -> Result<(), NebulaFPrimeRelationError> {
     if !preprocessing.params.has_production_core() {
         return Err(NebulaFPrimeRelationError::Geometry(
-            "streaming lifecycle preprocessing does not use the SuperNeo Appendix B.2 Goldilocks core".into(),
+            "streaming lifecycle preprocessing does not use the Nightstream Goldilocks k_rho=16 core".into(),
         ));
     }
     let public = NebulaFPrimeStreamingPublicLayout::production();
@@ -604,6 +642,7 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedLifecycleArm
         NebulaFPrimeStreamingLifecycleArm::Base,
         &output,
     )?;
+    let x_out_preimage_values = exact_x_out_preimage_values(&builder, &public)?;
     let x_out_preimage_columns = exact_x_out_preimage_columns(builder.cols(), &public)?;
     let after_nebula_lane_columns =
         exact_lane_source_columns(builder.cols(), &public.outputs, &public.after_nebula_lane)?;
@@ -618,6 +657,7 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedLifecycleArm
         source,
         assignment,
         x_out_preimage_columns,
+        x_out_preimage_values,
         after_nebula_lane_columns,
     })
 }
@@ -809,6 +849,7 @@ fn synthesize_recursive_from_messages(
         NebulaFPrimeStreamingLifecycleArm::Recursive,
         &output,
     )?;
+    let x_out_preimage_values = exact_x_out_preimage_values(&builder, &public)?;
     let x_out_preimage_columns = exact_x_out_preimage_columns(builder.cols(), &public)?;
     let after_nebula_lane_columns =
         exact_lane_source_columns(builder.cols(), &public.outputs, &public.after_nebula_lane)?;
@@ -829,7 +870,31 @@ fn synthesize_recursive_from_messages(
         source,
         assignment,
         x_out_preimage_columns,
+        x_out_preimage_values,
         after_nebula_lane_columns,
+    })
+}
+
+fn exact_x_out_preimage_values(
+    builder: &R1csBuilder,
+    public: &FinalizedPublic,
+) -> Result<NebulaFPrimeStreamingXOutPreimageValues, NebulaFPrimeRelationError> {
+    let read = |preimage: &[Var], label: &'static str| {
+        preimage
+            .iter()
+            .map(|wire| builder.witness()[wire.col()])
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|values: Vec<F>| {
+                NebulaFPrimeRelationError::Geometry(format!(
+                    "streaming lifecycle {label} semantic width {} != {X_OUT_PREIMAGE_FIELDS}",
+                    values.len()
+                ))
+            })
+    };
+    Ok(NebulaFPrimeStreamingXOutPreimageValues {
+        before: read(&public.before_x_out_preimage, "before-state x_out")?,
+        after: read(&public.after_x_out_preimage, "after-state x_out")?,
     })
 }
 
@@ -1238,9 +1303,14 @@ fn enforce_verifier_advice(
     builder.begin_encoding_stage(stage);
     let row_start = builder.rows();
     let column_start = builder.witness().len();
-    let structure_digest = alloc_bound_digest(builder, advice.structure_digest);
-    let ajtai_pp_digest = alloc_bound_digest(builder, advice.ajtai_pp_digest);
-    let initial_semantic_state_digest = alloc_bound_digest(builder, advice.initial_semantic_state_digest);
+    // These are verifier-key preimage witnesses. They cannot be R1CS
+    // coefficients because the recursive relation ultimately verifies its
+    // own matrix shape. The circuit recomputes `vk_fs_digest`; the terminal
+    // relation binds that digest and the carried PiCCS header to values that
+    // the external verifier derives from preprocessing.
+    let structure_digest = alloc_digest(builder, advice.structure_digest);
+    let ajtai_pp_digest = alloc_digest(builder, advice.ajtai_pp_digest);
+    let initial_semantic_state_digest = alloc_digest(builder, advice.initial_semantic_state_digest);
     let base_vk = enforce_vk_fs_digest_circuit(
         builder,
         context.params,
@@ -1310,10 +1380,6 @@ fn bind_digest(builder: &mut R1csBuilder, left: &[Var; 4], right: &[Var; 4]) {
 
 fn alloc_digest(builder: &mut R1csBuilder, values: [F; 4]) -> [Var; 4] {
     values.map(|value| builder.alloc(value))
-}
-
-fn alloc_bound_digest(builder: &mut R1csBuilder, values: [F; 4]) -> [Var; 4] {
-    values.map(|value| alloc_constant(builder, value))
 }
 
 fn zero_fresh_claim(context: &ShapeContext<'_>, m_in: usize) -> CcsClaim {

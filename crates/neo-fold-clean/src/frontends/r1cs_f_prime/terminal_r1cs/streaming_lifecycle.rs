@@ -8,21 +8,23 @@
 //! rows, source-profile construction, verifier-native statement derivation,
 //! or Spartan.
 
-use neo_math::F;
+use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
+use crate::engine::r1cs_circuit::builder::RowFamilyRange;
 use crate::engine::r1cs_circuit::field_ext::KVar;
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot, Var};
 use crate::frontends::nebula::f_prime::{
-    enforce_streaming_phase_semantic_digest, NebulaFPrimeStreamingTerminalFieldBinding,
-    NebulaFPrimeStreamingTerminalProfile, STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS,
+    enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest,
+    NebulaFPrimeStreamingTerminalFieldBinding, NebulaFPrimeStreamingTerminalProfile,
+    STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS,
 };
-use crate::paper::construction2::NebulaConfig;
+use crate::paper::construction2::{NebulaConfig, NebulaLane};
 use crate::paper::digest::{F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER};
 use crate::paper::f_prime::digest_circuit::alloc_constant;
 use crate::paper::f_prime::nebula_lane_circuit::{
-    decode_delayed_nebula_public_suffix_circuit, enforce_delayed_nebula_claim_data_circuit,
+    alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, enforce_delayed_nebula_claim_data_circuit,
     enforce_nebula_lane_digest_selected_circuit, enforce_nebula_program_binding_digest_circuit,
     enforce_nebula_terminal_closed_circuit, NebulaLaneWires, NebulaOpenContextWires,
 };
@@ -58,6 +60,28 @@ pub struct StreamingTerminalLifecycleOutput {
     pub post_phase_lane: NebulaLaneWires,
     pub final_lane: NebulaLaneWires,
     pub delayed_payload: Vec<Var>,
+}
+
+/// Exact small Rust relation used for bounded lifecycle-authority attacks.
+#[doc(hidden)]
+pub struct StreamingTerminalXOutAuthorityAudit {
+    source: R1csSnapshot,
+    row_families: Vec<RowFamilyRange>,
+    x_out_columns: [usize; 32],
+}
+
+impl StreamingTerminalXOutAuthorityAudit {
+    pub fn source(&self) -> &R1csSnapshot {
+        &self.source
+    }
+
+    pub fn row_families(&self) -> &[RowFamilyRange] {
+        &self.row_families
+    }
+
+    pub const fn x_out_columns(&self) -> [usize; 32] {
+        self.x_out_columns
+    }
 }
 
 #[derive(Debug, Error)]
@@ -143,39 +167,8 @@ pub fn enforce_streaming_terminal_lifecycle(
     }
     builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[1], family_start);
 
-    let family_start = builder.rows();
-    bind_const(builder, x_out[0], F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN));
-    bind_array(builder, &x_out[1..5], &public.vk_fs_digest);
-    bind_array(builder, &x_out[5..9], &public.pi_ccs_header);
-    bind_const(
-        builder,
-        x_out[9],
-        F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64),
-    );
-    bind_const(builder, x_out[10], F::ZERO);
-    bind_const(
-        builder,
-        x_out[11],
-        F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64),
-    );
-    bind_const(builder, x_out[12], F::ZERO);
-    bind_const(builder, x_out[13], F::ONE);
-    bind_const(builder, x_out[14], F::ZERO);
-    bind_array(builder, &x_out[15..19], &public.current_boundary);
-    bind_array(builder, &x_out[23..27], &public.accumulator_digest);
-    bind_const(builder, x_out[27], F::from_u64(NEBULA_ADV_PRESENT_MARKER));
-    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[2], family_start);
-
-    let family_start = builder.rows();
-    let semantic_digest = enforce_streaming_phase_semantic_digest(builder, local_state, &delayed_payload, false);
-    bind_array(builder, &x_out[19..23], &semantic_digest);
-    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[3], family_start);
-
     let post_phase_lane = lane_from_fields(lane_fields);
-    let family_start = builder.rows();
-    let lane_digest = enforce_nebula_lane_digest_selected_circuit(builder, &post_phase_lane);
-    bind_array(builder, &x_out[28..32], &lane_digest);
-    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[4], family_start);
+    enforce_streaming_terminal_x_out_authority(builder, x_out, local_state, &delayed_payload, &post_phase_lane, public);
 
     let family_start = builder.rows();
     let initial_semantic = config
@@ -219,6 +212,122 @@ pub fn enforce_streaming_terminal_lifecycle(
         final_lane: transition.lane,
         delayed_payload,
     })
+}
+
+pub(super) fn enforce_streaming_terminal_x_out_authority(
+    builder: &mut R1csBuilder,
+    x_out: [Var; 32],
+    local_state: [Var; 4],
+    delayed_payload: &[Var],
+    post_phase_lane: &NebulaLaneWires,
+    public: StreamingTerminalPublicWires,
+) {
+    let family_start = builder.rows();
+    bind_const(builder, x_out[0], F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN));
+    bind_array(builder, &x_out[1..5], &public.vk_fs_digest);
+    bind_array(builder, &x_out[5..9], &public.pi_ccs_header);
+    bind_const(
+        builder,
+        x_out[9],
+        F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64),
+    );
+    bind_const(builder, x_out[10], F::ZERO);
+    bind_const(
+        builder,
+        x_out[11],
+        F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64),
+    );
+    bind_const(builder, x_out[12], F::ZERO);
+    bind_const(builder, x_out[13], F::ONE);
+    bind_const(builder, x_out[14], F::ZERO);
+    bind_array(builder, &x_out[15..19], &public.current_boundary);
+    bind_array(builder, &x_out[23..27], &public.accumulator_digest);
+    bind_const(builder, x_out[27], F::from_u64(NEBULA_ADV_PRESENT_MARKER));
+    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[2], family_start);
+
+    let family_start = builder.rows();
+    let semantic_digest = enforce_streaming_phase_semantic_digest(builder, local_state, delayed_payload, false);
+    bind_array(builder, &x_out[19..23], &semantic_digest);
+    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[3], family_start);
+
+    let family_start = builder.rows();
+    let lane_digest = enforce_nebula_lane_digest_selected_circuit(builder, post_phase_lane);
+    bind_array(builder, &x_out[28..32], &lane_digest);
+    builder.record_row_family(STREAMING_TERMINAL_R1CS_FAMILY_NAMES[4], family_start);
+}
+
+/// Build only the three exact terminal XOut authority families.
+#[doc(hidden)]
+pub fn streaming_terminal_x_out_authority_audit() -> StreamingTerminalXOutAuthorityAudit {
+    let vk_fs = [F::from_u64(11); 4];
+    let pi_ccs_header = [F::from_u64(13); 4];
+    let boundary = [F::from_u64(17); 4];
+    let local_state = [F::from_u64(19); 4];
+    let delayed_payload = [F::ZERO, F::ONE, F::ONE, F::ZERO];
+    let semantic = streaming_phase_semantic_digest(local_state, &delayed_payload);
+    let accumulator = [F::from_u64(23); 4];
+    let lane = NebulaLane {
+        program_binding_digest: [F::from_u64(29); 4],
+        seg_idx: 0,
+        idx: 0,
+        ts: 0,
+        gamma: None,
+        h: [K::ONE; 4],
+        sp: Default::default(),
+        d_pre: [[F::from_u64(31); 4]; 3],
+        d_seen: [[F::from_u64(37); 4]; 3],
+        d_mem: [F::from_u64(41); 4],
+    };
+
+    let mut x_out_values = [F::ZERO; 32];
+    x_out_values[0] = F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN);
+    x_out_values[1..5].copy_from_slice(&vk_fs);
+    x_out_values[5..9].copy_from_slice(&pi_ccs_header);
+    x_out_values[9] = F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64);
+    x_out_values[11] = F::from_u64(STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS as u64);
+    x_out_values[13] = F::ONE;
+    x_out_values[15..19].copy_from_slice(&boundary);
+    x_out_values[19..23].copy_from_slice(&semantic);
+    x_out_values[23..27].copy_from_slice(&accumulator);
+    x_out_values[27] = F::from_u64(NEBULA_ADV_PRESENT_MARKER);
+    x_out_values[28..32].copy_from_slice(&lane.digest());
+
+    let mut builder = R1csBuilder::new();
+    let x_out = x_out_values.map(|value| builder.alloc(value));
+    let x_out_columns = x_out.map(Var::col);
+    let local_state = local_state.map(|value| builder.alloc(value));
+    let delayed_payload = builder.alloc_vec(&delayed_payload);
+    let post_phase_lane = alloc_nebula_lane_wires(&mut builder, &lane);
+    let public = StreamingTerminalPublicWires {
+        vk_fs_digest: vk_fs.map(|value| builder.alloc(value)),
+        pi_ccs_header: pi_ccs_header.map(|value| builder.alloc(value)),
+        current_boundary: boundary.map(|value| builder.alloc(value)),
+        accumulator_digest: accumulator.map(|value| builder.alloc(value)),
+    };
+    enforce_streaming_terminal_x_out_authority(
+        &mut builder,
+        x_out,
+        local_state,
+        &delayed_payload,
+        &post_phase_lane,
+        public,
+    );
+
+    let row_families = builder.row_family_ranges().to_vec();
+    assert_eq!(
+        row_families
+            .iter()
+            .map(|family| family.name)
+            .collect::<Vec<_>>(),
+        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[2..5],
+    );
+    let source = builder.snapshot();
+    assert!(source.is_satisfied(source.witness()));
+    StreamingTerminalXOutAuthorityAudit {
+        source,
+        row_families,
+        x_out_columns,
+    }
 }
 
 fn require_width(what: &'static str, expected: usize, got: usize) -> Result<(), StreamingTerminalLifecycleError> {

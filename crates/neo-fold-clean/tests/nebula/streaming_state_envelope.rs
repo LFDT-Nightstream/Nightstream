@@ -196,7 +196,7 @@ fn streaming_lifecycle_source_arms_own_complete_context_and_fold_stages() {
         plan.circuit().structure().t(),
         plan.circuit().structure().max_degree(),
     )
-    .expect("shape-specific Appendix B.2 parameters");
+    .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(
         &params,
         plan.circuit().structure(),
@@ -388,7 +388,7 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
         seed_structure.t(),
         seed_structure.max_degree(),
     )
-    .expect("shape-specific Appendix B.2 parameters");
+    .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
     let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(&params, &seed_structure, 0x5354_5245_414d);
     let preprocessing = neo_fold_clean::lifecycle::preprocess_with_test_log(
@@ -591,6 +591,22 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
         panic!("recursive source row {row} failed; families={families:?}; stages={stages:?}");
     }
     eprintln!("recursive source replay passed after {:?}", replay_started.elapsed());
+
+    let target = arms.x_out_preimage_values(NebulaFPrimeStreamingLifecycleArm::Recursive);
+    let target_columns = arms.x_out_preimage_columns(NebulaFPrimeStreamingLifecycleArm::Recursive);
+    assert!(target.is_satisfied_by(target_columns, assignment));
+    let mut candidate = assignment.to_vec();
+    for (scope, columns) in [("before", target_columns.before()), ("after", target_columns.after())] {
+        for (field, &column) in columns.iter().enumerate() {
+            let original = candidate[column];
+            candidate[column] += F::ONE;
+            assert!(
+                !target.is_satisfied_by(target_columns, &candidate),
+                "recursive {scope} XOut field {field} is outside the complete typed target"
+            );
+            candidate[column] = original;
+        }
+    }
 
     let base = arms.arm(NebulaFPrimeStreamingLifecycleArm::Base);
     base.is_satisfied_by(arms.base_assignment())

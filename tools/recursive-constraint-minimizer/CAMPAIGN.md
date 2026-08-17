@@ -251,6 +251,38 @@ slices plus certificate work), not the export alone. The census
 runner and the y_ring gate fit the 46 GB budget; run them beside at
 most the capture, nothing else, and watch `free -g` at launch.
 
+## Bar-9 Rust sweep inventory (2026-08-17) and open user decisions
+
+Per-package cap-compliant sweep results: neo-params, neo-math,
+neo-transcript, neo-ccs (after an owned-constants fix), neo-ajtai,
+neo-reductions, wip-spartan, neo-prover-cuda, neo-prover-metal all
+green; neo-fold-clean 111/121 test binaries green; neo-wasm green
+except one pin. The 11 failing suites all predate the campaign and
+live in protocol territory, so they are ask-first:
+
+1. Extension-policy census: fixtures targeting 116 bits fail because
+   the census provides 114 (nebula_redteam, nebula_stack,
+   nebula_f_prime, nebula_segment, system_selective_rectangular).
+2. NIFS engine crosscheck: prover-transcript boundary mismatch and a
+   PaperExact/Optimized rectangular divergence (nifs_engine_crosscheck).
+3. Formal-conformance manifest: terminal_r1cs/mod.rs hash drifted
+   (system_formal_conformance; message says review RUST-REFINE/TERM-CE).
+4. Shared Lean-artifact drift gates: NebulaRecursiveArmSharingArtifact,
+   pi_dec source artifact, recursive manifest (.expected files written).
+5. neo-wasm S_mem structure census pin: rows moved by ~54
+   (449,870 -> 449,816 etc.); message says review the memory-overhead
+   census.
+
+Open user decisions (blocking the affected bars only):
+- Bars 5/8: the census runner and the y_ring regeneration gate cannot
+  fit any 300-second cargo invocation (complete-problem export alone
+  is ~4-5 minutes); the cap needs a same-turn user approval for those
+  specific invocations, or direction to engineer disk-checkpointed
+  splits.
+- Bar 9: how to treat the five pre-existing protocol failure classes
+  above (fix under guidance, known upstream work, or defer with the
+  bar scoped to campaign-owned suites).
+
 ## Iteration log
 
 - 2026-08-17 iteration 17d (the strictness trap; chains go green): the

@@ -69,11 +69,12 @@ pub(crate) use projected_rows::{
 };
 pub use projected_rows::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
-    SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
-    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
-    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
-    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
-    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
+    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
+    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
+    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
+    SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{

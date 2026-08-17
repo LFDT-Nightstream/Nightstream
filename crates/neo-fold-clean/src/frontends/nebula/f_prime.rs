@@ -112,6 +112,7 @@ pub use streaming_pi_rlc_family_relation::{
     production_pi_rlc_family_body_algebra_retained_audit, production_pi_rlc_family_body_carry_retained_audit,
     production_pi_rlc_family_body_compiler_audit, production_pi_rlc_family_body_decoder_runs,
     production_pi_rlc_family_body_low_norm_shape_audit, production_pi_rlc_family_body_opening_rows_audit,
+    production_pi_rlc_family_body_projected_rows_with_source_provenance,
     production_pi_rlc_family_body_residual_retained_audit, production_pi_rlc_family_body_row_ledger,
     production_pi_rlc_family_body_source_arms, production_pi_rlc_family_normalized_link_audit,
     production_pi_rlc_family_overlay_kind_map, production_pi_rlc_family_overlay_link_runs,

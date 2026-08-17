@@ -161,6 +161,38 @@ impl SelectiveProjectedSourceLinearCombination {
     }
 }
 
+/// One compact Poseidon2 S-box row joined to its exact source trace.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectiveProjectedPoseidon2SboxStep {
+    pub(super) emitted_row: usize,
+    pub(super) rewrite_id: usize,
+    pub(super) source_rows: Vec<(usize, usize)>,
+    pub(super) input: SelectiveProjectedSourceLinearCombination,
+    pub(super) output: SelectiveProjectedSourceLinearCombination,
+}
+
+impl SelectiveProjectedPoseidon2SboxStep {
+    pub fn emitted_row(&self) -> usize {
+        self.emitted_row
+    }
+
+    pub fn rewrite_id(&self) -> usize {
+        self.rewrite_id
+    }
+
+    pub fn source_rows(&self) -> &[(usize, usize)] {
+        &self.source_rows
+    }
+
+    pub fn input(&self) -> &SelectiveProjectedSourceLinearCombination {
+        &self.input
+    }
+
+    pub fn output(&self) -> &SelectiveProjectedSourceLinearCombination {
+        &self.output
+    }
+}
+
 /// Exact source-row owner for one retained emitted check.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectiveProjectedRetainedStep {
@@ -292,6 +324,7 @@ pub struct SelectiveProjectedSourceProvenance {
     pub(super) retained_slots: Vec<SelectiveProjectedSourceSlot>,
     pub(super) linear_definitions: Vec<SelectiveProjectedSourceDefinition>,
     pub(super) trace_eliminated_columns: Vec<usize>,
+    pub(super) poseidon2_sbox_steps: Vec<SelectiveProjectedPoseidon2SboxStep>,
     pub(super) derived_product_sums: Vec<SelectiveProjectedDerivedProductSum>,
     pub(super) rewrite_steps: Vec<SelectiveProjectedRewriteStep>,
     pub(super) retained_steps: Vec<SelectiveProjectedRetainedStep>,
@@ -321,6 +354,10 @@ impl SelectiveProjectedSourceProvenance {
     /// semantics rather than treated as free decoder inputs.
     pub fn trace_eliminated_columns(&self) -> &[usize] {
         &self.trace_eliminated_columns
+    }
+
+    pub fn poseidon2_sbox_steps(&self) -> &[SelectiveProjectedPoseidon2SboxStep] {
+        &self.poseidon2_sbox_steps
     }
 
     pub fn derived_product_sums(&self) -> &[SelectiveProjectedDerivedProductSum] {

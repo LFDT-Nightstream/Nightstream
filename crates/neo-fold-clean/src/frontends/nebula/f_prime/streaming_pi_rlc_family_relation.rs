@@ -52,9 +52,10 @@ use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
 use crate::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_compiler_with_shared_bit_prefix,
     audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix, lower_field_r1cs,
-    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, FieldR1csLoweringError,
-    LowNormR1csError, MultiBranchLowNormR1cs, OverlayFieldLink, OverlayKindLinks, SelectiveCompilerAudit,
-    SelectiveProjectedDecoderRunProvenance, SparseR1cs,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
+    project_rows_with_complete_source_provenance_with_alignment, FieldR1csLoweringError, LowNormR1csError,
+    MultiBranchLowNormR1cs, OverlayFieldLink, OverlayKindLinks, SelectiveCompilerAudit,
+    SelectiveProjectedDecoderRunProvenance, SelectiveProjectedRowsAudit, SparseR1cs,
 };
 use crate::paper::construction2::TRIVIAL_PC;
 use crate::paper::digest::StateXOutDigestMode;
@@ -858,6 +859,30 @@ pub fn production_pi_rlc_family_body_source_arms() -> Result<Vec<SparseR1cs>, Ne
     .into_iter()
     .map(|kind| NebulaFPrimePiRlcFamilyBodySynthesis::production(kind).into_sparse())
     .collect::<Result<Vec<_>, _>>()?)
+}
+
+/// Project exact production body rows without materializing the final CCS
+/// matrices. The layout uses the same shared-field and shared-bit parameters
+/// as the production compiler.
+#[doc(hidden)]
+pub fn production_pi_rlc_family_body_projected_rows_with_source_provenance(
+    selected_rows: &[usize],
+    source_arm: usize,
+    source_columns: &[usize],
+    retained_row_pairs: &[(usize, usize)],
+) -> Result<SelectiveProjectedRowsAudit, NebulaFPrimePiRlcFamilyRelationError> {
+    let arms = production_pi_rlc_family_body_source_arms()?;
+    Ok(project_rows_with_complete_source_provenance_with_alignment(
+        &arms,
+        REPLAY_AUXILIARY_START - 1,
+        0,
+        D,
+        0,
+        selected_rows,
+        source_arm,
+        source_columns,
+        retained_row_pairs,
+    )?)
 }
 
 /// Measure the frozen Nightstream k16 body compiler without emitting its CCS matrices.

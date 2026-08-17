@@ -53,8 +53,9 @@ pub(crate) use selective::{
     audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment,
-    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, PreparedSelectiveLowNormR1cs,
-    SelectiveLowNormShape, SelectiveLowNormShapeSummary,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
+    project_rows_with_complete_source_provenance_with_alignment, PreparedSelectiveLowNormR1cs, SelectiveLowNormShape,
+    SelectiveLowNormShapeSummary,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
@@ -64,15 +65,15 @@ pub use selective::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveProjectedDecoderProvenance,
     SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus,
-    SelectiveProjectedGeometricRun, SelectiveProjectedPort, SelectiveProjectedProductFactor,
-    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
-    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
-    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceDecoderRun,
-    SelectiveProjectedSourceDecoderStridedRun, SelectiveProjectedSourceDecoderTemplate,
-    SelectiveProjectedSourceDecoderTemplateInstances, SelectiveProjectedSourceDefinition,
-    SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
-    SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun, SelectiveProjectedSourceSlot,
-    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedGeometricRun, SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep,
+    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
+    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
+    SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit, SelectiveProjectedSourceDecoder,
+    SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceDecoderStridedRun,
+    SelectiveProjectedSourceDecoderTemplate, SelectiveProjectedSourceDecoderTemplateInstances,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun,
+    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 #[doc(hidden)]
 pub use selective::{is_canonical_selective_low_norm_polynomial, selective_polynomial};

@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactWire
+import Nightstream.Assurance.ChunkLeaves
 
 /-!
 GENERATED FILE - do not edit by hand.
@@ -16,11 +17,9 @@ set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
 theorem chunkLeaf107 :
-    ((rowsChunk wire 107).map (fun row => row.sourceIndex) =
-        List.range' 7012352 65536) ∧
-      ((rowsChunk wire 107).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 107).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
+    chunkFacts (rowsChunk wire 107) 7012352 65536 11187825 11078210
+      wire.completeFamilies
+      [] = true := by
   native_decide
 
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf19

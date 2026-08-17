@@ -629,9 +629,11 @@ pub fn render_compact_source_artifact_modules(
     let leaf_module_of = |chunk: usize| leaf_module_map[chunk];
     // Presence facts live in the leaf module that owns their chunk.
     let mut presence_by_module: Vec<Vec<(usize, usize, &str)>> = vec![Vec::new(); leaf_module_count];
+    let mut present_by_chunk: std::collections::BTreeMap<usize, Vec<&str>> = std::collections::BTreeMap::new();
     for (family_index, family) in census.iter().enumerate() {
         let chunk = family.source_rows()[0] / chunk_rows;
         presence_by_module[leaf_module_of(chunk)].push((family_index, chunk, family.name()));
+        present_by_chunk.entry(chunk).or_default().push(family.name());
     }
     for (leaf_module, group) in leaf_groups.iter().enumerate() {
         let first = group[0];
@@ -639,6 +641,7 @@ pub fn render_compact_source_artifact_modules(
         let module_name = format!("{module_namespace}Leaf{leaf_module}");
         let mut leaf_out = String::new();
         leaf_out.push_str(&format!("import {wire_namespace}\n"));
+        leaf_out.push_str("import Nightstream.Assurance.ChunkLeaves\n");
         if let Some(committed) = committed_equality {
             leaf_out.push_str(&format!("import {}\n", committed.namespace));
         }
@@ -652,21 +655,39 @@ pub fn render_compact_source_artifact_modules(
         for chunk in first..last {
             let start = chunk * chunk_rows;
             let length = (arm.n - start).min(chunk_rows);
-            leaf_out.push_str(&format!(
-                "theorem chunkLeaf{chunk} :\n    ((rowsChunk wire {chunk}).map (fun row => row.sourceIndex) =\n        List.range' {start} {length}) ∧\n      ((rowsChunk wire {chunk}).all (rowWellFormedAt {} {}) = true) ∧\n      ((rowsChunk wire {chunk}).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true)",
+            let present = present_by_chunk
+                .get(&chunk)
+                .map(|names| {
+                    names
+                        .iter()
+                        .map(|name| lean_string_literal(name))
+                        .collect::<Vec<_>>()
+                        .join(",\n       ")
+                })
+                .unwrap_or_default();
+            let facts = format!(
+                "chunkFacts (rowsChunk wire {chunk}) {start} {length} {} {}\n      wire.completeFamilies\n      [{present}] = true",
                 arm.n, arm.m
-            ));
+            );
             if let Some(committed) = committed_equality {
                 leaf_out.push_str(&format!(
-                    " ∧\n      (rowsChunk wire {chunk} = {}.{}{chunk})",
+                    "theorem chunkLeaf{chunk} :\n    ({facts}) ∧\n      (rowsChunk wire {chunk} = {}.{}{chunk}) := by\n  native_decide\n\n",
                     committed.namespace, committed.chunk_prefix
                 ));
+            } else {
+                leaf_out.push_str(&format!(
+                    "theorem chunkLeaf{chunk} :\n    {facts} := by\n  native_decide\n\n"
+                ));
             }
-            leaf_out.push_str(" := by\n  native_decide\n\n");
         }
         for (family_index, chunk, name) in &presence_by_module[leaf_module] {
+            let facts_ref = if committed_equality.is_some() {
+                format!("(chunkLeaf{chunk}).1")
+            } else {
+                format!("chunkLeaf{chunk}")
+            };
             leaf_out.push_str(&format!(
-                "theorem presence{family_index} :\n    (rowsChunk wire {chunk}).any\n      (fun row => decide (row.family = {})) = true := by\n  native_decide\n\n",
+                "theorem presence{family_index} :\n    (rowsChunk wire {chunk}).any\n      (fun row => decide (row.family = {})) = true :=\n  presence_of_chunkFacts {facts_ref} (by decide)\n\n",
                 lean_string_literal(name)
             ));
         }
@@ -680,9 +701,10 @@ pub fn render_compact_source_artifact_modules(
     // ── Assembly: dispatchers, small scalar facts, structural theorems ──
     let census_path = ".1";
     let wf_path = ".2.1";
-    let family_path = if committed_equality.is_some() { ".2.2.1" } else { ".2.2" };
+    let family_path = ".2.2.1";
     let mut out = String::new();
     out.push_str(&format!("import {wire_namespace}\n"));
+    out.push_str("import Nightstream.Assurance.ChunkLeaves\n");
     for leaf_module in 0..leaf_module_count {
         out.push_str(&format!("import {module_namespace}Leaf{leaf_module}\n"));
     }
@@ -699,7 +721,13 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("set_option maxRecDepth 65536\n\n");
     out.push_str(&format!("export {wire_namespace} (families wire sourceArtifact reviewedPlan reviewedPlan_subset chunkRows_eq totalRows_eq chunkCount_eq)\n\n"));
 
-    let leaf_ref = |chunk: usize| format!("{module_namespace}Leaf{}.chunkLeaf{chunk}", leaf_module_of(chunk));
+    let base_projection = if committed_equality.is_some() { ".1" } else { "" };
+    let leaf_ref = |chunk: usize| {
+        format!(
+            "chunkFacts_split ({module_namespace}Leaf{}.chunkLeaf{chunk}{base_projection})",
+            leaf_module_of(chunk)
+        )
+    };
     let mut census_dispatch = String::new();
     let mut wf_dispatch = String::new();
     let mut family_dispatch = String::new();
@@ -879,6 +907,7 @@ pub fn render_classification_leaves_modules(
         let mut out = String::new();
         out.push_str(&format!("import {wire_namespace}\n"));
         out.push_str(&format!("import {assignment_namespace}\n"));
+        out.push_str("import Nightstream.Assurance.ChunkLeaves\n");
         out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\nShared classification leaves for one slice of the artifact.\n-/\n\n");
         out.push_str(&format!("namespace {module_name}\n\n"));
         out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
@@ -886,13 +915,10 @@ pub fn render_classification_leaves_modules(
         out.push_str(&format!("open {wire_namespace}\n\n"));
         out.push_str("set_option maxHeartbeats 2000000\n");
         out.push_str("set_option maxRecDepth 65536\n\n");
-        out.push_str(&format!(
-            "def background : Nat → Field := backgroundFn {assignment_namespace}.values\n\n"
-        ));
         out.push_str(&format!("def overridePairs : List (Nat × String) :=\n  {pairs_literal}\n\n"));
         for chunk in first..last {
             out.push_str(&format!(
-                "theorem classLeaf{chunk} :\n    ((rowsChunk wire {chunk}).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true) ∧\n      (chunkGuardsOverrides overridePairs (rowsChunk wire {chunk}) = true) := by\n  native_decide\n\n"
+                "theorem classLeaf{chunk} :\n    classFacts {assignment_namespace}.values overridePairs\n      (rowsChunk wire {chunk}) = true := by\n  native_decide\n\n"
             ));
         }
         out.push_str(&format!("end {module_name}\n"));
@@ -905,6 +931,7 @@ pub fn render_classification_leaves_modules(
     let mut out = String::new();
     out.push_str(&format!("import {wire_namespace}\n"));
     out.push_str(&format!("import {assignment_namespace}\n"));
+    out.push_str("import Nightstream.Assurance.ChunkLeaves\n");
     for leaf_module in 0..leaf_module_count {
         out.push_str(&format!("import {module_namespace}Leaf{leaf_module}\n"));
     }
@@ -921,7 +948,7 @@ pub fn render_classification_leaves_modules(
     for chunk in 0..chunk_count {
         let leaf_module = leaf_module_map[chunk];
         out.push_str(&format!(
-            "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).1\n"
+            "  | {chunk}, _ => exact (classFacts_split {module_namespace}Leaf{leaf_module}.classLeaf{chunk}).1\n"
         ));
     }
     out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
@@ -929,7 +956,7 @@ pub fn render_classification_leaves_modules(
     for chunk in 0..chunk_count {
         let leaf_module = leaf_module_map[chunk];
         out.push_str(&format!(
-            "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).2\n"
+            "  | {chunk}, _ => exact (classFacts_split {module_namespace}Leaf{leaf_module}.classLeaf{chunk}).2\n"
         ));
     }
     out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));

@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactWire
+import Nightstream.Assurance.ChunkLeaves
 
 /-!
 GENERATED FILE - do not edit by hand.
@@ -16,51 +17,56 @@ set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
 theorem chunkLeaf106 :
-    ((rowsChunk wire 106).map (fun row => row.sourceIndex) =
-        List.range' 6946816 65536) ∧
-      ((rowsChunk wire 106).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 106).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
+    chunkFacts (rowsChunk wire 106) 6946816 65536 11187825 11078210
+      wire.completeFamilies
+      ["nifs.pi_rlc.shape.allocate_parent_and_children",
+       "nifs.pi_rlc.shape.output_parity",
+       "nifs.pi_rlc.shape.parent",
+       "nifs.pi_rlc.verify.consistency.fold_digest",
+       "nifs.pi_rlc.verify.projection_binding.combined.adv",
+       "nifs.pi_rlc.verify.projection_binding.combined.commitment",
+       "nifs.pi_rlc.verify.projection_binding.domain",
+       "nifs.pi_rlc.verify.projection_binding.quotient.commitment"] = true := by
   native_decide
 
 theorem presence38 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.allocate_parent_and_children")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.shape.allocate_parent_and_children")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence39 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.output_parity")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.shape.output_parity")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence40 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.parent")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.shape.parent")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence41 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.consistency.fold_digest")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.verify.consistency.fold_digest")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence67 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.adv")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.adv")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence68 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.commitment")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.commitment")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence71 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.domain")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.domain")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 theorem presence73 :
     (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.commitment")) = true := by
-  native_decide
+      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.commitment")) = true :=
+  presence_of_chunkFacts chunkLeaf106 (by decide)
 
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf18

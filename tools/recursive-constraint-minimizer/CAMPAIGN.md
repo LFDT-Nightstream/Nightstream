@@ -242,6 +242,22 @@ leaves and all aggregation structural:
 
 ## Iteration log
 
+- 2026-08-17 iteration 17 (cost-aware packing + y_ring rebuild): the
+  first 14-chunk leaf slice breached the 25-minute cap (Leaf0/Leaf1
+  killed at 25:03) while block-free modules built in 50 s; payload
+  mass is flat (~2.8 MB/chunk), so the cost driver is seeded-block
+  expansion, concentrated in the 16 chunks whose windows intersect the
+  36 Phi81 blocks {0,1,2,7,8,17,57,102,106,107,108,125,129,130,169,
+  170}. `pack_leaf_groups` now isolates each of those into its own
+  leaf module (recursive: 32 leaf modules total); the classification
+  and redundancy renderers share the rule through
+  `seeded_block_chunks`. The y_ring emitter was rebuilt around
+  `ChunkedRedundancy` (Parts + Leaf + assembly instantiating
+  `familyCertificate_valid_of_chunk_parts`); the broken monolith is
+  retired. All compact_source gates re-promoted green. Base arm
+  carries no seeded blocks (its emission was byte-stable under the
+  new packing).
+
 - 2026-08-16 iteration 16 (leaf-split proof architecture): the single
   v3 assembly module ran ~600 native_decide leaves at ~41 s native
   compile each (6.9 CPU-hours, a 25-minute-cap violation), so the run

@@ -8,7 +8,7 @@ repository root unless stated.
 |---|---|---|---|
 | 1 | cvc5 with finite-field support; three gate tests pass un-ignored | **met** (refutation failed, 2026-08-15 iter 1; re-verified on Linux, iter 13) | cvc5 1.3.4 (Homebrew, cocoa: yes). Gates green live and un-ignored (commit 869f94e98: exactly three `#[ignore]` lines removed, nothing weakened). Independent verifier reran the suite: 38 passed, 0 failed; the three gates execute real solver runs with hard outcome asserts. Linux re-verification (iter 13): official `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary in `~/.local/bin` (cocoa: yes); both nebula gates green (y_ring Unsat in 1,073 ms; refinement control Inconclusive with pending row 8,665) and the terminal gate green (pending row 56,700, matches README). |
 | 2 | Production profile frozen with pinned digests | **amended to v2 (k_rho=12), re-freeze executing** | User decision 2026-08-15: option (a), campaign profile v1 on the minimal shape; re-run classification when the production regime lands. `PROFILE.md` pins source digests, final-plan digest, terminal digests, and geometry for both arms and the terminal relation; non-ignored drift gate `campaign_profile_v1_digests_are_frozen` (13 s) re-derives all pins from fresh audits. Measured: source digests are plan-seed-independent (0xDA vs 0xD9); the final plan digest binds to the 0xDA mirror shape; all pins byte-match the committed Lean mirrors. Rejected regimes stay recorded: λ=125 fails the extension-policy census (114 bits available); λ=114 audit construction alone ran >2 h 06 m. |
-| 3 | Seeded-Phi81 sampler equivalence proved | in-progress: both legs green, awaiting refutation pass | Three production-class conformance fixtures committed (`SeededPhi81ConformanceArtifact.lean`: width-41 uneven multi-chunk, kappa-2, one-rejection seed 0xC3/counter 79,842,272) with a neo-fold-clean drift gate; `tests/SeededPhi81Conformance.lean` native_decides the Lean sampler against them and builds green (46 s, 2026-08-17). The bridge mirror (`lean_sampler_mirror.rs`) transcribes the Lean cursor rules over rand_chacha, matches all fixture classes, and matches every one of the frozen profile's 36 production seeded blocks term-for-term (10.9 s; zero replacement draws in production). |
+| 3 | Seeded-Phi81 sampler equivalence proved | **met** (refutation failed, 2026-08-18) | Three production-class conformance fixtures committed (`SeededPhi81ConformanceArtifact.lean`: width-41 uneven multi-chunk, kappa-2, one-rejection seed 0xC3/counter 79,842,272) with a neo-fold-clean drift gate; `tests/SeededPhi81Conformance.lean` native_decides the Lean sampler against them and builds green (46 s, 2026-08-17). The bridge mirror (`lean_sampler_mirror.rs`) transcribes the Lean cursor rules over rand_chacha, matches all fixture classes, and matches every one of the frozen profile's 36 production seeded blocks term-for-term (10.9 s; zero replacement draws in production). |
 | 4 | Checked bootstrap-recursive assignment committed | unblocked: v2 amendment executing; overnight capture next | Defect NAMED (2026-08-15, 6,142 s full-capture rerun): the second `append_segment_with_constraint_witness_audit` fails the paper's Definition-14 RLC guard — `ΠRLC norm bound violated: count·T·(b-1) = 3·216·1 = 648 must be < b^{k_rho} = 4`; minimum k_rho for count=3 is 10. This is not a code bug: campaign profile v1 (k_rho=2) cannot execute ANY fold, so no honest recursive assignment exists for the frozen shape. The freeze must move to a foldable shape (k_rho >= 10; paper B.2 uses 14) — a bar-2 amendment the user must decide. A k_rho=10 probe (arm sizes, digests, then a 2-segment capture attempt) is running to de-risk that decision. The persisting capture test is ready for the amended profile. |
 | 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive authority artifact now fully Lean-certified (2026-08-17); census awaits bar 4 | The complete recursive source relation is now a committed Lean authority artifact: string-payload CSR + 527-value table + 36 compact seeded blocks (197 MB payloads, emitted with a full 4.5 M-row replay against the independent recovery, 33 s). Artifact-level `*_of_full_valid` theorems added; the census runner (`recursive_census.rs`) will emit one compact necessity module per family from the shared assignment plus one column override. Base pilot flows end to end (BaseCompactSourceArtifact + BaseCampaignAssignment + BaseCompactStepInitialNecessity), pinned to the committed literal artifact by native_decide equality. y_ring stays the redundancy leg via its scalar certificate. |
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
@@ -395,6 +395,25 @@ Proposed protocol change (smallest surgical form):
    the user asked for ride on bar 5's census outcomes, not on y_ring.
 
 Execution starts only on the user's explicit approval of this section.
+
+## Bar-3 refutation record (2026-08-18)
+
+A fresh no-context adversarial agent failed to refute the sampler
+equivalence claim. Its checks included an independent Python ChaCha8
+recomputation of every fixture class (validated against the RFC test
+vector), confirmation that the rejection fixture rejects exactly one
+word and pins the tail-replacement cursor rule discriminatively, live
+negative controls (perturbing the committed artifact fails both the
+Rust drift gate and the Lean native_decide), and fresh green runs of
+all four gates. Residual weaknesses recorded, none refuting:
+(1) no committed fixture exercises multiple rejections per draw, a
+mid-chunk rejection with more message columns, or a rejected
+replacement (the last is fail-closed at fuel 4 versus production's
+unbounded loop, divergent only at ~2^-128 and loudly);
+(2) fixture constants are duplicated between the conformance emitter
+and the mirror test rather than shared;
+(3) the Lean leg rests on native_decide/ofReduceBool and pointwise
+stream equality, as its module header already states.
 
 ## Iteration log
 

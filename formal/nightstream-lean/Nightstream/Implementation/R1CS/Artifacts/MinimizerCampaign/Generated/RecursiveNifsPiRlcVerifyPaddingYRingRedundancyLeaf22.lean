@@ -16,22 +16,16 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf123 :
-    ((rowsChunk wire 123).filter
+theorem candLeaf123 :
+    (rowsChunk wire 123).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 123).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 123).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 123).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf124 :
-    ((rowsChunk wire 124).filter
+theorem candLeaf124 :
+    (rowsChunk wire 124).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 124).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 124).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 124).map (fun scalar => scalar.candidate) := by
   native_decide
 
 theorem candGroup :
@@ -42,25 +36,31 @@ theorem candGroup :
   intro k lower upper
   by_cases is123 : k = 123
   · subst is123
-    exact (chunkLeaf123).1
+    exact candLeaf123
   by_cases is124 : k = 124
   · subst is124
-    exact (chunkLeaf124).1
+    exact candLeaf124
   exact absurd upper (by omega)
 
 
-theorem scalarGroup :
-    ∀ k, 123 ≤ k → k < 125 →
-      (certParts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true := by
+theorem scalarsGroup :
+    ∀ k, 123 ≤ k → k < 125 → ∀ scalar ∈ certParts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ certPlan ∧
+              support.source.family ≠ certFamily := by
   intro k lower upper
   by_cases is123 : k = 123
   · subst is123
-    exact (chunkLeaf123).2
+    intro scalar member
+    rw [show certParts 123 = [] from rfl] at member
+    cases member
   by_cases is124 : k = 124
   · subst is124
-    exact (chunkLeaf124).2
+    intro scalar member
+    rw [show certParts 124 = [] from rfl] at member
+    cases member
   exact absurd upper (by omega)
 
 

@@ -16,94 +16,64 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf159 :
-    ((rowsChunk wire 159).filter
+theorem candLeaf159 :
+    (rowsChunk wire 159).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 159).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 159).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 159).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf160 :
-    ((rowsChunk wire 160).filter
+theorem candLeaf160 :
+    (rowsChunk wire 160).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 160).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 160).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 160).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf161 :
-    ((rowsChunk wire 161).filter
+theorem candLeaf161 :
+    (rowsChunk wire 161).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 161).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 161).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 161).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf162 :
-    ((rowsChunk wire 162).filter
+theorem candLeaf162 :
+    (rowsChunk wire 162).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 162).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 162).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 162).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf163 :
-    ((rowsChunk wire 163).filter
+theorem candLeaf163 :
+    (rowsChunk wire 163).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 163).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 163).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 163).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf164 :
-    ((rowsChunk wire 164).filter
+theorem candLeaf164 :
+    (rowsChunk wire 164).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 164).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 164).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 164).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf165 :
-    ((rowsChunk wire 165).filter
+theorem candLeaf165 :
+    (rowsChunk wire 165).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 165).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 165).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 165).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf166 :
-    ((rowsChunk wire 166).filter
+theorem candLeaf166 :
+    (rowsChunk wire 166).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 166).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 166).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 166).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf167 :
-    ((rowsChunk wire 167).filter
+theorem candLeaf167 :
+    (rowsChunk wire 167).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 167).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 167).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 167).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf168 :
-    ((rowsChunk wire 168).filter
+theorem candLeaf168 :
+    (rowsChunk wire 168).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 168).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 168).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 168).map (fun scalar => scalar.candidate) := by
   native_decide
 
 theorem candGroup :
@@ -114,73 +84,95 @@ theorem candGroup :
   intro k lower upper
   by_cases is159 : k = 159
   · subst is159
-    exact (chunkLeaf159).1
+    exact candLeaf159
   by_cases is160 : k = 160
   · subst is160
-    exact (chunkLeaf160).1
+    exact candLeaf160
   by_cases is161 : k = 161
   · subst is161
-    exact (chunkLeaf161).1
+    exact candLeaf161
   by_cases is162 : k = 162
   · subst is162
-    exact (chunkLeaf162).1
+    exact candLeaf162
   by_cases is163 : k = 163
   · subst is163
-    exact (chunkLeaf163).1
+    exact candLeaf163
   by_cases is164 : k = 164
   · subst is164
-    exact (chunkLeaf164).1
+    exact candLeaf164
   by_cases is165 : k = 165
   · subst is165
-    exact (chunkLeaf165).1
+    exact candLeaf165
   by_cases is166 : k = 166
   · subst is166
-    exact (chunkLeaf166).1
+    exact candLeaf166
   by_cases is167 : k = 167
   · subst is167
-    exact (chunkLeaf167).1
+    exact candLeaf167
   by_cases is168 : k = 168
   · subst is168
-    exact (chunkLeaf168).1
+    exact candLeaf168
   exact absurd upper (by omega)
 
 
-theorem scalarGroup :
-    ∀ k, 159 ≤ k → k < 169 →
-      (certParts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true := by
+theorem scalarsGroup :
+    ∀ k, 159 ≤ k → k < 169 → ∀ scalar ∈ certParts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ certPlan ∧
+              support.source.family ≠ certFamily := by
   intro k lower upper
   by_cases is159 : k = 159
   · subst is159
-    exact (chunkLeaf159).2
+    intro scalar member
+    rw [show certParts 159 = [] from rfl] at member
+    cases member
   by_cases is160 : k = 160
   · subst is160
-    exact (chunkLeaf160).2
+    intro scalar member
+    rw [show certParts 160 = [] from rfl] at member
+    cases member
   by_cases is161 : k = 161
   · subst is161
-    exact (chunkLeaf161).2
+    intro scalar member
+    rw [show certParts 161 = [] from rfl] at member
+    cases member
   by_cases is162 : k = 162
   · subst is162
-    exact (chunkLeaf162).2
+    intro scalar member
+    rw [show certParts 162 = [] from rfl] at member
+    cases member
   by_cases is163 : k = 163
   · subst is163
-    exact (chunkLeaf163).2
+    intro scalar member
+    rw [show certParts 163 = [] from rfl] at member
+    cases member
   by_cases is164 : k = 164
   · subst is164
-    exact (chunkLeaf164).2
+    intro scalar member
+    rw [show certParts 164 = [] from rfl] at member
+    cases member
   by_cases is165 : k = 165
   · subst is165
-    exact (chunkLeaf165).2
+    intro scalar member
+    rw [show certParts 165 = [] from rfl] at member
+    cases member
   by_cases is166 : k = 166
   · subst is166
-    exact (chunkLeaf166).2
+    intro scalar member
+    rw [show certParts 166 = [] from rfl] at member
+    cases member
   by_cases is167 : k = 167
   · subst is167
-    exact (chunkLeaf167).2
+    intro scalar member
+    rw [show certParts 167 = [] from rfl] at member
+    cases member
   by_cases is168 : k = 168
   · subst is168
-    exact (chunkLeaf168).2
+    intro scalar member
+    rw [show certParts 168 = [] from rfl] at member
+    cases member
   exact absurd upper (by omega)
 
 

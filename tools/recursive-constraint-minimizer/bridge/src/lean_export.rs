@@ -461,7 +461,22 @@ pub fn render_compact_redundancy_modules(
         content: parts_content,
     });
 
-    // ── Leaf modules: one bounded conjunction proof per chunk ──────────
+    // ── Leaf modules: one bounded proof per fact class per chunk ───────
+    // Support membership is checked once per support home chunk with the
+    // expansion hoisted (supportsCovered); per-support chunk expansion
+    // cost thousands of seeded-chunk expansions in one proof.
+    let mut homes_by_chunk: std::collections::BTreeMap<usize, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (chunk, rows) in &parts {
+        let mut homes: Vec<usize> = rows
+            .iter()
+            .flat_map(|row_certificate| row_certificate.support.iter())
+            .map(|support| support.source_index / chunk_rows)
+            .collect();
+        homes.sort_unstable();
+        homes.dedup();
+        homes_by_chunk.insert(*chunk, homes);
+    }
     let (leaf_groups, _) =
         super::compact_source_export::pack_leaf_groups_public(chunk_count, heavy_chunks);
     let leaf_module_count = leaf_groups.len();
@@ -482,31 +497,77 @@ pub fn render_compact_redundancy_modules(
         for chunk in first..last {
             writeln!(
                 out,
-                "theorem chunkLeaf{chunk} :\n    ((rowsChunk wire {chunk}).filter\n        (fun row => decide (row.family = certFamily)) =\n      (certParts {chunk}).map (fun scalar => scalar.candidate)) ∧\n      ((certParts {chunk}).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by\n  native_decide\n"
+                "theorem candLeaf{chunk} :\n    (rowsChunk wire {chunk}).filter\n        (fun row => decide (row.family = certFamily)) =\n      (certParts {chunk}).map (fun scalar => scalar.candidate) := by\n  native_decide\n"
             )
             .unwrap();
-        }
-        let group_body = |path: &str| {
-            let mut body = String::new();
-            body.push_str("  intro k lower upper\n");
-            for &chunk in group {
-                body.push_str(&format!(
-                    "  by_cases is{chunk} : k = {chunk}\n  · subst is{chunk}\n    exact (chunkLeaf{chunk}){path}\n"
-                ));
+            if let Some(homes) = homes_by_chunk.get(&chunk) {
+                for home in homes {
+                    writeln!(
+                        out,
+                        "theorem coveredLeaf{chunk}x{home} :\n    supportsCovered wire {home} (certParts {chunk}) = true := by\n  native_decide\n"
+                    )
+                    .unwrap();
+                }
+                let homes_literal = homes
+                    .iter()
+                    .map(|home| home.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    out,
+                    "theorem homesLeaf{chunk} :\n    (leafSupports (certParts {chunk})).all (fun source =>\n      decide (source.sourceIndex / wire.chunkRows ∈ [{homes_literal}])) = true := by\n  native_decide\n"
+                )
+                .unwrap();
+                writeln!(
+                    out,
+                    "theorem shapeLeaf{chunk} :\n    scalarShapeOk certPlan certFamily (certParts {chunk}) = true := by\n  native_decide\n"
+                )
+                .unwrap();
             }
-            body.push_str("  exact absurd upper (by omega)\n\n");
-            body
-        };
+        }
+        let mut cand_body = String::new();
+        cand_body.push_str("  intro k lower upper\n");
+        for &chunk in group {
+            cand_body.push_str(&format!(
+                "  by_cases is{chunk} : k = {chunk}\n  · subst is{chunk}\n    exact candLeaf{chunk}\n"
+            ));
+        }
+        cand_body.push_str("  exact absurd upper (by omega)\n\n");
         writeln!(
             out,
-            "theorem candGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = certFamily)) =\n        (certParts k).map (fun scalar => scalar.candidate) := by\n{}",
-            group_body(".1")
+            "theorem candGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = certFamily)) =\n        (certParts k).map (fun scalar => scalar.candidate) := by\n{cand_body}"
         )
         .unwrap();
+        let mut scalars_body = String::new();
+        scalars_body.push_str("  intro k lower upper\n");
+        for &chunk in group {
+            scalars_body.push_str(&format!("  by_cases is{chunk} : k = {chunk}\n"));
+            if let Some(homes) = homes_by_chunk.get(&chunk) {
+                let homes_literal = homes
+                    .iter()
+                    .map(|home| home.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let rcases_pattern = vec!["rfl"; homes.len()].join(" | ");
+                let mut covered_arms = String::new();
+                for home in homes {
+                    covered_arms.push_str(&format!(
+                        "        · exact coveredLeaf{chunk}x{home}\n"
+                    ));
+                }
+                scalars_body.push_str(&format!(
+                    "  · subst is{chunk}\n    exact scalar_facts_of_leaf_checks wire certPlan certFamily\n      (certParts {chunk}) [{homes_literal}]\n      (by\n        intro chunk member\n        simp only [List.mem_cons, List.not_mem_nil, or_false] at member\n        rcases member with {rcases_pattern}\n{covered_arms}      )\n      homesLeaf{chunk} shapeLeaf{chunk}\n"
+                ));
+            } else {
+                scalars_body.push_str(&format!(
+                    "  · subst is{chunk}\n    intro scalar member\n    rw [show certParts {chunk} = [] from rfl] at member\n    cases member\n"
+                ));
+            }
+        }
+        scalars_body.push_str("  exact absurd upper (by omega)\n\n");
         writeln!(
             out,
-            "theorem scalarGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (certParts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all (supportOk wire certPlan certFamily)) = true := by\n{}",
-            group_body(".2")
+            "theorem scalarsGroup :\n    ∀ k, {first} ≤ k → k < {last} → ∀ scalar ∈ certParts k,\n      scalar.Valid ∧\n        ∀ support ∈ scalar.support,\n          support.source ∈ artifactRows wire ∧\n            support.source.family ∈ certPlan ∧\n              support.source.family ≠ certFamily := by\n{scalars_body}"
         )
         .unwrap();
         writeln!(out, "end {module_name}").unwrap();
@@ -554,8 +615,8 @@ pub fn render_compact_redundancy_modules(
     .unwrap();
     writeln!(
         out,
-        "theorem scalarAll :\n    ∀ k, k < wire.chunkCount →\n      (parts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all\n            (supportOk wire {parts_namespace}.certPlan\n              {parts_namespace}.certFamily)) = true := by\n{}",
-        chain("scalarGroup")
+        "theorem scalarsAll :\n    ∀ k, k < wire.chunkCount → ∀ scalar ∈ parts k,\n      scalar.Valid ∧\n        ∀ support ∈ scalar.support,\n          support.source ∈ artifactRows wire ∧\n            support.source.family ∈ {parts_namespace}.certPlan ∧\n              support.source.family ≠ {parts_namespace}.certFamily := by\n{}",
+        chain("scalarsGroup")
     )
     .unwrap();
     writeln!(
@@ -570,7 +631,7 @@ pub fn render_compact_redundancy_modules(
     .unwrap();
     writeln!(
         out,
-        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact {parts_namespace}.certPlan :=\n  familyCertificate_valid_of_chunk_parts wire\n    {parts_namespace}.certPlan {parts_namespace}.certFamily\n    parts memberFam candAll scalarAll\n"
+        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact {parts_namespace}.certPlan :=\n  familyCertificate_valid_of_scalar_facts wire\n    {parts_namespace}.certPlan {parts_namespace}.certFamily\n    parts memberFam candAll scalarsAll\n"
     )
     .unwrap();
     writeln!(

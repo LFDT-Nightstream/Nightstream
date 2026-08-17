@@ -16,13 +16,10 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf169 :
-    ((rowsChunk wire 169).filter
+theorem candLeaf169 :
+    (rowsChunk wire 169).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 169).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 169).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 169).map (fun scalar => scalar.candidate) := by
   native_decide
 
 theorem candGroup :
@@ -33,19 +30,23 @@ theorem candGroup :
   intro k lower upper
   by_cases is169 : k = 169
   · subst is169
-    exact (chunkLeaf169).1
+    exact candLeaf169
   exact absurd upper (by omega)
 
 
-theorem scalarGroup :
-    ∀ k, 169 ≤ k → k < 170 →
-      (certParts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true := by
+theorem scalarsGroup :
+    ∀ k, 169 ≤ k → k < 170 → ∀ scalar ∈ certParts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ certPlan ∧
+              support.source.family ≠ certFamily := by
   intro k lower upper
   by_cases is169 : k = 169
   · subst is169
-    exact (chunkLeaf169).2
+    intro scalar member
+    rw [show certParts 169 = [] from rfl] at member
+    cases member
   exact absurd upper (by omega)
 
 

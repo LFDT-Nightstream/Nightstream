@@ -127,79 +127,79 @@ theorem candAll :
   · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf31.candGroup k (by omega) group31
   exact absurd bound (by omega)
 
-theorem scalarAll :
-    ∀ k, k < wire.chunkCount →
-      (parts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all
-            (supportOk wire Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certPlan
-              Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certFamily)) = true := by
+theorem scalarsAll :
+    ∀ k, k < wire.chunkCount → ∀ scalar ∈ parts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certPlan ∧
+              support.source.family ≠ Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certFamily := by
   intro k bound
   rw [chunkCount_eq] at bound
   by_cases group0 : k < 1
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf0.scalarGroup k (by omega) group0
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf0.scalarsGroup k (by omega) group0
   by_cases group1 : k < 2
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf1.scalarGroup k (by omega) group1
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf1.scalarsGroup k (by omega) group1
   by_cases group2 : k < 3
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf2.scalarGroup k (by omega) group2
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf2.scalarsGroup k (by omega) group2
   by_cases group3 : k < 7
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf3.scalarGroup k (by omega) group3
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf3.scalarsGroup k (by omega) group3
   by_cases group4 : k < 8
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf4.scalarGroup k (by omega) group4
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf4.scalarsGroup k (by omega) group4
   by_cases group5 : k < 9
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf5.scalarGroup k (by omega) group5
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf5.scalarsGroup k (by omega) group5
   by_cases group6 : k < 17
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf6.scalarGroup k (by omega) group6
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf6.scalarsGroup k (by omega) group6
   by_cases group7 : k < 18
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf7.scalarGroup k (by omega) group7
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf7.scalarsGroup k (by omega) group7
   by_cases group8 : k < 32
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf8.scalarGroup k (by omega) group8
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf8.scalarsGroup k (by omega) group8
   by_cases group9 : k < 46
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf9.scalarGroup k (by omega) group9
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf9.scalarsGroup k (by omega) group9
   by_cases group10 : k < 57
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf10.scalarGroup k (by omega) group10
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf10.scalarsGroup k (by omega) group10
   by_cases group11 : k < 58
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf11.scalarGroup k (by omega) group11
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf11.scalarsGroup k (by omega) group11
   by_cases group12 : k < 72
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf12.scalarGroup k (by omega) group12
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf12.scalarsGroup k (by omega) group12
   by_cases group13 : k < 86
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf13.scalarGroup k (by omega) group13
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf13.scalarsGroup k (by omega) group13
   by_cases group14 : k < 100
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf14.scalarGroup k (by omega) group14
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf14.scalarsGroup k (by omega) group14
   by_cases group15 : k < 102
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf15.scalarGroup k (by omega) group15
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf15.scalarsGroup k (by omega) group15
   by_cases group16 : k < 103
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf16.scalarGroup k (by omega) group16
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf16.scalarsGroup k (by omega) group16
   by_cases group17 : k < 106
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf17.scalarGroup k (by omega) group17
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf17.scalarsGroup k (by omega) group17
   by_cases group18 : k < 107
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf18.scalarGroup k (by omega) group18
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf18.scalarsGroup k (by omega) group18
   by_cases group19 : k < 108
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf19.scalarGroup k (by omega) group19
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf19.scalarsGroup k (by omega) group19
   by_cases group20 : k < 109
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf20.scalarGroup k (by omega) group20
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf20.scalarsGroup k (by omega) group20
   by_cases group21 : k < 123
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf21.scalarGroup k (by omega) group21
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf21.scalarsGroup k (by omega) group21
   by_cases group22 : k < 125
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf22.scalarGroup k (by omega) group22
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf22.scalarsGroup k (by omega) group22
   by_cases group23 : k < 126
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf23.scalarGroup k (by omega) group23
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf23.scalarsGroup k (by omega) group23
   by_cases group24 : k < 129
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf24.scalarGroup k (by omega) group24
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf24.scalarsGroup k (by omega) group24
   by_cases group25 : k < 130
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf25.scalarGroup k (by omega) group25
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf25.scalarsGroup k (by omega) group25
   by_cases group26 : k < 131
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf26.scalarGroup k (by omega) group26
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf26.scalarsGroup k (by omega) group26
   by_cases group27 : k < 145
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf27.scalarGroup k (by omega) group27
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf27.scalarsGroup k (by omega) group27
   by_cases group28 : k < 159
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf28.scalarGroup k (by omega) group28
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf28.scalarsGroup k (by omega) group28
   by_cases group29 : k < 169
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf29.scalarGroup k (by omega) group29
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf29.scalarsGroup k (by omega) group29
   by_cases group30 : k < 170
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf30.scalarGroup k (by omega) group30
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf30.scalarsGroup k (by omega) group30
   by_cases group31 : k < 171
-  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf31.scalarGroup k (by omega) group31
+  · exact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyLeaf31.scalarsGroup k (by omega) group31
   exact absurd bound (by omega)
 
 theorem memberFam :
@@ -212,9 +212,9 @@ def familyCertificate : FamilyCertificate :=
 
 theorem familyCertificate_valid :
     familyCertificate.Valid sourceArtifact Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certPlan :=
-  familyCertificate_valid_of_chunk_parts wire
+  familyCertificate_valid_of_scalar_facts wire
     Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certPlan Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveNifsPiRlcVerifyPaddingYRingRedundancyParts.certFamily
-    parts memberFam candAll scalarAll
+    parts memberFam candAll scalarsAll
 
 theorem redundant :
     Redundant (FamilyHolds sourceArtifact)

@@ -16,31 +16,22 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf103 :
-    ((rowsChunk wire 103).filter
+theorem candLeaf103 :
+    (rowsChunk wire 103).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 103).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 103).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 103).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf104 :
-    ((rowsChunk wire 104).filter
+theorem candLeaf104 :
+    (rowsChunk wire 104).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 104).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 104).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 104).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf105 :
-    ((rowsChunk wire 105).filter
+theorem candLeaf105 :
+    (rowsChunk wire 105).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 105).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 105).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 105).map (fun scalar => scalar.candidate) := by
   native_decide
 
 theorem candGroup :
@@ -51,31 +42,39 @@ theorem candGroup :
   intro k lower upper
   by_cases is103 : k = 103
   · subst is103
-    exact (chunkLeaf103).1
+    exact candLeaf103
   by_cases is104 : k = 104
   · subst is104
-    exact (chunkLeaf104).1
+    exact candLeaf104
   by_cases is105 : k = 105
   · subst is105
-    exact (chunkLeaf105).1
+    exact candLeaf105
   exact absurd upper (by omega)
 
 
-theorem scalarGroup :
-    ∀ k, 103 ≤ k → k < 106 →
-      (certParts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true := by
+theorem scalarsGroup :
+    ∀ k, 103 ≤ k → k < 106 → ∀ scalar ∈ certParts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ certPlan ∧
+              support.source.family ≠ certFamily := by
   intro k lower upper
   by_cases is103 : k = 103
   · subst is103
-    exact (chunkLeaf103).2
+    intro scalar member
+    rw [show certParts 103 = [] from rfl] at member
+    cases member
   by_cases is104 : k = 104
   · subst is104
-    exact (chunkLeaf104).2
+    intro scalar member
+    rw [show certParts 104 = [] from rfl] at member
+    cases member
   by_cases is105 : k = 105
   · subst is105
-    exact (chunkLeaf105).2
+    intro scalar member
+    rw [show certParts 105 = [] from rfl] at member
+    cases member
   exact absurd upper (by omega)
 
 

@@ -16,31 +16,56 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf126 :
-    ((rowsChunk wire 126).filter
+theorem candLeaf126 :
+    (rowsChunk wire 126).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 126).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 126).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 126).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf127 :
-    ((rowsChunk wire 127).filter
+theorem candLeaf127 :
+    (rowsChunk wire 127).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 127).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 127).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 127).map (fun scalar => scalar.candidate) := by
   native_decide
 
-theorem chunkLeaf128 :
-    ((rowsChunk wire 128).filter
+theorem coveredLeaf127x0 :
+    supportsCovered wire 0 (certParts 127) = true := by
+  native_decide
+
+theorem coveredLeaf127x128 :
+    supportsCovered wire 128 (certParts 127) = true := by
+  native_decide
+
+theorem homesLeaf127 :
+    (leafSupports (certParts 127)).all (fun source =>
+      decide (source.sourceIndex / wire.chunkRows ∈ [0, 128])) = true := by
+  native_decide
+
+theorem shapeLeaf127 :
+    scalarShapeOk certPlan certFamily (certParts 127) = true := by
+  native_decide
+
+theorem candLeaf128 :
+    (rowsChunk wire 128).filter
         (fun row => decide (row.family = certFamily)) =
-      (certParts 128).map (fun scalar => scalar.candidate)) ∧
-      ((certParts 128).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by
+      (certParts 128).map (fun scalar => scalar.candidate) := by
+  native_decide
+
+theorem coveredLeaf128x0 :
+    supportsCovered wire 0 (certParts 128) = true := by
+  native_decide
+
+theorem coveredLeaf128x128 :
+    supportsCovered wire 128 (certParts 128) = true := by
+  native_decide
+
+theorem homesLeaf128 :
+    (leafSupports (certParts 128)).all (fun source =>
+      decide (source.sourceIndex / wire.chunkRows ∈ [0, 128])) = true := by
+  native_decide
+
+theorem shapeLeaf128 :
+    scalarShapeOk certPlan certFamily (certParts 128) = true := by
   native_decide
 
 theorem candGroup :
@@ -51,31 +76,53 @@ theorem candGroup :
   intro k lower upper
   by_cases is126 : k = 126
   · subst is126
-    exact (chunkLeaf126).1
+    exact candLeaf126
   by_cases is127 : k = 127
   · subst is127
-    exact (chunkLeaf127).1
+    exact candLeaf127
   by_cases is128 : k = 128
   · subst is128
-    exact (chunkLeaf128).1
+    exact candLeaf128
   exact absurd upper (by omega)
 
 
-theorem scalarGroup :
-    ∀ k, 126 ≤ k → k < 129 →
-      (certParts k).all (fun scalar =>
-        duplicateOk scalar &&
-          scalar.support.all (supportOk wire certPlan certFamily)) = true := by
+theorem scalarsGroup :
+    ∀ k, 126 ≤ k → k < 129 → ∀ scalar ∈ certParts k,
+      scalar.Valid ∧
+        ∀ support ∈ scalar.support,
+          support.source ∈ artifactRows wire ∧
+            support.source.family ∈ certPlan ∧
+              support.source.family ≠ certFamily := by
   intro k lower upper
   by_cases is126 : k = 126
   · subst is126
-    exact (chunkLeaf126).2
+    intro scalar member
+    rw [show certParts 126 = [] from rfl] at member
+    cases member
   by_cases is127 : k = 127
   · subst is127
-    exact (chunkLeaf127).2
+    exact scalar_facts_of_leaf_checks wire certPlan certFamily
+      (certParts 127) [0, 128]
+      (by
+        intro chunk member
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl
+        · exact coveredLeaf127x0
+        · exact coveredLeaf127x128
+      )
+      homesLeaf127 shapeLeaf127
   by_cases is128 : k = 128
   · subst is128
-    exact (chunkLeaf128).2
+    exact scalar_facts_of_leaf_checks wire certPlan certFamily
+      (certParts 128) [0, 128]
+      (by
+        intro chunk member
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl
+        · exact coveredLeaf128x0
+        · exact coveredLeaf128x128
+      )
+      homesLeaf128 shapeLeaf128
   exact absurd upper (by omega)
 
 

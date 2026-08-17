@@ -192,7 +192,65 @@ no family is internally self-redundant, and blind whole-family queries are
 exhausted. cvc5's remaining role is confirming Rust-proposed candidates with
 support context (the y_ring pattern). Evidence: target/campaign-evidence/.
 
+## Bar-8 y_ring decomposition design (queued core extension)
+
+The committed y_ring module still certifies `FamilyCertificate.Valid`
+with one whole-artifact native_decide, which the proof-architecture
+directive forbids. The replacement keeps all evaluation in bounded
+leaves and all aggregation structural:
+
+- Core extension (one batch, applied only after the census modules
+  build, because touching `CompactSourceArtifact.lean` or
+  `ConstraintMinimization.lean` invalidates every Generated olean):
+  1. `filter_artifactRows`: filtering chunked rows equals the flatMap
+     of per-chunk filters.
+  2. `mem_artifactRows_of_mem_chunk`: chunk membership lifts to
+     artifact membership.
+  3. `supportOk wire plan family sup : Bool` — one support's facts
+     (chunk-local membership at `sourceIndex / chunkRows`, plan
+     membership, family distinctness) plus
+     `support_facts_of_supportOk`.
+  4. `FamilyCertificate.valid_of_chunk_parts wire plan family parts`:
+     from per-chunk `candLeaf` equalities
+     (`(rowsChunk wire k).filter (family-pred) = (parts k).map
+     (·.candidate)`) and per-chunk `scalarLeaf` bools
+     (`decide scalar.Valid && supports.all supportOk`), conclude
+     `FamilyCertificate.Valid ⟨family, (List.range chunkCount).flatMap
+     parts⟩ (sourceArtifactOf wire) plan`.
+- Generated shape mirrors the artifact pipeline: cert-part data
+  modules, leaf modules (14 chunks each, one merged native_decide per
+  chunk), dispatchers via the validated `match k, bound` idiom, and a
+  light assembly instantiating `valid_of_chunk_parts`; `redundant` /
+  `normalizedRedundant` stay as they are.
+
 ## Iteration log
+
+- 2026-08-16 iteration 16 (leaf-split proof architecture): the single
+  v3 assembly module ran ~600 native_decide leaves at ~41 s native
+  compile each (6.9 CPU-hours, a 25-minute-cap violation), so the run
+  was killed and the emitters restructured: `{NS}Wire` (defs + rfl/decide
+  bridge lemmas `chunkRows_eq`/`totalRows_eq`/`chunkCount_eq`),
+  `{NS}Leaf{j}` modules (14 chunks each, one merged conjunction
+  native_decide per chunk), and a light assembly whose aggregate facts
+  are all structural. Pre-promotion review caught three latent defects
+  the killed build had never reached: (a) `chunkArithmeticFull` was an
+  unbounded forall with no Decidable instance — now a simp-only +
+  omega proof, as are the other three chunk-arithmetic premises;
+  (b) single-discriminant tactic `match` never generalized `bound`, so
+  every fallback arm was unprovable — now the two-discriminant
+  `match k, bound with` idiom after `rw [chunkCount_eq]`; (c) 82+
+  trivial bound proofs used native_decide (~41 s wire compile each,
+  ~1 h waste) — now `rw [chunkCount_eq]; decide`. Every tactic shape
+  was validated in a throwaway two-chunk toy wire against
+  CompactSourceArtifact before re-emission (compiled clean first try,
+  then deleted). Classification leaves got the same split
+  (`render_classification_leaves_modules`); necessity modules now use
+  kernel `decide` for scalar facts and keep native_decide only for
+  bounded row-data leaves (violated_mem, violation, pair_member). All
+  three compact_source gates are green; 43 modules promoted; the
+  recursive Wire built in 9.3 s (all 171 Data oleans reused); leaf
+  modules build in background slices of four (LEAN_NUM_THREADS=4,
+  each slice inside the 25-minute cap; ~2.6 GB per worker).
 
 - 2026-08-16 iteration 15 (the k_rho derivation and v2 re-freeze): the
   16-hour k_rho=10 probe was killed after the count law was settled by

@@ -361,6 +361,41 @@ All remaining failure classes were fixed under the user's
   optimized ran the fixed 8-round schedule, PaperExact 4 need-based
   rounds.
 
+## Bar-6 removal proposal: nifs.pi_rlc.verify.padding.y_ring (AWAITING SIGN-OFF)
+
+Lean authority in hand: `normalizedRedundant` in
+`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean` proves the
+family Redundant against the fully certified recursive artifact
+(3,920 rows, every one a coefficient-one duplicate of a
+`nifs.pi_ccs.padded_row.canonicality` or `nifs.pi_dec.verify` row).
+
+Proposed protocol change (smallest surgical form):
+1. `crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs:100`
+   stops calling `padding::enforce_y_ring`; the padding module and its
+   glue call are removed with it
+   (`paper/nifs/circuit/pi_rlc/padding.rs`, the
+   `ProjectionGlueRole::YRingPaddingZero` variant, and the
+   `PADDING_Y_RING` rows of the stage tables in
+   `pi_rlc_circuit/stage.rs`). The padded-lane zero facts remain
+   enforced by the retained duplicate rows, which is exactly what the
+   certificate proves.
+2. Regeneration set: both arm digests and geometry (PROFILE.md v3
+   amendment), the selective fixed point re-solve, the recursive
+   census (82 -> 81 families), all MinimizerCampaign Generated
+   artifacts, and the affected shared drift-gated artifacts.
+3. Reviewed-ledger updates with written log entries: the family
+   census, the stage table, and the obligation map row for the
+   removal; the 18 native guards are expected untouched (the removal
+   deletes zero-pin rows, not guards) and any guard change would stop
+   the work for a fresh ask.
+4. Honest cost statement: recurring rows fall by 3,920 in the
+   recursive arm (and the fixed point's recurring block); committed
+   columns do not change from this removal alone, because the padded
+   lanes stay pinned by the retained duplicates. The column-lens wins
+   the user asked for ride on bar 5's census outcomes, not on y_ring.
+
+Execution starts only on the user's explicit approval of this section.
+
 ## Iteration log
 
 - 2026-08-17 iteration 17d (the strictness trap; chains go green): the

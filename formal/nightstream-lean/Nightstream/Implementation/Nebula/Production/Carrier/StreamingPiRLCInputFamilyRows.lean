@@ -7,7 +7,7 @@ PiRLC input family.
 
 Assurance tier: generated source-row soundness.
 
-Owns the connection from the exact 810-field family commitment block to the
+Owns the connection from the exact 918-field family commitment block to the
 108-field additive residual update. The commitment output columns are the
 phase columns in the residual equations, so one accepted assignment must use
 the same local commitment in both row families.
@@ -15,7 +15,7 @@ the same local commitment in both row families.
 Does not own the production setup identity, Poseidon2 replay, PiRLC arithmetic
 rows, family-state glue, telescoping, or the terminal zero check.
 
-Emits constraints: 100,699 R1CS rows.
+Emits constraints: 114,091 R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -60,7 +60,7 @@ def rows
 theorem rows_length
     (setup : SeededAjtai.Setup verifierRows messageColumnCount)
     (layout : Layout) (family : Family) :
-    (rows setup layout family).length = 100699 := by
+    (rows setup layout family).length = 114091 := by
   simp only [rows, List.length_append, phaseRows, residualRows,
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputPhaseRows.rows_length,
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputResidualRows.rows_length]

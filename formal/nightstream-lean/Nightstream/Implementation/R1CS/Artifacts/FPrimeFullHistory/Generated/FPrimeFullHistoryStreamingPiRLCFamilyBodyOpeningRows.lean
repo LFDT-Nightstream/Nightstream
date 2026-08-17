@@ -22,32 +22,32 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
 def audit : RawAudit where
   schemaVersion := 1
   armCount := 2
-  openingCount := 810
+  openingCount := 918
   digitCount := 41
   borrowCount := 20
   chunkCount := 21
-  sourceZeroRowStart := 43794
-  sourceZeroDigitStart := 46055
-  sourceFieldStart := 1451
-  sourceDigitStart := 46096
+  sourceZeroRowStart := 49626
+  sourceZeroDigitStart := 52103
+  sourceFieldStart := 1559
+  sourceDigitStart := 52144
   sourceDigitStride := 122
-  sourceCanonicalRowStart := 43835
+  sourceCanonicalRowStart := 49667
   sourceCanonicalRowStride := 124
   centeredRowStart := 2
-  centeredRowCount := 16605
-  zeroEmittedStarts := [78090, 202066]
-  canonicalEmittedStarts := [141262, 265410]
+  centeredRowCount := 0
+  zeroEmittedStarts := [69456, 304967]
+  canonicalEmittedStarts := [236063, 471746]
   selectorColumns := [648, 649]
-  finalDigitStart := 19332
+  finalDigitStart := 38340
   finalDigitStride := 41
-  finalZeroStart := 1059804
-  finalBorrowStart := 1059845
+  finalZeroStart := 2110644
+  finalBorrowStart := 2110685
   finalBorrowStride := 20
-  finalRows := 282459
-  finalColumns := 2521314
+  finalRows := 491046
+  finalColumns := 8858862
   normalizedChunkBounds := [3, 0, 3, 3, 3, 0, 1, 3, 1, 2, 4, 3, 2, 1, 3, 0, 0, 0, 3, 4, 1]
   complementedChunks := [false, false, false, true, true, false, true, false, false, false, false, false, true, true, true, true, false, true, true, false, false]
   sourceZeroNnz := [41, 41, 0]
-  finalPortNnz := [46980, 50707, 50707, 82, 46980, 46980, 50625, 16605, 8100, 6480, 3240, 12960, 3240]
+  finalPortNnz := [53244, 38638, 38638, 82, 53244, 53244, 38556, 0, 9180, 7344, 3672, 14688, 3672]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyBodyOpeningRows

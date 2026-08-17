@@ -6,8 +6,8 @@ Contract: executable structured parser for the V2 paper NIFS running claim.
 Assurance tier: implementation model.
 
 Owns the exact field-vector sections and coordinate formulas for the shared
-point, fourteen mandatory commitment bundles, fourteen public inputs, and
-fourteen complete evaluation families.
+point, sixteen mandatory commitment bundles, sixteen public inputs, and
+sixteen complete evaluation families.
 
 Does not own the outer full-claim bit envelope, generated parser rows, the
 paper NIFS verifier, Rust conformance, or cryptographic soundness.
@@ -32,10 +32,10 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 def pointFieldCount : Nat := 50
-def commitmentsFieldCount : Nat := 54432
+def commitmentsFieldCount : Nat := 62208
 def publicInputsFieldCount (fullShape : Phi81Relation.Shape) : Nat :=
   shape.runningCount * fullShape.publicWidth
-def evaluationsFieldCount : Nat := 21168
+def evaluationsFieldCount : Nat := 24192
 
 def pointOffset : Nat := 0
 def commitmentsOffset : Nat := pointOffset + pointFieldCount
@@ -47,9 +47,9 @@ theorem exact_section_counts
     {fullShape : Phi81Relation.Shape}
     (contract : FullShapeContract fullShape) :
     pointFieldCount = 50 /\
-      commitmentsFieldCount = 54432 /\
-      publicInputsFieldCount fullShape = 7560 /\
-      evaluationsFieldCount = 21168 /\
+      commitmentsFieldCount = 62208 /\
+      publicInputsFieldCount fullShape = 8640 /\
+      evaluationsFieldCount = 24192 /\
       evaluationsOffset fullShape + evaluationsFieldCount =
         runningFieldCount := by
   simp [pointFieldCount, commitmentsFieldCount, publicInputsFieldCount,
@@ -116,7 +116,7 @@ theorem point_coordinate_bound
   have limbLt := limb.isLt
   change index.val < 25 at indexLt
   change limb.val < 2 at limbLt
-  change 0 + index.val * 2 + limb.val < 83210
+  change 0 + index.val * 2 + limb.val < 95090
   omega
 
 def bundleCoordinateIndex
@@ -145,7 +145,7 @@ theorem bundle_coordinate_bound
   have claimLt := claim.isLt
   have rowLt := row.isLt
   have coefficientLt := coefficient.isLt
-  change claim.val < 14 at claimLt
+  change claim.val < 16 at claimLt
   change row.val < 18 at rowLt
   change coefficient.val < 54 at coefficientLt
   cases component <;>
@@ -174,13 +174,13 @@ theorem public_input_coordinate_bound
     publicInputCoordinateIndex claim column < runningFieldCount := by
   have claimLt := claim.isLt
   have columnLt := column.isLt
-  change claim.val < 14 at claimLt
+  change claim.val < 16 at claimLt
   have columnLt540 : column.val < 540 := by
     simpa only [contract.publicWidth,
       MemoryBoundCcsPublic.coordinateCount] using columnLt
   have claimWidth : claim.val * fullShape.publicWidth = claim.val * 540 :=
     congrArg (fun width => claim.val * width) contract.publicWidth
-  change 54482 + claim.val * fullShape.publicWidth + column.val < 83210
+  change 62258 + claim.val * fullShape.publicWidth + column.val < 95090
   rw [claimWidth]
   omega
 
@@ -243,7 +243,7 @@ theorem evaluation_coordinate_bound
   have matrixLt := matrix.isLt
   have coefficientLt := coefficient.isLt
   have limbLt := limb.isLt
-  change claim.val < 14 at claimLt
+  change claim.val < 16 at claimLt
   change matrix.val < 14 at matrixLt
   change coefficient.val < 54 at coefficientLt
   change limb.val < 2 at limbLt
@@ -613,7 +613,7 @@ theorem commitments_section_length
     (values : Fin shape.runningCount →
       ProductCommitmentAlgebra.BundleValue) :
     (Codec.encodeFin bundleCodec shape.runningCount values).length =
-      54432 := by
+      62208 := by
   rw [Codec.encodeFin_length, bundleCodec_width]
   rfl
 
@@ -628,7 +628,7 @@ theorem public_inputs_section_length
 theorem evaluations_section_length
     (values : Fin shape.runningCount → ProductNifsCodec.Evaluation) :
     (Codec.encodeFin evaluationCodec shape.runningCount values).length =
-      21168 := by
+      24192 := by
   rw [Codec.encodeFin_length, evaluationCodec_width]
   rfl
 
@@ -671,10 +671,10 @@ theorem runningCodec_bundle_getD
       value.commitments claim component row coefficient := by
   let localIndex := claim.val * 3888 + componentIndex component * 972 +
     row.val * ringDegree + coefficient.val
-  have localBound : localIndex < 54432 := by
+  have localBound : localIndex < 62208 := by
     have claimLt := claim.isLt
     have bundleBound := bundle_local_bound component row coefficient
-    change claim.val < 14 at claimLt
+    change claim.val < 16 at claimLt
     dsimp only [localIndex]
     omega
   rw [runningCodec_sections]
@@ -706,13 +706,13 @@ theorem runningCodec_publicInput_getD
   let localIndex := claim.val * fullShape.publicWidth + column.val
   have claimLt := claim.isLt
   have columnLt := column.isLt
-  change claim.val < 14 at claimLt
+  change claim.val < 16 at claimLt
   have columnLt540 : column.val < 540 := by
     simpa only [contract.publicWidth,
       MemoryBoundCcsPublic.coordinateCount] using columnLt
   have claimWidth : claim.val * fullShape.publicWidth = claim.val * 540 :=
     congrArg (fun width => claim.val * width) contract.publicWidth
-  have localBound : localIndex < 7560 := by
+  have localBound : localIndex < 8640 := by
     dsimp only [localIndex]
     rw [claimWidth]
     omega
@@ -721,7 +721,7 @@ theorem runningCodec_publicInput_getD
   have commitmentsLength := commitments_section_length value.commitments
   have publicLength :
       (Codec.encodeFin (publicInputCodec fullShape.publicWidth)
-          shape.runningCount value.publicInputs).length = 7560 := by
+          shape.runningCount value.publicInputs).length = 8640 := by
     rw [public_inputs_section_length, contract.publicWidth]
     rfl
   have indexShape : publicInputCoordinateIndex claim column =
@@ -762,7 +762,7 @@ theorem runningCodec_evaluation_getD
   have commitmentsLength := commitments_section_length value.commitments
   have publicLength :
       (Codec.encodeFin (publicInputCodec fullShape.publicWidth)
-          shape.runningCount value.publicInputs).length = 7560 := by
+          shape.runningCount value.publicInputs).length = 8640 := by
     rw [public_inputs_section_length, contract.publicWidth]
     rfl
   have indexShape :

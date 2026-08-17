@@ -21,19 +21,19 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
 
 def audit : RawAudit where
   schemaVersion := 1
-  sourceRowStart := 144277
+  sourceRowStart := 163501
   sourceRows := 108
-  localColumns := 146224
+  localColumns := 165664
   sourceColumnShift := 640
-  finalRows := 282459
-  finalColumns := 2521314
+  finalRows := 491046
+  finalColumns := 8858862
   selectorColumns := [648, 649]
-  emittedStarts := [78133, 202109]
-  sourceStarts := [144918, 145026, 145134]
-  finalStarts := [1076091, 1078575, 1081059]
-  widths := [23, 23, 23]
-  radices := [7, 7, 7]
+  emittedStarts := [69499, 305010]
+  sourceStarts := [164142, 164250, 164358]
+  finalStarts := [2129127, 2133555, 2137983]
+  widths := [41, 41, 41]
+  radices := [3, 3, 3]
   sourceNnz := [324, 108, 0]
-  finalPortNnz := [0, 216, 14904, 216, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  finalPortNnz := [0, 216, 26568, 216, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained

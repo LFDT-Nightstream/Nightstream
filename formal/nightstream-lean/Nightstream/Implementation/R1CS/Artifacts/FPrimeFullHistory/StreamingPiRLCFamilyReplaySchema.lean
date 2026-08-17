@@ -3,7 +3,7 @@ import Nightstream.Implementation.R1CS.Core.Poseidon2Call
 /-!
 Contract: compact schema for the two production PiRLC family replay shapes.
 
-The input replay uses the exact 810 columns read by the PiRLC algebra. The
+The input replay uses the exact 918 columns read by the PiRLC algebra. The
 output replay uses the same 54 algebra output columns. Each compact call is an
 exact column renaming of the 600-row production Poseidon2 artifact.
 
@@ -57,9 +57,9 @@ def exactCallChainFrom : Nat → Nat → List Poseidon2Call.Call → Bool
 
 def ExactCallChain
     (rowCount columnCount : Nat) (calls : List Poseidon2Call.Call) : Prop :=
-  exactCallChainFrom 0 146240 calls = true ∧
+  exactCallChainFrom 0 165680 calls = true ∧
     rowCount = calls.length * 600 ∧
-    columnCount = 146240 + rowCount
+    columnCount = 165680 + rowCount
 
 instance (rowCount columnCount : Nat) (calls : List Poseidon2Call.Call) :
     Decidable (ExactCallChain rowCount columnCount calls) := by
@@ -77,16 +77,16 @@ instance (columnCount expectedLength : Nat) (columns : List Nat) :
 
 def RawArm.Valid
     (arm : RawArm) (beforeAbsorbed afterAbsorbed inputCalls outputCalls : Nat) : Prop :=
-  arm.rowCount > 0 ∧ arm.columnCount > 146240 ∧
+  arm.rowCount > 0 ∧ arm.columnCount > 165680 ∧
     arm.beforeAbsorbed = beforeAbsorbed ∧
     arm.afterAbsorbed = afterAbsorbed ∧
     arm.inputPoseidon2CallCount = inputCalls ∧
     arm.outputPoseidon2CallCount = outputCalls ∧
     arm.poseidon2Calls.length = inputCalls + outputCalls ∧
-    arm.inputColumns = List.range' 811 810 ∧
-    arm.outputColumns = List.range' 1621 54 ∧
-    arm.inputBeforeColumns = List.range' 146224 8 ∧
-    arm.outputBeforeColumns = List.range' 146232 8 ∧
+    arm.inputColumns = List.range' 919 918 ∧
+    arm.outputColumns = List.range' 1837 54 ∧
+    arm.inputBeforeColumns = List.range' 165664 8 ∧
+    arm.outputBeforeColumns = List.range' 165672 8 ∧
     columnsValid arm.columnCount 8 arm.inputAfterColumns ∧
     columnsValid arm.columnCount 8 arm.outputAfterColumns ∧
     (∀ call ∈ arm.poseidon2Calls, PoseidonCallValid arm.columnCount call) ∧
@@ -113,13 +113,13 @@ def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
   artifact.schemaVersion = 1 ∧
     artifact.profileId =
       "nebula-f-prime-streaming-pi-rlc-family-replay-v1" ∧
-    artifact.sourceColumns = 146224 ∧
-    artifact.even.rowCount = 129000 ∧
-    artifact.even.columnCount = 275240 ∧
-    artifact.odd.rowCount = 130200 ∧
-    artifact.odd.columnCount = 276440 ∧
-    artifact.even.Valid 0 2 202 13 ∧
-    artifact.odd.Valid 2 0 203 14
+    artifact.sourceColumns = 165664 ∧
+    artifact.even.rowCount = 145200 ∧
+    artifact.even.columnCount = 310880 ∧
+    artifact.odd.rowCount = 146400 ∧
+    artifact.odd.columnCount = 312080 ∧
+    artifact.even.Valid 0 2 229 13 ∧
+    artifact.odd.Valid 2 0 230 14
 
 instance (artifact : RawArtifact) : Decidable artifact.Valid := by
   unfold RawArtifact.Valid

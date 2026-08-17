@@ -3,7 +3,7 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix
 /-!
 Model-level uniqueness of the production signed-binary `PiDEC` split.
 
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
+Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
 Phase: verifier-owned public-input digit decomposition.
 Constraint family: abstract common-sign digit acceptance; this file emits no
 rows.
@@ -19,7 +19,7 @@ counts; generated artifacts; or authorization to remove any constraint.
 
 Authority boundary: the soundness theorem starts from the independent
 strict-`B` parent bound and the semantic radix recomposition. In particular,
-fourteen independent centered-unit facts are not mistaken for canonical digit
+sixteen independent centered-unit facts are not mistaken for canonical digit
 selection: all digits must share the one accepted sign.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
@@ -329,7 +329,7 @@ theorem Accepted.digitBounded {parent sign : F}
     · simp [digitSign, signNegative, productionGlobalParams,
         Centered.centeredMagnitude_neg, centeredMagnitude_one]
 
-/-- Recomposition of fourteen accepted common-sign digits is automatically
+/-- Recomposition of sixteen accepted common-sign digits is automatically
 strictly `B`-bounded. Consequently the exactness theorem below does not need a
 separate parent-bound check at the R1CS boundary. -/
 theorem Accepted.parentBounded {parent sign : F}
@@ -376,8 +376,7 @@ private theorem sound_positive {parent : F} {digits : ChildIndex → F}
     unfold isNonnegative
     rw [← magnitudeEqVal]
     unfold PiRLCAlgebra.Norm.Centered.halfModulus goldilocksModulus
-    have concreteBound : magnitude < 16384 := by
-      simpa [productionGlobalParams] using magnitudeBound
+    norm_num [productionGlobalParams] at magnitudeBound
     omega
   have magnitudeExact : centeredMagnitude parent = magnitude := by
     rw [PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
@@ -450,8 +449,7 @@ private theorem sound_negative {parent : F} {digits : ChildIndex → F}
       unfold isNonnegative
       rw [parentValue]
       unfold PiRLCAlgebra.Norm.Centered.halfModulus goldilocksModulus
-      have concreteBound : magnitude < 16384 := by
-        simpa [productionGlobalParams] using magnitudeBound
+      norm_num [productionGlobalParams] at magnitudeBound
       omega
     have magnitudeExact : centeredMagnitude parent = magnitude := by
       rw [PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]

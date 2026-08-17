@@ -15,7 +15,7 @@ example :
           Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.evenArm +
         residualColumnCount
           Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.evenArm =
-      559135 :=
+      1301125 :=
   even_column_census_exact.2.2
 
 example :
@@ -23,7 +23,7 @@ example :
           Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.oddArm +
         residualColumnCount
           Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.oddArm =
-      560335 :=
+      1302325 :=
   odd_column_census_exact.2.2
 
 end tests.FPrimeFullHistoryStreamingPiRLCFamilyBodyDecoder

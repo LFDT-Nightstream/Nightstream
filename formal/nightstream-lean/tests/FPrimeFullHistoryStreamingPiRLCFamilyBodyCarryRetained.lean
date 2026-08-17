@@ -6,7 +6,7 @@ namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyBodyCarryRetained
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyCarryRetained
 
-example : audit.sourceRows = 1621 := by decide
+example : audit.sourceRows = 1837 := by decide
 example : decoderCoherent := decoder_run_exact
 example : rowLedgerCoherent := retained_intervals_exact
 example : AuditValid := audit_valid

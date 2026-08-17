@@ -103,7 +103,7 @@ noncomputable def selectedCompatibleContext
       (paperRelationSemantics baseOps extensionOps K.embed openingMaps)
       productionGlobalParams) :
     (selectedCompatibleContext openingMaps matrices commitments publicInputs
-      priorPoint claimedCoefficient piRlcAlgebra).arity.total = 15 := by
+      priorPoint claimedCoefficient piRlcAlgebra).arity.total = 17 := by
   rfl
 
 /-- The production fresh norm bound is inside the corrected ambient relation.

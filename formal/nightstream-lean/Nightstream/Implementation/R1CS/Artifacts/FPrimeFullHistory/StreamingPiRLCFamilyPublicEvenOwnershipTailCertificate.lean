@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 Contract: second bounded owner-schedule certificate for the Rust-emitted even
 PiRLC public-family arm.
 
-Owns four 64-owner leaves, one 47-owner leaf, and their structural composition
+Owns five 64-owner leaves, one 37-owner leaf, and their structural composition
 with the five earlier leaves.
 
 Emits constraints: no.
@@ -44,15 +44,23 @@ theorem evenOwnerChunk8_checked :
         some evenOwnerCursor9 := by
   constructor <;> rfl
 
-theorem evenOwnerTail9_checked :
-    evenOwnerTail9.length = 47 ∧
-      runOwnerPrefix evenArm evenOwnerCursor9 evenOwnerTail9 =
+theorem evenOwnerChunk9_checked :
+    evenOwnerChunk9.length = 64 ∧
+      runOwnerPrefix evenArm evenOwnerCursor9 evenOwnerChunk9 =
         some evenOwnerCursor10 := by
   constructor <;> rfl
 
+theorem evenOwnerTail10_checked :
+    evenOwnerTail10.length = 37 ∧
+      runOwnerPrefix evenArm evenOwnerCursor10 evenOwnerTail10 =
+        some evenOwnerCursor11 := by
+  constructor <;> rfl
+
 theorem evenArm_ownership_valid : evenArm.OwnershipValid := by
+  have checked9 := runOwnerPrefix_of_take_drop
+    evenOwnerChunk9_checked.2 evenOwnerTail10_checked.2
   have checked8 := runOwnerPrefix_of_take_drop
-    evenOwnerChunk8_checked.2 evenOwnerTail9_checked.2
+    evenOwnerChunk8_checked.2 checked9
   have checked7 := runOwnerPrefix_of_take_drop
     evenOwnerChunk7_checked.2 checked8
   have checked6 := runOwnerPrefix_of_take_drop

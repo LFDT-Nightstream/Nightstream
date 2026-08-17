@@ -8,10 +8,11 @@ Contract: independent validation of the compact production PiRLC residual
 retained-row scan receipt.
 
 Assurance tier: Rust-conformant for property
-`FPRIME-PIRLC-FAMILY-BODY-RESIDUAL-RETAINED-PORT-IMAGE`.
+`FPRIME-PIRLC-FAMILY-BODY-RESIDUAL-RETAINED-PORT-IMAGE` under the supported
+Goldilocks `b = 2`, `k_rho = 16` profile.
 
 Owns agreement with the 108-row residual interval in both parity arms, the
-direct radix-seven decoder slots, and independent source and final nonzero
+direct radix-three decoder slots, and independent source and final nonzero
 censuses.
 
 Does not own matrix authority in Lean, assignment values, row satisfaction,
@@ -43,27 +44,28 @@ abbrev evenDecoder :=
 abbrev oddDecoder :=
   Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.oddArm
 
-def directResidualRun : RawStridedRun :=
-  { sourceStart := 144916
-    count := 1964
-    sourceStride := 1
-    resolution := .direct 1076045 23 23 false }
+def directResidualBatch : RawResidualBatch :=
+  { sourceStart := 164140
+    instanceCount := 1
+    instanceStride := 0
+    width := 2180
+    resolution := .direct 2129045 41 41 false }
 
 def sourceNnzExpected : List Nat :=
   [108 * 3, 108, 0]
 
 def finalPortNnzExpected : List Nat :=
   let arms := 2
-  let width := 23
+  let width := 41
   let rows := 108
   [0, arms * rows, arms * rows * (3 * width), arms * rows,
     0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 def retainedIntervalsExpected : List RawRetainedRun :=
-  [ { arm := 0, sourceStart := 144277, length := 108,
-      emittedStart := 78005 }
-  , { arm := 1, sourceStart := 144277, length := 108,
-      emittedStart := 200363 }
+  [ { arm := 0, sourceStart := 163501, length := 108,
+      emittedStart := 69499 }
+  , { arm := 1, sourceStart := 163501, length := 108,
+      emittedStart := 305010 }
   ]
 
 def residualRetainedIntervals :=
@@ -74,34 +76,34 @@ def residualRetainedIntervals :=
 def exactShape : Prop :=
   audit.schemaVersion =
       Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyResidualRetainedSchema.supportedSchemaVersion /\
-    audit.sourceRowStart = 144277 /\
+    audit.sourceRowStart = 163501 /\
     audit.sourceRows = 108 /\
-    audit.localColumns = 146224 /\
+    audit.localColumns = 165664 /\
     audit.sourceColumnShift = 640 /\
-    audit.finalRows = 279089 /\
-    audit.finalColumns = 2484972 /\
+    audit.finalRows = 491046 /\
+    audit.finalColumns = 8858862 /\
     audit.selectorColumns = [648, 649] /\
-    audit.emittedStarts = [78005, 200363] /\
-    audit.sourceStarts = [144918, 145026, 145134] /\
-    audit.finalStarts = [1076091, 1078575, 1081059] /\
-    audit.widths = [23, 23, 23] /\
+    audit.emittedStarts = [69499, 305010] /\
+    audit.sourceStarts = [164142, 164250, 164358] /\
+    audit.finalStarts = [2129127, 2133555, 2137983] /\
+    audit.widths = [41, 41, 41] /\
     audit.radices = audit.widths.map (fun width => (slotRadix width).val) /\
     audit.sourceNnz = sourceNnzExpected /\
     audit.finalPortNnz = finalPortNnzExpected
 
 def decoderCoherent : Prop :=
-  (evenDecoder.residualRuns.drop 5).head? = some directResidualRun /\
-    (oddDecoder.residualRuns.drop 5).head? = some directResidualRun /\
+  (evenDecoder.residualBatches.drop 3).head? = some directResidualBatch /\
+    (oddDecoder.residualBatches.drop 3).head? = some directResidualBatch /\
     audit.finalStarts =
-      [1076045 + (144918 - 144916) * 23,
-        1076045 + (145026 - 144916) * 23,
-        1076045 + (145134 - 144916) * 23] /\
-    1076045 + 1964 * 23 <= audit.finalColumns
+      [2129045 + (164142 - 164140) * 41,
+        2129045 + (164250 - 164140) * 41,
+        2129045 + (164358 - 164140) * 41] /\
+    2129045 + 2180 * 41 <= audit.finalColumns
 
 def rowLedgerCoherent : Prop :=
   residualRetainedIntervals = retainedIntervalsExpected /\
     audit.emittedStarts.map (fun start => start + audit.sourceRows) =
-      [78113, 200471] /\
+      [69607, 305118] /\
     (audit.emittedStarts.all fun start =>
       decide (start + audit.sourceRows <= audit.finalRows)) = true
 
@@ -113,24 +115,29 @@ residual row shape and the three 23-coordinate source images. -/
 theorem nonzero_census_exact :
     audit.sourceNnz = sourceNnzExpected /\
       audit.finalPortNnz = finalPortNnzExpected := by
-  native_decide
+  exact ⟨rfl, rfl⟩
 
-/-- Both parity decoders use the same direct radix-seven run for every
+/-- Both parity decoders use the same direct radix-three batch for every
 residual field referenced by the retained block. -/
 theorem decoder_run_exact : decoderCoherent := by
-  unfold decoderCoherent
-  native_decide
+  unfold decoderCoherent directResidualBatch
+  exact ⟨rfl, rfl, rfl, by decide⟩
 
 /-- The row ledger maps the same 108 source rows to the two exact emitted
 intervals scanned by Rust. -/
 theorem retained_intervals_exact : rowLedgerCoherent := by
-  unfold rowLedgerCoherent
-  native_decide
+  unfold rowLedgerCoherent residualRetainedIntervals retainedIntervalsExpected
+  exact ⟨rfl, rfl, rfl⟩
+
+private theorem shape_exact : exactShape := by
+  unfold exactShape
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    by decide, nonzero_census_exact.1, nonzero_census_exact.2⟩
 
 /-- The generated receipt agrees with the decoder, row ledger, and
 independently recomputed nonzero census. -/
 theorem audit_valid : AuditValid := by
-  unfold AuditValid exactShape decoderCoherent rowLedgerCoherent
-  native_decide
+  unfold AuditValid
+  exact ⟨shape_exact, decoder_run_exact, retained_intervals_exact⟩
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained

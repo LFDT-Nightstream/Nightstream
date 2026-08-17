@@ -61,7 +61,7 @@ def carryAssignment (assignment : Fin finalColumns → F) : Nat → Nat :=
     assignment
 
 /-- Both retained blocks decode every shared challenge-symbol column from the
-same radix-seven slot in the final assignment. -/
+same radix-three slot in the final assignment. -/
 theorem challengeAssignment_eq
     (assignment : Fin finalColumns → F)
     (source : Source) (lane : Fin ringDegree) :
@@ -76,12 +76,12 @@ theorem challengeAssignment_eq
       source lane
   have columnPositive : column ≠ 0 := by
     simp [column]
-  have columnLtChallenge : column < 811 := by
+  have columnLtChallenge : column < 919 := by
     simp only [column,
       Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_challengeSymbol]
     have sourceLt := source.isLt
     have laneLt := lane.isLt
-    change source.val < 15 at sourceLt
+    change source.val < 17 at sourceLt
     change lane.val < 54 at laneLt
     omega
   have columnLtSource : column <
@@ -172,7 +172,7 @@ theorem carryRange_implies_algebraRange
   exact carryRange source lane
 
 /-- The two decoders construct the same typed challenge rings because they
-read the same radix-seven slots. -/
+read the same radix-three slots. -/
 theorem decodedChallenges_eq
     (assignment : Fin finalColumns → F)
     (carryRange : ∀ source lane,

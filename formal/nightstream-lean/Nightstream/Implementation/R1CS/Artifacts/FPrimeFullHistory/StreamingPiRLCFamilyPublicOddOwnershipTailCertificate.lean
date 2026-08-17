@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 Contract: second bounded owner-schedule certificate for the Rust-emitted odd
 PiRLC public-family arm.
 
-Owns four 64-owner leaves, one 47-owner leaf, and their structural composition
+Owns five 64-owner leaves, one 37-owner leaf, and their structural composition
 with the five earlier leaves.
 
 Emits constraints: no.
@@ -44,15 +44,23 @@ theorem oddOwnerChunk8_checked :
         some oddOwnerCursor9 := by
   constructor <;> rfl
 
-theorem oddOwnerTail9_checked :
-    oddOwnerTail9.length = 47 ∧
-      runOwnerPrefix oddArm oddOwnerCursor9 oddOwnerTail9 =
+theorem oddOwnerChunk9_checked :
+    oddOwnerChunk9.length = 64 ∧
+      runOwnerPrefix oddArm oddOwnerCursor9 oddOwnerChunk9 =
         some oddOwnerCursor10 := by
   constructor <;> rfl
 
+theorem oddOwnerTail10_checked :
+    oddOwnerTail10.length = 37 ∧
+      runOwnerPrefix oddArm oddOwnerCursor10 oddOwnerTail10 =
+        some oddOwnerCursor11 := by
+  constructor <;> rfl
+
 theorem oddArm_ownership_valid : oddArm.OwnershipValid := by
+  have checked9 := runOwnerPrefix_of_take_drop
+    oddOwnerChunk9_checked.2 oddOwnerTail10_checked.2
   have checked8 := runOwnerPrefix_of_take_drop
-    oddOwnerChunk8_checked.2 oddOwnerTail9_checked.2
+    oddOwnerChunk8_checked.2 checked9
   have checked7 := runOwnerPrefix_of_take_drop
     oddOwnerChunk7_checked.2 checked8
   have checked6 := runOwnerPrefix_of_take_drop

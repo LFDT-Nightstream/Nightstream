@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 Contract: bounded Poseidon2 call-geometry certificate for the Rust-emitted
 odd PiRLC public-family arm.
 
-Owns all 490 compact call records as seven 64-call leaves and one 42-call
+Owns all 544 compact call records as eight 64-call leaves and one 32-call
 leaf. It owns no Poseidon2 semantics or row ownership.
 
 Emits constraints: no.
@@ -36,6 +36,8 @@ def oddChunk5 := oddTail5.take 64
 def oddTail6 := oddTail5.drop 64
 def oddChunk6 := oddTail6.take 64
 def oddTail7 := oddTail6.drop 64
+def oddChunk7 := oddTail7.take 64
+def oddTail8 := oddTail7.drop 64
 
 theorem oddChunk0_length : oddChunk0.length = 64 := by rfl
 theorem oddChunk1_length : oddChunk1.length = 64 := by rfl
@@ -44,43 +46,46 @@ theorem oddChunk3_length : oddChunk3.length = 64 := by rfl
 theorem oddChunk4_length : oddChunk4.length = 64 := by rfl
 theorem oddChunk5_length : oddChunk5.length = 64 := by rfl
 theorem oddChunk6_length : oddChunk6.length = 64 := by rfl
-theorem oddTail7_length : oddTail7.length = 42 := by rfl
+theorem oddChunk7_length : oddChunk7.length = 64 := by rfl
+theorem oddTail8_length : oddTail8.length = 32 := by rfl
 
 theorem oddArm_poseidon2Calls_length :
-    oddArm.poseidon2Calls.length = 490 := by
-  have tail6 : oddTail6.length = 106 :=
-    length_of_take_drop oddChunk6_length oddTail7_length
-  have tail5 : oddTail5.length = 170 :=
+    oddArm.poseidon2Calls.length = 544 := by
+  have tail7 : oddTail7.length = 96 :=
+    length_of_take_drop oddChunk7_length oddTail8_length
+  have tail6 : oddTail6.length = 160 :=
+    length_of_take_drop oddChunk6_length tail7
+  have tail5 : oddTail5.length = 224 :=
     length_of_take_drop oddChunk5_length tail6
-  have tail4 : oddTail4.length = 234 :=
+  have tail4 : oddTail4.length = 288 :=
     length_of_take_drop oddChunk4_length tail5
-  have tail3 : oddTail3.length = 298 :=
+  have tail3 : oddTail3.length = 352 :=
     length_of_take_drop oddChunk3_length tail4
-  have tail2 : oddTail2.length = 362 :=
+  have tail2 : oddTail2.length = 416 :=
     length_of_take_drop oddChunk2_length tail3
-  have tail1 : oddTail1.length = 426 :=
+  have tail1 : oddTail1.length = 480 :=
     length_of_take_drop oddChunk1_length tail2
   exact length_of_take_drop oddChunk0_length tail1
 
 theorem oddChunk0_valid :
     ∀ call ∈ oddChunk0,
-      PoseidonCallValid 1234286 call ∧ 276206 ≤ call.rowStart := by
+      PoseidonCallValid 1302326 call ∧ 311846 ≤ call.rowStart := by
   norm_num [oddChunk0, oddTail0, PoseidonCallValid, oddArm]
 
 theorem oddChunk1_valid :
     ∀ call ∈ oddChunk1,
-      PoseidonCallValid 1234286 call ∧ 276206 ≤ call.rowStart := by
+      PoseidonCallValid 1302326 call ∧ 311846 ≤ call.rowStart := by
   norm_num [oddChunk1, oddTail1, oddTail0, PoseidonCallValid, oddArm]
 
 theorem oddChunk2_valid :
     ∀ call ∈ oddChunk2,
-      PoseidonCallValid 1234286 call ∧ 276206 ≤ call.rowStart := by
+      PoseidonCallValid 1302326 call ∧ 311846 ≤ call.rowStart := by
   norm_num [oddChunk2, oddTail2, oddTail1, oddTail0,
     PoseidonCallValid, oddArm]
 
 theorem oddChunk3_valid :
     ∀ call ∈ oddChunk3,
-      PoseidonCallValid 1234286 call ∧ 276206 ≤ call.rowStart := by
+      PoseidonCallValid 1302326 call ∧ 311846 ≤ call.rowStart := by
   norm_num [oddChunk3, oddTail3, oddTail2, oddTail1, oddTail0,
     PoseidonCallValid, oddArm]
 

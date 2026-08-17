@@ -8,8 +8,8 @@ namespace tests.NebulaProductionStreamingPiRlcNormalizedAlgebraRows
 
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized
 
-example : localColumns = 45415 := rfl
-example : finalColumns = 2484972 := rfl
+example : localColumns = 51463 := rfl
+example : finalColumns = 8858862 := rfl
 example : (selectorColumn .even).val = 648 := rfl
 example : (selectorColumn .odd).val = 649 := rfl
 
@@ -17,25 +17,26 @@ example :
     (localSlot ⟨1, by decide⟩ (by decide)).start = 702 := rfl
 
 example :
-    (localSlot ⟨810, by decide⟩ (by decide)).width = 23 := rfl
+    (localSlot ⟨918, by decide⟩ (by decide)).width = 41 := rfl
 
 example :
-    (localSlot ⟨811, by decide⟩ (by decide)).start = 19332 := rfl
+    (localSlot ⟨919, by decide⟩ (by decide)).start = 38340 := rfl
 
 example :
-    (localSlot ⟨1620, by decide⟩ (by decide)).width = 41 := rfl
+    (localSlot ⟨1836, by decide⟩ (by decide)).width = 41 := rfl
 
 example :
-    (localSlot ⟨1621, by decide⟩ (by decide)).start = 52542 := rfl
+    (localSlot ⟨1837, by decide⟩ (by decide)).start = 75978 := rfl
 
 example :
-    (localSlot ⟨1675, by decide⟩ (by decide)).start = 53784 := rfl
+    (localSlot ⟨1891, by decide⟩ (by decide)).start = 78192 := rfl
 
 example :
-    (localSlot ⟨45414, by decide⟩ (by decide)).start = 1059781 := rfl
+    (localSlot ⟨51462, by decide⟩ (by decide)).start = 2110603 := rfl
 
-example : productionRows.length = 43794 := productionRows_length
+example : productionRows.length = 49626 := productionRows_length
 
+#check retained_audit_geometry
 #check evaluate_localColumnForm
 #check evaluate_combinationImage
 #check rowImage_accepted_iff_holds

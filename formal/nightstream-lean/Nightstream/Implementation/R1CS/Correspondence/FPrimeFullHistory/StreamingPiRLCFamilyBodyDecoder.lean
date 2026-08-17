@@ -1,14 +1,17 @@
+import Mathlib.Data.List.Basic
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder
 
 /-!
-Contract: independent structural validation of the compact production PiRLC
-family-body source decoder.
+Contract: structural validation of the compact production PiRLC family-body
+source decoder.
 
 Assurance tier: artifact-checked for property
-`FPRIME-PIRLC-FAMILY-BODY-DECODER-COVER`.
+`FPRIME-PIRLC-FAMILY-BODY-DECODER-COVER` under the supported Goldilocks
+`b = 2`, `k_rho = 16` profile.
 
-Owns exact source bounds, final-slot bounds, template expansion, complete
-source-column cover, and absence of duplicate ownership for both parity arms.
+Owns exact source bounds, final-slot bounds, affine template and residual
+geometry, complete source-column cover, and one reference to every compact
+source owner for both parity arms.
 
 Does not own source-row semantics, matrix soundness, assignment values,
 linear-definition reconstruction, trace-elimination soundness, selector
@@ -25,228 +28,318 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyB
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoderSchema
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder
 
-structure Ownership where
-  slots : Array Bool
-  marked : Nat
+structure OwnerGeometry where
+  sourceStart : Nat
+  count : Nat
+  stride : Nat
+  width : Nat
+deriving DecidableEq, Repr
 
 private def resolutionValidAt
     (arm : RawArm)
     (sourceColumn offset directBase referenceBase referenceFinalBase : Nat) :
-    RawResolutionRun -> Bool
+    RawResolutionRun → Bool
   | .direct start startStride width _ =>
       let finalStart := directBase + start + startStride * offset
-      decide (0 < width /\ finalStart + width <= arm.finalColumns)
-  | .decompositionAlias source sourceStride _digit _digitStride start startStride _ =>
+      decide (0 < width ∧ finalStart + width ≤ arm.finalColumns)
+  | .decompositionAlias source sourceStride _digit _digitStride start
+      startStride _ =>
       let aliasSource := referenceBase + source + sourceStride * offset
       let aliasStart := referenceFinalBase + start + startStride * offset
-      decide (aliasSource < sourceColumn /\ aliasSource < arm.sourceEnd /\
+      decide (aliasSource < sourceColumn ∧ aliasSource < arm.sourceEnd ∧
         aliasStart < arm.finalColumns)
   | .equalityAlias source sourceStride start startStride width _ =>
       let aliasSource := referenceBase + source + sourceStride * offset
       let aliasStart := referenceFinalBase + start + startStride * offset
-      decide (0 < width /\ aliasSource < sourceColumn /\
-        aliasSource < arm.sourceEnd /\ aliasStart + width <= arm.finalColumns)
+      decide (0 < width ∧ aliasSource < sourceColumn ∧
+        aliasSource < arm.sourceEnd ∧ aliasStart + width ≤ arm.finalColumns)
   | .linearDefinition => true
   | .traceEliminated => true
 
-private def markColumn
-    (arm : RawArm)
-    (sourceColumn : Nat)
-    (state : Ownership) : Option Ownership :=
-  if sourceColumn < arm.sourceStart || arm.sourceEnd <= sourceColumn then
-    none
-  else
-    let index := sourceColumn - arm.sourceStart
-    match state.slots[index]? with
-    | some false =>
-        some { slots := state.slots.set! index true, marked := state.marked + 1 }
-    | _ => none
-
-private def relativeRunsValidFrom (sourceWidth cursor : Nat) : List RawRun -> Bool
+private def relativeRunsValidFrom (sourceWidth cursor : Nat) :
+    List RawRun → Bool
   | [] => decide (cursor = sourceWidth)
   | run :: runs =>
-      if run.sourceStart = cursor && 0 < run.length &&
-          run.sourceStart + run.length <= sourceWidth then
+      decide (run.sourceStart = cursor) && decide (0 < run.length) &&
+        decide (run.sourceStart + run.length ≤ sourceWidth) &&
         relativeRunsValidFrom sourceWidth (run.sourceStart + run.length) runs
-      else
-        false
 
 private def relativeRunsValid (template : RawTemplate) : Bool :=
-  0 < template.sourceWidth &&
-    !template.relativeRuns.isEmpty &&
+  decide (0 < template.sourceWidth) && decide (!template.relativeRuns.isEmpty) &&
     relativeRunsValidFrom template.sourceWidth 0 template.relativeRuns
 
-private def checkTemplateRunColumns
-    (arm : RawArm)
-    (sourceBase directBase referenceBase referenceFinalBase : Nat)
-    (run : RawRun) : Nat -> Nat -> Ownership -> Option Ownership
-  | _, 0, state => some state
-  | offset, remaining + 1, state => do
-      let sourceColumn := sourceBase + run.sourceStart + offset
-      if !resolutionValidAt arm sourceColumn offset directBase referenceBase
-          referenceFinalBase run.resolution then
-        none
-      else
-        let state <- markColumn arm sourceColumn state
-        checkTemplateRunColumns arm sourceBase directBase referenceBase
-          referenceFinalBase run (offset + 1) remaining state
+private def templateResolutionValidAt
+    (arm : RawArm) (batch : RawTemplateInstances) (run : RawRun)
+    (instanceIndex offset : Nat) : Bool :=
+  let sourceBase := batch.sourceStart + batch.sourceStride * instanceIndex
+  let directBase := batch.finalStart + batch.finalStride * instanceIndex
+  let referenceBase :=
+    batch.referenceStart + batch.referenceStride * instanceIndex
+  let referenceFinalBase :=
+    batch.referenceFinalStart + batch.referenceFinalStride * instanceIndex
+  resolutionValidAt arm (sourceBase + run.sourceStart + offset) offset
+    directBase referenceBase referenceFinalBase run.resolution
 
-private def checkTemplateRuns
-    (arm : RawArm)
-    (sourceBase directBase referenceBase referenceFinalBase : Nat) :
-    List RawRun -> Ownership -> Option Ownership
-  | [], state => some state
-  | run :: runs, state => do
-      let state <- checkTemplateRunColumns arm sourceBase directBase
-        referenceBase referenceFinalBase run 0 run.length state
-      checkTemplateRuns arm sourceBase directBase referenceBase
-        referenceFinalBase runs state
+/-- Every decoder coordinate is affine in the instance and run offsets.
+These four corners therefore own the extrema used by the bound checks. -/
+private def templateRunCornersValid
+    (arm : RawArm) (batch : RawTemplateInstances) (run : RawRun) : Bool :=
+  let lastInstance := batch.count - 1
+  let lastOffset := run.length - 1
+  templateResolutionValidAt arm batch run 0 0 &&
+    templateResolutionValidAt arm batch run 0 lastOffset &&
+    templateResolutionValidAt arm batch run lastInstance 0 &&
+    templateResolutionValidAt arm batch run lastInstance lastOffset
 
-private def checkTemplateBatchInstances
-    (arm : RawArm)
-    (template : RawTemplate)
-    (batch : RawTemplateInstances) : Nat -> Nat -> Ownership -> Option Ownership
-  | _, 0, state => some state
-  | index, remaining + 1, state => do
-      let sourceBase := batch.sourceStart + batch.sourceStride * index
-      let directBase := batch.finalStart + batch.finalStride * index
-      let referenceBase := batch.referenceStart + batch.referenceStride * index
-      let referenceFinalBase :=
-        batch.referenceFinalStart + batch.referenceFinalStride * index
-      let state <- checkTemplateRuns arm sourceBase directBase referenceBase
-        referenceFinalBase template.relativeRuns state
-      checkTemplateBatchInstances arm template batch (index + 1) remaining state
+private def templateBatchValid
+    (arm : RawArm) (template : RawTemplate)
+    (batch : RawTemplateInstances) : Bool :=
+  decide (0 < batch.count) &&
+    decide (batch.count = 1 ∧ batch.sourceStride = 0 ∨
+      1 < batch.count ∧ template.sourceWidth ≤ batch.sourceStride) &&
+    template.relativeRuns.all (templateRunCornersValid arm batch)
 
-private def checkTemplateBatches
-    (arm : RawArm)
-    (template : RawTemplate) :
-    List RawTemplateInstances -> Ownership -> Option Ownership
-  | [], state => some state
-  | batch :: batches, state =>
-      if batch.count = 0 || batch.sourceStride = 0 then
-        none
-      else do
-        let state <- checkTemplateBatchInstances arm template batch 0 batch.count state
-        checkTemplateBatches arm template batches state
+private def templateValid (arm : RawArm) (template : RawTemplate) : Bool :=
+  relativeRunsValid template && decide (!template.instances.isEmpty) &&
+    template.instances.all (templateBatchValid arm template)
 
-private def checkTemplates
-    (arm : RawArm) : List RawTemplate -> Ownership -> Option Ownership
-  | [], state => some state
-  | template :: templates, state =>
-      if !relativeRunsValid template || template.instances.isEmpty then
-        none
-      else do
-        let state <- checkTemplateBatches arm template template.instances state
-        checkTemplates arm templates state
+private def templatesValid (arm : RawArm) : Bool :=
+  arm.templates.all (templateValid arm)
 
-private def checkResidualRunColumns
-    (arm : RawArm)
-    (run : RawStridedRun) : Nat -> Nat -> Ownership -> Option Ownership
-  | _, 0, state => some state
-  | offset, remaining + 1, state => do
-      let sourceColumn := run.sourceStart + run.sourceStride * offset
-      if !resolutionValidAt arm sourceColumn offset 0 0 0 run.resolution then
-        none
-      else
-        let state <- markColumn arm sourceColumn state
-        checkResidualRunColumns arm run (offset + 1) remaining state
+private def residualResolutionValidAt
+    (arm : RawArm) (batch : RawResidualBatch)
+    (instanceIndex offset : Nat) : Bool :=
+  let sourceColumn :=
+    batch.sourceStart + batch.instanceStride * instanceIndex + offset
+  resolutionValidAt arm sourceColumn offset 0 0 0 batch.resolution
 
-private def checkResidualRuns
-    (arm : RawArm) : List RawStridedRun -> Ownership -> Option Ownership
-  | [], state => some state
-  | run :: runs, state =>
-      if run.count = 0 || run.sourceStride = 0 then
-        none
-      else do
-        let state <- checkResidualRunColumns arm run 0 run.count state
-        checkResidualRuns arm runs state
+private def residualCornersValid
+    (arm : RawArm) (batch : RawResidualBatch) : Bool :=
+  let lastInstance := batch.instanceCount - 1
+  let lastOffset := batch.width - 1
+  residualResolutionValidAt arm batch 0 0 &&
+    residualResolutionValidAt arm batch 0 lastOffset &&
+    residualResolutionValidAt arm batch lastInstance 0 &&
+    residualResolutionValidAt arm batch lastInstance lastOffset
+
+private def residualBatchValid
+    (arm : RawArm) (batch : RawResidualBatch) : Bool :=
+  decide (0 < batch.instanceCount) && decide (0 < batch.width) &&
+    decide (batch.instanceCount = 1 ∧ batch.instanceStride = 0 ∨
+      1 < batch.instanceCount ∧ batch.width ≤ batch.instanceStride) &&
+    residualCornersValid arm batch
+
+private def residualBatchesValid (arm : RawArm) : Bool :=
+  arm.residualBatches.all (residualBatchValid arm)
+
+private def ownerGeometry (arm : RawArm) :
+    RawOwnerRef → Option OwnerGeometry
+  | .template templateIndex batchIndex =>
+      match arm.templates[templateIndex]? with
+      | none => none
+      | some template =>
+          match template.instances[batchIndex]? with
+          | none => none
+          | some batch => some {
+              sourceStart := batch.sourceStart
+              count := batch.count
+              stride := batch.sourceStride
+              width := template.sourceWidth
+            }
+  | .residual batchIndex =>
+      match arm.residualBatches[batchIndex]? with
+      | none => none
+      | some batch => some {
+          sourceStart := batch.sourceStart
+          count := batch.instanceCount
+          stride := batch.instanceStride
+          width := batch.width
+        }
+
+private def ownerRepetitionValid
+    (groupCount groupStride : Nat) (geometry : OwnerGeometry) : Bool :=
+  if groupCount = 1 then
+    decide (geometry.count = 1 ∧ geometry.stride = 0)
+  else
+    decide (1 < groupCount ∧ geometry.count = groupCount ∧
+      geometry.stride = groupStride)
+
+private def ownersTileFrom
+    (arm : RawArm) (groupCount groupStride terminal : Nat) :
+    Nat → List RawOwnerRef → Bool
+  | cursor, [] => decide (cursor = terminal)
+  | cursor, owner :: owners =>
+      match ownerGeometry arm owner with
+      | none => false
+      | some geometry =>
+          decide (geometry.sourceStart = cursor) && decide (0 < geometry.width) &&
+            ownerRepetitionValid groupCount groupStride geometry &&
+            ownersTileFrom arm groupCount groupStride terminal
+              (cursor + geometry.width) owners
+
+private def coverGroupValid (arm : RawArm) (group : RawCoverGroup) : Bool :=
+  decide (0 < group.count) && decide (0 < group.stride) &&
+    decide (!group.owners.isEmpty) &&
+    ownersTileFrom arm group.count group.stride
+      (group.sourceStart + group.stride) group.sourceStart group.owners
+
+/-- A structural source cover. It advances by one affine group envelope and
+never allocates a value for an expanded source column. -/
+def coverGroupsFrom (arm : RawArm) : Nat → List RawCoverGroup → Bool
+  | cursor, [] => decide (cursor = arm.sourceEnd)
+  | cursor, group :: groups =>
+      decide (group.sourceStart = cursor) && coverGroupValid arm group &&
+        coverGroupsFrom arm (group.sourceStart + group.count * group.stride)
+          groups
+
+private def templateOwnerRefsFrom :
+    Nat → List RawTemplate → List RawOwnerRef
+  | _, [] => []
+  | templateIndex, template :: templates =>
+      (List.range template.instances.length |>.map fun batchIndex =>
+        .template templateIndex batchIndex) ++
+      templateOwnerRefsFrom (templateIndex + 1) templates
+
+private def allOwnerRefs (arm : RawArm) : List RawOwnerRef :=
+  templateOwnerRefsFrom 0 arm.templates ++
+    (List.range arm.residualBatches.length |>.map RawOwnerRef.residual)
+
+private def coverOwnerRefs (arm : RawArm) : List RawOwnerRef :=
+  arm.coverGroups.flatMap (fun group => group.owners)
+
+private def ownerRefsExact (arm : RawArm) : Bool :=
+  let expected := allOwnerRefs arm
+  let actual := coverOwnerRefs arm
+  decide expected.Nodup && decide actual.Nodup &&
+    decide (actual.length = expected.length) &&
+    actual.all fun owner => decide (owner ∈ expected)
 
 def templateColumnCount (arm : RawArm) : Nat :=
   (arm.templates.map fun template =>
-    template.sourceWidth * (template.instances.map (fun batch => batch.count)).sum).sum
+    template.sourceWidth *
+      (template.instances.map (fun batch => batch.count)).sum).sum
 
 def residualColumnCount (arm : RawArm) : Nat :=
-  (arm.residualRuns.map fun run => run.count).sum
+  (arm.residualBatches.map fun batch =>
+    batch.instanceCount * batch.width).sum
 
-private def maximumList (values : List Nat) : Nat :=
-  values.foldl Nat.max 0
+private def exactShape
+    (expectedArm expectedSourceEnd : Nat) (arm : RawArm) : Bool :=
+  decide (arm.schemaVersion = supportedSchemaVersion ∧
+    arm.arm = expectedArm ∧ arm.sourceStart = 1 ∧
+    arm.sourceEnd = expectedSourceEnd ∧ arm.finalColumns = 8858862 ∧
+    arm.templates.length = 3 ∧ arm.residualBatches.length = 67 ∧
+    arm.coverGroups.length = 98)
 
-def maximumCheckRun (arm : RawArm) : Nat :=
-  Nat.max
-    (maximumList (arm.templates.flatMap fun template =>
-      template.relativeRuns.map fun run => run.length))
-    (maximumList (arm.residualRuns.map fun run => run.count))
+private def columnCensusExact (arm : RawArm) : Bool :=
+  decide (templateColumnCount arm + residualColumnCount arm =
+    arm.sourceEnd - arm.sourceStart)
 
-def exactShape
-    (expectedArm expectedSourceEnd : Nat)
-    (arm : RawArm) : Bool :=
-  decide (arm.schemaVersion = supportedSchemaVersion /\
-    arm.arm = expectedArm /\
-    arm.sourceStart = 1 /\
-    arm.sourceEnd = expectedSourceEnd /\
-    arm.finalColumns = 2484972 /\
-    arm.templates.length = 3 /\
-    arm.residualRuns.length = 16)
+/-- Compact proof obligations for one parity decoder. No field contains an
+expanded source-column set, final-column set, or witness assignment. -/
+structure ArmValidFor
+    (expectedArm expectedSourceEnd : Nat) (arm : RawArm) : Prop where
+  shape : exactShape expectedArm expectedSourceEnd arm = true
+  templates : templatesValid arm = true
+  residualBatches : residualBatchesValid arm = true
+  ownerRefs : ownerRefsExact arm = true
+  sourceCover : coverGroupsFrom arm arm.sourceStart arm.coverGroups = true
+  columnCensus : columnCensusExact arm = true
 
-def validateArm
-    (expectedArm expectedSourceEnd : Nat)
-    (arm : RawArm) : Bool :=
-  if !exactShape expectedArm expectedSourceEnd arm then
-    false
-  else
-    let sourceLength := arm.sourceEnd - arm.sourceStart
-    let initial : Ownership :=
-      { slots := Array.replicate sourceLength false, marked := 0 }
-    match checkTemplates arm arm.templates initial with
-    | none => false
-    | some afterTemplates =>
-        match checkResidualRuns arm arm.residualRuns afterTemplates with
-        | none => false
-        | some complete => decide (complete.marked = sourceLength)
+def EvenValid : Prop := ArmValidFor 0 1301126 evenArm
 
-def EvenValid : Prop := validateArm 0 559136 evenArm = true
+def OddValid : Prop := ArmValidFor 1 1302326 oddArm
 
-def OddValid : Prop := validateArm 1 560336 oddArm = true
-
-/-- The even check owns exactly 559,135 requested source columns. -/
-theorem even_source_length_exact :
-    evenArm.sourceEnd - evenArm.sourceStart = 559135 := by
+/-- Exact source and final bounds, projected from the Rust-generated data. -/
+theorem dimensions_exact :
+    evenArm.sourceStart = 1 ∧ evenArm.sourceEnd = 1301126 ∧
+      oddArm.sourceStart = 1 ∧ oddArm.sourceEnd = 1302326 ∧
+      evenArm.finalColumns = 8858862 ∧ oddArm.finalColumns = 8858862 := by
   decide
 
-/-- The odd check owns exactly 560,335 requested source columns. -/
-theorem odd_source_length_exact :
-    oddArm.sourceEnd - oddArm.sourceStart = 560335 := by
+/-- Exact compact certificate sizes. The proof checks 390 shared relative
+runs per arm, 66 template batches, 134 residual batches, and 196 groups. -/
+theorem certificate_input_lengths_exact :
+    (evenArm.templates.map (fun template => template.relativeRuns.length)).sum = 390 ∧
+      (oddArm.templates.map (fun template => template.relativeRuns.length)).sum = 390 ∧
+      (evenArm.templates.map (fun template => template.instances.length)).sum = 33 ∧
+      (oddArm.templates.map (fun template => template.instances.length)).sum = 33 ∧
+      evenArm.residualBatches.length = 67 ∧ oddArm.residualBatches.length = 67 ∧
+      evenArm.coverGroups.length = 98 ∧ oddArm.coverGroups.length = 98 := by
   decide
 
-/-- The largest tail-recursive column run in either check has 43,794 items. -/
-theorem maximum_check_run_exact :
-    maximumCheckRun evenArm = 43794 /\ maximumCheckRun oddArm = 43794 := by
-  native_decide
+private theorem even_shape_exact : exactShape 0 1301126 evenArm = true := by
+  decide
 
-/-- The compact template and residual counts equal the complete even source range. -/
+private theorem odd_shape_exact : exactShape 1 1302326 oddArm = true := by
+  decide
+
+private theorem even_templates_valid : templatesValid evenArm = true := by
+  decide
+
+private theorem odd_templates_valid : templatesValid oddArm = true := by
+  decide
+
+private theorem even_residual_batches_valid :
+    residualBatchesValid evenArm = true := by
+  decide
+
+private theorem odd_residual_batches_valid :
+    residualBatchesValid oddArm = true := by
+  decide
+
+private theorem even_owner_refs_exact : ownerRefsExact evenArm = true := by
+  decide
+
+private theorem odd_owner_refs_exact : ownerRefsExact oddArm = true := by
+  decide
+
+private theorem even_source_cover_exact :
+    coverGroupsFrom evenArm evenArm.sourceStart evenArm.coverGroups = true := by
+  decide
+
+private theorem odd_source_cover_exact :
+    coverGroupsFrom oddArm oddArm.sourceStart oddArm.coverGroups = true := by
+  decide
+
+/-- The compact template and residual counts equal the complete even source
+range. -/
 theorem even_column_census_exact :
-    templateColumnCount evenArm = 511020 /\
-      residualColumnCount evenArm = 48115 /\
-      templateColumnCount evenArm + residualColumnCount evenArm = 559135 := by
-  native_decide
+    templateColumnCount evenArm = 1239996 ∧
+      residualColumnCount evenArm = 61129 ∧
+      templateColumnCount evenArm + residualColumnCount evenArm = 1301125 := by
+  decide
 
-/-- The compact template and residual counts equal the complete odd source range. -/
+/-- The compact template and residual counts equal the complete odd source
+range. -/
 theorem odd_column_census_exact :
-    templateColumnCount oddArm = 512220 /\
-      residualColumnCount oddArm = 48115 /\
-      templateColumnCount oddArm + residualColumnCount oddArm = 560335 := by
-  native_decide
+    templateColumnCount oddArm = 1241196 ∧
+      residualColumnCount oddArm = 61129 ∧
+      templateColumnCount oddArm + residualColumnCount oddArm = 1302325 := by
+  decide
 
-/-- The generated even decoder has exact cover, no duplicate source owner,
-and only in-bounds source references and final slot spans. -/
+/-- The generated even decoder satisfies every compact structural leaf. The
+proof does not expand its 1,301,125 source columns. -/
 theorem even_valid : EvenValid := by
-  unfold EvenValid
-  native_decide
+  exact {
+    shape := even_shape_exact
+    templates := even_templates_valid
+    residualBatches := even_residual_batches_valid
+    ownerRefs := even_owner_refs_exact
+    sourceCover := even_source_cover_exact
+    columnCensus := by decide
+  }
 
-/-- The generated odd decoder has exact cover, no duplicate source owner,
-and only in-bounds source references and final slot spans. -/
+/-- The generated odd decoder satisfies every compact structural leaf. The
+proof does not expand its 1,302,325 source columns. -/
 theorem odd_valid : OddValid := by
-  unfold OddValid
-  native_decide
+  exact {
+    shape := odd_shape_exact
+    templates := odd_templates_valid
+    residualBatches := odd_residual_batches_valid
+    ownerRefs := odd_owner_refs_exact
+    sourceCover := odd_source_cover_exact
+    columnCensus := by decide
+  }
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyDecoder

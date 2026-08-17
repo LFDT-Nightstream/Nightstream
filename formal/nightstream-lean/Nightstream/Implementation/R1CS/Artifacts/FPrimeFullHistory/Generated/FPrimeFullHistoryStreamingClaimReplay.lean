@@ -19,7 +19,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplay.Artifact
 
-def artifactSha256 : String := "483a2b10885f9823220aa9582db132f8bc9fb20ae3335ea1736fc5b13e5fcd2d"
+def artifactSha256 : String := "33acae5532a4bf5fdab644c9925d6522c0d595d55688fadecc6ebbdb35644377"
 
 def statementFreshSchedule : Nightstream.Implementation.R1CS.SeededPhi81.SeedSchedule :=
   { chunkSize := 19474, seedsByOutput := [[[90, 198, 93, 169, 55, 81, 67, 148, 178, 68, 137, 27, 6, 173, 239, 46, 201, 16, 136, 48, 104, 81, 193, 145, 196, 165, 85, 188, 130, 232, 13, 153]], [[27, 127, 86, 102, 130, 213, 78, 108, 56, 209, 93, 217, 121, 213, 28, 140, 111, 161, 75, 6, 40, 34, 75, 66, 102, 111, 202, 201, 134, 158, 31, 242]]], rejectionFuel := 16 }
@@ -1247,17 +1247,17 @@ def finalArm : RawArm :=
   ] }
 
 def rawArtifact : RawArtifact :=
-  { schemaVersion := 4, profileId := "nebula-f-prime-streaming-claim-replay-v4",
+  { schemaVersion := 4, profileId := "nebula-f-prime-streaming-claim-replay-goldilocks-b2-v5",
     frameFields := 88023, chunkFields := 1024,
     finalChunkFields := 983, fullChunks := 85,
     transitionStateWords := 472, stateDigestWords := 8,
     sharedPublicWords := 10, publicBitsPerWord := 64,
-    sharedPrivateFields := 476, lowNormRows := 167491, lowNormColumns := 808110,
-    lowNormPublicColumns := 648, lowNormTotalCoordinates := 808068,
+    sharedPrivateFields := 476, lowNormRows := 134101, lowNormColumns := 1408752,
+    lowNormPublicColumns := 648, lowNormTotalCoordinates := 1408746,
     lowNormArity := 13, lowNormDegree := 8,
     lowNormSharedPrivateCoordinates := 476,
-    lowNormFullBranchCoordinates := 796380, lowNormFinalBranchCoordinates := 786634,
-    lowNormFullPoseidon2Coordinates := 748196, lowNormFinalPoseidon2Coordinates := 726438,
+    lowNormFullBranchCoordinates := 1388562, lowNormFinalBranchCoordinates := 1354894,
+    lowNormFullPoseidon2Coordinates := 1333340, lowNormFinalPoseidon2Coordinates := 1294554,
     full := fullArm, finalChunk := finalArm }
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplay

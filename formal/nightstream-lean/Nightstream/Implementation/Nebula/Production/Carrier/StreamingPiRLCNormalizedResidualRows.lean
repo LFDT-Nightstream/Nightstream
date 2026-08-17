@@ -7,7 +7,7 @@ input-residual rows.
 
 Assurance tier: model-level.
 
-Owns the 108 retained equality-row images, their direct radix-seven source
+Owns the 108 retained equality-row images, their direct radix-three source
 decoding, and the same-assignment implication to the concrete residual
 transition when the local commitment output and state columns are placed.
 
@@ -176,12 +176,12 @@ theorem receipt_geometry_exact :
       productionRowCount =
         Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained.audit.sourceRows /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained.audit.sourceRowStart =
-        144277 /\
+        163501 /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained.audit.sourceStarts =
-        [144918, 145026, 145134] /\
+        [164142, 164250, 164358] /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyResidualRetained.audit.finalStarts =
-        [1076091, 1078575, 1081059] := by
-  native_decide
+        [2129127, 2133555, 2137983] := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 end Normalized
 

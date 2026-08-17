@@ -46,7 +46,7 @@ abbrev ExactProof :=
 constraint polynomial and statement identifier are not prover wires. -/
 structure Wires where
   publicNifsFields : List LinCombNormal.LinComb
-  publicNifsFields_length : publicNifsFields.length = 87655
+  publicNifsFields_length : publicNifsFields.length = 99535
   priorPoint : Fin ProductNifsCodec.shape.cubeVariables -> KMul.Carried
   claimedCoefficient :
     CarriedCoordinate ProductNifsCodec.shape -> KMul.Carried

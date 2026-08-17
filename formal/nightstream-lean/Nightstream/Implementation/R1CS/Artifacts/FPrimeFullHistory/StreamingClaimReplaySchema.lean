@@ -382,7 +382,7 @@ deriving DecidableEq, Repr
 
 def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
   artifact.schemaVersion = 4 ∧
-    artifact.profileId = "nebula-f-prime-streaming-claim-replay-v4" ∧
+    artifact.profileId = "nebula-f-prime-streaming-claim-replay-goldilocks-b2-k16-v5" ∧
     artifact.frameFields = 88023 ∧
     artifact.chunkFields = 1024 ∧
     artifact.finalChunkFields = 983 ∧

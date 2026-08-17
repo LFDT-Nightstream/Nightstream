@@ -11,7 +11,7 @@ Owns one Goldilocks equality row per rank-two Phi81 output field, exact row
 geometry, source-column placement, soundness from accepted rows to the
 field-level residual equation, and honest completeness.
 
-Does not own the 810-field local commitment rows, the production setup
+Does not own the 918-field local commitment rows, the production setup
 identity, Poseidon2 replay, other family-state links, normalized selective-CCS
 slots, Rust assignment conformance, telescoping, or the terminal zero check.
 

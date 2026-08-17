@@ -255,8 +255,8 @@ theorem terminal_opening_exact
   rw [artifact.terminalOpensExactRelation, artifact.nifsShapeExact]
   rfl
 
-/-- No current field-native generated artifact can reuse the fixed
-25-variable reference NIFS shape. -/
+/-- No larger field-native generated artifact can reuse the fixed
+25-variable production NIFS shape. -/
 theorem nifsShape_ne_reference25
     {candidate : Id} (artifact : Artifact candidate) :
     artifact.nifsShape ≠ ProductNifsCodec.shape := by
@@ -272,21 +272,21 @@ theorem nifsShape_ne_reference25
   have minimum := artifact.relationRowVariables_minimum
   omega
 
-/-- The production running carrier cannot retain the fixed-25 count of
-83,210 fields. -/
+/-- A larger production running carrier cannot retain the fixed-25 count of
+95,090 fields. -/
 theorem runningFieldCoordinates_exceed_reference
     {candidate : Id} (artifact : Artifact candidate) :
-    83210 < artifact.runningFieldCoordinates := by
+    95090 < artifact.runningFieldCoordinates := by
   rw [artifact.runningFieldCoordinatesExact,
     ProductionProfileCandidates.runningFieldCoordinatesFor]
   have minimum := artifact.relationRowVariables_minimum
   omega
 
-/-- The production NIFS public frame cannot retain the fixed-25 count of
-87,655 fields. -/
+/-- A larger production NIFS public frame cannot retain the fixed-25 count of
+99,535 fields. -/
 theorem nifsPublicFrameFields_exceed_reference
     {candidate : Id} (artifact : Artifact candidate) :
-    87655 < artifact.nifsPublicFrameFields := by
+    99535 < artifact.nifsPublicFrameFields := by
   rw [artifact.nifsPublicFrameFieldsExact]
   have running := artifact.runningFieldCoordinates_exceed_reference
   omega

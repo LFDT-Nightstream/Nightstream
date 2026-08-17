@@ -105,7 +105,7 @@ theorem assignmentColumns_eq_ringBlocks :
 def shape : Shape where
   cubeVariables := rowVariables
   freshCount := 1
-  runningCount := 14
+  runningCount := 16
   matrixCount := jointMatrixCount
   coefficientCount := ringDegree
 
@@ -115,19 +115,19 @@ theorem shape_cubeVariables_exact : shape.cubeVariables = 24 := by
 theorem shape_matrixCount_exact : shape.matrixCount = 14 := by
   rfl
 
-theorem shape_sourceCount_exact : shape.sourceCount = 15 := by
+theorem shape_sourceCount_exact : shape.sourceCount = 17 := by
   rfl
 
 theorem shape_carriedEvaluationCount_exact :
-    shape.carriedEvaluationCount = 10584 := by
+    shape.carriedEvaluationCount = 12096 := by
   rfl
 
 theorem shape_jointCoefficientCount_exact :
-    shape.jointCoefficientCount = 10600 := by
+    shape.jointCoefficientCount = 12114 := by
   rfl
 
 theorem terminalRingValueCount_exact :
-    shape.sourceCount * shape.matrixCount = 210 := by
+    shape.sourceCount * shape.matrixCount = 238 := by
   rfl
 
 /-- Canonical little-endian assignment-prefix layout. -/
@@ -144,7 +144,7 @@ CCS relation. -/
 def applicationShape : Shape where
   cubeVariables := rowVariables
   freshCount := 1
-  runningCount := 14
+  runningCount := 16
   matrixCount := applicationMatrixCount
   coefficientCount := ringDegree
 

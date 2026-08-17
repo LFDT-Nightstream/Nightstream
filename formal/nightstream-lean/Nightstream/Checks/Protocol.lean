@@ -16,9 +16,9 @@ open Nightstream.SuperNeo.Concrete
 def probes : List Nightstream.Checks.Probe :=
   [ ⟨"params_goldilocks_q", fun _ => productionGlobalParams.q == 18446744069414584321, true⟩
   , ⟨"params_fresh_bound", fun _ => productionGlobalParams.b == 2, true⟩
-  , ⟨"params_decomposition_arity", fun _ => productionGlobalParams.k == 14, true⟩
-  , ⟨"params_max_fresh", fun _ => productionGlobalParams.maxFresh == 61, true⟩
-  , ⟨"params_big_b", fun _ => productionGlobalParams.bigB == 16384, true⟩
+  , ⟨"params_decomposition_arity", fun _ => productionGlobalParams.k == 16, true⟩
+  , ⟨"params_max_fresh", fun _ => productionGlobalParams.maxFresh == 287, true⟩
+  , ⟨"params_big_b", fun _ => productionGlobalParams.bigB == 65536, true⟩
   , ⟨"params_expansion_t", fun _ => productionGlobalParams.expansionT == 216, true⟩
   ]
 

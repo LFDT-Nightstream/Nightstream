@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 Contract: bounded Poseidon2 call-geometry certificate for the Rust-emitted
 even PiRLC public-family arm.
 
-Owns all 490 compact call records as seven 64-call leaves and one 42-call
+Owns all 544 compact call records as eight 64-call leaves and one 32-call
 leaf. It owns no Poseidon2 semantics or row ownership.
 
 Emits constraints: no.
@@ -36,6 +36,8 @@ def evenChunk5 := evenTail5.take 64
 def evenTail6 := evenTail5.drop 64
 def evenChunk6 := evenTail6.take 64
 def evenTail7 := evenTail6.drop 64
+def evenChunk7 := evenTail7.take 64
+def evenTail8 := evenTail7.drop 64
 
 theorem evenChunk0_length : evenChunk0.length = 64 := by rfl
 theorem evenChunk1_length : evenChunk1.length = 64 := by rfl
@@ -44,43 +46,46 @@ theorem evenChunk3_length : evenChunk3.length = 64 := by rfl
 theorem evenChunk4_length : evenChunk4.length = 64 := by rfl
 theorem evenChunk5_length : evenChunk5.length = 64 := by rfl
 theorem evenChunk6_length : evenChunk6.length = 64 := by rfl
-theorem evenTail7_length : evenTail7.length = 42 := by rfl
+theorem evenChunk7_length : evenChunk7.length = 64 := by rfl
+theorem evenTail8_length : evenTail8.length = 32 := by rfl
 
 theorem evenArm_poseidon2Calls_length :
-    evenArm.poseidon2Calls.length = 490 := by
-  have tail6 : evenTail6.length = 106 :=
-    length_of_take_drop evenChunk6_length evenTail7_length
-  have tail5 : evenTail5.length = 170 :=
+    evenArm.poseidon2Calls.length = 544 := by
+  have tail7 : evenTail7.length = 96 :=
+    length_of_take_drop evenChunk7_length evenTail8_length
+  have tail6 : evenTail6.length = 160 :=
+    length_of_take_drop evenChunk6_length tail7
+  have tail5 : evenTail5.length = 224 :=
     length_of_take_drop evenChunk5_length tail6
-  have tail4 : evenTail4.length = 234 :=
+  have tail4 : evenTail4.length = 288 :=
     length_of_take_drop evenChunk4_length tail5
-  have tail3 : evenTail3.length = 298 :=
+  have tail3 : evenTail3.length = 352 :=
     length_of_take_drop evenChunk3_length tail4
-  have tail2 : evenTail2.length = 362 :=
+  have tail2 : evenTail2.length = 416 :=
     length_of_take_drop evenChunk2_length tail3
-  have tail1 : evenTail1.length = 426 :=
+  have tail1 : evenTail1.length = 480 :=
     length_of_take_drop evenChunk1_length tail2
   exact length_of_take_drop evenChunk0_length tail1
 
 theorem evenChunk0_valid :
     ∀ call ∈ evenChunk0,
-      PoseidonCallValid 1233086 call ∧ 275006 ≤ call.rowStart := by
+      PoseidonCallValid 1301126 call ∧ 310646 ≤ call.rowStart := by
   norm_num [evenChunk0, evenTail0, PoseidonCallValid, evenArm]
 
 theorem evenChunk1_valid :
     ∀ call ∈ evenChunk1,
-      PoseidonCallValid 1233086 call ∧ 275006 ≤ call.rowStart := by
+      PoseidonCallValid 1301126 call ∧ 310646 ≤ call.rowStart := by
   norm_num [evenChunk1, evenTail1, evenTail0, PoseidonCallValid, evenArm]
 
 theorem evenChunk2_valid :
     ∀ call ∈ evenChunk2,
-      PoseidonCallValid 1233086 call ∧ 275006 ≤ call.rowStart := by
+      PoseidonCallValid 1301126 call ∧ 310646 ≤ call.rowStart := by
   norm_num [evenChunk2, evenTail2, evenTail1, evenTail0,
     PoseidonCallValid, evenArm]
 
 theorem evenChunk3_valid :
     ∀ call ∈ evenChunk3,
-      PoseidonCallValid 1233086 call ∧ 275006 ≤ call.rowStart := by
+      PoseidonCallValid 1301126 call ∧ 310646 ≤ call.rowStart := by
   norm_num [evenChunk3, evenTail3, evenTail2, evenTail1, evenTail0,
     PoseidonCallValid, evenArm]
 

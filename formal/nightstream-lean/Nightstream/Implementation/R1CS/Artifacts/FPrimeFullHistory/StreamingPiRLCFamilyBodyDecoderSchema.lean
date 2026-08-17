@@ -29,10 +29,11 @@ structure RawRun where
   resolution : RawResolutionRun
 deriving DecidableEq, Repr
 
-structure RawStridedRun where
+structure RawResidualBatch where
   sourceStart : Nat
-  count : Nat
-  sourceStride : Nat
+  instanceCount : Nat
+  instanceStride : Nat
+  width : Nat
   resolution : RawResolutionRun
 deriving DecidableEq, Repr
 
@@ -54,6 +55,18 @@ structure RawTemplate where
   instances : List RawTemplateInstances
 deriving DecidableEq, Repr
 
+inductive RawOwnerRef where
+  | template (templateIndex batchIndex : Nat)
+  | residual (batchIndex : Nat)
+deriving DecidableEq, Repr
+
+structure RawCoverGroup where
+  sourceStart : Nat
+  count : Nat
+  stride : Nat
+  owners : List RawOwnerRef
+deriving DecidableEq, Repr
+
 structure RawArm where
   schemaVersion : Nat
   arm : Nat
@@ -61,7 +74,8 @@ structure RawArm where
   sourceEnd : Nat
   finalColumns : Nat
   templates : List RawTemplate
-  residualRuns : List RawStridedRun
+  residualBatches : List RawResidualBatch
+  coverGroups : List RawCoverGroup
 deriving DecidableEq, Repr
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoderSchema

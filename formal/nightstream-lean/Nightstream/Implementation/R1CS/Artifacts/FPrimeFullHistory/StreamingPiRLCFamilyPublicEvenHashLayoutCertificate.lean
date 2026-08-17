@@ -26,7 +26,7 @@ theorem evenArm_afterXOutHash_rounds_valid :
 
 theorem evenArm_afterXOutHash_valid :
     RawHash.Valid evenArm evenArm.afterXOutPreimageColumns
-      evenArm.afterXOutDigestColumns 472 evenArm.afterXOutHash := by
+      evenArm.afterXOutDigestColumns 526 evenArm.afterXOutHash := by
   unfold RawHash.Valid
   rw [evenArm_afterXOutHash_rounds_valid]
   norm_num [columnsValid, hasGlueIndex, evenArm]
@@ -38,7 +38,7 @@ theorem evenArm_beforeXOutHash_rounds_valid :
 
 theorem evenArm_beforeXOutHash_valid :
     RawHash.Valid evenArm evenArm.beforeXOutPreimageColumns
-      evenArm.beforeXOutDigestColumns 481 evenArm.beforeXOutHash := by
+      evenArm.beforeXOutDigestColumns 535 evenArm.beforeXOutHash := by
   unfold RawHash.Valid
   rw [evenArm_beforeXOutHash_rounds_valid]
   norm_num [columnsValid, hasGlueIndex, evenArm]

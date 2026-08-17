@@ -8,8 +8,8 @@ input vector.
 
 Assurance tier: model-level Module-SIS reduction boundary.
 
-Owns the exact 89,100-field family-major geometry, its standard 41-coordinate
-signed-ternary packing, the exact 67,650-column Phi81 message, the bijection
+Owns the exact 100,980-field family-major geometry, its standard 41-coordinate
+signed-ternary packing, the exact 76,670-column Phi81 message, the bijection
 between family/source/lane coordinates and vector positions, and recovery of
 equal PiRLC inputs or one rank-two Module-SIS kernel witness.
 
@@ -36,7 +36,7 @@ abbrev Source := ProductionStreamingPiRlc.Source
 abbrev InputRings := ProductionStreamingPiRlc.InputRings
 
 def familyCount : Nat := 110
-def sourceCount : Nat := 15
+def sourceCount : Nat := 17
 def laneCount : Nat := 54
 def fieldsPerFamily : Nat := sourceCount * laneCount
 def fieldCount : Nat := familyCount * fieldsPerFamily
@@ -44,10 +44,10 @@ def messageColumnCount : Nat := fieldCount * digitCount / ringDegree
 def verifierRows : Nat := 2
 
 theorem exact_geometry :
-    fieldsPerFamily = 810 /\
-      fieldCount = 89100 /\
-      fieldCount * digitCount = 3653100 /\
-      messageColumnCount = 67650 /\
+    fieldsPerFamily = 918 /\
+      fieldCount = 100980 /\
+      fieldCount * digitCount = 4140180 /\
+      messageColumnCount = 76670 /\
       messageColumnCount * ringDegree = fieldCount * digitCount := by
   decide
 
@@ -57,7 +57,7 @@ def shape : Shape where
   degree := ringDegree
 
 theorem exact_shape :
-    shape.rows = 2 /\ shape.columns = 67650 /\ shape.degree = 54 := by
+    shape.rows = 2 /\ shape.columns = 76670 /\ shape.degree = 54 := by
   decide
 
 abbrev Fields := FieldVector fieldCount
@@ -140,9 +140,9 @@ theorem familyOffset_lt (source : Source) (lane : Fin laneCount) :
     familyOffset source lane < fieldsPerFamily := by
   have sourceBound := source.isLt
   have laneBound := lane.isLt
-  change source.val < 15 at sourceBound
+  change source.val < 17 at sourceBound
   change lane.val < 54 at laneBound
-  change source.val * 54 + lane.val < 810
+  change source.val * 54 + lane.val < 918
   omega
 
 def familyInputPosition
@@ -151,8 +151,8 @@ def familyInputPosition
   ⟨familyOrdinal family * fieldsPerFamily + familyOffset source lane, by
     have familyBound := familyOrdinal_lt family
     have offsetBound := familyOffset_lt source lane
-    change familyOffset source lane < 810 at offsetBound
-    change familyOrdinal family * 810 + familyOffset source lane < 89100
+    change familyOffset source lane < 918 at offsetBound
+    change familyOrdinal family * 918 + familyOffset source lane < 100980
     omega⟩
 
 def positionOrdinal (position : Fin fieldCount) : Fin familyCount :=
@@ -481,7 +481,7 @@ theorem equal_input_binding_recovers_inputs_or_failure
   · exact Or.inl (inputVector_injective fieldsEqual)
   · exact Or.inr failure
 
-/-- Exact handwritten source footprint for one 810-field family opening under
+/-- Exact handwritten source footprint for one 918-field family opening under
 the fixed-position binding. It excludes arithmetic, selectors, and lifecycle
 glue. -/
 def perFamilySourceRows : Nat :=
@@ -501,10 +501,10 @@ def fullSourceColumns : Nat :=
     verifierRows * ringDegree
 
 theorem exact_source_geometry :
-    perFamilySourceRows = 100591 /\
-      perFamilySourceColumns = 99782 /\
-      fullSourceRows = 11048551 /\
-      fullSourceColumns = 10959452 /\
+    perFamilySourceRows = 113983 /\
+      perFamilySourceColumns = 113066 /\
+      fullSourceRows = 12521671 /\
+      fullSourceColumns = 12420692 /\
       perFamilySourceRows < 2 ^ 24 /\
       perFamilySourceColumns < 2 ^ 24 /\
       fullSourceRows < 2 ^ 24 /\

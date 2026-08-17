@@ -252,10 +252,10 @@ theorem compatibleContext_eq_selectedCompatibleContext
         piRlcAlgebra := by
   rfl
 
-/-- The selected profile has fifteen `Pi_RLC` coordinates, so both the
+/-- The selected profile has seventeen `Pi_RLC` coordinates, so both the
 coordinate-fork loss and the finite-oracle programming loss have numerator
-sixteen. -/
-theorem selectedProgrammingNumerator : (key).arity.total + 1 = 16 := by
+eighteen. -/
+theorem selectedProgrammingNumerator : (key).arity.total + 1 = 18 := by
   rfl
 
 /-- Headline finite random-oracle reduction for the exact selected key.

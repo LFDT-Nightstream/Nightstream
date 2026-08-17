@@ -134,14 +134,14 @@ theorem chunk_capacity_lt_values_plus_width
         simp only [List.length_nil, Nat.zero_mul, Nat.zero_add]
         omega
 
-/-- The production frame length forces exactly 86 claim-replay steps. This is
+/-- The production frame length forces exactly 98 claim-replay steps. This is
 an arithmetic consequence of the deterministic schedule, not a profile
 assertion supplied by the prover. -/
 theorem production_chunk_count_exact
     {Value : Type} {values : List Value} {chunks : List (List Value)}
-    (lengthExact : values.length = 88023)
+    (lengthExact : values.length = 99903)
     (schedule : ChunkSchedule 1024 values chunks) :
-    chunks.length = 86 := by
+    chunks.length = 98 := by
   have lower := schedule.values_length_le_chunk_capacity
   have upper := schedule.chunk_capacity_lt_values_plus_width (by decide)
   rw [lengthExact] at lower upper
@@ -374,12 +374,12 @@ private theorem authoritativeFrame_absorbList_not_full
     degreeBound value
   rw [lengthExact]
   simp only [ProductNifsCodec.runningFieldCountFor]
-  rw [show 366 + (17 + (83160 + 2 * fullShape.rowVariables) + 3888 + 540) =
-      1 + 2 * (43985 + fullShape.rowVariables) by omega]
+  rw [show 366 + (17 + (95040 + 2 * fullShape.rowVariables) + 3888 + 540) =
+      1 + 2 * (49925 + fullShape.rowVariables) by omega]
   rw [SymbolicDuplexCursor.after_add]
-  change SymbolicDuplexCursor.after 1 (2 * (43985 + fullShape.rowVariables)) <
+  change SymbolicDuplexCursor.after 1 (2 * (49925 + fullShape.rowVariables)) <
     Poseidon2Sponge.rate
-  rcases after_one_two_mul_odd (43985 + fullShape.rowVariables) with one | three
+  rcases after_one_two_mul_odd (49925 + fullShape.rowVariables) with one | three
   · rw [one]
     decide
   · rw [three]
@@ -499,16 +499,16 @@ theorem authoritativeFrame_length_r26
     (contract : ProductNifsCodec.FullShapeContractFor 26 fullShape)
     (statementId : StatementId) (degreeBound : Nat)
     (value : Value candidate fullShape) :
-    (authoritativeFrame statementId degreeBound value).length = 88023 := by
+    (authoritativeFrame statementId degreeBound value).length = 99903 := by
   rw [authoritativeFrame_lengthFor contract.toShape statementId degreeBound
     value, contract.rowVariablesExact]
   decide
 
-/-- A 1,024-field transcript slice needs 86 continuation steps: 85 complete
-slices and one 983-field final slice. This is only transcript geometry; it is
+/-- A 1,024-field transcript slice needs 98 continuation steps: 97 complete
+slices and one 575-field final slice. This is only transcript geometry; it is
 not a complete NIFS row estimate. -/
 theorem production_1024_chunk_geometry :
-    88023 = 85 * 1024 + 983 ∧ 0 < 983 ∧ 983 ≤ 1024 := by
+    99903 = 97 * 1024 + 575 ∧ 0 < 575 ∧ 575 ≤ 1024 := by
   decide
 
 end Nightstream.Implementation.Nebula.ProductionFullClaimStreaming

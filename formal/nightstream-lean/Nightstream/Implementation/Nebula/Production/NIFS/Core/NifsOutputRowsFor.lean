@@ -11,7 +11,7 @@ Contract: exact field-native output carrier for one exponent-indexed paper
 NIFS verifier call.
 
 The rows copy the transcript-derived SumCheck point into the output carrier
-and compute all fourteen public-input children from the PiRLC parent. Static
+and compute all sixteen public-input children from the PiRLC parent. Static
 aliases place the PiDEC child commitments and evaluations into the same
 carrier. The soundness theorem covers every flat carrier coordinate.
 
@@ -24,7 +24,7 @@ Assurance tier: exponent-indexed row implementation.
 Does not own the upstream NIFS section proof, complete recursive manifest,
 Rust refinement, terminal verification, or cryptographic soundness.
 
-Emits constraints: `2 * rowVariables + 23,760` R1CS rows.
+Emits constraints: `2 * rowVariables + 27,000` R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -101,7 +101,7 @@ theorem pointRows_length
 theorem rows_length
     {rowVariables : Nat} (layout : Layout rowVariables)
     (point : Fin rowVariables -> KMul.Carried) :
-    (rows layout point).length = rowVariables * 2 + 23760 := by
+    (rows layout point).length = rowVariables * 2 + 27000 := by
   simp [rows, pointRows_length, ProductPiDecPublicSplitRows.rows_length]
 
 def fullPublicColumn
@@ -128,7 +128,7 @@ def pointIndex {rowVariables : Nat}
     point_coordinate_bound coordinate limb⟩
 
 def commitmentIndex {rowVariables : Nat}
-    (child : Fin 14) (component : Fin 4)
+    (child : Fin 16) (component : Fin 4)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) :
     Fin (ProductNifsCodec.runningFieldCountFor rowVariables) :=
   ⟨commitmentCoordinateIndex child (componentAt component) row lane,
@@ -137,7 +137,7 @@ def commitmentIndex {rowVariables : Nat}
 def publicIndex
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContractFor rowVariables fullShape)
-    (child : Fin 14) (column : Fin 540) :
+    (child : Fin 16) (column : Fin 540) :
     Fin (ProductNifsCodec.runningFieldCountFor rowVariables) :=
   ⟨publicInputCoordinateIndex child (fullPublicColumn contract column),
     public_input_coordinate_bound contract child
@@ -146,7 +146,8 @@ def publicIndex
 def evaluationIndex
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContractFor rowVariables fullShape)
-    (child matrix : Fin 14) (lane : Fin ringDegree) (limb : Fin 2) :
+    (child : Fin 16) (matrix : Fin 14)
+    (lane : Fin ringDegree) (limb : Fin 2) :
     Fin (ProductNifsCodec.runningFieldCountFor rowVariables) :=
   ⟨evaluationCoordinateIndex (fullShape := fullShape) child matrix lane limb,
     evaluation_coordinate_bound contract child matrix lane limb⟩
@@ -160,7 +161,7 @@ def evaluationIndex
     pointCoordinateIndex, pointOffset]
 
 @[simp] theorem runningCoordinate_commitment_index
-    {rowVariables : Nat} (child : Fin 14) (component : Fin 4)
+    {rowVariables : Nat} (child : Fin 16) (component : Fin 4)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) :
     (RunningCoordinate.commitment (rowVariables := rowVariables)
         child component row lane).index =
@@ -174,7 +175,7 @@ def evaluationIndex
 @[simp] theorem runningCoordinate_public_index
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContractFor rowVariables fullShape)
-    (child : Fin 14) (column : Fin 540) :
+    (child : Fin 16) (column : Fin 540) :
     (RunningCoordinate.publicInput (rowVariables := rowVariables)
         child column).index =
       publicIndex contract child column := by
@@ -186,7 +187,8 @@ def evaluationIndex
 @[simp] theorem runningCoordinate_evaluation_index
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContractFor rowVariables fullShape)
-    (child matrix : Fin 14) (lane : Fin ringDegree) (limb : Fin 2) :
+    (child : Fin 16) (matrix : Fin 14)
+    (lane : Fin ringDegree) (limb : Fin 2) :
     (RunningCoordinate.evaluation (rowVariables := rowVariables)
         child matrix lane limb).index =
       evaluationIndex contract child matrix lane limb := by

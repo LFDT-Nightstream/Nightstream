@@ -2,7 +2,7 @@ import Nightstream.Implementation.Nebula.NIFS.PiRLC.CandidateClassificationRows
 import Nightstream.Implementation.Nebula.NIFS.PiRLC.FirstAcceptedRows
 
 /-!
-Contract: exact indexed first-accepted selectors for all 15 x 54 V2 PiRLC
+Contract: exact indexed first-accepted selectors for all 17 x 54 V2 PiRLC
 coefficients.
 
 Each occurrence reads the three accept and residue outputs of its matching
@@ -32,7 +32,7 @@ def CoordinateIndex.flat (index : CoordinateIndex) : Nat :=
 
 def coordinateCount : Nat := sourceCount * coefficientCount
 
-theorem coordinateCount_eq : coordinateCount = 810 := by decide
+theorem coordinateCount_eq : coordinateCount = 918 := by decide
 
 theorem CoordinateIndex.flat_lt (index : CoordinateIndex) :
     index.flat < coordinateCount := by
@@ -114,8 +114,8 @@ def aggregateRowCount : Nat := coordinateCount * 9
 def aggregateAuxiliaryCount : Nat :=
   coordinateCount * ProductPiRlcFirstAcceptedRows.auxiliaryCount
 
-theorem aggregateRowCount_eq : aggregateRowCount = 7290 := by decide
-theorem aggregateAuxiliaryCount_eq : aggregateAuxiliaryCount = 6480 := by decide
+theorem aggregateRowCount_eq : aggregateRowCount = 8262 := by decide
+theorem aggregateAuxiliaryCount_eq : aggregateAuxiliaryCount = 7344 := by decide
 
 theorem allocation_window
     (input : ProductPiRlcTranscriptRows.Input) (index : CoordinateIndex)

@@ -17,15 +17,15 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryPiRlcFamilySelectiveCcs.Ar
 
 def rawArtifact : RawArtifact where
   schemaVersion := 1
-  sourceCount := 15
+  sourceCount := 17
   laneCount := 54
   challengeStart := 1
-  inputStart := 811
-  outputStart := 1621
-  productStart := 1675
-  productRows := 43740
-  rows := 43794
-  columns := 45415
+  inputStart := 919
+  outputStart := 1837
+  productStart := 1891
+  productRows := 49572
+  rows := 49626
+  columns := 51463
   rowVariables := 16
   portCount := 13
   generalSelectorPort := 1

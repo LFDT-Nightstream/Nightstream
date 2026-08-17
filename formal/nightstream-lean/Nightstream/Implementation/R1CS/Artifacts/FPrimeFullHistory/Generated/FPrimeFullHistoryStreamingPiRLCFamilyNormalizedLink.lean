@@ -20,9 +20,9 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
 
 def runs : List RawRun :=
   [
-    { bodySourceStart := 46055, overlaySourceStart := 1, outerCount := 1, bodySourceStride := 41, overlaySourceStride := 41, fieldCount := 41, bodyFinalStart := 1059804, overlayFinalStart := 111, finalOuterStride := 41, finalFieldStride := 1, width := 1, radix := 2 }
-  , { bodySourceStart := 46096, overlaySourceStart := 42, outerCount := 810, bodySourceStride := 122, overlaySourceStride := 41, fieldCount := 41, bodyFinalStart := 19332, overlayFinalStart := 152, finalOuterStride := 41, finalFieldStride := 1, width := 1, radix := 2 }
-  , { bodySourceStart := 144918, overlaySourceStart := 33252, outerCount := 1, bodySourceStride := 108, overlaySourceStride := 108, fieldCount := 108, bodyFinalStart := 1076091, overlayFinalStart := 33362, finalOuterStride := 2484, finalFieldStride := 23, width := 23, radix := 7 }
+    { bodySourceStart := 52103, overlaySourceStart := 1, outerCount := 1, bodySourceStride := 41, overlaySourceStride := 41, fieldCount := 41, bodyFinalStart := 2110644, overlayFinalStart := 111, finalOuterStride := 41, finalFieldStride := 1, width := 1, radix := 2 }
+  , { bodySourceStart := 52144, overlaySourceStart := 42, outerCount := 918, bodySourceStride := 122, overlaySourceStride := 41, fieldCount := 41, bodyFinalStart := 38340, overlayFinalStart := 152, finalOuterStride := 41, finalFieldStride := 1, width := 1, radix := 2 }
+  , { bodySourceStart := 164142, overlaySourceStart := 37680, outerCount := 1, bodySourceStride := 108, overlaySourceStride := 108, fieldCount := 108, bodyFinalStart := 2129127, overlayFinalStart := 37790, finalOuterStride := 4428, finalFieldStride := 41, width := 41, radix := 3 }
   ]
 
 def audit : RawAudit where
@@ -30,10 +30,10 @@ schemaVersion := 1
 familyCount := 110
 parityCount := 2
 publicOutputCount := 640
-bodyFinalColumns := 2521314
-overlayFinalColumns := 35856
-linkCountPerFamily := 33359
-totalLinkCount := 3669490
+bodyFinalColumns := 8858862
+overlayFinalColumns := 42228
+linkCountPerFamily := 37787
+totalLinkCount := 4156570
 phaseKinds := [10, 11]
 runs := runs
 

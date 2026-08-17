@@ -53,6 +53,26 @@ structure IndexedRow where
   row : Row
 deriving DecidableEq, Repr
 
+instance : Inhabited IndexedRow where
+  default := ⟨0, ⟨[], [], []⟩⟩
+
+/-- Select exact positions from one generated indexed-row list. The caller
+must prove the small position list is in range before using the selection as
+an artifact certificate. -/
+def indexedRowsAt (rows : List IndexedRow) (indices : List Nat) :
+    List IndexedRow :=
+  indices.map fun index => rows.getD index default
+
+theorem indexedRowsAt_subset
+    {rows : List IndexedRow} {indices : List Nat}
+    (bounded : ∀ index ∈ indices, index < rows.length) :
+    ∀ indexed ∈ indexedRowsAt rows indices, indexed ∈ rows := by
+  intro indexed member
+  rcases List.mem_map.mp member with ⟨index, indexMember, rfl⟩
+  have selectedMember := List.getElem_mem (l := rows)
+    (bounded index indexMember)
+  rwa [List.getElem_eq_getD default] at selectedMember
+
 def rowColumnsBelow (columnCount : Nat) (row : Row) : Prop :=
   (∀ term ∈ row.a, term.1 < columnCount) ∧
     (∀ term ∈ row.b, term.1 < columnCount) ∧

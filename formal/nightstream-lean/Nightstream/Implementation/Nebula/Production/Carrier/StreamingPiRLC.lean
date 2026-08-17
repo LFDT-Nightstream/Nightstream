@@ -12,7 +12,7 @@ Assurance tier: model-level exact refinement, local-row soundness, and work
 geometry.
 
 Owns a 110-step family schedule. Each step computes one complete output ring
-from all fifteen PiRLC sources and absorbs its 54 canonical coefficients into
+from all seventeen PiRLC sources and absorbs its 54 canonical coefficients into
 one Poseidon2 continuation state. It proves exact equality with the current
 monolithic typed PiRLC output and the exact local schoolbook work census.
 
@@ -43,13 +43,13 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 abbrev Family := ProductPiRlcAlgebraRows.Family
-abbrev Source := Fin 15
+abbrev Source := ProductPiRlcRingCombinationRows.Source
 abbrev BindingState := ProductPoseidon2.State
 
 /-- All ring-valued inputs for one PiRLC source after PiCCS. -/
 abbrev SourceRings := Family → RingF
 
-/-- All fifteen source-ring families. -/
+/-- All seventeen source-ring families. -/
 abbrev InputRings := Source → SourceRings
 
 /-- Exact value computed by one narrow family phase. -/
@@ -432,12 +432,12 @@ def familyCount : Nat := familySchedule.length
 theorem familyCount_eq : familyCount = 110 := by
   exact familySchedule_length
 
-/-- One phase owns the current 15 challenge rings, 15 source rings, and one
+/-- One phase owns the current 17 challenge rings, 17 source rings, and one
 output ring. These are semantic fields, not generated column aliases. -/
-def perFamilyVisibleFieldCount : Nat := (15 + 15 + 1) * ringDegree
+def perFamilyVisibleFieldCount : Nat := (17 + 17 + 1) * ringDegree
 
 theorem perFamilyVisibleFieldCount_eq :
-    perFamilyVisibleFieldCount = 1674 := by
+    perFamilyVisibleFieldCount = 1890 := by
   decide
 
 /-- One phase uses one schoolbook product coordinate for each source and
@@ -446,7 +446,7 @@ def perFamilyAuxiliaryColumnCount : Nat :=
   ProductPiRlcRingCombinationRows.auxiliaryCount
 
 theorem perFamilyAuxiliaryColumnCount_eq :
-    perFamilyAuxiliaryColumnCount = 43740 := by
+    perFamilyAuxiliaryColumnCount = 49572 := by
   exact ProductPiRlcRingCombinationRows.productCount_eq
 
 /-- Exact handwritten R1CS row count for one narrow family phase. -/
@@ -458,7 +458,7 @@ def perFamilyArithmeticRowCount : Nat :=
       output := fun _ => 0 }).length
 
 theorem perFamilyArithmeticRowCount_eq :
-    perFamilyArithmeticRowCount = 43794 := by
+    perFamilyArithmeticRowCount = 49626 := by
   exact ProductPiRlcRingCombinationRows.rows_length _
 
 /-- Exact local algebra footprint before selectors, transcript rows, and
@@ -467,7 +467,7 @@ def perFamilyAlgebraFieldCount : Nat :=
   perFamilyVisibleFieldCount + perFamilyAuxiliaryColumnCount
 
 theorem perFamilyAlgebraFieldCount_eq :
-    perFamilyAlgebraFieldCount = 45414 := by
+    perFamilyAlgebraFieldCount = 51462 := by
   simp [perFamilyAlgebraFieldCount, perFamilyVisibleFieldCount_eq,
     perFamilyAuxiliaryColumnCount_eq]
 
@@ -477,7 +477,7 @@ def totalStreamingArithmeticRowCount : Nat :=
   familyCount * perFamilyArithmeticRowCount
 
 theorem totalStreamingArithmeticRowCount_eq :
-    totalStreamingArithmeticRowCount = 4817340 := by
+    totalStreamingArithmeticRowCount = 5458860 := by
   simp [totalStreamingArithmeticRowCount, familyCount_eq,
     perFamilyArithmeticRowCount_eq]
 

@@ -7,8 +7,8 @@ binding.
 Assurance tier: model-level exact refinement and Module-SIS reduction
 boundary.
 
-Owns the disjoint 110-family partition of the fixed 89,100-field Ajtai
-witness, the local 810-field phase opening at unchanged global positions,
+Owns the disjoint 110-family partition of the fixed 100,980-field Ajtai
+witness, the local 918-field phase opening at unchanged global positions,
 the exact sum of all family commitments, and recovery of the authoritative
 PiCCS inputs from a zero-terminal aggregate residual or one named Module-SIS
 failure.
@@ -118,7 +118,7 @@ theorem familyBindings_sum
   exact congrFun (congrFun (familyMaskedWitness_sum fields) column)
     coefficient
 
-/-! ## Local 810-field opening -/
+/-! ## Local 918-field opening -/
 
 def canonicalInput
     (value : Nightstream.SuperNeo.Concrete.F) : CanonicalGoldilocks :=
@@ -126,7 +126,7 @@ def canonicalInput
     simpa [Nightstream.Protocol.Nebula.ShiftedTernary41V1.modulus,
       Nightstream.SuperNeo.Concrete.goldilocksModulus] using value.isLt⟩
 
-/-- One phase witness uses only the fifteen supplied source rings for the
+/-- One phase witness uses only the seventeen supplied source rings for the
 selected family. Its nonzero coordinates stay at their global positions. -/
 def phaseWitness
     (family : Family) (inputs : Source → RingF) : Witness shape :=
@@ -185,7 +185,7 @@ theorem phaseBinding_eq_familyBinding
   unfold phaseBinding familyBinding
   rw [phaseWitness_eq_familyMaskedWitness inputs family]
 
-/-- The sum of the 110 local 810-field openings is the full PiRLC input
+/-- The sum of the 110 local 918-field openings is the full PiRLC input
 binding. -/
 theorem phaseBindings_sum
     {RingType : Type} [CommRing RingType]

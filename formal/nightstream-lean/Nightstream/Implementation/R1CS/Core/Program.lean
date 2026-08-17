@@ -252,6 +252,14 @@ def knownAfter : List Nat → List Definition → List Nat
   | known, [] => known
   | known, head :: tail => knownAfter (head.output :: known) tail
 
+theorem mem_knownAfter {known : List Nat} {definitions : List Definition}
+    {column : Nat} (member : column ∈ known) :
+    column ∈ knownAfter known definitions := by
+  induction definitions generalizing known with
+  | nil => exact member
+  | cons head tail inductionHypothesis =>
+      exact inductionHypothesis (List.mem_cons_of_mem head.output member)
+
 private theorem rhsEval_lt (z : Nat → Nat) (rhs : Rhs) :
     rhs.eval z < goldilocksP := by
   have modulusPositive : 0 < goldilocksP := by decide
@@ -566,6 +574,38 @@ theorem run_agrees_of_builder_satisfies
     AgreeOn (run state definitions) z (knownAfter known definitions) :=
   run_agrees_of_holds wellFormed initialAgreement
     (builderDefinitions_sound hcanon hone canonical hsat)
+
+/-- Exact agreement with a checked SSA execution is sufficient for all of its
+builder rows. This is the reverse transport used by compact rewrites: they can
+reconstruct the deterministic execution without retaining every source row. -/
+theorem run_agrees_implies_builder_satisfies
+    {known : List Nat} {definitions : List Definition} {z state : Nat → Nat}
+    (wellFormed : WellFormed known definitions)
+    (zCanonical : ∀ column, z column < goldilocksP) (zOne : z 0 = 1)
+    (canonical : ∀ definition ∈ definitions, definition.Canonical)
+    (agreement : AgreeOn (run state definitions) z
+      (knownAfter known definitions)) :
+    Satisfies (definitions.map Definition.builderRow) z := by
+  apply builderDefinitions_complete zCanonical zOne canonical
+  induction wellFormed generalizing state with
+  | nil => simp
+  | @cons known head tail references fresh rest inductionHypothesis =>
+      intro definition member
+      simp only [List.mem_cons] at member
+      rcases member with isHead | inTail
+      · subst definition
+        apply definitionHolds_of_agree references
+        · intro column columnKnown
+          have finalKnown :
+              column ∈ knownAfter (head.output :: known) tail :=
+            mem_knownAfter columnKnown
+          exact (agreement column finalKnown).symm.trans
+            (run_preserves_known rest (execute state head) column columnKnown)
+        · exact definitionHolds_execute references fresh state
+      · exact inductionHypothesis (state := execute state head)
+          (fun definition member =>
+            canonical definition (List.mem_cons_of_mem head member))
+          agreement definition inTail
 
 /-- `CIR-COMPLETE` scaling rule for a deterministic row block: interpreting
 any canonical input assignment yields a satisfying witness for all exact

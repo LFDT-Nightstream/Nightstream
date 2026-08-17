@@ -104,7 +104,7 @@ def matrixSource {logicalWidth : Nat}
     {publicFits : 540 <= Phi81CarrierLayout.carrierWidth logicalWidth}
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
     Structure logicalWidth :=
-  Phi81MatrixSource.source 25 1 14 14 logicalWidth system.matrices
+  Phi81MatrixSource.source 25 1 16 14 logicalWidth system.matrices
     system.constraintPolynomial
 
 /-- Recover the original logical matrix family from a complete paper source.
@@ -129,7 +129,7 @@ theorem canonicalStructure_matrixSource
         (@Phi81Relation.Structure.mk (FullShape logicalWidth publicFits))
       · funext matrix vertex column
         exact Phi81MatrixSource.source_matrix_embedLogical
-          25 1 14 14 logicalWidth matrices polynomial matrix vertex column
+          25 1 16 14 logicalWidth matrices polynomial matrix vertex column
       · rfl
 
 /-- Four-component paper opening maps. One assignment is the authority for
@@ -428,10 +428,11 @@ theorem evaluations_recompose
       recomposeEvaluations fun child =>
         (semantics config).evaluations source (assignments child) point := by
   apply Array.ext
-  · rfl
+  · rw [semantics_evaluations_size]
+    rfl
   · intro index leftLt rightLt
     have indexLt : index < 1 := by
-      simpa [semantics] using leftLt
+      simpa only [semantics_evaluations_size] using leftLt
     have indexZero : index = 0 := by omega
     subst index
     change

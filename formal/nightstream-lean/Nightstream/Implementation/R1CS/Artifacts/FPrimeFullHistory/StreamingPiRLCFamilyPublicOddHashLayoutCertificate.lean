@@ -26,7 +26,7 @@ theorem oddArm_afterXOutHash_rounds_valid :
 
 theorem oddArm_afterXOutHash_valid :
     RawHash.Valid oddArm oddArm.afterXOutPreimageColumns
-      oddArm.afterXOutDigestColumns 472 oddArm.afterXOutHash := by
+      oddArm.afterXOutDigestColumns 526 oddArm.afterXOutHash := by
   unfold RawHash.Valid
   rw [oddArm_afterXOutHash_rounds_valid]
   norm_num [columnsValid, hasGlueIndex, oddArm]
@@ -38,7 +38,7 @@ theorem oddArm_beforeXOutHash_rounds_valid :
 
 theorem oddArm_beforeXOutHash_valid :
     RawHash.Valid oddArm oddArm.beforeXOutPreimageColumns
-      oddArm.beforeXOutDigestColumns 481 oddArm.beforeXOutHash := by
+      oddArm.beforeXOutDigestColumns 535 oddArm.beforeXOutHash := by
   unfold RawHash.Valid
   rw [oddArm_beforeXOutHash_rounds_valid]
   norm_num [columnsValid, hasGlueIndex, oddArm]

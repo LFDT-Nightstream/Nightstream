@@ -7,7 +7,7 @@ production PiCCS statement.
 
 Assurance tier: model-level Module-SIS reduction boundary.
 
-Owns the exact 21,220-field geometry, the standard 41-coordinate
+Owns the exact 24,244-field geometry, the standard 41-coordinate
 shifted-ternary packing, its 28-coordinate zero tail, injectivity and unit
 bound of the packed witness, additive phase masking, and recovery of equal
 field vectors or one rank-two Module-SIS kernel witness.
@@ -29,13 +29,13 @@ open Nightstream.Protocol.Nebula.AjtaiBinding
 open Nightstream.Protocol.Nebula.CompactCommit
 open Nightstream.Protocol.Nebula.ShiftedTernary41V1
 
-def fieldCount : Nat := 21220
-def messageColumnCount : Nat := 16112
+def fieldCount : Nat := 24244
+def messageColumnCount : Nat := 18408
 def verifierRows : Nat := 2
 
 theorem exact_geometry :
-    fieldCount * digitCount = 870020 /\
-      messageColumnCount * ringDegree = 870048 /\
+    fieldCount * digitCount = 994004 /\
+      messageColumnCount * ringDegree = 994032 /\
       messageColumnCount * ringDegree - fieldCount * digitCount = 28 /\
       messageColumnCount <= 50371 := by
   decide
@@ -46,7 +46,7 @@ def shape : Shape where
   degree := ringDegree
 
 theorem exact_shape :
-    shape.rows = 2 /\ shape.columns = 16112 /\ shape.degree = 54 := by
+    shape.rows = 2 /\ shape.columns = 18408 /\ shape.degree = 54 := by
   decide
 
 abbrev Fields := FieldVector fieldCount

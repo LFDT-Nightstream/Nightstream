@@ -8,9 +8,9 @@ variable-coordinate commitment.
 
 Assurance tier: phase-composition and commitment-binding bridge.
 
-Owns the fixed claim-frame position of every one of the 21,220 PiCCS
+Owns the fixed claim-frame position of every one of the 24,244 PiCCS
 variable fields, its unique 1,024-field claim chunk, the exact active-field
-list for each of the 86 claim phases, and the proof that all phase-masked
+list for each of the 98 claim phases, and the proof that all phase-masked
 Ajtai commitments add to the direct full-vector commitment.
 
 Does not own generated Rust traces, physical claim-chunk columns, carried
@@ -39,14 +39,14 @@ open Nightstream.Protocol.Nebula.AjtaiBinding
 open Nightstream.Protocol.Nebula.ShiftedTernary41V1
 
 def claimChunkWidth : Nat := 1024
-def claimChunkCount : Nat := 86
-def claimFrameLength : Nat := 88023
+def claimChunkCount : Nat := 98
+def claimFrameLength : Nat := 99903
 def pointFieldCount : Nat := 52
 def pointFrameOffset : Nat := 383
-def evaluationFrameOffset : Nat := 62427
+def evaluationFrameOffset : Nat := 71283
 
-/-- Claim-frame position of one field in the selected 21,220-field order.
-The first 52 fields are the prior point. The remaining 21,168 fields are the
+/-- Claim-frame position of one field in the selected 24,244-field order.
+The first 52 fields are the prior point. The remaining 24,192 fields are the
 carried evaluations. -/
 def claimFramePosition (field : Fin fieldCount) : Nat :=
   if field.val < pointFieldCount then
@@ -96,11 +96,11 @@ theorem point_chunk_geometry
   unfold claimChunkWidth pointFrameOffset
   omega
 
-/-- Every carried evaluation is in claim chunks 60 through 81. -/
+/-- Every carried evaluation is in claim chunks 69 through 93. -/
 theorem evaluation_chunk_geometry
     (field : Fin fieldCount) (evaluation : pointFieldCount ≤ field.val) :
-    60 ≤ (claimChunk field).val /\
-      (claimChunk field).val ≤ 81 := by
+    69 ≤ (claimChunk field).val /\
+      (claimChunk field).val ≤ 93 := by
   have fieldBound := field.isLt
   change 60 ≤ claimFramePosition field / claimChunkWidth /\
     claimFramePosition field / claimChunkWidth ≤ 81
@@ -184,7 +184,7 @@ private theorem chunkMask_sum
   · intro other different
     simp [chunkMask, Ne.symm different]
 
-/-- The 86 verifier-owned masks form one exact partition of the complete
+/-- The 98 verifier-owned masks form one exact partition of the complete
 coordinate witness. No field is skipped or counted twice. -/
 theorem maskedWitness_sum
     (fields : Fields) :
@@ -241,21 +241,21 @@ theorem concrete_commitments_sum
       bindingMap (seededMatrix production.setup) coefficientMap fields := by
   exact commitments_sum (seededMatrix production.setup) coefficientMap fields
 
-/-- Only claim chunk zero and evaluation chunks 60 through 81 can contain a
+/-- Only claim chunk zero and evaluation chunks 69 through 93 can contain a
 selected PiCCS field. -/
 theorem claimChunk_active_range (field : Fin fieldCount) :
     (claimChunk field).val = 0 \/
-      (60 ≤ (claimChunk field).val /\ (claimChunk field).val ≤ 81) := by
+      (69 ≤ (claimChunk field).val /\ (claimChunk field).val ≤ 93) := by
   by_cases point : field.val < pointFieldCount
   · exact Or.inl (point_chunk_geometry field point).1
   · exact Or.inr
       (evaluation_chunk_geometry field (Nat.le_of_not_gt point))
 
-/-- The 23 nonempty coordinate phases contain all 21,220 active fields.
+/-- The 26 nonempty coordinate phases contain all 24,244 active fields.
 Their source-row total remains a union cost; one recursive step uses only one
 local phase. -/
 theorem active_phase_row_census :
-    23 * (41 + 2 + 108) + fieldCount * 124 = 2634753 := by
+    26 * (41 + 2 + 108) + fieldCount * 124 = 3010182 := by
   decide
 
 end Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingClaimSchedule

@@ -16,7 +16,7 @@ Owns:
 - the existing one-joint `Pi_CCS` tags and field order;
 - the exact post-SumCheck output absorption;
 - the selected width-8 Poseidon2 constants;
-- the 15-by-54 indexed full-field `Pi_RLC` sampler;
+- the 17-by-54 indexed full-field `Pi_RLC` sampler;
 - the exact three-attempt rejection rule and balanced mod-5 decoder; and
 - a total internal response plus the fail-closed sampler-success predicate.
 
@@ -135,9 +135,9 @@ def eventSchedule : List Event :=
   ((List.range rowVariables).flatMap fun round =>
     [.proverMessage (3 + 2 * round) (1 + round) 45 20,
       .verifierCoins (4 + 2 * round) (3 + round) 46 2]) ++
-  [.proverMessage 51 25 47 22680,
-    .verifierCoins 52 27 piRlcCandidateTag 810,
-    .proverMessage 53 26 piDecOutputTag 34776]
+  [.proverMessage 51 25 47 25704,
+    .verifierCoins 52 27 piRlcCandidateTag 918,
+    .proverMessage 53 26 piDecOutputTag 39744]
 
 @[simp] theorem eventSchedule_length : eventSchedule.length = 53 := by
   decide
@@ -462,27 +462,27 @@ private theorem piDecEvaluationFields_length
       rw [canonicalFinIndices_length]
 
 /-- The selected complete output contains the Construction 3 message frame and
-all 15x14x54 quadratic-extension coordinates. -/
+all 17x14x54 quadratic-extension coordinates. -/
 @[simp] theorem outputFields_length
     (message : FullOutputCoordinates.FullOutput K shape) :
-    (outputFields message).length = 22700 := by
+    (outputFields message).length = 25724 := by
   unfold outputFields proverMessageFields
   simp only [List.length_append, List.length_cons, List.length_nil,
     Nat.reduceAdd]
-  change 20 + _ = 22700
+  change 20 + _ = 25724
   rw [sourceOutputFields_length message.coordinate]
   rfl
 
-/-- The final PiDEC message contains its Construction 3 frame, 14 ordered
-commitments of 18x54 base-field values, and 14 ordered 14x54 extension-field
+/-- The final PiDEC message contains its Construction 3 frame, 16 ordered
+commitments of 18x54 base-field values, and 16 ordered 14x54 extension-field
 evaluation families. -/
 @[simp] theorem piDecOutputFields_length
     (proof : Proof K SelectedCommitment shape 9) :
-    (piDecOutputFields proof).length = 34796 := by
+    (piDecOutputFields proof).length = 39764 := by
   unfold piDecOutputFields proverMessageFields
   simp only [List.length_append, List.length_cons, List.length_nil,
     Nat.reduceAdd]
-  change 20 + (_ + _) = 34796
+  change 20 + (_ + _) = 39764
   rw [piDecCommitmentFields_length proof.piDecCommitments,
     piDecEvaluationFields_length proof.piDecEvaluations]
   rfl

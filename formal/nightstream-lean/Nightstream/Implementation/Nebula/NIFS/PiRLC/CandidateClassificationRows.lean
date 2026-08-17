@@ -4,7 +4,7 @@ import Nightstream.Implementation.Nebula.NIFS.PiRLC.FullFieldCandidateRows
 /-!
 Contract: exact indexed classification rows for all V2 PiRLC candidates.
 
-The 2,430 occurrences follow the transcript's source-major,
+The 2,754 occurrences follow the transcript's source-major,
 coefficient-major, attempt-minor order. Each occurrence reads its matching
 full-field candidate expression and owns a disjoint 78-column window after
 the complete sampler-transcript allocation.
@@ -56,10 +56,10 @@ def aggregateRowCount : Nat :=
 def aggregateAuxiliaryCount : Nat :=
   ProductPiRlcTranscriptRows.candidateCount * auxiliaryCount
 
-theorem aggregateRowCount_eq : aggregateRowCount = 216270 := by decide
+theorem aggregateRowCount_eq : aggregateRowCount = 245106 := by decide
 
 theorem aggregateAuxiliaryCount_eq :
-    aggregateAuxiliaryCount = 189540 := by decide
+    aggregateAuxiliaryCount = 214812 := by decide
 
 theorem allocation_window
     (input : ProductPiRlcTranscriptRows.Input) (index : CandidateIndex)

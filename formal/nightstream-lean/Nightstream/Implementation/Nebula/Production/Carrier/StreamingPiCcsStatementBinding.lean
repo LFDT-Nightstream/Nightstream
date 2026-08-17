@@ -37,9 +37,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 def statementIdentifierFieldCount : Nat := 366
 def publicPrefixFieldCount : Nat := 17
 def runningPointFieldCount (rowVariables : Nat) : Nat := 2 * rowVariables
-def runningCommitmentFieldCount : Nat := 14 * 3888
-def runningPublicInputFieldCount : Nat := 14 * 540
-def runningEvaluationFieldCount : Nat := 14 * 14 * ringDegree * 2
+def runningCommitmentFieldCount : Nat := 16 * 3888
+def runningPublicInputFieldCount : Nat := 16 * 540
+def runningEvaluationFieldCount : Nat := 16 * 14 * ringDegree * 2
 
 def runningFrameStart : Nat :=
   statementIdentifierFieldCount + publicPrefixFieldCount
@@ -67,15 +67,15 @@ theorem authoritativeFrame_sections
           ((pointCodec fullShape.rowVariables).encode
             value.recursiveState.point) ++
       nativeValues
-          (Codec.encodeFin ProductNifsCodec.bundleCodec 14
+          (Codec.encodeFin ProductNifsCodec.bundleCodec 16
             value.recursiveState.commitments) ++
       nativeValues
           (Codec.encodeFin
-            (publicInputCodec fullShape.publicWidth) 14
+            (publicInputCodec fullShape.publicWidth) 16
             value.recursiveState.publicInputs) ++
       nativeValues
           (Codec.encodeFin
-            (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 14
+            (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 16
             value.recursiveState.evaluations) ++
       nativeValues (bundleFields value.commitmentBundle) ++
       value.ccsPublic.val := by
@@ -88,9 +88,9 @@ theorem authoritativeFrame_sections
 theorem production_window_geometry :
     pointFrameStart = 383 /\
       runningPointFieldCount 26 = 52 /\
-      evaluationFrameStart 26 = 62427 /\
-      runningEvaluationFieldCount = 21168 /\
-      evaluationFrameStart 26 + runningEvaluationFieldCount = 83595 := by
+      evaluationFrameStart 26 = 71283 /\
+      runningEvaluationFieldCount = 24192 /\
+      evaluationFrameStart 26 + runningEvaluationFieldCount = 95475 := by
   decide
 
 private theorem drop_take_middle
@@ -140,14 +140,14 @@ theorem pointWindow_eq
     ((pointCodec fullShape.rowVariables).encode value.recursiveState.point)
   let trailing :=
     nativeValues
-        (Codec.encodeFin ProductNifsCodec.bundleCodec 14
+        (Codec.encodeFin ProductNifsCodec.bundleCodec 16
           value.recursiveState.commitments) ++
     nativeValues
-        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14
+        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16
           value.recursiveState.publicInputs) ++
     nativeValues
         (Codec.encodeFin
-          (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 14
+          (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 16
           value.recursiveState.evaluations) ++
     nativeValues (bundleFields value.commitmentBundle) ++
     value.ccsPublic.val
@@ -177,7 +177,7 @@ theorem evaluationWindow_eq
     evaluationWindow statementId degreeBound value =
       nativeValues
         (Codec.encodeFin
-          (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 14
+          (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 16
           value.recursiveState.evaluations) := by
   let leading := ProductPoseidon2.statementIdentifierFields statementId ++
     fixedPrefix candidate fullShape degreeBound ++
@@ -185,14 +185,14 @@ theorem evaluationWindow_eq
         ((pointCodec fullShape.rowVariables).encode
           value.recursiveState.point) ++
     nativeValues
-        (Codec.encodeFin ProductNifsCodec.bundleCodec 14
+        (Codec.encodeFin ProductNifsCodec.bundleCodec 16
           value.recursiveState.commitments) ++
     nativeValues
-        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14
+        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16
           value.recursiveState.publicInputs)
   let evaluations := nativeValues
     (Codec.encodeFin
-      (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 14
+      (ProductNifsCodec.evaluationCodecFor fullShape.rowVariables) 16
       value.recursiveState.evaluations)
   let trailing := nativeValues (bundleFields value.commitmentBundle) ++
     value.ccsPublic.val
@@ -442,7 +442,7 @@ theorem nativeEvaluationsSection_eq
     (running : ProductNifsCodec.RunningFor rowVariables fullShape) :
     nativeValues
         (Codec.encodeFin (ProductNifsCodec.evaluationCodecFor rowVariables)
-          14 running.evaluations) =
+          16 running.evaluations) =
       frameOrderClaimedFields fun coordinate =>
         running.evaluations coordinate.running coordinate.matrix
           coordinate.coefficient := by
@@ -524,7 +524,7 @@ theorem frameOrderVariableFields_exactVerifierInput
       nativeValues ((pointCodec rowVariables).encode running.point) ++
       nativeValues
           (Codec.encodeFin (ProductNifsCodec.evaluationCodecFor rowVariables)
-            14 running.evaluations) := by
+            16 running.evaluations) := by
   have claimedEqual :
       (ProductionProductPiCcsTypedBridgeFor.exactVerifierInput candidate
         statementId config artifact running fresh).claimedCoefficient =
@@ -576,7 +576,7 @@ theorem selectedAuthoritativeFields_exactVerifierInput
     (statementId : ProductPoseidon2.StatementId) (degreeBound : Nat)
     (value : Value candidate fullShape) :
     (selectedAuthoritativeFields statementId degreeBound value).length =
-      2 * fullShape.rowVariables + 21168 := by
+      2 * fullShape.rowVariables + 24192 := by
   rw [selectedAuthoritativeFields, List.length_append,
     pointWindow_eq, evaluationWindow_eq contract, nativeValues_length,
     nativeValues_length,
@@ -592,7 +592,7 @@ theorem selectedAuthoritativeFields_length_r26
     (statementId : ProductPoseidon2.StatementId) (degreeBound : Nat)
     (value : Value candidate fullShape) :
     (selectedAuthoritativeFields statementId degreeBound value).length =
-      21220 := by
+      24244 := by
   rw [selectedAuthoritativeFields_length contract.toShape,
     contract.rowVariablesExact]
 
@@ -618,7 +618,7 @@ theorem selectedAuthoritativeFields_length_r26
     (input : ProtocolPolynomial.VerifierInput K
       (ProductNifsCodec.shapeFor rowVariables)) :
     (frameOrderVariableFields input).length =
-      2 * rowVariables + 21168 := by
+      2 * rowVariables + 24192 := by
   simp [frameOrderVariableFields, ProductPoseidon2.pointFields,
     ProductPoseidon2.kFields, ProductNifsCodec.shapeFor,
     frameOrderClaimedFields_length, input.priorPoint.dimension, ringDegree]

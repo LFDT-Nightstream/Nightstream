@@ -7,7 +7,7 @@ namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyBodyOpeningRows
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyOpeningRows
 
 example : ExactReceipt := exact_receipt
-example : auditedRowCount = 50707 := audited_row_count_exact
+example : auditedRowCount = 38638 := audited_row_count_exact
 example := row_ledger_canonical_census_join
 example := decoder_opening_template_join
 example := generic_artifact_join

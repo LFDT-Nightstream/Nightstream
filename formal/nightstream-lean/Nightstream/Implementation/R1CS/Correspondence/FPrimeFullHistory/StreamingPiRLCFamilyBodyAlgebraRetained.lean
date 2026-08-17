@@ -5,16 +5,17 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Rewrite.Artifact.SourceImage
 
 /-!
-Contract: independent validation of the compact production PiRLC algebra
+Contract: structural validation of the compact production PiRLC algebra
 retained-row scan receipt.
 
 Assurance tier: Rust-conformant for property
-`FPRIME-PIRLC-FAMILY-BODY-ALGEBRA-RETAINED-PORT-IMAGE`.
+`FPRIME-PIRLC-FAMILY-BODY-ALGEBRA-RETAINED-PORT-IMAGE` under the supported
+Goldilocks `b = 2`, `k_rho = 16` profile.
 
-Owns cross-artifact agreement with the 43,794-row PiRLC source recipe, the
+Owns cross-artifact agreement with the 49,626-row PiRLC source recipe, the
 first retained interval in both parity arms, and the source decoder's exact
-radix-three and radix-seven slot map. It independently recomputes every
-source and final nonzero census from the algebra dimensions.
+radix-three slot map. It recomputes the source and final nonzero censuses from
+the algebra dimensions.
 
 Does not own matrix authority in Lean, assignment values, row satisfaction,
 selector authority, the remaining normalized rows, recursive orchestration,
@@ -61,112 +62,122 @@ def sourceNnzExpected : List Nat :=
     sourceRecipe.productRows + sourceRecipe.laneCount]
 
 def finalPortNnzExpected : List Nat :=
-  let generalWidth := 23
-  let inputWidth := 41
+  let width := 41
   let arms := 2
   [0,
     arms * sourceRecipe.rows,
-    arms * (sourceRecipe.productRows * (1 + generalWidth) +
-      sourceRecipe.laneCount),
-    arms * (sourceRecipe.productRows * inputWidth +
-      sourceRecipe.sourceCount * reducedProductNnz * generalWidth),
-    arms * ((sourceRecipe.productRows + sourceRecipe.laneCount) *
-      generalWidth),
+    arms * (sourceRecipe.productRows * (1 + width) + sourceRecipe.laneCount),
+    arms * (sourceRecipe.productRows * width +
+      sourceRecipe.sourceCount * reducedProductNnz * width),
+    arms * ((sourceRecipe.productRows + sourceRecipe.laneCount) * width),
     0, 0, 0, 0, 0, 0, 0, 0]
 
-def decoderPrefixExpected : List RawStridedRun :=
-  [ { sourceStart := 1, count := 640, sourceStride := 1,
+def decoderPrefixExpected : List RawResidualBatch :=
+  [ { sourceStart := 1, instanceCount := 1, instanceStride := 0, width := 640,
       resolution := .direct 1 1 1 false }
-  , { sourceStart := 641, count := 810, sourceStride := 1,
-      resolution := .direct 702 23 23 false }
-  , { sourceStart := 1451, count := 810, sourceStride := 1,
-      resolution := .direct 19332 41 41 false }
-  , { sourceStart := 2261, count := 43794, sourceStride := 1,
-      resolution := .direct 52542 23 23 false }
+  , { sourceStart := 641, instanceCount := 1, instanceStride := 0,
+      width := 51462, resolution := .direct 702 41 41 false }
   ]
 
 def retainedIntervalsExpected : List RawRetainedRun :=
-  [ { arm := 0, sourceStart := 0, length := 43794,
-      emittedStart := 34168 }
-  , { arm := 1, sourceStart := 0, length := 43794,
-      emittedStart := 156526 }
+  [ { arm := 0, sourceStart := 0, length := 49626,
+      emittedStart := 19830 }
+  , { arm := 1, sourceStart := 0, length := 49626,
+      emittedStart := 255341 }
   ]
 
 def algebraRetainedIntervals :=
   rowLedger.retainedRuns.filter fun run =>
     run.sourceStart == 0 && run.length == audit.sourceRows
 
-def exactShape : Prop :=
+private def exactShape : Prop :=
   audit.schemaVersion =
-      Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyAlgebraRetainedSchema.supportedSchemaVersion /\
-    audit.sourceRows = 43794 /\
-    audit.localColumns = 45415 /\
-    audit.sourceColumnShift = 640 /\
-    audit.finalRows = 279089 /\
-    audit.finalColumns = 2484972 /\
-    audit.selectorColumns = [648, 649] /\
-    audit.emittedStarts = [34168, 156526] /\
-    audit.sourceStarts = [641, 1451, 2261, 2315] /\
-    audit.finalStarts = [702, 19332, 52542, 53784] /\
-    audit.widths = [23, 41, 23, 23] /\
-    audit.radices = audit.widths.map (fun width => (slotRadix width).val) /\
-    audit.sourceNnz = sourceNnzExpected /\
+      Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyAlgebraRetainedSchema.supportedSchemaVersion ∧
+    audit.sourceRows = 49626 ∧ audit.localColumns = 51463 ∧
+    audit.sourceColumnShift = 640 ∧ audit.finalRows = 491046 ∧
+    audit.finalColumns = 8858862 ∧ audit.selectorColumns = [648, 649] ∧
+    audit.emittedStarts = [19830, 255341] ∧
+    audit.sourceStarts = [641, 1559, 2477, 2531] ∧
+    audit.finalStarts = [702, 38340, 75978, 78192] ∧
+    audit.widths = [41, 41, 41, 41] ∧
+    audit.radices = audit.widths.map (fun width => (slotRadix width).val) ∧
+    audit.sourceNnz = sourceNnzExpected ∧
     audit.finalPortNnz = finalPortNnzExpected
 
-def sourceRecipeCoherent : Prop :=
-  sourceRecipe.rows = audit.sourceRows /\
-    sourceRecipe.columns = audit.localColumns /\
-    sourceRecipe.challengeStart + audit.sourceColumnShift = 641 /\
-    sourceRecipe.inputStart + audit.sourceColumnShift = 1451 /\
-    sourceRecipe.outputStart + audit.sourceColumnShift = 2261 /\
-    sourceRecipe.productStart + audit.sourceColumnShift = 2315 /\
+private def sourceRecipeCoherent : Prop :=
+  sourceRecipe.sourceCount = 17 ∧ sourceRecipe.laneCount = 54 ∧
+    sourceRecipe.rows = audit.sourceRows ∧
+    sourceRecipe.columns = audit.localColumns ∧
+    sourceRecipe.challengeStart + audit.sourceColumnShift = 641 ∧
+    sourceRecipe.inputStart + audit.sourceColumnShift = 1559 ∧
+    sourceRecipe.outputStart + audit.sourceColumnShift = 2477 ∧
+    sourceRecipe.productStart + audit.sourceColumnShift = 2531 ∧
     sourceRecipe.productStart + sourceRecipe.productRows =
       audit.localColumns
 
-def decoderCoherent : Prop :=
-  evenDecoder.residualRuns.take 4 = decoderPrefixExpected /\
-    oddDecoder.residualRuns.take 4 = decoderPrefixExpected /\
-    52542 + sourceRecipe.laneCount * 23 = 53784 /\
-    53784 + sourceRecipe.productRows * 23 <= audit.finalColumns
+private def decoderCoherent : Prop :=
+  evenDecoder.residualBatches.take 2 = decoderPrefixExpected ∧
+    oddDecoder.residualBatches.take 2 = decoderPrefixExpected ∧
+    audit.finalStarts = audit.sourceStarts.map (fun start =>
+      702 + (start - 641) * 41) ∧
+    702 + (audit.localColumns - audit.sourceColumnShift - 1) * 41 + 41 ≤
+      audit.finalColumns
 
-def rowLedgerCoherent : Prop :=
-  algebraRetainedIntervals = retainedIntervalsExpected /\
+private def rowLedgerCoherent : Prop :=
+  algebraRetainedIntervals = retainedIntervalsExpected ∧
     audit.emittedStarts.map (fun start => start + audit.sourceRows) =
-      [77962, 200320] /\
+      [69456, 304967] ∧
     (audit.emittedStarts.all fun start =>
-      decide (start + audit.sourceRows <= audit.finalRows)) = true
+      decide (start + audit.sourceRows ≤ audit.finalRows)) = true
 
-def AuditValid : Prop :=
-  exactShape /\ sourceRecipeCoherent /\ decoderCoherent /\ rowLedgerCoherent
+/-- The independent leaf obligations for the algebra scan receipt. -/
+structure AuditValid : Prop where
+  shape : exactShape
+  sourceRecipe : sourceRecipeCoherent
+  decoder : decoderCoherent
+  rowLedger : rowLedgerCoherent
 
 /-- The Phi81 reduction recipe has 3,996 product coefficients per source. -/
 theorem reduced_product_nnz_exact : reducedProductNnz = 3996 := by
-  native_decide
+  decide
 
 /-- The receipt's source and final nonzero counts are recomputed from the
-15-source, 54-lane algebra recipe and the 23/41-coordinate slot widths. -/
+17-source, 54-lane algebra recipe and the 41-coordinate slot width. -/
 theorem nonzero_census_exact :
-    audit.sourceNnz = sourceNnzExpected /\
+    audit.sourceNnz = sourceNnzExpected ∧
       audit.finalPortNnz = finalPortNnzExpected := by
-  native_decide
+  unfold sourceNnzExpected finalPortNnzExpected
+  rw [reduced_product_nnz_exact]
+  decide
 
-/-- Both parity decoders use the same radix-seven challenge/output/product
-image and the same radix-three input image for the complete algebra block. -/
+private theorem shape_exact : exactShape := by
+  unfold exactShape
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    by decide, nonzero_census_exact.1, nonzero_census_exact.2⟩
+
+private theorem source_recipe_exact : sourceRecipeCoherent := by
+  unfold sourceRecipeCoherent
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, by decide⟩
+
+/-- Both parity decoders use the same direct radix-three image for the
+complete algebra block. -/
 theorem decoder_prefix_exact : decoderCoherent := by
-  unfold decoderCoherent
-  native_decide
+  unfold decoderCoherent decoderPrefixExpected
+  exact ⟨rfl, rfl, rfl, by decide⟩
 
-/-- The row ledger maps source rows 0 through 43,793 to the two exact emitted
+/-- The row ledger maps source rows 0 through 49,625 to the two exact emitted
 intervals scanned by Rust. -/
 theorem retained_intervals_exact : rowLedgerCoherent := by
-  unfold rowLedgerCoherent
-  native_decide
+  unfold rowLedgerCoherent algebraRetainedIntervals retainedIntervalsExpected
+  exact ⟨rfl, rfl, rfl⟩
 
 /-- The generated receipt agrees with the independent source recipe, decoder,
 row ledger, and recomputed nonzero census. -/
-theorem audit_valid : AuditValid := by
-  unfold AuditValid exactShape sourceRecipeCoherent decoderCoherent
-    rowLedgerCoherent
-  native_decide
+theorem audit_valid : AuditValid := {
+  shape := shape_exact
+  sourceRecipe := source_recipe_exact
+  decoder := decoder_prefix_exact
+  rowLedger := retained_intervals_exact
+}
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained

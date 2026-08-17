@@ -82,20 +82,39 @@ def rawStructuralRows (kind : ArmKind) (side : StateSide) : List Row :=
     artifactLinearRow (xOutPreimageColumn kind side 27)
       [(0, nebulaPresentMarker)]]
 
-def structuralRows (kind : ArmKind) (side : StateSide) : List Row :=
-  rawStructuralRows kind side
+def structuralGlueIndices : StateSide → List Nat
+  | .after => [37, 36, 38, 39, 40, 41, 42, 43, 44]
+  | .before => [79, 36, 80, 81, 82, 83, 84, 85, 86]
 
-private theorem structural_rows_in_glue (kind : ArmKind) (side : StateSide) :
-    rowsIncluded (structuralRows kind side) (glueProgram kind) = true := by
-  cases kind <;> cases side <;> native_decide
+def structuralIndexedRows (kind : ArmKind) (side : StateSide) :
+    List IndexedRow :=
+  indexedRowsAt (armFor kind).glueRows (structuralGlueIndices side)
 
-private theorem glue_satisfies
-    (kind : ArmKind) (assignment : Nat -> Nat)
-    (satisfied : (armFor kind).Satisfied assignment) :
-    Satisfies (glueProgram kind) assignment := by
-  intro row member
-  rcases List.mem_map.mp member with ⟨indexed, indexedMember, rfl⟩
-  exact glue_row_holds (armFor kind) assignment satisfied indexed indexedMember
+private theorem glue_rows_length (kind : ArmKind) :
+    (armFor kind).glueRows.length = 121 := by
+  cases kind with
+  | even =>
+      exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenGlueRowCertificate.evenArm_glueRows_length
+  | odd =>
+      exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddGlueRowCertificate.oddArm_glueRows_length
+
+private theorem structural_glue_indices_bounded
+    (kind : ArmKind) (side : StateSide) :
+    ∀ index ∈ structuralGlueIndices side,
+      index < (armFor kind).glueRows.length := by
+  intro index member
+  rw [glue_rows_length]
+  cases side <;> simp [structuralGlueIndices] at member <;> omega
+
+/-- The nine normalized XOut structural rows are the exact named rows in the
+Rust artifact. This is a structural certificate over nine fixed positions;
+it does not search or decide the generated row set. -/
+theorem structural_rows_exact (kind : ArmKind) (side : StateSide) :
+    rawStructuralRows kind side =
+      (structuralIndexedRows kind side).map IndexedRow.row := by
+  cases kind <;> cases side <;> rfl
 
 private theorem raw_structural_satisfies
     (kind : ArmKind) (side : StateSide)
@@ -103,8 +122,11 @@ private theorem raw_structural_satisfies
     (satisfied : (armFor kind).Satisfied assignment) :
     Satisfies (rawStructuralRows kind side) assignment := by
   intro row member
-  exact glue_satisfies kind assignment satisfied row
-    (rowsIncluded_sound (structural_rows_in_glue kind side) row member)
+  rw [structural_rows_exact kind side] at member
+  rcases List.mem_map.mp member with ⟨indexed, indexedMember, rfl⟩
+  exact glue_row_holds (armFor kind) assignment satisfied indexed
+    (indexedRowsAt_subset (structural_glue_indices_bounded kind side)
+      indexed indexedMember)
 
 private theorem rowHolds_of_operand_perms
     (assignment : Nat → Nat) {source target : Row}

@@ -12,8 +12,8 @@ production PiRLC input family.
 
 Assurance tier: generated source-row soundness.
 
-Owns the shared constrained-zero word, the 810 canonical family openings at
-their global positions in the 89,100-field input, the fixed rank-two Phi81
+Owns the shared constrained-zero word, the 918 canonical family openings at
+their global positions in the 100,980-field input, the fixed rank-two Phi81
 shape, the 108 compact seeded output rows, and their refinement to the exact
 local family commitment.
 
@@ -21,7 +21,7 @@ Does not own a fixed production seed, Rust sampler conformance, Poseidon2
 replay, PiRLC arithmetic rows, the 108 residual-link rows, family-state glue,
 telescoping, or the terminal zero check.
 
-Emits constraints: 100,591 R1CS rows.
+Emits constraints: 113,983 R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -186,10 +186,10 @@ theorem coordinateBlock_exact_geometry
     (setup : SeededAjtai.Setup verifierRows messageColumnCount)
     (layout : Layout) (family : Family) :
     (coordinateBlock setup layout family).rowStart = layout.seededRowStart /\
-      (coordinateBlock setup layout family).wordStarts.length = 89100 /\
+      (coordinateBlock setup layout family).wordStarts.length = 100980 /\
       (coordinateBlock setup layout family).wordWidth = 41 /\
       (coordinateBlock setup layout family).kappa = 2 /\
-      (coordinateBlock setup layout family).messageCols = 67650 /\
+      (coordinateBlock setup layout family).messageCols = 76670 /\
       (coordinateBlock setup layout family).outputColumns.length = 108 /\
       (coordinateBlock setup layout family).superneoTransformedColumns = false /\
       (coordinateBlock setup layout family).schedule.chunkSize = 32768 := by
@@ -297,7 +297,8 @@ def sourceLanes : List (Source × Fin laneCount) :=
     List.ofFn fun lane : Fin laneCount => (source, lane)
 
 theorem sourceLanes_length : sourceLanes.length = fieldsPerFamily := by
-  simp [sourceLanes, fieldsPerFamily, sourceCount, laneCount]
+  simp [sourceLanes, fieldsPerFamily, sourceCount, laneCount,
+    ProductPiRlcRingCombinationRows.sourceCount_eq]
 
 theorem sourceLane_mem
     (source : Source) (lane : Fin laneCount) :
@@ -352,7 +353,7 @@ theorem openingRows_length (layout : Layout) :
   rw [openingRowsFor_length, sourceLanes_length]
 
 theorem sourceRows_length (layout : Layout) :
-    (sourceRows layout).length = 100481 := by
+    (sourceRows layout).length = 113873 := by
   rw [sourceRows, List.length_append, zeroRows_length,
     openingRows_length]
   decide
@@ -785,7 +786,7 @@ private theorem concretePhaseCommitment_coordinate
   exact congrFun (RingFLaws.ringFMul_comm _ _) coordinate
 
 /-- The exact local family commitment coordinate is the residue of the dense
-compact-row value on the same 810 authoritative inputs. -/
+compact-row value on the same 918 authoritative inputs. -/
 theorem phaseCommitment_coordinate_eq_linearValue
     {setup : SeededAjtai.Setup verifierRows messageColumnCount}
     {layout : Layout} {assignment : Nat → Nat}
@@ -923,7 +924,7 @@ theorem coordinateRows_length
   rw [SeededPhi81.Block.rows_length, coordinateBlock_kappa]
   decide
 
-/-- Exact row order: zero word, 810 canonical openings, shape, seeded map. -/
+/-- Exact row order: zero word, 918 canonical openings, shape, seeded map. -/
 def rows
     (setup : SeededAjtai.Setup verifierRows messageColumnCount)
     (layout : Layout) (family : Family) : List Row :=
@@ -933,7 +934,7 @@ def rows
 theorem rows_length
     (setup : SeededAjtai.Setup verifierRows messageColumnCount)
     (layout : Layout) (family : Family) :
-    (rows setup layout family).length = 100591 := by
+    (rows setup layout family).length = 113983 := by
   simp only [rows, List.length_append, sourceRows_length,
     shapeRows_length, coordinateRows_length]
 

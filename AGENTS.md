@@ -11,6 +11,12 @@
 - Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
+- **Fixed SuperNeo Goldilocks decomposition policy (hard rule).** Keep `b = 2`. Use `k_rho = 16` and `B = 2^16` by default for a Nightstream production profile. Use `k_rho = 18` and `B = 2^18` only when an explicit requirement or a measured result shows that `k_rho = 16` is insufficient. In both cases, `B = b^k_rho`.
+- The SuperNeo Appendix B.2 values `k_rho = 14` and `B = 2^14` are reference values only. Do not use them for a Nightstream production proof artifact.
+- Each frozen or generated profile must select and protocol-bind one exact allowed pair. Do not mix `k_rho = 16` and `k_rho = 18` within one profile or its artifacts.
+- Do not use `b = 4`, `k_rho = 7`, radix-four decomposition, or a `k_rho` value other than 16 or 18 unless the user explicitly approves those exact values in the current task.
+- A domain-size target, including `2^24`, a performance result, a cvc5 result, generated-artifact size, or implementation convenience does not authorize a change outside this policy.
+- Do not describe a `k_rho = 16` or `k_rho = 18` profile as SuperNeo Appendix B.2 or paper exact. Describe it as a Nightstream Goldilocks profile and state the selected `k_rho` value.
 - **5-minute non-Lean test cap (hard).** Every `cargo test` and every other non-Lean test-binary invocation MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. The 5-minute cap is unconditional; the only way to exceed it is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
 - **25-minute Lean cap (hard).** Every Lean-related command, including `lake build`, `lake test`, `lake exe`, `lake env lean`, and direct Lean test or executable invocations, MUST be launched with a timeout of **at most 1 500 000 ms (25 minutes)**. Pass `timeout: 1500000` to the Bash tool — do not omit it, do not raise it. If a Lean command is still running at the cap, kill it and treat it as failing this slice. The only way to exceed the cap is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
 
@@ -21,6 +27,53 @@
 - If your change creates unused imports, variables, functions, or orphaned code, remove that newly-created dead surface. Do not delete pre-existing unrelated dead code unless explicitly asked.
 - Define success criteria for non-trivial work before coding. For bug fixes, add or update a test that would fail on the bug; for refactors, identify the compile/test checks that prove behavior was preserved.
 - Surface uncertainty and tradeoffs directly. If a simpler approach exists or the requested direction risks extra complexity, say so before implementing.
+
+## MSW — the kernel
+
+Remember to follow the MSW deletion rule for all claims—no exceptions.
+
+### program — complete
+
+```r
+contract ← the requested outcome + the smallest criteria that prove it
+
+while ∃ claim c : deleting c leaves contract unmet ∨ unproven
+      do c ; prove c
+
+halt ; report
+```
+
+### definitions — no behavior lives here, only meaning
+
+**contract** — the requested outcome and the smallest set of acceptance criteria that would prove it, stated before any work. The sole source of necessity; a ceiling as much as a floor. If the request is ambiguous: attended → ask; unattended → bind the smallest reading consistent with stated intent and record the assumption.
+
+**claim** — anything petitioning to become work: a plan step, a change, a test, a reviewer's P1, a discovered edge case, your own instinct that one more pass would help. Everything enters as this type. Nothing enters as a verdict.
+
+**deleting c leaves contract unmet ∨ unproven** — the only test. A claim passes solely by breaking the contract — reproducibly, within the task's actual inputs and environment. Severity is derived from the contract, never inherited from whoever raised the claim. *Useful*, *thorough*, and *possible* are not aliases for *necessary*. A claim that fails receives one line in the report — never a fix, an investigation, or a deferred follow-up.
+
+**do ; prove** — the smallest reliable act that closes the gap, and evidence sized to the claim it settles. An unproven act keeps its claim alive; a proven one closes it — and re-proving a closed claim is itself an inadmissible claim.
+
+**halt** — the fixed point: contract proven, no remaining claim passes. Not reviewer silence; not exhausted imagination. Halting before the fixed point and looping past it are the same bug, mirrored.
+
+**report** — the outcome against the contract; the proof; rejected claims worth the user's attention, one line each. Nothing else.
+
+### fuses — outside the program, for when its evaluator fails
+
+```python
+rounds = 3            → halt anyway ; report open items, do not chase them
+claim born in round n+1, visible in round n   → rejected
+```
+
+### No unauthoritative limits
+
+Never invent a limit. A cap, threshold, quota, budget, timeout, retry or round count, file or line count, acceptance-criterion count, agent count, or similar constraint is admissible only when its exact value is:
+
+- explicitly required by the requester;
+- imposed by an applicable technical or platform contract;
+- defined by authoritative project policy; or
+- derived from measured evidence necessary to meet or prove the task contract.
+
+State the authority or derivation whenever proposing or applying a limit. If no authority exists, omit the limit and use the MSW necessity test. Metrics may be reported as evidence, but they must not become gates, defaults, targets, or recommendations through agent intuition. Examples and representative proportions never become defaults. If a necessary limit is an unresolved owner choice, ask; do not manufacture a value.
 
 ## Security
 - Digests are fine as compression, but never as authority.

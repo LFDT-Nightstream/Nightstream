@@ -1,3662 +1,604 @@
-import Nightstream.Assurance.CompactSourceArtifact
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData0
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData1
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData2
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData3
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData4
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData5
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData6
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData7
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData8
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData9
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData10
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData11
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData12
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData13
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData14
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData15
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData16
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData17
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData18
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData19
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData20
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData21
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData22
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData23
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData24
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData25
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData26
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData27
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData28
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData29
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData30
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData31
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData32
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData33
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData34
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData35
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData36
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData37
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData38
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData39
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData40
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData41
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData42
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData43
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData44
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData45
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData46
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData47
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData48
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData49
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData50
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData51
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData52
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData53
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData54
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData55
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData56
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData57
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData58
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData59
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData60
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData61
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData62
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData63
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData64
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData65
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData66
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData67
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData68
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData69
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData70
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData71
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData72
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData73
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData74
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData75
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData76
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData77
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData78
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData79
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData80
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData81
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData82
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData83
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData84
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData85
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData86
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData87
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData88
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData89
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData90
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData91
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData92
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData93
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData94
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData95
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData96
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData97
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData98
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData99
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData100
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData101
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData102
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData103
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData104
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData105
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData106
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData107
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData108
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData109
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData110
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData111
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData112
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData113
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData114
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData115
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData116
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData117
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData118
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData119
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData120
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData121
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData122
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData123
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData124
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData125
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData126
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData127
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData128
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData129
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData130
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData131
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData132
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData133
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData134
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData135
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData136
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData137
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData138
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData139
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData140
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData141
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData142
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData143
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData144
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData145
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData146
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData147
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData148
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData149
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData150
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData151
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData152
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData153
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData154
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData155
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData156
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData157
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData158
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData159
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData160
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData161
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData162
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData163
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData164
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData165
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData166
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData167
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData168
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData169
-import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData170
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactWire
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11
+import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12
 
 /-!
 GENERATED FILE - do not edit by hand.
 
-Assembly of the chunk-aligned compact source artifact. Every leaf
-below is a bounded per-chunk fact; the artifact-level properties
-come from the structural composition theorems, and the exact
-validation is discharged by proof, never by evaluation. The
-emitter replayed every payload row against the independent sparse
-recovery before rendering.
+Assembly of the chunk-aligned compact source artifact. All heavy
+facts live in the bounded leaf modules; this module only
+dispatches them and applies the structural composition theorems.
+Exact validation is discharged by proof, never by evaluation.
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifact
 
 open Nightstream.Assurance.CompactSourceArtifact
 open Nightstream.Assurance.ConstraintMinimization
-open Nightstream.Implementation.R1CS
+open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactWire
 
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-def families : List FamilyRanges :=
-  [⟨"fprime.recursive.finalize.application", [(0, 4416)]⟩,
-   ⟨"fprime.recursive.step.accumulator.input_link", [(8553871, 8553875)]⟩,
-   ⟨"fprime.recursive.step.accumulator.output_authority.aggregate", [(11159546, 11162580)]⟩,
-   ⟨"fprime.recursive.step.accumulator.output_authority.child_digests", [(8553875, 11159546)]⟩,
-   ⟨"fprime.recursive.step.counters", [(11162580, 11163102)]⟩,
-   ⟨"fprime.recursive.step.nebula", [(8439619, 8553871)]⟩,
-   ⟨"fprime.recursive.step.output", [(11163102, 11187825)]⟩,
-   ⟨"fprime.recursive.step.prelude", [(4416, 30547)]⟩,
-   ⟨"fprime.recursive.step.prior_link.carrier_padding", [(8439615, 8439619)]⟩,
-   ⟨"fprime.recursive.step.prior_link.digest", [(8433777, 8438826)]⟩,
-   ⟨"fprime.recursive.step.prior_link.enc_inst", [(8438826, 8439615)]⟩,
-   ⟨"fprime.recursive.step.transcript", [(30547, 47427)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.allocations", [(47427, 47748)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.binding", [(56284, 3763580)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.canonicality", [(47748, 56284)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.challenges", [(3947788, 4054251)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_digest.claim", [(6737927, 6737931)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_digest.preimage.outer_header", [(4238374, 4238382)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_digest.preimage.source_headers", [(4238382, 4238391), (4238405, 4238414), (4238428, 4238437), (4238451, 4238460), (4238474, 4238483), (4238497, 4238506), (4238520, 4238529), (4238543, 4238552), (4238566, 4238575), (4238589, 4238598), (4238612, 4238621), (4238635, 4238644), (4238658, 4238667)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_digest.preimage.y_ring", [(4238391, 4238405), (4238414, 4238428), (4238437, 4238451), (4238460, 4238474), (4238483, 4238497), (4238506, 4238520), (4238529, 4238543), (4238552, 4238566), (4238575, 4238589), (4238598, 4238612), (4238621, 4238635), (4238644, 4238658), (4238667, 4238681)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_digest.sis", [(4238681, 6737927)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.output_transcript", [(4237719, 4238374)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.prefix", [(3763580, 3947788)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.sumcheck", [(4054251, 4156755)]⟩,
-   ⟨"nifs.pi_ccs.padded_row.terminal", [(4156755, 4237719)]⟩,
-   ⟨"nifs.pi_dec.verify", [(8390791, 8433729)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.acceptance_bound", [(6796200, 6796206), (6812923, 6812929), (6829646, 6829652), (6846369, 6846375), (6863092, 6863098), (6879815, 6879821), (6896538, 6896544), (6913261, 6913267), (6929984, 6929990), (6946707, 6946713), (6963430, 6963436), (6980153, 6980159), (6996876, 6996882)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.chunk.accept", [(6783955, 6783959), (6783981, 6783985), (6784076, 6784080), (6784102, 6784106), (6784197, 6784201), (6784223, 6784227), (6784318, 6784322), (6784344, 6784348), (6785645, 6785649), (6785671, 6785675), (6785766, 6785770), (6785792, 6785796), (6785887, 6785891), (6785913, 6785917), (6786008, 6786012), (6786034, 6786038), (6787335, 6787339), (6787361, 6787365), (6787456, 6787460), (6787482, 6787486), (6787577, 6787581), (6787603, 6787607), (6787698, 6787702), (6787724, 6787728), (6789025, 6789029), (6789051, 6789055), (6789146, 6789150), (6789172, 6789176), (6789267, 6789271), (6789293, 6789297), (6789388, 6789392), (6789414, 6789418), (6790715, 6790719), (6790741, 6790745), (6790836, 6790840), (6790862, 6790866), (6790957, 6790961), (6790983, 6790987), (6791078, 6791082), (6791104, 6791108), (6792405, 6792409), (6792431, 6792435), (6792526, 6792530), (6792552, 6792556), (6792647, 6792651), (6792673, 6792677), (6792768, 6792772), (6792794, 6792798), (6794095, 6794099), (6794121, 6794125), (6794216, 6794220), (6794242, 6794246), (6794337, 6794341), (6794363, 6794367), (6794458, 6794462), (6794484, 6794488), (6795785, 6795789), (6795811, 6795815), (6795906, 6795910), (6795932, 6795936), (6796027, 6796031), (6796053, 6796057), (6796148, 6796152), (6796174, 6796178), (6800678, 6800682), (6800704, 6800708), (6800799, 6800803), (6800825, 6800829), (6800920, 6800924), (6800946, 6800950), (6801041, 6801045), (6801067, 6801071), (6802368, 6802372), (6802394, 6802398), (6802489, 6802493), (6802515, 6802519), (6802610, 6802614), (6802636, 6802640), (6802731, 6802735), (6802757, 6802761), (6804058, 6804062), (6804084, 6804088), (6804179, 6804183), (6804205, 6804209), (6804300, 6804304), (6804326, 6804330), (6804421, 6804425), (6804447, 6804451), (6805748, 6805752), (6805774, 6805778), (6805869, 6805873), (6805895, 6805899), (6805990, 6805994), (6806016, 6806020), (6806111, 6806115), (6806137, 6806141), (6807438, 6807442), (6807464, 6807468), (6807559, 6807563), (6807585, 6807589), (6807680, 6807684), (6807706, 6807710), (6807801, 6807805), (6807827, 6807831), (6809128, 6809132), (6809154, 6809158), (6809249, 6809253), (6809275, 6809279), (6809370, 6809374), (6809396, 6809400), (6809491, 6809495), (6809517, 6809521), (6810818, 6810822), (6810844, 6810848), (6810939, 6810943), (6810965, 6810969), (6811060, 6811064), (6811086, 6811090), (6811181, 6811185), (6811207, 6811211), (6812508, 6812512), (6812534, 6812538), (6812629, 6812633), (6812655, 6812659), (6812750, 6812754), (6812776, 6812780), (6812871, 6812875), (6812897, 6812901), (6817401, 6817405), (6817427, 6817431), (6817522, 6817526), (6817548, 6817552), (6817643, 6817647), (6817669, 6817673), (6817764, 6817768), (6817790, 6817794), (6819091, 6819095), (6819117, 6819121), (6819212, 6819216), (6819238, 6819242), (6819333, 6819337), (6819359, 6819363), (6819454, 6819458), (6819480, 6819484), (6820781, 6820785), (6820807, 6820811), (6820902, 6820906), (6820928, 6820932), (6821023, 6821027), (6821049, 6821053), (6821144, 6821148), (6821170, 6821174), (6822471, 6822475), (6822497, 6822501), (6822592, 6822596), (6822618, 6822622), (6822713, 6822717), (6822739, 6822743), (6822834, 6822838), (6822860, 6822864), (6824161, 6824165), (6824187, 6824191), (6824282, 6824286), (6824308, 6824312), (6824403, 6824407), (6824429, 6824433), (6824524, 6824528), (6824550, 6824554), (6825851, 6825855), (6825877, 6825881), (6825972, 6825976), (6825998, 6826002), (6826093, 6826097), (6826119, 6826123), (6826214, 6826218), (6826240, 6826244), (6827541, 6827545), (6827567, 6827571), (6827662, 6827666), (6827688, 6827692), (6827783, 6827787), (6827809, 6827813), (6827904, 6827908), (6827930, 6827934), (6829231, 6829235), (6829257, 6829261), (6829352, 6829356), (6829378, 6829382), (6829473, 6829477), (6829499, 6829503), (6829594, 6829598), (6829620, 6829624), (6834124, 6834128), (6834150, 6834154), (6834245, 6834249), (6834271, 6834275), (6834366, 6834370), (6834392, 6834396), (6834487, 6834491), (6834513, 6834517), (6835814, 6835818), (6835840, 6835844), (6835935, 6835939), (6835961, 6835965), (6836056, 6836060), (6836082, 6836086), (6836177, 6836181), (6836203, 6836207), (6837504, 6837508), (6837530, 6837534), (6837625, 6837629), (6837651, 6837655), (6837746, 6837750), (6837772, 6837776), (6837867, 6837871), (6837893, 6837897), (6839194, 6839198), (6839220, 6839224), (6839315, 6839319), (6839341, 6839345), (6839436, 6839440), (6839462, 6839466), (6839557, 6839561), (6839583, 6839587), (6840884, 6840888), (6840910, 6840914), (6841005, 6841009), (6841031, 6841035), (6841126, 6841130), (6841152, 6841156), (6841247, 6841251), (6841273, 6841277), (6842574, 6842578), (6842600, 6842604), (6842695, 6842699), (6842721, 6842725), (6842816, 6842820), (6842842, 6842846), (6842937, 6842941), (6842963, 6842967), (6844264, 6844268), (6844290, 6844294), (6844385, 6844389), (6844411, 6844415), (6844506, 6844510), (6844532, 6844536), (6844627, 6844631), (6844653, 6844657), (6845954, 6845958), (6845980, 6845984), (6846075, 6846079), (6846101, 6846105), (6846196, 6846200), (6846222, 6846226), (6846317, 6846321), (6846343, 6846347), (6850847, 6850851), (6850873, 6850877), (6850968, 6850972), (6850994, 6850998), (6851089, 6851093), (6851115, 6851119), (6851210, 6851214), (6851236, 6851240), (6852537, 6852541), (6852563, 6852567), (6852658, 6852662), (6852684, 6852688), (6852779, 6852783), (6852805, 6852809), (6852900, 6852904), (6852926, 6852930), (6854227, 6854231), (6854253, 6854257), (6854348, 6854352), (6854374, 6854378), (6854469, 6854473), (6854495, 6854499), (6854590, 6854594), (6854616, 6854620), (6855917, 6855921), (6855943, 6855947), (6856038, 6856042), (6856064, 6856068), (6856159, 6856163), (6856185, 6856189), (6856280, 6856284), (6856306, 6856310), (6857607, 6857611), (6857633, 6857637), (6857728, 6857732), (6857754, 6857758), (6857849, 6857853), (6857875, 6857879), (6857970, 6857974), (6857996, 6858000), (6859297, 6859301), (6859323, 6859327), (6859418, 6859422), (6859444, 6859448), (6859539, 6859543), (6859565, 6859569), (6859660, 6859664), (6859686, 6859690), (6860987, 6860991), (6861013, 6861017), (6861108, 6861112), (6861134, 6861138), (6861229, 6861233), (6861255, 6861259), (6861350, 6861354), (6861376, 6861380), (6862677, 6862681), (6862703, 6862707), (6862798, 6862802), (6862824, 6862828), (6862919, 6862923), (6862945, 6862949), (6863040, 6863044), (6863066, 6863070), (6867570, 6867574), (6867596, 6867600), (6867691, 6867695), (6867717, 6867721), (6867812, 6867816), (6867838, 6867842), (6867933, 6867937), (6867959, 6867963), (6869260, 6869264), (6869286, 6869290), (6869381, 6869385), (6869407, 6869411), (6869502, 6869506), (6869528, 6869532), (6869623, 6869627), (6869649, 6869653), (6870950, 6870954), (6870976, 6870980), (6871071, 6871075), (6871097, 6871101), (6871192, 6871196), (6871218, 6871222), (6871313, 6871317), (6871339, 6871343), (6872640, 6872644), (6872666, 6872670), (6872761, 6872765), (6872787, 6872791), (6872882, 6872886), (6872908, 6872912), (6873003, 6873007), (6873029, 6873033), (6874330, 6874334), (6874356, 6874360), (6874451, 6874455), (6874477, 6874481), (6874572, 6874576), (6874598, 6874602), (6874693, 6874697), (6874719, 6874723), (6876020, 6876024), (6876046, 6876050), (6876141, 6876145), (6876167, 6876171), (6876262, 6876266), (6876288, 6876292), (6876383, 6876387), (6876409, 6876413), (6877710, 6877714), (6877736, 6877740), (6877831, 6877835), (6877857, 6877861), (6877952, 6877956), (6877978, 6877982), (6878073, 6878077), (6878099, 6878103), (6879400, 6879404), (6879426, 6879430), (6879521, 6879525), (6879547, 6879551), (6879642, 6879646), (6879668, 6879672), (6879763, 6879767), (6879789, 6879793), (6884293, 6884297), (6884319, 6884323), (6884414, 6884418), (6884440, 6884444), (6884535, 6884539), (6884561, 6884565), (6884656, 6884660), (6884682, 6884686), (6885983, 6885987), (6886009, 6886013), (6886104, 6886108), (6886130, 6886134), (6886225, 6886229), (6886251, 6886255), (6886346, 6886350), (6886372, 6886376), (6887673, 6887677), (6887699, 6887703), (6887794, 6887798), (6887820, 6887824), (6887915, 6887919), (6887941, 6887945), (6888036, 6888040), (6888062, 6888066), (6889363, 6889367), (6889389, 6889393), (6889484, 6889488), (6889510, 6889514), (6889605, 6889609), (6889631, 6889635), (6889726, 6889730), (6889752, 6889756), (6891053, 6891057), (6891079, 6891083), (6891174, 6891178), (6891200, 6891204), (6891295, 6891299), (6891321, 6891325), (6891416, 6891420), (6891442, 6891446), (6892743, 6892747), (6892769, 6892773), (6892864, 6892868), (6892890, 6892894), (6892985, 6892989), (6893011, 6893015), (6893106, 6893110), (6893132, 6893136), (6894433, 6894437), (6894459, 6894463), (6894554, 6894558), (6894580, 6894584), (6894675, 6894679), (6894701, 6894705), (6894796, 6894800), (6894822, 6894826), (6896123, 6896127), (6896149, 6896153), (6896244, 6896248), (6896270, 6896274), (6896365, 6896369), (6896391, 6896395), (6896486, 6896490), (6896512, 6896516), (6901016, 6901020), (6901042, 6901046), (6901137, 6901141), (6901163, 6901167), (6901258, 6901262), (6901284, 6901288), (6901379, 6901383), (6901405, 6901409), (6902706, 6902710), (6902732, 6902736), (6902827, 6902831), (6902853, 6902857), (6902948, 6902952), (6902974, 6902978), (6903069, 6903073), (6903095, 6903099), (6904396, 6904400), (6904422, 6904426), (6904517, 6904521), (6904543, 6904547), (6904638, 6904642), (6904664, 6904668), (6904759, 6904763), (6904785, 6904789), (6906086, 6906090), (6906112, 6906116), (6906207, 6906211), (6906233, 6906237), (6906328, 6906332), (6906354, 6906358), (6906449, 6906453), (6906475, 6906479), (6907776, 6907780), (6907802, 6907806), (6907897, 6907901), (6907923, 6907927), (6908018, 6908022), (6908044, 6908048), (6908139, 6908143), (6908165, 6908169), (6909466, 6909470), (6909492, 6909496), (6909587, 6909591), (6909613, 6909617), (6909708, 6909712), (6909734, 6909738), (6909829, 6909833), (6909855, 6909859), (6911156, 6911160), (6911182, 6911186), (6911277, 6911281), (6911303, 6911307), (6911398, 6911402), (6911424, 6911428), (6911519, 6911523), (6911545, 6911549), (6912846, 6912850), (6912872, 6912876), (6912967, 6912971), (6912993, 6912997), (6913088, 6913092), (6913114, 6913118), (6913209, 6913213), (6913235, 6913239), (6917739, 6917743), (6917765, 6917769), (6917860, 6917864), (6917886, 6917890), (6917981, 6917985), (6918007, 6918011), (6918102, 6918106), (6918128, 6918132), (6919429, 6919433), (6919455, 6919459), (6919550, 6919554), (6919576, 6919580), (6919671, 6919675), (6919697, 6919701), (6919792, 6919796), (6919818, 6919822), (6921119, 6921123), (6921145, 6921149), (6921240, 6921244), (6921266, 6921270), (6921361, 6921365), (6921387, 6921391), (6921482, 6921486), (6921508, 6921512), (6922809, 6922813), (6922835, 6922839), (6922930, 6922934), (6922956, 6922960), (6923051, 6923055), (6923077, 6923081), (6923172, 6923176), (6923198, 6923202), (6924499, 6924503), (6924525, 6924529), (6924620, 6924624), (6924646, 6924650), (6924741, 6924745), (6924767, 6924771), (6924862, 6924866), (6924888, 6924892), (6926189, 6926193), (6926215, 6926219), (6926310, 6926314), (6926336, 6926340), (6926431, 6926435), (6926457, 6926461), (6926552, 6926556), (6926578, 6926582), (6927879, 6927883), (6927905, 6927909), (6928000, 6928004), (6928026, 6928030), (6928121, 6928125), (6928147, 6928151), (6928242, 6928246), (6928268, 6928272), (6929569, 6929573), (6929595, 6929599), (6929690, 6929694), (6929716, 6929720), (6929811, 6929815), (6929837, 6929841), (6929932, 6929936), (6929958, 6929962), (6934462, 6934466), (6934488, 6934492), (6934583, 6934587), (6934609, 6934613), (6934704, 6934708), (6934730, 6934734), (6934825, 6934829), (6934851, 6934855), (6936152, 6936156), (6936178, 6936182), (6936273, 6936277), (6936299, 6936303), (6936394, 6936398), (6936420, 6936424), (6936515, 6936519), (6936541, 6936545), (6937842, 6937846), (6937868, 6937872), (6937963, 6937967), (6937989, 6937993), (6938084, 6938088), (6938110, 6938114), (6938205, 6938209), (6938231, 6938235), (6939532, 6939536), (6939558, 6939562), (6939653, 6939657), (6939679, 6939683), (6939774, 6939778), (6939800, 6939804), (6939895, 6939899), (6939921, 6939925), (6941222, 6941226), (6941248, 6941252), (6941343, 6941347), (6941369, 6941373), (6941464, 6941468), (6941490, 6941494), (6941585, 6941589), (6941611, 6941615), (6942912, 6942916), (6942938, 6942942), (6943033, 6943037), (6943059, 6943063), (6943154, 6943158), (6943180, 6943184), (6943275, 6943279), (6943301, 6943305), (6944602, 6944606), (6944628, 6944632), (6944723, 6944727), (6944749, 6944753), (6944844, 6944848), (6944870, 6944874), (6944965, 6944969), (6944991, 6944995), (6946292, 6946296), (6946318, 6946322), (6946413, 6946417), (6946439, 6946443), (6946534, 6946538), (6946560, 6946564), (6946655, 6946659), (6946681, 6946685), (6951185, 6951189), (6951211, 6951215), (6951306, 6951310), (6951332, 6951336), (6951427, 6951431), (6951453, 6951457), (6951548, 6951552), (6951574, 6951578), (6952875, 6952879), (6952901, 6952905), (6952996, 6953000), (6953022, 6953026), (6953117, 6953121), (6953143, 6953147), (6953238, 6953242), (6953264, 6953268), (6954565, 6954569), (6954591, 6954595), (6954686, 6954690), (6954712, 6954716), (6954807, 6954811), (6954833, 6954837), (6954928, 6954932), (6954954, 6954958), (6956255, 6956259), (6956281, 6956285), (6956376, 6956380), (6956402, 6956406), (6956497, 6956501), (6956523, 6956527), (6956618, 6956622), (6956644, 6956648), (6957945, 6957949), (6957971, 6957975), (6958066, 6958070), (6958092, 6958096), (6958187, 6958191), (6958213, 6958217), (6958308, 6958312), (6958334, 6958338), (6959635, 6959639), (6959661, 6959665), (6959756, 6959760), (6959782, 6959786), (6959877, 6959881), (6959903, 6959907), (6959998, 6960002), (6960024, 6960028), (6961325, 6961329), (6961351, 6961355), (6961446, 6961450), (6961472, 6961476), (6961567, 6961571), (6961593, 6961597), (6961688, 6961692), (6961714, 6961718), (6963015, 6963019), (6963041, 6963045), (6963136, 6963140), (6963162, 6963166), (6963257, 6963261), (6963283, 6963287), (6963378, 6963382), (6963404, 6963408), (6967908, 6967912), (6967934, 6967938), (6968029, 6968033), (6968055, 6968059), (6968150, 6968154), (6968176, 6968180), (6968271, 6968275), (6968297, 6968301), (6969598, 6969602), (6969624, 6969628), (6969719, 6969723), (6969745, 6969749), (6969840, 6969844), (6969866, 6969870), (6969961, 6969965), (6969987, 6969991), (6971288, 6971292), (6971314, 6971318), (6971409, 6971413), (6971435, 6971439), (6971530, 6971534), (6971556, 6971560), (6971651, 6971655), (6971677, 6971681), (6972978, 6972982), (6973004, 6973008), (6973099, 6973103), (6973125, 6973129), (6973220, 6973224), (6973246, 6973250), (6973341, 6973345), (6973367, 6973371), (6974668, 6974672), (6974694, 6974698), (6974789, 6974793), (6974815, 6974819), (6974910, 6974914), (6974936, 6974940), (6975031, 6975035), (6975057, 6975061), (6976358, 6976362), (6976384, 6976388), (6976479, 6976483), (6976505, 6976509), (6976600, 6976604), (6976626, 6976630), (6976721, 6976725), (6976747, 6976751), (6978048, 6978052), (6978074, 6978078), (6978169, 6978173), (6978195, 6978199), (6978290, 6978294), (6978316, 6978320), (6978411, 6978415), (6978437, 6978441), (6979738, 6979742), (6979764, 6979768), (6979859, 6979863), (6979885, 6979889), (6979980, 6979984), (6980006, 6980010), (6980101, 6980105), (6980127, 6980131), (6984631, 6984635), (6984657, 6984661), (6984752, 6984756), (6984778, 6984782), (6984873, 6984877), (6984899, 6984903), (6984994, 6984998), (6985020, 6985024), (6986321, 6986325), (6986347, 6986351), (6986442, 6986446), (6986468, 6986472), (6986563, 6986567), (6986589, 6986593), (6986684, 6986688), (6986710, 6986714), (6988011, 6988015), (6988037, 6988041), (6988132, 6988136), (6988158, 6988162), (6988253, 6988257), (6988279, 6988283), (6988374, 6988378), (6988400, 6988404), (6989701, 6989705), (6989727, 6989731), (6989822, 6989826), (6989848, 6989852), (6989943, 6989947), (6989969, 6989973), (6990064, 6990068), (6990090, 6990094), (6991391, 6991395), (6991417, 6991421), (6991512, 6991516), (6991538, 6991542), (6991633, 6991637), (6991659, 6991663), (6991754, 6991758), (6991780, 6991784), (6993081, 6993085), (6993107, 6993111), (6993202, 6993206), (6993228, 6993232), (6993323, 6993327), (6993349, 6993353), (6993444, 6993448), (6993470, 6993474), (6994771, 6994775), (6994797, 6994801), (6994892, 6994896), (6994918, 6994922), (6995013, 6995017), (6995039, 6995043), (6995134, 6995138), (6995160, 6995164), (6996461, 6996465), (6996487, 6996491), (6996582, 6996586), (6996608, 6996612), (6996703, 6996707), (6996729, 6996733), (6996824, 6996828), (6996850, 6996854)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.chunk.mod5", [(6783959, 6783979), (6783985, 6784005), (6784080, 6784100), (6784106, 6784126), (6784201, 6784221), (6784227, 6784247), (6784322, 6784342), (6784348, 6784368), (6785649, 6785669), (6785675, 6785695), (6785770, 6785790), (6785796, 6785816), (6785891, 6785911), (6785917, 6785937), (6786012, 6786032), (6786038, 6786058), (6787339, 6787359), (6787365, 6787385), (6787460, 6787480), (6787486, 6787506), (6787581, 6787601), (6787607, 6787627), (6787702, 6787722), (6787728, 6787748), (6789029, 6789049), (6789055, 6789075), (6789150, 6789170), (6789176, 6789196), (6789271, 6789291), (6789297, 6789317), (6789392, 6789412), (6789418, 6789438), (6790719, 6790739), (6790745, 6790765), (6790840, 6790860), (6790866, 6790886), (6790961, 6790981), (6790987, 6791007), (6791082, 6791102), (6791108, 6791128), (6792409, 6792429), (6792435, 6792455), (6792530, 6792550), (6792556, 6792576), (6792651, 6792671), (6792677, 6792697), (6792772, 6792792), (6792798, 6792818), (6794099, 6794119), (6794125, 6794145), (6794220, 6794240), (6794246, 6794266), (6794341, 6794361), (6794367, 6794387), (6794462, 6794482), (6794488, 6794508), (6795789, 6795809), (6795815, 6795835), (6795910, 6795930), (6795936, 6795956), (6796031, 6796051), (6796057, 6796077), (6796152, 6796172), (6796178, 6796198), (6800682, 6800702), (6800708, 6800728), (6800803, 6800823), (6800829, 6800849), (6800924, 6800944), (6800950, 6800970), (6801045, 6801065), (6801071, 6801091), (6802372, 6802392), (6802398, 6802418), (6802493, 6802513), (6802519, 6802539), (6802614, 6802634), (6802640, 6802660), (6802735, 6802755), (6802761, 6802781), (6804062, 6804082), (6804088, 6804108), (6804183, 6804203), (6804209, 6804229), (6804304, 6804324), (6804330, 6804350), (6804425, 6804445), (6804451, 6804471), (6805752, 6805772), (6805778, 6805798), (6805873, 6805893), (6805899, 6805919), (6805994, 6806014), (6806020, 6806040), (6806115, 6806135), (6806141, 6806161), (6807442, 6807462), (6807468, 6807488), (6807563, 6807583), (6807589, 6807609), (6807684, 6807704), (6807710, 6807730), (6807805, 6807825), (6807831, 6807851), (6809132, 6809152), (6809158, 6809178), (6809253, 6809273), (6809279, 6809299), (6809374, 6809394), (6809400, 6809420), (6809495, 6809515), (6809521, 6809541), (6810822, 6810842), (6810848, 6810868), (6810943, 6810963), (6810969, 6810989), (6811064, 6811084), (6811090, 6811110), (6811185, 6811205), (6811211, 6811231), (6812512, 6812532), (6812538, 6812558), (6812633, 6812653), (6812659, 6812679), (6812754, 6812774), (6812780, 6812800), (6812875, 6812895), (6812901, 6812921), (6817405, 6817425), (6817431, 6817451), (6817526, 6817546), (6817552, 6817572), (6817647, 6817667), (6817673, 6817693), (6817768, 6817788), (6817794, 6817814), (6819095, 6819115), (6819121, 6819141), (6819216, 6819236), (6819242, 6819262), (6819337, 6819357), (6819363, 6819383), (6819458, 6819478), (6819484, 6819504), (6820785, 6820805), (6820811, 6820831), (6820906, 6820926), (6820932, 6820952), (6821027, 6821047), (6821053, 6821073), (6821148, 6821168), (6821174, 6821194), (6822475, 6822495), (6822501, 6822521), (6822596, 6822616), (6822622, 6822642), (6822717, 6822737), (6822743, 6822763), (6822838, 6822858), (6822864, 6822884), (6824165, 6824185), (6824191, 6824211), (6824286, 6824306), (6824312, 6824332), (6824407, 6824427), (6824433, 6824453), (6824528, 6824548), (6824554, 6824574), (6825855, 6825875), (6825881, 6825901), (6825976, 6825996), (6826002, 6826022), (6826097, 6826117), (6826123, 6826143), (6826218, 6826238), (6826244, 6826264), (6827545, 6827565), (6827571, 6827591), (6827666, 6827686), (6827692, 6827712), (6827787, 6827807), (6827813, 6827833), (6827908, 6827928), (6827934, 6827954), (6829235, 6829255), (6829261, 6829281), (6829356, 6829376), (6829382, 6829402), (6829477, 6829497), (6829503, 6829523), (6829598, 6829618), (6829624, 6829644), (6834128, 6834148), (6834154, 6834174), (6834249, 6834269), (6834275, 6834295), (6834370, 6834390), (6834396, 6834416), (6834491, 6834511), (6834517, 6834537), (6835818, 6835838), (6835844, 6835864), (6835939, 6835959), (6835965, 6835985), (6836060, 6836080), (6836086, 6836106), (6836181, 6836201), (6836207, 6836227), (6837508, 6837528), (6837534, 6837554), (6837629, 6837649), (6837655, 6837675), (6837750, 6837770), (6837776, 6837796), (6837871, 6837891), (6837897, 6837917), (6839198, 6839218), (6839224, 6839244), (6839319, 6839339), (6839345, 6839365), (6839440, 6839460), (6839466, 6839486), (6839561, 6839581), (6839587, 6839607), (6840888, 6840908), (6840914, 6840934), (6841009, 6841029), (6841035, 6841055), (6841130, 6841150), (6841156, 6841176), (6841251, 6841271), (6841277, 6841297), (6842578, 6842598), (6842604, 6842624), (6842699, 6842719), (6842725, 6842745), (6842820, 6842840), (6842846, 6842866), (6842941, 6842961), (6842967, 6842987), (6844268, 6844288), (6844294, 6844314), (6844389, 6844409), (6844415, 6844435), (6844510, 6844530), (6844536, 6844556), (6844631, 6844651), (6844657, 6844677), (6845958, 6845978), (6845984, 6846004), (6846079, 6846099), (6846105, 6846125), (6846200, 6846220), (6846226, 6846246), (6846321, 6846341), (6846347, 6846367), (6850851, 6850871), (6850877, 6850897), (6850972, 6850992), (6850998, 6851018), (6851093, 6851113), (6851119, 6851139), (6851214, 6851234), (6851240, 6851260), (6852541, 6852561), (6852567, 6852587), (6852662, 6852682), (6852688, 6852708), (6852783, 6852803), (6852809, 6852829), (6852904, 6852924), (6852930, 6852950), (6854231, 6854251), (6854257, 6854277), (6854352, 6854372), (6854378, 6854398), (6854473, 6854493), (6854499, 6854519), (6854594, 6854614), (6854620, 6854640), (6855921, 6855941), (6855947, 6855967), (6856042, 6856062), (6856068, 6856088), (6856163, 6856183), (6856189, 6856209), (6856284, 6856304), (6856310, 6856330), (6857611, 6857631), (6857637, 6857657), (6857732, 6857752), (6857758, 6857778), (6857853, 6857873), (6857879, 6857899), (6857974, 6857994), (6858000, 6858020), (6859301, 6859321), (6859327, 6859347), (6859422, 6859442), (6859448, 6859468), (6859543, 6859563), (6859569, 6859589), (6859664, 6859684), (6859690, 6859710), (6860991, 6861011), (6861017, 6861037), (6861112, 6861132), (6861138, 6861158), (6861233, 6861253), (6861259, 6861279), (6861354, 6861374), (6861380, 6861400), (6862681, 6862701), (6862707, 6862727), (6862802, 6862822), (6862828, 6862848), (6862923, 6862943), (6862949, 6862969), (6863044, 6863064), (6863070, 6863090), (6867574, 6867594), (6867600, 6867620), (6867695, 6867715), (6867721, 6867741), (6867816, 6867836), (6867842, 6867862), (6867937, 6867957), (6867963, 6867983), (6869264, 6869284), (6869290, 6869310), (6869385, 6869405), (6869411, 6869431), (6869506, 6869526), (6869532, 6869552), (6869627, 6869647), (6869653, 6869673), (6870954, 6870974), (6870980, 6871000), (6871075, 6871095), (6871101, 6871121), (6871196, 6871216), (6871222, 6871242), (6871317, 6871337), (6871343, 6871363), (6872644, 6872664), (6872670, 6872690), (6872765, 6872785), (6872791, 6872811), (6872886, 6872906), (6872912, 6872932), (6873007, 6873027), (6873033, 6873053), (6874334, 6874354), (6874360, 6874380), (6874455, 6874475), (6874481, 6874501), (6874576, 6874596), (6874602, 6874622), (6874697, 6874717), (6874723, 6874743), (6876024, 6876044), (6876050, 6876070), (6876145, 6876165), (6876171, 6876191), (6876266, 6876286), (6876292, 6876312), (6876387, 6876407), (6876413, 6876433), (6877714, 6877734), (6877740, 6877760), (6877835, 6877855), (6877861, 6877881), (6877956, 6877976), (6877982, 6878002), (6878077, 6878097), (6878103, 6878123), (6879404, 6879424), (6879430, 6879450), (6879525, 6879545), (6879551, 6879571), (6879646, 6879666), (6879672, 6879692), (6879767, 6879787), (6879793, 6879813), (6884297, 6884317), (6884323, 6884343), (6884418, 6884438), (6884444, 6884464), (6884539, 6884559), (6884565, 6884585), (6884660, 6884680), (6884686, 6884706), (6885987, 6886007), (6886013, 6886033), (6886108, 6886128), (6886134, 6886154), (6886229, 6886249), (6886255, 6886275), (6886350, 6886370), (6886376, 6886396), (6887677, 6887697), (6887703, 6887723), (6887798, 6887818), (6887824, 6887844), (6887919, 6887939), (6887945, 6887965), (6888040, 6888060), (6888066, 6888086), (6889367, 6889387), (6889393, 6889413), (6889488, 6889508), (6889514, 6889534), (6889609, 6889629), (6889635, 6889655), (6889730, 6889750), (6889756, 6889776), (6891057, 6891077), (6891083, 6891103), (6891178, 6891198), (6891204, 6891224), (6891299, 6891319), (6891325, 6891345), (6891420, 6891440), (6891446, 6891466), (6892747, 6892767), (6892773, 6892793), (6892868, 6892888), (6892894, 6892914), (6892989, 6893009), (6893015, 6893035), (6893110, 6893130), (6893136, 6893156), (6894437, 6894457), (6894463, 6894483), (6894558, 6894578), (6894584, 6894604), (6894679, 6894699), (6894705, 6894725), (6894800, 6894820), (6894826, 6894846), (6896127, 6896147), (6896153, 6896173), (6896248, 6896268), (6896274, 6896294), (6896369, 6896389), (6896395, 6896415), (6896490, 6896510), (6896516, 6896536), (6901020, 6901040), (6901046, 6901066), (6901141, 6901161), (6901167, 6901187), (6901262, 6901282), (6901288, 6901308), (6901383, 6901403), (6901409, 6901429), (6902710, 6902730), (6902736, 6902756), (6902831, 6902851), (6902857, 6902877), (6902952, 6902972), (6902978, 6902998), (6903073, 6903093), (6903099, 6903119), (6904400, 6904420), (6904426, 6904446), (6904521, 6904541), (6904547, 6904567), (6904642, 6904662), (6904668, 6904688), (6904763, 6904783), (6904789, 6904809), (6906090, 6906110), (6906116, 6906136), (6906211, 6906231), (6906237, 6906257), (6906332, 6906352), (6906358, 6906378), (6906453, 6906473), (6906479, 6906499), (6907780, 6907800), (6907806, 6907826), (6907901, 6907921), (6907927, 6907947), (6908022, 6908042), (6908048, 6908068), (6908143, 6908163), (6908169, 6908189), (6909470, 6909490), (6909496, 6909516), (6909591, 6909611), (6909617, 6909637), (6909712, 6909732), (6909738, 6909758), (6909833, 6909853), (6909859, 6909879), (6911160, 6911180), (6911186, 6911206), (6911281, 6911301), (6911307, 6911327), (6911402, 6911422), (6911428, 6911448), (6911523, 6911543), (6911549, 6911569), (6912850, 6912870), (6912876, 6912896), (6912971, 6912991), (6912997, 6913017), (6913092, 6913112), (6913118, 6913138), (6913213, 6913233), (6913239, 6913259), (6917743, 6917763), (6917769, 6917789), (6917864, 6917884), (6917890, 6917910), (6917985, 6918005), (6918011, 6918031), (6918106, 6918126), (6918132, 6918152), (6919433, 6919453), (6919459, 6919479), (6919554, 6919574), (6919580, 6919600), (6919675, 6919695), (6919701, 6919721), (6919796, 6919816), (6919822, 6919842), (6921123, 6921143), (6921149, 6921169), (6921244, 6921264), (6921270, 6921290), (6921365, 6921385), (6921391, 6921411), (6921486, 6921506), (6921512, 6921532), (6922813, 6922833), (6922839, 6922859), (6922934, 6922954), (6922960, 6922980), (6923055, 6923075), (6923081, 6923101), (6923176, 6923196), (6923202, 6923222), (6924503, 6924523), (6924529, 6924549), (6924624, 6924644), (6924650, 6924670), (6924745, 6924765), (6924771, 6924791), (6924866, 6924886), (6924892, 6924912), (6926193, 6926213), (6926219, 6926239), (6926314, 6926334), (6926340, 6926360), (6926435, 6926455), (6926461, 6926481), (6926556, 6926576), (6926582, 6926602), (6927883, 6927903), (6927909, 6927929), (6928004, 6928024), (6928030, 6928050), (6928125, 6928145), (6928151, 6928171), (6928246, 6928266), (6928272, 6928292), (6929573, 6929593), (6929599, 6929619), (6929694, 6929714), (6929720, 6929740), (6929815, 6929835), (6929841, 6929861), (6929936, 6929956), (6929962, 6929982), (6934466, 6934486), (6934492, 6934512), (6934587, 6934607), (6934613, 6934633), (6934708, 6934728), (6934734, 6934754), (6934829, 6934849), (6934855, 6934875), (6936156, 6936176), (6936182, 6936202), (6936277, 6936297), (6936303, 6936323), (6936398, 6936418), (6936424, 6936444), (6936519, 6936539), (6936545, 6936565), (6937846, 6937866), (6937872, 6937892), (6937967, 6937987), (6937993, 6938013), (6938088, 6938108), (6938114, 6938134), (6938209, 6938229), (6938235, 6938255), (6939536, 6939556), (6939562, 6939582), (6939657, 6939677), (6939683, 6939703), (6939778, 6939798), (6939804, 6939824), (6939899, 6939919), (6939925, 6939945), (6941226, 6941246), (6941252, 6941272), (6941347, 6941367), (6941373, 6941393), (6941468, 6941488), (6941494, 6941514), (6941589, 6941609), (6941615, 6941635), (6942916, 6942936), (6942942, 6942962), (6943037, 6943057), (6943063, 6943083), (6943158, 6943178), (6943184, 6943204), (6943279, 6943299), (6943305, 6943325), (6944606, 6944626), (6944632, 6944652), (6944727, 6944747), (6944753, 6944773), (6944848, 6944868), (6944874, 6944894), (6944969, 6944989), (6944995, 6945015), (6946296, 6946316), (6946322, 6946342), (6946417, 6946437), (6946443, 6946463), (6946538, 6946558), (6946564, 6946584), (6946659, 6946679), (6946685, 6946705), (6951189, 6951209), (6951215, 6951235), (6951310, 6951330), (6951336, 6951356), (6951431, 6951451), (6951457, 6951477), (6951552, 6951572), (6951578, 6951598), (6952879, 6952899), (6952905, 6952925), (6953000, 6953020), (6953026, 6953046), (6953121, 6953141), (6953147, 6953167), (6953242, 6953262), (6953268, 6953288), (6954569, 6954589), (6954595, 6954615), (6954690, 6954710), (6954716, 6954736), (6954811, 6954831), (6954837, 6954857), (6954932, 6954952), (6954958, 6954978), (6956259, 6956279), (6956285, 6956305), (6956380, 6956400), (6956406, 6956426), (6956501, 6956521), (6956527, 6956547), (6956622, 6956642), (6956648, 6956668), (6957949, 6957969), (6957975, 6957995), (6958070, 6958090), (6958096, 6958116), (6958191, 6958211), (6958217, 6958237), (6958312, 6958332), (6958338, 6958358), (6959639, 6959659), (6959665, 6959685), (6959760, 6959780), (6959786, 6959806), (6959881, 6959901), (6959907, 6959927), (6960002, 6960022), (6960028, 6960048), (6961329, 6961349), (6961355, 6961375), (6961450, 6961470), (6961476, 6961496), (6961571, 6961591), (6961597, 6961617), (6961692, 6961712), (6961718, 6961738), (6963019, 6963039), (6963045, 6963065), (6963140, 6963160), (6963166, 6963186), (6963261, 6963281), (6963287, 6963307), (6963382, 6963402), (6963408, 6963428), (6967912, 6967932), (6967938, 6967958), (6968033, 6968053), (6968059, 6968079), (6968154, 6968174), (6968180, 6968200), (6968275, 6968295), (6968301, 6968321), (6969602, 6969622), (6969628, 6969648), (6969723, 6969743), (6969749, 6969769), (6969844, 6969864), (6969870, 6969890), (6969965, 6969985), (6969991, 6970011), (6971292, 6971312), (6971318, 6971338), (6971413, 6971433), (6971439, 6971459), (6971534, 6971554), (6971560, 6971580), (6971655, 6971675), (6971681, 6971701), (6972982, 6973002), (6973008, 6973028), (6973103, 6973123), (6973129, 6973149), (6973224, 6973244), (6973250, 6973270), (6973345, 6973365), (6973371, 6973391), (6974672, 6974692), (6974698, 6974718), (6974793, 6974813), (6974819, 6974839), (6974914, 6974934), (6974940, 6974960), (6975035, 6975055), (6975061, 6975081), (6976362, 6976382), (6976388, 6976408), (6976483, 6976503), (6976509, 6976529), (6976604, 6976624), (6976630, 6976650), (6976725, 6976745), (6976751, 6976771), (6978052, 6978072), (6978078, 6978098), (6978173, 6978193), (6978199, 6978219), (6978294, 6978314), (6978320, 6978340), (6978415, 6978435), (6978441, 6978461), (6979742, 6979762), (6979768, 6979788), (6979863, 6979883), (6979889, 6979909), (6979984, 6980004), (6980010, 6980030), (6980105, 6980125), (6980131, 6980151), (6984635, 6984655), (6984661, 6984681), (6984756, 6984776), (6984782, 6984802), (6984877, 6984897), (6984903, 6984923), (6984998, 6985018), (6985024, 6985044), (6986325, 6986345), (6986351, 6986371), (6986446, 6986466), (6986472, 6986492), (6986567, 6986587), (6986593, 6986613), (6986688, 6986708), (6986714, 6986734), (6988015, 6988035), (6988041, 6988061), (6988136, 6988156), (6988162, 6988182), (6988257, 6988277), (6988283, 6988303), (6988378, 6988398), (6988404, 6988424), (6989705, 6989725), (6989731, 6989751), (6989826, 6989846), (6989852, 6989872), (6989947, 6989967), (6989973, 6989993), (6990068, 6990088), (6990094, 6990114), (6991395, 6991415), (6991421, 6991441), (6991516, 6991536), (6991542, 6991562), (6991637, 6991657), (6991663, 6991683), (6991758, 6991778), (6991784, 6991804), (6993085, 6993105), (6993111, 6993131), (6993206, 6993226), (6993232, 6993252), (6993327, 6993347), (6993353, 6993373), (6993448, 6993468), (6993474, 6993494), (6994775, 6994795), (6994801, 6994821), (6994896, 6994916), (6994922, 6994942), (6995017, 6995037), (6995043, 6995063), (6995138, 6995158), (6995164, 6995184), (6996465, 6996485), (6996491, 6996511), (6996586, 6996606), (6996612, 6996632), (6996707, 6996727), (6996733, 6996753), (6996828, 6996848), (6996854, 6996874)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.chunk.symbol_and_prefix", [(6783979, 6783981), (6784005, 6784007), (6784100, 6784102), (6784126, 6784128), (6784221, 6784223), (6784247, 6784249), (6784342, 6784344), (6784368, 6784370), (6785669, 6785671), (6785695, 6785697), (6785790, 6785792), (6785816, 6785818), (6785911, 6785913), (6785937, 6785939), (6786032, 6786034), (6786058, 6786060), (6787359, 6787361), (6787385, 6787387), (6787480, 6787482), (6787506, 6787508), (6787601, 6787603), (6787627, 6787629), (6787722, 6787724), (6787748, 6787750), (6789049, 6789051), (6789075, 6789077), (6789170, 6789172), (6789196, 6789198), (6789291, 6789293), (6789317, 6789319), (6789412, 6789414), (6789438, 6789440), (6790739, 6790741), (6790765, 6790767), (6790860, 6790862), (6790886, 6790888), (6790981, 6790983), (6791007, 6791009), (6791102, 6791104), (6791128, 6791130), (6792429, 6792431), (6792455, 6792457), (6792550, 6792552), (6792576, 6792578), (6792671, 6792673), (6792697, 6792699), (6792792, 6792794), (6792818, 6792820), (6794119, 6794121), (6794145, 6794147), (6794240, 6794242), (6794266, 6794268), (6794361, 6794363), (6794387, 6794389), (6794482, 6794484), (6794508, 6794510), (6795809, 6795811), (6795835, 6795837), (6795930, 6795932), (6795956, 6795958), (6796051, 6796053), (6796077, 6796079), (6796172, 6796174), (6796198, 6796200), (6800702, 6800704), (6800728, 6800730), (6800823, 6800825), (6800849, 6800851), (6800944, 6800946), (6800970, 6800972), (6801065, 6801067), (6801091, 6801093), (6802392, 6802394), (6802418, 6802420), (6802513, 6802515), (6802539, 6802541), (6802634, 6802636), (6802660, 6802662), (6802755, 6802757), (6802781, 6802783), (6804082, 6804084), (6804108, 6804110), (6804203, 6804205), (6804229, 6804231), (6804324, 6804326), (6804350, 6804352), (6804445, 6804447), (6804471, 6804473), (6805772, 6805774), (6805798, 6805800), (6805893, 6805895), (6805919, 6805921), (6806014, 6806016), (6806040, 6806042), (6806135, 6806137), (6806161, 6806163), (6807462, 6807464), (6807488, 6807490), (6807583, 6807585), (6807609, 6807611), (6807704, 6807706), (6807730, 6807732), (6807825, 6807827), (6807851, 6807853), (6809152, 6809154), (6809178, 6809180), (6809273, 6809275), (6809299, 6809301), (6809394, 6809396), (6809420, 6809422), (6809515, 6809517), (6809541, 6809543), (6810842, 6810844), (6810868, 6810870), (6810963, 6810965), (6810989, 6810991), (6811084, 6811086), (6811110, 6811112), (6811205, 6811207), (6811231, 6811233), (6812532, 6812534), (6812558, 6812560), (6812653, 6812655), (6812679, 6812681), (6812774, 6812776), (6812800, 6812802), (6812895, 6812897), (6812921, 6812923), (6817425, 6817427), (6817451, 6817453), (6817546, 6817548), (6817572, 6817574), (6817667, 6817669), (6817693, 6817695), (6817788, 6817790), (6817814, 6817816), (6819115, 6819117), (6819141, 6819143), (6819236, 6819238), (6819262, 6819264), (6819357, 6819359), (6819383, 6819385), (6819478, 6819480), (6819504, 6819506), (6820805, 6820807), (6820831, 6820833), (6820926, 6820928), (6820952, 6820954), (6821047, 6821049), (6821073, 6821075), (6821168, 6821170), (6821194, 6821196), (6822495, 6822497), (6822521, 6822523), (6822616, 6822618), (6822642, 6822644), (6822737, 6822739), (6822763, 6822765), (6822858, 6822860), (6822884, 6822886), (6824185, 6824187), (6824211, 6824213), (6824306, 6824308), (6824332, 6824334), (6824427, 6824429), (6824453, 6824455), (6824548, 6824550), (6824574, 6824576), (6825875, 6825877), (6825901, 6825903), (6825996, 6825998), (6826022, 6826024), (6826117, 6826119), (6826143, 6826145), (6826238, 6826240), (6826264, 6826266), (6827565, 6827567), (6827591, 6827593), (6827686, 6827688), (6827712, 6827714), (6827807, 6827809), (6827833, 6827835), (6827928, 6827930), (6827954, 6827956), (6829255, 6829257), (6829281, 6829283), (6829376, 6829378), (6829402, 6829404), (6829497, 6829499), (6829523, 6829525), (6829618, 6829620), (6829644, 6829646), (6834148, 6834150), (6834174, 6834176), (6834269, 6834271), (6834295, 6834297), (6834390, 6834392), (6834416, 6834418), (6834511, 6834513), (6834537, 6834539), (6835838, 6835840), (6835864, 6835866), (6835959, 6835961), (6835985, 6835987), (6836080, 6836082), (6836106, 6836108), (6836201, 6836203), (6836227, 6836229), (6837528, 6837530), (6837554, 6837556), (6837649, 6837651), (6837675, 6837677), (6837770, 6837772), (6837796, 6837798), (6837891, 6837893), (6837917, 6837919), (6839218, 6839220), (6839244, 6839246), (6839339, 6839341), (6839365, 6839367), (6839460, 6839462), (6839486, 6839488), (6839581, 6839583), (6839607, 6839609), (6840908, 6840910), (6840934, 6840936), (6841029, 6841031), (6841055, 6841057), (6841150, 6841152), (6841176, 6841178), (6841271, 6841273), (6841297, 6841299), (6842598, 6842600), (6842624, 6842626), (6842719, 6842721), (6842745, 6842747), (6842840, 6842842), (6842866, 6842868), (6842961, 6842963), (6842987, 6842989), (6844288, 6844290), (6844314, 6844316), (6844409, 6844411), (6844435, 6844437), (6844530, 6844532), (6844556, 6844558), (6844651, 6844653), (6844677, 6844679), (6845978, 6845980), (6846004, 6846006), (6846099, 6846101), (6846125, 6846127), (6846220, 6846222), (6846246, 6846248), (6846341, 6846343), (6846367, 6846369), (6850871, 6850873), (6850897, 6850899), (6850992, 6850994), (6851018, 6851020), (6851113, 6851115), (6851139, 6851141), (6851234, 6851236), (6851260, 6851262), (6852561, 6852563), (6852587, 6852589), (6852682, 6852684), (6852708, 6852710), (6852803, 6852805), (6852829, 6852831), (6852924, 6852926), (6852950, 6852952), (6854251, 6854253), (6854277, 6854279), (6854372, 6854374), (6854398, 6854400), (6854493, 6854495), (6854519, 6854521), (6854614, 6854616), (6854640, 6854642), (6855941, 6855943), (6855967, 6855969), (6856062, 6856064), (6856088, 6856090), (6856183, 6856185), (6856209, 6856211), (6856304, 6856306), (6856330, 6856332), (6857631, 6857633), (6857657, 6857659), (6857752, 6857754), (6857778, 6857780), (6857873, 6857875), (6857899, 6857901), (6857994, 6857996), (6858020, 6858022), (6859321, 6859323), (6859347, 6859349), (6859442, 6859444), (6859468, 6859470), (6859563, 6859565), (6859589, 6859591), (6859684, 6859686), (6859710, 6859712), (6861011, 6861013), (6861037, 6861039), (6861132, 6861134), (6861158, 6861160), (6861253, 6861255), (6861279, 6861281), (6861374, 6861376), (6861400, 6861402), (6862701, 6862703), (6862727, 6862729), (6862822, 6862824), (6862848, 6862850), (6862943, 6862945), (6862969, 6862971), (6863064, 6863066), (6863090, 6863092), (6867594, 6867596), (6867620, 6867622), (6867715, 6867717), (6867741, 6867743), (6867836, 6867838), (6867862, 6867864), (6867957, 6867959), (6867983, 6867985), (6869284, 6869286), (6869310, 6869312), (6869405, 6869407), (6869431, 6869433), (6869526, 6869528), (6869552, 6869554), (6869647, 6869649), (6869673, 6869675), (6870974, 6870976), (6871000, 6871002), (6871095, 6871097), (6871121, 6871123), (6871216, 6871218), (6871242, 6871244), (6871337, 6871339), (6871363, 6871365), (6872664, 6872666), (6872690, 6872692), (6872785, 6872787), (6872811, 6872813), (6872906, 6872908), (6872932, 6872934), (6873027, 6873029), (6873053, 6873055), (6874354, 6874356), (6874380, 6874382), (6874475, 6874477), (6874501, 6874503), (6874596, 6874598), (6874622, 6874624), (6874717, 6874719), (6874743, 6874745), (6876044, 6876046), (6876070, 6876072), (6876165, 6876167), (6876191, 6876193), (6876286, 6876288), (6876312, 6876314), (6876407, 6876409), (6876433, 6876435), (6877734, 6877736), (6877760, 6877762), (6877855, 6877857), (6877881, 6877883), (6877976, 6877978), (6878002, 6878004), (6878097, 6878099), (6878123, 6878125), (6879424, 6879426), (6879450, 6879452), (6879545, 6879547), (6879571, 6879573), (6879666, 6879668), (6879692, 6879694), (6879787, 6879789), (6879813, 6879815), (6884317, 6884319), (6884343, 6884345), (6884438, 6884440), (6884464, 6884466), (6884559, 6884561), (6884585, 6884587), (6884680, 6884682), (6884706, 6884708), (6886007, 6886009), (6886033, 6886035), (6886128, 6886130), (6886154, 6886156), (6886249, 6886251), (6886275, 6886277), (6886370, 6886372), (6886396, 6886398), (6887697, 6887699), (6887723, 6887725), (6887818, 6887820), (6887844, 6887846), (6887939, 6887941), (6887965, 6887967), (6888060, 6888062), (6888086, 6888088), (6889387, 6889389), (6889413, 6889415), (6889508, 6889510), (6889534, 6889536), (6889629, 6889631), (6889655, 6889657), (6889750, 6889752), (6889776, 6889778), (6891077, 6891079), (6891103, 6891105), (6891198, 6891200), (6891224, 6891226), (6891319, 6891321), (6891345, 6891347), (6891440, 6891442), (6891466, 6891468), (6892767, 6892769), (6892793, 6892795), (6892888, 6892890), (6892914, 6892916), (6893009, 6893011), (6893035, 6893037), (6893130, 6893132), (6893156, 6893158), (6894457, 6894459), (6894483, 6894485), (6894578, 6894580), (6894604, 6894606), (6894699, 6894701), (6894725, 6894727), (6894820, 6894822), (6894846, 6894848), (6896147, 6896149), (6896173, 6896175), (6896268, 6896270), (6896294, 6896296), (6896389, 6896391), (6896415, 6896417), (6896510, 6896512), (6896536, 6896538), (6901040, 6901042), (6901066, 6901068), (6901161, 6901163), (6901187, 6901189), (6901282, 6901284), (6901308, 6901310), (6901403, 6901405), (6901429, 6901431), (6902730, 6902732), (6902756, 6902758), (6902851, 6902853), (6902877, 6902879), (6902972, 6902974), (6902998, 6903000), (6903093, 6903095), (6903119, 6903121), (6904420, 6904422), (6904446, 6904448), (6904541, 6904543), (6904567, 6904569), (6904662, 6904664), (6904688, 6904690), (6904783, 6904785), (6904809, 6904811), (6906110, 6906112), (6906136, 6906138), (6906231, 6906233), (6906257, 6906259), (6906352, 6906354), (6906378, 6906380), (6906473, 6906475), (6906499, 6906501), (6907800, 6907802), (6907826, 6907828), (6907921, 6907923), (6907947, 6907949), (6908042, 6908044), (6908068, 6908070), (6908163, 6908165), (6908189, 6908191), (6909490, 6909492), (6909516, 6909518), (6909611, 6909613), (6909637, 6909639), (6909732, 6909734), (6909758, 6909760), (6909853, 6909855), (6909879, 6909881), (6911180, 6911182), (6911206, 6911208), (6911301, 6911303), (6911327, 6911329), (6911422, 6911424), (6911448, 6911450), (6911543, 6911545), (6911569, 6911571), (6912870, 6912872), (6912896, 6912898), (6912991, 6912993), (6913017, 6913019), (6913112, 6913114), (6913138, 6913140), (6913233, 6913235), (6913259, 6913261), (6917763, 6917765), (6917789, 6917791), (6917884, 6917886), (6917910, 6917912), (6918005, 6918007), (6918031, 6918033), (6918126, 6918128), (6918152, 6918154), (6919453, 6919455), (6919479, 6919481), (6919574, 6919576), (6919600, 6919602), (6919695, 6919697), (6919721, 6919723), (6919816, 6919818), (6919842, 6919844), (6921143, 6921145), (6921169, 6921171), (6921264, 6921266), (6921290, 6921292), (6921385, 6921387), (6921411, 6921413), (6921506, 6921508), (6921532, 6921534), (6922833, 6922835), (6922859, 6922861), (6922954, 6922956), (6922980, 6922982), (6923075, 6923077), (6923101, 6923103), (6923196, 6923198), (6923222, 6923224), (6924523, 6924525), (6924549, 6924551), (6924644, 6924646), (6924670, 6924672), (6924765, 6924767), (6924791, 6924793), (6924886, 6924888), (6924912, 6924914), (6926213, 6926215), (6926239, 6926241), (6926334, 6926336), (6926360, 6926362), (6926455, 6926457), (6926481, 6926483), (6926576, 6926578), (6926602, 6926604), (6927903, 6927905), (6927929, 6927931), (6928024, 6928026), (6928050, 6928052), (6928145, 6928147), (6928171, 6928173), (6928266, 6928268), (6928292, 6928294), (6929593, 6929595), (6929619, 6929621), (6929714, 6929716), (6929740, 6929742), (6929835, 6929837), (6929861, 6929863), (6929956, 6929958), (6929982, 6929984), (6934486, 6934488), (6934512, 6934514), (6934607, 6934609), (6934633, 6934635), (6934728, 6934730), (6934754, 6934756), (6934849, 6934851), (6934875, 6934877), (6936176, 6936178), (6936202, 6936204), (6936297, 6936299), (6936323, 6936325), (6936418, 6936420), (6936444, 6936446), (6936539, 6936541), (6936565, 6936567), (6937866, 6937868), (6937892, 6937894), (6937987, 6937989), (6938013, 6938015), (6938108, 6938110), (6938134, 6938136), (6938229, 6938231), (6938255, 6938257), (6939556, 6939558), (6939582, 6939584), (6939677, 6939679), (6939703, 6939705), (6939798, 6939800), (6939824, 6939826), (6939919, 6939921), (6939945, 6939947), (6941246, 6941248), (6941272, 6941274), (6941367, 6941369), (6941393, 6941395), (6941488, 6941490), (6941514, 6941516), (6941609, 6941611), (6941635, 6941637), (6942936, 6942938), (6942962, 6942964), (6943057, 6943059), (6943083, 6943085), (6943178, 6943180), (6943204, 6943206), (6943299, 6943301), (6943325, 6943327), (6944626, 6944628), (6944652, 6944654), (6944747, 6944749), (6944773, 6944775), (6944868, 6944870), (6944894, 6944896), (6944989, 6944991), (6945015, 6945017), (6946316, 6946318), (6946342, 6946344), (6946437, 6946439), (6946463, 6946465), (6946558, 6946560), (6946584, 6946586), (6946679, 6946681), (6946705, 6946707), (6951209, 6951211), (6951235, 6951237), (6951330, 6951332), (6951356, 6951358), (6951451, 6951453), (6951477, 6951479), (6951572, 6951574), (6951598, 6951600), (6952899, 6952901), (6952925, 6952927), (6953020, 6953022), (6953046, 6953048), (6953141, 6953143), (6953167, 6953169), (6953262, 6953264), (6953288, 6953290), (6954589, 6954591), (6954615, 6954617), (6954710, 6954712), (6954736, 6954738), (6954831, 6954833), (6954857, 6954859), (6954952, 6954954), (6954978, 6954980), (6956279, 6956281), (6956305, 6956307), (6956400, 6956402), (6956426, 6956428), (6956521, 6956523), (6956547, 6956549), (6956642, 6956644), (6956668, 6956670), (6957969, 6957971), (6957995, 6957997), (6958090, 6958092), (6958116, 6958118), (6958211, 6958213), (6958237, 6958239), (6958332, 6958334), (6958358, 6958360), (6959659, 6959661), (6959685, 6959687), (6959780, 6959782), (6959806, 6959808), (6959901, 6959903), (6959927, 6959929), (6960022, 6960024), (6960048, 6960050), (6961349, 6961351), (6961375, 6961377), (6961470, 6961472), (6961496, 6961498), (6961591, 6961593), (6961617, 6961619), (6961712, 6961714), (6961738, 6961740), (6963039, 6963041), (6963065, 6963067), (6963160, 6963162), (6963186, 6963188), (6963281, 6963283), (6963307, 6963309), (6963402, 6963404), (6963428, 6963430), (6967932, 6967934), (6967958, 6967960), (6968053, 6968055), (6968079, 6968081), (6968174, 6968176), (6968200, 6968202), (6968295, 6968297), (6968321, 6968323), (6969622, 6969624), (6969648, 6969650), (6969743, 6969745), (6969769, 6969771), (6969864, 6969866), (6969890, 6969892), (6969985, 6969987), (6970011, 6970013), (6971312, 6971314), (6971338, 6971340), (6971433, 6971435), (6971459, 6971461), (6971554, 6971556), (6971580, 6971582), (6971675, 6971677), (6971701, 6971703), (6973002, 6973004), (6973028, 6973030), (6973123, 6973125), (6973149, 6973151), (6973244, 6973246), (6973270, 6973272), (6973365, 6973367), (6973391, 6973393), (6974692, 6974694), (6974718, 6974720), (6974813, 6974815), (6974839, 6974841), (6974934, 6974936), (6974960, 6974962), (6975055, 6975057), (6975081, 6975083), (6976382, 6976384), (6976408, 6976410), (6976503, 6976505), (6976529, 6976531), (6976624, 6976626), (6976650, 6976652), (6976745, 6976747), (6976771, 6976773), (6978072, 6978074), (6978098, 6978100), (6978193, 6978195), (6978219, 6978221), (6978314, 6978316), (6978340, 6978342), (6978435, 6978437), (6978461, 6978463), (6979762, 6979764), (6979788, 6979790), (6979883, 6979885), (6979909, 6979911), (6980004, 6980006), (6980030, 6980032), (6980125, 6980127), (6980151, 6980153), (6984655, 6984657), (6984681, 6984683), (6984776, 6984778), (6984802, 6984804), (6984897, 6984899), (6984923, 6984925), (6985018, 6985020), (6985044, 6985046), (6986345, 6986347), (6986371, 6986373), (6986466, 6986468), (6986492, 6986494), (6986587, 6986589), (6986613, 6986615), (6986708, 6986710), (6986734, 6986736), (6988035, 6988037), (6988061, 6988063), (6988156, 6988158), (6988182, 6988184), (6988277, 6988279), (6988303, 6988305), (6988398, 6988400), (6988424, 6988426), (6989725, 6989727), (6989751, 6989753), (6989846, 6989848), (6989872, 6989874), (6989967, 6989969), (6989993, 6989995), (6990088, 6990090), (6990114, 6990116), (6991415, 6991417), (6991441, 6991443), (6991536, 6991538), (6991562, 6991564), (6991657, 6991659), (6991683, 6991685), (6991778, 6991780), (6991804, 6991806), (6993105, 6993107), (6993131, 6993133), (6993226, 6993228), (6993252, 6993254), (6993347, 6993349), (6993373, 6993375), (6993468, 6993470), (6993494, 6993496), (6994795, 6994797), (6994821, 6994823), (6994916, 6994918), (6994942, 6994944), (6995037, 6995039), (6995063, 6995065), (6995158, 6995160), (6995184, 6995186), (6996485, 6996487), (6996511, 6996513), (6996606, 6996608), (6996632, 6996634), (6996727, 6996729), (6996753, 6996755), (6996848, 6996850), (6996874, 6996876)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.initialize", [(6782679, 6782680), (6799402, 6799403), (6816125, 6816126), (6832848, 6832849), (6849571, 6849572), (6866294, 6866295), (6883017, 6883018), (6899740, 6899741), (6916463, 6916464), (6933186, 6933187), (6949909, 6949910), (6966632, 6966633), (6983355, 6983356)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.selection.initialize", [(6796206, 6796207), (6812929, 6812930), (6829652, 6829653), (6846375, 6846376), (6863098, 6863099), (6879821, 6879822), (6896544, 6896545), (6913267, 6913268), (6929990, 6929991), (6946713, 6946714), (6963436, 6963437), (6980159, 6980160), (6996882, 6996883)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.selection.one_hot", [(6796207, 6796219), (6796255, 6796267), (6796303, 6796315), (6796351, 6796363), (6796399, 6796411), (6796447, 6796459), (6796495, 6796507), (6796543, 6796555), (6796591, 6796603), (6796639, 6796651), (6796687, 6796699), (6796735, 6796747), (6796783, 6796795), (6796831, 6796843), (6796879, 6796891), (6796927, 6796939), (6796975, 6796987), (6797023, 6797035), (6797071, 6797083), (6797119, 6797131), (6797167, 6797179), (6797215, 6797227), (6797263, 6797275), (6797311, 6797323), (6797359, 6797371), (6797407, 6797419), (6797455, 6797467), (6797503, 6797515), (6797551, 6797563), (6797599, 6797611), (6797647, 6797659), (6797695, 6797707), (6797743, 6797755), (6797791, 6797803), (6797839, 6797851), (6797887, 6797899), (6797935, 6797947), (6797983, 6797995), (6798031, 6798043), (6798079, 6798091), (6798127, 6798139), (6798175, 6798187), (6798223, 6798235), (6798271, 6798283), (6798319, 6798331), (6798367, 6798379), (6798415, 6798427), (6798463, 6798475), (6798511, 6798523), (6798559, 6798571), (6798607, 6798619), (6798655, 6798667), (6798703, 6798715), (6798751, 6798763), (6812930, 6812942), (6812978, 6812990), (6813026, 6813038), (6813074, 6813086), (6813122, 6813134), (6813170, 6813182), (6813218, 6813230), (6813266, 6813278), (6813314, 6813326), (6813362, 6813374), (6813410, 6813422), (6813458, 6813470), (6813506, 6813518), (6813554, 6813566), (6813602, 6813614), (6813650, 6813662), (6813698, 6813710), (6813746, 6813758), (6813794, 6813806), (6813842, 6813854), (6813890, 6813902), (6813938, 6813950), (6813986, 6813998), (6814034, 6814046), (6814082, 6814094), (6814130, 6814142), (6814178, 6814190), (6814226, 6814238), (6814274, 6814286), (6814322, 6814334), (6814370, 6814382), (6814418, 6814430), (6814466, 6814478), (6814514, 6814526), (6814562, 6814574), (6814610, 6814622), (6814658, 6814670), (6814706, 6814718), (6814754, 6814766), (6814802, 6814814), (6814850, 6814862), (6814898, 6814910), (6814946, 6814958), (6814994, 6815006), (6815042, 6815054), (6815090, 6815102), (6815138, 6815150), (6815186, 6815198), (6815234, 6815246), (6815282, 6815294), (6815330, 6815342), (6815378, 6815390), (6815426, 6815438), (6815474, 6815486), (6829653, 6829665), (6829701, 6829713), (6829749, 6829761), (6829797, 6829809), (6829845, 6829857), (6829893, 6829905), (6829941, 6829953), (6829989, 6830001), (6830037, 6830049), (6830085, 6830097), (6830133, 6830145), (6830181, 6830193), (6830229, 6830241), (6830277, 6830289), (6830325, 6830337), (6830373, 6830385), (6830421, 6830433), (6830469, 6830481), (6830517, 6830529), (6830565, 6830577), (6830613, 6830625), (6830661, 6830673), (6830709, 6830721), (6830757, 6830769), (6830805, 6830817), (6830853, 6830865), (6830901, 6830913), (6830949, 6830961), (6830997, 6831009), (6831045, 6831057), (6831093, 6831105), (6831141, 6831153), (6831189, 6831201), (6831237, 6831249), (6831285, 6831297), (6831333, 6831345), (6831381, 6831393), (6831429, 6831441), (6831477, 6831489), (6831525, 6831537), (6831573, 6831585), (6831621, 6831633), (6831669, 6831681), (6831717, 6831729), (6831765, 6831777), (6831813, 6831825), (6831861, 6831873), (6831909, 6831921), (6831957, 6831969), (6832005, 6832017), (6832053, 6832065), (6832101, 6832113), (6832149, 6832161), (6832197, 6832209), (6846376, 6846388), (6846424, 6846436), (6846472, 6846484), (6846520, 6846532), (6846568, 6846580), (6846616, 6846628), (6846664, 6846676), (6846712, 6846724), (6846760, 6846772), (6846808, 6846820), (6846856, 6846868), (6846904, 6846916), (6846952, 6846964), (6847000, 6847012), (6847048, 6847060), (6847096, 6847108), (6847144, 6847156), (6847192, 6847204), (6847240, 6847252), (6847288, 6847300), (6847336, 6847348), (6847384, 6847396), (6847432, 6847444), (6847480, 6847492), (6847528, 6847540), (6847576, 6847588), (6847624, 6847636), (6847672, 6847684), (6847720, 6847732), (6847768, 6847780), (6847816, 6847828), (6847864, 6847876), (6847912, 6847924), (6847960, 6847972), (6848008, 6848020), (6848056, 6848068), (6848104, 6848116), (6848152, 6848164), (6848200, 6848212), (6848248, 6848260), (6848296, 6848308), (6848344, 6848356), (6848392, 6848404), (6848440, 6848452), (6848488, 6848500), (6848536, 6848548), (6848584, 6848596), (6848632, 6848644), (6848680, 6848692), (6848728, 6848740), (6848776, 6848788), (6848824, 6848836), (6848872, 6848884), (6848920, 6848932), (6863099, 6863111), (6863147, 6863159), (6863195, 6863207), (6863243, 6863255), (6863291, 6863303), (6863339, 6863351), (6863387, 6863399), (6863435, 6863447), (6863483, 6863495), (6863531, 6863543), (6863579, 6863591), (6863627, 6863639), (6863675, 6863687), (6863723, 6863735), (6863771, 6863783), (6863819, 6863831), (6863867, 6863879), (6863915, 6863927), (6863963, 6863975), (6864011, 6864023), (6864059, 6864071), (6864107, 6864119), (6864155, 6864167), (6864203, 6864215), (6864251, 6864263), (6864299, 6864311), (6864347, 6864359), (6864395, 6864407), (6864443, 6864455), (6864491, 6864503), (6864539, 6864551), (6864587, 6864599), (6864635, 6864647), (6864683, 6864695), (6864731, 6864743), (6864779, 6864791), (6864827, 6864839), (6864875, 6864887), (6864923, 6864935), (6864971, 6864983), (6865019, 6865031), (6865067, 6865079), (6865115, 6865127), (6865163, 6865175), (6865211, 6865223), (6865259, 6865271), (6865307, 6865319), (6865355, 6865367), (6865403, 6865415), (6865451, 6865463), (6865499, 6865511), (6865547, 6865559), (6865595, 6865607), (6865643, 6865655), (6879822, 6879834), (6879870, 6879882), (6879918, 6879930), (6879966, 6879978), (6880014, 6880026), (6880062, 6880074), (6880110, 6880122), (6880158, 6880170), (6880206, 6880218), (6880254, 6880266), (6880302, 6880314), (6880350, 6880362), (6880398, 6880410), (6880446, 6880458), (6880494, 6880506), (6880542, 6880554), (6880590, 6880602), (6880638, 6880650), (6880686, 6880698), (6880734, 6880746), (6880782, 6880794), (6880830, 6880842), (6880878, 6880890), (6880926, 6880938), (6880974, 6880986), (6881022, 6881034), (6881070, 6881082), (6881118, 6881130), (6881166, 6881178), (6881214, 6881226), (6881262, 6881274), (6881310, 6881322), (6881358, 6881370), (6881406, 6881418), (6881454, 6881466), (6881502, 6881514), (6881550, 6881562), (6881598, 6881610), (6881646, 6881658), (6881694, 6881706), (6881742, 6881754), (6881790, 6881802), (6881838, 6881850), (6881886, 6881898), (6881934, 6881946), (6881982, 6881994), (6882030, 6882042), (6882078, 6882090), (6882126, 6882138), (6882174, 6882186), (6882222, 6882234), (6882270, 6882282), (6882318, 6882330), (6882366, 6882378), (6896545, 6896557), (6896593, 6896605), (6896641, 6896653), (6896689, 6896701), (6896737, 6896749), (6896785, 6896797), (6896833, 6896845), (6896881, 6896893), (6896929, 6896941), (6896977, 6896989), (6897025, 6897037), (6897073, 6897085), (6897121, 6897133), (6897169, 6897181), (6897217, 6897229), (6897265, 6897277), (6897313, 6897325), (6897361, 6897373), (6897409, 6897421), (6897457, 6897469), (6897505, 6897517), (6897553, 6897565), (6897601, 6897613), (6897649, 6897661), (6897697, 6897709), (6897745, 6897757), (6897793, 6897805), (6897841, 6897853), (6897889, 6897901), (6897937, 6897949), (6897985, 6897997), (6898033, 6898045), (6898081, 6898093), (6898129, 6898141), (6898177, 6898189), (6898225, 6898237), (6898273, 6898285), (6898321, 6898333), (6898369, 6898381), (6898417, 6898429), (6898465, 6898477), (6898513, 6898525), (6898561, 6898573), (6898609, 6898621), (6898657, 6898669), (6898705, 6898717), (6898753, 6898765), (6898801, 6898813), (6898849, 6898861), (6898897, 6898909), (6898945, 6898957), (6898993, 6899005), (6899041, 6899053), (6899089, 6899101), (6913268, 6913280), (6913316, 6913328), (6913364, 6913376), (6913412, 6913424), (6913460, 6913472), (6913508, 6913520), (6913556, 6913568), (6913604, 6913616), (6913652, 6913664), (6913700, 6913712), (6913748, 6913760), (6913796, 6913808), (6913844, 6913856), (6913892, 6913904), (6913940, 6913952), (6913988, 6914000), (6914036, 6914048), (6914084, 6914096), (6914132, 6914144), (6914180, 6914192), (6914228, 6914240), (6914276, 6914288), (6914324, 6914336), (6914372, 6914384), (6914420, 6914432), (6914468, 6914480), (6914516, 6914528), (6914564, 6914576), (6914612, 6914624), (6914660, 6914672), (6914708, 6914720), (6914756, 6914768), (6914804, 6914816), (6914852, 6914864), (6914900, 6914912), (6914948, 6914960), (6914996, 6915008), (6915044, 6915056), (6915092, 6915104), (6915140, 6915152), (6915188, 6915200), (6915236, 6915248), (6915284, 6915296), (6915332, 6915344), (6915380, 6915392), (6915428, 6915440), (6915476, 6915488), (6915524, 6915536), (6915572, 6915584), (6915620, 6915632), (6915668, 6915680), (6915716, 6915728), (6915764, 6915776), (6915812, 6915824), (6929991, 6930003), (6930039, 6930051), (6930087, 6930099), (6930135, 6930147), (6930183, 6930195), (6930231, 6930243), (6930279, 6930291), (6930327, 6930339), (6930375, 6930387), (6930423, 6930435), (6930471, 6930483), (6930519, 6930531), (6930567, 6930579), (6930615, 6930627), (6930663, 6930675), (6930711, 6930723), (6930759, 6930771), (6930807, 6930819), (6930855, 6930867), (6930903, 6930915), (6930951, 6930963), (6930999, 6931011), (6931047, 6931059), (6931095, 6931107), (6931143, 6931155), (6931191, 6931203), (6931239, 6931251), (6931287, 6931299), (6931335, 6931347), (6931383, 6931395), (6931431, 6931443), (6931479, 6931491), (6931527, 6931539), (6931575, 6931587), (6931623, 6931635), (6931671, 6931683), (6931719, 6931731), (6931767, 6931779), (6931815, 6931827), (6931863, 6931875), (6931911, 6931923), (6931959, 6931971), (6932007, 6932019), (6932055, 6932067), (6932103, 6932115), (6932151, 6932163), (6932199, 6932211), (6932247, 6932259), (6932295, 6932307), (6932343, 6932355), (6932391, 6932403), (6932439, 6932451), (6932487, 6932499), (6932535, 6932547), (6946714, 6946726), (6946762, 6946774), (6946810, 6946822), (6946858, 6946870), (6946906, 6946918), (6946954, 6946966), (6947002, 6947014), (6947050, 6947062), (6947098, 6947110), (6947146, 6947158), (6947194, 6947206), (6947242, 6947254), (6947290, 6947302), (6947338, 6947350), (6947386, 6947398), (6947434, 6947446), (6947482, 6947494), (6947530, 6947542), (6947578, 6947590), (6947626, 6947638), (6947674, 6947686), (6947722, 6947734), (6947770, 6947782), (6947818, 6947830), (6947866, 6947878), (6947914, 6947926), (6947962, 6947974), (6948010, 6948022), (6948058, 6948070), (6948106, 6948118), (6948154, 6948166), (6948202, 6948214), (6948250, 6948262), (6948298, 6948310), (6948346, 6948358), (6948394, 6948406), (6948442, 6948454), (6948490, 6948502), (6948538, 6948550), (6948586, 6948598), (6948634, 6948646), (6948682, 6948694), (6948730, 6948742), (6948778, 6948790), (6948826, 6948838), (6948874, 6948886), (6948922, 6948934), (6948970, 6948982), (6949018, 6949030), (6949066, 6949078), (6949114, 6949126), (6949162, 6949174), (6949210, 6949222), (6949258, 6949270), (6963437, 6963449), (6963485, 6963497), (6963533, 6963545), (6963581, 6963593), (6963629, 6963641), (6963677, 6963689), (6963725, 6963737), (6963773, 6963785), (6963821, 6963833), (6963869, 6963881), (6963917, 6963929), (6963965, 6963977), (6964013, 6964025), (6964061, 6964073), (6964109, 6964121), (6964157, 6964169), (6964205, 6964217), (6964253, 6964265), (6964301, 6964313), (6964349, 6964361), (6964397, 6964409), (6964445, 6964457), (6964493, 6964505), (6964541, 6964553), (6964589, 6964601), (6964637, 6964649), (6964685, 6964697), (6964733, 6964745), (6964781, 6964793), (6964829, 6964841), (6964877, 6964889), (6964925, 6964937), (6964973, 6964985), (6965021, 6965033), (6965069, 6965081), (6965117, 6965129), (6965165, 6965177), (6965213, 6965225), (6965261, 6965273), (6965309, 6965321), (6965357, 6965369), (6965405, 6965417), (6965453, 6965465), (6965501, 6965513), (6965549, 6965561), (6965597, 6965609), (6965645, 6965657), (6965693, 6965705), (6965741, 6965753), (6965789, 6965801), (6965837, 6965849), (6965885, 6965897), (6965933, 6965945), (6965981, 6965993), (6980160, 6980172), (6980208, 6980220), (6980256, 6980268), (6980304, 6980316), (6980352, 6980364), (6980400, 6980412), (6980448, 6980460), (6980496, 6980508), (6980544, 6980556), (6980592, 6980604), (6980640, 6980652), (6980688, 6980700), (6980736, 6980748), (6980784, 6980796), (6980832, 6980844), (6980880, 6980892), (6980928, 6980940), (6980976, 6980988), (6981024, 6981036), (6981072, 6981084), (6981120, 6981132), (6981168, 6981180), (6981216, 6981228), (6981264, 6981276), (6981312, 6981324), (6981360, 6981372), (6981408, 6981420), (6981456, 6981468), (6981504, 6981516), (6981552, 6981564), (6981600, 6981612), (6981648, 6981660), (6981696, 6981708), (6981744, 6981756), (6981792, 6981804), (6981840, 6981852), (6981888, 6981900), (6981936, 6981948), (6981984, 6981996), (6982032, 6982044), (6982080, 6982092), (6982128, 6982140), (6982176, 6982188), (6982224, 6982236), (6982272, 6982284), (6982320, 6982332), (6982368, 6982380), (6982416, 6982428), (6982464, 6982476), (6982512, 6982524), (6982560, 6982572), (6982608, 6982620), (6982656, 6982668), (6982704, 6982716), (6996883, 6996895), (6996931, 6996943), (6996979, 6996991), (6997027, 6997039), (6997075, 6997087), (6997123, 6997135), (6997171, 6997183), (6997219, 6997231), (6997267, 6997279), (6997315, 6997327), (6997363, 6997375), (6997411, 6997423), (6997459, 6997471), (6997507, 6997519), (6997555, 6997567), (6997603, 6997615), (6997651, 6997663), (6997699, 6997711), (6997747, 6997759), (6997795, 6997807), (6997843, 6997855), (6997891, 6997903), (6997939, 6997951), (6997987, 6997999), (6998035, 6998047), (6998083, 6998095), (6998131, 6998143), (6998179, 6998191), (6998227, 6998239), (6998275, 6998287), (6998323, 6998335), (6998371, 6998383), (6998419, 6998431), (6998467, 6998479), (6998515, 6998527), (6998563, 6998575), (6998611, 6998623), (6998659, 6998671), (6998707, 6998719), (6998755, 6998767), (6998803, 6998815), (6998851, 6998863), (6998899, 6998911), (6998947, 6998959), (6998995, 6999007), (6999043, 6999055), (6999091, 6999103), (6999139, 6999151), (6999187, 6999199), (6999235, 6999247), (6999283, 6999295), (6999331, 6999343), (6999379, 6999391), (6999427, 6999439)]⟩,
-   ⟨"nifs.pi_rlc.challenge.sampler.selection.products", [(6796219, 6796255), (6796267, 6796303), (6796315, 6796351), (6796363, 6796399), (6796411, 6796447), (6796459, 6796495), (6796507, 6796543), (6796555, 6796591), (6796603, 6796639), (6796651, 6796687), (6796699, 6796735), (6796747, 6796783), (6796795, 6796831), (6796843, 6796879), (6796891, 6796927), (6796939, 6796975), (6796987, 6797023), (6797035, 6797071), (6797083, 6797119), (6797131, 6797167), (6797179, 6797215), (6797227, 6797263), (6797275, 6797311), (6797323, 6797359), (6797371, 6797407), (6797419, 6797455), (6797467, 6797503), (6797515, 6797551), (6797563, 6797599), (6797611, 6797647), (6797659, 6797695), (6797707, 6797743), (6797755, 6797791), (6797803, 6797839), (6797851, 6797887), (6797899, 6797935), (6797947, 6797983), (6797995, 6798031), (6798043, 6798079), (6798091, 6798127), (6798139, 6798175), (6798187, 6798223), (6798235, 6798271), (6798283, 6798319), (6798331, 6798367), (6798379, 6798415), (6798427, 6798463), (6798475, 6798511), (6798523, 6798559), (6798571, 6798607), (6798619, 6798655), (6798667, 6798703), (6798715, 6798751), (6798763, 6798799), (6812942, 6812978), (6812990, 6813026), (6813038, 6813074), (6813086, 6813122), (6813134, 6813170), (6813182, 6813218), (6813230, 6813266), (6813278, 6813314), (6813326, 6813362), (6813374, 6813410), (6813422, 6813458), (6813470, 6813506), (6813518, 6813554), (6813566, 6813602), (6813614, 6813650), (6813662, 6813698), (6813710, 6813746), (6813758, 6813794), (6813806, 6813842), (6813854, 6813890), (6813902, 6813938), (6813950, 6813986), (6813998, 6814034), (6814046, 6814082), (6814094, 6814130), (6814142, 6814178), (6814190, 6814226), (6814238, 6814274), (6814286, 6814322), (6814334, 6814370), (6814382, 6814418), (6814430, 6814466), (6814478, 6814514), (6814526, 6814562), (6814574, 6814610), (6814622, 6814658), (6814670, 6814706), (6814718, 6814754), (6814766, 6814802), (6814814, 6814850), (6814862, 6814898), (6814910, 6814946), (6814958, 6814994), (6815006, 6815042), (6815054, 6815090), (6815102, 6815138), (6815150, 6815186), (6815198, 6815234), (6815246, 6815282), (6815294, 6815330), (6815342, 6815378), (6815390, 6815426), (6815438, 6815474), (6815486, 6815522), (6829665, 6829701), (6829713, 6829749), (6829761, 6829797), (6829809, 6829845), (6829857, 6829893), (6829905, 6829941), (6829953, 6829989), (6830001, 6830037), (6830049, 6830085), (6830097, 6830133), (6830145, 6830181), (6830193, 6830229), (6830241, 6830277), (6830289, 6830325), (6830337, 6830373), (6830385, 6830421), (6830433, 6830469), (6830481, 6830517), (6830529, 6830565), (6830577, 6830613), (6830625, 6830661), (6830673, 6830709), (6830721, 6830757), (6830769, 6830805), (6830817, 6830853), (6830865, 6830901), (6830913, 6830949), (6830961, 6830997), (6831009, 6831045), (6831057, 6831093), (6831105, 6831141), (6831153, 6831189), (6831201, 6831237), (6831249, 6831285), (6831297, 6831333), (6831345, 6831381), (6831393, 6831429), (6831441, 6831477), (6831489, 6831525), (6831537, 6831573), (6831585, 6831621), (6831633, 6831669), (6831681, 6831717), (6831729, 6831765), (6831777, 6831813), (6831825, 6831861), (6831873, 6831909), (6831921, 6831957), (6831969, 6832005), (6832017, 6832053), (6832065, 6832101), (6832113, 6832149), (6832161, 6832197), (6832209, 6832245), (6846388, 6846424), (6846436, 6846472), (6846484, 6846520), (6846532, 6846568), (6846580, 6846616), (6846628, 6846664), (6846676, 6846712), (6846724, 6846760), (6846772, 6846808), (6846820, 6846856), (6846868, 6846904), (6846916, 6846952), (6846964, 6847000), (6847012, 6847048), (6847060, 6847096), (6847108, 6847144), (6847156, 6847192), (6847204, 6847240), (6847252, 6847288), (6847300, 6847336), (6847348, 6847384), (6847396, 6847432), (6847444, 6847480), (6847492, 6847528), (6847540, 6847576), (6847588, 6847624), (6847636, 6847672), (6847684, 6847720), (6847732, 6847768), (6847780, 6847816), (6847828, 6847864), (6847876, 6847912), (6847924, 6847960), (6847972, 6848008), (6848020, 6848056), (6848068, 6848104), (6848116, 6848152), (6848164, 6848200), (6848212, 6848248), (6848260, 6848296), (6848308, 6848344), (6848356, 6848392), (6848404, 6848440), (6848452, 6848488), (6848500, 6848536), (6848548, 6848584), (6848596, 6848632), (6848644, 6848680), (6848692, 6848728), (6848740, 6848776), (6848788, 6848824), (6848836, 6848872), (6848884, 6848920), (6848932, 6848968), (6863111, 6863147), (6863159, 6863195), (6863207, 6863243), (6863255, 6863291), (6863303, 6863339), (6863351, 6863387), (6863399, 6863435), (6863447, 6863483), (6863495, 6863531), (6863543, 6863579), (6863591, 6863627), (6863639, 6863675), (6863687, 6863723), (6863735, 6863771), (6863783, 6863819), (6863831, 6863867), (6863879, 6863915), (6863927, 6863963), (6863975, 6864011), (6864023, 6864059), (6864071, 6864107), (6864119, 6864155), (6864167, 6864203), (6864215, 6864251), (6864263, 6864299), (6864311, 6864347), (6864359, 6864395), (6864407, 6864443), (6864455, 6864491), (6864503, 6864539), (6864551, 6864587), (6864599, 6864635), (6864647, 6864683), (6864695, 6864731), (6864743, 6864779), (6864791, 6864827), (6864839, 6864875), (6864887, 6864923), (6864935, 6864971), (6864983, 6865019), (6865031, 6865067), (6865079, 6865115), (6865127, 6865163), (6865175, 6865211), (6865223, 6865259), (6865271, 6865307), (6865319, 6865355), (6865367, 6865403), (6865415, 6865451), (6865463, 6865499), (6865511, 6865547), (6865559, 6865595), (6865607, 6865643), (6865655, 6865691), (6879834, 6879870), (6879882, 6879918), (6879930, 6879966), (6879978, 6880014), (6880026, 6880062), (6880074, 6880110), (6880122, 6880158), (6880170, 6880206), (6880218, 6880254), (6880266, 6880302), (6880314, 6880350), (6880362, 6880398), (6880410, 6880446), (6880458, 6880494), (6880506, 6880542), (6880554, 6880590), (6880602, 6880638), (6880650, 6880686), (6880698, 6880734), (6880746, 6880782), (6880794, 6880830), (6880842, 6880878), (6880890, 6880926), (6880938, 6880974), (6880986, 6881022), (6881034, 6881070), (6881082, 6881118), (6881130, 6881166), (6881178, 6881214), (6881226, 6881262), (6881274, 6881310), (6881322, 6881358), (6881370, 6881406), (6881418, 6881454), (6881466, 6881502), (6881514, 6881550), (6881562, 6881598), (6881610, 6881646), (6881658, 6881694), (6881706, 6881742), (6881754, 6881790), (6881802, 6881838), (6881850, 6881886), (6881898, 6881934), (6881946, 6881982), (6881994, 6882030), (6882042, 6882078), (6882090, 6882126), (6882138, 6882174), (6882186, 6882222), (6882234, 6882270), (6882282, 6882318), (6882330, 6882366), (6882378, 6882414), (6896557, 6896593), (6896605, 6896641), (6896653, 6896689), (6896701, 6896737), (6896749, 6896785), (6896797, 6896833), (6896845, 6896881), (6896893, 6896929), (6896941, 6896977), (6896989, 6897025), (6897037, 6897073), (6897085, 6897121), (6897133, 6897169), (6897181, 6897217), (6897229, 6897265), (6897277, 6897313), (6897325, 6897361), (6897373, 6897409), (6897421, 6897457), (6897469, 6897505), (6897517, 6897553), (6897565, 6897601), (6897613, 6897649), (6897661, 6897697), (6897709, 6897745), (6897757, 6897793), (6897805, 6897841), (6897853, 6897889), (6897901, 6897937), (6897949, 6897985), (6897997, 6898033), (6898045, 6898081), (6898093, 6898129), (6898141, 6898177), (6898189, 6898225), (6898237, 6898273), (6898285, 6898321), (6898333, 6898369), (6898381, 6898417), (6898429, 6898465), (6898477, 6898513), (6898525, 6898561), (6898573, 6898609), (6898621, 6898657), (6898669, 6898705), (6898717, 6898753), (6898765, 6898801), (6898813, 6898849), (6898861, 6898897), (6898909, 6898945), (6898957, 6898993), (6899005, 6899041), (6899053, 6899089), (6899101, 6899137), (6913280, 6913316), (6913328, 6913364), (6913376, 6913412), (6913424, 6913460), (6913472, 6913508), (6913520, 6913556), (6913568, 6913604), (6913616, 6913652), (6913664, 6913700), (6913712, 6913748), (6913760, 6913796), (6913808, 6913844), (6913856, 6913892), (6913904, 6913940), (6913952, 6913988), (6914000, 6914036), (6914048, 6914084), (6914096, 6914132), (6914144, 6914180), (6914192, 6914228), (6914240, 6914276), (6914288, 6914324), (6914336, 6914372), (6914384, 6914420), (6914432, 6914468), (6914480, 6914516), (6914528, 6914564), (6914576, 6914612), (6914624, 6914660), (6914672, 6914708), (6914720, 6914756), (6914768, 6914804), (6914816, 6914852), (6914864, 6914900), (6914912, 6914948), (6914960, 6914996), (6915008, 6915044), (6915056, 6915092), (6915104, 6915140), (6915152, 6915188), (6915200, 6915236), (6915248, 6915284), (6915296, 6915332), (6915344, 6915380), (6915392, 6915428), (6915440, 6915476), (6915488, 6915524), (6915536, 6915572), (6915584, 6915620), (6915632, 6915668), (6915680, 6915716), (6915728, 6915764), (6915776, 6915812), (6915824, 6915860), (6930003, 6930039), (6930051, 6930087), (6930099, 6930135), (6930147, 6930183), (6930195, 6930231), (6930243, 6930279), (6930291, 6930327), (6930339, 6930375), (6930387, 6930423), (6930435, 6930471), (6930483, 6930519), (6930531, 6930567), (6930579, 6930615), (6930627, 6930663), (6930675, 6930711), (6930723, 6930759), (6930771, 6930807), (6930819, 6930855), (6930867, 6930903), (6930915, 6930951), (6930963, 6930999), (6931011, 6931047), (6931059, 6931095), (6931107, 6931143), (6931155, 6931191), (6931203, 6931239), (6931251, 6931287), (6931299, 6931335), (6931347, 6931383), (6931395, 6931431), (6931443, 6931479), (6931491, 6931527), (6931539, 6931575), (6931587, 6931623), (6931635, 6931671), (6931683, 6931719), (6931731, 6931767), (6931779, 6931815), (6931827, 6931863), (6931875, 6931911), (6931923, 6931959), (6931971, 6932007), (6932019, 6932055), (6932067, 6932103), (6932115, 6932151), (6932163, 6932199), (6932211, 6932247), (6932259, 6932295), (6932307, 6932343), (6932355, 6932391), (6932403, 6932439), (6932451, 6932487), (6932499, 6932535), (6932547, 6932583), (6946726, 6946762), (6946774, 6946810), (6946822, 6946858), (6946870, 6946906), (6946918, 6946954), (6946966, 6947002), (6947014, 6947050), (6947062, 6947098), (6947110, 6947146), (6947158, 6947194), (6947206, 6947242), (6947254, 6947290), (6947302, 6947338), (6947350, 6947386), (6947398, 6947434), (6947446, 6947482), (6947494, 6947530), (6947542, 6947578), (6947590, 6947626), (6947638, 6947674), (6947686, 6947722), (6947734, 6947770), (6947782, 6947818), (6947830, 6947866), (6947878, 6947914), (6947926, 6947962), (6947974, 6948010), (6948022, 6948058), (6948070, 6948106), (6948118, 6948154), (6948166, 6948202), (6948214, 6948250), (6948262, 6948298), (6948310, 6948346), (6948358, 6948394), (6948406, 6948442), (6948454, 6948490), (6948502, 6948538), (6948550, 6948586), (6948598, 6948634), (6948646, 6948682), (6948694, 6948730), (6948742, 6948778), (6948790, 6948826), (6948838, 6948874), (6948886, 6948922), (6948934, 6948970), (6948982, 6949018), (6949030, 6949066), (6949078, 6949114), (6949126, 6949162), (6949174, 6949210), (6949222, 6949258), (6949270, 6949306), (6963449, 6963485), (6963497, 6963533), (6963545, 6963581), (6963593, 6963629), (6963641, 6963677), (6963689, 6963725), (6963737, 6963773), (6963785, 6963821), (6963833, 6963869), (6963881, 6963917), (6963929, 6963965), (6963977, 6964013), (6964025, 6964061), (6964073, 6964109), (6964121, 6964157), (6964169, 6964205), (6964217, 6964253), (6964265, 6964301), (6964313, 6964349), (6964361, 6964397), (6964409, 6964445), (6964457, 6964493), (6964505, 6964541), (6964553, 6964589), (6964601, 6964637), (6964649, 6964685), (6964697, 6964733), (6964745, 6964781), (6964793, 6964829), (6964841, 6964877), (6964889, 6964925), (6964937, 6964973), (6964985, 6965021), (6965033, 6965069), (6965081, 6965117), (6965129, 6965165), (6965177, 6965213), (6965225, 6965261), (6965273, 6965309), (6965321, 6965357), (6965369, 6965405), (6965417, 6965453), (6965465, 6965501), (6965513, 6965549), (6965561, 6965597), (6965609, 6965645), (6965657, 6965693), (6965705, 6965741), (6965753, 6965789), (6965801, 6965837), (6965849, 6965885), (6965897, 6965933), (6965945, 6965981), (6965993, 6966029), (6980172, 6980208), (6980220, 6980256), (6980268, 6980304), (6980316, 6980352), (6980364, 6980400), (6980412, 6980448), (6980460, 6980496), (6980508, 6980544), (6980556, 6980592), (6980604, 6980640), (6980652, 6980688), (6980700, 6980736), (6980748, 6980784), (6980796, 6980832), (6980844, 6980880), (6980892, 6980928), (6980940, 6980976), (6980988, 6981024), (6981036, 6981072), (6981084, 6981120), (6981132, 6981168), (6981180, 6981216), (6981228, 6981264), (6981276, 6981312), (6981324, 6981360), (6981372, 6981408), (6981420, 6981456), (6981468, 6981504), (6981516, 6981552), (6981564, 6981600), (6981612, 6981648), (6981660, 6981696), (6981708, 6981744), (6981756, 6981792), (6981804, 6981840), (6981852, 6981888), (6981900, 6981936), (6981948, 6981984), (6981996, 6982032), (6982044, 6982080), (6982092, 6982128), (6982140, 6982176), (6982188, 6982224), (6982236, 6982272), (6982284, 6982320), (6982332, 6982368), (6982380, 6982416), (6982428, 6982464), (6982476, 6982512), (6982524, 6982560), (6982572, 6982608), (6982620, 6982656), (6982668, 6982704), (6982716, 6982752), (6996895, 6996931), (6996943, 6996979), (6996991, 6997027), (6997039, 6997075), (6997087, 6997123), (6997135, 6997171), (6997183, 6997219), (6997231, 6997267), (6997279, 6997315), (6997327, 6997363), (6997375, 6997411), (6997423, 6997459), (6997471, 6997507), (6997519, 6997555), (6997567, 6997603), (6997615, 6997651), (6997663, 6997699), (6997711, 6997747), (6997759, 6997795), (6997807, 6997843), (6997855, 6997891), (6997903, 6997939), (6997951, 6997987), (6997999, 6998035), (6998047, 6998083), (6998095, 6998131), (6998143, 6998179), (6998191, 6998227), (6998239, 6998275), (6998287, 6998323), (6998335, 6998371), (6998383, 6998419), (6998431, 6998467), (6998479, 6998515), (6998527, 6998563), (6998575, 6998611), (6998623, 6998659), (6998671, 6998707), (6998719, 6998755), (6998767, 6998803), (6998815, 6998851), (6998863, 6998899), (6998911, 6998947), (6998959, 6998995), (6999007, 6999043), (6999055, 6999091), (6999103, 6999139), (6999151, 6999187), (6999199, 6999235), (6999247, 6999283), (6999295, 6999331), (6999343, 6999379), (6999391, 6999427), (6999439, 6999475)]⟩,
-   ⟨"nifs.pi_rlc.challenge.transcript.bind_outputs_digest", [(6780869, 6782676)]⟩,
-   ⟨"nifs.pi_rlc.challenge.transcript.digest_rounds", [(6782680, 6783886), (6784370, 6785576), (6786060, 6787266), (6787750, 6788956), (6789440, 6790646), (6791130, 6792336), (6792820, 6794026), (6794510, 6795716), (6799403, 6800609), (6801093, 6802299), (6802783, 6803989), (6804473, 6805679), (6806163, 6807369), (6807853, 6809059), (6809543, 6810749), (6811233, 6812439), (6816126, 6817332), (6817816, 6819022), (6819506, 6820712), (6821196, 6822402), (6822886, 6824092), (6824576, 6825782), (6826266, 6827472), (6827956, 6829162), (6832849, 6834055), (6834539, 6835745), (6836229, 6837435), (6837919, 6839125), (6839609, 6840815), (6841299, 6842505), (6842989, 6844195), (6844679, 6845885), (6849572, 6850778), (6851262, 6852468), (6852952, 6854158), (6854642, 6855848), (6856332, 6857538), (6858022, 6859228), (6859712, 6860918), (6861402, 6862608), (6866295, 6867501), (6867985, 6869191), (6869675, 6870881), (6871365, 6872571), (6873055, 6874261), (6874745, 6875951), (6876435, 6877641), (6878125, 6879331), (6883018, 6884224), (6884708, 6885914), (6886398, 6887604), (6888088, 6889294), (6889778, 6890984), (6891468, 6892674), (6893158, 6894364), (6894848, 6896054), (6899741, 6900947), (6901431, 6902637), (6903121, 6904327), (6904811, 6906017), (6906501, 6907707), (6908191, 6909397), (6909881, 6911087), (6911571, 6912777), (6916464, 6917670), (6918154, 6919360), (6919844, 6921050), (6921534, 6922740), (6923224, 6924430), (6924914, 6926120), (6926604, 6927810), (6928294, 6929500), (6933187, 6934393), (6934877, 6936083), (6936567, 6937773), (6938257, 6939463), (6939947, 6941153), (6941637, 6942843), (6943327, 6944533), (6945017, 6946223), (6949910, 6951116), (6951600, 6952806), (6953290, 6954496), (6954980, 6956186), (6956670, 6957876), (6958360, 6959566), (6960050, 6961256), (6961740, 6962946), (6966633, 6967839), (6968323, 6969529), (6970013, 6971219), (6971703, 6972909), (6973393, 6974599), (6975083, 6976289), (6976773, 6977979), (6978463, 6979669), (6983356, 6984562), (6985046, 6986252), (6986736, 6987942), (6988426, 6989632), (6990116, 6991322), (6991806, 6993012), (6993496, 6994702), (6995186, 6996392)]⟩,
-   ⟨"nifs.pi_rlc.challenge.transcript.lane_bit_decomposition", [(6783886, 6783955), (6784007, 6784076), (6784128, 6784197), (6784249, 6784318), (6785576, 6785645), (6785697, 6785766), (6785818, 6785887), (6785939, 6786008), (6787266, 6787335), (6787387, 6787456), (6787508, 6787577), (6787629, 6787698), (6788956, 6789025), (6789077, 6789146), (6789198, 6789267), (6789319, 6789388), (6790646, 6790715), (6790767, 6790836), (6790888, 6790957), (6791009, 6791078), (6792336, 6792405), (6792457, 6792526), (6792578, 6792647), (6792699, 6792768), (6794026, 6794095), (6794147, 6794216), (6794268, 6794337), (6794389, 6794458), (6795716, 6795785), (6795837, 6795906), (6795958, 6796027), (6796079, 6796148), (6800609, 6800678), (6800730, 6800799), (6800851, 6800920), (6800972, 6801041), (6802299, 6802368), (6802420, 6802489), (6802541, 6802610), (6802662, 6802731), (6803989, 6804058), (6804110, 6804179), (6804231, 6804300), (6804352, 6804421), (6805679, 6805748), (6805800, 6805869), (6805921, 6805990), (6806042, 6806111), (6807369, 6807438), (6807490, 6807559), (6807611, 6807680), (6807732, 6807801), (6809059, 6809128), (6809180, 6809249), (6809301, 6809370), (6809422, 6809491), (6810749, 6810818), (6810870, 6810939), (6810991, 6811060), (6811112, 6811181), (6812439, 6812508), (6812560, 6812629), (6812681, 6812750), (6812802, 6812871), (6817332, 6817401), (6817453, 6817522), (6817574, 6817643), (6817695, 6817764), (6819022, 6819091), (6819143, 6819212), (6819264, 6819333), (6819385, 6819454), (6820712, 6820781), (6820833, 6820902), (6820954, 6821023), (6821075, 6821144), (6822402, 6822471), (6822523, 6822592), (6822644, 6822713), (6822765, 6822834), (6824092, 6824161), (6824213, 6824282), (6824334, 6824403), (6824455, 6824524), (6825782, 6825851), (6825903, 6825972), (6826024, 6826093), (6826145, 6826214), (6827472, 6827541), (6827593, 6827662), (6827714, 6827783), (6827835, 6827904), (6829162, 6829231), (6829283, 6829352), (6829404, 6829473), (6829525, 6829594), (6834055, 6834124), (6834176, 6834245), (6834297, 6834366), (6834418, 6834487), (6835745, 6835814), (6835866, 6835935), (6835987, 6836056), (6836108, 6836177), (6837435, 6837504), (6837556, 6837625), (6837677, 6837746), (6837798, 6837867), (6839125, 6839194), (6839246, 6839315), (6839367, 6839436), (6839488, 6839557), (6840815, 6840884), (6840936, 6841005), (6841057, 6841126), (6841178, 6841247), (6842505, 6842574), (6842626, 6842695), (6842747, 6842816), (6842868, 6842937), (6844195, 6844264), (6844316, 6844385), (6844437, 6844506), (6844558, 6844627), (6845885, 6845954), (6846006, 6846075), (6846127, 6846196), (6846248, 6846317), (6850778, 6850847), (6850899, 6850968), (6851020, 6851089), (6851141, 6851210), (6852468, 6852537), (6852589, 6852658), (6852710, 6852779), (6852831, 6852900), (6854158, 6854227), (6854279, 6854348), (6854400, 6854469), (6854521, 6854590), (6855848, 6855917), (6855969, 6856038), (6856090, 6856159), (6856211, 6856280), (6857538, 6857607), (6857659, 6857728), (6857780, 6857849), (6857901, 6857970), (6859228, 6859297), (6859349, 6859418), (6859470, 6859539), (6859591, 6859660), (6860918, 6860987), (6861039, 6861108), (6861160, 6861229), (6861281, 6861350), (6862608, 6862677), (6862729, 6862798), (6862850, 6862919), (6862971, 6863040), (6867501, 6867570), (6867622, 6867691), (6867743, 6867812), (6867864, 6867933), (6869191, 6869260), (6869312, 6869381), (6869433, 6869502), (6869554, 6869623), (6870881, 6870950), (6871002, 6871071), (6871123, 6871192), (6871244, 6871313), (6872571, 6872640), (6872692, 6872761), (6872813, 6872882), (6872934, 6873003), (6874261, 6874330), (6874382, 6874451), (6874503, 6874572), (6874624, 6874693), (6875951, 6876020), (6876072, 6876141), (6876193, 6876262), (6876314, 6876383), (6877641, 6877710), (6877762, 6877831), (6877883, 6877952), (6878004, 6878073), (6879331, 6879400), (6879452, 6879521), (6879573, 6879642), (6879694, 6879763), (6884224, 6884293), (6884345, 6884414), (6884466, 6884535), (6884587, 6884656), (6885914, 6885983), (6886035, 6886104), (6886156, 6886225), (6886277, 6886346), (6887604, 6887673), (6887725, 6887794), (6887846, 6887915), (6887967, 6888036), (6889294, 6889363), (6889415, 6889484), (6889536, 6889605), (6889657, 6889726), (6890984, 6891053), (6891105, 6891174), (6891226, 6891295), (6891347, 6891416), (6892674, 6892743), (6892795, 6892864), (6892916, 6892985), (6893037, 6893106), (6894364, 6894433), (6894485, 6894554), (6894606, 6894675), (6894727, 6894796), (6896054, 6896123), (6896175, 6896244), (6896296, 6896365), (6896417, 6896486), (6900947, 6901016), (6901068, 6901137), (6901189, 6901258), (6901310, 6901379), (6902637, 6902706), (6902758, 6902827), (6902879, 6902948), (6903000, 6903069), (6904327, 6904396), (6904448, 6904517), (6904569, 6904638), (6904690, 6904759), (6906017, 6906086), (6906138, 6906207), (6906259, 6906328), (6906380, 6906449), (6907707, 6907776), (6907828, 6907897), (6907949, 6908018), (6908070, 6908139), (6909397, 6909466), (6909518, 6909587), (6909639, 6909708), (6909760, 6909829), (6911087, 6911156), (6911208, 6911277), (6911329, 6911398), (6911450, 6911519), (6912777, 6912846), (6912898, 6912967), (6913019, 6913088), (6913140, 6913209), (6917670, 6917739), (6917791, 6917860), (6917912, 6917981), (6918033, 6918102), (6919360, 6919429), (6919481, 6919550), (6919602, 6919671), (6919723, 6919792), (6921050, 6921119), (6921171, 6921240), (6921292, 6921361), (6921413, 6921482), (6922740, 6922809), (6922861, 6922930), (6922982, 6923051), (6923103, 6923172), (6924430, 6924499), (6924551, 6924620), (6924672, 6924741), (6924793, 6924862), (6926120, 6926189), (6926241, 6926310), (6926362, 6926431), (6926483, 6926552), (6927810, 6927879), (6927931, 6928000), (6928052, 6928121), (6928173, 6928242), (6929500, 6929569), (6929621, 6929690), (6929742, 6929811), (6929863, 6929932), (6934393, 6934462), (6934514, 6934583), (6934635, 6934704), (6934756, 6934825), (6936083, 6936152), (6936204, 6936273), (6936325, 6936394), (6936446, 6936515), (6937773, 6937842), (6937894, 6937963), (6938015, 6938084), (6938136, 6938205), (6939463, 6939532), (6939584, 6939653), (6939705, 6939774), (6939826, 6939895), (6941153, 6941222), (6941274, 6941343), (6941395, 6941464), (6941516, 6941585), (6942843, 6942912), (6942964, 6943033), (6943085, 6943154), (6943206, 6943275), (6944533, 6944602), (6944654, 6944723), (6944775, 6944844), (6944896, 6944965), (6946223, 6946292), (6946344, 6946413), (6946465, 6946534), (6946586, 6946655), (6951116, 6951185), (6951237, 6951306), (6951358, 6951427), (6951479, 6951548), (6952806, 6952875), (6952927, 6952996), (6953048, 6953117), (6953169, 6953238), (6954496, 6954565), (6954617, 6954686), (6954738, 6954807), (6954859, 6954928), (6956186, 6956255), (6956307, 6956376), (6956428, 6956497), (6956549, 6956618), (6957876, 6957945), (6957997, 6958066), (6958118, 6958187), (6958239, 6958308), (6959566, 6959635), (6959687, 6959756), (6959808, 6959877), (6959929, 6959998), (6961256, 6961325), (6961377, 6961446), (6961498, 6961567), (6961619, 6961688), (6962946, 6963015), (6963067, 6963136), (6963188, 6963257), (6963309, 6963378), (6967839, 6967908), (6967960, 6968029), (6968081, 6968150), (6968202, 6968271), (6969529, 6969598), (6969650, 6969719), (6969771, 6969840), (6969892, 6969961), (6971219, 6971288), (6971340, 6971409), (6971461, 6971530), (6971582, 6971651), (6972909, 6972978), (6973030, 6973099), (6973151, 6973220), (6973272, 6973341), (6974599, 6974668), (6974720, 6974789), (6974841, 6974910), (6974962, 6975031), (6976289, 6976358), (6976410, 6976479), (6976531, 6976600), (6976652, 6976721), (6977979, 6978048), (6978100, 6978169), (6978221, 6978290), (6978342, 6978411), (6979669, 6979738), (6979790, 6979859), (6979911, 6979980), (6980032, 6980101), (6984562, 6984631), (6984683, 6984752), (6984804, 6984873), (6984925, 6984994), (6986252, 6986321), (6986373, 6986442), (6986494, 6986563), (6986615, 6986684), (6987942, 6988011), (6988063, 6988132), (6988184, 6988253), (6988305, 6988374), (6989632, 6989701), (6989753, 6989822), (6989874, 6989943), (6989995, 6990064), (6991322, 6991391), (6991443, 6991512), (6991564, 6991633), (6991685, 6991754), (6993012, 6993081), (6993133, 6993202), (6993254, 6993323), (6993375, 6993444), (6994702, 6994771), (6994823, 6994892), (6994944, 6995013), (6995065, 6995134), (6996392, 6996461), (6996513, 6996582), (6996634, 6996703), (6996755, 6996824)]⟩,
-   ⟨"nifs.pi_rlc.challenge.transcript.rho_domain_separator", [(6782676, 6782679), (6798799, 6799402), (6815522, 6816125), (6832245, 6832848), (6848968, 6849571), (6865691, 6866294), (6882414, 6883017), (6899137, 6899740), (6915860, 6916463), (6932583, 6933186), (6949306, 6949909), (6966029, 6966632), (6982752, 6983355)]⟩,
-   ⟨"nifs.pi_rlc.shape.allocate_parent_and_children", [(6999475, 6999618)]⟩,
-   ⟨"nifs.pi_rlc.shape.output_parity", [(6999618, 6999678)]⟩,
-   ⟨"nifs.pi_rlc.shape.parent", [(6999678, 6999683)]⟩,
-   ⟨"nifs.pi_rlc.verify.consistency.fold_digest", [(6999683, 6999735)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.evaluations.inputs", [(8258431, 8258539), (8258544, 8258652), (8258657, 8258765), (8258770, 8258878), (8258883, 8258991), (8258996, 8259104), (8259109, 8259217), (8259222, 8259330), (8259335, 8259443), (8259448, 8259556), (8259561, 8259669), (8259674, 8259782), (8259787, 8259895), (8260121, 8260229), (8260234, 8260342), (8260347, 8260455), (8260460, 8260568), (8260573, 8260681), (8260686, 8260794), (8260799, 8260907), (8260912, 8261020), (8261025, 8261133), (8261138, 8261246), (8261251, 8261359), (8261364, 8261472), (8261477, 8261585), (8261811, 8261919), (8261924, 8262032), (8262037, 8262145), (8262150, 8262258), (8262263, 8262371), (8262376, 8262484), (8262489, 8262597), (8262602, 8262710), (8262715, 8262823), (8262828, 8262936), (8262941, 8263049), (8263054, 8263162), (8263167, 8263275)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.evaluations.output", [(8259900, 8260008), (8261590, 8261698), (8263280, 8263388)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.evaluations.quotient", [(8260008, 8260114), (8261698, 8261804), (8263388, 8263494)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.final_limb_checks", [(8260119, 8260121), (8261809, 8261811), (8263499, 8263501)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.k_products.quotient_times_phi", [(8260114, 8260119), (8261804, 8261809), (8263494, 8263499)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.adv.k_products.rho_times_input", [(8258539, 8258544), (8258652, 8258657), (8258765, 8258770), (8258878, 8258883), (8258991, 8258996), (8259104, 8259109), (8259217, 8259222), (8259330, 8259335), (8259443, 8259448), (8259556, 8259561), (8259669, 8259674), (8259782, 8259787), (8259895, 8259900), (8260229, 8260234), (8260342, 8260347), (8260455, 8260460), (8260568, 8260573), (8260681, 8260686), (8260794, 8260799), (8260907, 8260912), (8261020, 8261025), (8261133, 8261138), (8261246, 8261251), (8261359, 8261364), (8261472, 8261477), (8261585, 8261590), (8261919, 8261924), (8262032, 8262037), (8262145, 8262150), (8262258, 8262263), (8262371, 8262376), (8262484, 8262489), (8262597, 8262602), (8262710, 8262715), (8262823, 8262828), (8262936, 8262941), (8263049, 8263054), (8263162, 8263167), (8263275, 8263280)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.evaluations.inputs", [(8256741, 8256849), (8256854, 8256962), (8256967, 8257075), (8257080, 8257188), (8257193, 8257301), (8257306, 8257414), (8257419, 8257527), (8257532, 8257640), (8257645, 8257753), (8257758, 8257866), (8257871, 8257979), (8257984, 8258092), (8258097, 8258205)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.evaluations.output", [(8258210, 8258318)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.evaluations.quotient", [(8258318, 8258424)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.final_limb_checks", [(8258429, 8258431)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.k_products.quotient_times_phi", [(8258424, 8258429)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.commitment.k_products.rho_times_input", [(8256849, 8256854), (8256962, 8256967), (8257075, 8257080), (8257188, 8257193), (8257301, 8257306), (8257414, 8257419), (8257527, 8257532), (8257640, 8257645), (8257753, 8257758), (8257866, 8257871), (8257979, 8257984), (8258092, 8258097), (8258205, 8258210)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.evaluations.inputs", [(8263501, 8263609), (8263614, 8263722), (8263727, 8263835), (8263840, 8263948), (8263953, 8264061), (8264066, 8264174), (8264179, 8264287), (8264292, 8264400), (8264405, 8264513), (8264518, 8264626), (8264631, 8264739), (8264744, 8264852), (8264857, 8264965), (8265191, 8265299), (8265304, 8265412), (8265417, 8265525), (8265530, 8265638), (8265643, 8265751), (8265756, 8265864), (8265869, 8265977), (8265982, 8266090), (8266095, 8266203), (8266208, 8266316), (8266321, 8266429), (8266434, 8266542), (8266547, 8266655), (8266881, 8266989), (8266994, 8267102), (8267107, 8267215), (8267220, 8267328), (8267333, 8267441), (8267446, 8267554), (8267559, 8267667), (8267672, 8267780), (8267785, 8267893), (8267898, 8268006), (8268011, 8268119), (8268124, 8268232), (8268237, 8268345), (8268571, 8268679), (8268684, 8268792), (8268797, 8268905), (8268910, 8269018), (8269023, 8269131), (8269136, 8269244), (8269249, 8269357), (8269362, 8269470), (8269475, 8269583), (8269588, 8269696), (8269701, 8269809), (8269814, 8269922), (8269927, 8270035), (8270261, 8270369), (8270374, 8270482), (8270487, 8270595), (8270600, 8270708), (8270713, 8270821), (8270826, 8270934), (8270939, 8271047), (8271052, 8271160), (8271165, 8271273), (8271278, 8271386), (8271391, 8271499), (8271504, 8271612), (8271617, 8271725), (8271951, 8272059), (8272064, 8272172), (8272177, 8272285), (8272290, 8272398), (8272403, 8272511), (8272516, 8272624), (8272629, 8272737), (8272742, 8272850), (8272855, 8272963), (8272968, 8273076), (8273081, 8273189), (8273194, 8273302), (8273307, 8273415), (8273641, 8273749), (8273754, 8273862), (8273867, 8273975), (8273980, 8274088), (8274093, 8274201), (8274206, 8274314), (8274319, 8274427), (8274432, 8274540), (8274545, 8274653), (8274658, 8274766), (8274771, 8274879), (8274884, 8274992), (8274997, 8275105), (8275331, 8275439), (8275444, 8275552), (8275557, 8275665), (8275670, 8275778), (8275783, 8275891), (8275896, 8276004), (8276009, 8276117), (8276122, 8276230), (8276235, 8276343), (8276348, 8276456), (8276461, 8276569), (8276574, 8276682), (8276687, 8276795), (8277021, 8277129), (8277134, 8277242), (8277247, 8277355), (8277360, 8277468), (8277473, 8277581), (8277586, 8277694), (8277699, 8277807), (8277812, 8277920), (8277925, 8278033), (8278038, 8278146), (8278151, 8278259), (8278264, 8278372), (8278377, 8278485), (8278711, 8278819), (8278824, 8278932), (8278937, 8279045), (8279050, 8279158), (8279163, 8279271), (8279276, 8279384), (8279389, 8279497), (8279502, 8279610), (8279615, 8279723), (8279728, 8279836), (8279841, 8279949), (8279954, 8280062), (8280067, 8280175), (8280401, 8280509), (8280514, 8280622), (8280627, 8280735), (8280740, 8280848), (8280853, 8280961), (8280966, 8281074), (8281079, 8281187), (8281192, 8281300), (8281305, 8281413), (8281418, 8281526), (8281531, 8281639), (8281644, 8281752), (8281757, 8281865), (8282091, 8282199), (8282204, 8282312), (8282317, 8282425), (8282430, 8282538), (8282543, 8282651), (8282656, 8282764), (8282769, 8282877), (8282882, 8282990), (8282995, 8283103), (8283108, 8283216), (8283221, 8283329), (8283334, 8283442), (8283447, 8283555), (8283781, 8283889), (8283894, 8284002), (8284007, 8284115), (8284120, 8284228), (8284233, 8284341), (8284346, 8284454), (8284459, 8284567), (8284572, 8284680), (8284685, 8284793), (8284798, 8284906), (8284911, 8285019), (8285024, 8285132), (8285137, 8285245), (8285471, 8285579), (8285584, 8285692), (8285697, 8285805), (8285810, 8285918), (8285923, 8286031), (8286036, 8286144), (8286149, 8286257), (8286262, 8286370), (8286375, 8286483), (8286488, 8286596), (8286601, 8286709), (8286714, 8286822), (8286827, 8286935), (8287161, 8287269), (8287274, 8287382), (8287387, 8287495), (8287500, 8287608), (8287613, 8287721), (8287726, 8287834), (8287839, 8287947), (8287952, 8288060), (8288065, 8288173), (8288178, 8288286), (8288291, 8288399), (8288404, 8288512), (8288517, 8288625), (8288851, 8288959), (8288964, 8289072), (8289077, 8289185), (8289190, 8289298), (8289303, 8289411), (8289416, 8289524), (8289529, 8289637), (8289642, 8289750), (8289755, 8289863), (8289868, 8289976), (8289981, 8290089), (8290094, 8290202), (8290207, 8290315), (8290541, 8290649), (8290654, 8290762), (8290767, 8290875), (8290880, 8290988), (8290993, 8291101), (8291106, 8291214), (8291219, 8291327), (8291332, 8291440), (8291445, 8291553), (8291558, 8291666), (8291671, 8291779), (8291784, 8291892), (8291897, 8292005), (8292231, 8292339), (8292344, 8292452), (8292457, 8292565), (8292570, 8292678), (8292683, 8292791), (8292796, 8292904), (8292909, 8293017), (8293022, 8293130), (8293135, 8293243), (8293248, 8293356), (8293361, 8293469), (8293474, 8293582), (8293587, 8293695), (8293921, 8294029), (8294034, 8294142), (8294147, 8294255), (8294260, 8294368), (8294373, 8294481), (8294486, 8294594), (8294599, 8294707), (8294712, 8294820), (8294825, 8294933), (8294938, 8295046), (8295051, 8295159), (8295164, 8295272), (8295277, 8295385), (8295611, 8295719), (8295724, 8295832), (8295837, 8295945), (8295950, 8296058), (8296063, 8296171), (8296176, 8296284), (8296289, 8296397), (8296402, 8296510), (8296515, 8296623), (8296628, 8296736), (8296741, 8296849), (8296854, 8296962), (8296967, 8297075), (8297301, 8297409), (8297414, 8297522), (8297527, 8297635), (8297640, 8297748), (8297753, 8297861), (8297866, 8297974), (8297979, 8298087), (8298092, 8298200), (8298205, 8298313), (8298318, 8298426), (8298431, 8298539), (8298544, 8298652), (8298657, 8298765), (8298991, 8299099), (8299104, 8299212), (8299217, 8299325), (8299330, 8299438), (8299443, 8299551), (8299556, 8299664), (8299669, 8299777), (8299782, 8299890), (8299895, 8300003), (8300008, 8300116), (8300121, 8300229), (8300234, 8300342), (8300347, 8300455), (8300681, 8300789), (8300794, 8300902), (8300907, 8301015), (8301020, 8301128), (8301133, 8301241), (8301246, 8301354), (8301359, 8301467), (8301472, 8301580), (8301585, 8301693), (8301698, 8301806), (8301811, 8301919), (8301924, 8302032), (8302037, 8302145), (8302371, 8302479), (8302484, 8302592), (8302597, 8302705), (8302710, 8302818), (8302823, 8302931), (8302936, 8303044), (8303049, 8303157), (8303162, 8303270), (8303275, 8303383), (8303388, 8303496), (8303501, 8303609), (8303614, 8303722), (8303727, 8303835), (8304061, 8304169), (8304174, 8304282), (8304287, 8304395), (8304400, 8304508), (8304513, 8304621), (8304626, 8304734), (8304739, 8304847), (8304852, 8304960), (8304965, 8305073), (8305078, 8305186), (8305191, 8305299), (8305304, 8305412), (8305417, 8305525), (8305751, 8305859), (8305864, 8305972), (8305977, 8306085), (8306090, 8306198), (8306203, 8306311), (8306316, 8306424), (8306429, 8306537), (8306542, 8306650), (8306655, 8306763), (8306768, 8306876), (8306881, 8306989), (8306994, 8307102), (8307107, 8307215), (8307441, 8307549), (8307554, 8307662), (8307667, 8307775), (8307780, 8307888), (8307893, 8308001), (8308006, 8308114), (8308119, 8308227), (8308232, 8308340), (8308345, 8308453), (8308458, 8308566), (8308571, 8308679), (8308684, 8308792), (8308797, 8308905), (8309131, 8309239), (8309244, 8309352), (8309357, 8309465), (8309470, 8309578), (8309583, 8309691), (8309696, 8309804), (8309809, 8309917), (8309922, 8310030), (8310035, 8310143), (8310148, 8310256), (8310261, 8310369), (8310374, 8310482), (8310487, 8310595), (8310821, 8310929), (8310934, 8311042), (8311047, 8311155), (8311160, 8311268), (8311273, 8311381), (8311386, 8311494), (8311499, 8311607), (8311612, 8311720), (8311725, 8311833), (8311838, 8311946), (8311951, 8312059), (8312064, 8312172), (8312177, 8312285), (8312511, 8312619), (8312624, 8312732), (8312737, 8312845), (8312850, 8312958), (8312963, 8313071), (8313076, 8313184), (8313189, 8313297), (8313302, 8313410), (8313415, 8313523), (8313528, 8313636), (8313641, 8313749), (8313754, 8313862), (8313867, 8313975), (8314201, 8314309), (8314314, 8314422), (8314427, 8314535), (8314540, 8314648), (8314653, 8314761), (8314766, 8314874), (8314879, 8314987), (8314992, 8315100), (8315105, 8315213), (8315218, 8315326), (8315331, 8315439), (8315444, 8315552), (8315557, 8315665), (8315891, 8315999), (8316004, 8316112), (8316117, 8316225), (8316230, 8316338), (8316343, 8316451), (8316456, 8316564), (8316569, 8316677), (8316682, 8316790), (8316795, 8316903), (8316908, 8317016), (8317021, 8317129), (8317134, 8317242), (8317247, 8317355), (8317581, 8317689), (8317694, 8317802), (8317807, 8317915), (8317920, 8318028), (8318033, 8318141), (8318146, 8318254), (8318259, 8318367), (8318372, 8318480), (8318485, 8318593), (8318598, 8318706), (8318711, 8318819), (8318824, 8318932), (8318937, 8319045), (8319271, 8319379), (8319384, 8319492), (8319497, 8319605), (8319610, 8319718), (8319723, 8319831), (8319836, 8319944), (8319949, 8320057), (8320062, 8320170), (8320175, 8320283), (8320288, 8320396), (8320401, 8320509), (8320514, 8320622), (8320627, 8320735), (8320961, 8321069), (8321074, 8321182), (8321187, 8321295), (8321300, 8321408), (8321413, 8321521), (8321526, 8321634), (8321639, 8321747), (8321752, 8321860), (8321865, 8321973), (8321978, 8322086), (8322091, 8322199), (8322204, 8322312), (8322317, 8322425), (8322651, 8322759), (8322764, 8322872), (8322877, 8322985), (8322990, 8323098), (8323103, 8323211), (8323216, 8323324), (8323329, 8323437), (8323442, 8323550), (8323555, 8323663), (8323668, 8323776), (8323781, 8323889), (8323894, 8324002), (8324007, 8324115), (8324341, 8324449), (8324454, 8324562), (8324567, 8324675), (8324680, 8324788), (8324793, 8324901), (8324906, 8325014), (8325019, 8325127), (8325132, 8325240), (8325245, 8325353), (8325358, 8325466), (8325471, 8325579), (8325584, 8325692), (8325697, 8325805), (8326031, 8326139), (8326144, 8326252), (8326257, 8326365), (8326370, 8326478), (8326483, 8326591), (8326596, 8326704), (8326709, 8326817), (8326822, 8326930), (8326935, 8327043), (8327048, 8327156), (8327161, 8327269), (8327274, 8327382), (8327387, 8327495), (8327721, 8327829), (8327834, 8327942), (8327947, 8328055), (8328060, 8328168), (8328173, 8328281), (8328286, 8328394), (8328399, 8328507), (8328512, 8328620), (8328625, 8328733), (8328738, 8328846), (8328851, 8328959), (8328964, 8329072), (8329077, 8329185), (8329411, 8329519), (8329524, 8329632), (8329637, 8329745), (8329750, 8329858), (8329863, 8329971), (8329976, 8330084), (8330089, 8330197), (8330202, 8330310), (8330315, 8330423), (8330428, 8330536), (8330541, 8330649), (8330654, 8330762), (8330767, 8330875), (8331101, 8331209), (8331214, 8331322), (8331327, 8331435), (8331440, 8331548), (8331553, 8331661), (8331666, 8331774), (8331779, 8331887), (8331892, 8332000), (8332005, 8332113), (8332118, 8332226), (8332231, 8332339), (8332344, 8332452), (8332457, 8332565), (8332791, 8332899), (8332904, 8333012), (8333017, 8333125), (8333130, 8333238), (8333243, 8333351), (8333356, 8333464), (8333469, 8333577), (8333582, 8333690), (8333695, 8333803), (8333808, 8333916), (8333921, 8334029), (8334034, 8334142), (8334147, 8334255), (8334481, 8334589), (8334594, 8334702), (8334707, 8334815), (8334820, 8334928), (8334933, 8335041), (8335046, 8335154), (8335159, 8335267), (8335272, 8335380), (8335385, 8335493), (8335498, 8335606), (8335611, 8335719), (8335724, 8335832), (8335837, 8335945), (8336171, 8336279), (8336284, 8336392), (8336397, 8336505), (8336510, 8336618), (8336623, 8336731), (8336736, 8336844), (8336849, 8336957), (8336962, 8337070), (8337075, 8337183), (8337188, 8337296), (8337301, 8337409), (8337414, 8337522), (8337527, 8337635), (8337861, 8337969), (8337974, 8338082), (8338087, 8338195), (8338200, 8338308), (8338313, 8338421), (8338426, 8338534), (8338539, 8338647), (8338652, 8338760), (8338765, 8338873), (8338878, 8338986), (8338991, 8339099), (8339104, 8339212), (8339217, 8339325)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.evaluations.output", [(8264970, 8265078), (8266660, 8266768), (8268350, 8268458), (8270040, 8270148), (8271730, 8271838), (8273420, 8273528), (8275110, 8275218), (8276800, 8276908), (8278490, 8278598), (8280180, 8280288), (8281870, 8281978), (8283560, 8283668), (8285250, 8285358), (8286940, 8287048), (8288630, 8288738), (8290320, 8290428), (8292010, 8292118), (8293700, 8293808), (8295390, 8295498), (8297080, 8297188), (8298770, 8298878), (8300460, 8300568), (8302150, 8302258), (8303840, 8303948), (8305530, 8305638), (8307220, 8307328), (8308910, 8309018), (8310600, 8310708), (8312290, 8312398), (8313980, 8314088), (8315670, 8315778), (8317360, 8317468), (8319050, 8319158), (8320740, 8320848), (8322430, 8322538), (8324120, 8324228), (8325810, 8325918), (8327500, 8327608), (8329190, 8329298), (8330880, 8330988), (8332570, 8332678), (8334260, 8334368), (8335950, 8336058), (8337640, 8337748), (8339330, 8339438)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.evaluations.quotient", [(8265078, 8265184), (8266768, 8266874), (8268458, 8268564), (8270148, 8270254), (8271838, 8271944), (8273528, 8273634), (8275218, 8275324), (8276908, 8277014), (8278598, 8278704), (8280288, 8280394), (8281978, 8282084), (8283668, 8283774), (8285358, 8285464), (8287048, 8287154), (8288738, 8288844), (8290428, 8290534), (8292118, 8292224), (8293808, 8293914), (8295498, 8295604), (8297188, 8297294), (8298878, 8298984), (8300568, 8300674), (8302258, 8302364), (8303948, 8304054), (8305638, 8305744), (8307328, 8307434), (8309018, 8309124), (8310708, 8310814), (8312398, 8312504), (8314088, 8314194), (8315778, 8315884), (8317468, 8317574), (8319158, 8319264), (8320848, 8320954), (8322538, 8322644), (8324228, 8324334), (8325918, 8326024), (8327608, 8327714), (8329298, 8329404), (8330988, 8331094), (8332678, 8332784), (8334368, 8334474), (8336058, 8336164), (8337748, 8337854), (8339438, 8339544)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.final_limb_checks", [(8265189, 8265191), (8266879, 8266881), (8268569, 8268571), (8270259, 8270261), (8271949, 8271951), (8273639, 8273641), (8275329, 8275331), (8277019, 8277021), (8278709, 8278711), (8280399, 8280401), (8282089, 8282091), (8283779, 8283781), (8285469, 8285471), (8287159, 8287161), (8288849, 8288851), (8290539, 8290541), (8292229, 8292231), (8293919, 8293921), (8295609, 8295611), (8297299, 8297301), (8298989, 8298991), (8300679, 8300681), (8302369, 8302371), (8304059, 8304061), (8305749, 8305751), (8307439, 8307441), (8309129, 8309131), (8310819, 8310821), (8312509, 8312511), (8314199, 8314201), (8315889, 8315891), (8317579, 8317581), (8319269, 8319271), (8320959, 8320961), (8322649, 8322651), (8324339, 8324341), (8326029, 8326031), (8327719, 8327721), (8329409, 8329411), (8331099, 8331101), (8332789, 8332791), (8334479, 8334481), (8336169, 8336171), (8337859, 8337861), (8339549, 8339551)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.k_products.quotient_times_phi", [(8265184, 8265189), (8266874, 8266879), (8268564, 8268569), (8270254, 8270259), (8271944, 8271949), (8273634, 8273639), (8275324, 8275329), (8277014, 8277019), (8278704, 8278709), (8280394, 8280399), (8282084, 8282089), (8283774, 8283779), (8285464, 8285469), (8287154, 8287159), (8288844, 8288849), (8290534, 8290539), (8292224, 8292229), (8293914, 8293919), (8295604, 8295609), (8297294, 8297299), (8298984, 8298989), (8300674, 8300679), (8302364, 8302369), (8304054, 8304059), (8305744, 8305749), (8307434, 8307439), (8309124, 8309129), (8310814, 8310819), (8312504, 8312509), (8314194, 8314199), (8315884, 8315889), (8317574, 8317579), (8319264, 8319269), (8320954, 8320959), (8322644, 8322649), (8324334, 8324339), (8326024, 8326029), (8327714, 8327719), (8329404, 8329409), (8331094, 8331099), (8332784, 8332789), (8334474, 8334479), (8336164, 8336169), (8337854, 8337859), (8339544, 8339549)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.x.k_products.rho_times_input", [(8263609, 8263614), (8263722, 8263727), (8263835, 8263840), (8263948, 8263953), (8264061, 8264066), (8264174, 8264179), (8264287, 8264292), (8264400, 8264405), (8264513, 8264518), (8264626, 8264631), (8264739, 8264744), (8264852, 8264857), (8264965, 8264970), (8265299, 8265304), (8265412, 8265417), (8265525, 8265530), (8265638, 8265643), (8265751, 8265756), (8265864, 8265869), (8265977, 8265982), (8266090, 8266095), (8266203, 8266208), (8266316, 8266321), (8266429, 8266434), (8266542, 8266547), (8266655, 8266660), (8266989, 8266994), (8267102, 8267107), (8267215, 8267220), (8267328, 8267333), (8267441, 8267446), (8267554, 8267559), (8267667, 8267672), (8267780, 8267785), (8267893, 8267898), (8268006, 8268011), (8268119, 8268124), (8268232, 8268237), (8268345, 8268350), (8268679, 8268684), (8268792, 8268797), (8268905, 8268910), (8269018, 8269023), (8269131, 8269136), (8269244, 8269249), (8269357, 8269362), (8269470, 8269475), (8269583, 8269588), (8269696, 8269701), (8269809, 8269814), (8269922, 8269927), (8270035, 8270040), (8270369, 8270374), (8270482, 8270487), (8270595, 8270600), (8270708, 8270713), (8270821, 8270826), (8270934, 8270939), (8271047, 8271052), (8271160, 8271165), (8271273, 8271278), (8271386, 8271391), (8271499, 8271504), (8271612, 8271617), (8271725, 8271730), (8272059, 8272064), (8272172, 8272177), (8272285, 8272290), (8272398, 8272403), (8272511, 8272516), (8272624, 8272629), (8272737, 8272742), (8272850, 8272855), (8272963, 8272968), (8273076, 8273081), (8273189, 8273194), (8273302, 8273307), (8273415, 8273420), (8273749, 8273754), (8273862, 8273867), (8273975, 8273980), (8274088, 8274093), (8274201, 8274206), (8274314, 8274319), (8274427, 8274432), (8274540, 8274545), (8274653, 8274658), (8274766, 8274771), (8274879, 8274884), (8274992, 8274997), (8275105, 8275110), (8275439, 8275444), (8275552, 8275557), (8275665, 8275670), (8275778, 8275783), (8275891, 8275896), (8276004, 8276009), (8276117, 8276122), (8276230, 8276235), (8276343, 8276348), (8276456, 8276461), (8276569, 8276574), (8276682, 8276687), (8276795, 8276800), (8277129, 8277134), (8277242, 8277247), (8277355, 8277360), (8277468, 8277473), (8277581, 8277586), (8277694, 8277699), (8277807, 8277812), (8277920, 8277925), (8278033, 8278038), (8278146, 8278151), (8278259, 8278264), (8278372, 8278377), (8278485, 8278490), (8278819, 8278824), (8278932, 8278937), (8279045, 8279050), (8279158, 8279163), (8279271, 8279276), (8279384, 8279389), (8279497, 8279502), (8279610, 8279615), (8279723, 8279728), (8279836, 8279841), (8279949, 8279954), (8280062, 8280067), (8280175, 8280180), (8280509, 8280514), (8280622, 8280627), (8280735, 8280740), (8280848, 8280853), (8280961, 8280966), (8281074, 8281079), (8281187, 8281192), (8281300, 8281305), (8281413, 8281418), (8281526, 8281531), (8281639, 8281644), (8281752, 8281757), (8281865, 8281870), (8282199, 8282204), (8282312, 8282317), (8282425, 8282430), (8282538, 8282543), (8282651, 8282656), (8282764, 8282769), (8282877, 8282882), (8282990, 8282995), (8283103, 8283108), (8283216, 8283221), (8283329, 8283334), (8283442, 8283447), (8283555, 8283560), (8283889, 8283894), (8284002, 8284007), (8284115, 8284120), (8284228, 8284233), (8284341, 8284346), (8284454, 8284459), (8284567, 8284572), (8284680, 8284685), (8284793, 8284798), (8284906, 8284911), (8285019, 8285024), (8285132, 8285137), (8285245, 8285250), (8285579, 8285584), (8285692, 8285697), (8285805, 8285810), (8285918, 8285923), (8286031, 8286036), (8286144, 8286149), (8286257, 8286262), (8286370, 8286375), (8286483, 8286488), (8286596, 8286601), (8286709, 8286714), (8286822, 8286827), (8286935, 8286940), (8287269, 8287274), (8287382, 8287387), (8287495, 8287500), (8287608, 8287613), (8287721, 8287726), (8287834, 8287839), (8287947, 8287952), (8288060, 8288065), (8288173, 8288178), (8288286, 8288291), (8288399, 8288404), (8288512, 8288517), (8288625, 8288630), (8288959, 8288964), (8289072, 8289077), (8289185, 8289190), (8289298, 8289303), (8289411, 8289416), (8289524, 8289529), (8289637, 8289642), (8289750, 8289755), (8289863, 8289868), (8289976, 8289981), (8290089, 8290094), (8290202, 8290207), (8290315, 8290320), (8290649, 8290654), (8290762, 8290767), (8290875, 8290880), (8290988, 8290993), (8291101, 8291106), (8291214, 8291219), (8291327, 8291332), (8291440, 8291445), (8291553, 8291558), (8291666, 8291671), (8291779, 8291784), (8291892, 8291897), (8292005, 8292010), (8292339, 8292344), (8292452, 8292457), (8292565, 8292570), (8292678, 8292683), (8292791, 8292796), (8292904, 8292909), (8293017, 8293022), (8293130, 8293135), (8293243, 8293248), (8293356, 8293361), (8293469, 8293474), (8293582, 8293587), (8293695, 8293700), (8294029, 8294034), (8294142, 8294147), (8294255, 8294260), (8294368, 8294373), (8294481, 8294486), (8294594, 8294599), (8294707, 8294712), (8294820, 8294825), (8294933, 8294938), (8295046, 8295051), (8295159, 8295164), (8295272, 8295277), (8295385, 8295390), (8295719, 8295724), (8295832, 8295837), (8295945, 8295950), (8296058, 8296063), (8296171, 8296176), (8296284, 8296289), (8296397, 8296402), (8296510, 8296515), (8296623, 8296628), (8296736, 8296741), (8296849, 8296854), (8296962, 8296967), (8297075, 8297080), (8297409, 8297414), (8297522, 8297527), (8297635, 8297640), (8297748, 8297753), (8297861, 8297866), (8297974, 8297979), (8298087, 8298092), (8298200, 8298205), (8298313, 8298318), (8298426, 8298431), (8298539, 8298544), (8298652, 8298657), (8298765, 8298770), (8299099, 8299104), (8299212, 8299217), (8299325, 8299330), (8299438, 8299443), (8299551, 8299556), (8299664, 8299669), (8299777, 8299782), (8299890, 8299895), (8300003, 8300008), (8300116, 8300121), (8300229, 8300234), (8300342, 8300347), (8300455, 8300460), (8300789, 8300794), (8300902, 8300907), (8301015, 8301020), (8301128, 8301133), (8301241, 8301246), (8301354, 8301359), (8301467, 8301472), (8301580, 8301585), (8301693, 8301698), (8301806, 8301811), (8301919, 8301924), (8302032, 8302037), (8302145, 8302150), (8302479, 8302484), (8302592, 8302597), (8302705, 8302710), (8302818, 8302823), (8302931, 8302936), (8303044, 8303049), (8303157, 8303162), (8303270, 8303275), (8303383, 8303388), (8303496, 8303501), (8303609, 8303614), (8303722, 8303727), (8303835, 8303840), (8304169, 8304174), (8304282, 8304287), (8304395, 8304400), (8304508, 8304513), (8304621, 8304626), (8304734, 8304739), (8304847, 8304852), (8304960, 8304965), (8305073, 8305078), (8305186, 8305191), (8305299, 8305304), (8305412, 8305417), (8305525, 8305530), (8305859, 8305864), (8305972, 8305977), (8306085, 8306090), (8306198, 8306203), (8306311, 8306316), (8306424, 8306429), (8306537, 8306542), (8306650, 8306655), (8306763, 8306768), (8306876, 8306881), (8306989, 8306994), (8307102, 8307107), (8307215, 8307220), (8307549, 8307554), (8307662, 8307667), (8307775, 8307780), (8307888, 8307893), (8308001, 8308006), (8308114, 8308119), (8308227, 8308232), (8308340, 8308345), (8308453, 8308458), (8308566, 8308571), (8308679, 8308684), (8308792, 8308797), (8308905, 8308910), (8309239, 8309244), (8309352, 8309357), (8309465, 8309470), (8309578, 8309583), (8309691, 8309696), (8309804, 8309809), (8309917, 8309922), (8310030, 8310035), (8310143, 8310148), (8310256, 8310261), (8310369, 8310374), (8310482, 8310487), (8310595, 8310600), (8310929, 8310934), (8311042, 8311047), (8311155, 8311160), (8311268, 8311273), (8311381, 8311386), (8311494, 8311499), (8311607, 8311612), (8311720, 8311725), (8311833, 8311838), (8311946, 8311951), (8312059, 8312064), (8312172, 8312177), (8312285, 8312290), (8312619, 8312624), (8312732, 8312737), (8312845, 8312850), (8312958, 8312963), (8313071, 8313076), (8313184, 8313189), (8313297, 8313302), (8313410, 8313415), (8313523, 8313528), (8313636, 8313641), (8313749, 8313754), (8313862, 8313867), (8313975, 8313980), (8314309, 8314314), (8314422, 8314427), (8314535, 8314540), (8314648, 8314653), (8314761, 8314766), (8314874, 8314879), (8314987, 8314992), (8315100, 8315105), (8315213, 8315218), (8315326, 8315331), (8315439, 8315444), (8315552, 8315557), (8315665, 8315670), (8315999, 8316004), (8316112, 8316117), (8316225, 8316230), (8316338, 8316343), (8316451, 8316456), (8316564, 8316569), (8316677, 8316682), (8316790, 8316795), (8316903, 8316908), (8317016, 8317021), (8317129, 8317134), (8317242, 8317247), (8317355, 8317360), (8317689, 8317694), (8317802, 8317807), (8317915, 8317920), (8318028, 8318033), (8318141, 8318146), (8318254, 8318259), (8318367, 8318372), (8318480, 8318485), (8318593, 8318598), (8318706, 8318711), (8318819, 8318824), (8318932, 8318937), (8319045, 8319050), (8319379, 8319384), (8319492, 8319497), (8319605, 8319610), (8319718, 8319723), (8319831, 8319836), (8319944, 8319949), (8320057, 8320062), (8320170, 8320175), (8320283, 8320288), (8320396, 8320401), (8320509, 8320514), (8320622, 8320627), (8320735, 8320740), (8321069, 8321074), (8321182, 8321187), (8321295, 8321300), (8321408, 8321413), (8321521, 8321526), (8321634, 8321639), (8321747, 8321752), (8321860, 8321865), (8321973, 8321978), (8322086, 8322091), (8322199, 8322204), (8322312, 8322317), (8322425, 8322430), (8322759, 8322764), (8322872, 8322877), (8322985, 8322990), (8323098, 8323103), (8323211, 8323216), (8323324, 8323329), (8323437, 8323442), (8323550, 8323555), (8323663, 8323668), (8323776, 8323781), (8323889, 8323894), (8324002, 8324007), (8324115, 8324120), (8324449, 8324454), (8324562, 8324567), (8324675, 8324680), (8324788, 8324793), (8324901, 8324906), (8325014, 8325019), (8325127, 8325132), (8325240, 8325245), (8325353, 8325358), (8325466, 8325471), (8325579, 8325584), (8325692, 8325697), (8325805, 8325810), (8326139, 8326144), (8326252, 8326257), (8326365, 8326370), (8326478, 8326483), (8326591, 8326596), (8326704, 8326709), (8326817, 8326822), (8326930, 8326935), (8327043, 8327048), (8327156, 8327161), (8327269, 8327274), (8327382, 8327387), (8327495, 8327500), (8327829, 8327834), (8327942, 8327947), (8328055, 8328060), (8328168, 8328173), (8328281, 8328286), (8328394, 8328399), (8328507, 8328512), (8328620, 8328625), (8328733, 8328738), (8328846, 8328851), (8328959, 8328964), (8329072, 8329077), (8329185, 8329190), (8329519, 8329524), (8329632, 8329637), (8329745, 8329750), (8329858, 8329863), (8329971, 8329976), (8330084, 8330089), (8330197, 8330202), (8330310, 8330315), (8330423, 8330428), (8330536, 8330541), (8330649, 8330654), (8330762, 8330767), (8330875, 8330880), (8331209, 8331214), (8331322, 8331327), (8331435, 8331440), (8331548, 8331553), (8331661, 8331666), (8331774, 8331779), (8331887, 8331892), (8332000, 8332005), (8332113, 8332118), (8332226, 8332231), (8332339, 8332344), (8332452, 8332457), (8332565, 8332570), (8332899, 8332904), (8333012, 8333017), (8333125, 8333130), (8333238, 8333243), (8333351, 8333356), (8333464, 8333469), (8333577, 8333582), (8333690, 8333695), (8333803, 8333808), (8333916, 8333921), (8334029, 8334034), (8334142, 8334147), (8334255, 8334260), (8334589, 8334594), (8334702, 8334707), (8334815, 8334820), (8334928, 8334933), (8335041, 8335046), (8335154, 8335159), (8335267, 8335272), (8335380, 8335385), (8335493, 8335498), (8335606, 8335611), (8335719, 8335724), (8335832, 8335837), (8335945, 8335950), (8336279, 8336284), (8336392, 8336397), (8336505, 8336510), (8336618, 8336623), (8336731, 8336736), (8336844, 8336849), (8336957, 8336962), (8337070, 8337075), (8337183, 8337188), (8337296, 8337301), (8337409, 8337414), (8337522, 8337527), (8337635, 8337640), (8337969, 8337974), (8338082, 8338087), (8338195, 8338200), (8338308, 8338313), (8338421, 8338426), (8338534, 8338539), (8338647, 8338652), (8338760, 8338765), (8338873, 8338878), (8338986, 8338991), (8339099, 8339104), (8339212, 8339217), (8339325, 8339330)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.evaluations.inputs", [(8339551, 8339659), (8339664, 8339772), (8339777, 8339885), (8339890, 8339998), (8340003, 8340111), (8340116, 8340224), (8340229, 8340337), (8340342, 8340450), (8340455, 8340563), (8340568, 8340676), (8340681, 8340789), (8340794, 8340902), (8340907, 8341015), (8341241, 8341349), (8341354, 8341462), (8341467, 8341575), (8341580, 8341688), (8341693, 8341801), (8341806, 8341914), (8341919, 8342027), (8342032, 8342140), (8342145, 8342253), (8342258, 8342366), (8342371, 8342479), (8342484, 8342592), (8342597, 8342705), (8343211, 8343319), (8343324, 8343432), (8343437, 8343545), (8343550, 8343658), (8343663, 8343771), (8343776, 8343884), (8343889, 8343997), (8344002, 8344110), (8344115, 8344223), (8344228, 8344336), (8344341, 8344449), (8344454, 8344562), (8344567, 8344675), (8344901, 8345009), (8345014, 8345122), (8345127, 8345235), (8345240, 8345348), (8345353, 8345461), (8345466, 8345574), (8345579, 8345687), (8345692, 8345800), (8345805, 8345913), (8345918, 8346026), (8346031, 8346139), (8346144, 8346252), (8346257, 8346365), (8346871, 8346979), (8346984, 8347092), (8347097, 8347205), (8347210, 8347318), (8347323, 8347431), (8347436, 8347544), (8347549, 8347657), (8347662, 8347770), (8347775, 8347883), (8347888, 8347996), (8348001, 8348109), (8348114, 8348222), (8348227, 8348335), (8348561, 8348669), (8348674, 8348782), (8348787, 8348895), (8348900, 8349008), (8349013, 8349121), (8349126, 8349234), (8349239, 8349347), (8349352, 8349460), (8349465, 8349573), (8349578, 8349686), (8349691, 8349799), (8349804, 8349912), (8349917, 8350025), (8350531, 8350639), (8350644, 8350752), (8350757, 8350865), (8350870, 8350978), (8350983, 8351091), (8351096, 8351204), (8351209, 8351317), (8351322, 8351430), (8351435, 8351543), (8351548, 8351656), (8351661, 8351769), (8351774, 8351882), (8351887, 8351995), (8352221, 8352329), (8352334, 8352442), (8352447, 8352555), (8352560, 8352668), (8352673, 8352781), (8352786, 8352894), (8352899, 8353007), (8353012, 8353120), (8353125, 8353233), (8353238, 8353346), (8353351, 8353459), (8353464, 8353572), (8353577, 8353685), (8354191, 8354299), (8354304, 8354412), (8354417, 8354525), (8354530, 8354638), (8354643, 8354751), (8354756, 8354864), (8354869, 8354977), (8354982, 8355090), (8355095, 8355203), (8355208, 8355316), (8355321, 8355429), (8355434, 8355542), (8355547, 8355655), (8355881, 8355989), (8355994, 8356102), (8356107, 8356215), (8356220, 8356328), (8356333, 8356441), (8356446, 8356554), (8356559, 8356667), (8356672, 8356780), (8356785, 8356893), (8356898, 8357006), (8357011, 8357119), (8357124, 8357232), (8357237, 8357345), (8357851, 8357959), (8357964, 8358072), (8358077, 8358185), (8358190, 8358298), (8358303, 8358411), (8358416, 8358524), (8358529, 8358637), (8358642, 8358750), (8358755, 8358863), (8358868, 8358976), (8358981, 8359089), (8359094, 8359202), (8359207, 8359315), (8359541, 8359649), (8359654, 8359762), (8359767, 8359875), (8359880, 8359988), (8359993, 8360101), (8360106, 8360214), (8360219, 8360327), (8360332, 8360440), (8360445, 8360553), (8360558, 8360666), (8360671, 8360779), (8360784, 8360892), (8360897, 8361005), (8361511, 8361619), (8361624, 8361732), (8361737, 8361845), (8361850, 8361958), (8361963, 8362071), (8362076, 8362184), (8362189, 8362297), (8362302, 8362410), (8362415, 8362523), (8362528, 8362636), (8362641, 8362749), (8362754, 8362862), (8362867, 8362975), (8363201, 8363309), (8363314, 8363422), (8363427, 8363535), (8363540, 8363648), (8363653, 8363761), (8363766, 8363874), (8363879, 8363987), (8363992, 8364100), (8364105, 8364213), (8364218, 8364326), (8364331, 8364439), (8364444, 8364552), (8364557, 8364665), (8365171, 8365279), (8365284, 8365392), (8365397, 8365505), (8365510, 8365618), (8365623, 8365731), (8365736, 8365844), (8365849, 8365957), (8365962, 8366070), (8366075, 8366183), (8366188, 8366296), (8366301, 8366409), (8366414, 8366522), (8366527, 8366635), (8366861, 8366969), (8366974, 8367082), (8367087, 8367195), (8367200, 8367308), (8367313, 8367421), (8367426, 8367534), (8367539, 8367647), (8367652, 8367760), (8367765, 8367873), (8367878, 8367986), (8367991, 8368099), (8368104, 8368212), (8368217, 8368325), (8368831, 8368939), (8368944, 8369052), (8369057, 8369165), (8369170, 8369278), (8369283, 8369391), (8369396, 8369504), (8369509, 8369617), (8369622, 8369730), (8369735, 8369843), (8369848, 8369956), (8369961, 8370069), (8370074, 8370182), (8370187, 8370295), (8370521, 8370629), (8370634, 8370742), (8370747, 8370855), (8370860, 8370968), (8370973, 8371081), (8371086, 8371194), (8371199, 8371307), (8371312, 8371420), (8371425, 8371533), (8371538, 8371646), (8371651, 8371759), (8371764, 8371872), (8371877, 8371985), (8372491, 8372599), (8372604, 8372712), (8372717, 8372825), (8372830, 8372938), (8372943, 8373051), (8373056, 8373164), (8373169, 8373277), (8373282, 8373390), (8373395, 8373503), (8373508, 8373616), (8373621, 8373729), (8373734, 8373842), (8373847, 8373955), (8374181, 8374289), (8374294, 8374402), (8374407, 8374515), (8374520, 8374628), (8374633, 8374741), (8374746, 8374854), (8374859, 8374967), (8374972, 8375080), (8375085, 8375193), (8375198, 8375306), (8375311, 8375419), (8375424, 8375532), (8375537, 8375645), (8376151, 8376259), (8376264, 8376372), (8376377, 8376485), (8376490, 8376598), (8376603, 8376711), (8376716, 8376824), (8376829, 8376937), (8376942, 8377050), (8377055, 8377163), (8377168, 8377276), (8377281, 8377389), (8377394, 8377502), (8377507, 8377615), (8377841, 8377949), (8377954, 8378062), (8378067, 8378175), (8378180, 8378288), (8378293, 8378401), (8378406, 8378514), (8378519, 8378627), (8378632, 8378740), (8378745, 8378853), (8378858, 8378966), (8378971, 8379079), (8379084, 8379192), (8379197, 8379305), (8379811, 8379919), (8379924, 8380032), (8380037, 8380145), (8380150, 8380258), (8380263, 8380371), (8380376, 8380484), (8380489, 8380597), (8380602, 8380710), (8380715, 8380823), (8380828, 8380936), (8380941, 8381049), (8381054, 8381162), (8381167, 8381275), (8381501, 8381609), (8381614, 8381722), (8381727, 8381835), (8381840, 8381948), (8381953, 8382061), (8382066, 8382174), (8382179, 8382287), (8382292, 8382400), (8382405, 8382513), (8382518, 8382626), (8382631, 8382739), (8382744, 8382852), (8382857, 8382965), (8383471, 8383579), (8383584, 8383692), (8383697, 8383805), (8383810, 8383918), (8383923, 8384031), (8384036, 8384144), (8384149, 8384257), (8384262, 8384370), (8384375, 8384483), (8384488, 8384596), (8384601, 8384709), (8384714, 8384822), (8384827, 8384935), (8385161, 8385269), (8385274, 8385382), (8385387, 8385495), (8385500, 8385608), (8385613, 8385721), (8385726, 8385834), (8385839, 8385947), (8385952, 8386060), (8386065, 8386173), (8386178, 8386286), (8386291, 8386399), (8386404, 8386512), (8386517, 8386625), (8387131, 8387239), (8387244, 8387352), (8387357, 8387465), (8387470, 8387578), (8387583, 8387691), (8387696, 8387804), (8387809, 8387917), (8387922, 8388030), (8388035, 8388143), (8388148, 8388256), (8388261, 8388369), (8388374, 8388482), (8388487, 8388595), (8388821, 8388929), (8388934, 8389042), (8389047, 8389155), (8389160, 8389268), (8389273, 8389381), (8389386, 8389494), (8389499, 8389607), (8389612, 8389720), (8389725, 8389833), (8389838, 8389946), (8389951, 8390059), (8390064, 8390172), (8390177, 8390285)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.evaluations.output", [(8341020, 8341128), (8342710, 8342818), (8344680, 8344788), (8346370, 8346478), (8348340, 8348448), (8350030, 8350138), (8352000, 8352108), (8353690, 8353798), (8355660, 8355768), (8357350, 8357458), (8359320, 8359428), (8361010, 8361118), (8362980, 8363088), (8364670, 8364778), (8366640, 8366748), (8368330, 8368438), (8370300, 8370408), (8371990, 8372098), (8373960, 8374068), (8375650, 8375758), (8377620, 8377728), (8379310, 8379418), (8381280, 8381388), (8382970, 8383078), (8384940, 8385048), (8386630, 8386738), (8388600, 8388708), (8390290, 8390398)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.evaluations.quotient", [(8341128, 8341234), (8342818, 8342924), (8344788, 8344894), (8346478, 8346584), (8348448, 8348554), (8350138, 8350244), (8352108, 8352214), (8353798, 8353904), (8355768, 8355874), (8357458, 8357564), (8359428, 8359534), (8361118, 8361224), (8363088, 8363194), (8364778, 8364884), (8366748, 8366854), (8368438, 8368544), (8370408, 8370514), (8372098, 8372204), (8374068, 8374174), (8375758, 8375864), (8377728, 8377834), (8379418, 8379524), (8381388, 8381494), (8383078, 8383184), (8385048, 8385154), (8386738, 8386844), (8388708, 8388814), (8390398, 8390504)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.final_limb_checks", [(8341239, 8341241), (8342929, 8342931), (8344899, 8344901), (8346589, 8346591), (8348559, 8348561), (8350249, 8350251), (8352219, 8352221), (8353909, 8353911), (8355879, 8355881), (8357569, 8357571), (8359539, 8359541), (8361229, 8361231), (8363199, 8363201), (8364889, 8364891), (8366859, 8366861), (8368549, 8368551), (8370519, 8370521), (8372209, 8372211), (8374179, 8374181), (8375869, 8375871), (8377839, 8377841), (8379529, 8379531), (8381499, 8381501), (8383189, 8383191), (8385159, 8385161), (8386849, 8386851), (8388819, 8388821), (8390509, 8390511)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.k_products.quotient_times_phi", [(8341234, 8341239), (8342924, 8342929), (8344894, 8344899), (8346584, 8346589), (8348554, 8348559), (8350244, 8350249), (8352214, 8352219), (8353904, 8353909), (8355874, 8355879), (8357564, 8357569), (8359534, 8359539), (8361224, 8361229), (8363194, 8363199), (8364884, 8364889), (8366854, 8366859), (8368544, 8368549), (8370514, 8370519), (8372204, 8372209), (8374174, 8374179), (8375864, 8375869), (8377834, 8377839), (8379524, 8379529), (8381494, 8381499), (8383184, 8383189), (8385154, 8385159), (8386844, 8386849), (8388814, 8388819), (8390504, 8390509)]⟩,
-   ⟨"nifs.pi_rlc.verify.identities.y_ring.k_products.rho_times_input", [(8339659, 8339664), (8339772, 8339777), (8339885, 8339890), (8339998, 8340003), (8340111, 8340116), (8340224, 8340229), (8340337, 8340342), (8340450, 8340455), (8340563, 8340568), (8340676, 8340681), (8340789, 8340794), (8340902, 8340907), (8341015, 8341020), (8341349, 8341354), (8341462, 8341467), (8341575, 8341580), (8341688, 8341693), (8341801, 8341806), (8341914, 8341919), (8342027, 8342032), (8342140, 8342145), (8342253, 8342258), (8342366, 8342371), (8342479, 8342484), (8342592, 8342597), (8342705, 8342710), (8343319, 8343324), (8343432, 8343437), (8343545, 8343550), (8343658, 8343663), (8343771, 8343776), (8343884, 8343889), (8343997, 8344002), (8344110, 8344115), (8344223, 8344228), (8344336, 8344341), (8344449, 8344454), (8344562, 8344567), (8344675, 8344680), (8345009, 8345014), (8345122, 8345127), (8345235, 8345240), (8345348, 8345353), (8345461, 8345466), (8345574, 8345579), (8345687, 8345692), (8345800, 8345805), (8345913, 8345918), (8346026, 8346031), (8346139, 8346144), (8346252, 8346257), (8346365, 8346370), (8346979, 8346984), (8347092, 8347097), (8347205, 8347210), (8347318, 8347323), (8347431, 8347436), (8347544, 8347549), (8347657, 8347662), (8347770, 8347775), (8347883, 8347888), (8347996, 8348001), (8348109, 8348114), (8348222, 8348227), (8348335, 8348340), (8348669, 8348674), (8348782, 8348787), (8348895, 8348900), (8349008, 8349013), (8349121, 8349126), (8349234, 8349239), (8349347, 8349352), (8349460, 8349465), (8349573, 8349578), (8349686, 8349691), (8349799, 8349804), (8349912, 8349917), (8350025, 8350030), (8350639, 8350644), (8350752, 8350757), (8350865, 8350870), (8350978, 8350983), (8351091, 8351096), (8351204, 8351209), (8351317, 8351322), (8351430, 8351435), (8351543, 8351548), (8351656, 8351661), (8351769, 8351774), (8351882, 8351887), (8351995, 8352000), (8352329, 8352334), (8352442, 8352447), (8352555, 8352560), (8352668, 8352673), (8352781, 8352786), (8352894, 8352899), (8353007, 8353012), (8353120, 8353125), (8353233, 8353238), (8353346, 8353351), (8353459, 8353464), (8353572, 8353577), (8353685, 8353690), (8354299, 8354304), (8354412, 8354417), (8354525, 8354530), (8354638, 8354643), (8354751, 8354756), (8354864, 8354869), (8354977, 8354982), (8355090, 8355095), (8355203, 8355208), (8355316, 8355321), (8355429, 8355434), (8355542, 8355547), (8355655, 8355660), (8355989, 8355994), (8356102, 8356107), (8356215, 8356220), (8356328, 8356333), (8356441, 8356446), (8356554, 8356559), (8356667, 8356672), (8356780, 8356785), (8356893, 8356898), (8357006, 8357011), (8357119, 8357124), (8357232, 8357237), (8357345, 8357350), (8357959, 8357964), (8358072, 8358077), (8358185, 8358190), (8358298, 8358303), (8358411, 8358416), (8358524, 8358529), (8358637, 8358642), (8358750, 8358755), (8358863, 8358868), (8358976, 8358981), (8359089, 8359094), (8359202, 8359207), (8359315, 8359320), (8359649, 8359654), (8359762, 8359767), (8359875, 8359880), (8359988, 8359993), (8360101, 8360106), (8360214, 8360219), (8360327, 8360332), (8360440, 8360445), (8360553, 8360558), (8360666, 8360671), (8360779, 8360784), (8360892, 8360897), (8361005, 8361010), (8361619, 8361624), (8361732, 8361737), (8361845, 8361850), (8361958, 8361963), (8362071, 8362076), (8362184, 8362189), (8362297, 8362302), (8362410, 8362415), (8362523, 8362528), (8362636, 8362641), (8362749, 8362754), (8362862, 8362867), (8362975, 8362980), (8363309, 8363314), (8363422, 8363427), (8363535, 8363540), (8363648, 8363653), (8363761, 8363766), (8363874, 8363879), (8363987, 8363992), (8364100, 8364105), (8364213, 8364218), (8364326, 8364331), (8364439, 8364444), (8364552, 8364557), (8364665, 8364670), (8365279, 8365284), (8365392, 8365397), (8365505, 8365510), (8365618, 8365623), (8365731, 8365736), (8365844, 8365849), (8365957, 8365962), (8366070, 8366075), (8366183, 8366188), (8366296, 8366301), (8366409, 8366414), (8366522, 8366527), (8366635, 8366640), (8366969, 8366974), (8367082, 8367087), (8367195, 8367200), (8367308, 8367313), (8367421, 8367426), (8367534, 8367539), (8367647, 8367652), (8367760, 8367765), (8367873, 8367878), (8367986, 8367991), (8368099, 8368104), (8368212, 8368217), (8368325, 8368330), (8368939, 8368944), (8369052, 8369057), (8369165, 8369170), (8369278, 8369283), (8369391, 8369396), (8369504, 8369509), (8369617, 8369622), (8369730, 8369735), (8369843, 8369848), (8369956, 8369961), (8370069, 8370074), (8370182, 8370187), (8370295, 8370300), (8370629, 8370634), (8370742, 8370747), (8370855, 8370860), (8370968, 8370973), (8371081, 8371086), (8371194, 8371199), (8371307, 8371312), (8371420, 8371425), (8371533, 8371538), (8371646, 8371651), (8371759, 8371764), (8371872, 8371877), (8371985, 8371990), (8372599, 8372604), (8372712, 8372717), (8372825, 8372830), (8372938, 8372943), (8373051, 8373056), (8373164, 8373169), (8373277, 8373282), (8373390, 8373395), (8373503, 8373508), (8373616, 8373621), (8373729, 8373734), (8373842, 8373847), (8373955, 8373960), (8374289, 8374294), (8374402, 8374407), (8374515, 8374520), (8374628, 8374633), (8374741, 8374746), (8374854, 8374859), (8374967, 8374972), (8375080, 8375085), (8375193, 8375198), (8375306, 8375311), (8375419, 8375424), (8375532, 8375537), (8375645, 8375650), (8376259, 8376264), (8376372, 8376377), (8376485, 8376490), (8376598, 8376603), (8376711, 8376716), (8376824, 8376829), (8376937, 8376942), (8377050, 8377055), (8377163, 8377168), (8377276, 8377281), (8377389, 8377394), (8377502, 8377507), (8377615, 8377620), (8377949, 8377954), (8378062, 8378067), (8378175, 8378180), (8378288, 8378293), (8378401, 8378406), (8378514, 8378519), (8378627, 8378632), (8378740, 8378745), (8378853, 8378858), (8378966, 8378971), (8379079, 8379084), (8379192, 8379197), (8379305, 8379310), (8379919, 8379924), (8380032, 8380037), (8380145, 8380150), (8380258, 8380263), (8380371, 8380376), (8380484, 8380489), (8380597, 8380602), (8380710, 8380715), (8380823, 8380828), (8380936, 8380941), (8381049, 8381054), (8381162, 8381167), (8381275, 8381280), (8381609, 8381614), (8381722, 8381727), (8381835, 8381840), (8381948, 8381953), (8382061, 8382066), (8382174, 8382179), (8382287, 8382292), (8382400, 8382405), (8382513, 8382518), (8382626, 8382631), (8382739, 8382744), (8382852, 8382857), (8382965, 8382970), (8383579, 8383584), (8383692, 8383697), (8383805, 8383810), (8383918, 8383923), (8384031, 8384036), (8384144, 8384149), (8384257, 8384262), (8384370, 8384375), (8384483, 8384488), (8384596, 8384601), (8384709, 8384714), (8384822, 8384827), (8384935, 8384940), (8385269, 8385274), (8385382, 8385387), (8385495, 8385500), (8385608, 8385613), (8385721, 8385726), (8385834, 8385839), (8385947, 8385952), (8386060, 8386065), (8386173, 8386178), (8386286, 8386291), (8386399, 8386404), (8386512, 8386517), (8386625, 8386630), (8387239, 8387244), (8387352, 8387357), (8387465, 8387470), (8387578, 8387583), (8387691, 8387696), (8387804, 8387809), (8387917, 8387922), (8388030, 8388035), (8388143, 8388148), (8388256, 8388261), (8388369, 8388374), (8388482, 8388487), (8388595, 8388600), (8388929, 8388934), (8389042, 8389047), (8389155, 8389160), (8389268, 8389273), (8389381, 8389386), (8389494, 8389499), (8389607, 8389612), (8389720, 8389725), (8389833, 8389838), (8389946, 8389951), (8390059, 8390064), (8390172, 8390177), (8390285, 8390290)]⟩,
-   ⟨"nifs.pi_rlc.verify.padding.y_ring", [(8342931, 8343211), (8346591, 8346871), (8350251, 8350531), (8353911, 8354191), (8357571, 8357851), (8361231, 8361511), (8364891, 8365171), (8368551, 8368831), (8372211, 8372491), (8375871, 8376151), (8379531, 8379811), (8383191, 8383471), (8386851, 8387131), (8390511, 8390791)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.combined.adv", [(6999755, 7094741)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.combined.commitment", [(6999743, 6999749)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.combined.x", [(7094762, 7094768), (7094775, 7094781), (7094788, 7094794), (7094801, 7094807), (7094814, 7094820), (7094827, 7094833), (7094840, 7094846), (7094853, 7094859), (7094866, 7094872), (7094879, 7094885), (7094892, 7094898), (7094905, 7094911), (7094918, 7094924), (7094931, 7094937), (7094944, 7094950), (7094957, 7094963), (7094970, 7094976), (7094983, 7094989), (7094996, 7095002), (7095009, 7095015), (7095022, 7095028), (7095035, 7095041), (7095048, 7095054), (7095061, 7095067), (7095074, 7095080), (7095087, 7095093), (7095100, 7095106), (7095113, 7095119), (7095126, 7095132), (7095139, 7095145), (7095152, 7095158), (7095165, 7095171), (7095178, 7095184), (7095191, 7095197), (7095204, 7095210), (7095217, 7095223), (7095230, 7095236), (7095243, 7095249), (7095256, 7095262), (7095269, 7095275), (7095282, 7095288), (7095295, 7095301), (7095308, 7095314), (7095321, 7095327), (7095334, 7095340)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.combined.y_ring", [(7095347, 7095354), (7095361, 7095368), (7095375, 7095382), (7095389, 7095396), (7095403, 7095410), (7095417, 7095424), (7095431, 7095438), (7095445, 7095452), (7095459, 7095466), (7095473, 7095480), (7095487, 7095494), (7095501, 7095508), (7095515, 7095522), (7095529, 7095536), (7095543, 7095550), (7095557, 7095564), (7095571, 7095578), (7095585, 7095592), (7095599, 7095606), (7095613, 7095620), (7095627, 7095634), (7095641, 7095648), (7095655, 7095662), (7095669, 7095676), (7095683, 7095690), (7095697, 7095704), (7095711, 7095718), (7095725, 7095732)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.domain", [(6999735, 6999743)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.quotient.adv", [(7094741, 7094762)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.quotient.commitment", [(6999749, 6999755)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.quotient.x", [(7094768, 7094775), (7094781, 7094788), (7094794, 7094801), (7094807, 7094814), (7094820, 7094827), (7094833, 7094840), (7094846, 7094853), (7094859, 7094866), (7094872, 7094879), (7094885, 7094892), (7094898, 7094905), (7094911, 7094918), (7094924, 7094931), (7094937, 7094944), (7094950, 7094957), (7094963, 7094970), (7094976, 7094983), (7094989, 7094996), (7095002, 7095009), (7095015, 7095022), (7095028, 7095035), (7095041, 7095048), (7095054, 7095061), (7095067, 7095074), (7095080, 7095087), (7095093, 7095100), (7095106, 7095113), (7095119, 7095126), (7095132, 7095139), (7095145, 7095152), (7095158, 7095165), (7095171, 7095178), (7095184, 7095191), (7095197, 7095204), (7095210, 7095217), (7095223, 7095230), (7095236, 7095243), (7095249, 7095256), (7095262, 7095269), (7095275, 7095282), (7095288, 7095295), (7095301, 7095308), (7095314, 7095321), (7095327, 7095334), (7095340, 7095347)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.quotient.y_ring", [(7095354, 7095361), (7095368, 7095375), (7095382, 7095389), (7095396, 7095403), (7095410, 7095417), (7095424, 7095431), (7095438, 7095445), (7095452, 7095459), (7095466, 7095473), (7095480, 7095487), (7095494, 7095501), (7095508, 7095515), (7095522, 7095529), (7095536, 7095543), (7095550, 7095557), (7095564, 7095571), (7095578, 7095585), (7095592, 7095599), (7095606, 7095613), (7095620, 7095627), (7095634, 7095641), (7095648, 7095655), (7095662, 7095669), (7095676, 7095683), (7095690, 7095697), (7095704, 7095711), (7095718, 7095725), (7095732, 7095739)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.sis_digest", [(7095739, 8251445)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_binding.transcript_beta", [(8251445, 8255065)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_shared.beta_ladder", [(8255065, 8255337)]⟩,
-   ⟨"nifs.pi_rlc.verify.projection_shared.rho_evaluations", [(8255337, 8256741)]⟩,
-   ⟨"nifs.point_binding", [(8433729, 8433777)]⟩,
-   ⟨"nifs.running_parent_pi_dec", [(6737931, 6780869)]⟩]
-
-def wire : Wire where
-  schema := "nightstream/r1cs-redundancy-problem/v3"
-  profile := "campaign-recursive-classification-v1"
-  scope := "branch"
-  diagnosticDigest := "sha256:f06cd06435b8060f0c94adaddeb8349a24ba784b974a6bac7a06ca9e93163915"
-  fieldModulus := "18446744069414584321"
-  totalRows := 11187825
-  columnCount := 11078210
-  constantOneColumn := 0
-  publicInputCount := 2426
-  completeFamilies := ["fprime.recursive.finalize.application", "fprime.recursive.step.accumulator.input_link", "fprime.recursive.step.accumulator.output_authority.aggregate", "fprime.recursive.step.accumulator.output_authority.child_digests", "fprime.recursive.step.counters", "fprime.recursive.step.nebula", "fprime.recursive.step.output", "fprime.recursive.step.prelude", "fprime.recursive.step.prior_link.carrier_padding", "fprime.recursive.step.prior_link.digest", "fprime.recursive.step.prior_link.enc_inst", "fprime.recursive.step.transcript", "nifs.pi_ccs.padded_row.allocations", "nifs.pi_ccs.padded_row.binding", "nifs.pi_ccs.padded_row.canonicality", "nifs.pi_ccs.padded_row.challenges", "nifs.pi_ccs.padded_row.output_digest.claim", "nifs.pi_ccs.padded_row.output_digest.preimage.outer_header", "nifs.pi_ccs.padded_row.output_digest.preimage.source_headers", "nifs.pi_ccs.padded_row.output_digest.preimage.y_ring", "nifs.pi_ccs.padded_row.output_digest.sis", "nifs.pi_ccs.padded_row.output_transcript", "nifs.pi_ccs.padded_row.prefix", "nifs.pi_ccs.padded_row.sumcheck", "nifs.pi_ccs.padded_row.terminal", "nifs.pi_dec.verify", "nifs.pi_rlc.challenge.sampler.acceptance_bound", "nifs.pi_rlc.challenge.sampler.chunk.accept", "nifs.pi_rlc.challenge.sampler.chunk.mod5", "nifs.pi_rlc.challenge.sampler.chunk.symbol_and_prefix", "nifs.pi_rlc.challenge.sampler.initialize", "nifs.pi_rlc.challenge.sampler.selection.initialize", "nifs.pi_rlc.challenge.sampler.selection.one_hot", "nifs.pi_rlc.challenge.sampler.selection.products", "nifs.pi_rlc.challenge.transcript.bind_outputs_digest", "nifs.pi_rlc.challenge.transcript.digest_rounds", "nifs.pi_rlc.challenge.transcript.lane_bit_decomposition", "nifs.pi_rlc.challenge.transcript.rho_domain_separator", "nifs.pi_rlc.shape.allocate_parent_and_children", "nifs.pi_rlc.shape.output_parity", "nifs.pi_rlc.shape.parent", "nifs.pi_rlc.verify.consistency.fold_digest", "nifs.pi_rlc.verify.identities.adv.evaluations.inputs", "nifs.pi_rlc.verify.identities.adv.evaluations.output", "nifs.pi_rlc.verify.identities.adv.evaluations.quotient", "nifs.pi_rlc.verify.identities.adv.final_limb_checks", "nifs.pi_rlc.verify.identities.adv.k_products.quotient_times_phi", "nifs.pi_rlc.verify.identities.adv.k_products.rho_times_input", "nifs.pi_rlc.verify.identities.commitment.evaluations.inputs", "nifs.pi_rlc.verify.identities.commitment.evaluations.output", "nifs.pi_rlc.verify.identities.commitment.evaluations.quotient", "nifs.pi_rlc.verify.identities.commitment.final_limb_checks", "nifs.pi_rlc.verify.identities.commitment.k_products.quotient_times_phi", "nifs.pi_rlc.verify.identities.commitment.k_products.rho_times_input", "nifs.pi_rlc.verify.identities.x.evaluations.inputs", "nifs.pi_rlc.verify.identities.x.evaluations.output", "nifs.pi_rlc.verify.identities.x.evaluations.quotient", "nifs.pi_rlc.verify.identities.x.final_limb_checks", "nifs.pi_rlc.verify.identities.x.k_products.quotient_times_phi", "nifs.pi_rlc.verify.identities.x.k_products.rho_times_input", "nifs.pi_rlc.verify.identities.y_ring.evaluations.inputs", "nifs.pi_rlc.verify.identities.y_ring.evaluations.output", "nifs.pi_rlc.verify.identities.y_ring.evaluations.quotient", "nifs.pi_rlc.verify.identities.y_ring.final_limb_checks", "nifs.pi_rlc.verify.identities.y_ring.k_products.quotient_times_phi", "nifs.pi_rlc.verify.identities.y_ring.k_products.rho_times_input", "nifs.pi_rlc.verify.padding.y_ring", "nifs.pi_rlc.verify.projection_binding.combined.adv", "nifs.pi_rlc.verify.projection_binding.combined.commitment", "nifs.pi_rlc.verify.projection_binding.combined.x", "nifs.pi_rlc.verify.projection_binding.combined.y_ring", "nifs.pi_rlc.verify.projection_binding.domain", "nifs.pi_rlc.verify.projection_binding.quotient.adv", "nifs.pi_rlc.verify.projection_binding.quotient.commitment", "nifs.pi_rlc.verify.projection_binding.quotient.x", "nifs.pi_rlc.verify.projection_binding.quotient.y_ring", "nifs.pi_rlc.verify.projection_binding.sis_digest", "nifs.pi_rlc.verify.projection_binding.transcript_beta", "nifs.pi_rlc.verify.projection_shared.beta_ladder", "nifs.pi_rlc.verify.projection_shared.rho_evaluations", "nifs.point_binding", "nifs.running_parent_pi_dec"]
-  valueTable := "AQAAAAAAAAACAAAAAAAAAAMAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAAAAAEAAAAAAADAAQAAAAAAAAACAAAAAAAAgAMAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAD//wAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEAAAAAAAAAAcAAAAAAAAACAAAAAAAAAAOAAAAAAAAABAAAAAAAAAAHAAAAAAAAAAgAAAAAAAAADgAAAAAAAAAQAAAAAAAAABwAAAAAAAAAIAAAAAAAAAA4AAAAAAAAAAAAQAAAAAAAMABAAAAAAAAAAIAAAAAAACAAwAAAAAAAAAEzpr0SZIvMAYAAAAAAAAAB1T2ACyoj1QHAAAAAAAAAAg9IKOl4uDTCgAAAAAAAAAOMsvmjEQ+XA4AAAAAAAAAEBJijL42nK8Qr1uK2mOgKBLnOlW7UHJoGHp7+comyZQYAu13wBzGqhnJt+cqdMcpGkDiZRdqb6waetujxJxxrBoAAAAAAAAAHJ3PHErliR0cLMvKgjcwsx4AAAAAAAAAIO1aeKlOnp8g5MMh3HZj4SRKIIPkiUM3JTrV3xjEPJwlKmG5S8AC4SYtZfLZmnI7J2V22bolGm4nRAnZvbMaeymPbqV1WNESKrBKeBs63y4wAAAAAAAAADiRJvt1VZ2MOD5wRRQl+2o6FMpm2Iew1jrbdHRV5S5iPHi1xIt2nYE8zDG2NYeS7jyHwlytTyN+PfnoAZo6HLo+AAAAwP///z8AAAAAAAAAQLRSlh19pYJGF0tTwCQd+krLPkHapCu4TkYpCoZC3ltV4Bfg1qxLR1cy4T0LHYCCW1zwkZb99Z5btaU9q2o4m1xhi54hTbx8ZRsYj8kzS6VlprshNHIR8GW+m1lDJFP6Zf78pV5NGNZnIf4p0GYQdmqplyvA+mrfbQAAAAAAAABwkYGk2k8qXXJyZVAF8QpydEcTOgbCd2h4prsLC4gjz3nyJ9oioa7Fegq1mo+LnJ9/AQAAAP///3////9/////fwAAAID///9/AQAAgP///38AAAAAAAAAgP3///8CAACA6cWKYDryBIEZ9sT2PfKVgjQRekFFcqKGURA7m2iXBIehr0l2Z78wimstxddzYj6QKSFhKeee+5IT8i6SE/+Plb7MMEaUqZWadKxAYWWVs58gAvpr8z9ZoCQRh9RK8wOpLeaKzdXmiayvr6C8sq22r6ywoKy7vLavu7qzoL2zvbHBpUCz3rTksor+pW83Any02JMekSZTX7d1v59oSPJ/u+u3q1YYolm8uL6zvJ+svLy0s7yguby8vgEAAAD///+/AQAAQP///7//////AAAAwD/NqZy/2RDAaes6LyLH88OGDjHI52yZx/YHoEeObsLH59gWLgV5iMlXugFwPLJZylrdwbzykIfR6mnewUXu+9OMV2MzEqFu1Ym6rOebZyzXnNwMZzWE49fID+6OylkA2Wk2fTOxFTrZrO3AQ49SrtmyBbhqYAqU3P86k52UV6/dmyMfxE3sSt8BAAAA////3wAAAAAAAADgcdkP9WA1U+RItwh0YCWl5qws3pxku7notV4OOE7yiOmoAuAXhM9A7ZkjZQGlubPtGJF0xF4wPO8BAAAA////7+/EPtpUJmDyfkoUJGfjTPOZE+MtpI7o9HzYA76c6MH2AQAAAP////cXKHSPBikP+I6rSl0rRcD5AQAAAP////tNegOZQath/F08QmNmh8r8MDludLjB6v0BAAAA/////QEAAAD////+ZmjPJpJATv8BAAAA//9//5+WkZqaoIb/jpqYoJWbh/+flpGamqCH/5iQkaCdm4n/ko2Wi4XQif+gkpaThdCJ/5iYmoyK0In/k5uWkZfQif/SnpyciZKK/6KQiouOiov/opuWmJmMi/+MkIuWmZGL/9KMmpKdkYv/mJCRoJyai/+RjZCVmZyL/5icoIyKnov/mpiNmpeei/+OoJuWl5qM/5ygm5aXmoz/0o+WoJucjP+VnouQjNCM/6KXmp6amo3/mJCRoIWgjf+YkJGghqCO/5iQkaCNipD/mJGYoI2KkP+doI+NmaCQ/9KTmp6Y0JD/op2WkZqWkf+YkJGgnJaR/5qajIuflpH/koqRi5+Wkf/ShaCWn5aR/6KWkYyKnpH/ndGck5mekf+YkJGgm5CS/9KZoI+MlpL/nKCck52Wkv+RjZCYjJ6S/9KTmp6Y0JL/k5qQ0ZiQk//SnJyMn5yT/5ygnJeJkZT/nZaRmJ+blv/Snpycn5uW/42WkJGfnZb/npCKkYqglv+doI+NmaCW/6KTnpGZoJb/k4ugnomLl/+glpKgmpaY/6CcnKCalpj/opKajIuemP+YkZ6NhaCZ/52gj42ZoJn/jovQj52Nmv+boI+NlZKa/6KOipCKlpr/npqgm5WYmv+YjNCblZia/5WelpKLoJv/0pOekZmgm//Sj5agjJOc/6KPip2Slpz/0o+KnZKWnP/Sj42QlJqc/5iRj4qKoJz/lZ6LkIygnP/SjIuajqCc/5+WkZqaoJz/jY2WnIqgnf/SkZqdiZOe/56XnpPPk57/n5aRmpqgnv+gkpaThdCe/6Kck56VkqD/0pyXipCUoP+ii42em5qg/wEAAAD//7//eM3vDDDAxP+dlpiai4vQ/5zQjIuZj9D/0pyXnpWR0P+RlqCNkpzQ/9KYnpKRntD/k5qdipKe0P8BAAAA///f/35EpVkPQOz/AQAAAP//7/8BAAAA///3/4DB4R2vavn/AQAAAP//+//WlaC0Oc79/wEAAAD///3/AQAAAP///v9IhzU8vUT//wEAAAD/f///nZaYmouL//+NlpqRioz//9KJlKCYjP//AQAAAP+///9ugry+k8H//5KPjNCIzP//lJqS0IjM//+anpKSnc3//5yMi9CIzv//mp6Skp3O//8BAAAA/9///9CA6ZQw6///AQAAAP/v//8BAAAA//f//0aA+IYP+f//AQAAAP/7//8YgP0sr/3//wEAAAD//f//AQAAAP/+//9e1am5Of///wEAAAB/////mJiajIr///+LlKCZi////6KNlpGX////IEfjPb3///8BAAAAv////46L0InK////kYzQicr///+cktCJyv///wEAAADf////thehFOn///8BAAAA7////wEAAAD3////6AeLsff///8BAAAA+////06tg5D8////AQAAAP3///8BAAAA/v///wIAAAD+////cOQrMP7///8BAACA/v///5qajIv+////nKCWkf7///+VnpGa/v//////ubH+////wLO9sf7///8mTLm6/v///wEAAMD+////jdCJzP7///+c0InO/v///9KFoM/+////AQAA4P7///+4bujo/v///wEAAPD+////AQAA+P7///8+ek34/v///wEAAPz+////wChv/f7///8BAAD+/v///wEAAP/+////lg0l//7////v1DT//v///wEAgP/+////nIyL//7///+Ti4z//v///5+ak//+////h6CW//7////Sj5z//v///4gEt//+////AQDA//7///96D8j//v///9KJzP/+////0onO//7///8BAOD//v///y6s5//+////AQDw//7///8Q5Pf//v///wEA+P/+////AQD8//7///8GTP3//v///wEA/v/+////AQD///7///9YGf///v///wGA///+////nYn///7///+NjP///v///5GM///+////mJH///7///8upf///v///way///+////HrP///7///8BwP///v///4vM///+////i83///7///+Lzv///v///1nc///+////AeD///7///9g5v///v///9Du///+////AfD///7///819v///v///4P2///+////dvf///7///8B+P///v///wH8///+////KP3///7///8B/v///v////3+///+////AP////7///8B/////v///w7////+////gf////7///+O/////v///5P////+////mv////7///+g/////v///7D////+////t/////7////B/////v///8L////+////xf////7////I/////v///8v////+////zP////7////N/////v///87////+////z/////7////Q/////v///9H////+////0v////7////T/////v///9T////+////1f////7////W/////v///9f////+////2P////7////Z/////v///9r////+////2/////7////c/////v///93////+////3v////7////f/////v///+D////+////4f////7////i/////v///+P////+////5P////7////l/////v///+b////+////5/////7////o/////v///+n////+////6v////7////r/////v///+z////+////7f////7////u/////v///+/////+////8P////7////x/////v////L////+////8/////7////0/////v////X////+////9v////7////3/////v////j////+////+f////7////6/////v////v////+/////P////7////9/////v////7////+//////////7///8AAAAA/////w=="
-  families := families
-  chunkRows := 65536
-  chunks := #[Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData0.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData1.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData2.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData3.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData4.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData5.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData6.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData7.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData8.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData9.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData10.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData11.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData12.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData13.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData14.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData15.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData16.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData17.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData18.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData19.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData20.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData21.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData22.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData23.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData24.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData25.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData26.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData27.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData28.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData29.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData30.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData31.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData32.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData33.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData34.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData35.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData36.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData37.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData38.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData39.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData40.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData41.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData42.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData43.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData44.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData45.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData46.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData47.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData48.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData49.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData50.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData51.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData52.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData53.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData54.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData55.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData56.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData57.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData58.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData59.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData60.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData61.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData62.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData63.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData64.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData65.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData66.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData67.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData68.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData69.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData70.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData71.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData72.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData73.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData74.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData75.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData76.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData77.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData78.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData79.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData80.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData81.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData82.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData83.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData84.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData85.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData86.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData87.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData88.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData89.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData90.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData91.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData92.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData93.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData94.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData95.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData96.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData97.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData98.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData99.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData100.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData101.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData102.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData103.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData104.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData105.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData106.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData107.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData108.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData109.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData110.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData111.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData112.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData113.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData114.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData115.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData116.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData117.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData118.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData119.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData120.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData121.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData122.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData123.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData124.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData125.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData126.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData127.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData128.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData129.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData130.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData131.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData132.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData133.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData134.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData135.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData136.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData137.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData138.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData139.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData140.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData141.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData142.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData143.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData144.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData145.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData146.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData147.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData148.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData149.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData150.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData151.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData152.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData153.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData154.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData155.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData156.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData157.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData158.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData159.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData160.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData161.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData162.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData163.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData164.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData165.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData166.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData167.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData168.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData169.chunk, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactData170.chunk]
-
-def sourceArtifact : Artifact := sourceArtifactOf wire
-
-def reviewedPlan : List String := sourceArtifact.completeFamilies
-
-theorem reviewedPlan_subset :
-    ∀ family ∈ reviewedPlan, family ∈ sourceArtifact.completeFamilies :=
-  fun _ membership => membership
-
-theorem censusLeaf0 :
-    (rowsChunk wire 0).map (fun row => row.sourceIndex) =
-      List.range' 0 65536 := by
-  native_decide
-
-theorem rowsWfLeaf0 :
-    (rowsChunk wire 0).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf0 :
-    (rowsChunk wire 0).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf1 :
-    (rowsChunk wire 1).map (fun row => row.sourceIndex) =
-      List.range' 65536 65536 := by
-  native_decide
-
-theorem rowsWfLeaf1 :
-    (rowsChunk wire 1).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf1 :
-    (rowsChunk wire 1).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf2 :
-    (rowsChunk wire 2).map (fun row => row.sourceIndex) =
-      List.range' 131072 65536 := by
-  native_decide
-
-theorem rowsWfLeaf2 :
-    (rowsChunk wire 2).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf2 :
-    (rowsChunk wire 2).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf3 :
-    (rowsChunk wire 3).map (fun row => row.sourceIndex) =
-      List.range' 196608 65536 := by
-  native_decide
-
-theorem rowsWfLeaf3 :
-    (rowsChunk wire 3).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf3 :
-    (rowsChunk wire 3).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf4 :
-    (rowsChunk wire 4).map (fun row => row.sourceIndex) =
-      List.range' 262144 65536 := by
-  native_decide
-
-theorem rowsWfLeaf4 :
-    (rowsChunk wire 4).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf4 :
-    (rowsChunk wire 4).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf5 :
-    (rowsChunk wire 5).map (fun row => row.sourceIndex) =
-      List.range' 327680 65536 := by
-  native_decide
-
-theorem rowsWfLeaf5 :
-    (rowsChunk wire 5).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf5 :
-    (rowsChunk wire 5).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf6 :
-    (rowsChunk wire 6).map (fun row => row.sourceIndex) =
-      List.range' 393216 65536 := by
-  native_decide
-
-theorem rowsWfLeaf6 :
-    (rowsChunk wire 6).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf6 :
-    (rowsChunk wire 6).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf7 :
-    (rowsChunk wire 7).map (fun row => row.sourceIndex) =
-      List.range' 458752 65536 := by
-  native_decide
-
-theorem rowsWfLeaf7 :
-    (rowsChunk wire 7).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf7 :
-    (rowsChunk wire 7).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf8 :
-    (rowsChunk wire 8).map (fun row => row.sourceIndex) =
-      List.range' 524288 65536 := by
-  native_decide
-
-theorem rowsWfLeaf8 :
-    (rowsChunk wire 8).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf8 :
-    (rowsChunk wire 8).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf9 :
-    (rowsChunk wire 9).map (fun row => row.sourceIndex) =
-      List.range' 589824 65536 := by
-  native_decide
-
-theorem rowsWfLeaf9 :
-    (rowsChunk wire 9).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf9 :
-    (rowsChunk wire 9).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf10 :
-    (rowsChunk wire 10).map (fun row => row.sourceIndex) =
-      List.range' 655360 65536 := by
-  native_decide
-
-theorem rowsWfLeaf10 :
-    (rowsChunk wire 10).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf10 :
-    (rowsChunk wire 10).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf11 :
-    (rowsChunk wire 11).map (fun row => row.sourceIndex) =
-      List.range' 720896 65536 := by
-  native_decide
-
-theorem rowsWfLeaf11 :
-    (rowsChunk wire 11).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf11 :
-    (rowsChunk wire 11).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf12 :
-    (rowsChunk wire 12).map (fun row => row.sourceIndex) =
-      List.range' 786432 65536 := by
-  native_decide
-
-theorem rowsWfLeaf12 :
-    (rowsChunk wire 12).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf12 :
-    (rowsChunk wire 12).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf13 :
-    (rowsChunk wire 13).map (fun row => row.sourceIndex) =
-      List.range' 851968 65536 := by
-  native_decide
-
-theorem rowsWfLeaf13 :
-    (rowsChunk wire 13).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf13 :
-    (rowsChunk wire 13).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf14 :
-    (rowsChunk wire 14).map (fun row => row.sourceIndex) =
-      List.range' 917504 65536 := by
-  native_decide
-
-theorem rowsWfLeaf14 :
-    (rowsChunk wire 14).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf14 :
-    (rowsChunk wire 14).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf15 :
-    (rowsChunk wire 15).map (fun row => row.sourceIndex) =
-      List.range' 983040 65536 := by
-  native_decide
-
-theorem rowsWfLeaf15 :
-    (rowsChunk wire 15).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf15 :
-    (rowsChunk wire 15).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf16 :
-    (rowsChunk wire 16).map (fun row => row.sourceIndex) =
-      List.range' 1048576 65536 := by
-  native_decide
-
-theorem rowsWfLeaf16 :
-    (rowsChunk wire 16).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf16 :
-    (rowsChunk wire 16).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf17 :
-    (rowsChunk wire 17).map (fun row => row.sourceIndex) =
-      List.range' 1114112 65536 := by
-  native_decide
-
-theorem rowsWfLeaf17 :
-    (rowsChunk wire 17).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf17 :
-    (rowsChunk wire 17).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf18 :
-    (rowsChunk wire 18).map (fun row => row.sourceIndex) =
-      List.range' 1179648 65536 := by
-  native_decide
-
-theorem rowsWfLeaf18 :
-    (rowsChunk wire 18).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf18 :
-    (rowsChunk wire 18).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf19 :
-    (rowsChunk wire 19).map (fun row => row.sourceIndex) =
-      List.range' 1245184 65536 := by
-  native_decide
-
-theorem rowsWfLeaf19 :
-    (rowsChunk wire 19).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf19 :
-    (rowsChunk wire 19).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf20 :
-    (rowsChunk wire 20).map (fun row => row.sourceIndex) =
-      List.range' 1310720 65536 := by
-  native_decide
-
-theorem rowsWfLeaf20 :
-    (rowsChunk wire 20).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf20 :
-    (rowsChunk wire 20).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf21 :
-    (rowsChunk wire 21).map (fun row => row.sourceIndex) =
-      List.range' 1376256 65536 := by
-  native_decide
-
-theorem rowsWfLeaf21 :
-    (rowsChunk wire 21).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf21 :
-    (rowsChunk wire 21).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf22 :
-    (rowsChunk wire 22).map (fun row => row.sourceIndex) =
-      List.range' 1441792 65536 := by
-  native_decide
-
-theorem rowsWfLeaf22 :
-    (rowsChunk wire 22).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf22 :
-    (rowsChunk wire 22).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf23 :
-    (rowsChunk wire 23).map (fun row => row.sourceIndex) =
-      List.range' 1507328 65536 := by
-  native_decide
-
-theorem rowsWfLeaf23 :
-    (rowsChunk wire 23).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf23 :
-    (rowsChunk wire 23).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf24 :
-    (rowsChunk wire 24).map (fun row => row.sourceIndex) =
-      List.range' 1572864 65536 := by
-  native_decide
-
-theorem rowsWfLeaf24 :
-    (rowsChunk wire 24).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf24 :
-    (rowsChunk wire 24).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf25 :
-    (rowsChunk wire 25).map (fun row => row.sourceIndex) =
-      List.range' 1638400 65536 := by
-  native_decide
-
-theorem rowsWfLeaf25 :
-    (rowsChunk wire 25).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf25 :
-    (rowsChunk wire 25).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf26 :
-    (rowsChunk wire 26).map (fun row => row.sourceIndex) =
-      List.range' 1703936 65536 := by
-  native_decide
-
-theorem rowsWfLeaf26 :
-    (rowsChunk wire 26).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf26 :
-    (rowsChunk wire 26).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf27 :
-    (rowsChunk wire 27).map (fun row => row.sourceIndex) =
-      List.range' 1769472 65536 := by
-  native_decide
-
-theorem rowsWfLeaf27 :
-    (rowsChunk wire 27).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf27 :
-    (rowsChunk wire 27).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf28 :
-    (rowsChunk wire 28).map (fun row => row.sourceIndex) =
-      List.range' 1835008 65536 := by
-  native_decide
-
-theorem rowsWfLeaf28 :
-    (rowsChunk wire 28).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf28 :
-    (rowsChunk wire 28).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf29 :
-    (rowsChunk wire 29).map (fun row => row.sourceIndex) =
-      List.range' 1900544 65536 := by
-  native_decide
-
-theorem rowsWfLeaf29 :
-    (rowsChunk wire 29).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf29 :
-    (rowsChunk wire 29).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf30 :
-    (rowsChunk wire 30).map (fun row => row.sourceIndex) =
-      List.range' 1966080 65536 := by
-  native_decide
-
-theorem rowsWfLeaf30 :
-    (rowsChunk wire 30).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf30 :
-    (rowsChunk wire 30).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf31 :
-    (rowsChunk wire 31).map (fun row => row.sourceIndex) =
-      List.range' 2031616 65536 := by
-  native_decide
-
-theorem rowsWfLeaf31 :
-    (rowsChunk wire 31).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf31 :
-    (rowsChunk wire 31).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf32 :
-    (rowsChunk wire 32).map (fun row => row.sourceIndex) =
-      List.range' 2097152 65536 := by
-  native_decide
-
-theorem rowsWfLeaf32 :
-    (rowsChunk wire 32).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf32 :
-    (rowsChunk wire 32).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf33 :
-    (rowsChunk wire 33).map (fun row => row.sourceIndex) =
-      List.range' 2162688 65536 := by
-  native_decide
-
-theorem rowsWfLeaf33 :
-    (rowsChunk wire 33).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf33 :
-    (rowsChunk wire 33).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf34 :
-    (rowsChunk wire 34).map (fun row => row.sourceIndex) =
-      List.range' 2228224 65536 := by
-  native_decide
-
-theorem rowsWfLeaf34 :
-    (rowsChunk wire 34).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf34 :
-    (rowsChunk wire 34).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf35 :
-    (rowsChunk wire 35).map (fun row => row.sourceIndex) =
-      List.range' 2293760 65536 := by
-  native_decide
-
-theorem rowsWfLeaf35 :
-    (rowsChunk wire 35).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf35 :
-    (rowsChunk wire 35).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf36 :
-    (rowsChunk wire 36).map (fun row => row.sourceIndex) =
-      List.range' 2359296 65536 := by
-  native_decide
-
-theorem rowsWfLeaf36 :
-    (rowsChunk wire 36).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf36 :
-    (rowsChunk wire 36).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf37 :
-    (rowsChunk wire 37).map (fun row => row.sourceIndex) =
-      List.range' 2424832 65536 := by
-  native_decide
-
-theorem rowsWfLeaf37 :
-    (rowsChunk wire 37).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf37 :
-    (rowsChunk wire 37).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf38 :
-    (rowsChunk wire 38).map (fun row => row.sourceIndex) =
-      List.range' 2490368 65536 := by
-  native_decide
-
-theorem rowsWfLeaf38 :
-    (rowsChunk wire 38).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf38 :
-    (rowsChunk wire 38).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf39 :
-    (rowsChunk wire 39).map (fun row => row.sourceIndex) =
-      List.range' 2555904 65536 := by
-  native_decide
-
-theorem rowsWfLeaf39 :
-    (rowsChunk wire 39).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf39 :
-    (rowsChunk wire 39).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf40 :
-    (rowsChunk wire 40).map (fun row => row.sourceIndex) =
-      List.range' 2621440 65536 := by
-  native_decide
-
-theorem rowsWfLeaf40 :
-    (rowsChunk wire 40).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf40 :
-    (rowsChunk wire 40).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf41 :
-    (rowsChunk wire 41).map (fun row => row.sourceIndex) =
-      List.range' 2686976 65536 := by
-  native_decide
-
-theorem rowsWfLeaf41 :
-    (rowsChunk wire 41).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf41 :
-    (rowsChunk wire 41).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf42 :
-    (rowsChunk wire 42).map (fun row => row.sourceIndex) =
-      List.range' 2752512 65536 := by
-  native_decide
-
-theorem rowsWfLeaf42 :
-    (rowsChunk wire 42).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf42 :
-    (rowsChunk wire 42).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf43 :
-    (rowsChunk wire 43).map (fun row => row.sourceIndex) =
-      List.range' 2818048 65536 := by
-  native_decide
-
-theorem rowsWfLeaf43 :
-    (rowsChunk wire 43).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf43 :
-    (rowsChunk wire 43).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf44 :
-    (rowsChunk wire 44).map (fun row => row.sourceIndex) =
-      List.range' 2883584 65536 := by
-  native_decide
-
-theorem rowsWfLeaf44 :
-    (rowsChunk wire 44).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf44 :
-    (rowsChunk wire 44).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf45 :
-    (rowsChunk wire 45).map (fun row => row.sourceIndex) =
-      List.range' 2949120 65536 := by
-  native_decide
-
-theorem rowsWfLeaf45 :
-    (rowsChunk wire 45).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf45 :
-    (rowsChunk wire 45).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf46 :
-    (rowsChunk wire 46).map (fun row => row.sourceIndex) =
-      List.range' 3014656 65536 := by
-  native_decide
-
-theorem rowsWfLeaf46 :
-    (rowsChunk wire 46).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf46 :
-    (rowsChunk wire 46).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf47 :
-    (rowsChunk wire 47).map (fun row => row.sourceIndex) =
-      List.range' 3080192 65536 := by
-  native_decide
-
-theorem rowsWfLeaf47 :
-    (rowsChunk wire 47).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf47 :
-    (rowsChunk wire 47).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf48 :
-    (rowsChunk wire 48).map (fun row => row.sourceIndex) =
-      List.range' 3145728 65536 := by
-  native_decide
-
-theorem rowsWfLeaf48 :
-    (rowsChunk wire 48).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf48 :
-    (rowsChunk wire 48).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf49 :
-    (rowsChunk wire 49).map (fun row => row.sourceIndex) =
-      List.range' 3211264 65536 := by
-  native_decide
-
-theorem rowsWfLeaf49 :
-    (rowsChunk wire 49).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf49 :
-    (rowsChunk wire 49).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf50 :
-    (rowsChunk wire 50).map (fun row => row.sourceIndex) =
-      List.range' 3276800 65536 := by
-  native_decide
-
-theorem rowsWfLeaf50 :
-    (rowsChunk wire 50).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf50 :
-    (rowsChunk wire 50).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf51 :
-    (rowsChunk wire 51).map (fun row => row.sourceIndex) =
-      List.range' 3342336 65536 := by
-  native_decide
-
-theorem rowsWfLeaf51 :
-    (rowsChunk wire 51).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf51 :
-    (rowsChunk wire 51).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf52 :
-    (rowsChunk wire 52).map (fun row => row.sourceIndex) =
-      List.range' 3407872 65536 := by
-  native_decide
-
-theorem rowsWfLeaf52 :
-    (rowsChunk wire 52).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf52 :
-    (rowsChunk wire 52).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf53 :
-    (rowsChunk wire 53).map (fun row => row.sourceIndex) =
-      List.range' 3473408 65536 := by
-  native_decide
-
-theorem rowsWfLeaf53 :
-    (rowsChunk wire 53).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf53 :
-    (rowsChunk wire 53).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf54 :
-    (rowsChunk wire 54).map (fun row => row.sourceIndex) =
-      List.range' 3538944 65536 := by
-  native_decide
-
-theorem rowsWfLeaf54 :
-    (rowsChunk wire 54).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf54 :
-    (rowsChunk wire 54).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf55 :
-    (rowsChunk wire 55).map (fun row => row.sourceIndex) =
-      List.range' 3604480 65536 := by
-  native_decide
-
-theorem rowsWfLeaf55 :
-    (rowsChunk wire 55).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf55 :
-    (rowsChunk wire 55).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf56 :
-    (rowsChunk wire 56).map (fun row => row.sourceIndex) =
-      List.range' 3670016 65536 := by
-  native_decide
-
-theorem rowsWfLeaf56 :
-    (rowsChunk wire 56).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf56 :
-    (rowsChunk wire 56).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf57 :
-    (rowsChunk wire 57).map (fun row => row.sourceIndex) =
-      List.range' 3735552 65536 := by
-  native_decide
-
-theorem rowsWfLeaf57 :
-    (rowsChunk wire 57).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf57 :
-    (rowsChunk wire 57).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf58 :
-    (rowsChunk wire 58).map (fun row => row.sourceIndex) =
-      List.range' 3801088 65536 := by
-  native_decide
-
-theorem rowsWfLeaf58 :
-    (rowsChunk wire 58).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf58 :
-    (rowsChunk wire 58).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf59 :
-    (rowsChunk wire 59).map (fun row => row.sourceIndex) =
-      List.range' 3866624 65536 := by
-  native_decide
-
-theorem rowsWfLeaf59 :
-    (rowsChunk wire 59).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf59 :
-    (rowsChunk wire 59).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf60 :
-    (rowsChunk wire 60).map (fun row => row.sourceIndex) =
-      List.range' 3932160 65536 := by
-  native_decide
-
-theorem rowsWfLeaf60 :
-    (rowsChunk wire 60).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf60 :
-    (rowsChunk wire 60).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf61 :
-    (rowsChunk wire 61).map (fun row => row.sourceIndex) =
-      List.range' 3997696 65536 := by
-  native_decide
-
-theorem rowsWfLeaf61 :
-    (rowsChunk wire 61).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf61 :
-    (rowsChunk wire 61).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf62 :
-    (rowsChunk wire 62).map (fun row => row.sourceIndex) =
-      List.range' 4063232 65536 := by
-  native_decide
-
-theorem rowsWfLeaf62 :
-    (rowsChunk wire 62).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf62 :
-    (rowsChunk wire 62).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf63 :
-    (rowsChunk wire 63).map (fun row => row.sourceIndex) =
-      List.range' 4128768 65536 := by
-  native_decide
-
-theorem rowsWfLeaf63 :
-    (rowsChunk wire 63).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf63 :
-    (rowsChunk wire 63).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf64 :
-    (rowsChunk wire 64).map (fun row => row.sourceIndex) =
-      List.range' 4194304 65536 := by
-  native_decide
-
-theorem rowsWfLeaf64 :
-    (rowsChunk wire 64).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf64 :
-    (rowsChunk wire 64).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf65 :
-    (rowsChunk wire 65).map (fun row => row.sourceIndex) =
-      List.range' 4259840 65536 := by
-  native_decide
-
-theorem rowsWfLeaf65 :
-    (rowsChunk wire 65).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf65 :
-    (rowsChunk wire 65).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf66 :
-    (rowsChunk wire 66).map (fun row => row.sourceIndex) =
-      List.range' 4325376 65536 := by
-  native_decide
-
-theorem rowsWfLeaf66 :
-    (rowsChunk wire 66).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf66 :
-    (rowsChunk wire 66).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf67 :
-    (rowsChunk wire 67).map (fun row => row.sourceIndex) =
-      List.range' 4390912 65536 := by
-  native_decide
-
-theorem rowsWfLeaf67 :
-    (rowsChunk wire 67).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf67 :
-    (rowsChunk wire 67).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf68 :
-    (rowsChunk wire 68).map (fun row => row.sourceIndex) =
-      List.range' 4456448 65536 := by
-  native_decide
-
-theorem rowsWfLeaf68 :
-    (rowsChunk wire 68).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf68 :
-    (rowsChunk wire 68).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf69 :
-    (rowsChunk wire 69).map (fun row => row.sourceIndex) =
-      List.range' 4521984 65536 := by
-  native_decide
-
-theorem rowsWfLeaf69 :
-    (rowsChunk wire 69).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf69 :
-    (rowsChunk wire 69).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf70 :
-    (rowsChunk wire 70).map (fun row => row.sourceIndex) =
-      List.range' 4587520 65536 := by
-  native_decide
-
-theorem rowsWfLeaf70 :
-    (rowsChunk wire 70).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf70 :
-    (rowsChunk wire 70).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf71 :
-    (rowsChunk wire 71).map (fun row => row.sourceIndex) =
-      List.range' 4653056 65536 := by
-  native_decide
-
-theorem rowsWfLeaf71 :
-    (rowsChunk wire 71).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf71 :
-    (rowsChunk wire 71).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf72 :
-    (rowsChunk wire 72).map (fun row => row.sourceIndex) =
-      List.range' 4718592 65536 := by
-  native_decide
-
-theorem rowsWfLeaf72 :
-    (rowsChunk wire 72).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf72 :
-    (rowsChunk wire 72).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf73 :
-    (rowsChunk wire 73).map (fun row => row.sourceIndex) =
-      List.range' 4784128 65536 := by
-  native_decide
-
-theorem rowsWfLeaf73 :
-    (rowsChunk wire 73).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf73 :
-    (rowsChunk wire 73).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf74 :
-    (rowsChunk wire 74).map (fun row => row.sourceIndex) =
-      List.range' 4849664 65536 := by
-  native_decide
-
-theorem rowsWfLeaf74 :
-    (rowsChunk wire 74).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf74 :
-    (rowsChunk wire 74).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf75 :
-    (rowsChunk wire 75).map (fun row => row.sourceIndex) =
-      List.range' 4915200 65536 := by
-  native_decide
-
-theorem rowsWfLeaf75 :
-    (rowsChunk wire 75).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf75 :
-    (rowsChunk wire 75).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf76 :
-    (rowsChunk wire 76).map (fun row => row.sourceIndex) =
-      List.range' 4980736 65536 := by
-  native_decide
-
-theorem rowsWfLeaf76 :
-    (rowsChunk wire 76).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf76 :
-    (rowsChunk wire 76).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf77 :
-    (rowsChunk wire 77).map (fun row => row.sourceIndex) =
-      List.range' 5046272 65536 := by
-  native_decide
-
-theorem rowsWfLeaf77 :
-    (rowsChunk wire 77).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf77 :
-    (rowsChunk wire 77).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf78 :
-    (rowsChunk wire 78).map (fun row => row.sourceIndex) =
-      List.range' 5111808 65536 := by
-  native_decide
-
-theorem rowsWfLeaf78 :
-    (rowsChunk wire 78).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf78 :
-    (rowsChunk wire 78).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf79 :
-    (rowsChunk wire 79).map (fun row => row.sourceIndex) =
-      List.range' 5177344 65536 := by
-  native_decide
-
-theorem rowsWfLeaf79 :
-    (rowsChunk wire 79).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf79 :
-    (rowsChunk wire 79).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf80 :
-    (rowsChunk wire 80).map (fun row => row.sourceIndex) =
-      List.range' 5242880 65536 := by
-  native_decide
-
-theorem rowsWfLeaf80 :
-    (rowsChunk wire 80).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf80 :
-    (rowsChunk wire 80).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf81 :
-    (rowsChunk wire 81).map (fun row => row.sourceIndex) =
-      List.range' 5308416 65536 := by
-  native_decide
-
-theorem rowsWfLeaf81 :
-    (rowsChunk wire 81).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf81 :
-    (rowsChunk wire 81).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf82 :
-    (rowsChunk wire 82).map (fun row => row.sourceIndex) =
-      List.range' 5373952 65536 := by
-  native_decide
-
-theorem rowsWfLeaf82 :
-    (rowsChunk wire 82).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf82 :
-    (rowsChunk wire 82).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf83 :
-    (rowsChunk wire 83).map (fun row => row.sourceIndex) =
-      List.range' 5439488 65536 := by
-  native_decide
-
-theorem rowsWfLeaf83 :
-    (rowsChunk wire 83).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf83 :
-    (rowsChunk wire 83).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf84 :
-    (rowsChunk wire 84).map (fun row => row.sourceIndex) =
-      List.range' 5505024 65536 := by
-  native_decide
-
-theorem rowsWfLeaf84 :
-    (rowsChunk wire 84).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf84 :
-    (rowsChunk wire 84).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf85 :
-    (rowsChunk wire 85).map (fun row => row.sourceIndex) =
-      List.range' 5570560 65536 := by
-  native_decide
-
-theorem rowsWfLeaf85 :
-    (rowsChunk wire 85).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf85 :
-    (rowsChunk wire 85).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf86 :
-    (rowsChunk wire 86).map (fun row => row.sourceIndex) =
-      List.range' 5636096 65536 := by
-  native_decide
-
-theorem rowsWfLeaf86 :
-    (rowsChunk wire 86).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf86 :
-    (rowsChunk wire 86).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf87 :
-    (rowsChunk wire 87).map (fun row => row.sourceIndex) =
-      List.range' 5701632 65536 := by
-  native_decide
-
-theorem rowsWfLeaf87 :
-    (rowsChunk wire 87).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf87 :
-    (rowsChunk wire 87).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf88 :
-    (rowsChunk wire 88).map (fun row => row.sourceIndex) =
-      List.range' 5767168 65536 := by
-  native_decide
-
-theorem rowsWfLeaf88 :
-    (rowsChunk wire 88).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf88 :
-    (rowsChunk wire 88).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf89 :
-    (rowsChunk wire 89).map (fun row => row.sourceIndex) =
-      List.range' 5832704 65536 := by
-  native_decide
-
-theorem rowsWfLeaf89 :
-    (rowsChunk wire 89).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf89 :
-    (rowsChunk wire 89).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf90 :
-    (rowsChunk wire 90).map (fun row => row.sourceIndex) =
-      List.range' 5898240 65536 := by
-  native_decide
-
-theorem rowsWfLeaf90 :
-    (rowsChunk wire 90).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf90 :
-    (rowsChunk wire 90).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf91 :
-    (rowsChunk wire 91).map (fun row => row.sourceIndex) =
-      List.range' 5963776 65536 := by
-  native_decide
-
-theorem rowsWfLeaf91 :
-    (rowsChunk wire 91).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf91 :
-    (rowsChunk wire 91).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf92 :
-    (rowsChunk wire 92).map (fun row => row.sourceIndex) =
-      List.range' 6029312 65536 := by
-  native_decide
-
-theorem rowsWfLeaf92 :
-    (rowsChunk wire 92).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf92 :
-    (rowsChunk wire 92).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf93 :
-    (rowsChunk wire 93).map (fun row => row.sourceIndex) =
-      List.range' 6094848 65536 := by
-  native_decide
-
-theorem rowsWfLeaf93 :
-    (rowsChunk wire 93).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf93 :
-    (rowsChunk wire 93).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf94 :
-    (rowsChunk wire 94).map (fun row => row.sourceIndex) =
-      List.range' 6160384 65536 := by
-  native_decide
-
-theorem rowsWfLeaf94 :
-    (rowsChunk wire 94).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf94 :
-    (rowsChunk wire 94).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf95 :
-    (rowsChunk wire 95).map (fun row => row.sourceIndex) =
-      List.range' 6225920 65536 := by
-  native_decide
-
-theorem rowsWfLeaf95 :
-    (rowsChunk wire 95).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf95 :
-    (rowsChunk wire 95).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf96 :
-    (rowsChunk wire 96).map (fun row => row.sourceIndex) =
-      List.range' 6291456 65536 := by
-  native_decide
-
-theorem rowsWfLeaf96 :
-    (rowsChunk wire 96).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf96 :
-    (rowsChunk wire 96).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf97 :
-    (rowsChunk wire 97).map (fun row => row.sourceIndex) =
-      List.range' 6356992 65536 := by
-  native_decide
-
-theorem rowsWfLeaf97 :
-    (rowsChunk wire 97).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf97 :
-    (rowsChunk wire 97).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf98 :
-    (rowsChunk wire 98).map (fun row => row.sourceIndex) =
-      List.range' 6422528 65536 := by
-  native_decide
-
-theorem rowsWfLeaf98 :
-    (rowsChunk wire 98).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf98 :
-    (rowsChunk wire 98).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf99 :
-    (rowsChunk wire 99).map (fun row => row.sourceIndex) =
-      List.range' 6488064 65536 := by
-  native_decide
-
-theorem rowsWfLeaf99 :
-    (rowsChunk wire 99).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf99 :
-    (rowsChunk wire 99).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf100 :
-    (rowsChunk wire 100).map (fun row => row.sourceIndex) =
-      List.range' 6553600 65536 := by
-  native_decide
-
-theorem rowsWfLeaf100 :
-    (rowsChunk wire 100).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf100 :
-    (rowsChunk wire 100).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf101 :
-    (rowsChunk wire 101).map (fun row => row.sourceIndex) =
-      List.range' 6619136 65536 := by
-  native_decide
-
-theorem rowsWfLeaf101 :
-    (rowsChunk wire 101).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf101 :
-    (rowsChunk wire 101).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf102 :
-    (rowsChunk wire 102).map (fun row => row.sourceIndex) =
-      List.range' 6684672 65536 := by
-  native_decide
-
-theorem rowsWfLeaf102 :
-    (rowsChunk wire 102).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf102 :
-    (rowsChunk wire 102).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf103 :
-    (rowsChunk wire 103).map (fun row => row.sourceIndex) =
-      List.range' 6750208 65536 := by
-  native_decide
-
-theorem rowsWfLeaf103 :
-    (rowsChunk wire 103).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf103 :
-    (rowsChunk wire 103).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf104 :
-    (rowsChunk wire 104).map (fun row => row.sourceIndex) =
-      List.range' 6815744 65536 := by
-  native_decide
-
-theorem rowsWfLeaf104 :
-    (rowsChunk wire 104).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf104 :
-    (rowsChunk wire 104).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf105 :
-    (rowsChunk wire 105).map (fun row => row.sourceIndex) =
-      List.range' 6881280 65536 := by
-  native_decide
-
-theorem rowsWfLeaf105 :
-    (rowsChunk wire 105).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf105 :
-    (rowsChunk wire 105).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf106 :
-    (rowsChunk wire 106).map (fun row => row.sourceIndex) =
-      List.range' 6946816 65536 := by
-  native_decide
-
-theorem rowsWfLeaf106 :
-    (rowsChunk wire 106).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf106 :
-    (rowsChunk wire 106).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf107 :
-    (rowsChunk wire 107).map (fun row => row.sourceIndex) =
-      List.range' 7012352 65536 := by
-  native_decide
-
-theorem rowsWfLeaf107 :
-    (rowsChunk wire 107).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf107 :
-    (rowsChunk wire 107).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf108 :
-    (rowsChunk wire 108).map (fun row => row.sourceIndex) =
-      List.range' 7077888 65536 := by
-  native_decide
-
-theorem rowsWfLeaf108 :
-    (rowsChunk wire 108).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf108 :
-    (rowsChunk wire 108).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf109 :
-    (rowsChunk wire 109).map (fun row => row.sourceIndex) =
-      List.range' 7143424 65536 := by
-  native_decide
-
-theorem rowsWfLeaf109 :
-    (rowsChunk wire 109).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf109 :
-    (rowsChunk wire 109).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf110 :
-    (rowsChunk wire 110).map (fun row => row.sourceIndex) =
-      List.range' 7208960 65536 := by
-  native_decide
-
-theorem rowsWfLeaf110 :
-    (rowsChunk wire 110).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf110 :
-    (rowsChunk wire 110).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf111 :
-    (rowsChunk wire 111).map (fun row => row.sourceIndex) =
-      List.range' 7274496 65536 := by
-  native_decide
-
-theorem rowsWfLeaf111 :
-    (rowsChunk wire 111).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf111 :
-    (rowsChunk wire 111).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf112 :
-    (rowsChunk wire 112).map (fun row => row.sourceIndex) =
-      List.range' 7340032 65536 := by
-  native_decide
-
-theorem rowsWfLeaf112 :
-    (rowsChunk wire 112).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf112 :
-    (rowsChunk wire 112).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf113 :
-    (rowsChunk wire 113).map (fun row => row.sourceIndex) =
-      List.range' 7405568 65536 := by
-  native_decide
-
-theorem rowsWfLeaf113 :
-    (rowsChunk wire 113).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf113 :
-    (rowsChunk wire 113).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf114 :
-    (rowsChunk wire 114).map (fun row => row.sourceIndex) =
-      List.range' 7471104 65536 := by
-  native_decide
-
-theorem rowsWfLeaf114 :
-    (rowsChunk wire 114).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf114 :
-    (rowsChunk wire 114).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf115 :
-    (rowsChunk wire 115).map (fun row => row.sourceIndex) =
-      List.range' 7536640 65536 := by
-  native_decide
-
-theorem rowsWfLeaf115 :
-    (rowsChunk wire 115).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf115 :
-    (rowsChunk wire 115).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf116 :
-    (rowsChunk wire 116).map (fun row => row.sourceIndex) =
-      List.range' 7602176 65536 := by
-  native_decide
-
-theorem rowsWfLeaf116 :
-    (rowsChunk wire 116).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf116 :
-    (rowsChunk wire 116).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf117 :
-    (rowsChunk wire 117).map (fun row => row.sourceIndex) =
-      List.range' 7667712 65536 := by
-  native_decide
-
-theorem rowsWfLeaf117 :
-    (rowsChunk wire 117).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf117 :
-    (rowsChunk wire 117).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf118 :
-    (rowsChunk wire 118).map (fun row => row.sourceIndex) =
-      List.range' 7733248 65536 := by
-  native_decide
-
-theorem rowsWfLeaf118 :
-    (rowsChunk wire 118).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf118 :
-    (rowsChunk wire 118).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf119 :
-    (rowsChunk wire 119).map (fun row => row.sourceIndex) =
-      List.range' 7798784 65536 := by
-  native_decide
-
-theorem rowsWfLeaf119 :
-    (rowsChunk wire 119).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf119 :
-    (rowsChunk wire 119).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf120 :
-    (rowsChunk wire 120).map (fun row => row.sourceIndex) =
-      List.range' 7864320 65536 := by
-  native_decide
-
-theorem rowsWfLeaf120 :
-    (rowsChunk wire 120).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf120 :
-    (rowsChunk wire 120).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf121 :
-    (rowsChunk wire 121).map (fun row => row.sourceIndex) =
-      List.range' 7929856 65536 := by
-  native_decide
-
-theorem rowsWfLeaf121 :
-    (rowsChunk wire 121).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf121 :
-    (rowsChunk wire 121).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf122 :
-    (rowsChunk wire 122).map (fun row => row.sourceIndex) =
-      List.range' 7995392 65536 := by
-  native_decide
-
-theorem rowsWfLeaf122 :
-    (rowsChunk wire 122).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf122 :
-    (rowsChunk wire 122).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf123 :
-    (rowsChunk wire 123).map (fun row => row.sourceIndex) =
-      List.range' 8060928 65536 := by
-  native_decide
-
-theorem rowsWfLeaf123 :
-    (rowsChunk wire 123).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf123 :
-    (rowsChunk wire 123).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf124 :
-    (rowsChunk wire 124).map (fun row => row.sourceIndex) =
-      List.range' 8126464 65536 := by
-  native_decide
-
-theorem rowsWfLeaf124 :
-    (rowsChunk wire 124).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf124 :
-    (rowsChunk wire 124).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf125 :
-    (rowsChunk wire 125).map (fun row => row.sourceIndex) =
-      List.range' 8192000 65536 := by
-  native_decide
-
-theorem rowsWfLeaf125 :
-    (rowsChunk wire 125).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf125 :
-    (rowsChunk wire 125).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf126 :
-    (rowsChunk wire 126).map (fun row => row.sourceIndex) =
-      List.range' 8257536 65536 := by
-  native_decide
-
-theorem rowsWfLeaf126 :
-    (rowsChunk wire 126).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf126 :
-    (rowsChunk wire 126).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf127 :
-    (rowsChunk wire 127).map (fun row => row.sourceIndex) =
-      List.range' 8323072 65536 := by
-  native_decide
-
-theorem rowsWfLeaf127 :
-    (rowsChunk wire 127).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf127 :
-    (rowsChunk wire 127).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf128 :
-    (rowsChunk wire 128).map (fun row => row.sourceIndex) =
-      List.range' 8388608 65536 := by
-  native_decide
-
-theorem rowsWfLeaf128 :
-    (rowsChunk wire 128).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf128 :
-    (rowsChunk wire 128).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf129 :
-    (rowsChunk wire 129).map (fun row => row.sourceIndex) =
-      List.range' 8454144 65536 := by
-  native_decide
-
-theorem rowsWfLeaf129 :
-    (rowsChunk wire 129).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf129 :
-    (rowsChunk wire 129).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf130 :
-    (rowsChunk wire 130).map (fun row => row.sourceIndex) =
-      List.range' 8519680 65536 := by
-  native_decide
-
-theorem rowsWfLeaf130 :
-    (rowsChunk wire 130).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf130 :
-    (rowsChunk wire 130).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf131 :
-    (rowsChunk wire 131).map (fun row => row.sourceIndex) =
-      List.range' 8585216 65536 := by
-  native_decide
-
-theorem rowsWfLeaf131 :
-    (rowsChunk wire 131).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf131 :
-    (rowsChunk wire 131).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf132 :
-    (rowsChunk wire 132).map (fun row => row.sourceIndex) =
-      List.range' 8650752 65536 := by
-  native_decide
-
-theorem rowsWfLeaf132 :
-    (rowsChunk wire 132).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf132 :
-    (rowsChunk wire 132).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf133 :
-    (rowsChunk wire 133).map (fun row => row.sourceIndex) =
-      List.range' 8716288 65536 := by
-  native_decide
-
-theorem rowsWfLeaf133 :
-    (rowsChunk wire 133).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf133 :
-    (rowsChunk wire 133).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf134 :
-    (rowsChunk wire 134).map (fun row => row.sourceIndex) =
-      List.range' 8781824 65536 := by
-  native_decide
-
-theorem rowsWfLeaf134 :
-    (rowsChunk wire 134).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf134 :
-    (rowsChunk wire 134).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf135 :
-    (rowsChunk wire 135).map (fun row => row.sourceIndex) =
-      List.range' 8847360 65536 := by
-  native_decide
-
-theorem rowsWfLeaf135 :
-    (rowsChunk wire 135).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf135 :
-    (rowsChunk wire 135).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf136 :
-    (rowsChunk wire 136).map (fun row => row.sourceIndex) =
-      List.range' 8912896 65536 := by
-  native_decide
-
-theorem rowsWfLeaf136 :
-    (rowsChunk wire 136).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf136 :
-    (rowsChunk wire 136).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf137 :
-    (rowsChunk wire 137).map (fun row => row.sourceIndex) =
-      List.range' 8978432 65536 := by
-  native_decide
-
-theorem rowsWfLeaf137 :
-    (rowsChunk wire 137).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf137 :
-    (rowsChunk wire 137).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf138 :
-    (rowsChunk wire 138).map (fun row => row.sourceIndex) =
-      List.range' 9043968 65536 := by
-  native_decide
-
-theorem rowsWfLeaf138 :
-    (rowsChunk wire 138).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf138 :
-    (rowsChunk wire 138).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf139 :
-    (rowsChunk wire 139).map (fun row => row.sourceIndex) =
-      List.range' 9109504 65536 := by
-  native_decide
-
-theorem rowsWfLeaf139 :
-    (rowsChunk wire 139).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf139 :
-    (rowsChunk wire 139).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf140 :
-    (rowsChunk wire 140).map (fun row => row.sourceIndex) =
-      List.range' 9175040 65536 := by
-  native_decide
-
-theorem rowsWfLeaf140 :
-    (rowsChunk wire 140).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf140 :
-    (rowsChunk wire 140).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf141 :
-    (rowsChunk wire 141).map (fun row => row.sourceIndex) =
-      List.range' 9240576 65536 := by
-  native_decide
-
-theorem rowsWfLeaf141 :
-    (rowsChunk wire 141).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf141 :
-    (rowsChunk wire 141).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf142 :
-    (rowsChunk wire 142).map (fun row => row.sourceIndex) =
-      List.range' 9306112 65536 := by
-  native_decide
-
-theorem rowsWfLeaf142 :
-    (rowsChunk wire 142).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf142 :
-    (rowsChunk wire 142).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf143 :
-    (rowsChunk wire 143).map (fun row => row.sourceIndex) =
-      List.range' 9371648 65536 := by
-  native_decide
-
-theorem rowsWfLeaf143 :
-    (rowsChunk wire 143).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf143 :
-    (rowsChunk wire 143).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf144 :
-    (rowsChunk wire 144).map (fun row => row.sourceIndex) =
-      List.range' 9437184 65536 := by
-  native_decide
-
-theorem rowsWfLeaf144 :
-    (rowsChunk wire 144).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf144 :
-    (rowsChunk wire 144).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf145 :
-    (rowsChunk wire 145).map (fun row => row.sourceIndex) =
-      List.range' 9502720 65536 := by
-  native_decide
-
-theorem rowsWfLeaf145 :
-    (rowsChunk wire 145).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf145 :
-    (rowsChunk wire 145).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf146 :
-    (rowsChunk wire 146).map (fun row => row.sourceIndex) =
-      List.range' 9568256 65536 := by
-  native_decide
-
-theorem rowsWfLeaf146 :
-    (rowsChunk wire 146).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf146 :
-    (rowsChunk wire 146).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf147 :
-    (rowsChunk wire 147).map (fun row => row.sourceIndex) =
-      List.range' 9633792 65536 := by
-  native_decide
-
-theorem rowsWfLeaf147 :
-    (rowsChunk wire 147).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf147 :
-    (rowsChunk wire 147).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf148 :
-    (rowsChunk wire 148).map (fun row => row.sourceIndex) =
-      List.range' 9699328 65536 := by
-  native_decide
-
-theorem rowsWfLeaf148 :
-    (rowsChunk wire 148).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf148 :
-    (rowsChunk wire 148).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf149 :
-    (rowsChunk wire 149).map (fun row => row.sourceIndex) =
-      List.range' 9764864 65536 := by
-  native_decide
-
-theorem rowsWfLeaf149 :
-    (rowsChunk wire 149).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf149 :
-    (rowsChunk wire 149).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf150 :
-    (rowsChunk wire 150).map (fun row => row.sourceIndex) =
-      List.range' 9830400 65536 := by
-  native_decide
-
-theorem rowsWfLeaf150 :
-    (rowsChunk wire 150).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf150 :
-    (rowsChunk wire 150).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf151 :
-    (rowsChunk wire 151).map (fun row => row.sourceIndex) =
-      List.range' 9895936 65536 := by
-  native_decide
-
-theorem rowsWfLeaf151 :
-    (rowsChunk wire 151).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf151 :
-    (rowsChunk wire 151).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf152 :
-    (rowsChunk wire 152).map (fun row => row.sourceIndex) =
-      List.range' 9961472 65536 := by
-  native_decide
-
-theorem rowsWfLeaf152 :
-    (rowsChunk wire 152).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf152 :
-    (rowsChunk wire 152).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf153 :
-    (rowsChunk wire 153).map (fun row => row.sourceIndex) =
-      List.range' 10027008 65536 := by
-  native_decide
-
-theorem rowsWfLeaf153 :
-    (rowsChunk wire 153).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf153 :
-    (rowsChunk wire 153).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf154 :
-    (rowsChunk wire 154).map (fun row => row.sourceIndex) =
-      List.range' 10092544 65536 := by
-  native_decide
-
-theorem rowsWfLeaf154 :
-    (rowsChunk wire 154).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf154 :
-    (rowsChunk wire 154).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf155 :
-    (rowsChunk wire 155).map (fun row => row.sourceIndex) =
-      List.range' 10158080 65536 := by
-  native_decide
-
-theorem rowsWfLeaf155 :
-    (rowsChunk wire 155).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf155 :
-    (rowsChunk wire 155).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf156 :
-    (rowsChunk wire 156).map (fun row => row.sourceIndex) =
-      List.range' 10223616 65536 := by
-  native_decide
-
-theorem rowsWfLeaf156 :
-    (rowsChunk wire 156).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf156 :
-    (rowsChunk wire 156).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf157 :
-    (rowsChunk wire 157).map (fun row => row.sourceIndex) =
-      List.range' 10289152 65536 := by
-  native_decide
-
-theorem rowsWfLeaf157 :
-    (rowsChunk wire 157).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf157 :
-    (rowsChunk wire 157).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf158 :
-    (rowsChunk wire 158).map (fun row => row.sourceIndex) =
-      List.range' 10354688 65536 := by
-  native_decide
-
-theorem rowsWfLeaf158 :
-    (rowsChunk wire 158).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf158 :
-    (rowsChunk wire 158).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf159 :
-    (rowsChunk wire 159).map (fun row => row.sourceIndex) =
-      List.range' 10420224 65536 := by
-  native_decide
-
-theorem rowsWfLeaf159 :
-    (rowsChunk wire 159).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf159 :
-    (rowsChunk wire 159).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf160 :
-    (rowsChunk wire 160).map (fun row => row.sourceIndex) =
-      List.range' 10485760 65536 := by
-  native_decide
-
-theorem rowsWfLeaf160 :
-    (rowsChunk wire 160).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf160 :
-    (rowsChunk wire 160).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf161 :
-    (rowsChunk wire 161).map (fun row => row.sourceIndex) =
-      List.range' 10551296 65536 := by
-  native_decide
-
-theorem rowsWfLeaf161 :
-    (rowsChunk wire 161).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf161 :
-    (rowsChunk wire 161).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf162 :
-    (rowsChunk wire 162).map (fun row => row.sourceIndex) =
-      List.range' 10616832 65536 := by
-  native_decide
-
-theorem rowsWfLeaf162 :
-    (rowsChunk wire 162).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf162 :
-    (rowsChunk wire 162).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf163 :
-    (rowsChunk wire 163).map (fun row => row.sourceIndex) =
-      List.range' 10682368 65536 := by
-  native_decide
-
-theorem rowsWfLeaf163 :
-    (rowsChunk wire 163).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf163 :
-    (rowsChunk wire 163).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf164 :
-    (rowsChunk wire 164).map (fun row => row.sourceIndex) =
-      List.range' 10747904 65536 := by
-  native_decide
-
-theorem rowsWfLeaf164 :
-    (rowsChunk wire 164).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf164 :
-    (rowsChunk wire 164).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf165 :
-    (rowsChunk wire 165).map (fun row => row.sourceIndex) =
-      List.range' 10813440 65536 := by
-  native_decide
-
-theorem rowsWfLeaf165 :
-    (rowsChunk wire 165).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf165 :
-    (rowsChunk wire 165).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf166 :
-    (rowsChunk wire 166).map (fun row => row.sourceIndex) =
-      List.range' 10878976 65536 := by
-  native_decide
-
-theorem rowsWfLeaf166 :
-    (rowsChunk wire 166).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf166 :
-    (rowsChunk wire 166).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf167 :
-    (rowsChunk wire 167).map (fun row => row.sourceIndex) =
-      List.range' 10944512 65536 := by
-  native_decide
-
-theorem rowsWfLeaf167 :
-    (rowsChunk wire 167).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf167 :
-    (rowsChunk wire 167).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf168 :
-    (rowsChunk wire 168).map (fun row => row.sourceIndex) =
-      List.range' 11010048 65536 := by
-  native_decide
-
-theorem rowsWfLeaf168 :
-    (rowsChunk wire 168).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf168 :
-    (rowsChunk wire 168).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf169 :
-    (rowsChunk wire 169).map (fun row => row.sourceIndex) =
-      List.range' 11075584 65536 := by
-  native_decide
-
-theorem rowsWfLeaf169 :
-    (rowsChunk wire 169).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf169 :
-    (rowsChunk wire 169).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem censusLeaf170 :
-    (rowsChunk wire 170).map (fun row => row.sourceIndex) =
-      List.range' 11141120 46705 := by
-  native_decide
-
-theorem rowsWfLeaf170 :
-    (rowsChunk wire 170).all (rowWellFormedAt 11187825 11078210) = true := by
-  native_decide
-
-theorem familiesLeaf170 :
-    (rowsChunk wire 170).all
-      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
-  native_decide
-
-theorem presenceLeaf0 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "fprime.recursive.finalize.application")) = true := by
-  native_decide
-
-theorem presenceLeaf1 :
-    (rowsChunk wire 130).any
-      (fun row => decide (row.family = "fprime.recursive.step.accumulator.input_link")) = true := by
-  native_decide
-
-theorem presenceLeaf2 :
-    (rowsChunk wire 170).any
-      (fun row => decide (row.family = "fprime.recursive.step.accumulator.output_authority.aggregate")) = true := by
-  native_decide
-
-theorem presenceLeaf3 :
-    (rowsChunk wire 130).any
-      (fun row => decide (row.family = "fprime.recursive.step.accumulator.output_authority.child_digests")) = true := by
-  native_decide
-
-theorem presenceLeaf4 :
-    (rowsChunk wire 170).any
-      (fun row => decide (row.family = "fprime.recursive.step.counters")) = true := by
-  native_decide
-
-theorem presenceLeaf5 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "fprime.recursive.step.nebula")) = true := by
-  native_decide
-
-theorem presenceLeaf6 :
-    (rowsChunk wire 170).any
-      (fun row => decide (row.family = "fprime.recursive.step.output")) = true := by
-  native_decide
-
-theorem presenceLeaf7 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "fprime.recursive.step.prelude")) = true := by
-  native_decide
-
-theorem presenceLeaf8 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "fprime.recursive.step.prior_link.carrier_padding")) = true := by
-  native_decide
-
-theorem presenceLeaf9 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "fprime.recursive.step.prior_link.digest")) = true := by
-  native_decide
-
-theorem presenceLeaf10 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "fprime.recursive.step.prior_link.enc_inst")) = true := by
-  native_decide
-
-theorem presenceLeaf11 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "fprime.recursive.step.transcript")) = true := by
-  native_decide
-
-theorem presenceLeaf12 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.allocations")) = true := by
-  native_decide
-
-theorem presenceLeaf13 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.binding")) = true := by
-  native_decide
-
-theorem presenceLeaf14 :
-    (rowsChunk wire 0).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.canonicality")) = true := by
-  native_decide
-
-theorem presenceLeaf15 :
-    (rowsChunk wire 60).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.challenges")) = true := by
-  native_decide
-
-theorem presenceLeaf16 :
-    (rowsChunk wire 102).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_digest.claim")) = true := by
-  native_decide
-
-theorem presenceLeaf17 :
-    (rowsChunk wire 64).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_digest.preimage.outer_header")) = true := by
-  native_decide
-
-theorem presenceLeaf18 :
-    (rowsChunk wire 64).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_digest.preimage.source_headers")) = true := by
-  native_decide
-
-theorem presenceLeaf19 :
-    (rowsChunk wire 64).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_digest.preimage.y_ring")) = true := by
-  native_decide
-
-theorem presenceLeaf20 :
-    (rowsChunk wire 64).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_digest.sis")) = true := by
-  native_decide
-
-theorem presenceLeaf21 :
-    (rowsChunk wire 64).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.output_transcript")) = true := by
-  native_decide
-
-theorem presenceLeaf22 :
-    (rowsChunk wire 57).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.prefix")) = true := by
-  native_decide
-
-theorem presenceLeaf23 :
-    (rowsChunk wire 61).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.sumcheck")) = true := by
-  native_decide
-
-theorem presenceLeaf24 :
-    (rowsChunk wire 63).any
-      (fun row => decide (row.family = "nifs.pi_ccs.padded_row.terminal")) = true := by
-  native_decide
-
-theorem presenceLeaf25 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "nifs.pi_dec.verify")) = true := by
-  native_decide
-
-theorem presenceLeaf26 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.acceptance_bound")) = true := by
-  native_decide
-
-theorem presenceLeaf27 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.chunk.accept")) = true := by
-  native_decide
-
-theorem presenceLeaf28 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.chunk.mod5")) = true := by
-  native_decide
-
-theorem presenceLeaf29 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.chunk.symbol_and_prefix")) = true := by
-  native_decide
-
-theorem presenceLeaf30 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.initialize")) = true := by
-  native_decide
-
-theorem presenceLeaf31 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.selection.initialize")) = true := by
-  native_decide
-
-theorem presenceLeaf32 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.selection.one_hot")) = true := by
-  native_decide
-
-theorem presenceLeaf33 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.sampler.selection.products")) = true := by
-  native_decide
-
-theorem presenceLeaf34 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.transcript.bind_outputs_digest")) = true := by
-  native_decide
-
-theorem presenceLeaf35 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.transcript.digest_rounds")) = true := by
-  native_decide
-
-theorem presenceLeaf36 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.transcript.lane_bit_decomposition")) = true := by
-  native_decide
-
-theorem presenceLeaf37 :
-    (rowsChunk wire 103).any
-      (fun row => decide (row.family = "nifs.pi_rlc.challenge.transcript.rho_domain_separator")) = true := by
-  native_decide
-
-theorem presenceLeaf38 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.allocate_parent_and_children")) = true := by
-  native_decide
-
-theorem presenceLeaf39 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.output_parity")) = true := by
-  native_decide
-
-theorem presenceLeaf40 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.shape.parent")) = true := by
-  native_decide
-
-theorem presenceLeaf41 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.consistency.fold_digest")) = true := by
-  native_decide
-
-theorem presenceLeaf42 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.evaluations.inputs")) = true := by
-  native_decide
-
-theorem presenceLeaf43 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.evaluations.output")) = true := by
-  native_decide
-
-theorem presenceLeaf44 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.evaluations.quotient")) = true := by
-  native_decide
-
-theorem presenceLeaf45 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.final_limb_checks")) = true := by
-  native_decide
-
-theorem presenceLeaf46 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.k_products.quotient_times_phi")) = true := by
-  native_decide
-
-theorem presenceLeaf47 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.adv.k_products.rho_times_input")) = true := by
-  native_decide
-
-theorem presenceLeaf48 :
-    (rowsChunk wire 125).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.evaluations.inputs")) = true := by
-  native_decide
-
-theorem presenceLeaf49 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.evaluations.output")) = true := by
-  native_decide
-
-theorem presenceLeaf50 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.evaluations.quotient")) = true := by
-  native_decide
-
-theorem presenceLeaf51 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.final_limb_checks")) = true := by
-  native_decide
-
-theorem presenceLeaf52 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.k_products.quotient_times_phi")) = true := by
-  native_decide
-
-theorem presenceLeaf53 :
-    (rowsChunk wire 125).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.commitment.k_products.rho_times_input")) = true := by
-  native_decide
-
-theorem presenceLeaf54 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.evaluations.inputs")) = true := by
-  native_decide
-
-theorem presenceLeaf55 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.evaluations.output")) = true := by
-  native_decide
-
-theorem presenceLeaf56 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.evaluations.quotient")) = true := by
-  native_decide
-
-theorem presenceLeaf57 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.final_limb_checks")) = true := by
-  native_decide
-
-theorem presenceLeaf58 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.k_products.quotient_times_phi")) = true := by
-  native_decide
-
-theorem presenceLeaf59 :
-    (rowsChunk wire 126).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.x.k_products.rho_times_input")) = true := by
-  native_decide
-
-theorem presenceLeaf60 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.evaluations.inputs")) = true := by
-  native_decide
-
-theorem presenceLeaf61 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.evaluations.output")) = true := by
-  native_decide
-
-theorem presenceLeaf62 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.evaluations.quotient")) = true := by
-  native_decide
-
-theorem presenceLeaf63 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.final_limb_checks")) = true := by
-  native_decide
-
-theorem presenceLeaf64 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.k_products.quotient_times_phi")) = true := by
-  native_decide
-
-theorem presenceLeaf65 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.identities.y_ring.k_products.rho_times_input")) = true := by
-  native_decide
-
-theorem presenceLeaf66 :
-    (rowsChunk wire 127).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.padding.y_ring")) = true := by
-  native_decide
-
-theorem presenceLeaf67 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.adv")) = true := by
-  native_decide
-
-theorem presenceLeaf68 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.commitment")) = true := by
-  native_decide
-
-theorem presenceLeaf69 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.x")) = true := by
-  native_decide
-
-theorem presenceLeaf70 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.combined.y_ring")) = true := by
-  native_decide
-
-theorem presenceLeaf71 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.domain")) = true := by
-  native_decide
-
-theorem presenceLeaf72 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.adv")) = true := by
-  native_decide
-
-theorem presenceLeaf73 :
-    (rowsChunk wire 106).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.commitment")) = true := by
-  native_decide
-
-theorem presenceLeaf74 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.x")) = true := by
-  native_decide
-
-theorem presenceLeaf75 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.quotient.y_ring")) = true := by
-  native_decide
-
-theorem presenceLeaf76 :
-    (rowsChunk wire 108).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.sis_digest")) = true := by
-  native_decide
-
-theorem presenceLeaf77 :
-    (rowsChunk wire 125).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_binding.transcript_beta")) = true := by
-  native_decide
-
-theorem presenceLeaf78 :
-    (rowsChunk wire 125).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_shared.beta_ladder")) = true := by
-  native_decide
-
-theorem presenceLeaf79 :
-    (rowsChunk wire 125).any
-      (fun row => decide (row.family = "nifs.pi_rlc.verify.projection_shared.rho_evaluations")) = true := by
-  native_decide
-
-theorem presenceLeaf80 :
-    (rowsChunk wire 128).any
-      (fun row => decide (row.family = "nifs.point_binding")) = true := by
-  native_decide
-
-theorem presenceLeaf81 :
-    (rowsChunk wire 102).any
-      (fun row => decide (row.family = "nifs.running_parent_pi_dec")) = true := by
-  native_decide
+export Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactWire (families wire sourceArtifact reviewedPlan reviewedPlan_subset chunkRows_eq totalRows_eq chunkCount_eq)
 
 theorem censuses :
     ∀ k, k < wire.chunkCount →
       (rowsChunk wire k).map (fun row => row.sourceIndex) =
         List.range' (wire.chunkStart k) (wire.chunkLength k) := by
   intro k bound
-  match k with
-  | 0 => exact censusLeaf0
-  | 1 => exact censusLeaf1
-  | 2 => exact censusLeaf2
-  | 3 => exact censusLeaf3
-  | 4 => exact censusLeaf4
-  | 5 => exact censusLeaf5
-  | 6 => exact censusLeaf6
-  | 7 => exact censusLeaf7
-  | 8 => exact censusLeaf8
-  | 9 => exact censusLeaf9
-  | 10 => exact censusLeaf10
-  | 11 => exact censusLeaf11
-  | 12 => exact censusLeaf12
-  | 13 => exact censusLeaf13
-  | 14 => exact censusLeaf14
-  | 15 => exact censusLeaf15
-  | 16 => exact censusLeaf16
-  | 17 => exact censusLeaf17
-  | 18 => exact censusLeaf18
-  | 19 => exact censusLeaf19
-  | 20 => exact censusLeaf20
-  | 21 => exact censusLeaf21
-  | 22 => exact censusLeaf22
-  | 23 => exact censusLeaf23
-  | 24 => exact censusLeaf24
-  | 25 => exact censusLeaf25
-  | 26 => exact censusLeaf26
-  | 27 => exact censusLeaf27
-  | 28 => exact censusLeaf28
-  | 29 => exact censusLeaf29
-  | 30 => exact censusLeaf30
-  | 31 => exact censusLeaf31
-  | 32 => exact censusLeaf32
-  | 33 => exact censusLeaf33
-  | 34 => exact censusLeaf34
-  | 35 => exact censusLeaf35
-  | 36 => exact censusLeaf36
-  | 37 => exact censusLeaf37
-  | 38 => exact censusLeaf38
-  | 39 => exact censusLeaf39
-  | 40 => exact censusLeaf40
-  | 41 => exact censusLeaf41
-  | 42 => exact censusLeaf42
-  | 43 => exact censusLeaf43
-  | 44 => exact censusLeaf44
-  | 45 => exact censusLeaf45
-  | 46 => exact censusLeaf46
-  | 47 => exact censusLeaf47
-  | 48 => exact censusLeaf48
-  | 49 => exact censusLeaf49
-  | 50 => exact censusLeaf50
-  | 51 => exact censusLeaf51
-  | 52 => exact censusLeaf52
-  | 53 => exact censusLeaf53
-  | 54 => exact censusLeaf54
-  | 55 => exact censusLeaf55
-  | 56 => exact censusLeaf56
-  | 57 => exact censusLeaf57
-  | 58 => exact censusLeaf58
-  | 59 => exact censusLeaf59
-  | 60 => exact censusLeaf60
-  | 61 => exact censusLeaf61
-  | 62 => exact censusLeaf62
-  | 63 => exact censusLeaf63
-  | 64 => exact censusLeaf64
-  | 65 => exact censusLeaf65
-  | 66 => exact censusLeaf66
-  | 67 => exact censusLeaf67
-  | 68 => exact censusLeaf68
-  | 69 => exact censusLeaf69
-  | 70 => exact censusLeaf70
-  | 71 => exact censusLeaf71
-  | 72 => exact censusLeaf72
-  | 73 => exact censusLeaf73
-  | 74 => exact censusLeaf74
-  | 75 => exact censusLeaf75
-  | 76 => exact censusLeaf76
-  | 77 => exact censusLeaf77
-  | 78 => exact censusLeaf78
-  | 79 => exact censusLeaf79
-  | 80 => exact censusLeaf80
-  | 81 => exact censusLeaf81
-  | 82 => exact censusLeaf82
-  | 83 => exact censusLeaf83
-  | 84 => exact censusLeaf84
-  | 85 => exact censusLeaf85
-  | 86 => exact censusLeaf86
-  | 87 => exact censusLeaf87
-  | 88 => exact censusLeaf88
-  | 89 => exact censusLeaf89
-  | 90 => exact censusLeaf90
-  | 91 => exact censusLeaf91
-  | 92 => exact censusLeaf92
-  | 93 => exact censusLeaf93
-  | 94 => exact censusLeaf94
-  | 95 => exact censusLeaf95
-  | 96 => exact censusLeaf96
-  | 97 => exact censusLeaf97
-  | 98 => exact censusLeaf98
-  | 99 => exact censusLeaf99
-  | 100 => exact censusLeaf100
-  | 101 => exact censusLeaf101
-  | 102 => exact censusLeaf102
-  | 103 => exact censusLeaf103
-  | 104 => exact censusLeaf104
-  | 105 => exact censusLeaf105
-  | 106 => exact censusLeaf106
-  | 107 => exact censusLeaf107
-  | 108 => exact censusLeaf108
-  | 109 => exact censusLeaf109
-  | 110 => exact censusLeaf110
-  | 111 => exact censusLeaf111
-  | 112 => exact censusLeaf112
-  | 113 => exact censusLeaf113
-  | 114 => exact censusLeaf114
-  | 115 => exact censusLeaf115
-  | 116 => exact censusLeaf116
-  | 117 => exact censusLeaf117
-  | 118 => exact censusLeaf118
-  | 119 => exact censusLeaf119
-  | 120 => exact censusLeaf120
-  | 121 => exact censusLeaf121
-  | 122 => exact censusLeaf122
-  | 123 => exact censusLeaf123
-  | 124 => exact censusLeaf124
-  | 125 => exact censusLeaf125
-  | 126 => exact censusLeaf126
-  | 127 => exact censusLeaf127
-  | 128 => exact censusLeaf128
-  | 129 => exact censusLeaf129
-  | 130 => exact censusLeaf130
-  | 131 => exact censusLeaf131
-  | 132 => exact censusLeaf132
-  | 133 => exact censusLeaf133
-  | 134 => exact censusLeaf134
-  | 135 => exact censusLeaf135
-  | 136 => exact censusLeaf136
-  | 137 => exact censusLeaf137
-  | 138 => exact censusLeaf138
-  | 139 => exact censusLeaf139
-  | 140 => exact censusLeaf140
-  | 141 => exact censusLeaf141
-  | 142 => exact censusLeaf142
-  | 143 => exact censusLeaf143
-  | 144 => exact censusLeaf144
-  | 145 => exact censusLeaf145
-  | 146 => exact censusLeaf146
-  | 147 => exact censusLeaf147
-  | 148 => exact censusLeaf148
-  | 149 => exact censusLeaf149
-  | 150 => exact censusLeaf150
-  | 151 => exact censusLeaf151
-  | 152 => exact censusLeaf152
-  | 153 => exact censusLeaf153
-  | 154 => exact censusLeaf154
-  | 155 => exact censusLeaf155
-  | 156 => exact censusLeaf156
-  | 157 => exact censusLeaf157
-  | 158 => exact censusLeaf158
-  | 159 => exact censusLeaf159
-  | 160 => exact censusLeaf160
-  | 161 => exact censusLeaf161
-  | 162 => exact censusLeaf162
-  | 163 => exact censusLeaf163
-  | 164 => exact censusLeaf164
-  | 165 => exact censusLeaf165
-  | 166 => exact censusLeaf166
-  | 167 => exact censusLeaf167
-  | 168 => exact censusLeaf168
-  | 169 => exact censusLeaf169
-  | 170 => exact censusLeaf170
-  | n + 171 => exact absurd bound (by omega)
+  rw [chunkCount_eq] at bound
+  match k, bound with
+  | 0, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf0).1
+  | 1, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf1).1
+  | 2, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf2).1
+  | 3, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf3).1
+  | 4, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf4).1
+  | 5, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf5).1
+  | 6, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf6).1
+  | 7, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf7).1
+  | 8, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf8).1
+  | 9, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf9).1
+  | 10, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf10).1
+  | 11, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf11).1
+  | 12, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf12).1
+  | 13, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf13).1
+  | 14, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf14).1
+  | 15, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf15).1
+  | 16, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf16).1
+  | 17, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf17).1
+  | 18, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf18).1
+  | 19, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf19).1
+  | 20, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf20).1
+  | 21, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf21).1
+  | 22, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf22).1
+  | 23, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf23).1
+  | 24, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf24).1
+  | 25, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf25).1
+  | 26, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf26).1
+  | 27, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf27).1
+  | 28, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf28).1
+  | 29, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf29).1
+  | 30, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf30).1
+  | 31, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf31).1
+  | 32, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf32).1
+  | 33, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf33).1
+  | 34, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf34).1
+  | 35, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf35).1
+  | 36, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf36).1
+  | 37, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf37).1
+  | 38, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf38).1
+  | 39, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf39).1
+  | 40, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf40).1
+  | 41, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf41).1
+  | 42, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf42).1
+  | 43, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf43).1
+  | 44, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf44).1
+  | 45, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf45).1
+  | 46, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf46).1
+  | 47, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf47).1
+  | 48, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf48).1
+  | 49, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf49).1
+  | 50, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf50).1
+  | 51, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf51).1
+  | 52, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf52).1
+  | 53, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf53).1
+  | 54, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf54).1
+  | 55, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf55).1
+  | 56, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf56).1
+  | 57, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf57).1
+  | 58, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf58).1
+  | 59, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf59).1
+  | 60, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf60).1
+  | 61, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf61).1
+  | 62, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf62).1
+  | 63, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf63).1
+  | 64, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf64).1
+  | 65, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf65).1
+  | 66, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf66).1
+  | 67, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf67).1
+  | 68, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf68).1
+  | 69, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf69).1
+  | 70, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf70).1
+  | 71, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf71).1
+  | 72, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf72).1
+  | 73, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf73).1
+  | 74, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf74).1
+  | 75, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf75).1
+  | 76, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf76).1
+  | 77, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf77).1
+  | 78, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf78).1
+  | 79, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf79).1
+  | 80, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf80).1
+  | 81, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf81).1
+  | 82, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf82).1
+  | 83, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf83).1
+  | 84, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf84).1
+  | 85, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf85).1
+  | 86, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf86).1
+  | 87, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf87).1
+  | 88, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf88).1
+  | 89, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf89).1
+  | 90, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf90).1
+  | 91, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf91).1
+  | 92, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf92).1
+  | 93, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf93).1
+  | 94, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf94).1
+  | 95, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf95).1
+  | 96, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf96).1
+  | 97, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf97).1
+  | 98, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf98).1
+  | 99, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf99).1
+  | 100, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf100).1
+  | 101, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf101).1
+  | 102, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf102).1
+  | 103, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf103).1
+  | 104, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf104).1
+  | 105, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf105).1
+  | 106, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf106).1
+  | 107, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf107).1
+  | 108, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf108).1
+  | 109, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf109).1
+  | 110, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf110).1
+  | 111, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf111).1
+  | 112, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf112).1
+  | 113, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf113).1
+  | 114, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf114).1
+  | 115, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf115).1
+  | 116, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf116).1
+  | 117, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf117).1
+  | 118, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf118).1
+  | 119, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf119).1
+  | 120, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf120).1
+  | 121, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf121).1
+  | 122, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf122).1
+  | 123, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf123).1
+  | 124, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf124).1
+  | 125, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf125).1
+  | 126, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf126).1
+  | 127, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf127).1
+  | 128, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf128).1
+  | 129, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf129).1
+  | 130, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf130).1
+  | 131, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf131).1
+  | 132, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf132).1
+  | 133, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf133).1
+  | 134, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf134).1
+  | 135, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf135).1
+  | 136, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf136).1
+  | 137, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf137).1
+  | 138, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf138).1
+  | 139, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf139).1
+  | 140, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf140).1
+  | 141, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf141).1
+  | 142, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf142).1
+  | 143, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf143).1
+  | 144, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf144).1
+  | 145, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf145).1
+  | 146, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf146).1
+  | 147, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf147).1
+  | 148, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf148).1
+  | 149, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf149).1
+  | 150, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf150).1
+  | 151, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf151).1
+  | 152, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf152).1
+  | 153, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf153).1
+  | 154, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf154).1
+  | 155, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf155).1
+  | 156, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf156).1
+  | 157, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf157).1
+  | 158, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf158).1
+  | 159, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf159).1
+  | 160, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf160).1
+  | 161, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf161).1
+  | 162, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf162).1
+  | 163, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf163).1
+  | 164, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf164).1
+  | 165, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf165).1
+  | 166, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf166).1
+  | 167, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf167).1
+  | 168, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf168).1
+  | 169, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf169).1
+  | 170, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf170).1
+  | n + 171, bound => exact absurd bound (by omega)
 
 theorem rowsWf :
     ∀ k, k < wire.chunkCount →
       (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
   intro k bound
-  match k with
-  | 0 => exact rowsWfLeaf0
-  | 1 => exact rowsWfLeaf1
-  | 2 => exact rowsWfLeaf2
-  | 3 => exact rowsWfLeaf3
-  | 4 => exact rowsWfLeaf4
-  | 5 => exact rowsWfLeaf5
-  | 6 => exact rowsWfLeaf6
-  | 7 => exact rowsWfLeaf7
-  | 8 => exact rowsWfLeaf8
-  | 9 => exact rowsWfLeaf9
-  | 10 => exact rowsWfLeaf10
-  | 11 => exact rowsWfLeaf11
-  | 12 => exact rowsWfLeaf12
-  | 13 => exact rowsWfLeaf13
-  | 14 => exact rowsWfLeaf14
-  | 15 => exact rowsWfLeaf15
-  | 16 => exact rowsWfLeaf16
-  | 17 => exact rowsWfLeaf17
-  | 18 => exact rowsWfLeaf18
-  | 19 => exact rowsWfLeaf19
-  | 20 => exact rowsWfLeaf20
-  | 21 => exact rowsWfLeaf21
-  | 22 => exact rowsWfLeaf22
-  | 23 => exact rowsWfLeaf23
-  | 24 => exact rowsWfLeaf24
-  | 25 => exact rowsWfLeaf25
-  | 26 => exact rowsWfLeaf26
-  | 27 => exact rowsWfLeaf27
-  | 28 => exact rowsWfLeaf28
-  | 29 => exact rowsWfLeaf29
-  | 30 => exact rowsWfLeaf30
-  | 31 => exact rowsWfLeaf31
-  | 32 => exact rowsWfLeaf32
-  | 33 => exact rowsWfLeaf33
-  | 34 => exact rowsWfLeaf34
-  | 35 => exact rowsWfLeaf35
-  | 36 => exact rowsWfLeaf36
-  | 37 => exact rowsWfLeaf37
-  | 38 => exact rowsWfLeaf38
-  | 39 => exact rowsWfLeaf39
-  | 40 => exact rowsWfLeaf40
-  | 41 => exact rowsWfLeaf41
-  | 42 => exact rowsWfLeaf42
-  | 43 => exact rowsWfLeaf43
-  | 44 => exact rowsWfLeaf44
-  | 45 => exact rowsWfLeaf45
-  | 46 => exact rowsWfLeaf46
-  | 47 => exact rowsWfLeaf47
-  | 48 => exact rowsWfLeaf48
-  | 49 => exact rowsWfLeaf49
-  | 50 => exact rowsWfLeaf50
-  | 51 => exact rowsWfLeaf51
-  | 52 => exact rowsWfLeaf52
-  | 53 => exact rowsWfLeaf53
-  | 54 => exact rowsWfLeaf54
-  | 55 => exact rowsWfLeaf55
-  | 56 => exact rowsWfLeaf56
-  | 57 => exact rowsWfLeaf57
-  | 58 => exact rowsWfLeaf58
-  | 59 => exact rowsWfLeaf59
-  | 60 => exact rowsWfLeaf60
-  | 61 => exact rowsWfLeaf61
-  | 62 => exact rowsWfLeaf62
-  | 63 => exact rowsWfLeaf63
-  | 64 => exact rowsWfLeaf64
-  | 65 => exact rowsWfLeaf65
-  | 66 => exact rowsWfLeaf66
-  | 67 => exact rowsWfLeaf67
-  | 68 => exact rowsWfLeaf68
-  | 69 => exact rowsWfLeaf69
-  | 70 => exact rowsWfLeaf70
-  | 71 => exact rowsWfLeaf71
-  | 72 => exact rowsWfLeaf72
-  | 73 => exact rowsWfLeaf73
-  | 74 => exact rowsWfLeaf74
-  | 75 => exact rowsWfLeaf75
-  | 76 => exact rowsWfLeaf76
-  | 77 => exact rowsWfLeaf77
-  | 78 => exact rowsWfLeaf78
-  | 79 => exact rowsWfLeaf79
-  | 80 => exact rowsWfLeaf80
-  | 81 => exact rowsWfLeaf81
-  | 82 => exact rowsWfLeaf82
-  | 83 => exact rowsWfLeaf83
-  | 84 => exact rowsWfLeaf84
-  | 85 => exact rowsWfLeaf85
-  | 86 => exact rowsWfLeaf86
-  | 87 => exact rowsWfLeaf87
-  | 88 => exact rowsWfLeaf88
-  | 89 => exact rowsWfLeaf89
-  | 90 => exact rowsWfLeaf90
-  | 91 => exact rowsWfLeaf91
-  | 92 => exact rowsWfLeaf92
-  | 93 => exact rowsWfLeaf93
-  | 94 => exact rowsWfLeaf94
-  | 95 => exact rowsWfLeaf95
-  | 96 => exact rowsWfLeaf96
-  | 97 => exact rowsWfLeaf97
-  | 98 => exact rowsWfLeaf98
-  | 99 => exact rowsWfLeaf99
-  | 100 => exact rowsWfLeaf100
-  | 101 => exact rowsWfLeaf101
-  | 102 => exact rowsWfLeaf102
-  | 103 => exact rowsWfLeaf103
-  | 104 => exact rowsWfLeaf104
-  | 105 => exact rowsWfLeaf105
-  | 106 => exact rowsWfLeaf106
-  | 107 => exact rowsWfLeaf107
-  | 108 => exact rowsWfLeaf108
-  | 109 => exact rowsWfLeaf109
-  | 110 => exact rowsWfLeaf110
-  | 111 => exact rowsWfLeaf111
-  | 112 => exact rowsWfLeaf112
-  | 113 => exact rowsWfLeaf113
-  | 114 => exact rowsWfLeaf114
-  | 115 => exact rowsWfLeaf115
-  | 116 => exact rowsWfLeaf116
-  | 117 => exact rowsWfLeaf117
-  | 118 => exact rowsWfLeaf118
-  | 119 => exact rowsWfLeaf119
-  | 120 => exact rowsWfLeaf120
-  | 121 => exact rowsWfLeaf121
-  | 122 => exact rowsWfLeaf122
-  | 123 => exact rowsWfLeaf123
-  | 124 => exact rowsWfLeaf124
-  | 125 => exact rowsWfLeaf125
-  | 126 => exact rowsWfLeaf126
-  | 127 => exact rowsWfLeaf127
-  | 128 => exact rowsWfLeaf128
-  | 129 => exact rowsWfLeaf129
-  | 130 => exact rowsWfLeaf130
-  | 131 => exact rowsWfLeaf131
-  | 132 => exact rowsWfLeaf132
-  | 133 => exact rowsWfLeaf133
-  | 134 => exact rowsWfLeaf134
-  | 135 => exact rowsWfLeaf135
-  | 136 => exact rowsWfLeaf136
-  | 137 => exact rowsWfLeaf137
-  | 138 => exact rowsWfLeaf138
-  | 139 => exact rowsWfLeaf139
-  | 140 => exact rowsWfLeaf140
-  | 141 => exact rowsWfLeaf141
-  | 142 => exact rowsWfLeaf142
-  | 143 => exact rowsWfLeaf143
-  | 144 => exact rowsWfLeaf144
-  | 145 => exact rowsWfLeaf145
-  | 146 => exact rowsWfLeaf146
-  | 147 => exact rowsWfLeaf147
-  | 148 => exact rowsWfLeaf148
-  | 149 => exact rowsWfLeaf149
-  | 150 => exact rowsWfLeaf150
-  | 151 => exact rowsWfLeaf151
-  | 152 => exact rowsWfLeaf152
-  | 153 => exact rowsWfLeaf153
-  | 154 => exact rowsWfLeaf154
-  | 155 => exact rowsWfLeaf155
-  | 156 => exact rowsWfLeaf156
-  | 157 => exact rowsWfLeaf157
-  | 158 => exact rowsWfLeaf158
-  | 159 => exact rowsWfLeaf159
-  | 160 => exact rowsWfLeaf160
-  | 161 => exact rowsWfLeaf161
-  | 162 => exact rowsWfLeaf162
-  | 163 => exact rowsWfLeaf163
-  | 164 => exact rowsWfLeaf164
-  | 165 => exact rowsWfLeaf165
-  | 166 => exact rowsWfLeaf166
-  | 167 => exact rowsWfLeaf167
-  | 168 => exact rowsWfLeaf168
-  | 169 => exact rowsWfLeaf169
-  | 170 => exact rowsWfLeaf170
-  | n + 171 => exact absurd bound (by omega)
+  rw [chunkCount_eq] at bound
+  match k, bound with
+  | 0, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf0).2.1
+  | 1, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf1).2.1
+  | 2, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf2).2.1
+  | 3, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf3).2.1
+  | 4, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf4).2.1
+  | 5, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf5).2.1
+  | 6, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf6).2.1
+  | 7, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf7).2.1
+  | 8, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf8).2.1
+  | 9, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf9).2.1
+  | 10, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf10).2.1
+  | 11, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf11).2.1
+  | 12, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf12).2.1
+  | 13, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf13).2.1
+  | 14, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf14).2.1
+  | 15, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf15).2.1
+  | 16, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf16).2.1
+  | 17, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf17).2.1
+  | 18, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf18).2.1
+  | 19, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf19).2.1
+  | 20, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf20).2.1
+  | 21, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf21).2.1
+  | 22, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf22).2.1
+  | 23, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf23).2.1
+  | 24, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf24).2.1
+  | 25, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf25).2.1
+  | 26, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf26).2.1
+  | 27, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf27).2.1
+  | 28, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf28).2.1
+  | 29, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf29).2.1
+  | 30, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf30).2.1
+  | 31, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf31).2.1
+  | 32, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf32).2.1
+  | 33, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf33).2.1
+  | 34, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf34).2.1
+  | 35, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf35).2.1
+  | 36, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf36).2.1
+  | 37, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf37).2.1
+  | 38, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf38).2.1
+  | 39, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf39).2.1
+  | 40, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf40).2.1
+  | 41, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf41).2.1
+  | 42, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf42).2.1
+  | 43, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf43).2.1
+  | 44, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf44).2.1
+  | 45, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf45).2.1
+  | 46, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf46).2.1
+  | 47, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf47).2.1
+  | 48, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf48).2.1
+  | 49, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf49).2.1
+  | 50, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf50).2.1
+  | 51, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf51).2.1
+  | 52, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf52).2.1
+  | 53, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf53).2.1
+  | 54, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf54).2.1
+  | 55, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf55).2.1
+  | 56, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf56).2.1
+  | 57, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf57).2.1
+  | 58, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf58).2.1
+  | 59, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf59).2.1
+  | 60, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf60).2.1
+  | 61, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf61).2.1
+  | 62, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf62).2.1
+  | 63, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf63).2.1
+  | 64, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf64).2.1
+  | 65, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf65).2.1
+  | 66, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf66).2.1
+  | 67, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf67).2.1
+  | 68, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf68).2.1
+  | 69, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf69).2.1
+  | 70, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf70).2.1
+  | 71, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf71).2.1
+  | 72, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf72).2.1
+  | 73, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf73).2.1
+  | 74, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf74).2.1
+  | 75, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf75).2.1
+  | 76, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf76).2.1
+  | 77, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf77).2.1
+  | 78, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf78).2.1
+  | 79, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf79).2.1
+  | 80, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf80).2.1
+  | 81, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf81).2.1
+  | 82, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf82).2.1
+  | 83, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf83).2.1
+  | 84, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf84).2.1
+  | 85, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf85).2.1
+  | 86, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf86).2.1
+  | 87, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf87).2.1
+  | 88, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf88).2.1
+  | 89, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf89).2.1
+  | 90, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf90).2.1
+  | 91, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf91).2.1
+  | 92, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf92).2.1
+  | 93, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf93).2.1
+  | 94, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf94).2.1
+  | 95, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf95).2.1
+  | 96, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf96).2.1
+  | 97, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf97).2.1
+  | 98, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf98).2.1
+  | 99, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf99).2.1
+  | 100, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf100).2.1
+  | 101, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf101).2.1
+  | 102, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf102).2.1
+  | 103, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf103).2.1
+  | 104, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf104).2.1
+  | 105, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf105).2.1
+  | 106, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf106).2.1
+  | 107, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf107).2.1
+  | 108, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf108).2.1
+  | 109, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf109).2.1
+  | 110, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf110).2.1
+  | 111, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf111).2.1
+  | 112, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf112).2.1
+  | 113, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf113).2.1
+  | 114, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf114).2.1
+  | 115, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf115).2.1
+  | 116, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf116).2.1
+  | 117, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf117).2.1
+  | 118, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf118).2.1
+  | 119, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf119).2.1
+  | 120, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf120).2.1
+  | 121, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf121).2.1
+  | 122, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf122).2.1
+  | 123, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf123).2.1
+  | 124, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf124).2.1
+  | 125, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf125).2.1
+  | 126, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf126).2.1
+  | 127, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf127).2.1
+  | 128, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf128).2.1
+  | 129, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf129).2.1
+  | 130, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf130).2.1
+  | 131, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf131).2.1
+  | 132, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf132).2.1
+  | 133, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf133).2.1
+  | 134, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf134).2.1
+  | 135, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf135).2.1
+  | 136, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf136).2.1
+  | 137, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf137).2.1
+  | 138, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf138).2.1
+  | 139, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf139).2.1
+  | 140, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf140).2.1
+  | 141, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf141).2.1
+  | 142, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf142).2.1
+  | 143, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf143).2.1
+  | 144, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf144).2.1
+  | 145, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf145).2.1
+  | 146, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf146).2.1
+  | 147, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf147).2.1
+  | 148, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf148).2.1
+  | 149, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf149).2.1
+  | 150, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf150).2.1
+  | 151, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf151).2.1
+  | 152, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf152).2.1
+  | 153, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf153).2.1
+  | 154, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf154).2.1
+  | 155, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf155).2.1
+  | 156, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf156).2.1
+  | 157, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf157).2.1
+  | 158, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf158).2.1
+  | 159, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf159).2.1
+  | 160, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf160).2.1
+  | 161, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf161).2.1
+  | 162, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf162).2.1
+  | 163, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf163).2.1
+  | 164, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf164).2.1
+  | 165, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf165).2.1
+  | 166, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf166).2.1
+  | 167, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf167).2.1
+  | 168, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf168).2.1
+  | 169, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf169).2.1
+  | 170, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf170).2.1
+  | n + 171, bound => exact absurd bound (by omega)
 
 theorem familiesCovered :
     ∀ k, k < wire.chunkCount →
       (rowsChunk wire k).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
   intro k bound
-  match k with
-  | 0 => exact familiesLeaf0
-  | 1 => exact familiesLeaf1
-  | 2 => exact familiesLeaf2
-  | 3 => exact familiesLeaf3
-  | 4 => exact familiesLeaf4
-  | 5 => exact familiesLeaf5
-  | 6 => exact familiesLeaf6
-  | 7 => exact familiesLeaf7
-  | 8 => exact familiesLeaf8
-  | 9 => exact familiesLeaf9
-  | 10 => exact familiesLeaf10
-  | 11 => exact familiesLeaf11
-  | 12 => exact familiesLeaf12
-  | 13 => exact familiesLeaf13
-  | 14 => exact familiesLeaf14
-  | 15 => exact familiesLeaf15
-  | 16 => exact familiesLeaf16
-  | 17 => exact familiesLeaf17
-  | 18 => exact familiesLeaf18
-  | 19 => exact familiesLeaf19
-  | 20 => exact familiesLeaf20
-  | 21 => exact familiesLeaf21
-  | 22 => exact familiesLeaf22
-  | 23 => exact familiesLeaf23
-  | 24 => exact familiesLeaf24
-  | 25 => exact familiesLeaf25
-  | 26 => exact familiesLeaf26
-  | 27 => exact familiesLeaf27
-  | 28 => exact familiesLeaf28
-  | 29 => exact familiesLeaf29
-  | 30 => exact familiesLeaf30
-  | 31 => exact familiesLeaf31
-  | 32 => exact familiesLeaf32
-  | 33 => exact familiesLeaf33
-  | 34 => exact familiesLeaf34
-  | 35 => exact familiesLeaf35
-  | 36 => exact familiesLeaf36
-  | 37 => exact familiesLeaf37
-  | 38 => exact familiesLeaf38
-  | 39 => exact familiesLeaf39
-  | 40 => exact familiesLeaf40
-  | 41 => exact familiesLeaf41
-  | 42 => exact familiesLeaf42
-  | 43 => exact familiesLeaf43
-  | 44 => exact familiesLeaf44
-  | 45 => exact familiesLeaf45
-  | 46 => exact familiesLeaf46
-  | 47 => exact familiesLeaf47
-  | 48 => exact familiesLeaf48
-  | 49 => exact familiesLeaf49
-  | 50 => exact familiesLeaf50
-  | 51 => exact familiesLeaf51
-  | 52 => exact familiesLeaf52
-  | 53 => exact familiesLeaf53
-  | 54 => exact familiesLeaf54
-  | 55 => exact familiesLeaf55
-  | 56 => exact familiesLeaf56
-  | 57 => exact familiesLeaf57
-  | 58 => exact familiesLeaf58
-  | 59 => exact familiesLeaf59
-  | 60 => exact familiesLeaf60
-  | 61 => exact familiesLeaf61
-  | 62 => exact familiesLeaf62
-  | 63 => exact familiesLeaf63
-  | 64 => exact familiesLeaf64
-  | 65 => exact familiesLeaf65
-  | 66 => exact familiesLeaf66
-  | 67 => exact familiesLeaf67
-  | 68 => exact familiesLeaf68
-  | 69 => exact familiesLeaf69
-  | 70 => exact familiesLeaf70
-  | 71 => exact familiesLeaf71
-  | 72 => exact familiesLeaf72
-  | 73 => exact familiesLeaf73
-  | 74 => exact familiesLeaf74
-  | 75 => exact familiesLeaf75
-  | 76 => exact familiesLeaf76
-  | 77 => exact familiesLeaf77
-  | 78 => exact familiesLeaf78
-  | 79 => exact familiesLeaf79
-  | 80 => exact familiesLeaf80
-  | 81 => exact familiesLeaf81
-  | 82 => exact familiesLeaf82
-  | 83 => exact familiesLeaf83
-  | 84 => exact familiesLeaf84
-  | 85 => exact familiesLeaf85
-  | 86 => exact familiesLeaf86
-  | 87 => exact familiesLeaf87
-  | 88 => exact familiesLeaf88
-  | 89 => exact familiesLeaf89
-  | 90 => exact familiesLeaf90
-  | 91 => exact familiesLeaf91
-  | 92 => exact familiesLeaf92
-  | 93 => exact familiesLeaf93
-  | 94 => exact familiesLeaf94
-  | 95 => exact familiesLeaf95
-  | 96 => exact familiesLeaf96
-  | 97 => exact familiesLeaf97
-  | 98 => exact familiesLeaf98
-  | 99 => exact familiesLeaf99
-  | 100 => exact familiesLeaf100
-  | 101 => exact familiesLeaf101
-  | 102 => exact familiesLeaf102
-  | 103 => exact familiesLeaf103
-  | 104 => exact familiesLeaf104
-  | 105 => exact familiesLeaf105
-  | 106 => exact familiesLeaf106
-  | 107 => exact familiesLeaf107
-  | 108 => exact familiesLeaf108
-  | 109 => exact familiesLeaf109
-  | 110 => exact familiesLeaf110
-  | 111 => exact familiesLeaf111
-  | 112 => exact familiesLeaf112
-  | 113 => exact familiesLeaf113
-  | 114 => exact familiesLeaf114
-  | 115 => exact familiesLeaf115
-  | 116 => exact familiesLeaf116
-  | 117 => exact familiesLeaf117
-  | 118 => exact familiesLeaf118
-  | 119 => exact familiesLeaf119
-  | 120 => exact familiesLeaf120
-  | 121 => exact familiesLeaf121
-  | 122 => exact familiesLeaf122
-  | 123 => exact familiesLeaf123
-  | 124 => exact familiesLeaf124
-  | 125 => exact familiesLeaf125
-  | 126 => exact familiesLeaf126
-  | 127 => exact familiesLeaf127
-  | 128 => exact familiesLeaf128
-  | 129 => exact familiesLeaf129
-  | 130 => exact familiesLeaf130
-  | 131 => exact familiesLeaf131
-  | 132 => exact familiesLeaf132
-  | 133 => exact familiesLeaf133
-  | 134 => exact familiesLeaf134
-  | 135 => exact familiesLeaf135
-  | 136 => exact familiesLeaf136
-  | 137 => exact familiesLeaf137
-  | 138 => exact familiesLeaf138
-  | 139 => exact familiesLeaf139
-  | 140 => exact familiesLeaf140
-  | 141 => exact familiesLeaf141
-  | 142 => exact familiesLeaf142
-  | 143 => exact familiesLeaf143
-  | 144 => exact familiesLeaf144
-  | 145 => exact familiesLeaf145
-  | 146 => exact familiesLeaf146
-  | 147 => exact familiesLeaf147
-  | 148 => exact familiesLeaf148
-  | 149 => exact familiesLeaf149
-  | 150 => exact familiesLeaf150
-  | 151 => exact familiesLeaf151
-  | 152 => exact familiesLeaf152
-  | 153 => exact familiesLeaf153
-  | 154 => exact familiesLeaf154
-  | 155 => exact familiesLeaf155
-  | 156 => exact familiesLeaf156
-  | 157 => exact familiesLeaf157
-  | 158 => exact familiesLeaf158
-  | 159 => exact familiesLeaf159
-  | 160 => exact familiesLeaf160
-  | 161 => exact familiesLeaf161
-  | 162 => exact familiesLeaf162
-  | 163 => exact familiesLeaf163
-  | 164 => exact familiesLeaf164
-  | 165 => exact familiesLeaf165
-  | 166 => exact familiesLeaf166
-  | 167 => exact familiesLeaf167
-  | 168 => exact familiesLeaf168
-  | 169 => exact familiesLeaf169
-  | 170 => exact familiesLeaf170
-  | n + 171 => exact absurd bound (by omega)
+  rw [chunkCount_eq] at bound
+  match k, bound with
+  | 0, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf0).2.2
+  | 1, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf1).2.2
+  | 2, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf2).2.2
+  | 3, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf3).2.2
+  | 4, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf4).2.2
+  | 5, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf5).2.2
+  | 6, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf6).2.2
+  | 7, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf7).2.2
+  | 8, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf8).2.2
+  | 9, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf9).2.2
+  | 10, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf10).2.2
+  | 11, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf11).2.2
+  | 12, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf12).2.2
+  | 13, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.chunkLeaf13).2.2
+  | 14, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf14).2.2
+  | 15, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf15).2.2
+  | 16, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf16).2.2
+  | 17, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf17).2.2
+  | 18, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf18).2.2
+  | 19, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf19).2.2
+  | 20, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf20).2.2
+  | 21, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf21).2.2
+  | 22, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf22).2.2
+  | 23, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf23).2.2
+  | 24, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf24).2.2
+  | 25, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf25).2.2
+  | 26, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf26).2.2
+  | 27, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1.chunkLeaf27).2.2
+  | 28, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf28).2.2
+  | 29, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf29).2.2
+  | 30, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf30).2.2
+  | 31, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf31).2.2
+  | 32, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf32).2.2
+  | 33, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf33).2.2
+  | 34, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf34).2.2
+  | 35, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf35).2.2
+  | 36, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf36).2.2
+  | 37, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf37).2.2
+  | 38, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf38).2.2
+  | 39, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf39).2.2
+  | 40, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf40).2.2
+  | 41, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf2.chunkLeaf41).2.2
+  | 42, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf42).2.2
+  | 43, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf43).2.2
+  | 44, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf44).2.2
+  | 45, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf45).2.2
+  | 46, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf46).2.2
+  | 47, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf47).2.2
+  | 48, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf48).2.2
+  | 49, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf49).2.2
+  | 50, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf50).2.2
+  | 51, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf51).2.2
+  | 52, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf52).2.2
+  | 53, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf53).2.2
+  | 54, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf54).2.2
+  | 55, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3.chunkLeaf55).2.2
+  | 56, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf56).2.2
+  | 57, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf57).2.2
+  | 58, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf58).2.2
+  | 59, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf59).2.2
+  | 60, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf60).2.2
+  | 61, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf61).2.2
+  | 62, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf62).2.2
+  | 63, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf63).2.2
+  | 64, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf64).2.2
+  | 65, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf65).2.2
+  | 66, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf66).2.2
+  | 67, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf67).2.2
+  | 68, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf68).2.2
+  | 69, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.chunkLeaf69).2.2
+  | 70, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf70).2.2
+  | 71, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf71).2.2
+  | 72, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf72).2.2
+  | 73, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf73).2.2
+  | 74, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf74).2.2
+  | 75, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf75).2.2
+  | 76, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf76).2.2
+  | 77, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf77).2.2
+  | 78, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf78).2.2
+  | 79, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf79).2.2
+  | 80, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf80).2.2
+  | 81, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf81).2.2
+  | 82, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf82).2.2
+  | 83, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf5.chunkLeaf83).2.2
+  | 84, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf84).2.2
+  | 85, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf85).2.2
+  | 86, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf86).2.2
+  | 87, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf87).2.2
+  | 88, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf88).2.2
+  | 89, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf89).2.2
+  | 90, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf90).2.2
+  | 91, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf91).2.2
+  | 92, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf92).2.2
+  | 93, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf93).2.2
+  | 94, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf94).2.2
+  | 95, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf95).2.2
+  | 96, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf96).2.2
+  | 97, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf6.chunkLeaf97).2.2
+  | 98, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf98).2.2
+  | 99, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf99).2.2
+  | 100, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf100).2.2
+  | 101, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf101).2.2
+  | 102, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf102).2.2
+  | 103, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf103).2.2
+  | 104, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf104).2.2
+  | 105, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf105).2.2
+  | 106, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf106).2.2
+  | 107, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf107).2.2
+  | 108, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf108).2.2
+  | 109, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf109).2.2
+  | 110, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf110).2.2
+  | 111, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.chunkLeaf111).2.2
+  | 112, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf112).2.2
+  | 113, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf113).2.2
+  | 114, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf114).2.2
+  | 115, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf115).2.2
+  | 116, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf116).2.2
+  | 117, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf117).2.2
+  | 118, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf118).2.2
+  | 119, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf119).2.2
+  | 120, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf120).2.2
+  | 121, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf121).2.2
+  | 122, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf122).2.2
+  | 123, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf123).2.2
+  | 124, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf124).2.2
+  | 125, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.chunkLeaf125).2.2
+  | 126, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf126).2.2
+  | 127, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf127).2.2
+  | 128, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf128).2.2
+  | 129, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf129).2.2
+  | 130, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf130).2.2
+  | 131, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf131).2.2
+  | 132, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf132).2.2
+  | 133, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf133).2.2
+  | 134, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf134).2.2
+  | 135, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf135).2.2
+  | 136, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf136).2.2
+  | 137, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf137).2.2
+  | 138, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf138).2.2
+  | 139, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.chunkLeaf139).2.2
+  | 140, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf140).2.2
+  | 141, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf141).2.2
+  | 142, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf142).2.2
+  | 143, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf143).2.2
+  | 144, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf144).2.2
+  | 145, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf145).2.2
+  | 146, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf146).2.2
+  | 147, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf147).2.2
+  | 148, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf148).2.2
+  | 149, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf149).2.2
+  | 150, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf150).2.2
+  | 151, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf151).2.2
+  | 152, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf152).2.2
+  | 153, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf10.chunkLeaf153).2.2
+  | 154, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf154).2.2
+  | 155, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf155).2.2
+  | 156, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf156).2.2
+  | 157, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf157).2.2
+  | 158, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf158).2.2
+  | 159, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf159).2.2
+  | 160, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf160).2.2
+  | 161, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf161).2.2
+  | 162, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf162).2.2
+  | 163, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf163).2.2
+  | 164, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf164).2.2
+  | 165, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf165).2.2
+  | 166, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf166).2.2
+  | 167, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf11.chunkLeaf167).2.2
+  | 168, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf168).2.2
+  | 169, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf169).2.2
+  | 170, _ => exact (Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.chunkLeaf170).2.2
+  | n + 171, bound => exact absurd bound (by omega)
 
 theorem chunkArithmeticFull :
     ∀ k, k + 1 < wire.chunkCount → wire.chunkLength k = wire.chunkRows := by
-  native_decide
+  intro k bound
+  rw [chunkCount_eq] at bound
+  simp only [Wire.chunkLength, Wire.chunkStart, chunkRows_eq, totalRows_eq]
+  omega
 
 theorem chunkArithmeticLast :
     wire.chunkCount ≠ 0 →
       (wire.chunkCount - 1) * wire.chunkRows +
         wire.chunkLength (wire.chunkCount - 1) = wire.totalRows := by
-  native_decide
+  intro _
+  simp only [Wire.chunkLength, Wire.chunkStart, chunkCount_eq, chunkRows_eq, totalRows_eq]
+  omega
 
 theorem chunkArithmeticLead :
     wire.chunkCount ≠ 0 →
       (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows := by
-  native_decide
+  intro _
+  simp only [chunkCount_eq, chunkRows_eq, totalRows_eq]
+  omega
 
 theorem chunkArithmeticEmpty :
     wire.chunkCount = 0 → wire.totalRows = 0 := by
-  native_decide
+  intro h
+  rw [chunkCount_eq] at h
+  exact absurd h (by decide)
 
 theorem familyPresence :
     sourceArtifact.completeFamilies.all
@@ -3669,88 +611,88 @@ theorem familyPresence :
       (rowsChunk wire chunk).any
         (fun row => decide (row.family = family)) = true := by
     fin_cases membership
-    · exact ⟨0, by native_decide, presenceLeaf0⟩
-    · exact ⟨130, by native_decide, presenceLeaf1⟩
-    · exact ⟨170, by native_decide, presenceLeaf2⟩
-    · exact ⟨130, by native_decide, presenceLeaf3⟩
-    · exact ⟨170, by native_decide, presenceLeaf4⟩
-    · exact ⟨128, by native_decide, presenceLeaf5⟩
-    · exact ⟨170, by native_decide, presenceLeaf6⟩
-    · exact ⟨0, by native_decide, presenceLeaf7⟩
-    · exact ⟨128, by native_decide, presenceLeaf8⟩
-    · exact ⟨128, by native_decide, presenceLeaf9⟩
-    · exact ⟨128, by native_decide, presenceLeaf10⟩
-    · exact ⟨0, by native_decide, presenceLeaf11⟩
-    · exact ⟨0, by native_decide, presenceLeaf12⟩
-    · exact ⟨0, by native_decide, presenceLeaf13⟩
-    · exact ⟨0, by native_decide, presenceLeaf14⟩
-    · exact ⟨60, by native_decide, presenceLeaf15⟩
-    · exact ⟨102, by native_decide, presenceLeaf16⟩
-    · exact ⟨64, by native_decide, presenceLeaf17⟩
-    · exact ⟨64, by native_decide, presenceLeaf18⟩
-    · exact ⟨64, by native_decide, presenceLeaf19⟩
-    · exact ⟨64, by native_decide, presenceLeaf20⟩
-    · exact ⟨64, by native_decide, presenceLeaf21⟩
-    · exact ⟨57, by native_decide, presenceLeaf22⟩
-    · exact ⟨61, by native_decide, presenceLeaf23⟩
-    · exact ⟨63, by native_decide, presenceLeaf24⟩
-    · exact ⟨128, by native_decide, presenceLeaf25⟩
-    · exact ⟨103, by native_decide, presenceLeaf26⟩
-    · exact ⟨103, by native_decide, presenceLeaf27⟩
-    · exact ⟨103, by native_decide, presenceLeaf28⟩
-    · exact ⟨103, by native_decide, presenceLeaf29⟩
-    · exact ⟨103, by native_decide, presenceLeaf30⟩
-    · exact ⟨103, by native_decide, presenceLeaf31⟩
-    · exact ⟨103, by native_decide, presenceLeaf32⟩
-    · exact ⟨103, by native_decide, presenceLeaf33⟩
-    · exact ⟨103, by native_decide, presenceLeaf34⟩
-    · exact ⟨103, by native_decide, presenceLeaf35⟩
-    · exact ⟨103, by native_decide, presenceLeaf36⟩
-    · exact ⟨103, by native_decide, presenceLeaf37⟩
-    · exact ⟨106, by native_decide, presenceLeaf38⟩
-    · exact ⟨106, by native_decide, presenceLeaf39⟩
-    · exact ⟨106, by native_decide, presenceLeaf40⟩
-    · exact ⟨106, by native_decide, presenceLeaf41⟩
-    · exact ⟨126, by native_decide, presenceLeaf42⟩
-    · exact ⟨126, by native_decide, presenceLeaf43⟩
-    · exact ⟨126, by native_decide, presenceLeaf44⟩
-    · exact ⟨126, by native_decide, presenceLeaf45⟩
-    · exact ⟨126, by native_decide, presenceLeaf46⟩
-    · exact ⟨126, by native_decide, presenceLeaf47⟩
-    · exact ⟨125, by native_decide, presenceLeaf48⟩
-    · exact ⟨126, by native_decide, presenceLeaf49⟩
-    · exact ⟨126, by native_decide, presenceLeaf50⟩
-    · exact ⟨126, by native_decide, presenceLeaf51⟩
-    · exact ⟨126, by native_decide, presenceLeaf52⟩
-    · exact ⟨125, by native_decide, presenceLeaf53⟩
-    · exact ⟨126, by native_decide, presenceLeaf54⟩
-    · exact ⟨126, by native_decide, presenceLeaf55⟩
-    · exact ⟨126, by native_decide, presenceLeaf56⟩
-    · exact ⟨126, by native_decide, presenceLeaf57⟩
-    · exact ⟨126, by native_decide, presenceLeaf58⟩
-    · exact ⟨126, by native_decide, presenceLeaf59⟩
-    · exact ⟨127, by native_decide, presenceLeaf60⟩
-    · exact ⟨127, by native_decide, presenceLeaf61⟩
-    · exact ⟨127, by native_decide, presenceLeaf62⟩
-    · exact ⟨127, by native_decide, presenceLeaf63⟩
-    · exact ⟨127, by native_decide, presenceLeaf64⟩
-    · exact ⟨127, by native_decide, presenceLeaf65⟩
-    · exact ⟨127, by native_decide, presenceLeaf66⟩
-    · exact ⟨106, by native_decide, presenceLeaf67⟩
-    · exact ⟨106, by native_decide, presenceLeaf68⟩
-    · exact ⟨108, by native_decide, presenceLeaf69⟩
-    · exact ⟨108, by native_decide, presenceLeaf70⟩
-    · exact ⟨106, by native_decide, presenceLeaf71⟩
-    · exact ⟨108, by native_decide, presenceLeaf72⟩
-    · exact ⟨106, by native_decide, presenceLeaf73⟩
-    · exact ⟨108, by native_decide, presenceLeaf74⟩
-    · exact ⟨108, by native_decide, presenceLeaf75⟩
-    · exact ⟨108, by native_decide, presenceLeaf76⟩
-    · exact ⟨125, by native_decide, presenceLeaf77⟩
-    · exact ⟨125, by native_decide, presenceLeaf78⟩
-    · exact ⟨125, by native_decide, presenceLeaf79⟩
-    · exact ⟨128, by native_decide, presenceLeaf80⟩
-    · exact ⟨102, by native_decide, presenceLeaf81⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence0⟩
+    · exact ⟨130, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence1⟩
+    · exact ⟨170, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.presence2⟩
+    · exact ⟨130, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence3⟩
+    · exact ⟨170, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.presence4⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence5⟩
+    · exact ⟨170, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf12.presence6⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence7⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence8⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence9⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence10⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence11⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence12⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence13⟩
+    · exact ⟨0, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0.presence14⟩
+    · exact ⟨60, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence15⟩
+    · exact ⟨102, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence16⟩
+    · exact ⟨64, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence17⟩
+    · exact ⟨64, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence18⟩
+    · exact ⟨64, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence19⟩
+    · exact ⟨64, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence20⟩
+    · exact ⟨64, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence21⟩
+    · exact ⟨57, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence22⟩
+    · exact ⟨61, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence23⟩
+    · exact ⟨63, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf4.presence24⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence25⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence26⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence27⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence28⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence29⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence30⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence31⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence32⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence33⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence34⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence35⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence36⟩
+    · exact ⟨103, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence37⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence38⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence39⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence40⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence41⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence42⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence43⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence44⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence45⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence46⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence47⟩
+    · exact ⟨125, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.presence48⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence49⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence50⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence51⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence52⟩
+    · exact ⟨125, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.presence53⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence54⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence55⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence56⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence57⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence58⟩
+    · exact ⟨126, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence59⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence60⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence61⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence62⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence63⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence64⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence65⟩
+    · exact ⟨127, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence66⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence67⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence68⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence69⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence70⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence71⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence72⟩
+    · exact ⟨106, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence73⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence74⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence75⟩
+    · exact ⟨108, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence76⟩
+    · exact ⟨125, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.presence77⟩
+    · exact ⟨125, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.presence78⟩
+    · exact ⟨125, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf8.presence79⟩
+    · exact ⟨128, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf9.presence80⟩
+    · exact ⟨102, by rw [chunkCount_eq]; decide, Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7.presence81⟩
   rcases present with ⟨chunk, chunkBound, chunkAny⟩
   rw [List.any_eq_true] at chunkAny ⊢
   rcases chunkAny with ⟨row, rowMember, rowFamily⟩

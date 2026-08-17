@@ -129,8 +129,8 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
         value: mutated,
     };
     let chunk_count = arm.n.div_ceil(256);
-    modules.push(
-        nightstream_constraint_exporter::render_classification_leaves_module(
+    modules.extend(
+        nightstream_constraint_exporter::render_classification_leaves_modules(
             &format!("{GENERATED_NS}.BaseCompactSourceArtifact"),
             &format!("{GENERATED_NS}.BaseCampaignAssignment"),
             &format!("{GENERATED_NS}.BaseClassificationLeaves"),

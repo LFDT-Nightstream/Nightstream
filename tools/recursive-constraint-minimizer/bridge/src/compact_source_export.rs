@@ -373,17 +373,6 @@ fn family_ranges(source_rows: &[usize]) -> Vec<(usize, usize)> {
     ranges
 }
 
-/// Emit a bounded `match` dispatcher from per-chunk leaf theorems to the
-/// universally quantified hypothesis the assembly theorems consume.
-fn render_dispatcher(out: &mut String, theorem_name: &str, statement: &str, leaf_prefix: &str, chunk_count: usize) {
-    out.push_str(&format!("theorem {theorem_name} :\n    {statement} := by\n"));
-    out.push_str("  intro k bound\n  match k with\n");
-    for chunk in 0..chunk_count {
-        out.push_str(&format!("  | {chunk} => exact {leaf_prefix}{chunk}\n"));
-    }
-    out.push_str(&format!("  | n + {chunk_count} => exact absurd bound (by omega)\n\n"));
-}
-
 /// Complete compact-source emission for one physical arm.
 pub struct CompactSourceEmission {
     /// Chunk data modules followed by the assembly module.
@@ -492,53 +481,42 @@ pub fn render_compact_source_artifact_modules(
         modules.push(GeneratedLeanModule { module_name, content });
     }
 
-    let mut out = String::new();
-    out.push_str("import Nightstream.Assurance.CompactSourceArtifact\n");
-    if let Some(committed) = committed_equality {
-        out.push_str(&format!("import {}\n", committed.namespace));
-    }
+    // ── Wire module: families, wire, sourceArtifact, reviewedPlan ──────
+    let wire_namespace = format!("{module_namespace}Wire");
+    let mut wire_out = String::new();
+    wire_out.push_str("import Nightstream.Assurance.CompactSourceArtifact\n");
     for chunk in 0..chunk_count {
-        out.push_str(&format!("import {module_namespace}Data{chunk}\n"));
+        wire_out.push_str(&format!("import {module_namespace}Data{chunk}\n"));
     }
-    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
-    out.push_str("Assembly of the chunk-aligned compact source artifact. Every leaf\n");
-    out.push_str("below is a bounded per-chunk fact; the artifact-level properties\n");
-    out.push_str("come from the structural composition theorems, and the exact\n");
-    out.push_str("validation is discharged by proof, never by evaluation. The\n");
-    out.push_str("emitter replayed every payload row against the independent sparse\n");
-    out.push_str("recovery before rendering.\n-/\n\n");
-    out.push_str(&format!("namespace {module_namespace}\n\n"));
-    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
-    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
-    out.push_str("open Nightstream.Implementation.R1CS\n\n");
-    out.push_str("set_option maxHeartbeats 2000000\n");
-    out.push_str("set_option maxRecDepth 65536\n\n");
-
-    out.push_str("def families : List FamilyRanges :=\n  [");
+    wire_out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\nThe wire and artifact definitions shared by every leaf module.\n-/\n\n");
+    wire_out.push_str(&format!("namespace {wire_namespace}\n\n"));
+    wire_out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+    wire_out.push_str("open Nightstream.Assurance.ConstraintMinimization\n\n");
+    wire_out.push_str("set_option maxRecDepth 65536\n\n");
+    wire_out.push_str("def families : List FamilyRanges :=\n  [");
     for (family_index, family) in census.iter().enumerate() {
         if family_index != 0 {
-            out.push_str(",\n   ");
+            wire_out.push_str(",\n   ");
         }
         let ranges = family_ranges(family.source_rows())
             .into_iter()
             .map(|(range_start, range_stop)| format!("({range_start}, {range_stop})"))
             .collect::<Vec<_>>()
             .join(", ");
-        out.push_str(&format!("⟨{}, [{ranges}]⟩", lean_string_literal(family.name())));
+        wire_out.push_str(&format!("⟨{}, [{ranges}]⟩", lean_string_literal(family.name())));
     }
-    out.push_str("]\n\n");
-
-    out.push_str("def wire : Wire where\n");
-    out.push_str("  schema := \"nightstream/r1cs-redundancy-problem/v3\"\n");
-    out.push_str(&format!("  profile := {}\n", lean_string_literal(profile)));
-    out.push_str("  scope := \"branch\"\n");
-    out.push_str(&format!("  diagnosticDigest := {}\n", lean_string_literal(&digest)));
-    out.push_str(&format!("  fieldModulus := \"{GOLDILOCKS_MODULUS}\"\n"));
-    out.push_str(&format!("  totalRows := {}\n", arm.n));
-    out.push_str(&format!("  columnCount := {}\n", arm.m));
-    out.push_str("  constantOneColumn := 0\n");
-    out.push_str(&format!("  publicInputCount := {}\n", arm.m_in));
-    out.push_str(&format!(
+    wire_out.push_str("]\n\n");
+    wire_out.push_str("def wire : Wire where\n");
+    wire_out.push_str("  schema := \"nightstream/r1cs-redundancy-problem/v3\"\n");
+    wire_out.push_str(&format!("  profile := {}\n", lean_string_literal(profile)));
+    wire_out.push_str("  scope := \"branch\"\n");
+    wire_out.push_str(&format!("  diagnosticDigest := {}\n", lean_string_literal(&digest)));
+    wire_out.push_str(&format!("  fieldModulus := \"{GOLDILOCKS_MODULUS}\"\n"));
+    wire_out.push_str(&format!("  totalRows := {}\n", arm.n));
+    wire_out.push_str(&format!("  columnCount := {}\n", arm.m));
+    wire_out.push_str("  constantOneColumn := 0\n");
+    wire_out.push_str(&format!("  publicInputCount := {}\n", arm.m_in));
+    wire_out.push_str(&format!(
         "  completeFamilies := [{}]\n",
         census
             .iter()
@@ -546,96 +524,143 @@ pub fn render_compact_source_artifact_modules(
             .collect::<Vec<_>>()
             .join(", ")
     ));
-    out.push_str(&format!(
+    wire_out.push_str(&format!(
         "  valueTable := {}\n",
         lean_string_literal(&base64_encode(&le_bytes_u64(&payloads.value_table)))
     ));
-    out.push_str("  families := families\n");
-    out.push_str(&format!("  chunkRows := {chunk_rows}\n"));
-    out.push_str("  chunks := #[");
+    wire_out.push_str("  families := families\n");
+    wire_out.push_str(&format!("  chunkRows := {chunk_rows}\n"));
+    wire_out.push_str("  chunks := #[");
     for chunk in 0..chunk_count {
         if chunk != 0 {
-            out.push_str(", ");
+            wire_out.push_str(", ");
         }
-        out.push_str(&format!("{module_namespace}Data{chunk}.chunk"));
+        wire_out.push_str(&format!("{module_namespace}Data{chunk}.chunk"));
     }
-    out.push_str("]\n\n");
-    out.push_str("def sourceArtifact : Artifact := sourceArtifactOf wire\n\n");
-    out.push_str("def reviewedPlan : List String := sourceArtifact.completeFamilies\n\n");
-    out.push_str("theorem reviewedPlan_subset :\n");
-    out.push_str("    ∀ family ∈ reviewedPlan, family ∈ sourceArtifact.completeFamilies :=\n");
-    out.push_str("  fun _ membership => membership\n\n");
+    wire_out.push_str("]\n\n");
+    wire_out.push_str("def sourceArtifact : Artifact := sourceArtifactOf wire\n\n");
+    wire_out.push_str("def reviewedPlan : List String := sourceArtifact.completeFamilies\n\n");
+    wire_out.push_str("theorem reviewedPlan_subset :\n");
+    wire_out.push_str("    ∀ family ∈ reviewedPlan, family ∈ sourceArtifact.completeFamilies :=\n");
+    wire_out.push_str("  fun _ membership => membership\n\n");
+    wire_out.push_str(&format!("theorem chunkRows_eq : wire.chunkRows = {chunk_rows} := rfl\n\n"));
+    wire_out.push_str(&format!("theorem totalRows_eq : wire.totalRows = {} := rfl\n\n", arm.n));
+    wire_out.push_str(&format!("theorem chunkCount_eq : wire.chunkCount = {chunk_count} := by decide\n\n"));
+    wire_out.push_str(&format!("end {wire_namespace}\n"));
+    modules.push(GeneratedLeanModule {
+        module_name: wire_namespace.clone(),
+        content: wire_out,
+    });
 
-    // Bounded per-chunk leaves.
-    for chunk in 0..chunk_count {
-        let start = chunk * chunk_rows;
-        let length = (arm.n - start).min(chunk_rows);
-        out.push_str(&format!(
-            "theorem censusLeaf{chunk} :\n    (rowsChunk wire {chunk}).map (fun row => row.sourceIndex) =\n      List.range' {start} {length} := by\n  native_decide\n\n"
-        ));
-        out.push_str(&format!(
-            "theorem rowsWfLeaf{chunk} :\n    (rowsChunk wire {chunk}).all (rowWellFormedAt {} {}) = true := by\n  native_decide\n\n",
-            arm.n, arm.m
-        ));
-        out.push_str(&format!(
-            "theorem familiesLeaf{chunk} :\n    (rowsChunk wire {chunk}).all\n      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n  native_decide\n\n"
-        ));
-    }
-
-    // Family presence leaves: one bounded fact per family.
+    // ── Leaf modules: one merged conjunction per chunk, cap-sized ──────
+    const CHUNKS_PER_LEAF_MODULE: usize = 14;
+    let leaf_module_count = chunk_count.div_ceil(CHUNKS_PER_LEAF_MODULE);
+    let leaf_module_of = |chunk: usize| chunk / CHUNKS_PER_LEAF_MODULE;
+    // Presence facts live in the leaf module that owns their chunk.
+    let mut presence_by_module: Vec<Vec<(usize, usize, &str)>> = vec![Vec::new(); leaf_module_count];
     for (family_index, family) in census.iter().enumerate() {
-        let first_row = family.source_rows()[0];
-        let chunk = first_row / chunk_rows;
-        out.push_str(&format!(
-            "theorem presenceLeaf{family_index} :\n    (rowsChunk wire {chunk}).any\n      (fun row => decide (row.family = {})) = true := by\n  native_decide\n\n",
-            lean_string_literal(family.name())
-        ));
+        let chunk = family.source_rows()[0] / chunk_rows;
+        presence_by_module[leaf_module_of(chunk)].push((family_index, chunk, family.name()));
+    }
+    for leaf_module in 0..leaf_module_count {
+        let first = leaf_module * CHUNKS_PER_LEAF_MODULE;
+        let last = ((leaf_module + 1) * CHUNKS_PER_LEAF_MODULE).min(chunk_count);
+        let module_name = format!("{module_namespace}Leaf{leaf_module}");
+        let mut leaf_out = String::new();
+        leaf_out.push_str(&format!("import {wire_namespace}\n"));
+        if let Some(committed) = committed_equality {
+            leaf_out.push_str(&format!("import {}\n", committed.namespace));
+        }
+        leaf_out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\nBounded per-chunk leaf certificates for one slice of the artifact.\n-/\n\n");
+        leaf_out.push_str(&format!("namespace {module_name}\n\n"));
+        leaf_out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+        leaf_out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+        leaf_out.push_str(&format!("open {wire_namespace}\n\n"));
+        leaf_out.push_str("set_option maxHeartbeats 2000000\n");
+        leaf_out.push_str("set_option maxRecDepth 65536\n\n");
+        for chunk in first..last {
+            let start = chunk * chunk_rows;
+            let length = (arm.n - start).min(chunk_rows);
+            leaf_out.push_str(&format!(
+                "theorem chunkLeaf{chunk} :\n    ((rowsChunk wire {chunk}).map (fun row => row.sourceIndex) =\n        List.range' {start} {length}) ∧\n      ((rowsChunk wire {chunk}).all (rowWellFormedAt {} {}) = true) ∧\n      ((rowsChunk wire {chunk}).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true)",
+                arm.n, arm.m
+            ));
+            if let Some(committed) = committed_equality {
+                leaf_out.push_str(&format!(
+                    " ∧\n      (rowsChunk wire {chunk} = {}.{}{chunk})",
+                    committed.namespace, committed.chunk_prefix
+                ));
+            }
+            leaf_out.push_str(" := by\n  native_decide\n\n");
+        }
+        for (family_index, chunk, name) in &presence_by_module[leaf_module] {
+            leaf_out.push_str(&format!(
+                "theorem presence{family_index} :\n    (rowsChunk wire {chunk}).any\n      (fun row => decide (row.family = {})) = true := by\n  native_decide\n\n",
+                lean_string_literal(name)
+            ));
+        }
+        leaf_out.push_str(&format!("end {module_name}\n"));
+        modules.push(GeneratedLeanModule {
+            module_name,
+            content: leaf_out,
+        });
     }
 
-    // Dispatchers.
-    render_dispatcher(
-        &mut out,
-        "censuses",
-        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k)",
-        "censusLeaf",
-        chunk_count,
-    );
-    render_dispatcher(
-        &mut out,
-        "rowsWf",
-        &format!(
-            "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true",
-            arm.n, arm.m
-        ),
-        "rowsWfLeaf",
-        chunk_count,
-    );
-    render_dispatcher(
-        &mut out,
-        "familiesCovered",
-        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true",
-        "familiesLeaf",
-        chunk_count,
-    );
+    // ── Assembly: dispatchers, small scalar facts, structural theorems ──
+    let census_path = ".1";
+    let wf_path = ".2.1";
+    let family_path = if committed_equality.is_some() { ".2.2.1" } else { ".2.2" };
+    let mut out = String::new();
+    out.push_str(&format!("import {wire_namespace}\n"));
+    for leaf_module in 0..leaf_module_count {
+        out.push_str(&format!("import {module_namespace}Leaf{leaf_module}\n"));
+    }
+    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
+    out.push_str("Assembly of the chunk-aligned compact source artifact. All heavy\n");
+    out.push_str("facts live in the bounded leaf modules; this module only\n");
+    out.push_str("dispatches them and applies the structural composition theorems.\n");
+    out.push_str("Exact validation is discharged by proof, never by evaluation.\n-/\n\n");
+    out.push_str(&format!("namespace {module_namespace}\n\n"));
+    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+    out.push_str(&format!("open {wire_namespace}\n\n"));
+    out.push_str("set_option maxHeartbeats 2000000\n");
+    out.push_str("set_option maxRecDepth 65536\n\n");
+    out.push_str(&format!("export {wire_namespace} (families wire sourceArtifact reviewedPlan reviewedPlan_subset chunkRows_eq totalRows_eq chunkCount_eq)\n\n"));
 
-    // Chunk arithmetic: bounded scalar facts.
-    out.push_str("theorem chunkArithmeticFull :\n    ∀ k, k + 1 < wire.chunkCount → wire.chunkLength k = wire.chunkRows := by\n  native_decide\n\n");
-    out.push_str("theorem chunkArithmeticLast :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows +\n        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows := by\n  native_decide\n\n");
-    out.push_str("theorem chunkArithmeticLead :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows := by\n  native_decide\n\n");
-    out.push_str(
-        "theorem chunkArithmeticEmpty :\n    wire.chunkCount = 0 → wire.totalRows = 0 := by\n  native_decide\n\n",
-    );
+    let leaf_ref = |chunk: usize| format!("{module_namespace}Leaf{}.chunkLeaf{chunk}", leaf_module_of(chunk));
+    let mut census_dispatch = String::new();
+    let mut wf_dispatch = String::new();
+    let mut family_dispatch = String::new();
+    for chunk in 0..chunk_count {
+        census_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){census_path}\n", leaf_ref(chunk)));
+        wf_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){wf_path}\n", leaf_ref(chunk)));
+        family_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){family_path}\n", leaf_ref(chunk)));
+    }
+    out.push_str("theorem censuses :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k) := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
+    out.push_str(&census_dispatch);
+    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
+    out.push_str(&format!("theorem rowsWf :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n", arm.n, arm.m));
+    out.push_str(&wf_dispatch);
+    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
+    out.push_str("theorem familiesCovered :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
+    out.push_str(&family_dispatch);
+    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
 
-    // Family presence assembled from the per-family leaves.
+    out.push_str("theorem chunkArithmeticFull :\n    ∀ k, k + 1 < wire.chunkCount → wire.chunkLength k = wire.chunkRows := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  simp only [Wire.chunkLength, Wire.chunkStart, chunkRows_eq, totalRows_eq]\n  omega\n\n");
+    out.push_str("theorem chunkArithmeticLast :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows +\n        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows := by\n  intro _\n  simp only [Wire.chunkLength, Wire.chunkStart, chunkCount_eq, chunkRows_eq, totalRows_eq]\n  omega\n\n");
+    out.push_str("theorem chunkArithmeticLead :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows := by\n  intro _\n  simp only [chunkCount_eq, chunkRows_eq, totalRows_eq]\n  omega\n\n");
+    out.push_str("theorem chunkArithmeticEmpty :\n    wire.chunkCount = 0 → wire.totalRows = 0 := by\n  intro h\n  rw [chunkCount_eq] at h\n  exact absurd h (by decide)\n\n");
+
     out.push_str("theorem familyPresence :\n    sourceArtifact.completeFamilies.all\n      (fun family =>\n        sourceArtifact.rows.any\n          (fun row => decide (row.family = family))) = true := by\n");
     out.push_str("  rw [List.all_eq_true]\n  intro family membership\n");
     out.push_str("  have present : ∃ chunk, chunk < wire.chunkCount ∧\n      (rowsChunk wire chunk).any\n        (fun row => decide (row.family = family)) = true := by\n");
     out.push_str("    fin_cases membership\n");
     for (family_index, family) in census.iter().enumerate() {
-        let first_row = family.source_rows()[0];
-        let chunk = first_row / chunk_rows;
+        let chunk = family.source_rows()[0] / chunk_rows;
         out.push_str(&format!(
-            "    · exact ⟨{chunk}, by native_decide, presenceLeaf{family_index}⟩\n"
+            "    · exact ⟨{chunk}, by rw [chunkCount_eq]; decide, {module_namespace}Leaf{}.presence{family_index}⟩\n",
+            leaf_module_of(chunk)
         ));
     }
     out.push_str("  rcases present with ⟨chunk, chunkBound, chunkAny⟩\n");
@@ -646,10 +671,8 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("  unfold artifactRows\n");
     out.push_str("  exact List.mem_flatMap.mpr ⟨chunk, List.mem_range.mpr chunkBound, rowMember⟩\n\n");
 
-    // Scalar conjuncts: one small closed pack.
     out.push_str("theorem scalarFacts :\n    sourceArtifact.schema = Artifact.supportedSchema ∧\n      sourceArtifact.profile ≠ \"\" ∧\n      sourceArtifact.scope ∈ Artifact.scopes ∧\n      sourceArtifact.diagnosticDigest ≠ \"\" ∧\n      sourceArtifact.fieldModulus = Artifact.goldilocksModulusDecimal ∧\n      0 < sourceArtifact.totalRows ∧\n      0 < sourceArtifact.columnCount ∧\n      0 < sourceArtifact.publicInputCount ∧\n      sourceArtifact.publicInputCount ≤ sourceArtifact.columnCount ∧\n      sourceArtifact.constantOneColumn < sourceArtifact.publicInputCount ∧\n      sourceArtifact.completeFamilies.Nodup ∧\n      sourceArtifact.completeFamilies.all\n        (fun family => decide (family ≠ \"\")) = true := by\n  native_decide\n\n");
 
-    // Assembly.
     out.push_str("theorem sourceArtifact_indexCensus :\n    (artifactRows wire).map (fun row => row.sourceIndex) =\n      List.range wire.totalRows :=\n");
     out.push_str("  covers_indexes_of_chunks wire censuses chunkArithmeticFull\n    chunkArithmeticLast chunkArithmeticLead chunkArithmeticEmpty\n\n");
     out.push_str("theorem sourceArtifact_coversFullRelation :\n    sourceArtifact.CoversFullRelation :=\n");
@@ -658,18 +681,6 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("  wellFormed_of_chunks wire scalarFacts sourceArtifact_indexCensus\n    rowsWf familyPresence\n\n");
     out.push_str("theorem sourceArtifact_exactValidation :\n    Artifact.ExactValidation sourceArtifact sourceArtifact = true :=\n");
     out.push_str("  exactValidation_self sourceArtifact_wellFormed\n");
-
-    if let Some(committed) = committed_equality {
-        out.push_str("\n-- Per-chunk equality pins against the committed literal artifact.\n");
-        out.push_str("-- Together with both artifacts' coverage theorems these leaves make\n");
-        out.push_str("-- any divergence impossible without a leaf failing.\n");
-        for chunk in 0..chunk_count {
-            out.push_str(&format!(
-                "theorem equalityLeaf{chunk} :\n    rowsChunk wire {chunk} = {}.{}{chunk} := by\n  native_decide\n\n",
-                committed.namespace, committed.chunk_prefix
-            ));
-        }
-    }
     out.push_str(&format!("\nend {module_namespace}\n"));
     modules.push(GeneratedLeanModule {
         module_name: module_namespace.to_owned(),
@@ -757,75 +768,105 @@ pub struct ClassificationOverride {
     pub value: u64,
 }
 
-/// Render the shared classification-leaves module of one batch: per-chunk
-/// background-holds leaves and override-guard leaves (each bounded), their
-/// dispatchers, and the override pair table every family module cites.
-pub fn render_classification_leaves_module(
+/// Render the shared classification leaves of one batch: per-chunk merged
+/// background-holds and override-guard facts split across cap-sized leaf
+/// modules, plus one dispatcher module every family module cites.
+pub fn render_classification_leaves_modules(
     artifact_namespace: &str,
     assignment_namespace: &str,
     module_namespace: &str,
     chunk_count: usize,
     overrides: &[ClassificationOverride],
-) -> Result<GeneratedLeanModule, ExportError> {
+) -> Result<Vec<GeneratedLeanModule>, ExportError> {
     if overrides.is_empty() {
         return Err(ExportError::new("a classification batch needs at least one override"));
     }
+    const CHUNKS_PER_LEAF_MODULE: usize = 14;
+    let wire_namespace = format!("{artifact_namespace}Wire");
+    let leaf_module_count = chunk_count.div_ceil(CHUNKS_PER_LEAF_MODULE);
+    let pairs_literal = {
+        let mut text = String::from("[");
+        for (index, override_entry) in overrides.iter().enumerate() {
+            if index != 0 {
+                text.push_str(",\n   ");
+            }
+            text.push_str(&format!(
+                "({}, {})",
+                override_entry.column,
+                lean_string_literal(&override_entry.family)
+            ));
+        }
+        text.push(']');
+        text
+    };
+    let mut modules = Vec::with_capacity(leaf_module_count + 1);
+    for leaf_module in 0..leaf_module_count {
+        let first = leaf_module * CHUNKS_PER_LEAF_MODULE;
+        let last = ((leaf_module + 1) * CHUNKS_PER_LEAF_MODULE).min(chunk_count);
+        let module_name = format!("{module_namespace}Leaf{leaf_module}");
+        let mut out = String::new();
+        out.push_str(&format!("import {wire_namespace}\n"));
+        out.push_str(&format!("import {assignment_namespace}\n"));
+        out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\nShared classification leaves for one slice of the artifact.\n-/\n\n");
+        out.push_str(&format!("namespace {module_name}\n\n"));
+        out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+        out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+        out.push_str(&format!("open {wire_namespace}\n\n"));
+        out.push_str("set_option maxHeartbeats 2000000\n");
+        out.push_str("set_option maxRecDepth 65536\n\n");
+        out.push_str(&format!(
+            "def background : Nat → Field := backgroundFn {assignment_namespace}.values\n\n"
+        ));
+        out.push_str(&format!("def overridePairs : List (Nat × String) :=\n  {pairs_literal}\n\n"));
+        for chunk in first..last {
+            out.push_str(&format!(
+                "theorem classLeaf{chunk} :\n    ((rowsChunk wire {chunk}).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true) ∧\n      (chunkGuardsOverrides overridePairs (rowsChunk wire {chunk}) = true) := by\n  native_decide\n\n"
+            ));
+        }
+        out.push_str(&format!("end {module_name}\n"));
+        modules.push(GeneratedLeanModule {
+            module_name,
+            content: out,
+        });
+    }
+
     let mut out = String::new();
-    out.push_str(&format!("import {artifact_namespace}\n"));
+    out.push_str(&format!("import {wire_namespace}\n"));
     out.push_str(&format!("import {assignment_namespace}\n"));
-    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
-    out.push_str("Shared classification leaves: every chunk proves once that the\n");
-    out.push_str("background satisfies its rows and that each row either belongs to\n");
-    out.push_str("an override's family or avoids the override's column. All family\n");
-    out.push_str("necessity modules of the batch reuse these leaves.\n-/\n\n");
+    for leaf_module in 0..leaf_module_count {
+        out.push_str(&format!("import {module_namespace}Leaf{leaf_module}\n"));
+    }
+    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\nDispatchers over the shared classification leaves.\n-/\n\n");
     out.push_str(&format!("namespace {module_namespace}\n\n"));
     out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
     out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
-    out.push_str(&format!("open {artifact_namespace}\n\n"));
-    out.push_str("set_option maxHeartbeats 2000000\n");
-    out.push_str("set_option maxRecDepth 65536\n\n");
+    out.push_str(&format!("open {wire_namespace}\n\n"));
     out.push_str(&format!(
         "def background : Nat → Field := backgroundFn {assignment_namespace}.values\n\n"
     ));
-    out.push_str("def overridePairs : List (Nat × String) :=\n  [");
-    for (index, override_entry) in overrides.iter().enumerate() {
-        if index != 0 {
-            out.push_str(",\n   ");
-        }
-        out.push_str(&format!(
-            "({}, {})",
-            override_entry.column,
-            lean_string_literal(&override_entry.family)
-        ));
-    }
-    out.push_str("]\n\n");
+    out.push_str(&format!("def overridePairs : List (Nat × String) :=\n  {pairs_literal}\n\n"));
+    out.push_str("theorem holdsAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
     for chunk in 0..chunk_count {
+        let leaf_module = chunk / CHUNKS_PER_LEAF_MODULE;
         out.push_str(&format!(
-            "theorem holdsLeaf{chunk} :\n    (rowsChunk wire {chunk}).all\n      (fun row => decide (Algebraic.Holds background row.row)) = true := by\n  native_decide\n\n"
-        ));
-        out.push_str(&format!(
-            "theorem guardsLeaf{chunk} :\n    chunkGuardsOverrides overridePairs (rowsChunk wire {chunk}) = true := by\n  native_decide\n\n"
+            "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).1\n"
         ));
     }
-    render_dispatcher(
-        &mut out,
-        "holdsAll",
-        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true",
-        "holdsLeaf",
-        chunk_count,
-    );
-    render_dispatcher(
-        &mut out,
-        "guardsAll",
-        "∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true",
-        "guardsLeaf",
-        chunk_count,
-    );
+    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
+    out.push_str("theorem guardsAll :\n    ∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
+    for chunk in 0..chunk_count {
+        let leaf_module = chunk / CHUNKS_PER_LEAF_MODULE;
+        out.push_str(&format!(
+            "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).2\n"
+        ));
+    }
+    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
     out.push_str(&format!("end {module_namespace}\n"));
-    Ok(GeneratedLeanModule {
+    modules.push(GeneratedLeanModule {
         module_name: module_namespace.to_owned(),
         content: out,
-    })
+    });
+    Ok(modules)
 }
 
 /// Render one family's compact necessity module: two bounded leaves (the
@@ -896,7 +937,7 @@ pub fn render_compact_removal_counterexample_lean(
         "theorem column_inRange : column < {assignment_namespace}.values.size := by\n  rw [{assignment_namespace}.values_size]\n  decide\n\n"
     ));
     out.push_str(&format!(
-        "theorem constant_one :\n    overrideAt {leaves_namespace}.background column (value : Field)\n      wire.constantOneColumn = 1 := by\n  have distinct : wire.constantOneColumn ≠ column := by native_decide\n  show overrideAt _ _ _ wire.constantOneColumn = 1\n  unfold overrideAt\n  rw [if_neg distinct]\n  show {leaves_namespace}.background wire.constantOneColumn = 1\n  have zero : wire.constantOneColumn = 0 := by native_decide\n  rw [zero]\n  show ((({assignment_namespace}.values.getD 0 0 : Nat)) : Field) = 1\n  rw [{assignment_namespace}.values_one]\n  norm_num\n\n"
+        "theorem constant_one :\n    overrideAt {leaves_namespace}.background column (value : Field)\n      wire.constantOneColumn = 1 := by\n  have distinct : wire.constantOneColumn ≠ column := by decide\n  show overrideAt _ _ _ wire.constantOneColumn = 1\n  unfold overrideAt\n  rw [if_neg distinct]\n  show {leaves_namespace}.background wire.constantOneColumn = 1\n  have zero : wire.constantOneColumn = 0 := by decide\n  rw [zero]\n  show ((({assignment_namespace}.values.getD 0 0 : Nat)) : Field) = 1\n  rw [{assignment_namespace}.values_one]\n  norm_num\n\n"
     ));
     out.push_str("def removalCounterexample : RemovalCounterexample :=\n");
     out.push_str(&format!(
@@ -906,7 +947,7 @@ pub fn render_compact_removal_counterexample_lean(
         "theorem removalCounterexample_valid :\n    removalCounterexample.Valid sourceArtifact reviewedPlan :=\n",
     );
     out.push_str(&format!(
-        "  mkCounterexample_valid wire {assignment_namespace}.values\n    {leaves_namespace}.overridePairs column value removedFamily reviewedPlan\n    reviewedPlan_subset\n    (by rw [{assignment_namespace}.values_size]; native_decide)\n    column_inRange constant_one pair_member {leaves_namespace}.guardsAll\n    {leaves_namespace}.holdsAll violatedRow {violated_chunk}\n    ⟨by native_decide, violated_mem⟩ violation\n\n"
+        "  mkCounterexample_valid wire {assignment_namespace}.values\n    {leaves_namespace}.overridePairs column value removedFamily reviewedPlan\n    reviewedPlan_subset\n    (by rw [{assignment_namespace}.values_size]; decide)\n    column_inRange constant_one pair_member {leaves_namespace}.guardsAll\n    {leaves_namespace}.holdsAll violatedRow {violated_chunk}\n    ⟨by rw [chunkCount_eq]; decide, violated_mem⟩ violation\n\n"
     ));
     out.push_str("theorem necessary :\n    NecessaryForSoundness (FamilyHolds sourceArtifact)\n      (Target sourceArtifact) reviewedPlan removedFamily :=\n");
     out.push_str("  removalCounterexample.necessary_of_full_valid\n    sourceArtifact sourceArtifact reviewedPlan\n    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n    removalCounterexample_valid\n\n");

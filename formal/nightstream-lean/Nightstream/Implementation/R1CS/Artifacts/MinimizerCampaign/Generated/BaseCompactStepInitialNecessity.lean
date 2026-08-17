@@ -42,12 +42,12 @@ theorem column_inRange : column < Nightstream.Implementation.R1CS.Artifacts.Mini
 theorem constant_one :
     overrideAt Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeaves.background column (value : Field)
       wire.constantOneColumn = 1 := by
-  have distinct : wire.constantOneColumn ≠ column := by native_decide
+  have distinct : wire.constantOneColumn ≠ column := by decide
   show overrideAt _ _ _ wire.constantOneColumn = 1
   unfold overrideAt
   rw [if_neg distinct]
   show Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeaves.background wire.constantOneColumn = 1
-  have zero : wire.constantOneColumn = 0 := by native_decide
+  have zero : wire.constantOneColumn = 0 := by decide
   rw [zero]
   show (((Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values.getD 0 0 : Nat)) : Field) = 1
   rw [Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values_one]
@@ -61,10 +61,10 @@ theorem removalCounterexample_valid :
   mkCounterexample_valid wire Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values
     Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeaves.overridePairs column value removedFamily reviewedPlan
     reviewedPlan_subset
-    (by rw [Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values_size]; native_decide)
+    (by rw [Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values_size]; decide)
     column_inRange constant_one pair_member Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeaves.guardsAll
     Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeaves.holdsAll violatedRow 57
-    ⟨by native_decide, violated_mem⟩ violation
+    ⟨by rw [chunkCount_eq]; decide, violated_mem⟩ violation
 
 theorem necessary :
     NecessaryForSoundness (FamilyHolds sourceArtifact)

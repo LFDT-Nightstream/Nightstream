@@ -119,8 +119,8 @@ fn recursive_witness_census_emits_compact_necessity_modules() {
         )
         .collect::<Vec<_>>();
     let chunk_count = arm.n.div_ceil(CHUNK_ROWS);
-    modules.push(
-        nightstream_constraint_exporter::render_classification_leaves_module(
+    modules.extend(
+        nightstream_constraint_exporter::render_classification_leaves_modules(
             &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
             &format!("{GENERATED_NS}.RecursiveCampaignAssignment"),
             &format!("{GENERATED_NS}.RecursiveClassificationLeaves"),

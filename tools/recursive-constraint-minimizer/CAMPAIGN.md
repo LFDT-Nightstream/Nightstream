@@ -13,7 +13,7 @@ repository root unless stated.
 | 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive authority artifact now fully Lean-certified (2026-08-17); census awaits bar 4 | The complete recursive source relation is now a committed Lean authority artifact: string-payload CSR + 527-value table + 36 compact seeded blocks (197 MB payloads, emitted with a full 4.5 M-row replay against the independent recovery, 33 s). Artifact-level `*_of_full_valid` theorems added; the census runner (`recursive_census.rs`) will emit one compact necessity module per family from the shared assignment plus one column override. Base pilot flows end to end (BaseCompactSourceArtifact + BaseCampaignAssignment + BaseCompactStepInitialNecessity), pinned to the committed literal artifact by native_decide equality. y_ring stays the redundancy leg via its scalar certificate. |
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
 | 7 | `normalizedFullPlanInclusionMinimalSound` instantiated; ledger zero Open | unmet | One Open entry: `hypernova.recursive_size_closure` (`bridge/src/obligation_ledger.rs`). |
-| 8 | Planted redundant + necessary controls flow end to end | **both legs Lean-green at v2 (2026-08-17), awaiting refutation pass** | Necessary: base pilot chain end to end (artifact + assignment + classification + necessity theorems). Redundant: the chunked y_ring chain (Parts + 32 leaves + assembly) builds green in one capped invocation after the per-support-chunk coverage fix; `redundant` and `normalizedRedundant` are Lean-certified against the fully-certified recursive compact artifact — this is the bar-6 removal authority for y_ring. | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
+| 8 | Planted redundant + necessary controls flow end to end | **met** (refutation failed, 2026-08-18) | Necessary: base pilot chain end to end (artifact + assignment + classification + necessity theorems). Redundant: the chunked y_ring chain (Parts + 32 leaves + assembly) builds green in one capped invocation after the per-support-chunk coverage fix; `redundant` and `normalizedRedundant` are Lean-certified against the fully-certified recursive compact artifact — this is the bar-6 removal authority for y_ring. | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 3,920 exact candidate/support certificates, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
 | 9 | Rust, Lean, drift, axioms suites all green | **all suites green (2026-08-18), awaiting refutation pass** | Lean: complete library green (5,392 jobs incl. tests.Axioms, no guard extension needed). Rust: clean sweep of all 121 neo-fold-clean binaries with zero failures after the five fix classes; all other workspace crates green (cuda/metal/wasm included); exporter workspace green with cap-fit gates. Remaining Rust ignored tests are solo-window campaign probes by design. | Rust suites green (core 18, bridge 39 incl. gates; nebula suite cap-fit and green per-test). Lean: the complete NightstreamTests library built green (5,392 jobs, 0 errors) including tests.Axioms (no guard extension needed — new theorems stay inside the pinned axiom set), tests.SeededPhi81Conformance, and every terminal necessity re-certification at v2. Remaining: cargo workspace per-package sweep. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
@@ -414,6 +414,31 @@ unbounded loop, divergent only at ~2^-128 and loudly);
 and the mirror test rather than shared;
 (3) the Lean leg rests on native_decide/ofReduceBool and pointwise
 stream equality, as its module header already states.
+
+## Bar-8 refutation record (2026-08-18)
+
+A fresh no-context adversarial agent failed to refute the planted
+controls claim. Its checks: soundness reading of duplicateOk /
+valid_of_duplicateOk and the home-census + supportsCovered
+composition (no smuggling path; DecidableEq forces exact row
+equality); vacuity ruled out with numbers (y_ring owns exactly 3,920
+rows and carries exactly 3,920 certificates; both family range
+tables partition [0, totalRows) with zero overlaps and gaps); axiom
+audit of all four final theorems (propext, Classical.choice,
+Quot.sound plus per-declaration native compiler-trust axioms; zero
+sorryAx; negative controls confirmed native_decide rejects false
+claims); an independent Python re-derivation of all 3,920
+certificates (0 violations; supports split 3,640 canonicality + 280
+pi_dec, home chunks {0, 128}); and confirmation that base column
+3811 is read by exactly one row of 39,949. Residual weaknesses
+recorded, none refuting: the digest is metadata inside Lean (the
+Rust drift gate owns the binding); ExactValidation self-collapses to
+WellFormed inside Lean; the y_ring mirror gate is #[ignore] by
+budget; ~2,002 native compiler-trust axioms across the chain; the
+recursive leg has no literal-row cross-check (wire payload plus the
+un-ignored emitter gate are its row authority). The stale "1,120"
+count in the bar-8 row was the refuter's one documentation catch,
+fixed in this entry's commit.
 
 ## Iteration log
 

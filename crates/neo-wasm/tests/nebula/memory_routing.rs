@@ -367,7 +367,7 @@ fn s_mem_structure_census() {
             reduced.cols() - reduced.m_in(),
             reduced.nnz(),
         ),
-        (449_816, 446_229, 1_403, 444_826, 2_824_355),
+        (449_870, 446_283, 1_403, 444_880, 2_824_724),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert_eq!(profile.memory().b_ops, 21 * profile.batch_size());

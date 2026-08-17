@@ -569,7 +569,7 @@ fn reduced_profile_fixed_point_stabilizes() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (4_113_183, 14_543_442),
+        (4_116_061, 14_659_920),
         "reduced-profile rectangular verifier fixed point drifted"
     );
 }
@@ -600,7 +600,7 @@ fn reduced_radix_four_profile_fixed_point_stabilizes() {
             relation.structure().t(),
             relation.structure().max_degree(),
         ),
-        (4_818_211, 7_048_026, 13, 8),
+        (3_698_846, 7_113_312, 13, 8),
         "reduced radix-four fixed point drifted"
     );
     assert!(

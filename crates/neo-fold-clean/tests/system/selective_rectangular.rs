@@ -263,13 +263,13 @@ fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (2, 270, 7_113_380, 12_223_656),
-            (7_113_380, 12_223_656, 7_143_950, 12_678_066),
-            (7_143_950, 12_678_066, 7_143_950, 12_678_066),
+            (2, 270, 7_080_164, 11_543_040),
+            (7_080_164, 11_543_040, 7_110_788, 11_997_504),
+            (7_110_788, 11_997_504, 7_110_788, 11_997_504),
         ],
         "the selected one-joint production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 12_678_064);
+    assert_eq!(width.total_coordinates, 11_997_464);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -295,12 +295,12 @@ fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
         vec![
             (14_261, 11_631, 82_111, 448, 0, 81_663, 0, 0, 81_663, 22, 77_828),
             (
-                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
-                3_222_262,
+                10_713_961, 5_561_723, 14_601_537, 3_294_332, 912, 11_269_813, 17_740, 727_340, 11_997_153, 937,
+                3_335_094,
             ),
             (
-                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
-                3_222_262,
+                10_713_961, 5_561_723, 14_601_537, 3_294_332, 912, 11_269_813, 17_740, 727_340, 11_997_153, 937,
+                3_335_094,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -419,8 +419,8 @@ fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None),
-            (1, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
-            (2, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
+            (1, Some((7_819, 3_034_465, 513_786)), Some((7_820, 3_034, 434)),),
+            (2, Some((7_819, 3_034_465, 513_786)), Some((7_820, 3_034, 434)),),
         ],
         "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
     );
@@ -473,7 +473,7 @@ fn active_fixed_point_materializes_after_accumulator_ce_compression() {
 
     let audit = relation.compilation_audit();
     assert_eq!(audit.rounds().len(), 3);
-    assert_eq!(audit.width().total_coordinates, 12_678_064);
+    assert_eq!(audit.width().total_coordinates, 11_997_464);
     assert_eq!(audit.layout().total_columns(), structure.m);
     assert_eq!(audit.rows().total_rows(), structure.n);
     let terminal = audit

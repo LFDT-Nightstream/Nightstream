@@ -555,7 +555,6 @@ fn sparse_export_matches_each_nebula_source_matrix() {
 }
 
 #[test]
-#[ignore = "full-family derivation exceeds the five-minute cap at v2; run in campaign solo windows"]
 fn recursive_pi_rlc_padding_has_an_exact_scalar_certificate() {
     const CANDIDATE: &str = "nifs.pi_rlc.verify.padding.y_ring";
     const PI_CCS_SUPPORT: &str = "nifs.pi_ccs.padded_row.canonicality";

@@ -667,10 +667,9 @@ fn recursive_pi_rlc_padding_prefix_rows_are_exact_duplicates() {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
-    let export = export_nebula_problem(
-        &audit,
-        branch,
-        ExportRequest {
+    let export = nightstream_constraint_exporter::export_sparse_problem(
+        arm,
+        nightstream_constraint_exporter::ExportRequest {
             profile: "nebula-recursive-exact-duplicate-prefix".to_owned(),
             scope: Scope::Branch,
             public_input_count: arm.m_in,
@@ -681,25 +680,23 @@ fn recursive_pi_rlc_padding_prefix_rows_are_exact_duplicates() {
     .expect("export the prefix candidates and support rows");
     for &candidate_index in candidates {
         let row = export
-            .problem()
             .rows
             .binary_search_by_key(&candidate_index, |row| row.source_index)
-            .map(|index| &export.problem().rows[index])
+            .map(|index| &export.rows[index])
             .expect("candidate row in the prefix export");
-        let certificate = derive_scalar_certificate(export.problem(), &Selection::Row(row.id.clone()))
+        let certificate = derive_scalar_certificate(&export, &Selection::Row(row.id.clone()))
             .expect("derive the prefix certificate")
             .expect("every prefix candidate has an exact duplicate");
-        validate_scalar_certificate(export.problem(), &certificate).expect("replay the prefix certificate");
+        validate_scalar_certificate(&export, &certificate).expect("replay the prefix certificate");
         for row_certificate in &certificate.rows {
             let [support] = row_certificate.support.as_slice() else {
                 panic!("each exact duplicate must use one support row");
             };
             assert_eq!(support.coefficient, "1");
             let support_row = export
-                .problem()
                 .rows
                 .binary_search_by_key(&support.source_index, |row| row.source_index)
-                .map(|index| &export.problem().rows[index])
+                .map(|index| &export.rows[index])
                 .expect("certificate support belongs to the prefix export");
             assert!(
                 support_row.family == PI_CCS_SUPPORT || support_row.family == PI_DEC_SUPPORT,
@@ -740,10 +737,12 @@ fn installed_cvc5_finds_the_recursive_pi_rlc_padding_candidate_unsat() {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
-    let export = export_nebula_problem(
-        &audit,
-        branch,
-        ExportRequest {
+    // The plain sparse exporter carries the same row payloads; the nebula
+    // exporter also computes selective bindings, which this solver gate
+    // does not read and which cost minutes at v2.
+    let problem = nightstream_constraint_exporter::export_sparse_problem(
+        arm,
+        nightstream_constraint_exporter::ExportRequest {
             profile: "nebula-recursive-cvc5-duplicate-control".to_owned(),
             scope: Scope::Branch,
             public_input_count: arm.m_in,
@@ -752,20 +751,15 @@ fn installed_cvc5_finds_the_recursive_pi_rlc_padding_candidate_unsat() {
         },
     )
     .expect("export the exact duplicate candidate and support rows");
-    eprintln!(
-        "phase export done {:?}; slice rows {}",
-        clock.elapsed(),
-        export.problem().rows.len()
-    );
-    let candidate_row = export
-        .problem()
+    eprintln!("phase export done {:?}; slice rows {}", clock.elapsed(), problem.rows.len());
+    let candidate_row = problem
         .rows
         .iter()
         .find(|row| row.family == CANDIDATE)
         .expect("one y_ring candidate row")
         .id
         .clone();
-    let query = render_query(export.problem(), &Selection::Row(candidate_row))
+    let query = render_query(&problem, &Selection::Row(candidate_row))
         .expect("render exact recursive duplicate query");
     eprintln!("phase render done {:?}; query bytes {}", clock.elapsed(), query.smt2.len());
     let run = run_cvc5(&query, &SolverConfig::default()).expect("run installed cvc5");

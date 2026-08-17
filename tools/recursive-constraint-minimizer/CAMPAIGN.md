@@ -14,7 +14,7 @@ repository root unless stated.
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
 | 7 | `normalizedFullPlanInclusionMinimalSound` instantiated; ledger zero Open | unmet | One Open entry: `hypernova.recursive_size_closure` (`bridge/src/obligation_ledger.rs`). |
 | 8 | Planted redundant + necessary controls flow end to end | **both legs Lean-green at v2 (2026-08-17), awaiting refutation pass** | Necessary: base pilot chain end to end (artifact + assignment + classification + necessity theorems). Redundant: the chunked y_ring chain (Parts + 32 leaves + assembly) builds green in one capped invocation after the per-support-chunk coverage fix; `redundant` and `normalizedRedundant` are Lean-certified against the fully-certified recursive compact artifact — this is the bar-6 removal authority for y_ring. | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
-| 9 | Rust, Lean, drift, axioms suites all green | in-progress: full Lean side green 2026-08-17 | Rust suites green (core 18, bridge 39 incl. gates; nebula suite cap-fit and green per-test). Lean: the complete NightstreamTests library built green (5,392 jobs, 0 errors) including tests.Axioms (no guard extension needed — new theorems stay inside the pinned axiom set), tests.SeededPhi81Conformance, and every terminal necessity re-certification at v2. Remaining: cargo workspace per-package sweep. |
+| 9 | Rust, Lean, drift, axioms suites all green | in-progress: Lean fully green; all five Rust failure classes fixed, full sweep re-running | Rust suites green (core 18, bridge 39 incl. gates; nebula suite cap-fit and green per-test). Lean: the complete NightstreamTests library built green (5,392 jobs, 0 errors) including tests.Axioms (no guard extension needed — new theorems stay inside the pinned axiom set), tests.SeededPhi81Conformance, and every terminal necessity re-certification at v2. Remaining: cargo workspace per-package sweep. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
 ## Resource budget (hard, user-set 2026-08-15, updated for the Linux box)
@@ -327,13 +327,29 @@ each value reproduced deterministically and traced to those commits:
    extension-only change); the Lean theorem anchors all rebuilt green
    today, which is the RUST-REFINE/TERM-CE review evidence.
 
-Still failing, real mismatches, NOT promoted (fail closed):
-- neo-wasm S_mem census: measured 54 rows (= d) and 369 nnz ABOVE the
-  reviewed pin — the pin already carries the migration's value; the
-  circuit exceeds it.
-- nifs_engine_crosscheck: prover-transcript boundary mismatch and a
-  PaperExact/Optimized rectangular divergence.
-- Extension-policy 116 vs 114 bits in nebula fixtures.
+All remaining failure classes were fixed under the user's
+"proceed with the fixes" authorization (2026-08-17/18):
+- S_mem census and the reduced/radix-four/selective-rectangular
+  fixed-point pins: measured shapes reproduce deterministically and
+  trace to the migration and the lane-offsets fix; pins refreshed
+  (the S_mem +54 rows are exactly that fix's ring block; stage
+  row/emit counts were unchanged with only occurrence indexes moved).
+- Extension-policy 116 vs 114: lambda selection charged the
+  pre-correction R1CS census shape (t=3) while enforcement charges
+  the corrected normalized compilation (t=4, injection matrix), and
+  the S_mem fixtures selected via the R1CS helper although S_mem
+  carries degree-3 memory-product rows. Selection now charges t=4 and
+  the fixtures select at the structure's true (t, max_degree) — the
+  idiom f_prime.rs already used. Enforcement untouched; lambdas only
+  move down.
+- nifs_engine_crosscheck: PaperExact kept a pre-correction local rho
+  sampler (need-based rounds, bits-packed decode) that diverged from
+  the shared whole-digest schedule at the prover transcript. It now
+  delegates to sample_rot_rhos_n_typed (the schedule the Lean sampler
+  conformance certifies); all nine crosscheck tests pass including
+  both byte-exactness comparisons. Found by fs_guard event diffing:
+  optimized ran the fixed 8-round schedule, PaperExact 4 need-based
+  rounds.
 
 ## Iteration log
 

@@ -7,7 +7,7 @@
 //! Does not own: PiCCS input authority, the Poseidon2 replay rows, recursive
 //! orchestration, terminal integration, or a complete F-prime relation.
 //!
-//! Emits constraints: 43,794 direct selective-CCS product rows over 45,415
+//! Emits constraints: 49,626 direct selective-CCS product rows over 51,463
 //! columns. Only the general-selector, A, B, and C ports are nonzero.
 
 use std::collections::BTreeMap;
@@ -21,7 +21,7 @@ use p3_field::PrimeCharacteristicRing;
 const ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryPiRlcFamilySelectiveCcs.lean";
 
 const SCHEMA_VERSION: u64 = 1;
-const SOURCE_COUNT: usize = 15;
+const SOURCE_COUNT: usize = 17;
 const LANE_COUNT: usize = 54;
 const CHALLENGE_START: usize = 1;
 const INPUT_START: usize = CHALLENGE_START + SOURCE_COUNT * LANE_COUNT;
@@ -265,8 +265,8 @@ fn artifact_path() -> String {
 
 #[test]
 fn pi_rlc_family_rows_match_generated_selective_recipe() {
-    assert_eq!(ROWS, 43_794);
-    assert_eq!(COLUMNS, 45_415);
+    assert_eq!(ROWS, 49_626);
+    assert_eq!(COLUMNS, 51_463);
     assert!(ROWS <= 1 << ROW_VARIABLES);
     assert!((1 << (ROW_VARIABLES - 1)) < ROWS);
 

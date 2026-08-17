@@ -3,11 +3,20 @@
 //! This module owns only phase order and exact phase counts. It does not own
 //! phase-local constraints, relation synthesis, or recursive proof state.
 
-pub(super) const CLAIM_FRAME_FIELDS: usize = 88_023;
+const PRODUCTION_ROW_VARIABLES: usize = 26;
+pub(super) const PI_CCS_RUNNING_COUNT: usize = crate::config::K_RHO as usize;
+const RUNNING_COMMITMENT_FIELDS: usize = 3_888;
+const RUNNING_PUBLIC_INPUT_FIELDS: usize = 540;
+const RUNNING_EVALUATION_FIELDS: usize = 14 * 54 * 2;
+const RUNNING_CLAIM_FIELDS: usize = 2 * PRODUCTION_ROW_VARIABLES
+    + PI_CCS_RUNNING_COUNT * (RUNNING_COMMITMENT_FIELDS + RUNNING_PUBLIC_INPUT_FIELDS + RUNNING_EVALUATION_FIELDS);
+const FRESH_CLAIM_FIELDS: usize = RUNNING_COMMITMENT_FIELDS + RUNNING_PUBLIC_INPUT_FIELDS;
+const CLAIM_FIXED_PREFIX_FIELDS: usize = 383;
+pub(super) const CLAIM_FRAME_FIELDS: usize = CLAIM_FIXED_PREFIX_FIELDS + RUNNING_CLAIM_FIELDS + FRESH_CLAIM_FIELDS;
 pub(super) const CLAIM_CHUNK_FIELDS: usize = 1_024;
 const STATE_CHUNK_FIELDS: usize = 1_024;
-const PRIOR_STATE_FRAME_FIELDS: usize = 83_874;
-const SUCCESSOR_PREFIX_FRAME_FIELDS: usize = 83_756;
+const PRIOR_STATE_FRAME_FIELDS: usize = RUNNING_CLAIM_FIELDS + 662;
+const SUCCESSOR_PREFIX_FRAME_FIELDS: usize = RUNNING_CLAIM_FIELDS + 544;
 const PI_CCS_ROUNDS: usize = 26;
 const PI_RLC_FAMILIES: usize = 110;
 const FIXED_WORK_ITEMS: usize = 14;

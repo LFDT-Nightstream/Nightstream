@@ -294,22 +294,22 @@ def rawProgram : RawProgram where\n",
 fn production_streaming_program_matches_lean_artifact() {
     let program = NebulaFPrimeStreamingProgramAudit::production();
     assert_eq!(program.state_chunk_fields(), 1_024);
-    assert_eq!(program.prior_state_frame_fields(), 83_874);
-    assert_eq!(program.prior_state_chunks(), 82);
-    assert_eq!(program.claim_frame_fields(), 88_023);
+    assert_eq!(program.prior_state_frame_fields(), 95_754);
+    assert_eq!(program.prior_state_chunks(), 94);
+    assert_eq!(program.claim_frame_fields(), 99_903);
     assert_eq!(program.claim_chunk_fields(), 1_024);
-    assert_eq!(program.claim_chunks(), 86);
-    assert_eq!(program.first_claim_program_cursor(), 83);
+    assert_eq!(program.claim_chunks(), 98);
+    assert_eq!(program.first_claim_program_cursor(), 95);
     assert_eq!(program.pi_ccs_rounds(), 26);
     assert_eq!(program.pi_rlc_families(), 110);
-    assert_eq!(program.first_pi_rlc_family_program_cursor(), 199);
-    assert_eq!(program.successor_prefix_frame_fields(), 83_756);
-    assert_eq!(program.successor_prefix_chunks(), 82);
-    assert_eq!(program.work_items().len(), 400);
+    assert_eq!(program.first_pi_rlc_family_program_cursor(), 223);
+    assert_eq!(program.successor_prefix_frame_fields(), 95_636);
+    assert_eq!(program.successor_prefix_chunks(), 94);
+    assert_eq!(program.work_items().len(), 436);
     assert_eq!(program.runs().len(), 19);
     assert_eq!(program.lifecycle_group_count(), 2);
     assert_eq!(program.circuit_kind_count(), 23);
-    assert_eq!(production_claim_coordinate_overlay_kind_count(), 87);
+    assert_eq!(production_claim_coordinate_overlay_kind_count(), 99);
     let public = NebulaFPrimeStreamingPublicLayout::production();
     assert_eq!(public.after_state_digest_bits(), 1..257);
     assert_eq!(public.before_state_digest_bits(), 257..513);
@@ -331,24 +331,24 @@ fn production_streaming_program_matches_lean_artifact() {
 
     assert_eq!(direct[0], (NebulaFPrimeStreamingPhase::Prelude, 0));
     assert_eq!(direct[1], (NebulaFPrimeStreamingPhase::PriorStateReplay, 0));
-    assert_eq!(direct[82], (NebulaFPrimeStreamingPhase::PriorStateReplay, 81));
-    assert_eq!(direct[83], (NebulaFPrimeStreamingPhase::ClaimReplay, 0));
-    assert_eq!(direct[168], (NebulaFPrimeStreamingPhase::ClaimReplay, 85));
-    assert_eq!(direct[169], (NebulaFPrimeStreamingPhase::PiCcsStart, 0));
-    assert_eq!(direct[195], (NebulaFPrimeStreamingPhase::PiCcsRound, 25));
-    assert_eq!(direct[199], (NebulaFPrimeStreamingPhase::PiRlcFamily, 0));
-    assert_eq!(direct[308], (NebulaFPrimeStreamingPhase::PiRlcFamily, 109));
-    assert_eq!(direct[314], (NebulaFPrimeStreamingPhase::SuccessorPrefixReplay, 0));
-    assert_eq!(direct[395], (NebulaFPrimeStreamingPhase::SuccessorPrefixReplay, 81));
-    assert_eq!(direct[399], (NebulaFPrimeStreamingPhase::SemanticLinks, 0));
+    assert_eq!(direct[94], (NebulaFPrimeStreamingPhase::PriorStateReplay, 93));
+    assert_eq!(direct[95], (NebulaFPrimeStreamingPhase::ClaimReplay, 0));
+    assert_eq!(direct[192], (NebulaFPrimeStreamingPhase::ClaimReplay, 97));
+    assert_eq!(direct[193], (NebulaFPrimeStreamingPhase::PiCcsStart, 0));
+    assert_eq!(direct[219], (NebulaFPrimeStreamingPhase::PiCcsRound, 25));
+    assert_eq!(direct[223], (NebulaFPrimeStreamingPhase::PiRlcFamily, 0));
+    assert_eq!(direct[332], (NebulaFPrimeStreamingPhase::PiRlcFamily, 109));
+    assert_eq!(direct[338], (NebulaFPrimeStreamingPhase::SuccessorPrefixReplay, 0));
+    assert_eq!(direct[431], (NebulaFPrimeStreamingPhase::SuccessorPrefixReplay, 93));
+    assert_eq!(direct[435], (NebulaFPrimeStreamingPhase::SemanticLinks, 0));
 
     let lifecycle_groups = program.lifecycle_group_map();
-    assert_eq!(lifecycle_groups.len(), 400);
+    assert_eq!(lifecycle_groups.len(), 436);
     assert_eq!(&lifecycle_groups[..4], &[0, 1, 1, 1]);
     assert!(lifecycle_groups[1..].iter().all(|&group| group == 1));
 
     let circuit_kinds = program.circuit_kind_map();
-    assert_eq!(circuit_kinds.len(), 400);
+    assert_eq!(circuit_kinds.len(), 436);
     assert_eq!(
         circuit_kinds[0],
         NebulaFPrimeStreamingCircuitKind::Prelude.code() as usize
@@ -358,39 +358,39 @@ fn production_streaming_program_matches_lean_artifact() {
         NebulaFPrimeStreamingCircuitKind::PriorStateReplayFull.code() as usize
     );
     assert_eq!(
-        circuit_kinds[82],
+        circuit_kinds[94],
         NebulaFPrimeStreamingCircuitKind::PriorStateReplayFinal.code() as usize
     );
     assert_eq!(
-        circuit_kinds[83],
+        circuit_kinds[95],
         NebulaFPrimeStreamingCircuitKind::ClaimReplayFull.code() as usize
     );
     assert_eq!(
-        circuit_kinds[168],
+        circuit_kinds[192],
         NebulaFPrimeStreamingCircuitKind::ClaimReplayFinal.code() as usize
     );
     assert_eq!(
-        circuit_kinds[199],
+        circuit_kinds[223],
         NebulaFPrimeStreamingCircuitKind::PiRlcFamilyEven.code() as usize
     );
     assert_eq!(
-        circuit_kinds[200],
+        circuit_kinds[224],
         NebulaFPrimeStreamingCircuitKind::PiRlcFamilyOdd.code() as usize
     );
     assert_eq!(
-        circuit_kinds[308],
+        circuit_kinds[332],
         NebulaFPrimeStreamingCircuitKind::PiRlcFamilyOdd.code() as usize
     );
     assert_eq!(
-        circuit_kinds[314],
+        circuit_kinds[338],
         NebulaFPrimeStreamingCircuitKind::SuccessorPrefixReplayFull.code() as usize
     );
     assert_eq!(
-        circuit_kinds[395],
+        circuit_kinds[431],
         NebulaFPrimeStreamingCircuitKind::SuccessorPrefixReplayFinal.code() as usize
     );
     assert_eq!(
-        circuit_kinds[399],
+        circuit_kinds[435],
         NebulaFPrimeStreamingCircuitKind::SemanticLinks.code() as usize
     );
     let mut seen = circuit_kinds.clone();
@@ -399,38 +399,38 @@ fn production_streaming_program_matches_lean_artifact() {
     assert_eq!(seen, (0..program.circuit_kind_count()).collect::<Vec<_>>());
 
     let overlay_kinds = production_claim_coordinate_overlay_kind_map();
-    assert_eq!(overlay_kinds.len(), 400);
-    assert!(overlay_kinds[..83].iter().all(|&kind| kind == 0));
-    assert_eq!(overlay_kinds[83], 1);
-    assert_eq!(overlay_kinds[84], 2);
-    assert_eq!(overlay_kinds[143], 61);
-    assert_eq!(overlay_kinds[164], 82);
-    assert_eq!(overlay_kinds[165], 83);
-    assert_eq!(overlay_kinds[168], 86);
-    assert!(overlay_kinds[169..].iter().all(|&kind| kind == 0));
+    assert_eq!(overlay_kinds.len(), 436);
+    assert!(overlay_kinds[..95].iter().all(|&kind| kind == 0));
+    assert_eq!(overlay_kinds[95], 1);
+    assert_eq!(overlay_kinds[96], 2);
+    assert_eq!(overlay_kinds[155], 61);
+    assert_eq!(overlay_kinds[176], 82);
+    assert_eq!(overlay_kinds[177], 83);
+    assert_eq!(overlay_kinds[192], 98);
+    assert!(overlay_kinds[193..].iter().all(|&kind| kind == 0));
 
     let link_runs = production_claim_coordinate_overlay_link_runs();
     let links = production_claim_coordinate_overlay_links();
-    assert_eq!(link_runs.len(), 86);
+    assert_eq!(link_runs.len(), 98);
     assert_eq!(links.len(), link_runs.len());
     assert_eq!(
         link_runs
             .iter()
             .map(|run| run.active_field_count())
             .sum::<usize>(),
-        87_640
+        99_520
     );
     assert_eq!(
         links
             .iter()
             .map(|contract| contract.fields.len())
             .sum::<usize>(),
-        124_792
+        141_856
     );
     for (run, contract) in link_runs.iter().zip(&links) {
         assert_eq!(contract.overlay_kind, run.overlay_kind());
         assert_eq!(contract.phase_kind, run.phase_kind());
-        assert_eq!(contract.fields.len(), 4 * D * 2 + run.active_field_count());
+        assert_eq!(contract.fields.len(), 6 * D * 2 + run.active_field_count());
         let base = if run.phase_kind() == NebulaFPrimeStreamingCircuitKind::ClaimReplayFinal.code() as usize {
             NebulaFPrimeClaimReplaySynthesis::production_base_final()
         } else {
@@ -439,7 +439,7 @@ fn production_streaming_program_matches_lean_artifact() {
         let overlay = NebulaFPrimeClaimCoordinateOverlaySynthesis::production_kind(run.overlay_kind())
             .expect("linked coordinate overlay");
         for coordinate in 0..D * 2 {
-            let before_statement_fresh = contract.fields[4 * coordinate];
+            let before_statement_fresh = contract.fields[6 * coordinate];
             assert_eq!(
                 before_statement_fresh.phase_field,
                 base.normalized_before_statement_fresh_commitment_column(coordinate)
@@ -451,7 +451,7 @@ fn production_streaming_program_matches_lean_artifact() {
                     .before_statement_fresh_column(coordinate)
                     .expect("overlay before statement-and-fresh commitment column")
             );
-            let after_statement_fresh = contract.fields[4 * coordinate + 1];
+            let after_statement_fresh = contract.fields[6 * coordinate + 1];
             assert_eq!(
                 after_statement_fresh.phase_field,
                 base.normalized_after_statement_fresh_commitment_column(coordinate)
@@ -463,32 +463,56 @@ fn production_streaming_program_matches_lean_artifact() {
                     .after_statement_fresh_column(coordinate)
                     .expect("overlay after statement-and-fresh commitment column")
             );
-            let before_running_metadata = contract.fields[4 * coordinate + 2];
+            let before_running_commitments = contract.fields[6 * coordinate + 2];
             assert_eq!(
-                before_running_metadata.phase_field,
-                base.normalized_before_running_metadata_commitment_column(coordinate)
-                    .expect("base before running-metadata commitment column")
+                before_running_commitments.phase_field,
+                base.normalized_before_running_commitments_binding_column(coordinate)
+                    .expect("base before running-commitments binding column")
             );
             assert_eq!(
-                before_running_metadata.overlay_field,
+                before_running_commitments.overlay_field,
                 overlay
-                    .before_running_metadata_column(coordinate)
-                    .expect("overlay before running-metadata commitment column")
+                    .before_running_commitments_column(coordinate)
+                    .expect("overlay before running-commitments binding column")
             );
-            let after_running_metadata = contract.fields[4 * coordinate + 3];
+            let after_running_commitments = contract.fields[6 * coordinate + 3];
             assert_eq!(
-                after_running_metadata.phase_field,
-                base.normalized_after_running_metadata_commitment_column(coordinate)
-                    .expect("base after running-metadata commitment column")
+                after_running_commitments.phase_field,
+                base.normalized_after_running_commitments_binding_column(coordinate)
+                    .expect("base after running-commitments binding column")
             );
             assert_eq!(
-                after_running_metadata.overlay_field,
+                after_running_commitments.overlay_field,
                 overlay
-                    .after_running_metadata_column(coordinate)
-                    .expect("overlay after running-metadata commitment column")
+                    .after_running_commitments_column(coordinate)
+                    .expect("overlay after running-commitments binding column")
+            );
+            let before_running_public = contract.fields[6 * coordinate + 4];
+            assert_eq!(
+                before_running_public.phase_field,
+                base.normalized_before_running_public_binding_column(coordinate)
+                    .expect("base before running-public binding column")
+            );
+            assert_eq!(
+                before_running_public.overlay_field,
+                overlay
+                    .before_running_public_column(coordinate)
+                    .expect("overlay before running-public binding column")
+            );
+            let after_running_public = contract.fields[6 * coordinate + 5];
+            assert_eq!(
+                after_running_public.phase_field,
+                base.normalized_after_running_public_binding_column(coordinate)
+                    .expect("base after running-public binding column")
+            );
+            assert_eq!(
+                after_running_public.overlay_field,
+                overlay
+                    .after_running_public_column(coordinate)
+                    .expect("overlay after running-public binding column")
             );
         }
-        for (link, &(offset, overlay_field)) in contract.fields[4 * D * 2..]
+        for (link, &(offset, overlay_field)) in contract.fields[6 * D * 2..]
             .iter()
             .zip(overlay.chunk_columns())
         {
@@ -503,11 +527,11 @@ fn production_streaming_program_matches_lean_artifact() {
 
     let pi_rlc_overlay_kinds =
         production_pi_rlc_family_overlay_kind_map(0, production_claim_coordinate_overlay_kind_count());
-    assert_eq!(pi_rlc_overlay_kinds.len(), 400);
-    assert!(pi_rlc_overlay_kinds[..199].iter().all(|&kind| kind == 0));
-    assert_eq!(pi_rlc_overlay_kinds[199], 87);
-    assert_eq!(pi_rlc_overlay_kinds[308], 196);
-    assert!(pi_rlc_overlay_kinds[309..].iter().all(|&kind| kind == 0));
+    assert_eq!(pi_rlc_overlay_kinds.len(), 436);
+    assert!(pi_rlc_overlay_kinds[..223].iter().all(|&kind| kind == 0));
+    assert_eq!(pi_rlc_overlay_kinds[223], 99);
+    assert_eq!(pi_rlc_overlay_kinds[332], 208);
+    assert!(pi_rlc_overlay_kinds[333..].iter().all(|&kind| kind == 0));
 
     let pi_rlc_link_runs = production_pi_rlc_family_overlay_link_runs();
     assert_eq!(pi_rlc_link_runs.map(|run| run.link_count()), [41, 33_210, 108]);
@@ -520,21 +544,21 @@ fn production_streaming_program_matches_lean_artifact() {
     );
 
     let combined_overlay_kinds = production_combined_overlay_kind_map();
-    assert_eq!(production_combined_overlay_kind_count(), 197);
-    assert_eq!(combined_overlay_kinds.len(), 400);
-    assert_eq!(&combined_overlay_kinds[83..169], &overlay_kinds[83..169]);
-    assert_eq!(&combined_overlay_kinds[199..309], &pi_rlc_overlay_kinds[199..309]);
-    assert!(combined_overlay_kinds[169..199]
+    assert_eq!(production_combined_overlay_kind_count(), 209);
+    assert_eq!(combined_overlay_kinds.len(), 436);
+    assert_eq!(&combined_overlay_kinds[95..193], &overlay_kinds[95..193]);
+    assert_eq!(&combined_overlay_kinds[223..333], &pi_rlc_overlay_kinds[223..333]);
+    assert!(combined_overlay_kinds[193..223]
         .iter()
         .all(|&kind| kind == 0));
-    assert!(combined_overlay_kinds[309..].iter().all(|&kind| kind == 0));
+    assert!(combined_overlay_kinds[333..].iter().all(|&kind| kind == 0));
 
     let combined_links = production_combined_overlay_links();
-    assert_eq!(combined_links.len(), 196);
+    assert_eq!(combined_links.len(), 208);
     assert_eq!(combined_links[0].overlay_kind, 1);
-    assert_eq!(combined_links[85].overlay_kind, 86);
-    assert_eq!(combined_links[86].overlay_kind, 87);
-    assert_eq!(combined_links[195].overlay_kind, 196);
+    assert_eq!(combined_links[97].overlay_kind, 98);
+    assert_eq!(combined_links[98].overlay_kind, 99);
+    assert_eq!(combined_links[207].overlay_kind, 208);
     assert_eq!(
         combined_links
             .iter()
@@ -606,13 +630,13 @@ fn production_schedule_composer_uses_two_lifecycle_and_twenty_three_phase_circui
     assert_eq!(layout.phase_kinds(), program.circuit_kind_map());
     assert_eq!(layout.common_selector_columns().len(), 2);
     assert_eq!(layout.phase_kind_selector_columns().len(), 23);
-    assert_eq!(layout.schedule_selector_columns().len(), 400);
-    assert_eq!(layout.cursor_binding_rows().len(), 800);
+    assert_eq!(layout.schedule_selector_columns().len(), 436);
+    assert_eq!(layout.cursor_binding_rows().len(), 872);
     assert_eq!(relation.public_input_len(), 648);
     assert_eq!(layout.cursor_bits().before(), 513..577);
     assert_eq!(layout.cursor_bits().after(), 577..641);
 
-    for arm in [0, 1, 82, 83, 168, 169, 195, 199, 308, 314, 395, 399] {
+    for arm in [0, 1, 94, 95, 192, 193, 219, 223, 332, 338, 431, 435] {
         let (_, assignment) = cursor_arm(arm);
         let joint = relation
             .encode(arm, &assignment, &assignment)

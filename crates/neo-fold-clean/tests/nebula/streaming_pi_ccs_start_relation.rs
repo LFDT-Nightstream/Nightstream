@@ -18,12 +18,12 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
 
 const POINTS: usize = 26;
-const RUNNING: usize = 14;
+const RUNNING: usize = 16;
 const MATRICES: usize = 14;
 const COEFFICIENTS: usize = 54;
-const VARIABLE_FIELDS: usize = 21_220;
-const STATEMENT_FRESH_FIELDS: usize = 25_648;
-const GAMMA_POWERS: usize = 10_614;
+const VARIABLE_FIELDS: usize = 24_244;
+const STATEMENT_FRESH_FIELDS: usize = 28_672;
+const GAMMA_POWERS: usize = 12_130;
 
 type Pair = [F; 2];
 
@@ -262,36 +262,39 @@ fn streaming_pi_ccs_start_opens_the_complete_statement_and_initializes_round_zer
     );
     assert_eq!(
         exact_row_family(&synthesis, STREAMING_PI_CCS_START_VARIABLE_BINDING_FAMILY),
-        82..2_631_621
+        82..3_006_597
     );
     assert_eq!(
         exact_row_family(&synthesis, STREAMING_PI_CCS_START_TRANSCRIPT_FAMILY),
-        2_631_621..2_828_494
+        3_006_597..3_203_470
     );
     assert_eq!(
         exact_row_family(&synthesis, STREAMING_PI_CCS_START_INITIAL_CLAIM_FAMILY),
-        2_828_494..2_934_483
+        3_203_470..3_324_599
     );
     assert_eq!(
         exact_row_family(&synthesis, STREAMING_PI_CCS_START_CONTEXT_FAMILY),
-        2_934_483..2_970_551
+        3_324_599..3_376_867
     );
     assert_eq!(
         exact_row_family(&synthesis, STREAMING_PI_CCS_START_LIFECYCLE_CARRY_FAMILY),
-        3_681_553..3_681_561
+        4_104_069..4_104_077
     );
 
     assert_eq!(
         PI_CCS_START_PROFILE_ID,
-        "nightstream/goldilocks/streaming-pi-ccs-start/v2"
+        "nightstream/goldilocks/b2-k16/streaming-pi-ccs-start/v3"
     );
-    assert_eq!(PI_CCS_START_SOURCE_ARTIFACT_ID, "rust:streaming-pi-ccs-start/source-v2");
+    assert_eq!(
+        PI_CCS_START_SOURCE_ARTIFACT_ID,
+        "rust:streaming-pi-ccs-start/source-b2-k16-v3"
+    );
     assert_eq!(
         PI_CCS_START_LIFECYCLE_SCOPE,
         "recursive transition: claim replay to PiCCS round 0"
     );
-    assert_eq!(PI_CCS_START_BEFORE_PROGRAM_CURSOR, 169);
-    assert_eq!(PI_CCS_START_AFTER_PROGRAM_CURSOR, 170);
+    assert_eq!(PI_CCS_START_BEFORE_PROGRAM_CURSOR, 193);
+    assert_eq!(PI_CCS_START_AFTER_PROGRAM_CURSOR, 194);
     assert_eq!(PI_CCS_START_FINAL_COMMON_PUBLIC_COLUMNS, 648);
     assert_eq!(PI_CCS_START_SOURCE_COLUMN_LAYOUT.constant_one(), 0);
     assert_eq!(PI_CCS_START_SOURCE_COLUMN_LAYOUT.after_x_out_bits(), (1, 257));
@@ -331,11 +334,11 @@ fn streaming_pi_ccs_start_opens_the_complete_statement_and_initializes_round_zer
     );
     assert_eq!(
         synthesis.witness_value(synthesis.before_program_cursor_column()),
-        Some(F::from_u64(169))
+        Some(F::from_u64(193))
     );
     assert_eq!(
         synthesis.witness_value(synthesis.after_program_cursor_column()),
-        Some(F::from_u64(170))
+        Some(F::from_u64(194))
     );
 
     let (native_alpha, native_gamma, native_state) = native_pre_sumcheck(&synthesis);
@@ -373,7 +376,8 @@ fn streaming_pi_ccs_start_opens_the_complete_statement_and_initializes_round_zer
             .variable_field_column(17)
             .expect("statement field"),
         synthesis.expected_statement_fresh_commitment_columns()[9],
-        synthesis.expected_running_metadata_commitment_columns()[31],
+        synthesis.expected_running_commitments_binding_columns()[31],
+        synthesis.expected_running_public_binding_columns()[47],
         synthesis.computed_statement_commitment_columns()[77],
         synthesis.fresh_metadata_residual_columns()[55],
         synthesis.alpha_columns()[3][1],
@@ -414,7 +418,7 @@ fn streaming_pi_ccs_start_opens_the_complete_statement_and_initializes_round_zer
     assert_eq!(variable_binding.word_starts().len(), STATEMENT_FRESH_FIELDS);
     assert_eq!(variable_binding.word_width(), 41);
     assert_eq!(variable_binding.kappa(), 2);
-    assert_eq!(variable_binding.message_cols(), 19_474);
+    assert_eq!(variable_binding.message_cols(), 21_770);
     assert!(!variable_binding.has_superneo_transformed_columns());
 
     let stage_schedule = source
@@ -436,42 +440,42 @@ fn streaming_pi_ccs_start_opens_the_complete_statement_and_initializes_round_zer
     assert_eq!(
         stage_schedule,
         vec![
-            ("nebula.streaming.pi_ccs.start.state_words", 0..69, 641..22_103),
-            ("nebula.streaming.pi_ccs.start.ready", 69..82, 22_103..22_103),
+            ("nebula.streaming.pi_ccs.start.state_words", 0..69, 641..25_235),
+            ("nebula.streaming.pi_ccs.start.ready", 69..82, 25_235..25_235),
             (
                 "nebula.streaming.pi_ccs.start.variable_binding",
-                82..2_631_621,
-                22_103..2_611_202
+                82..3_006_597,
+                25_235..2_983_262
             ),
             (
                 "nebula.streaming.pi_ccs.start.transcript",
-                2_631_621..2_828_494,
-                2_611_202..2_808_075
+                3_006_597..3_203_470,
+                2_983_262..3_180_135
             ),
             (
                 "nebula.streaming.pi_ccs.start.initial_claim",
-                2_828_494..2_934_483,
-                2_808_075..2_914_064
+                3_203_470..3_324_599,
+                3_180_135..3_301_264
             ),
             (
                 "nebula.streaming.pi_ccs.start.context",
-                2_934_483..2_970_551,
-                2_914_064..2_950_132
+                3_324_599..3_376_867,
+                3_301_264..3_353_532
             ),
             (
                 "nebula.streaming.pi_ccs.start.state_digest",
-                2_970_551..3_018_581,
-                2_950_132..2_998_162
+                3_376_867..3_441_097,
+                3_353_532..3_417_762
             ),
             (
                 "nebula.streaming.pi_ccs.start.phase_envelope",
-                3_018_581..3_681_552,
-                2_998_162..3_661_133
+                3_441_097..4_104_068,
+                3_417_762..4_080_733
             ),
             (
                 "nebula.streaming.pi_ccs.start.state_x_out",
-                3_681_552..3_693_137,
-                3_661_133..3_672_127
+                4_104_068..4_115_653,
+                4_080_733..4_091_727
             ),
         ]
     );

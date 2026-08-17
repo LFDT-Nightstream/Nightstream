@@ -16,19 +16,20 @@ use crate::frontends::r1cs_f_prime::{
 };
 
 use super::retained_algebra::{append_radix_image, canonical_terms, Term};
-use super::{production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, REPLAY_AUXILIARY_START};
+use super::{
+    production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, LANE_COUNT,
+    REPLAY_AUXILIARY_START, SOURCE_COUNT,
+};
 
 const SCHEMA_VERSION: u64 = 1;
-const SOURCE_COUNT: usize = 15;
-const LANE_COUNT: usize = 54;
 const CHALLENGE_FIELDS: usize = SOURCE_COUNT * LANE_COUNT;
 
 const LOCAL_CHALLENGE_START: usize = 1;
-const BEFORE_CHALLENGE_START: usize = 144_602;
-const AFTER_CHALLENGE_START: usize = 145_412;
-const BEFORE_CURSOR_COLUMN: usize = 146_222;
-const AFTER_CURSOR_COLUMN: usize = 146_223;
-const LOCAL_COLUMNS: usize = 146_224;
+const BEFORE_CHALLENGE_START: usize = 163_826;
+const AFTER_CHALLENGE_START: usize = 164_744;
+const BEFORE_CURSOR_COLUMN: usize = 165_662;
+const AFTER_CURSOR_COLUMN: usize = 165_663;
+const LOCAL_COLUMNS: usize = 165_664;
 
 const SOURCE_COLUMN_SHIFT: usize = 640;
 const SOURCE_CHALLENGE_START: usize = LOCAL_CHALLENGE_START + SOURCE_COLUMN_SHIFT;
@@ -37,19 +38,19 @@ const SOURCE_AFTER_CHALLENGE_START: usize = AFTER_CHALLENGE_START + SOURCE_COLUM
 const SOURCE_BEFORE_CURSOR_COLUMN: usize = BEFORE_CURSOR_COLUMN + SOURCE_COLUMN_SHIFT;
 const SOURCE_AFTER_CURSOR_COLUMN: usize = AFTER_CURSOR_COLUMN + SOURCE_COLUMN_SHIFT;
 
-const SOURCE_ROW_START: usize = 144_385;
+const SOURCE_ROW_START: usize = 163_609;
 const DECODE_ROWS: usize = CHALLENGE_FIELDS;
 const CHALLENGE_ROWS: usize = CHALLENGE_FIELDS;
 const CARRY_ROWS: usize = DECODE_ROWS + CHALLENGE_ROWS + 1;
 
-const FINAL_ROWS: usize = 282_459;
-const FINAL_COLUMNS: usize = 2_521_314;
+const FINAL_ROWS: usize = 491_046;
+const FINAL_COLUMNS: usize = 8_858_862;
 const SELECTOR_COLUMNS: [usize; 2] = [648, 649];
-const EMITTED_STARTS: [usize; 2] = [78_241, 202_217];
+const EMITTED_STARTS: [usize; 2] = [69_607, 305_118];
 const FINAL_CHALLENGE_START: usize = 702;
-const DIRECT_SOURCE_START: usize = 144_916;
-const FINAL_DIRECT_START: usize = 1_076_045;
-const GENERAL_WIDTH: usize = 23;
+const DIRECT_SOURCE_START: usize = 164_140;
+const FINAL_DIRECT_START: usize = 2_129_045;
+const GENERAL_WIDTH: usize = 41;
 
 const PORT_COUNT: usize = 13;
 const GENERAL_SELECTOR_PORT: usize = 1;
@@ -374,7 +375,7 @@ pub fn production_pi_rlc_family_body_carry_retained_audit(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
     )?
     .finish()?;
     if relation.structure().n != FINAL_ROWS
@@ -459,12 +460,12 @@ pub fn production_pi_rlc_family_body_carry_retained_audit(
             FINAL_DIRECT_START + (SOURCE_AFTER_CURSOR_COLUMN - DIRECT_SOURCE_START) * GENERAL_WIDTH,
         ],
         widths: [GENERAL_WIDTH; 5],
-        radices: [7; 5],
+        radices: [3; 5],
         source_nnz,
         final_port_nnz,
     })
 }
 
-const _: () = assert!(CARRY_ROWS == 1_621);
-const _: () = assert!(SOURCE_ROW_START + CARRY_ROWS == 146_006);
-const _: () = assert!(SOURCE_AFTER_CURSOR_COLUMN == 146_863);
+const _: () = assert!(CARRY_ROWS == 1_837);
+const _: () = assert!(SOURCE_ROW_START + CARRY_ROWS == 165_446);
+const _: () = assert!(SOURCE_AFTER_CURSOR_COLUMN == 166_303);

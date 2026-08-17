@@ -19,11 +19,11 @@ use p3_field::PrimeCharacteristicRing;
 
 const SCHEMA_VERSION: usize = 1;
 const PROFILE_ID: &str = "nebula-f-prime-streaming-pi-rlc-family-replay-v1";
-const SOURCE_COLUMNS: usize = 146_224;
+const SOURCE_COLUMNS: usize = 165_664;
 const REPLAY_AUXILIARY_START: usize = SOURCE_COLUMNS + 16;
-const INPUT_COLUMN_START: usize = 811;
-const INPUT_FIELDS: usize = 810;
-const OUTPUT_COLUMN_START: usize = 1_621;
+const INPUT_COLUMN_START: usize = 919;
+const INPUT_FIELDS: usize = 918;
+const OUTPUT_COLUMN_START: usize = 1_837;
 const OUTPUT_FIELDS: usize = 54;
 const POSEIDON2_ROWS: usize = 600;
 
@@ -311,15 +311,15 @@ fn production_pi_rlc_family_replay_artifact_is_current() {
 fn production_pi_rlc_family_replay_shapes_are_exact() {
     let even = build_arm(NebulaFPrimePiRlcFamilyReplayArmKind::Even);
     let odd = build_arm(NebulaFPrimePiRlcFamilyReplayArmKind::Odd);
-    assert_eq!((even.row_count, even.column_count), (129_000, 275_240));
-    assert_eq!((odd.row_count, odd.column_count), (130_200, 276_440));
+    assert_eq!((even.row_count, even.column_count), (145_200, 310_880));
+    assert_eq!((odd.row_count, odd.column_count), (146_400, 312_080));
     assert_eq!(
         (even.input_poseidon2_call_count, even.output_poseidon2_call_count),
-        (202, 13),
+        (229, 13),
     );
     assert_eq!(
         (odd.input_poseidon2_call_count, odd.output_poseidon2_call_count),
-        (203, 14),
+        (230, 14),
     );
     assert_eq!((even.before_absorbed, even.after_absorbed), (0, 2));
     assert_eq!((odd.before_absorbed, odd.after_absorbed), (2, 0));

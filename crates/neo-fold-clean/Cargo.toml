@@ -76,6 +76,10 @@ name = "nebula_streaming_pi_rlc_family_relation"
 path = "tests/nebula/streaming_pi_rlc_family_relation.rs"
 
 [[test]]
+name = "nebula_streaming_pi_rlc_family_b2_k16"
+path = "tests/nebula/streaming_pi_rlc_family_b2_k16.rs"
+
+[[test]]
 name = "nebula_streaming_pi_rlc_family_public"
 path = "tests/nebula/streaming_pi_rlc_family_public.rs"
 

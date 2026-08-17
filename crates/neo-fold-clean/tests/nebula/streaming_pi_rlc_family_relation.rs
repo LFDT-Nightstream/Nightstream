@@ -98,47 +98,493 @@ fn write_runs(rendered: &mut String, name: &str, runs: &[SelectiveProjectedSourc
     writeln!(rendered, "  ]\n").expect("render decoder run footer");
 }
 
-fn write_strided_runs(rendered: &mut String, name: &str, runs: &[SelectiveProjectedSourceDecoderStridedRun]) {
-    writeln!(rendered, "def {name} : List RawStridedRun :=\n  [").expect("render strided run header");
-    for (index, run) in runs.iter().enumerate() {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DecoderResidualBatch {
+    source_start: usize,
+    instance_count: usize,
+    instance_stride: usize,
+    width: usize,
+    resolution: SelectiveProjectedSourceResolutionRun,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DecoderResidualInterval {
+    source_start: usize,
+    width: usize,
+    resolution: SelectiveProjectedSourceResolutionRun,
+}
+
+fn decoder_affine(first: usize, stride: usize, offset: usize) -> usize {
+    stride
+        .checked_mul(offset)
+        .and_then(|delta| first.checked_add(delta))
+        .expect("decoder affine coordinate must fit usize")
+}
+
+fn decoder_resolution_at(
+    resolution: SelectiveProjectedSourceResolutionRun,
+    offset: usize,
+) -> SelectiveProjectedSourceResolutionRun {
+    match resolution {
+        SelectiveProjectedSourceResolutionRun::Direct {
+            start,
+            start_stride,
+            width,
+            centered,
+        } => SelectiveProjectedSourceResolutionRun::Direct {
+            start: decoder_affine(start, start_stride, offset),
+            start_stride,
+            width,
+            centered,
+        },
+        SelectiveProjectedSourceResolutionRun::DecompositionAlias {
+            source,
+            source_stride,
+            digit,
+            digit_stride,
+            start,
+            start_stride,
+            centered,
+        } => SelectiveProjectedSourceResolutionRun::DecompositionAlias {
+            source: decoder_affine(source, source_stride, offset),
+            source_stride,
+            digit: decoder_affine(digit, digit_stride, offset),
+            digit_stride,
+            start: decoder_affine(start, start_stride, offset),
+            start_stride,
+            centered,
+        },
+        SelectiveProjectedSourceResolutionRun::EqualityAlias {
+            source,
+            source_stride,
+            start,
+            start_stride,
+            width,
+            centered,
+        } => SelectiveProjectedSourceResolutionRun::EqualityAlias {
+            source: decoder_affine(source, source_stride, offset),
+            source_stride,
+            start: decoder_affine(start, start_stride, offset),
+            start_stride,
+            width,
+            centered,
+        },
+        SelectiveProjectedSourceResolutionRun::LinearDefinition => {
+            SelectiveProjectedSourceResolutionRun::LinearDefinition
+        }
+        SelectiveProjectedSourceResolutionRun::TraceEliminated => {
+            SelectiveProjectedSourceResolutionRun::TraceEliminated
+        }
+    }
+}
+
+fn compress_decoder_residual_runs(runs: &[SelectiveProjectedSourceDecoderStridedRun]) -> Vec<DecoderResidualBatch> {
+    let intervals = runs
+        .iter()
+        .flat_map(|run| {
+            if run.source_stride() == 1 {
+                vec![DecoderResidualInterval {
+                    source_start: run.source_start(),
+                    width: run.count(),
+                    resolution: run.resolution(),
+                }]
+            } else {
+                (0..run.count())
+                    .map(|offset| DecoderResidualInterval {
+                        source_start: decoder_affine(run.source_start(), run.source_stride(), offset),
+                        width: 1,
+                        resolution: decoder_resolution_at(run.resolution(), offset),
+                    })
+                    .collect()
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut batches = Vec::new();
+    let mut cursor = 0;
+    while cursor < intervals.len() {
+        let first = intervals[cursor];
+        let compatible = |interval: DecoderResidualInterval| {
+            interval.width == first.width && interval.resolution == first.resolution
+        };
+        let instance_stride = intervals
+            .get(cursor + 1)
+            .copied()
+            .filter(|&interval| compatible(interval))
+            .and_then(|interval| interval.source_start.checked_sub(first.source_start))
+            .filter(|&stride| stride > 0)
+            .unwrap_or(0);
+        let mut instance_count = 1;
+        if instance_stride > 0 {
+            while let Some(interval) = intervals
+                .get(cursor + instance_count)
+                .copied()
+                .filter(|&interval| compatible(interval))
+            {
+                let Some(expected_start) = instance_stride
+                    .checked_mul(instance_count)
+                    .and_then(|offset| first.source_start.checked_add(offset))
+                else {
+                    break;
+                };
+                if interval.source_start != expected_start {
+                    break;
+                }
+                instance_count += 1;
+            }
+        }
+        if instance_count <= 8 && instance_stride > first.width {
+            for index in 0..instance_count {
+                batches.push(DecoderResidualBatch {
+                    source_start: decoder_affine(first.source_start, instance_stride, index),
+                    instance_count: 1,
+                    instance_stride: 0,
+                    width: first.width,
+                    resolution: first.resolution,
+                });
+            }
+        } else {
+            batches.push(DecoderResidualBatch {
+                source_start: first.source_start,
+                instance_count,
+                instance_stride,
+                width: first.width,
+                resolution: first.resolution,
+            });
+        }
+        cursor += instance_count;
+    }
+    let mut expanded = batches
+        .iter()
+        .flat_map(|batch| {
+            let batch = *batch;
+            (0..batch.instance_count).flat_map(move |index| {
+                let source_start = decoder_affine(batch.source_start, batch.instance_stride, index);
+                (0..batch.width)
+                    .map(move |offset| (source_start + offset, decoder_resolution_at(batch.resolution, offset)))
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut exact = runs
+        .iter()
+        .flat_map(|run| {
+            (0..run.count()).map(|offset| {
+                (
+                    decoder_affine(run.source_start(), run.source_stride(), offset),
+                    decoder_resolution_at(run.resolution(), offset),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    expanded.sort_unstable_by_key(|item| item.0);
+    exact.sort_unstable_by_key(|item| item.0);
+    assert_eq!(expanded, exact, "residual decoder batches must replay exactly");
+    batches
+}
+
+fn write_residual_batches(rendered: &mut String, name: &str, batches: &[DecoderResidualBatch]) {
+    writeln!(rendered, "def {name} : List RawResidualBatch :=\n  [").expect("render residual decoder batch header");
+    for (index, batch) in batches.iter().enumerate() {
         let separator = if index == 0 { "    " } else { "  , " };
         writeln!(
             rendered,
-            "{separator}{{ sourceStart := {}, count := {}, sourceStride := {}, resolution := {} }}",
-            run.source_start(),
-            run.count(),
-            run.source_stride(),
-            lean_resolution(run.resolution()),
+            "{separator}{{ sourceStart := {}, instanceCount := {}, instanceStride := {}, width := {}, resolution := {} }}",
+            batch.source_start,
+            batch.instance_count,
+            batch.instance_stride,
+            batch.width,
+            lean_resolution(batch.resolution),
         )
-        .expect("render strided decoder run");
+        .expect("render residual decoder batch");
     }
-    writeln!(rendered, "  ]\n").expect("render strided run footer");
+    writeln!(rendered, "  ]\n").expect("render residual decoder batch footer");
 }
 
-fn write_template_instances(
-    rendered: &mut String,
-    name: &str,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DecoderTemplateBatch {
+    source_start: usize,
+    count: usize,
+    source_stride: usize,
+    final_start: usize,
+    final_stride: usize,
+    reference_start: usize,
+    reference_stride: usize,
+    reference_final_start: usize,
+    reference_final_stride: usize,
+}
+
+fn normalize_template_instances(
+    source_width: usize,
     instances: &[SelectiveProjectedSourceDecoderTemplateInstances],
-) {
+) -> Vec<DecoderTemplateBatch> {
+    let mut normalized = Vec::new();
+    for instance in instances {
+        if instance.count() <= 8 && instance.source_stride() > source_width {
+            for index in 0..instance.count() {
+                normalized.push(DecoderTemplateBatch {
+                    source_start: decoder_affine(instance.source_start(), instance.source_stride(), index),
+                    count: 1,
+                    source_stride: 0,
+                    final_start: decoder_affine(instance.final_start(), instance.final_stride(), index),
+                    final_stride: 0,
+                    reference_start: decoder_affine(instance.reference_start(), instance.reference_stride(), index),
+                    reference_stride: 0,
+                    reference_final_start: decoder_affine(
+                        instance.reference_final_start(),
+                        instance.reference_final_stride(),
+                        index,
+                    ),
+                    reference_final_stride: 0,
+                });
+            }
+        } else {
+            normalized.push(DecoderTemplateBatch {
+                source_start: instance.source_start(),
+                count: instance.count(),
+                source_stride: instance.source_stride(),
+                final_start: instance.final_start(),
+                final_stride: instance.final_stride(),
+                reference_start: instance.reference_start(),
+                reference_stride: instance.reference_stride(),
+                reference_final_start: instance.reference_final_start(),
+                reference_final_stride: instance.reference_final_stride(),
+            });
+        }
+    }
+    let expanded = normalized
+        .iter()
+        .flat_map(|batch| {
+            (0..batch.count).map(|index| {
+                (
+                    decoder_affine(batch.source_start, batch.source_stride, index),
+                    decoder_affine(batch.final_start, batch.final_stride, index),
+                    decoder_affine(batch.reference_start, batch.reference_stride, index),
+                    decoder_affine(batch.reference_final_start, batch.reference_final_stride, index),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    let exact = instances
+        .iter()
+        .flat_map(|instance| {
+            (0..instance.count()).map(|index| {
+                (
+                    decoder_affine(instance.source_start(), instance.source_stride(), index),
+                    decoder_affine(instance.final_start(), instance.final_stride(), index),
+                    decoder_affine(instance.reference_start(), instance.reference_stride(), index),
+                    decoder_affine(
+                        instance.reference_final_start(),
+                        instance.reference_final_stride(),
+                        index,
+                    ),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expanded, exact, "template batches must replay exactly");
+    normalized
+}
+
+fn write_template_instances(rendered: &mut String, name: &str, instances: &[DecoderTemplateBatch]) {
     writeln!(rendered, "def {name} : List RawTemplateInstances :=\n  [").expect("render template-instance header");
     for (index, instance) in instances.iter().enumerate() {
         let separator = if index == 0 { "    " } else { "  , " };
         writeln!(
             rendered,
             "{separator}{{ sourceStart := {}, count := {}, sourceStride := {}, finalStart := {}, finalStride := {}, referenceStart := {}, referenceStride := {}, referenceFinalStart := {}, referenceFinalStride := {} }}",
-            instance.source_start(),
-            instance.count(),
-            instance.source_stride(),
-            instance.final_start(),
-            instance.final_stride(),
-            instance.reference_start(),
-            instance.reference_stride(),
-            instance.reference_final_start(),
-            instance.reference_final_stride(),
+            instance.source_start,
+            instance.count,
+            instance.source_stride,
+            instance.final_start,
+            instance.final_stride,
+            instance.reference_start,
+            instance.reference_stride,
+            instance.reference_final_start,
+            instance.reference_final_stride,
         )
         .expect("render template instance");
     }
     writeln!(rendered, "  ]\n").expect("render template-instance footer");
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DecoderOwnerRef {
+    Template {
+        template_index: usize,
+        batch_index: usize,
+    },
+    Residual {
+        batch_index: usize,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DecoderOwnerGeometry {
+    owner: DecoderOwnerRef,
+    source_start: usize,
+    count: usize,
+    stride: usize,
+    width: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DecoderCoverGroup {
+    source_start: usize,
+    count: usize,
+    stride: usize,
+    owners: Vec<DecoderOwnerRef>,
+}
+
+fn build_decoder_cover_groups(
+    source_range: std::ops::Range<usize>,
+    template_widths: &[usize],
+    template_instances: &[Vec<DecoderTemplateBatch>],
+    residual_batches: &[DecoderResidualBatch],
+) -> Vec<DecoderCoverGroup> {
+    assert_eq!(template_widths.len(), template_instances.len());
+    let mut geometries = template_instances
+        .iter()
+        .enumerate()
+        .flat_map(|(template_index, batches)| {
+            batches
+                .iter()
+                .enumerate()
+                .map(move |(batch_index, batch)| DecoderOwnerGeometry {
+                    owner: DecoderOwnerRef::Template {
+                        template_index,
+                        batch_index,
+                    },
+                    source_start: batch.source_start,
+                    count: batch.count,
+                    stride: batch.source_stride,
+                    width: template_widths[template_index],
+                })
+        })
+        .chain(
+            residual_batches
+                .iter()
+                .enumerate()
+                .map(|(batch_index, batch)| DecoderOwnerGeometry {
+                    owner: DecoderOwnerRef::Residual { batch_index },
+                    source_start: batch.source_start,
+                    count: batch.instance_count,
+                    stride: batch.instance_stride,
+                    width: batch.width,
+                }),
+        )
+        .collect::<Vec<_>>();
+    geometries.sort_unstable_by_key(|geometry| geometry.source_start);
+    for geometry in &geometries {
+        assert!(geometry.count > 0, "decoder owner count must be positive");
+        assert!(geometry.width > 0, "decoder owner width must be positive");
+        if geometry.count == 1 {
+            assert_eq!(geometry.stride, 0, "singleton decoder owner must be normalized");
+        } else {
+            assert!(
+                geometry.width <= geometry.stride,
+                "repeated decoder owner intervals must not overlap"
+            );
+        }
+    }
+
+    let mut used = vec![false; geometries.len()];
+    let mut groups = Vec::new();
+    while let Some(first_index) = used.iter().position(|used| !*used) {
+        let first = geometries[first_index];
+        if first.count == 1 {
+            used[first_index] = true;
+            groups.push(DecoderCoverGroup {
+                source_start: first.source_start,
+                count: 1,
+                stride: first.width,
+                owners: vec![first.owner],
+            });
+            continue;
+        }
+
+        let period_end = first
+            .source_start
+            .checked_add(first.stride)
+            .expect("decoder cover period must fit usize");
+        let matching = geometries
+            .iter()
+            .enumerate()
+            .filter(|(index, geometry)| {
+                !used[*index]
+                    && geometry.count == first.count
+                    && geometry.stride == first.stride
+                    && geometry.source_start < period_end
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let mut cursor = first.source_start;
+        let mut owners = Vec::with_capacity(matching.len());
+        for index in matching {
+            let geometry = geometries[index];
+            assert_eq!(
+                geometry.source_start, cursor,
+                "decoder cover owners must tile one complete period"
+            );
+            cursor = cursor
+                .checked_add(geometry.width)
+                .expect("decoder cover width must fit usize");
+            used[index] = true;
+            owners.push(geometry.owner);
+        }
+        assert_eq!(cursor, period_end, "decoder cover period must have no gap");
+        groups.push(DecoderCoverGroup {
+            source_start: first.source_start,
+            count: first.count,
+            stride: first.stride,
+            owners,
+        });
+    }
+
+    groups.sort_unstable_by_key(|group| group.source_start);
+    let mut cursor = source_range.start;
+    for group in &groups {
+        assert_eq!(
+            group.source_start, cursor,
+            "decoder cover groups must form the exact source interval"
+        );
+        cursor = group
+            .count
+            .checked_mul(group.stride)
+            .and_then(|width| group.source_start.checked_add(width))
+            .expect("decoder cover group span must fit usize");
+    }
+    assert_eq!(cursor, source_range.end, "decoder cover must end at the source bound");
+    assert!(used.into_iter().all(|used| used), "every decoder owner must occur once");
+    groups
+}
+
+fn lean_decoder_owner(owner: DecoderOwnerRef) -> String {
+    match owner {
+        DecoderOwnerRef::Template {
+            template_index,
+            batch_index,
+        } => format!(".template {template_index} {batch_index}"),
+        DecoderOwnerRef::Residual { batch_index } => format!(".residual {batch_index}"),
+    }
+}
+
+fn write_cover_groups(rendered: &mut String, name: &str, groups: &[DecoderCoverGroup]) {
+    writeln!(rendered, "def {name} : List RawCoverGroup :=\n  [").expect("render decoder cover header");
+    for (index, group) in groups.iter().enumerate() {
+        let separator = if index == 0 { "    " } else { "  , " };
+        let owners = group
+            .owners
+            .iter()
+            .map(|owner| lean_decoder_owner(*owner))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
+            rendered,
+            "{separator}{{ sourceStart := {}, count := {}, stride := {}, owners := [{owners}] }}",
+            group.source_start, group.count, group.stride,
+        )
+        .expect("render decoder cover group");
+    }
+    writeln!(rendered, "  ]\n").expect("render decoder cover footer");
 }
 
 fn render_body_decoder_artifact(decoders: &[SelectiveProjectedDecoderRunProvenance]) -> String {
@@ -163,7 +609,7 @@ fn render_body_decoder_artifact(decoders: &[SelectiveProjectedDecoderRunProvenan
 PiRLC parity bodies.\n\n\
 Owns: the two source ranges, final normalized column bound, three shared\n\
 decoder templates, exact affine template instances, and residual strided\n\
-rules emitted from the norm-base-four production selective layout.\n\n\
+rule batches emitted from the supported b = 2 production selective layout.\n\n\
 Does not own: source-row semantics, matrix soundness, selector authority,\n\
 assignment values, or lifecycle soundness.\n\n\
 Emits constraints: no. Rust checks every expanded rule against the prepared\n\
@@ -182,11 +628,16 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
         );
     }
     for (label, decoder) in [("even", even), ("odd", odd)] {
-        for (index, template) in decoder.repeated_templates().iter().enumerate() {
+        let normalized_templates = decoder
+            .repeated_templates()
+            .iter()
+            .map(|template| normalize_template_instances(template.source_width(), template.instances()))
+            .collect::<Vec<_>>();
+        for (index, normalized_instances) in normalized_templates.iter().enumerate() {
             write_template_instances(
                 &mut rendered,
                 &format!("{label}TemplateInstances{index:02}"),
-                template.instances(),
+                normalized_instances,
             );
         }
         writeln!(rendered, "def {label}Templates : List RawTemplate :=\n  [").expect("render template list header");
@@ -200,15 +651,24 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
             .expect("render template list item");
         }
         writeln!(rendered, "  ]\n").expect("render template list footer");
-        write_strided_runs(
-            &mut rendered,
-            &format!("{label}ResidualRuns"),
-            decoder.residual_strided_runs(),
-        );
+        let residual_batches = compress_decoder_residual_runs(decoder.residual_strided_runs());
+        write_residual_batches(&mut rendered, &format!("{label}ResidualBatches"), &residual_batches);
         let range = decoder.source_range();
+        let template_widths = decoder
+            .repeated_templates()
+            .iter()
+            .map(|template| template.source_width())
+            .collect::<Vec<_>>();
+        let cover_groups = build_decoder_cover_groups(
+            range.clone(),
+            &template_widths,
+            &normalized_templates,
+            &residual_batches,
+        );
+        write_cover_groups(&mut rendered, &format!("{label}CoverGroups"), &cover_groups);
         writeln!(
             rendered,
-            "def {label}Arm : RawArm where\n  schemaVersion := 1\n  arm := {}\n  sourceStart := {}\n  sourceEnd := {}\n  finalColumns := {}\n  templates := {label}Templates\n  residualRuns := {label}ResidualRuns\n",
+            "def {label}Arm : RawArm where\n  schemaVersion := 1\n  arm := {}\n  sourceStart := {}\n  sourceEnd := {}\n  finalColumns := {}\n  templates := {label}Templates\n  residualBatches := {label}ResidualBatches\n  coverGroups := {label}CoverGroups\n",
             decoder.arm(),
             range.start,
             range.end,
@@ -282,12 +742,14 @@ def ledger : RawLedger where"
     .expect("render PiRLC row-ledger preamble");
     writeln!(
         rendered,
-        "  schemaVersion := 1\n  rows := {}\n  columns := {}\n  evenSourceRows := {}\n  oddSourceRows := {}\n  rewriteCount := {}",
+        "  schemaVersion := 1\n  rows := {}\n  columns := {}\n  evenSourceRows := {}\n  oddSourceRows := {}\n  rewriteCount := {}\n  evenLinearDefinitionCount := {}\n  oddLinearDefinitionCount := {}",
         ledger.rows(),
         ledger.columns(),
         ledger.source_rows()[0],
         ledger.source_rows()[1],
         ledger.rewrite_count(),
+        ledger.linear_definition_counts()[0],
+        ledger.linear_definition_counts()[1],
     )
     .expect("render PiRLC row-ledger header");
     writeln!(rendered, "  fixedRuns :=\n    [").expect("render fixed run header");
@@ -814,22 +1276,22 @@ fn pi_rlc_family_body_carry_retained_rows_match_exact_recipe() {
     let carry =
         production_pi_rlc_family_body_carry_retained_audit().expect("exact normalized PiRLC carry retained-row audit");
     assert_eq!(carry.schema_version(), 1);
-    assert_eq!(carry.source_row_start(), 144_385);
-    assert_eq!(carry.source_rows(), 1_621);
-    assert_eq!(carry.local_columns(), 146_224);
+    assert_eq!(carry.source_row_start(), 163_609);
+    assert_eq!(carry.source_rows(), 1_837);
+    assert_eq!(carry.local_columns(), 165_664);
     assert_eq!(carry.source_column_shift(), 640);
-    assert_eq!(carry.final_rows(), 282_459);
-    assert_eq!(carry.final_columns(), 2_521_314);
+    assert_eq!(carry.final_rows(), 491_046);
+    assert_eq!(carry.final_columns(), 8_858_862);
     assert_eq!(carry.selector_columns(), [648, 649]);
-    assert_eq!(carry.emitted_starts(), [78_241, 202_217]);
-    assert_eq!(carry.source_starts(), [641, 145_242, 146_052, 146_862, 146_863]);
-    assert_eq!(carry.final_starts(), [702, 1_083_543, 1_102_173, 1_120_803, 1_120_826]);
-    assert_eq!(carry.widths(), [23; 5]);
-    assert_eq!(carry.radices(), [7; 5]);
-    assert_eq!(carry.source_nnz(), [4_053, 1_621, 0]);
+    assert_eq!(carry.emitted_starts(), [69_607, 305_118]);
+    assert_eq!(carry.source_starts(), [641, 164_466, 165_384, 166_302, 166_303]);
+    assert_eq!(carry.final_starts(), [702, 2_142_411, 2_180_049, 2_217_687, 2_217_728]);
+    assert_eq!(carry.widths(), [41; 5]);
+    assert_eq!(carry.radices(), [3; 5]);
+    assert_eq!(carry.source_nnz(), [4_593, 1_837, 0]);
     assert_eq!(
         carry.final_port_nnz(),
-        [0, 3_242, 150_754, 3_242, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        [0, 3_674, 303_106, 3_674, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     );
     assert_body_carry_retained_artifact_matches_committed(&carry);
 }
@@ -840,22 +1302,22 @@ fn pi_rlc_family_body_residual_retained_rows_match_exact_recipe() {
     let residual = production_pi_rlc_family_body_residual_retained_audit()
         .expect("exact normalized PiRLC residual retained-row audit");
     assert_eq!(residual.schema_version(), 1);
-    assert_eq!(residual.source_row_start(), 144_277);
+    assert_eq!(residual.source_row_start(), 163_501);
     assert_eq!(residual.source_rows(), 108);
-    assert_eq!(residual.local_columns(), 146_224);
+    assert_eq!(residual.local_columns(), 165_664);
     assert_eq!(residual.source_column_shift(), 640);
-    assert_eq!(residual.final_rows(), 282_459);
-    assert_eq!(residual.final_columns(), 2_521_314);
+    assert_eq!(residual.final_rows(), 491_046);
+    assert_eq!(residual.final_columns(), 8_858_862);
     assert_eq!(residual.selector_columns(), [648, 649]);
-    assert_eq!(residual.emitted_starts(), [78_133, 202_109]);
-    assert_eq!(residual.source_starts(), [144_918, 145_026, 145_134]);
-    assert_eq!(residual.final_starts(), [1_076_091, 1_078_575, 1_081_059]);
-    assert_eq!(residual.widths(), [23; 3]);
-    assert_eq!(residual.radices(), [7; 3]);
+    assert_eq!(residual.emitted_starts(), [69_499, 305_010]);
+    assert_eq!(residual.source_starts(), [164_142, 164_250, 164_358]);
+    assert_eq!(residual.final_starts(), [2_129_127, 2_133_555, 2_137_983]);
+    assert_eq!(residual.widths(), [41; 3]);
+    assert_eq!(residual.radices(), [3; 3]);
     assert_eq!(residual.source_nnz(), [324, 108, 0]);
     assert_eq!(
         residual.final_port_nnz(),
-        [0, 216, 14_904, 216, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        [0, 216, 26_568, 216, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     );
     assert_body_residual_retained_artifact_matches_committed(&residual);
 }
@@ -868,17 +1330,17 @@ fn pi_rlc_family_overlay_retained_rows_match_exact_recipe() {
     assert_eq!(overlay.schema_version(), 1);
     assert_eq!(overlay.family_count(), 110);
     assert_eq!(overlay.source_rows(), 108);
-    assert_eq!(overlay.source_columns(), 33_360);
-    assert_eq!(overlay.final_rows(), 28_627);
-    assert_eq!(overlay.final_columns(), 35_856);
+    assert_eq!(overlay.source_columns(), 37_788);
+    assert_eq!(overlay.final_rows(), 12_001);
+    assert_eq!(overlay.final_columns(), 42_228);
     assert_eq!(overlay.selector_start(), 1);
     assert_eq!(overlay.selector_count(), 110);
-    assert_eq!(overlay.retained_start(), 16_737);
+    assert_eq!(overlay.retained_start(), 111);
     assert_eq!(overlay.retained_stride(), 108);
-    assert_eq!(overlay.source_starts(), [1, 42, 33_252]);
-    assert_eq!(overlay.final_starts(), [111, 152, 33_362]);
-    assert_eq!(overlay.widths(), [1, 23]);
-    assert_eq!(overlay.radices(), [2, 7]);
+    assert_eq!(overlay.source_starts(), [1, 42, 37_680]);
+    assert_eq!(overlay.final_starts(), [111, 152, 37_790]);
+    assert_eq!(overlay.widths(), [1, 41]);
+    assert_eq!(overlay.radices(), [2, 3]);
     assert_eq!(overlay.chunk_size(), 32_768);
     assert_eq!(
         overlay
@@ -892,7 +1354,7 @@ fn pi_rlc_family_overlay_retained_rows_match_exact_recipe() {
     assert_eq!(overlay.final_block_counts(), [0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(
         overlay.final_explicit_port_nnz(),
-        [0, 11_880, 0, 11_880, 273_240, 0, 0, 0, 0, 0, 0, 0, 0]
+        [0, 11_880, 0, 11_880, 487_080, 0, 0, 0, 0, 0, 0, 0, 0]
     );
     assert_overlay_retained_artifact_matches_committed(&overlay);
 }
@@ -902,11 +1364,11 @@ fn pi_rlc_family_bodies_have_two_exact_parity_shapes() {
     let even = NebulaFPrimePiRlcFamilyBodySynthesis::production(NebulaFPrimePiRlcFamilyReplayArmKind::Even);
     let odd = NebulaFPrimePiRlcFamilyBodySynthesis::production(NebulaFPrimePiRlcFamilyReplayArmKind::Odd);
 
-    assert_eq!(PI_RLC_GLOBAL_INPUT_FIELDS, 89_100);
-    assert_eq!(PI_RLC_MESSAGE_COLUMNS, 67_650);
-    assert_eq!(PI_RLC_FAMILY_BODY_SOURCE_ROWS, 146_006);
-    assert_eq!(PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, 275_006);
-    assert_eq!(PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS, 276_206);
+    assert_eq!(PI_RLC_GLOBAL_INPUT_FIELDS, 100_980);
+    assert_eq!(PI_RLC_MESSAGE_COLUMNS, 76_670);
+    assert_eq!(PI_RLC_FAMILY_BODY_SOURCE_ROWS, 165_446);
+    assert_eq!(PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, 310_646);
+    assert_eq!(PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS, 311_846);
     assert_eq!(even.fixture_family(), 0);
     assert_eq!(odd.fixture_family(), 1);
     assert_eq!(even.rows(), PI_RLC_FAMILY_BODY_EVEN_ROWS);
@@ -915,18 +1377,18 @@ fn pi_rlc_family_bodies_have_two_exact_parity_shapes() {
     assert_eq!(odd.columns(), PI_RLC_FAMILY_BODY_ODD_COLUMNS);
     assert_eq!(even.public_columns(), 641);
     assert_eq!(odd.public_columns(), 641);
-    assert_eq!(even.before_state_field_columns().len(), 937);
-    assert_eq!(even.after_state_field_columns().len(), 937);
-    assert_eq!(odd.before_state_field_columns().len(), 937);
-    assert_eq!(odd.after_state_field_columns().len(), 937);
+    assert_eq!(even.before_state_field_columns().len(), 1_045);
+    assert_eq!(even.after_state_field_columns().len(), 1_045);
+    assert_eq!(odd.before_state_field_columns().len(), 1_045);
+    assert_eq!(odd.after_state_field_columns().len(), 1_045);
     assert_eq!(even.before_x_out_preimage_columns().len(), 32);
     assert_eq!(even.after_x_out_preimage_columns().len(), 32);
     assert_eq!(odd.before_x_out_preimage_columns().len(), 32);
     assert_eq!(odd.after_x_out_preimage_columns().len(), 32);
-    assert_eq!(even.shape_audit().replay_poseidon2_permutations, 215);
-    assert_eq!(odd.shape_audit().replay_poseidon2_permutations, 217);
-    assert_eq!(even.shape_audit().poseidon2_permutations, 1_799);
-    assert_eq!(odd.shape_audit().poseidon2_permutations, 1_801);
+    assert_eq!(even.shape_audit().replay_poseidon2_permutations, 242);
+    assert_eq!(odd.shape_audit().replay_poseidon2_permutations, 244);
+    assert_eq!(even.shape_audit().poseidon2_permutations, 1_880);
+    assert_eq!(odd.shape_audit().poseidon2_permutations, 1_882);
     assert_eq!(even.phase_delayed_payload_columns().len(), 2_169);
     assert_eq!(odd.phase_delayed_payload_columns().len(), 2_169);
     assert_eq!(STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, 2_169);
@@ -979,10 +1441,10 @@ fn pi_rlc_family_public_words_bind_full_state_then_global_cursor() {
     let even = NebulaFPrimePiRlcFamilyBodySynthesis::production(NebulaFPrimePiRlcFamilyReplayArmKind::Even);
     let odd = NebulaFPrimePiRlcFamilyBodySynthesis::production(NebulaFPrimePiRlcFamilyReplayArmKind::Odd);
 
-    assert_eq!(decode_public_word(&even, 8), 199);
-    assert_eq!(decode_public_word(&even, 9), 200);
-    assert_eq!(decode_public_word(&odd, 8), 200);
-    assert_eq!(decode_public_word(&odd, 9), 201);
+    assert_eq!(decode_public_word(&even, 8), 223);
+    assert_eq!(decode_public_word(&even, 9), 224);
+    assert_eq!(decode_public_word(&odd, 8), 224);
+    assert_eq!(decode_public_word(&odd, 9), 225);
     assert_eq!(
         (0..4)
             .map(|word| decode_public_word(&even, word))
@@ -1190,19 +1652,19 @@ fn pi_rlc_family_normalized_links_match_exact_slots() {
     assert_eq!(audit.family_count(), 110);
     assert_eq!(audit.parity_count(), 2);
     assert_eq!(audit.public_output_count(), 640);
-    assert_eq!(audit.body_final_columns(), 2_521_314);
-    assert_eq!(audit.overlay_final_columns(), 35_856);
-    assert_eq!(audit.link_count_per_family(), 33_359);
-    assert_eq!(audit.total_link_count(), 3_669_490);
+    assert_eq!(audit.body_final_columns(), 8_858_862);
+    assert_eq!(audit.overlay_final_columns(), 42_228);
+    assert_eq!(audit.link_count_per_family(), 37_787);
+    assert_eq!(audit.total_link_count(), 4_156_570);
     assert_eq!(audit.phase_kinds(), [10, 11]);
     let runs = audit.runs();
-    assert_eq!(runs.map(|run| run.body_source_start()), [46_055, 46_096, 144_918]);
-    assert_eq!(runs.map(|run| run.overlay_source_start()), [1, 42, 33_252]);
-    assert_eq!(runs.map(|run| run.body_final_start()), [1_059_804, 19_332, 1_076_091]);
-    assert_eq!(runs.map(|run| run.overlay_final_start()), [111, 152, 33_362]);
-    assert_eq!(runs.map(|run| run.link_count()), [41, 33_210, 108]);
-    assert_eq!(runs.map(|run| run.width()), [1, 1, 23]);
-    assert_eq!(runs.map(|run| run.radix()), [2, 2, 7]);
+    assert_eq!(runs.map(|run| run.body_source_start()), [52_103, 52_144, 164_142]);
+    assert_eq!(runs.map(|run| run.overlay_source_start()), [1, 42, 37_680]);
+    assert_eq!(runs.map(|run| run.body_final_start()), [2_110_644, 38_340, 2_129_127]);
+    assert_eq!(runs.map(|run| run.overlay_final_start()), [111, 152, 37_790]);
+    assert_eq!(runs.map(|run| run.link_count()), [41, 37_638, 108]);
+    assert_eq!(runs.map(|run| run.width()), [1, 1, 41]);
+    assert_eq!(runs.map(|run| run.radix()), [2, 2, 3]);
     assert_normalized_link_artifact_matches_committed(&audit);
 }
 
@@ -1212,16 +1674,16 @@ fn pi_rlc_family_opening_rows_match_exact_images() {
     let audit = production_pi_rlc_family_body_opening_rows_audit().expect("exact normalized PiRLC opening-row audit");
     assert_eq!(audit.schema_version(), 1);
     assert_eq!(audit.arm_count(), 2);
-    assert_eq!(audit.opening_count(), 810);
+    assert_eq!(audit.opening_count(), 918);
     assert_eq!(audit.digit_count(), 41);
     assert_eq!(audit.borrow_count(), 20);
     assert_eq!(audit.chunk_count(), 21);
-    assert_eq!(audit.centered_row_count(), 16_605);
-    assert_eq!(audit.zero_emitted_starts(), [78_090, 202_066]);
-    assert_eq!(audit.canonical_emitted_starts(), [141_262, 265_410]);
-    assert_eq!(audit.final_digit_start(), 19_332);
-    assert_eq!(audit.final_zero_start(), 1_059_804);
-    assert_eq!(audit.final_borrow_start(), 1_059_845);
+    assert_eq!(audit.centered_row_count(), 0);
+    assert_eq!(audit.zero_emitted_starts(), [69_456, 304_967]);
+    assert_eq!(audit.canonical_emitted_starts(), [236_063, 471_746]);
+    assert_eq!(audit.final_digit_start(), 38_340);
+    assert_eq!(audit.final_zero_start(), 2_110_644);
+    assert_eq!(audit.final_borrow_start(), 2_110_685);
     assert_body_opening_rows_artifact_matches_committed(&audit);
 }
 
@@ -1271,8 +1733,8 @@ fn pi_rlc_family_body_low_norm_shape_snapshot() {
     );
     assert_eq!(relation.selector_cols().len(), 2);
     assert_eq!(relation.public_input_len(), 648);
-    assert_eq!(relation.structure().n, 474_966);
-    assert_eq!(relation.structure().m, 4_687_416);
+    assert_eq!(relation.structure().n, 491_046);
+    assert_eq!(relation.structure().m, 8_858_862);
     assert!(relation.structure().n < 1 << 24);
     assert!(relation.structure().m < 1 << 24);
 
@@ -1333,27 +1795,29 @@ fn pi_rlc_family_body_low_norm_shape_snapshot() {
     );
 
     let compact = production_pi_rlc_family_body_row_ledger().expect("compact production row ledger");
-    assert_eq!(compact.rows(), 282_459);
-    assert_eq!(compact.columns(), 2_521_314);
-    assert_eq!(compact.source_rows(), [569_886, 571_086]);
-    assert_eq!(compact.rewrite_count(), 3_268);
+    assert_eq!(compact.rows(), 491_046);
+    assert_eq!(compact.columns(), 8_858_862);
+    assert_eq!(compact.source_rows(), [1_300_897, 1_302_097]);
+    assert_eq!(compact.rewrite_count(), 14_638);
     assert_eq!(compact.fixed_runs().len(), 8);
-    assert_eq!(compact.retained_runs().len(), 20);
-    assert_eq!(compact.rewrite_batches().len(), 70);
+    assert_eq!(compact.retained_runs().len(), 22);
+    assert_eq!(compact.linear_definition_counts(), [4_520, 4_520]);
+    assert_eq!(compact.rewrite_batches().len(), 40);
     let mut compact_rewrites = BTreeMap::<&str, (usize, usize)>::new();
     for batch in compact.rewrite_batches() {
         let name = match batch.kind() {
             NebulaFPrimePiRlcBodyRewriteKind::Poseidon2 => "poseidon2",
             NebulaFPrimePiRlcBodyRewriteKind::ShiftedTernaryCanonical => "shifted_ternary_canonical",
-            NebulaFPrimePiRlcBodyRewriteKind::LinearDefinition => "linear_definition",
+            NebulaFPrimePiRlcBodyRewriteKind::LinearDefinition => {
+                panic!("linear definitions must use complement ownership")
+            }
         };
         let entry = compact_rewrites.entry(name).or_default();
         entry.0 += 1;
         entry.1 += batch.count();
     }
-    assert_eq!(compact_rewrites.get("linear_definition"), Some(&(48, 236)));
-    assert_eq!(compact_rewrites.get("poseidon2"), Some(&(20, 1_412)));
-    assert_eq!(compact_rewrites.get("shifted_ternary_canonical"), Some(&(2, 1_620)));
+    assert_eq!(compact_rewrites.get("poseidon2"), Some(&(38, 3_762)));
+    assert_eq!(compact_rewrites.get("shifted_ternary_canonical"), Some(&(2, 1_836)));
     eprintln!(
         "PiRLC compact row ledger: fixed_runs={}, retained_runs={}, rewrite_batches={}, rewrites={compact_rewrites:?}",
         compact.fixed_runs().len(),
@@ -1365,21 +1829,21 @@ fn pi_rlc_family_body_low_norm_shape_snapshot() {
     let algebra = production_pi_rlc_family_body_algebra_retained_audit()
         .expect("exact normalized PiRLC algebra retained-row audit");
     assert_eq!(algebra.schema_version(), 1);
-    assert_eq!(algebra.source_rows(), 43_794);
-    assert_eq!(algebra.local_columns(), 45_415);
+    assert_eq!(algebra.source_rows(), 49_626);
+    assert_eq!(algebra.local_columns(), 51_463);
     assert_eq!(algebra.source_column_shift(), 640);
-    assert_eq!(algebra.final_rows(), 282_459);
-    assert_eq!(algebra.final_columns(), 2_521_314);
+    assert_eq!(algebra.final_rows(), 491_046);
+    assert_eq!(algebra.final_columns(), 8_858_862);
     assert_eq!(algebra.selector_columns(), [648, 649]);
-    assert_eq!(algebra.emitted_starts(), [34_296, 158_272]);
-    assert_eq!(algebra.source_starts(), [641, 1_451, 2_261, 2_315]);
-    assert_eq!(algebra.final_starts(), [702, 19_332, 52_542, 53_784]);
-    assert_eq!(algebra.widths(), [23, 41, 23, 23]);
-    assert_eq!(algebra.radices(), [7, 3, 7, 7]);
-    assert_eq!(algebra.source_nnz(), [87_534, 103_680, 43_794]);
+    assert_eq!(algebra.emitted_starts(), [19_830, 255_341]);
+    assert_eq!(algebra.source_starts(), [641, 1_559, 2_477, 2_531]);
+    assert_eq!(algebra.final_starts(), [702, 38_340, 75_978, 78_192]);
+    assert_eq!(algebra.widths(), [41; 4]);
+    assert_eq!(algebra.radices(), [3; 4]);
+    assert_eq!(algebra.source_nnz(), [99_198, 117_504, 49_626]);
     assert_eq!(
         algebra.final_port_nnz(),
-        [0, 87_588, 2_099_628, 6_343_920, 2_014_524, 0, 0, 0, 0, 0, 0, 0, 0,],
+        [0, 99_252, 4_164_156, 9_635_328, 4_069_332, 0, 0, 0, 0, 0, 0, 0, 0,],
     );
     eprintln!(
         "PiRLC normalized algebra retained audit: source_nnz={:?}, final_port_nnz={:?}",
@@ -1398,7 +1862,7 @@ fn pi_rlc_family_body_decoder_runs_cover_both_source_assignments() {
     for (arm, (decoder, expected_range)) in decoders.iter().zip(expected_ranges).enumerate() {
         assert_eq!(decoder.arm(), arm);
         assert_eq!(decoder.source_range(), expected_range);
-        assert_eq!(decoder.final_columns(), 2_521_314);
+        assert_eq!(decoder.final_columns(), 8_858_862);
         let mut cursor = expected_range.start;
         let mut exact = vec![None; expected_range.len()];
         for run in decoder.runs() {
@@ -1432,7 +1896,7 @@ fn pi_rlc_family_body_decoder_runs_cover_both_source_assignments() {
             .flat_map(|template| template.instances())
             .map(|instances| instances.count())
             .sum::<usize>();
-        assert_eq!(template_instances, [1_515, 1_517][arm]);
+        assert_eq!(template_instances, [2_798, 2_800][arm]);
         assert!(decoder
             .repeated_templates()
             .iter()
@@ -1506,8 +1970,8 @@ fn pi_rlc_family_overlay_low_norm_shape_snapshot() {
     );
     assert_eq!(relation.selector_cols().len(), PI_RLC_FAMILY_COUNT);
     assert_eq!(relation.public_input_len(), 1);
-    assert_eq!(relation.structure().n, 28_627);
-    assert_eq!(relation.structure().m, 35_856);
+    assert_eq!(relation.structure().n, 12_001);
+    assert_eq!(relation.structure().m, 37_800);
     assert!(relation.structure().n < 1 << 24);
     assert!(relation.structure().m < 1 << 24);
 }

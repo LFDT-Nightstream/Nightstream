@@ -1,8 +1,9 @@
 //! Exact normalized row audit for the PiRLC input openings.
 //!
-//! Owns the active digit domain rows, the retained zero-word rows, and every
-//! rewritten two-trit canonical row in both parity arms. It does not own the
-//! outer norm premise, assignment values, or semantic canonicality.
+//! Owns the absence of redundant active-digit domain rows under the radix-two
+//! outer norm, the retained zero-word rows, and every rewritten two-trit
+//! canonical row in both parity arms. It does not own the outer norm premise,
+//! assignment values, or semantic canonicality.
 
 use neo_ccs::CcsMatrix;
 use neo_math::{D, F};
@@ -13,33 +14,36 @@ use crate::frontends::r1cs_f_prime::{
     SelectiveRewriteKind,
 };
 
-use super::{production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, REPLAY_AUXILIARY_START};
+use super::{
+    production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, ALGEBRA_COLUMNS,
+    ALGEBRA_INPUT_START, FAMILY_INPUT_FIELDS, REPLAY_AUXILIARY_START,
+};
 
 const SCHEMA_VERSION: u64 = 1;
 const ARM_COUNT: usize = 2;
-const OPENING_COUNT: usize = 810;
+const OPENING_COUNT: usize = FAMILY_INPUT_FIELDS;
 const DIGIT_COUNT: usize = 41;
 const BORROW_COUNT: usize = 20;
 const CHUNK_COUNT: usize = 21;
-const SOURCE_ZERO_ROW_START: usize = 43_794;
-const SOURCE_ZERO_DIGIT_START: usize = 46_055;
-const SOURCE_FIELD_START: usize = 1_451;
-const SOURCE_DIGIT_START: usize = 46_096;
+const SOURCE_ZERO_ROW_START: usize = 49_626;
+const SOURCE_ZERO_DIGIT_START: usize = ALGEBRA_COLUMNS + SOURCE_COLUMN_SHIFT;
+const SOURCE_FIELD_START: usize = ALGEBRA_INPUT_START + SOURCE_COLUMN_SHIFT;
+const SOURCE_DIGIT_START: usize = SOURCE_ZERO_DIGIT_START + DIGIT_COUNT;
 const SOURCE_DIGIT_STRIDE: usize = 122;
-const SOURCE_CANONICAL_ROW_START: usize = 43_835;
+const SOURCE_CANONICAL_ROW_START: usize = SOURCE_ZERO_ROW_START + DIGIT_COUNT;
 const SOURCE_CANONICAL_ROW_STRIDE: usize = 124;
 const CENTERED_ROW_START: usize = 2;
-const CENTERED_ROW_COUNT: usize = OPENING_COUNT * DIGIT_COUNT / 2;
-const ZERO_EMITTED_STARTS: [usize; ARM_COUNT] = [78_090, 202_066];
-const CANONICAL_EMITTED_STARTS: [usize; ARM_COUNT] = [141_262, 265_410];
+const CENTERED_ROW_COUNT: usize = 0;
+const ZERO_EMITTED_STARTS: [usize; ARM_COUNT] = [69_456, 304_967];
+const CANONICAL_EMITTED_STARTS: [usize; ARM_COUNT] = [236_063, 471_746];
 const SELECTOR_COLUMNS: [usize; ARM_COUNT] = [648, 649];
-const FINAL_DIGIT_START: usize = 19_332;
+const FINAL_DIGIT_START: usize = 38_340;
 const FINAL_DIGIT_STRIDE: usize = DIGIT_COUNT;
-const FINAL_ZERO_START: usize = 1_059_804;
-const FINAL_BORROW_START: usize = 1_059_845;
+const FINAL_ZERO_START: usize = 2_110_644;
+const FINAL_BORROW_START: usize = 2_110_685;
 const FINAL_BORROW_STRIDE: usize = BORROW_COUNT;
-const FINAL_ROWS: usize = 282_459;
-const FINAL_COLUMNS: usize = 2_521_314;
+const FINAL_ROWS: usize = 491_046;
+const FINAL_COLUMNS: usize = 8_858_862;
 const PORT_COUNT: usize = 13;
 const BIT_PORT: usize = 0;
 const GENERAL_SELECTOR_PORT: usize = 1;
@@ -50,6 +54,7 @@ const SBOX_INPUT_PORT: usize = 5;
 const CENTERED_UNIT_PORT: usize = 6;
 const EVALUATION_SELECTOR_PORT: usize = 7;
 const CLASS_SELECTOR_START: usize = 8;
+const SOURCE_COLUMN_SHIFT: usize = 640;
 
 type Term = (usize, F);
 
@@ -389,7 +394,7 @@ pub fn production_pi_rlc_family_body_opening_rows_audit(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
     )?
     .finish()?;
     if relation.structure().n != FINAL_ROWS
@@ -529,5 +534,9 @@ pub fn production_pi_rlc_family_body_opening_rows_audit(
     })
 }
 
-const _: () = assert!(CENTERED_ROW_COUNT == 16_605);
-const _: () = assert!(OPENING_COUNT * CHUNK_COUNT == 17_010);
+const _: () = assert!(CENTERED_ROW_COUNT == 0);
+const _: () = assert!(SOURCE_ZERO_DIGIT_START == 52_103);
+const _: () = assert!(SOURCE_FIELD_START == 1_559);
+const _: () = assert!(SOURCE_DIGIT_START == 52_144);
+const _: () = assert!(SOURCE_CANONICAL_ROW_START == 49_667);
+const _: () = assert!(OPENING_COUNT * CHUNK_COUNT == 19_278);

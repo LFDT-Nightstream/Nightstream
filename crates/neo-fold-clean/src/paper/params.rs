@@ -17,40 +17,38 @@ use neo_params::NeoParams;
 /// Definition 14 globals — opaque handle around a validated `NeoParams`.
 ///
 /// Construction goes through named constructors. `production` is the
-/// SuperNeo Appendix B.2 Goldilocks preset. `for_r1cs_shape` keeps the
-/// same Appendix B.2 core parameters and derives the effective λ needed
-/// by the current `s = 2` optimized engine for a concrete R1CS shape.
+/// Nightstream Goldilocks `k_rho = 16` profile. `for_r1cs_shape` keeps that
+/// core and derives the effective λ needed by the current `s = 2` optimized
+/// engine for a concrete R1CS shape.
 #[derive(Clone, Debug)]
 pub struct Params {
     inner: NeoParams,
 }
 
 impl Params {
-    /// Unmodified SuperNeo Goldilocks reference preset — Appendix B.2
-    /// (`b = 2` row).
+    /// Nightstream Goldilocks production profile with `b = 2`, `k_rho = 16`,
+    /// and `B = 2^16`.
     ///
-    /// This is the audited table value: λ = 125, b = 2, k_rho = 14,
-    /// B = 2^14, T = 216, s = 2, kappa = 18. Its λ is not a combined
-    /// executable security claim. Use a shape-specific constructor before
-    /// proving or verification.
+    /// Its λ is not a combined executable security claim. Use a
+    /// shape-specific constructor before proving or verification.
     pub fn production() -> Self {
+        Self {
+            inner: NeoParams::nightstream_goldilocks_k16(),
+        }
+    }
+
+    /// Unmodified reference parameters for auditors comparing against
+    /// `neo_params::NeoParams::goldilocks_paper_b2`.
+    pub fn goldilocks_paper_b2() -> Self {
         Self {
             inner: NeoParams::goldilocks_paper_b2(),
         }
     }
 
-    /// Backwards-readable alias for auditors comparing against
-    /// `neo_params::NeoParams::goldilocks_paper_b2`.
-    pub fn goldilocks_paper_b2() -> Self {
-        Self::production()
-    }
-
-    /// Appendix B.2 core with the strongest lambda supported by the exact
+    /// Nightstream Goldilocks core with the strongest lambda supported by the exact
     /// census for this R1CS shape.
     pub fn for_r1cs_shape(rows: usize, columns: usize) -> Result<Self, neo_params::ParamsError> {
-        Ok(Self {
-            inner: NeoParams::goldilocks_auto_rectangular_r1cs_ccs(rows, columns)?,
-        })
+        Self::for_ccs_shape(rows, columns, 3, 2)
     }
 
     /// Same as [`Params::for_r1cs_shape`], with an explicit minimum
@@ -61,12 +59,10 @@ impl Params {
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, neo_params::ParamsError> {
-        Ok(Self {
-            inner: NeoParams::goldilocks_auto_rectangular_r1cs_ccs_with(rows, columns, min_lambda, safety_margin)?,
-        })
+        Self::for_ccs_shape_with(rows, columns, 3, 2, min_lambda, safety_margin)
     }
 
-    /// Appendix B.2 Goldilocks core with shape-specific effective λ for a
+    /// Nightstream Goldilocks core with shape-specific effective λ for a
     /// concrete CCS shape. `matrix_count` is SuperNeo's `t`; `poly_degree` is
     /// SuperNeo's `u`.
     pub fn for_ccs_shape_with(
@@ -77,19 +73,31 @@ impl Params {
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, neo_params::ParamsError> {
-        Ok(Self {
-            inner: NeoParams::goldilocks_auto_rectangular_ccs_with(
-                rows,
-                columns,
-                matrix_count,
-                poly_degree,
-                min_lambda,
-                safety_margin,
-            )?,
-        })
+        if min_lambda == 0 {
+            return Err(neo_params::ParamsError::Invalid("min_lambda must be > 0"));
+        }
+        let mut inner = NeoParams::nightstream_goldilocks_k16();
+        let summary = inner.padded_row_security_summary_for_shape(
+            rows,
+            columns,
+            matrix_count,
+            poly_degree,
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )?;
+        let selected = inner
+            .lambda
+            .min(summary.security_bits.saturating_sub(safety_margin));
+        if selected < min_lambda {
+            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+                required: min_lambda.saturating_add(safety_margin),
+                available: summary.security_bits,
+            });
+        }
+        inner.lambda = selected;
+        Ok(Self { inner })
     }
 
-    /// Appendix B.2 core with the strongest lambda supported by the exact
+    /// Nightstream Goldilocks core with the strongest lambda supported by the exact
     /// census for this CCS shape.
     pub fn for_ccs_shape(
         rows: usize,
@@ -97,9 +105,22 @@ impl Params {
         matrix_count: usize,
         poly_degree: u32,
     ) -> Result<Self, neo_params::ParamsError> {
-        Ok(Self {
-            inner: NeoParams::goldilocks_auto_rectangular_ccs(rows, columns, matrix_count, poly_degree)?,
-        })
+        let mut inner = NeoParams::nightstream_goldilocks_k16();
+        let summary = inner.padded_row_security_summary_for_shape(
+            rows,
+            columns,
+            matrix_count,
+            poly_degree,
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )?;
+        inner.lambda = inner.lambda.min(summary.security_bits);
+        if inner.lambda == 0 {
+            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+                required: 1,
+                available: 0,
+            });
+        }
+        Ok(Self { inner })
     }
 
     /// Test/probe escape hatch for wrapping a caller-built [`NeoParams`].
@@ -215,15 +236,15 @@ impl Params {
             .pi_ccs_padded_row_field_factor_for_shape(rows, columns, matrix_count, poly_degree)
     }
 
-    /// True exactly for the SuperNeo Appendix B.2 Goldilocks production preset.
+    /// True exactly for the Nightstream Goldilocks `k_rho = 16` profile.
     pub fn is_production(&self) -> bool {
-        self.inner.is_goldilocks_paper_b2()
+        self.inner.is_nightstream_goldilocks_k16()
     }
 
-    /// True when all Appendix B.2 core parameters match, ignoring the
+    /// True when all Nightstream Goldilocks core parameters match, ignoring the
     /// shape-specific effective λ.
     pub fn has_production_core(&self) -> bool {
-        self.inner.has_goldilocks_paper_b2_core()
+        self.inner.has_nightstream_goldilocks_k16_core()
     }
 
     /// Borrow the underlying `NeoParams` for `engine::*` calls and external

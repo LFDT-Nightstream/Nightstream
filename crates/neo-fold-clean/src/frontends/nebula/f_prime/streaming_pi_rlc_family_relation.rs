@@ -6,7 +6,7 @@
 //! seeded Phi81 map. The scheduled composer must link every digit field and
 //! every commitment output field between the selected body and overlay.
 //!
-//! The 67,650-column rank-two map is outside the pinned estimator ceiling.
+//! The 76,670-column rank-two map is outside the pinned estimator ceiling.
 //! Its binding property remains an explicit Module-SIS assumption.
 
 mod opening_rows;
@@ -87,13 +87,18 @@ pub const PI_RLC_FAMILY_COUNT: usize = 110;
 pub const PI_RLC_GLOBAL_INPUT_FIELDS: usize = PI_RLC_FAMILY_COUNT * FAMILY_INPUT_FIELDS;
 pub const PI_RLC_MESSAGE_COLUMNS: usize = PI_RLC_GLOBAL_INPUT_FIELDS * DIGIT_COUNT / D;
 
-pub const PI_RLC_FAMILY_BODY_SOURCE_ROWS: usize = 146_006;
-pub const PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS: usize = 275_006;
-pub const PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS: usize = 276_206;
-pub const PI_RLC_FAMILY_BODY_EVEN_ROWS: usize = 1_232_857;
-pub const PI_RLC_FAMILY_BODY_ODD_ROWS: usize = 1_234_057;
-pub const PI_RLC_FAMILY_BODY_EVEN_COLUMNS: usize = 1_233_086;
-pub const PI_RLC_FAMILY_BODY_ODD_COLUMNS: usize = 1_234_286;
+const PI_RLC_FAMILY_ALGEBRA_ROWS: usize = ALGEBRA_PRODUCT_COLUMNS + LANE_COUNT;
+const PI_RLC_FAMILY_OPENING_ROWS: usize = DIGIT_COUNT + FAMILY_INPUT_FIELDS * 124;
+const PI_RLC_FAMILY_CARRY_ROWS: usize = 2 * FAMILY_INPUT_FIELDS + 1;
+
+pub const PI_RLC_FAMILY_BODY_SOURCE_ROWS: usize =
+    PI_RLC_FAMILY_ALGEBRA_ROWS + PI_RLC_FAMILY_OPENING_ROWS + 2 + COMMITMENT_OUTPUT_FIELDS + PI_RLC_FAMILY_CARRY_ROWS;
+pub const PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS: usize = PI_RLC_FAMILY_BODY_SOURCE_ROWS + 145_200;
+pub const PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS: usize = PI_RLC_FAMILY_BODY_SOURCE_ROWS + 146_400;
+pub const PI_RLC_FAMILY_BODY_EVEN_ROWS: usize = 1_300_897;
+pub const PI_RLC_FAMILY_BODY_ODD_ROWS: usize = 1_302_097;
+pub const PI_RLC_FAMILY_BODY_EVEN_COLUMNS: usize = 1_301_126;
+pub const PI_RLC_FAMILY_BODY_ODD_COLUMNS: usize = 1_302_326;
 pub const PI_RLC_FAMILY_BODY_PUBLIC_OUTPUTS: usize = 10 * PUBLIC_WORD_BITS;
 
 pub const PI_RLC_FAMILY_OVERLAY_ZERO_DIGIT_START: usize = 1;
@@ -106,7 +111,7 @@ pub const PI_RLC_FAMILY_LINK_FIELDS: usize = DIGIT_COUNT + FAMILY_INPUT_FIELDS *
 
 const SPONGE_WIDTH: usize = 8;
 const PUBLIC_WORD_BITS: usize = 64;
-const FAMILY_STATE_FIELDS: usize = 937;
+const FAMILY_STATE_FIELDS: usize = 127 + FAMILY_INPUT_FIELDS;
 const DIGEST_PIN_COUNT: usize = 13;
 const STATE_X_OUT_PREIMAGE_FIELDS: usize = 32;
 const STATE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/nebula/f-prime/streaming-pirlc-state/v1";
@@ -197,6 +202,15 @@ pub struct NebulaFPrimePiRlcFamilyBodyShapeAudit {
     pub poseidon2_permutations: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NebulaFPrimePiRlcFamilyBodyLowNormShapeAudit {
+    pub norm_base: u32,
+    pub rows: usize,
+    pub columns: usize,
+    pub public_columns: usize,
+    pub total_coordinates: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NebulaFPrimePiRlcFamilyOverlayShapeAudit {
     pub family: usize,
@@ -258,7 +272,7 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
         assert_columns(&product_vars, ALGEBRA_PRODUCT_START);
         assert_eq!(builder.cols(), ALGEBRA_COLUMNS);
         enforce_algebra_rows(&mut builder, &challenge_vars, &input_vars, &output_vars, &product_vars);
-        assert_eq!(builder.rows(), 43_794);
+        assert_eq!(builder.rows(), PI_RLC_FAMILY_ALGEBRA_ROWS);
 
         builder.begin_encoding_stage("nebula.streaming.pi_rlc.body.openings");
         let zero_word = alloc_zero_coordinate_word(&mut builder);
@@ -271,7 +285,7 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
             active_digit_columns.extend(word.map(Var::col));
         }
         assert_eq!(builder.cols(), SHAPE_D_COLUMN);
-        assert_eq!(builder.rows(), 43_794 + 100_481);
+        assert_eq!(builder.rows(), PI_RLC_FAMILY_ALGEBRA_ROWS + PI_RLC_FAMILY_OPENING_ROWS);
 
         builder.begin_encoding_stage("nebula.streaming.pi_rlc.body.commitment_shape");
         let native_commitment = native_family_commitment(fixture_family, &input_values);
@@ -285,7 +299,10 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
             .map(|wire| wire.col())
             .collect::<Vec<_>>();
         assert_eq!(builder.cols(), BEFORE_RESIDUAL_START);
-        assert_eq!(builder.rows(), 43_794 + 100_481 + 2);
+        assert_eq!(
+            builder.rows(),
+            PI_RLC_FAMILY_ALGEBRA_ROWS + PI_RLC_FAMILY_OPENING_ROWS + 2
+        );
 
         builder.begin_encoding_stage("nebula.streaming.pi_rlc.body.residual");
         let before_residual = builder.alloc_vec(&native_commitment.data);
@@ -300,7 +317,10 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
             let expected = Lc::from_var(phase).add_scaled(&Lc::from_var(after), F::ONE);
             builder.enforce_eq(&Lc::from_var(before), &expected);
         }
-        assert_eq!(builder.rows(), 43_794 + 100_481 + 2 + 108);
+        assert_eq!(
+            builder.rows(),
+            PI_RLC_FAMILY_ALGEBRA_ROWS + PI_RLC_FAMILY_OPENING_ROWS + 2 + COMMITMENT_OUTPUT_FIELDS
+        );
 
         builder.begin_encoding_stage("nebula.streaming.pi_rlc.body.carry");
         let centered_challenges = challenge_values
@@ -840,6 +860,29 @@ pub fn production_pi_rlc_family_body_source_arms() -> Result<Vec<SparseR1cs>, Ne
     .collect::<Result<Vec<_>, _>>()?)
 }
 
+/// Measure the frozen Nightstream k16 body compiler without emitting its CCS matrices.
+#[doc(hidden)]
+pub fn production_pi_rlc_family_body_low_norm_shape_audit(
+) -> Result<NebulaFPrimePiRlcFamilyBodyLowNormShapeAudit, NebulaFPrimePiRlcFamilyRelationError> {
+    let arms = production_pi_rlc_family_body_source_arms()?;
+    let prepared = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        REPLAY_AUXILIARY_START - 1,
+        0,
+        D,
+        0,
+        crate::config::B_BASE,
+    )?;
+    let shape = prepared.shape_summary();
+    Ok(NebulaFPrimePiRlcFamilyBodyLowNormShapeAudit {
+        norm_base: crate::config::B_BASE,
+        rows: shape.rows,
+        columns: shape.columns,
+        public_columns: shape.public_input_len,
+        total_coordinates: shape.total_coordinates,
+    })
+}
+
 pub fn build_production_pi_rlc_family_body_low_norm_r1cs(
 ) -> Result<MultiBranchLowNormR1cs, NebulaFPrimePiRlcFamilyRelationError> {
     let arms = production_pi_rlc_family_body_source_arms()?;
@@ -850,7 +893,7 @@ pub fn build_production_pi_rlc_family_body_low_norm_r1cs(
             0,
             D,
             0,
-            4,
+            crate::config::B_BASE,
         )?
         .finish()?,
     )
@@ -873,13 +916,13 @@ pub fn production_pi_rlc_family_body_decoder_runs(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
         &requests,
     )?)
 }
 
 /// Complete source-row and emitted-row ledger from the exact prepared layout
-/// used by the norm-base-four production body emitter.
+/// used by the frozen Nightstream k16 production body emitter.
 pub fn production_pi_rlc_family_body_compiler_audit(
 ) -> Result<SelectiveCompilerAudit, NebulaFPrimePiRlcFamilyRelationError> {
     let arms = production_pi_rlc_family_body_source_arms()?;
@@ -889,7 +932,7 @@ pub fn production_pi_rlc_family_body_compiler_audit(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
     )?)
 }
 
@@ -903,7 +946,7 @@ pub fn build_production_pi_rlc_family_overlay_low_norm_r1cs(
             0,
             1,
             0,
-            4,
+            crate::config::B_BASE,
         )?
         .finish()?,
     )
@@ -936,7 +979,7 @@ pub fn production_pi_rlc_family_overlay_kind_map(noop_kind: usize, first_family_
 }
 
 /// Three exact link runs shared by all 110 family overlays: the constrained
-/// zero word, the 810 canonical input words, and the 108 commitment outputs.
+/// zero word, the 918 canonical input words, and the 108 commitment outputs.
 pub const fn production_pi_rlc_family_overlay_link_runs() -> [NebulaFPrimePiRlcFamilyOverlayLinkRun; 3] {
     [
         NebulaFPrimePiRlcFamilyOverlayLinkRun {
@@ -1176,7 +1219,12 @@ fn assert_columns(vars: &[Var], start: usize) {
 }
 
 const _: () = assert!(D == LANE_COUNT);
-const _: () = assert!(PI_RLC_GLOBAL_INPUT_FIELDS == 89_100);
-const _: () = assert!(PI_RLC_MESSAGE_COLUMNS == 67_650);
-const _: () = assert!(PI_RLC_FAMILY_OVERLAY_COLUMNS == 33_360);
-const _: () = assert!(PI_RLC_FAMILY_LINK_FIELDS == 33_359);
+const _: () = assert!(SOURCE_COUNT == 17);
+const _: () = assert!(FAMILY_INPUT_FIELDS == 918);
+const _: () = assert!(PI_RLC_FAMILY_ALGEBRA_ROWS == 49_626);
+const _: () = assert!(PI_RLC_FAMILY_OPENING_ROWS == 113_873);
+const _: () = assert!(PI_RLC_FAMILY_BODY_SOURCE_ROWS == 165_446);
+const _: () = assert!(PI_RLC_GLOBAL_INPUT_FIELDS == 100_980);
+const _: () = assert!(PI_RLC_MESSAGE_COLUMNS == 76_670);
+const _: () = assert!(PI_RLC_FAMILY_OVERLAY_COLUMNS == 37_788);
+const _: () = assert!(PI_RLC_FAMILY_LINK_FIELDS == 37_787);

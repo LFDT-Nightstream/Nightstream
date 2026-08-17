@@ -2,7 +2,7 @@
 //!
 //! Owns exhaustive comparison of all 110 source seeded maps with the
 //! independent family-position recipe and of every retained normalized row
-//! with its compact seeded block, selector, constant-one, and radix-seven
+//! with its compact seeded block, selector, constant-one, and radix-three
 //! output images. It does not own body-to-overlay links, assignment values,
 //! selector authority, lifecycle state, or Module-SIS hardness.
 
@@ -25,17 +25,17 @@ use super::{
 };
 
 const SCHEMA_VERSION: u64 = 1;
-const FINAL_ROWS: usize = 28_627;
-const FINAL_COLUMNS: usize = 35_856;
+const FINAL_ROWS: usize = 12_001;
+const FINAL_COLUMNS: usize = 42_228;
 const SELECTOR_START: usize = 1;
-const RETAINED_START: usize = 16_737;
+const RETAINED_START: usize = 111;
 const RETAINED_STRIDE: usize = PI_RLC_FAMILY_OVERLAY_ROWS;
 pub(super) const FINAL_ZERO_DIGIT_START: usize = 111;
 pub(super) const FINAL_ACTIVE_DIGIT_START: usize = 152;
-pub(super) const FINAL_OUTPUT_START: usize = 33_362;
+pub(super) const FINAL_OUTPUT_START: usize = 37_790;
 pub(super) const INPUT_WIDTH: usize = 1;
-pub(super) const OUTPUT_WIDTH: usize = 23;
-pub(super) const OUTPUT_RADIX: u64 = 7;
+pub(super) const OUTPUT_WIDTH: usize = 41;
+pub(super) const OUTPUT_RADIX: u64 = 3;
 const PORT_COUNT: usize = 13;
 const GENERAL_SELECTOR_PORT: usize = 1;
 const A_PORT: usize = 2;
@@ -361,7 +361,7 @@ pub fn production_pi_rlc_family_overlay_retained_audit(
         0,
         1,
         0,
-        4,
+        crate::config::B_BASE,
     )?
     .finish()?;
     if relation.structure().n != FINAL_ROWS
@@ -402,7 +402,7 @@ pub fn production_pi_rlc_family_overlay_retained_audit(
         for source in PI_RLC_FAMILY_OVERLAY_OUTPUT_START..PI_RLC_FAMILY_OVERLAY_COLUMNS {
             let slot = plan
                 .slot(source)
-                .ok_or_else(|| overlay_error("normalized overlay output omitted its radix-seven slot"))?;
+                .ok_or_else(|| overlay_error("normalized overlay output omitted its radix-three slot"))?;
             let expected = FINAL_OUTPUT_START + (source - PI_RLC_FAMILY_OVERLAY_OUTPUT_START) * OUTPUT_WIDTH;
             if slot.start() != expected || slot.len() != OUTPUT_WIDTH || plan.centered_columns()[source] {
                 return Err(overlay_error(format!(
@@ -483,6 +483,6 @@ pub fn production_pi_rlc_family_overlay_retained_audit(
 }
 
 const _: () = assert!(PI_RLC_FAMILY_OVERLAY_ROWS == 108);
-const _: () = assert!(PI_RLC_FAMILY_OVERLAY_COLUMNS == 33_360);
-const _: () = assert!(RETAINED_START + PI_RLC_FAMILY_COUNT * RETAINED_STRIDE == 28_617);
-const _: () = assert!(FINAL_OUTPUT_START + COMMITMENT_OUTPUT_FIELDS * OUTPUT_WIDTH == 35_846);
+const _: () = assert!(PI_RLC_FAMILY_OVERLAY_COLUMNS == 37_788);
+const _: () = assert!(RETAINED_START + PI_RLC_FAMILY_COUNT * RETAINED_STRIDE == 11_991);
+const _: () = assert!(FINAL_OUTPUT_START + COMMITMENT_OUTPUT_FIELDS * OUTPUT_WIDTH == 42_218);

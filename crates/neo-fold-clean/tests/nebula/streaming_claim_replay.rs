@@ -17,24 +17,26 @@ use neo_fold_clean::frontends::nebula::f_prime::{
     claim_replay_shape_audit_for_chunk_fields, production_claim_coordinate_overlay_kind_map,
     production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_shape_audit,
     production_claim_replay_base_shape_audit, production_claim_replay_shape_audit,
-    production_claim_running_metadata_field_map, production_claim_statement_fresh_field_map,
-    NebulaFPrimeClaimCoordinateOverlaySynthesis, NebulaFPrimeClaimReplayArmKind, NebulaFPrimeClaimReplaySynthesis,
+    production_claim_running_commitment_field_map, production_claim_running_public_field_map,
+    production_claim_statement_fresh_field_map, NebulaFPrimeClaimCoordinateOverlaySynthesis,
+    NebulaFPrimeClaimReplayArmKind, NebulaFPrimeClaimReplaySynthesis,
 };
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-const SCHEMA_VERSION: usize = 4;
-const PROFILE_ID: &str = "nebula-f-prime-streaming-claim-replay-v4";
-const FRAME_FIELDS: usize = 88_023;
+const SCHEMA_VERSION: usize = 5;
+const PROFILE_ID: &str = "nebula-f-prime-streaming-claim-replay-goldilocks-b2-k16-v6";
+const FRAME_FIELDS: usize = 99_903;
 const CHUNK_FIELDS: usize = 1_024;
-const FINAL_CHUNK_FIELDS: usize = 983;
-const FULL_CHUNKS: usize = 85;
-const TRANSITION_STATE_WORDS: usize = 472;
+const FINAL_CHUNK_FIELDS: usize = 575;
+const FULL_CHUNKS: usize = 97;
+const TRANSITION_STATE_WORDS: usize = 688;
 const STATE_DIGEST_WORDS: usize = 8;
 const SHARED_PUBLIC_WORDS: usize = 10;
 const PUBLIC_BITS_PER_WORD: usize = 64;
-const PI_CCS_STATEMENT_FRESH_FIELDS: usize = 25_648;
-const PI_CCS_RUNNING_METADATA_FIELDS: usize = 61_992;
+const PI_CCS_STATEMENT_FRESH_FIELDS: usize = 28_672;
+const PI_CCS_RUNNING_COMMITMENT_FIELDS: usize = 62_208;
+const PI_CCS_RUNNING_PUBLIC_FIELDS: usize = 8_640;
 const COORDINATE_DIGITS: usize = 41;
 const COORDINATE_OPENING_COLUMNS: usize = 122;
 const COORDINATE_OPENING_ROWS: usize = 124;
@@ -82,7 +84,8 @@ struct CoordinateCall {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CoordinateMapKind {
     StatementFresh,
-    RunningMetadata,
+    RunningCommitments,
+    RunningPublic,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -316,15 +319,27 @@ fn build_arm(
                         })
                         .collect::<Vec<_>>(),
                 ),
-                PI_CCS_RUNNING_METADATA_FIELDS => (
-                    CoordinateMapKind::RunningMetadata,
-                    synthesis.running_metadata_fields(),
-                    PI_CCS_RUNNING_METADATA_FIELDS,
+                PI_CCS_RUNNING_COMMITMENT_FIELDS => (
+                    CoordinateMapKind::RunningCommitments,
+                    synthesis.running_commitment_fields(),
+                    PI_CCS_RUNNING_COMMITMENT_FIELDS,
                     (0..COORDINATE_OUTPUTS)
                         .map(|coordinate| {
                             synthesis
-                                .partial_running_metadata_commitment_column(coordinate)
-                                .expect("partial running-metadata commitment output")
+                                .partial_running_commitments_binding_column(coordinate)
+                                .expect("partial running-commitments binding output")
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                PI_CCS_RUNNING_PUBLIC_FIELDS => (
+                    CoordinateMapKind::RunningPublic,
+                    synthesis.running_public_fields(),
+                    PI_CCS_RUNNING_PUBLIC_FIELDS,
+                    (0..COORDINATE_OUTPUTS)
+                        .map(|coordinate| {
+                            synthesis
+                                .partial_running_public_binding_column(coordinate)
+                                .expect("partial running-public binding output")
                         })
                         .collect::<Vec<_>>(),
                 ),
@@ -393,7 +408,9 @@ fn build_arm(
         .collect::<Vec<_>>();
     assert_eq!(
         coordinate_calls.is_empty(),
-        synthesis.statement_fresh_fields().is_empty() && synthesis.running_metadata_fields().is_empty()
+        synthesis.statement_fresh_fields().is_empty()
+            && synthesis.running_commitment_fields().is_empty()
+            && synthesis.running_public_fields().is_empty()
     );
 
     let state_word_columns = (0..TRANSITION_STATE_WORDS)
@@ -576,7 +593,8 @@ fn render_arm(arm: &ArmArtifact) -> String {
             .map(|call| {
                 let (map_kind, schedule) = match call.map_kind {
                     CoordinateMapKind::StatementFresh => (".statementFresh", "statementFreshSchedule"),
-                    CoordinateMapKind::RunningMetadata => (".runningMetadata", "runningMetadataSchedule"),
+                    CoordinateMapKind::RunningCommitments => (".runningCommitments", "runningCommitmentsSchedule"),
+                    CoordinateMapKind::RunningPublic => (".runningPublic", "runningPublicSchedule"),
                 };
                 format!(
                     "{{ mapKind := {map_kind}, rowStart := {}, rowEnd := {}, chunkIndex := {}, chunkBase := {}, \
@@ -649,10 +667,12 @@ fn render_arm(arm: &ArmArtifact) -> String {
 
 fn render_artifact() -> String {
     let full = NebulaFPrimeClaimReplaySynthesis::production_full(0).expect("first full claim chunk");
+    let running_public = NebulaFPrimeClaimReplaySynthesis::production_full(61).expect("running-public claim chunk");
     let final_chunk = NebulaFPrimeClaimReplaySynthesis::production_final();
     let canonical = canonical_template();
     let poseidon2 = poseidon2_template();
     let full_arm = build_arm(&full, CHUNK_FIELDS, &canonical, &poseidon2);
+    let running_public_arm = build_arm(&running_public, CHUNK_FIELDS, &canonical, &poseidon2);
     let final_arm = build_arm(&final_chunk, FINAL_CHUNK_FIELDS, &canonical, &poseidon2);
     let shape = production_claim_replay_shape_audit().expect("claim-replay shape audit");
 
@@ -661,11 +681,16 @@ fn render_artifact() -> String {
         .iter()
         .find(|call| call.map_kind == CoordinateMapKind::StatementFresh)
         .expect("full arm statement-and-fresh schedule");
-    let full_running_metadata = full_arm
+    let full_running_commitments = full_arm
         .coordinate_calls
         .iter()
-        .find(|call| call.map_kind == CoordinateMapKind::RunningMetadata)
-        .expect("full arm running-metadata schedule");
+        .find(|call| call.map_kind == CoordinateMapKind::RunningCommitments)
+        .expect("full arm running-commitments schedule");
+    let running_public = running_public_arm
+        .coordinate_calls
+        .iter()
+        .find(|call| call.map_kind == CoordinateMapKind::RunningPublic)
+        .expect("running-public schedule");
     let final_statement_fresh = final_arm
         .coordinate_calls
         .iter()
@@ -692,8 +717,14 @@ fn render_artifact() -> String {
     .unwrap();
     writeln!(
         payload,
-        "\ndef runningMetadataSchedule : Nightstream.Implementation.R1CS.SeededPhi81.SeedSchedule :=\n  {}",
-        lean_seed_schedule(full_running_metadata),
+        "\ndef runningCommitmentsSchedule : Nightstream.Implementation.R1CS.SeededPhi81.SeedSchedule :=\n  {}",
+        lean_seed_schedule(full_running_commitments),
+    )
+    .unwrap();
+    writeln!(
+        payload,
+        "\ndef runningPublicSchedule : Nightstream.Implementation.R1CS.SeededPhi81.SeedSchedule :=\n  {}",
+        lean_seed_schedule(running_public),
     )
     .unwrap();
     writeln!(payload, "def fullArm : RawArm :=\n  {}", render_arm(&full_arm)).unwrap();
@@ -796,9 +827,9 @@ fn production_claim_replay_arms_are_satisfied_and_fully_constrained() {
         "final arm: {:?}",
         final_chunk.first_unsatisfied_row()
     );
-    assert_eq!(full.poseidon2_permutations(), 378);
-    assert_eq!(full_width.poseidon2_permutations(), 378);
-    assert_eq!(final_chunk.poseidon2_permutations(), 367);
+    assert_eq!(full.poseidon2_permutations(), 432);
+    assert_eq!(full_width.poseidon2_permutations(), 432);
+    assert_eq!(final_chunk.poseidon2_permutations(), 319);
     assert_eq!(full.public_columns(), 641);
     assert_eq!(final_chunk.public_columns(), 641);
     assert!(
@@ -818,9 +849,11 @@ fn production_claim_replay_arms_are_satisfied_and_fully_constrained() {
 #[test]
 fn claim_chunks_use_the_exact_piccs_coordinate_partitions() {
     let statement_fresh = production_claim_statement_fresh_field_map();
-    let running_metadata = production_claim_running_metadata_field_map();
-    assert_eq!(statement_fresh.len(), 86);
-    assert_eq!(running_metadata.len(), 86);
+    let running_commitments = production_claim_running_commitment_field_map();
+    let running_public = production_claim_running_public_field_map();
+    assert_eq!(statement_fresh.len(), 98);
+    assert_eq!(running_commitments.len(), 98);
+    assert_eq!(running_public.len(), 98);
     assert_eq!(
         statement_fresh[0],
         (0..52)
@@ -828,39 +861,51 @@ fn claim_chunks_use_the_exact_piccs_coordinate_partitions() {
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        statement_fresh[60],
-        (52..89)
-            .map(|field| (field, 987 + field - 52))
+        statement_fresh[69],
+        (52..449)
+            .map(|field| (field, 627 + field - 52))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        statement_fresh[61],
-        (89..1_113)
-            .map(|field| (field, field - 89))
+        statement_fresh[70],
+        (449..1_473)
+            .map(|field| (field, field - 449))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        statement_fresh[81],
-        (20_569..21_593)
-            .map(|field| (field, field - 20_569))
+        statement_fresh[93],
+        (24_001..25_025)
+            .map(|field| (field, field - 24_001))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        statement_fresh[85],
-        (24_665..25_648)
-            .map(|field| (field, field - 24_665))
+        statement_fresh[97],
+        (28_097..28_672)
+            .map(|field| (field, field - 28_097))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        running_metadata[0],
+        running_commitments[0],
         (0..589)
             .map(|field| (field, 435 + field))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        running_metadata[60],
-        (61_005..61_992)
-            .map(|field| (field, field - 61_005))
+        running_commitments[61],
+        (62_029..62_208)
+            .map(|field| (field, field - 62_029))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        running_public[61],
+        (0..845)
+            .map(|field| (field, 179 + field))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        running_public[69],
+        (8_013..8_640)
+            .map(|field| (field, field - 8_013))
             .collect::<Vec<_>>()
     );
 
@@ -871,29 +916,43 @@ fn claim_chunks_use_the_exact_piccs_coordinate_partitions() {
         .collect::<Vec<_>>();
     assert_eq!(
         statement_fresh_active_chunks,
-        std::iter::once(0).chain(60..=85).collect::<Vec<_>>()
+        std::iter::once(0).chain(69..=97).collect::<Vec<_>>()
     );
-    let running_metadata_active_chunks = running_metadata
+    let running_commitment_active_chunks = running_commitments
         .iter()
         .enumerate()
         .filter_map(|(chunk, fields)| (!fields.is_empty()).then_some(chunk))
         .collect::<Vec<_>>();
-    assert_eq!(running_metadata_active_chunks, (0..=60).collect::<Vec<_>>());
+    assert_eq!(running_commitment_active_chunks, (0..=61).collect::<Vec<_>>());
+    let running_public_active_chunks = running_public
+        .iter()
+        .enumerate()
+        .filter_map(|(chunk, fields)| (!fields.is_empty()).then_some(chunk))
+        .collect::<Vec<_>>();
+    assert_eq!(running_public_active_chunks, (61..=69).collect::<Vec<_>>());
     assert_eq!(
         statement_fresh
             .iter()
             .flatten()
             .map(|&(field, _)| field)
             .collect::<Vec<_>>(),
-        (0..25_648).collect::<Vec<_>>()
+        (0..28_672).collect::<Vec<_>>()
     );
     assert_eq!(
-        running_metadata
+        running_commitments
             .iter()
             .flatten()
             .map(|&(field, _)| field)
             .collect::<Vec<_>>(),
-        (0..61_992).collect::<Vec<_>>()
+        (0..62_208).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        running_public
+            .iter()
+            .flatten()
+            .map(|&(field, _)| field)
+            .collect::<Vec<_>>(),
+        (0..8_640).collect::<Vec<_>>()
     );
 }
 
@@ -901,7 +960,8 @@ fn claim_chunks_use_the_exact_piccs_coordinate_partitions() {
 fn claim_replay_rejects_tampered_coordinate_commitments() {
     let mut selected = NebulaFPrimeClaimReplaySynthesis::production_full(0).expect("selected point chunk");
     assert_eq!(selected.statement_fresh_fields().len(), 52);
-    assert_eq!(selected.running_metadata_fields().len(), 589);
+    assert_eq!(selected.running_commitment_fields().len(), 589);
+    assert!(selected.running_public_fields().is_empty());
     let partial = selected
         .partial_statement_fresh_commitment_column(0)
         .expect("selected chunk partial commitment");
@@ -935,7 +995,8 @@ fn claim_replay_rejects_tampered_coordinate_commitments() {
 
     let mut running_only = NebulaFPrimeClaimReplaySynthesis::production_full(1).expect("running-only claim chunk");
     assert!(running_only.statement_fresh_fields().is_empty());
-    assert!(!running_only.running_metadata_fields().is_empty());
+    assert!(!running_only.running_commitment_fields().is_empty());
+    assert!(running_only.running_public_fields().is_empty());
     assert!(running_only
         .partial_statement_fresh_commitment_column(0)
         .is_none());
@@ -952,16 +1013,30 @@ fn claim_replay_rejects_tampered_coordinate_commitments() {
         "a map without local fields must carry its commitment unchanged"
     );
 
-    let mut running = NebulaFPrimeClaimReplaySynthesis::production_full(1).expect("running metadata chunk");
+    let mut running = NebulaFPrimeClaimReplaySynthesis::production_full(1).expect("running commitment chunk");
     let partial = running
-        .partial_running_metadata_commitment_column(0)
-        .expect("running-metadata partial commitment");
+        .partial_running_commitments_binding_column(0)
+        .expect("running-commitments partial binding");
     let changed = running
         .witness_value(partial)
         .expect("running partial value")
         + F::ONE;
     running.tamper_witness_for_test(partial, changed);
-    assert!(!running.is_satisfied(), "changed running-metadata commitment must fail");
+    assert!(!running.is_satisfied(), "changed running-commitments binding must fail");
+
+    let mut running_public = NebulaFPrimeClaimReplaySynthesis::production_full(61).expect("running-public chunk");
+    let partial = running_public
+        .partial_running_public_binding_column(0)
+        .expect("running-public partial binding");
+    let changed = running_public
+        .witness_value(partial)
+        .expect("running-public partial value")
+        + F::ONE;
+    running_public.tamper_witness_for_test(partial, changed);
+    assert!(
+        !running_public.is_satisfied(),
+        "changed running-public binding must fail"
+    );
 }
 
 #[test]
@@ -1009,36 +1084,36 @@ fn claim_replay_public_words_use_digest_then_cursor_layout() {
     let full = NebulaFPrimeClaimReplaySynthesis::production_full(0).expect("first full claim chunk");
     let final_chunk = NebulaFPrimeClaimReplaySynthesis::production_final();
 
-    assert_eq!(decode_public_word(&full, 8), 83);
-    assert_eq!(decode_public_word(&full, 9), 84);
-    assert_eq!(decode_public_word(&final_chunk, 8), 168);
-    assert_eq!(decode_public_word(&final_chunk, 9), 169);
+    assert_eq!(decode_public_word(&full, 8), 95);
+    assert_eq!(decode_public_word(&full, 9), 96);
+    assert_eq!(decode_public_word(&final_chunk, 8), 192);
+    assert_eq!(decode_public_word(&final_chunk, 9), 193);
 }
 
 #[test]
 fn production_claim_replay_shape_is_exact_and_bounded() {
     let audit = production_claim_replay_shape_audit().expect("claim-replay shape audit");
     eprintln!("{audit:#?}");
-    assert_eq!(audit.full.poseidon2_permutations, 378);
-    assert_eq!(audit.final_chunk.poseidon2_permutations, 367);
+    assert_eq!(audit.full.poseidon2_permutations, 432);
+    assert_eq!(audit.final_chunk.poseidon2_permutations, 319);
     assert_eq!(audit.full.public_columns, 641);
     assert_eq!(audit.final_chunk.public_columns, 641);
-    assert_eq!(audit.low_norm_rows, 167_491);
-    assert_eq!(audit.low_norm_columns, 808_110);
+    assert_eq!(audit.low_norm_rows, 118_213);
+    assert_eq!(audit.low_norm_columns, 1_608_012);
     assert_eq!(audit.low_norm_public_columns, 648);
-    assert_eq!(audit.low_norm_total_coordinates, 808_068);
-    assert_eq!(audit.low_norm_shared_private_coordinates, 476);
-    assert_eq!(audit.low_norm_full_branch_coordinates, 796_380);
-    assert_eq!(audit.low_norm_final_branch_coordinates, 786_634);
-    assert_eq!(audit.low_norm_full_poseidon2_coordinates, 748_196);
-    assert_eq!(audit.low_norm_final_poseidon2_coordinates, 726_438);
+    assert_eq!(audit.low_norm_total_coordinates, 1_608_006);
+    assert_eq!(audit.low_norm_shared_private_coordinates, 692);
+    assert_eq!(audit.low_norm_full_branch_coordinates, 1_578_966);
+    assert_eq!(audit.low_norm_final_branch_coordinates, 1_160_758);
+    assert_eq!(audit.low_norm_full_poseidon2_coordinates, 1_523_744);
+    assert_eq!(audit.low_norm_final_poseidon2_coordinates, 1_125_306);
     assert!(
-        audit.low_norm_rows < 1 << 20,
-        "one claim-replay step must stay below 2^20 rows"
+        audit.low_norm_rows <= 1 << 24,
+        "one claim-replay step must stay within the joint domain"
     );
     assert!(
-        audit.low_norm_columns < 1 << 20,
-        "one claim-replay step must stay below 2^20 columns"
+        audit.low_norm_columns <= 1 << 24,
+        "one claim-replay step must stay within the joint domain"
     );
 }
 
@@ -1061,23 +1136,23 @@ fn claim_replay_candidate_shapes_are_monotone() {
     assert_eq!(
         exact_shapes,
         [
-            (64, 23, 1_375, 27_604, 286_848, 286_828),
-            (128, 87, 687, 34_274, 319_950, 319_948),
-            (256, 215, 343, 47_668, 386_208, 386_188),
-            (512, 471, 171, 82_497, 523_692, 523_652),
-            (1_024, 983, 85, 167_491, 808_110, 808_068),
+            (64, 63, 1_560, 39_206, 709_506, 709_504),
+            (128, 63, 780, 40_618, 768_582, 768_544),
+            (256, 63, 390, 43_334, 886_626, 886_624),
+            (512, 63, 195, 54_229, 1_125_468, 1_125_446),
+            (1_024, 575, 97, 118_213, 1_608_012, 1_608_006),
         ]
     );
 
     for (chunk_fields, audit) in candidates.into_iter().zip(audits) {
         assert_eq!(audit.chunk_fields, chunk_fields);
-        assert_eq!(audit.full_chunks * chunk_fields + audit.final_chunk_fields, 88_023);
-        assert_eq!(audit.full.poseidon2_permutations, chunk_fields / 4 + 122);
+        assert_eq!(audit.full_chunks * chunk_fields + audit.final_chunk_fields, 99_903);
+        assert_eq!(audit.full.poseidon2_permutations, chunk_fields / 4 + 176);
         assert_eq!(
             audit.final_chunk.poseidon2_permutations,
-            audit.final_chunk_fields / 4 + 122
+            audit.final_chunk_fields / 4 + 176
         );
-        assert!(audit.low_norm_columns < 1 << 20);
+        assert!(audit.low_norm_columns <= 1 << 24);
         eprintln!(
             "chunk={chunk_fields} steps={} rows={} columns={} coordinates={}",
             audit.full_chunks + 1,
@@ -1096,31 +1171,31 @@ fn claim_replay_candidate_shapes_are_monotone() {
 #[test]
 fn claim_coordinate_overlay_uses_exact_schedule_kinds_and_private_links() {
     let kinds = production_claim_coordinate_overlay_kind_map();
-    assert_eq!(kinds.len(), 400);
-    assert_eq!(kinds[82], 0);
-    assert_eq!(kinds[83], 1);
-    assert_eq!(kinds[84], 2);
-    assert_eq!(kinds[143], 61);
-    assert_eq!(kinds[164], 82);
-    assert_eq!(kinds[165], 83);
-    assert_eq!(kinds[168], 86);
-    assert_eq!(kinds[169], 0);
+    assert_eq!(kinds.len(), 436);
+    assert_eq!(kinds[94], 0);
+    assert_eq!(kinds[95], 1);
+    assert_eq!(kinds[96], 2);
+    assert_eq!(kinds[155], 61);
+    assert_eq!(kinds[176], 82);
+    assert_eq!(kinds[177], 83);
+    assert_eq!(kinds[192], 98);
+    assert_eq!(kinds[193], 0);
 
     let links = production_claim_coordinate_overlay_links();
-    assert_eq!(links.len(), 86);
+    assert_eq!(links.len(), 98);
     assert_eq!(links[0].overlay_kind, 1);
-    assert_eq!(links[0].fields.len(), 432 + 641);
+    assert_eq!(links[0].fields.len(), 648 + 641);
     assert_eq!(links[1].overlay_kind, 2);
-    assert_eq!(links[1].fields.len(), 432 + 1_024);
-    assert_eq!(links[60].overlay_kind, 61);
-    assert_eq!(links[60].fields.len(), 432 + 1_024);
-    assert_eq!(links[85].overlay_kind, 86);
-    assert_eq!(links[85].fields.len(), 432 + 983);
+    assert_eq!(links[1].fields.len(), 648 + 1_024);
+    assert_eq!(links[69].overlay_kind, 70);
+    assert_eq!(links[69].fields.len(), 648 + 1_024);
+    assert_eq!(links[97].overlay_kind, 98);
+    assert_eq!(links[97].fields.len(), 648 + 575);
 }
 
 #[test]
 fn claim_coordinate_overlay_arms_are_satisfied_and_fully_constrained() {
-    for kind in 0..87 {
+    for kind in 0..99 {
         let synthesis =
             NebulaFPrimeClaimCoordinateOverlaySynthesis::production_kind(kind).expect("production overlay kind");
         assert!(synthesis.is_satisfied(), "overlay kind {kind}");
@@ -1133,10 +1208,10 @@ fn claim_coordinate_overlay_arms_are_satisfied_and_fully_constrained() {
     for (label, kind, offset) in [
         ("prior point", 1, 383),
         ("running commitment", 1, 435),
-        ("running public input", 54, 595),
-        ("running evaluation", 61, 987),
-        ("fresh commitment", 82, 651),
-        ("fresh public input", 86, 443),
+        ("running public input", 62, 179),
+        ("running evaluation", 70, 627),
+        ("fresh commitment", 94, 243),
+        ("fresh public input", 98, 35),
     ] {
         let mut active = NebulaFPrimeClaimCoordinateOverlaySynthesis::production_kind(kind)
             .expect("selected claim metadata overlay");
@@ -1155,21 +1230,21 @@ fn claim_coordinate_overlay_arms_are_satisfied_and_fully_constrained() {
 fn claim_coordinate_overlay_selective_union_is_bounded() {
     let audit = production_claim_coordinate_overlay_shape_audit().expect("coordinate overlay shape");
     eprintln!("{audit:#?}");
-    assert_eq!(audit.kinds, 87);
-    assert_eq!(audit.active_kinds, 86);
-    assert_eq!(audit.active_fields, 87_640);
-    assert_eq!(audit.source_rows, 10_899_441);
-    assert_eq!(audit.source_columns, 10_830_247);
-    assert_eq!(audit.low_norm_rows, 5_404_913);
-    assert_eq!(audit.low_norm_columns, 72_576);
+    assert_eq!(audit.kinds, 99);
+    assert_eq!(audit.active_kinds, 98);
+    assert_eq!(audit.active_fields, 99_520);
+    assert_eq!(audit.source_rows, 12_387_808);
+    assert_eq!(audit.source_columns, 12_319_814);
+    assert_eq!(audit.low_norm_rows, 4_095_518);
+    assert_eq!(audit.low_norm_columns, 84_834);
     assert_eq!(audit.low_norm_public_columns, 1);
-    assert_eq!(audit.low_norm_total_coordinates, 72_570);
-    assert!(audit.low_norm_rows < 1 << 24);
-    assert!(audit.low_norm_columns < 1 << 24);
+    assert_eq!(audit.low_norm_total_coordinates, 84_786);
+    assert!(audit.low_norm_rows <= 1 << 24);
+    assert!(audit.low_norm_columns <= 1 << 24);
 
     let relation =
         build_production_claim_coordinate_overlay_low_norm_r1cs().expect("build coordinate overlay relation");
-    assert_eq!(relation.selector_cols().len(), 87);
+    assert_eq!(relation.selector_cols().len(), 99);
     assert_eq!(relation.public_input_len(), 1);
     assert_eq!(relation.structure().n, audit.low_norm_rows);
     assert_eq!(relation.structure().m, audit.low_norm_columns);
@@ -1189,19 +1264,26 @@ fn claim_replay_base_stores_poseidon_body_without_coordinate_overlay() {
         .partial_statement_fresh_commitment_column(0)
         .is_none());
     assert!(full_zero
-        .partial_running_metadata_commitment_column(0)
+        .partial_running_commitments_binding_column(0)
         .is_none());
+    assert!(full_zero.partial_running_public_binding_column(0).is_none());
     assert!(full_active
         .partial_statement_fresh_commitment_column(0)
         .is_none());
     assert!(full_active
-        .partial_running_metadata_commitment_column(0)
+        .partial_running_commitments_binding_column(0)
+        .is_none());
+    assert!(full_active
+        .partial_running_public_binding_column(0)
         .is_none());
     assert!(final_chunk
         .partial_statement_fresh_commitment_column(0)
         .is_none());
     assert!(final_chunk
-        .partial_running_metadata_commitment_column(0)
+        .partial_running_commitments_binding_column(0)
+        .is_none());
+    assert!(final_chunk
+        .partial_running_public_binding_column(0)
         .is_none());
     assert!(full_zero.unconstrained_columns().is_empty());
     assert!(full_active.unconstrained_columns().is_empty());
@@ -1209,16 +1291,16 @@ fn claim_replay_base_stores_poseidon_body_without_coordinate_overlay() {
 
     let audit = production_claim_replay_base_shape_audit().expect("claim replay base shape");
     eprintln!("{audit:#?}");
-    assert_eq!(audit.full_rows, 227_544);
-    assert_eq!(audit.full_columns, 228_987);
-    assert_eq!(audit.final_rows, 220_997);
-    assert_eq!(audit.final_columns, 222_387);
-    assert_eq!(audit.low_norm_rows, 66_757);
-    assert_eq!(audit.low_norm_columns, 783_648);
+    assert_eq!(audit.full_rows, 259_944);
+    assert_eq!(audit.full_columns, 261_603);
+    assert_eq!(audit.final_rows, 192_605);
+    assert_eq!(audit.final_columns, 193_803);
+    assert_eq!(audit.low_norm_rows, 67_255);
+    assert_eq!(audit.low_norm_columns, 1_595_106);
     assert_eq!(audit.low_norm_public_columns, 648);
-    assert_eq!(audit.low_norm_total_coordinates, 783_628);
-    assert!(audit.low_norm_rows < 1 << 24);
-    assert!(audit.low_norm_columns < 1 << 24);
+    assert_eq!(audit.low_norm_total_coordinates, 1_595_104);
+    assert!(audit.low_norm_rows <= 1 << 24);
+    assert!(audit.low_norm_columns <= 1 << 24);
     let relation = build_production_claim_replay_base_low_norm_r1cs().expect("build claim replay base relation");
     assert_eq!(relation.selector_cols().len(), 2);
     assert_eq!(relation.structure().n, audit.low_norm_rows);

@@ -24,7 +24,7 @@ use crate::frontends::r1cs_f_prime::{ScheduledLinkedOverlayLowNormR1cs, Selectiv
 use crate::paper::f_prime::stage as fprime_stage;
 
 /// Exact number of work items accepted by the frozen streaming terminal.
-pub const STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS: usize = 400;
+pub const STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS: usize = 436;
 
 /// Stable identity of the exact terminal-slice profile schema.
 pub const STREAMING_TERMINAL_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-slice/v1";
@@ -357,7 +357,7 @@ impl NebulaFPrimeStreamingTerminalProfile {
     }
 
     pub const fn lifecycle_scope(&self) -> &'static str {
-        "recursive-terminal-arm-399"
+        "recursive-terminal-arm-435"
     }
 
     pub const fn source_artifact_identity(&self) -> &'static str {
@@ -487,7 +487,7 @@ pub fn production_streaming_terminal_profile(
     let terminal_arm = STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS - 1;
     let terminal_item = program.work_items()[terminal_arm];
     if terminal_item.phase() != NebulaFPrimeStreamingPhase::SemanticLinks || terminal_item.index() != 0 {
-        return Err(invalid("work item 399 is not the sole SemanticLinks item"));
+        return Err(invalid("the final work item is not the sole SemanticLinks item"));
     }
 
     let expected_lifecycle_groups = program.lifecycle_group_map();
@@ -504,7 +504,9 @@ pub fn production_streaming_terminal_profile(
         ));
     }
     if relation.layout().overlay_kinds().len() != STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS {
-        return Err(invalid("final relation overlay map does not have 400 entries"));
+        return Err(invalid(
+            "final relation overlay map does not match the production program",
+        ));
     }
     if relation.layout().scheduled_rows().start != 0
         || scheduled.layout().common_rows().start != 0
@@ -529,7 +531,7 @@ pub fn production_streaming_terminal_profile(
         .map(|(arm, _)| arm)
         .collect::<Vec<_>>();
     if semantic_occurrences != [terminal_arm] {
-        return Err(invalid("SemanticLinks is not selected by exactly terminal arm 399"));
+        return Err(invalid("SemanticLinks is not selected by exactly the terminal arm"));
     }
 
     let recursive = lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Recursive);

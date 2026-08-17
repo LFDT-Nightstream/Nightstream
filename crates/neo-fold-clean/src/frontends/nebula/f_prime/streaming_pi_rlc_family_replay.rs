@@ -2,7 +2,7 @@
 //!
 //! Owns the two cursor-parity shapes, the fixed production source-column
 //! placement, and both variable-state Poseidon2 slice replays. The input
-//! replay reads the same 810 columns as the PiRLC algebra. The output replay
+//! replay reads the same 918 columns as the PiRLC algebra. The output replay
 //! reads the same 54 algebra output columns.
 //!
 //! Does not own the PiRLC arithmetic, Ajtai residual update, challenge carry,
@@ -13,7 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget, Var};
 
-pub(crate) const SOURCE_COUNT: usize = 15;
+pub(crate) const SOURCE_COUNT: usize = 1 + crate::config::K_RHO as usize;
 pub(crate) const LANE_COUNT: usize = 54;
 pub(crate) const FAMILY_INPUT_FIELDS: usize = SOURCE_COUNT * LANE_COUNT;
 
@@ -68,17 +68,11 @@ impl NebulaFPrimePiRlcFamilyReplayArmKind {
     }
 
     pub const fn input_poseidon2_calls(self) -> usize {
-        match self {
-            Self::Even => 202,
-            Self::Odd => 203,
-        }
+        (self.before_absorbed() + FAMILY_INPUT_FIELDS) / 4
     }
 
     pub const fn output_poseidon2_calls(self) -> usize {
-        match self {
-            Self::Even => 13,
-            Self::Odd => 14,
-        }
+        (self.before_absorbed() + LANE_COUNT) / 4
     }
 
     pub const fn poseidon2_calls(self) -> usize {

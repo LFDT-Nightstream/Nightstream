@@ -284,6 +284,19 @@ Open user decisions (blocking the affected bars only):
   above (fix under guidance, known upstream work, or defer with the
   bar scoped to campaign-owned suites).
 
+## Bar-4 capture watch (2026-08-17)
+
+The k_rho=12 capture is past 20 h: ~13 h in the fold phase (10.9 GB
+RSS), then a single-threaded ~300 MB compute phase inside the second
+(bootstrap-recursive) `append_segment_with_constraint_witness_audit`
+that has run 7+ h at full CPU. No profiler exists on this box
+(no perf, no gdb) and the process is the only copy of the work, so it
+keeps running. Decision point at ~30 h elapsed: if still running,
+kill it, add phase timing prints to the append path (debug-logs), and
+rerun with instrumentation. The suspicion, given this campaign's
+record, is another accidental quadratic in a k_rho- or v2-scaled
+loop.
+
 ## Iteration log
 
 - 2026-08-17 iteration 17d (the strictness trap; chains go green): the

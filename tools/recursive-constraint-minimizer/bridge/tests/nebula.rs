@@ -675,12 +675,69 @@ fn installed_cvc5_finds_the_recursive_pi_rlc_padding_candidate_unsat() {
         },
     )
     .expect("export the exact duplicate candidate and support rows");
-    let query = render_query(export.problem(), &Selection::Family(CANDIDATE.to_owned()))
+    // One-candidate query: the v2 family query (3,920 candidates) blew the
+    // five-minute test cap; the full-family solve is the #[ignore] probe
+    // below, and Lean now owns full-family certification anyway.
+    let candidate_row = export
+        .problem()
+        .rows
+        .iter()
+        .find(|row| row.family == CANDIDATE)
+        .expect("one y_ring candidate row")
+        .id
+        .clone();
+    let query = render_query(export.problem(), &Selection::Row(candidate_row))
         .expect("render exact recursive duplicate query");
     let run = run_cvc5(&query, &SolverConfig::default()).expect("run installed cvc5");
 
     eprintln!(
         "exact recursive duplicate cvc5 control: status={:?} conclusion={:?} elapsed_ms={}",
+        run.status, run.conclusion, run.elapsed_ms,
+    );
+    assert_eq!(run.status, SolverStatus::Unsat);
+    assert_eq!(run.conclusion, Conclusion::RedundancyCandidate);
+}
+
+#[test]
+#[ignore = "full-family v2 solve exceeds the five-minute cap; run in a campaign solo window"]
+fn probe_full_y_ring_family_query_is_unsat() {
+    const CANDIDATE: &str = "nifs.pi_rlc.verify.padding.y_ring";
+    const PI_CCS_SUPPORT: &str = "nifs.pi_ccs.padded_row.canonicality";
+    const PI_DEC_SUPPORT: &str = "nifs.pi_dec.verify";
+
+    let audit = source_audit();
+    let branch = NebulaFPrimeBranch::Recursive;
+    let arm = audit.arm(branch);
+    let census = nebula_family_census(&audit, branch).expect("complete reviewed Nebula family ownership");
+    let family = |name: &str| {
+        census
+            .iter()
+            .find(|family| family.name() == name)
+            .unwrap_or_else(|| panic!("missing exact family {name}"))
+    };
+    let source_rows = [CANDIDATE, PI_CCS_SUPPORT, PI_DEC_SUPPORT]
+        .into_iter()
+        .flat_map(|name| family(name).source_rows().iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let export = export_nebula_problem(
+        &audit,
+        branch,
+        ExportRequest {
+            profile: "nebula-recursive-cvc5-duplicate-control".to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows,
+            complete_families: vec![CANDIDATE.to_owned()],
+        },
+    )
+    .expect("export the exact duplicate candidate and support rows");
+    let query = render_query(export.problem(), &Selection::Family(CANDIDATE.to_owned()))
+        .expect("render exact recursive duplicate query");
+    let run = run_cvc5(&query, &SolverConfig::default()).expect("run installed cvc5");
+    eprintln!(
+        "full y_ring family cvc5 probe: status={:?} conclusion={:?} elapsed_ms={}",
         run.status, run.conclusion, run.elapsed_ms,
     );
     assert_eq!(run.status, SolverStatus::Unsat);

@@ -253,6 +253,29 @@ most the capture, nothing else, and watch `free -g` at launch.
 
 ## Iteration log
 
+- 2026-08-17 iteration 17b (the multi-target lake anomaly, bisected):
+  after the packed leaf split, an eight-target lake invocation
+  (LEAN_NUM_THREADS=4) still breached the cap with workers at ~97%
+  CPU and stable RSS, so the leaf content was bisected natively:
+  chunk 1's CSR expansion 2.07 s, each of its four seeded blocks
+  1.1-2.9 s, the complete `chunkFacts (rowsChunk wire 1) ...`
+  statement 12.4 s — and `lake build ...Leaf1` SOLO finishes in 15 s
+  (Leaf0 in 10 s, at LEAN_NUM_THREADS=1 and =4 alike). The hang is a
+  property of multi-target lake invocations only (some jobs finish,
+  the rest spin at full CPU indefinitely); single-target invocations
+  are uniformly fast. Until the root cause is found, every Generated
+  Lean build runs as a sequential loop of single-target lake calls,
+  each inside the 25-minute cap (32 leaf modules ≈ 8 minutes total).
+  Also this iteration: the un-ignored cvc5 y_ring gate exceeded the
+  five-minute test cap at v2 scale (3,920-candidate family query);
+  per the cap's prescription its default body now solves one
+  candidate row (still a live solver run with hard Unsat asserts),
+  and the full-family query moved to
+  `probe_full_y_ring_family_query_is_unsat` (#[ignore], solo
+  window). Killed-run hygiene: a pkill pattern matched a sibling
+  test loop and killed it (rerun); lake groups are now killed by
+  process group id.
+
 - 2026-08-17 iteration 17 (cost-aware packing + y_ring rebuild): the
   first 14-chunk leaf slice breached the 25-minute cap (Leaf0/Leaf1
   killed at 25:03) while block-free modules built in 50 s; payload

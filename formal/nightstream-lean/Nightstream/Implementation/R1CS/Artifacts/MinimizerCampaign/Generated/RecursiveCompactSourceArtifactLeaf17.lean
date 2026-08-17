@@ -105,4 +105,51 @@ theorem presence37 :
       (fun row => decide (row.family = "nifs.pi_rlc.challenge.transcript.rho_domain_separator")) = true :=
   presence_of_chunkFacts chunkLeaf103 (by decide)
 
+theorem censusGroup :
+    ∀ k, 103 ≤ k → k < 106 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is103 : k = 103
+  · subst is103
+    exact (chunkFacts_split chunkLeaf103).1
+  by_cases is104 : k = 104
+  · subst is104
+    exact (chunkFacts_split chunkLeaf104).1
+  by_cases is105 : k = 105
+  · subst is105
+    exact (chunkFacts_split chunkLeaf105).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 103 ≤ k → k < 106 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is103 : k = 103
+  · subst is103
+    exact (chunkFacts_split chunkLeaf103).2.1
+  by_cases is104 : k = 104
+  · subst is104
+    exact (chunkFacts_split chunkLeaf104).2.1
+  by_cases is105 : k = 105
+  · subst is105
+    exact (chunkFacts_split chunkLeaf105).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 103 ≤ k → k < 106 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is103 : k = 103
+  · subst is103
+    exact (chunkFacts_split chunkLeaf103).2.2.1
+  by_cases is104 : k = 104
+  · subst is104
+    exact (chunkFacts_split chunkLeaf104).2.2.1
+  by_cases is105 : k = 105
+  · subst is105
+    exact (chunkFacts_split chunkLeaf105).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf17

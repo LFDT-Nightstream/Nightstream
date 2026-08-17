@@ -691,6 +691,39 @@ pub fn render_compact_source_artifact_modules(
                 lean_string_literal(name)
             ));
         }
+        // Group dispatchers: the assembly chains over 32 groups instead of
+        // elaborating three 171-arm matches, which breached the 25-minute cap.
+        let facts_of = |chunk: usize| {
+            if committed_equality.is_some() {
+                format!("(chunkLeaf{chunk}).1")
+            } else {
+                format!("chunkLeaf{chunk}")
+            }
+        };
+        let group_body = |path: &str| {
+            let mut body = String::new();
+            body.push_str("  intro k lower upper\n");
+            for &chunk in group {
+                body.push_str(&format!(
+                    "  by_cases is{chunk} : k = {chunk}\n  · subst is{chunk}\n    exact (chunkFacts_split {}){path}\n",
+                    facts_of(chunk)
+                ));
+            }
+            body.push_str("  exact absurd upper (by omega)\n\n");
+            body
+        };
+        leaf_out.push_str(&format!(
+            "theorem censusGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k) := by\n{}",
+            group_body(".1")
+        ));
+        leaf_out.push_str(&format!(
+            "theorem wfGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true := by\n{}",
+            arm.n, arm.m, group_body(".2.1")
+        ));
+        leaf_out.push_str(&format!(
+            "theorem coverGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n{}",
+            group_body(".2.2.1")
+        ));
         leaf_out.push_str(&format!("end {module_name}\n"));
         modules.push(GeneratedLeanModule {
             module_name,
@@ -699,9 +732,6 @@ pub fn render_compact_source_artifact_modules(
     }
 
     // ── Assembly: dispatchers, small scalar facts, structural theorems ──
-    let census_path = ".1";
-    let wf_path = ".2.1";
-    let family_path = ".2.2.1";
     let mut out = String::new();
     out.push_str(&format!("import {wire_namespace}\n"));
     out.push_str("import Nightstream.Assurance.ChunkLeaves\n");
@@ -721,30 +751,24 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("set_option maxRecDepth 65536\n\n");
     out.push_str(&format!("export {wire_namespace} (families wire sourceArtifact reviewedPlan reviewedPlan_subset chunkRows_eq totalRows_eq chunkCount_eq)\n\n"));
 
-    let base_projection = if committed_equality.is_some() { ".1" } else { "" };
-    let leaf_ref = |chunk: usize| {
-        format!(
-            "chunkFacts_split ({module_namespace}Leaf{}.chunkLeaf{chunk}{base_projection})",
-            leaf_module_of(chunk)
-        )
+    let chain = |group_theorem: &str| {
+        let mut body = String::new();
+        body.push_str("  intro k bound\n  rw [chunkCount_eq] at bound\n");
+        for (leaf_module, group) in leaf_groups.iter().enumerate() {
+            let last = group[group.len() - 1] + 1;
+            body.push_str(&format!(
+                "  by_cases group{leaf_module} : k < {last}\n  · exact {module_namespace}Leaf{leaf_module}.{group_theorem} k (by omega) group{leaf_module}\n"
+            ));
+        }
+        body.push_str("  exact absurd bound (by omega)\n\n");
+        body
     };
-    let mut census_dispatch = String::new();
-    let mut wf_dispatch = String::new();
-    let mut family_dispatch = String::new();
-    for chunk in 0..chunk_count {
-        census_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){census_path}\n", leaf_ref(chunk)));
-        wf_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){wf_path}\n", leaf_ref(chunk)));
-        family_dispatch.push_str(&format!("  | {chunk}, _ => exact ({}){family_path}\n", leaf_ref(chunk)));
-    }
-    out.push_str("theorem censuses :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k) := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
-    out.push_str(&census_dispatch);
-    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
-    out.push_str(&format!("theorem rowsWf :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n", arm.n, arm.m));
-    out.push_str(&wf_dispatch);
-    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
-    out.push_str("theorem familiesCovered :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
-    out.push_str(&family_dispatch);
-    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
+    out.push_str("theorem censuses :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k) := by\n");
+    out.push_str(&chain("censusGroup"));
+    out.push_str(&format!("theorem rowsWf :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true := by\n", arm.n, arm.m));
+    out.push_str(&chain("wfGroup"));
+    out.push_str("theorem familiesCovered :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n");
+    out.push_str(&chain("coverGroup"));
 
     out.push_str("theorem chunkArithmeticFull :\n    ∀ k, k + 1 < wire.chunkCount → wire.chunkLength k = wire.chunkRows := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  simp only [Wire.chunkLength, Wire.chunkStart, chunkRows_eq, totalRows_eq]\n  omega\n\n");
     out.push_str("theorem chunkArithmeticLast :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows +\n        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows := by\n  intro _\n  simp only [Wire.chunkLength, Wire.chunkStart, chunkCount_eq, chunkRows_eq, totalRows_eq]\n  omega\n\n");
@@ -882,7 +906,7 @@ pub fn render_classification_leaves_modules(
         return Err(ExportError::new("a classification batch needs at least one override"));
     }
     let wire_namespace = format!("{artifact_namespace}Wire");
-    let (leaf_groups, leaf_module_map) = pack_leaf_groups(chunk_count, heavy_chunks);
+    let (leaf_groups, _) = pack_leaf_groups(chunk_count, heavy_chunks);
     let leaf_module_count = leaf_groups.len();
     let pairs_literal = {
         let mut text = String::from("[");
@@ -921,6 +945,25 @@ pub fn render_classification_leaves_modules(
                 "theorem classLeaf{chunk} :\n    classFacts {assignment_namespace}.values overridePairs\n      (rowsChunk wire {chunk}) = true := by\n  native_decide\n\n"
             ));
         }
+        let group_body = |path: &str| {
+            let mut body = String::new();
+            body.push_str("  intro k lower upper\n");
+            for &chunk in group {
+                body.push_str(&format!(
+                    "  by_cases is{chunk} : k = {chunk}\n  · subst is{chunk}\n    exact (classFacts_split classLeaf{chunk}){path}\n"
+                ));
+            }
+            body.push_str("  exact absurd upper (by omega)\n\n");
+            body
+        };
+        out.push_str(&format!(
+            "theorem holdsGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds\n          (backgroundFn {assignment_namespace}.values) row.row)) = true := by\n{}",
+            group_body(".1")
+        ));
+        out.push_str(&format!(
+            "theorem guardsGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by\n{}",
+            group_body(".2")
+        ));
         out.push_str(&format!("end {module_name}\n"));
         modules.push(GeneratedLeanModule {
             module_name,
@@ -944,22 +987,22 @@ pub fn render_classification_leaves_modules(
         "def background : Nat → Field := backgroundFn {assignment_namespace}.values\n\n"
     ));
     out.push_str(&format!("def overridePairs : List (Nat × String) :=\n  {pairs_literal}\n\n"));
-    out.push_str("theorem holdsAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
-    for chunk in 0..chunk_count {
-        let leaf_module = leaf_module_map[chunk];
-        out.push_str(&format!(
-            "  | {chunk}, _ => exact (classFacts_split {module_namespace}Leaf{leaf_module}.classLeaf{chunk}).1\n"
-        ));
-    }
-    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
-    out.push_str("theorem guardsAll :\n    ∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
-    for chunk in 0..chunk_count {
-        let leaf_module = leaf_module_map[chunk];
-        out.push_str(&format!(
-            "  | {chunk}, _ => exact (classFacts_split {module_namespace}Leaf{leaf_module}.classLeaf{chunk}).2\n"
-        ));
-    }
-    out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
+    let chain = |group_theorem: &str| {
+        let mut body = String::new();
+        body.push_str("  intro k bound\n  rw [chunkCount_eq] at bound\n");
+        for (leaf_module, group) in leaf_groups.iter().enumerate() {
+            let last = group[group.len() - 1] + 1;
+            body.push_str(&format!(
+                "  by_cases group{leaf_module} : k < {last}\n  · exact {module_namespace}Leaf{leaf_module}.{group_theorem} k (by omega) group{leaf_module}\n"
+            ));
+        }
+        body.push_str("  exact absurd bound (by omega)\n\n");
+        body
+    };
+    out.push_str("theorem holdsAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true := by\n");
+    out.push_str(&chain("holdsGroup"));
+    out.push_str("theorem guardsAll :\n    ∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by\n");
+    out.push_str(&chain("guardsGroup"));
     out.push_str(&format!("end {module_namespace}\n"));
     modules.push(GeneratedLeanModule {
         module_name: module_namespace.to_owned(),

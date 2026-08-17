@@ -35,4 +35,36 @@ theorem classLeaf156 :
       (rowsChunk wire 156) = true := by
   native_decide
 
+theorem holdsGroup :
+    ∀ k, 154 ≤ k → k < 157 →
+      (rowsChunk wire k).all
+        (fun row => decide (Algebraic.Holds
+          (backgroundFn Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values) row.row)) = true := by
+  intro k lower upper
+  by_cases is154 : k = 154
+  · subst is154
+    exact (classFacts_split classLeaf154).1
+  by_cases is155 : k = 155
+  · subst is155
+    exact (classFacts_split classLeaf155).1
+  by_cases is156 : k = 156
+  · subst is156
+    exact (classFacts_split classLeaf156).1
+  exact absurd upper (by omega)
+
+theorem guardsGroup :
+    ∀ k, 154 ≤ k → k < 157 →
+      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by
+  intro k lower upper
+  by_cases is154 : k = 154
+  · subst is154
+    exact (classFacts_split classLeaf154).2
+  by_cases is155 : k = 155
+  · subst is155
+    exact (classFacts_split classLeaf155).2
+  by_cases is156 : k = 156
+  · subst is156
+    exact (classFacts_split classLeaf156).2
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeavesLeaf11

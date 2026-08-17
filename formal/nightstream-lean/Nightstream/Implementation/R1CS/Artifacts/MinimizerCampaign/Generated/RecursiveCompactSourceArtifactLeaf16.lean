@@ -33,4 +33,33 @@ theorem presence81 :
       (fun row => decide (row.family = "nifs.running_parent_pi_dec")) = true :=
   presence_of_chunkFacts chunkLeaf102 (by decide)
 
+theorem censusGroup :
+    ∀ k, 102 ≤ k → k < 103 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is102 : k = 102
+  · subst is102
+    exact (chunkFacts_split chunkLeaf102).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 102 ≤ k → k < 103 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is102 : k = 102
+  · subst is102
+    exact (chunkFacts_split chunkLeaf102).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 102 ≤ k → k < 103 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is102 : k = 102
+  · subst is102
+    exact (chunkFacts_split chunkLeaf102).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf16

@@ -131,4 +131,150 @@ theorem presence3 :
       (fun row => decide (row.family = "fprime.base.step.output")) = true :=
   presence_of_chunkFacts (chunkLeaf59).1 (by decide)
 
+theorem censusGroup :
+    ∀ k, 56 ≤ k → k < 70 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is56 : k = 56
+  · subst is56
+    exact (chunkFacts_split (chunkLeaf56).1).1
+  by_cases is57 : k = 57
+  · subst is57
+    exact (chunkFacts_split (chunkLeaf57).1).1
+  by_cases is58 : k = 58
+  · subst is58
+    exact (chunkFacts_split (chunkLeaf58).1).1
+  by_cases is59 : k = 59
+  · subst is59
+    exact (chunkFacts_split (chunkLeaf59).1).1
+  by_cases is60 : k = 60
+  · subst is60
+    exact (chunkFacts_split (chunkLeaf60).1).1
+  by_cases is61 : k = 61
+  · subst is61
+    exact (chunkFacts_split (chunkLeaf61).1).1
+  by_cases is62 : k = 62
+  · subst is62
+    exact (chunkFacts_split (chunkLeaf62).1).1
+  by_cases is63 : k = 63
+  · subst is63
+    exact (chunkFacts_split (chunkLeaf63).1).1
+  by_cases is64 : k = 64
+  · subst is64
+    exact (chunkFacts_split (chunkLeaf64).1).1
+  by_cases is65 : k = 65
+  · subst is65
+    exact (chunkFacts_split (chunkLeaf65).1).1
+  by_cases is66 : k = 66
+  · subst is66
+    exact (chunkFacts_split (chunkLeaf66).1).1
+  by_cases is67 : k = 67
+  · subst is67
+    exact (chunkFacts_split (chunkLeaf67).1).1
+  by_cases is68 : k = 68
+  · subst is68
+    exact (chunkFacts_split (chunkLeaf68).1).1
+  by_cases is69 : k = 69
+  · subst is69
+    exact (chunkFacts_split (chunkLeaf69).1).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 56 ≤ k → k < 70 →
+      (rowsChunk wire k).all (rowWellFormedAt 39949 38626) = true := by
+  intro k lower upper
+  by_cases is56 : k = 56
+  · subst is56
+    exact (chunkFacts_split (chunkLeaf56).1).2.1
+  by_cases is57 : k = 57
+  · subst is57
+    exact (chunkFacts_split (chunkLeaf57).1).2.1
+  by_cases is58 : k = 58
+  · subst is58
+    exact (chunkFacts_split (chunkLeaf58).1).2.1
+  by_cases is59 : k = 59
+  · subst is59
+    exact (chunkFacts_split (chunkLeaf59).1).2.1
+  by_cases is60 : k = 60
+  · subst is60
+    exact (chunkFacts_split (chunkLeaf60).1).2.1
+  by_cases is61 : k = 61
+  · subst is61
+    exact (chunkFacts_split (chunkLeaf61).1).2.1
+  by_cases is62 : k = 62
+  · subst is62
+    exact (chunkFacts_split (chunkLeaf62).1).2.1
+  by_cases is63 : k = 63
+  · subst is63
+    exact (chunkFacts_split (chunkLeaf63).1).2.1
+  by_cases is64 : k = 64
+  · subst is64
+    exact (chunkFacts_split (chunkLeaf64).1).2.1
+  by_cases is65 : k = 65
+  · subst is65
+    exact (chunkFacts_split (chunkLeaf65).1).2.1
+  by_cases is66 : k = 66
+  · subst is66
+    exact (chunkFacts_split (chunkLeaf66).1).2.1
+  by_cases is67 : k = 67
+  · subst is67
+    exact (chunkFacts_split (chunkLeaf67).1).2.1
+  by_cases is68 : k = 68
+  · subst is68
+    exact (chunkFacts_split (chunkLeaf68).1).2.1
+  by_cases is69 : k = 69
+  · subst is69
+    exact (chunkFacts_split (chunkLeaf69).1).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 56 ≤ k → k < 70 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is56 : k = 56
+  · subst is56
+    exact (chunkFacts_split (chunkLeaf56).1).2.2.1
+  by_cases is57 : k = 57
+  · subst is57
+    exact (chunkFacts_split (chunkLeaf57).1).2.2.1
+  by_cases is58 : k = 58
+  · subst is58
+    exact (chunkFacts_split (chunkLeaf58).1).2.2.1
+  by_cases is59 : k = 59
+  · subst is59
+    exact (chunkFacts_split (chunkLeaf59).1).2.2.1
+  by_cases is60 : k = 60
+  · subst is60
+    exact (chunkFacts_split (chunkLeaf60).1).2.2.1
+  by_cases is61 : k = 61
+  · subst is61
+    exact (chunkFacts_split (chunkLeaf61).1).2.2.1
+  by_cases is62 : k = 62
+  · subst is62
+    exact (chunkFacts_split (chunkLeaf62).1).2.2.1
+  by_cases is63 : k = 63
+  · subst is63
+    exact (chunkFacts_split (chunkLeaf63).1).2.2.1
+  by_cases is64 : k = 64
+  · subst is64
+    exact (chunkFacts_split (chunkLeaf64).1).2.2.1
+  by_cases is65 : k = 65
+  · subst is65
+    exact (chunkFacts_split (chunkLeaf65).1).2.2.1
+  by_cases is66 : k = 66
+  · subst is66
+    exact (chunkFacts_split (chunkLeaf66).1).2.2.1
+  by_cases is67 : k = 67
+  · subst is67
+    exact (chunkFacts_split (chunkLeaf67).1).2.2.1
+  by_cases is68 : k = 68
+  · subst is68
+    exact (chunkFacts_split (chunkLeaf68).1).2.2.1
+  by_cases is69 : k = 69
+  · subst is69
+    exact (chunkFacts_split (chunkLeaf69).1).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCompactSourceArtifactLeaf4

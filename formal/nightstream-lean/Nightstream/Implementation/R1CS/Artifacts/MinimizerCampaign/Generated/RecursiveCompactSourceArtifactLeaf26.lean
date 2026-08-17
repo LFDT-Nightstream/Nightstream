@@ -33,4 +33,33 @@ theorem presence3 :
       (fun row => decide (row.family = "fprime.recursive.step.accumulator.output_authority.child_digests")) = true :=
   presence_of_chunkFacts chunkLeaf130 (by decide)
 
+theorem censusGroup :
+    ∀ k, 130 ≤ k → k < 131 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is130 : k = 130
+  · subst is130
+    exact (chunkFacts_split chunkLeaf130).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 130 ≤ k → k < 131 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is130 : k = 130
+  · subst is130
+    exact (chunkFacts_split chunkLeaf130).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 130 ≤ k → k < 131 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is130 : k = 130
+  · subst is130
+    exact (chunkFacts_split chunkLeaf130).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf26

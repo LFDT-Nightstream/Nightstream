@@ -462,7 +462,7 @@ pub fn render_compact_redundancy_modules(
     });
 
     // ── Leaf modules: one bounded conjunction proof per chunk ──────────
-    let (leaf_groups, leaf_module_map) =
+    let (leaf_groups, _) =
         super::compact_source_export::pack_leaf_groups_public(chunk_count, heavy_chunks);
     let leaf_module_count = leaf_groups.len();
     for (leaf_module, group) in leaf_groups.iter().enumerate() {
@@ -486,6 +486,29 @@ pub fn render_compact_redundancy_modules(
             )
             .unwrap();
         }
+        let group_body = |path: &str| {
+            let mut body = String::new();
+            body.push_str("  intro k lower upper\n");
+            for &chunk in group {
+                body.push_str(&format!(
+                    "  by_cases is{chunk} : k = {chunk}\n  · subst is{chunk}\n    exact (chunkLeaf{chunk}){path}\n"
+                ));
+            }
+            body.push_str("  exact absurd upper (by omega)\n\n");
+            body
+        };
+        writeln!(
+            out,
+            "theorem candGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = certFamily)) =\n        (certParts k).map (fun scalar => scalar.candidate) := by\n{}",
+            group_body(".1")
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "theorem scalarGroup :\n    ∀ k, {first} ≤ k → k < {last} →\n      (certParts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all (supportOk wire certPlan certFamily)) = true := by\n{}",
+            group_body(".2")
+        )
+        .unwrap();
         writeln!(out, "end {module_name}").unwrap();
         modules.push(GeneratedLeanModule {
             module_name,
@@ -510,26 +533,30 @@ pub fn render_compact_redundancy_modules(
     writeln!(out, "def family : String := {}\n", lean_string(family)).unwrap();
     writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
     writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
+    let chain = |group_theorem: &str| {
+        let mut body = String::new();
+        body.push_str("  intro k bound\n  rw [chunkCount_eq] at bound\n");
+        for (leaf_module, group) in leaf_groups.iter().enumerate() {
+            let last = group[group.len() - 1] + 1;
+            body.push_str(&format!(
+                "  by_cases group{leaf_module} : k < {last}\n  · exact {module_namespace}Leaf{leaf_module}.{group_theorem} k (by omega) group{leaf_module}\n"
+            ));
+        }
+        body.push_str("  exact absurd bound (by omega)\n");
+        body
+    };
     writeln!(
         out,
-        "theorem candAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = {parts_namespace}.certFamily)) =\n        (parts k).map (fun scalar => scalar.candidate) := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with"
+        "theorem candAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = {parts_namespace}.certFamily)) =\n        (parts k).map (fun scalar => scalar.candidate) := by\n{}",
+        chain("candGroup")
     )
     .unwrap();
-    for chunk in 0..chunk_count {
-        let leaf_module = leaf_module_map[chunk];
-        writeln!(out, "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.chunkLeaf{chunk}).1").unwrap();
-    }
-    writeln!(out, "  | n + {chunk_count}, bound => exact absurd bound (by omega)\n").unwrap();
     writeln!(
         out,
-        "theorem scalarAll :\n    ∀ k, k < wire.chunkCount →\n      (parts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all\n            (supportOk wire {parts_namespace}.certPlan\n              {parts_namespace}.certFamily)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with"
+        "theorem scalarAll :\n    ∀ k, k < wire.chunkCount →\n      (parts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all\n            (supportOk wire {parts_namespace}.certPlan\n              {parts_namespace}.certFamily)) = true := by\n{}",
+        chain("scalarGroup")
     )
     .unwrap();
-    for chunk in 0..chunk_count {
-        let leaf_module = leaf_module_map[chunk];
-        writeln!(out, "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.chunkLeaf{chunk}).2").unwrap();
-    }
-    writeln!(out, "  | n + {chunk_count}, bound => exact absurd bound (by omega)\n").unwrap();
     writeln!(
         out,
         "theorem memberFam :\n    {parts_namespace}.certFamily ∈ wire.completeFamilies := by\n  native_decide\n"

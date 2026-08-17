@@ -22,4 +22,33 @@ theorem chunkLeaf17 :
       [] = true := by
   native_decide
 
+theorem censusGroup :
+    ∀ k, 17 ≤ k → k < 18 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is17 : k = 17
+  · subst is17
+    exact (chunkFacts_split chunkLeaf17).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 17 ≤ k → k < 18 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is17 : k = 17
+  · subst is17
+    exact (chunkFacts_split chunkLeaf17).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 17 ≤ k → k < 18 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is17 : k = 17
+  · subst is17
+    exact (chunkFacts_split chunkLeaf17).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf7

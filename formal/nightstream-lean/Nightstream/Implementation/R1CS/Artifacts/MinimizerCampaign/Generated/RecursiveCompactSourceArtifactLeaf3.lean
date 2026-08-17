@@ -40,4 +40,60 @@ theorem chunkLeaf6 :
       [] = true := by
   native_decide
 
+theorem censusGroup :
+    ∀ k, 3 ≤ k → k < 7 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is3 : k = 3
+  · subst is3
+    exact (chunkFacts_split chunkLeaf3).1
+  by_cases is4 : k = 4
+  · subst is4
+    exact (chunkFacts_split chunkLeaf4).1
+  by_cases is5 : k = 5
+  · subst is5
+    exact (chunkFacts_split chunkLeaf5).1
+  by_cases is6 : k = 6
+  · subst is6
+    exact (chunkFacts_split chunkLeaf6).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 3 ≤ k → k < 7 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is3 : k = 3
+  · subst is3
+    exact (chunkFacts_split chunkLeaf3).2.1
+  by_cases is4 : k = 4
+  · subst is4
+    exact (chunkFacts_split chunkLeaf4).2.1
+  by_cases is5 : k = 5
+  · subst is5
+    exact (chunkFacts_split chunkLeaf5).2.1
+  by_cases is6 : k = 6
+  · subst is6
+    exact (chunkFacts_split chunkLeaf6).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 3 ≤ k → k < 7 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is3 : k = 3
+  · subst is3
+    exact (chunkFacts_split chunkLeaf3).2.2.1
+  by_cases is4 : k = 4
+  · subst is4
+    exact (chunkFacts_split chunkLeaf4).2.2.1
+  by_cases is5 : k = 5
+  · subst is5
+    exact (chunkFacts_split chunkLeaf5).2.2.1
+  by_cases is6 : k = 6
+  · subst is6
+    exact (chunkFacts_split chunkLeaf6).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf3

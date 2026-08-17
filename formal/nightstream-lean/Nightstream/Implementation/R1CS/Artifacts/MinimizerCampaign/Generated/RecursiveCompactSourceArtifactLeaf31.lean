@@ -39,4 +39,33 @@ theorem presence6 :
       (fun row => decide (row.family = "fprime.recursive.step.output")) = true :=
   presence_of_chunkFacts chunkLeaf170 (by decide)
 
+theorem censusGroup :
+    ∀ k, 170 ≤ k → k < 171 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is170 : k = 170
+  · subst is170
+    exact (chunkFacts_split chunkLeaf170).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 170 ≤ k → k < 171 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is170 : k = 170
+  · subst is170
+    exact (chunkFacts_split chunkLeaf170).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 170 ≤ k → k < 171 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is170 : k = 170
+  · subst is170
+    exact (chunkFacts_split chunkLeaf170).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf31

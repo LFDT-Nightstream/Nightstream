@@ -90,4 +90,102 @@ theorem classLeaf97 :
       (rowsChunk wire 97) = true := by
   native_decide
 
+theorem holdsGroup :
+    ∀ k, 84 ≤ k → k < 98 →
+      (rowsChunk wire k).all
+        (fun row => decide (Algebraic.Holds
+          (backgroundFn Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values) row.row)) = true := by
+  intro k lower upper
+  by_cases is84 : k = 84
+  · subst is84
+    exact (classFacts_split classLeaf84).1
+  by_cases is85 : k = 85
+  · subst is85
+    exact (classFacts_split classLeaf85).1
+  by_cases is86 : k = 86
+  · subst is86
+    exact (classFacts_split classLeaf86).1
+  by_cases is87 : k = 87
+  · subst is87
+    exact (classFacts_split classLeaf87).1
+  by_cases is88 : k = 88
+  · subst is88
+    exact (classFacts_split classLeaf88).1
+  by_cases is89 : k = 89
+  · subst is89
+    exact (classFacts_split classLeaf89).1
+  by_cases is90 : k = 90
+  · subst is90
+    exact (classFacts_split classLeaf90).1
+  by_cases is91 : k = 91
+  · subst is91
+    exact (classFacts_split classLeaf91).1
+  by_cases is92 : k = 92
+  · subst is92
+    exact (classFacts_split classLeaf92).1
+  by_cases is93 : k = 93
+  · subst is93
+    exact (classFacts_split classLeaf93).1
+  by_cases is94 : k = 94
+  · subst is94
+    exact (classFacts_split classLeaf94).1
+  by_cases is95 : k = 95
+  · subst is95
+    exact (classFacts_split classLeaf95).1
+  by_cases is96 : k = 96
+  · subst is96
+    exact (classFacts_split classLeaf96).1
+  by_cases is97 : k = 97
+  · subst is97
+    exact (classFacts_split classLeaf97).1
+  exact absurd upper (by omega)
+
+theorem guardsGroup :
+    ∀ k, 84 ≤ k → k < 98 →
+      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by
+  intro k lower upper
+  by_cases is84 : k = 84
+  · subst is84
+    exact (classFacts_split classLeaf84).2
+  by_cases is85 : k = 85
+  · subst is85
+    exact (classFacts_split classLeaf85).2
+  by_cases is86 : k = 86
+  · subst is86
+    exact (classFacts_split classLeaf86).2
+  by_cases is87 : k = 87
+  · subst is87
+    exact (classFacts_split classLeaf87).2
+  by_cases is88 : k = 88
+  · subst is88
+    exact (classFacts_split classLeaf88).2
+  by_cases is89 : k = 89
+  · subst is89
+    exact (classFacts_split classLeaf89).2
+  by_cases is90 : k = 90
+  · subst is90
+    exact (classFacts_split classLeaf90).2
+  by_cases is91 : k = 91
+  · subst is91
+    exact (classFacts_split classLeaf91).2
+  by_cases is92 : k = 92
+  · subst is92
+    exact (classFacts_split classLeaf92).2
+  by_cases is93 : k = 93
+  · subst is93
+    exact (classFacts_split classLeaf93).2
+  by_cases is94 : k = 94
+  · subst is94
+    exact (classFacts_split classLeaf94).2
+  by_cases is95 : k = 95
+  · subst is95
+    exact (classFacts_split classLeaf95).2
+  by_cases is96 : k = 96
+  · subst is96
+    exact (classFacts_split classLeaf96).2
+  by_cases is97 : k = 97
+  · subst is97
+    exact (classFacts_split classLeaf97).2
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseClassificationLeavesLeaf6

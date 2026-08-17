@@ -205,4 +205,51 @@ theorem presence80 :
       (fun row => decide (row.family = "nifs.point_binding")) = true :=
   presence_of_chunkFacts chunkLeaf128 (by decide)
 
+theorem censusGroup :
+    ∀ k, 126 ≤ k → k < 129 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is126 : k = 126
+  · subst is126
+    exact (chunkFacts_split chunkLeaf126).1
+  by_cases is127 : k = 127
+  · subst is127
+    exact (chunkFacts_split chunkLeaf127).1
+  by_cases is128 : k = 128
+  · subst is128
+    exact (chunkFacts_split chunkLeaf128).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 126 ≤ k → k < 129 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is126 : k = 126
+  · subst is126
+    exact (chunkFacts_split chunkLeaf126).2.1
+  by_cases is127 : k = 127
+  · subst is127
+    exact (chunkFacts_split chunkLeaf127).2.1
+  by_cases is128 : k = 128
+  · subst is128
+    exact (chunkFacts_split chunkLeaf128).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 126 ≤ k → k < 129 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is126 : k = 126
+  · subst is126
+    exact (chunkFacts_split chunkLeaf126).2.2.1
+  by_cases is127 : k = 127
+  · subst is127
+    exact (chunkFacts_split chunkLeaf127).2.2.1
+  by_cases is128 : k = 128
+  · subst is128
+    exact (chunkFacts_split chunkLeaf128).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf24

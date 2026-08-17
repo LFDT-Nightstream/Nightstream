@@ -57,4 +57,33 @@ theorem presence14 :
       (fun row => decide (row.family = "nifs.pi_ccs.padded_row.canonicality")) = true :=
   presence_of_chunkFacts chunkLeaf0 (by decide)
 
+theorem censusGroup :
+    ∀ k, 0 ≤ k → k < 1 →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k) := by
+  intro k lower upper
+  by_cases is0 : k = 0
+  · subst is0
+    exact (chunkFacts_split chunkLeaf0).1
+  exact absurd upper (by omega)
+
+theorem wfGroup :
+    ∀ k, 0 ≤ k → k < 1 →
+      (rowsChunk wire k).all (rowWellFormedAt 11187825 11078210) = true := by
+  intro k lower upper
+  by_cases is0 : k = 0
+  · subst is0
+    exact (chunkFacts_split chunkLeaf0).2.1
+  exact absurd upper (by omega)
+
+theorem coverGroup :
+    ∀ k, 0 ≤ k → k < 1 →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by
+  intro k lower upper
+  by_cases is0 : k = 0
+  · subst is0
+    exact (chunkFacts_split chunkLeaf0).2.2.1
+  exact absurd upper (by omega)
+
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf0

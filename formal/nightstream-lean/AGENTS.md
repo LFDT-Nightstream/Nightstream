@@ -121,9 +121,19 @@ passing result.
 - Build complete artifact validity by composing leaf theorems. Never unfold or
   evaluate the complete generated artifact again only to reconstruct a validity
   theorem that those leaves already imply.
+- Apply the same artifact-size rule to every tactic or elaboration path that
+  performs closed reduction, including `decide`, `rfl`, `simp`, `dsimp`, and
+  `norm_num`. A different tactic name does not make artifact-sized evaluation
+  acceptable.
+- After a leaf theorem certifies exact generated data, downstream modules must
+  treat that data as opaque and consume the theorem through its narrow facade.
+  Do not unfold the certified collection again to prove a consequence.
 - Keep exact Rust-emitted data unchanged when replacing a slow proof. A digest,
   cvc5 result, test result, or matching count is not a Lean proof of schedule or
   row identity.
+- Do not change a Rust emitter or generated artifact only to make a Lean claim
+  definitionally equal. Prove the exact equality, permutation, or transport
+  theorem that relates the emitted representation to the semantic form.
 - Avoid closed computation over large proof-carrying structures. Project to the
   smallest compact decidable data that expresses the artifact fact, then use a
   generic kernel theorem to derive the semantic result.

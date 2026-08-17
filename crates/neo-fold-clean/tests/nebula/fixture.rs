@@ -32,7 +32,10 @@ pub fn plan() -> NebulaPlan {
 /// attached — the production shape in miniature.
 pub fn preprocessing(plan: &NebulaPlan) -> Preprocessing {
     let structure = plan.circuit().structure().clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("engine params for S_mem");
+    // S_mem carries degree-3 memory-product rows, so lambda selection must
+    // charge the structure's true (t, degree) census, not the R1CS shape.
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("engine params for S_mem");
     support::install_ajtai_module(&params, &structure);
     preprocess(params, structure, Some(plan.circuit().m_in()))
         .expect("preprocessing")

@@ -326,9 +326,12 @@ impl NeoParams {
     }
 
     /// Select the strongest Appendix B.2 lambda supported by a rectangular
-    /// R1CS-derived CCS shape.
+    /// R1CS-derived CCS shape. The census charges the normalized compilation
+    /// from the corrected paper: the injection matrix precedes the three
+    /// R1CS matrices, so `t = 4` and `u = 2`, matching what preprocessing
+    /// later enforces against `structure.t()`.
     pub fn goldilocks_auto_rectangular_r1cs_ccs(row_count: usize, column_count: usize) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_ccs(row_count, column_count, 3, 2)
+        Self::goldilocks_auto_rectangular_ccs(row_count, column_count, 4, 2)
     }
 
     /// Select the strongest Appendix B.2 lambda supported by a concrete CCS
@@ -386,14 +389,15 @@ impl NeoParams {
     }
 
     /// Auto-pick Appendix B.2 parameters for the implemented rectangular
-    /// R1CS specialization (`t = 3`, `u = 2`).
+    /// R1CS specialization under the corrected paper's normalized
+    /// compilation (`t = 4` with the injection matrix, `u = 2`).
     pub fn goldilocks_auto_rectangular_r1cs_ccs_with(
         row_count: usize,
         column_count: usize,
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_ccs_with(row_count, column_count, 3, 2, min_lambda, safety_margin)
+        Self::goldilocks_auto_rectangular_ccs_with(row_count, column_count, 4, 2, min_lambda, safety_margin)
     }
 
     /// Auto-pick Appendix B.2 core parameters for the one-joint padded-row

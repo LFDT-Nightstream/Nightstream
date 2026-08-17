@@ -1050,6 +1050,7 @@ pub fn render_compact_removal_counterexample_lean(
     out.push_str(&format!("namespace {namespace}\n\n"));
     out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
     out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+    out.push_str("open Nightstream.SuperNeo.CheckPlan\n");
     out.push_str(&format!("open {artifact_namespace}\n\n"));
     out.push_str("set_option maxHeartbeats 2000000\n");
     out.push_str("set_option maxRecDepth 65536\n\n");

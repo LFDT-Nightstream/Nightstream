@@ -9,6 +9,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.
 
 open Nightstream.Assurance.CompactSourceArtifact
 open Nightstream.Assurance.ConstraintMinimization
+open Nightstream.SuperNeo.CheckPlan
 open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCompactSourceArtifact
 
 set_option maxHeartbeats 2000000

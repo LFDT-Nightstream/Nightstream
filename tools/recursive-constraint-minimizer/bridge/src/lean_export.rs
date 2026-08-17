@@ -527,6 +527,7 @@ pub fn render_compact_redundancy_modules(
     writeln!(out, "namespace {module_namespace}\n").unwrap();
     writeln!(out, "open Nightstream.Assurance.CompactSourceArtifact").unwrap();
     writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "open Nightstream.SuperNeo.CheckPlan").unwrap();
     writeln!(out, "open {artifact_namespace}").unwrap();
     writeln!(out, "open {parts_namespace} in").unwrap();
     writeln!(out, "def parts : Nat → List ScalarCertificate := certParts\n").unwrap();

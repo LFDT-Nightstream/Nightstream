@@ -6,7 +6,7 @@ GENERATED FILE - do not edit by hand.
 Bounded per-chunk leaf certificates for one slice of the artifact.
 -/
 
-namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1
+namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf30
 
 open Nightstream.Assurance.CompactSourceArtifact
 open Nightstream.Assurance.ConstraintMinimization
@@ -15,12 +15,12 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf1 :
-    ((rowsChunk wire 1).map (fun row => row.sourceIndex) =
-        List.range' 65536 65536) ∧
-      ((rowsChunk wire 1).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 1).all
+theorem chunkLeaf169 :
+    ((rowsChunk wire 169).map (fun row => row.sourceIndex) =
+        List.range' 11075584 65536) ∧
+      ((rowsChunk wire 169).all (rowWellFormedAt 11187825 11078210) = true) ∧
+      ((rowsChunk wire 169).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
   native_decide
 
-end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf1
+end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifactLeaf30

@@ -15,115 +15,35 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Recur
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536
 
-theorem chunkLeaf42 :
-    ((rowsChunk wire 42).map (fun row => row.sourceIndex) =
-        List.range' 2752512 65536) ∧
-      ((rowsChunk wire 42).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 42).all
+theorem chunkLeaf3 :
+    ((rowsChunk wire 3).map (fun row => row.sourceIndex) =
+        List.range' 196608 65536) ∧
+      ((rowsChunk wire 3).all (rowWellFormedAt 11187825 11078210) = true) ∧
+      ((rowsChunk wire 3).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
   native_decide
 
-theorem chunkLeaf43 :
-    ((rowsChunk wire 43).map (fun row => row.sourceIndex) =
-        List.range' 2818048 65536) ∧
-      ((rowsChunk wire 43).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 43).all
+theorem chunkLeaf4 :
+    ((rowsChunk wire 4).map (fun row => row.sourceIndex) =
+        List.range' 262144 65536) ∧
+      ((rowsChunk wire 4).all (rowWellFormedAt 11187825 11078210) = true) ∧
+      ((rowsChunk wire 4).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
   native_decide
 
-theorem chunkLeaf44 :
-    ((rowsChunk wire 44).map (fun row => row.sourceIndex) =
-        List.range' 2883584 65536) ∧
-      ((rowsChunk wire 44).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 44).all
+theorem chunkLeaf5 :
+    ((rowsChunk wire 5).map (fun row => row.sourceIndex) =
+        List.range' 327680 65536) ∧
+      ((rowsChunk wire 5).all (rowWellFormedAt 11187825 11078210) = true) ∧
+      ((rowsChunk wire 5).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
   native_decide
 
-theorem chunkLeaf45 :
-    ((rowsChunk wire 45).map (fun row => row.sourceIndex) =
-        List.range' 2949120 65536) ∧
-      ((rowsChunk wire 45).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 45).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf46 :
-    ((rowsChunk wire 46).map (fun row => row.sourceIndex) =
-        List.range' 3014656 65536) ∧
-      ((rowsChunk wire 46).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 46).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf47 :
-    ((rowsChunk wire 47).map (fun row => row.sourceIndex) =
-        List.range' 3080192 65536) ∧
-      ((rowsChunk wire 47).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 47).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf48 :
-    ((rowsChunk wire 48).map (fun row => row.sourceIndex) =
-        List.range' 3145728 65536) ∧
-      ((rowsChunk wire 48).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 48).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf49 :
-    ((rowsChunk wire 49).map (fun row => row.sourceIndex) =
-        List.range' 3211264 65536) ∧
-      ((rowsChunk wire 49).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 49).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf50 :
-    ((rowsChunk wire 50).map (fun row => row.sourceIndex) =
-        List.range' 3276800 65536) ∧
-      ((rowsChunk wire 50).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 50).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf51 :
-    ((rowsChunk wire 51).map (fun row => row.sourceIndex) =
-        List.range' 3342336 65536) ∧
-      ((rowsChunk wire 51).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 51).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf52 :
-    ((rowsChunk wire 52).map (fun row => row.sourceIndex) =
-        List.range' 3407872 65536) ∧
-      ((rowsChunk wire 52).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 52).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf53 :
-    ((rowsChunk wire 53).map (fun row => row.sourceIndex) =
-        List.range' 3473408 65536) ∧
-      ((rowsChunk wire 53).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 53).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf54 :
-    ((rowsChunk wire 54).map (fun row => row.sourceIndex) =
-        List.range' 3538944 65536) ∧
-      ((rowsChunk wire 54).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 54).all
-        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
-  native_decide
-
-theorem chunkLeaf55 :
-    ((rowsChunk wire 55).map (fun row => row.sourceIndex) =
-        List.range' 3604480 65536) ∧
-      ((rowsChunk wire 55).all (rowWellFormedAt 11187825 11078210) = true) ∧
-      ((rowsChunk wire 55).all
+theorem chunkLeaf6 :
+    ((rowsChunk wire 6).map (fun row => row.sourceIndex) =
+        List.range' 393216 65536) ∧
+      ((rowsChunk wire 6).all (rowWellFormedAt 11187825 11078210) = true) ∧
+      ((rowsChunk wire 6).all
         (fun row => decide (row.family ∈ wire.completeFamilies)) = true) := by
   native_decide
 

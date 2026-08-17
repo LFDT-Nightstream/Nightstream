@@ -129,12 +129,15 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
         value: mutated,
     };
     let chunk_count = arm.n.div_ceil(256);
+    let heavy_chunks = nightstream_constraint_exporter::seeded_block_chunks(arm, 256)
+        .expect("locate the base arm's seeded-block chunks");
     modules.extend(
         nightstream_constraint_exporter::render_classification_leaves_modules(
             &format!("{GENERATED_NS}.BaseCompactSourceArtifact"),
             &format!("{GENERATED_NS}.BaseCampaignAssignment"),
             &format!("{GENERATED_NS}.BaseClassificationLeaves"),
             chunk_count,
+            &heavy_chunks,
             std::slice::from_ref(&override_entry),
         )
         .expect("render the base classification leaves"),
@@ -168,7 +171,7 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
 #[ignore = "builds the complete 4.5M-row problem (~22 GB peak); run explicitly during campaign iterations"]
 fn committed_y_ring_compact_redundancy_module_matches_the_emitter() {
     use nightstream_constraint_exporter::{
-        export_sparse_problem, nebula_family_census, render_compact_redundancy_certificate_lean, ExportRequest,
+        export_sparse_problem, nebula_family_census, render_compact_redundancy_modules, ExportRequest,
     };
     use recursive_constraint_minimizer::{derive_scalar_certificate, Scope, Selection};
     use std::collections::BTreeSet;
@@ -222,7 +225,7 @@ fn committed_y_ring_compact_redundancy_module_matches_the_emitter() {
     let certificate = derive_scalar_certificate(&slice, &Selection::Family(CANDIDATE.to_owned()))
         .expect("derive the scalar certificate")
         .expect("every y_ring row has a scalar certificate");
-    let content = render_compact_redundancy_certificate_lean(
+    let modules = render_compact_redundancy_modules(
         &complete,
         &slice,
         &certificate,
@@ -230,12 +233,13 @@ fn committed_y_ring_compact_redundancy_module_matches_the_emitter() {
         &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
         &format!("{GENERATED_NS}.RecursiveNifsPiRlcVerifyPaddingYRingRedundancy"),
         &plan_names,
+        65_536,
+        arm.n.div_ceil(65_536),
+        &nightstream_constraint_exporter::seeded_block_chunks(arm, 65_536)
+            .expect("locate the recursive arm's seeded-block chunks"),
     )
-    .expect("render the y_ring compact redundancy module");
-    assert_modules_match_committed(&[nightstream_constraint_exporter::GeneratedLeanModule {
-        module_name: format!("{GENERATED_NS}.RecursiveNifsPiRlcVerifyPaddingYRingRedundancy"),
-        content,
-    }]);
+    .expect("render the y_ring compact redundancy modules");
+    assert_modules_match_committed(&modules);
 }
 
 #[test]

@@ -396,6 +396,67 @@ pub struct CommittedEquality {
 /// Render the complete source relation of one arm as chunk-aligned Lean
 /// modules with bounded leaf certificates. `module_namespace` is the
 /// assembly module name; chunk data modules are `<module_namespace>Data<k>`.
+/// Group chunks into leaf modules: seeded-block chunks build alone (their
+/// native evaluation dominates a module's budget), block-free chunks group
+/// up to fourteen per module. Returns the groups and a chunk-to-module map.
+fn pack_leaf_groups(chunk_count: usize, heavy_chunks: &[usize]) -> (Vec<Vec<usize>>, Vec<usize>) {
+    const CHUNKS_PER_LEAF_MODULE: usize = 14;
+    let heavy: std::collections::BTreeSet<usize> = heavy_chunks.iter().copied().collect();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut current: Vec<usize> = Vec::new();
+    for chunk in 0..chunk_count {
+        if heavy.contains(&chunk) {
+            if !current.is_empty() {
+                groups.push(std::mem::take(&mut current));
+            }
+            groups.push(vec![chunk]);
+        } else {
+            current.push(chunk);
+            if current.len() == CHUNKS_PER_LEAF_MODULE {
+                groups.push(std::mem::take(&mut current));
+            }
+        }
+    }
+    if !current.is_empty() {
+        groups.push(current);
+    }
+    let mut module_of = vec![0usize; chunk_count];
+    for (module_index, group) in groups.iter().enumerate() {
+        for &chunk in group {
+            module_of[chunk] = module_index;
+        }
+    }
+    (groups, module_of)
+}
+
+/// Public alias so sibling renderers reuse the exact packing rule.
+pub fn pack_leaf_groups_public(chunk_count: usize, heavy_chunks: &[usize]) -> (Vec<Vec<usize>>, Vec<usize>) {
+    pack_leaf_groups(chunk_count, heavy_chunks)
+}
+
+/// The chunks of one arm whose windows intersect a seeded block. Callers
+/// that emit classification leaves need this to pack cap-sized modules.
+pub fn seeded_block_chunks(arm: &SparseR1cs, chunk_rows: usize) -> Result<Vec<usize>, ExportError> {
+    if chunk_rows == 0 {
+        return Err(ExportError::new("chunk grain must be positive"));
+    }
+    let payloads = build_payloads(arm)?;
+    let chunk_count = arm.n.div_ceil(chunk_rows);
+    let mut heavy = Vec::new();
+    for chunk in 0..chunk_count {
+        let start = chunk * chunk_rows;
+        let stop = ((chunk + 1) * chunk_rows).min(arm.n);
+        if payloads.matrices[0]
+            .blocks
+            .iter()
+            .any(|block| block.row_start() < stop && block.row_end() > start)
+        {
+            heavy.push(chunk);
+        }
+    }
+    Ok(heavy)
+}
+
 pub fn render_compact_source_artifact_modules(
     arm: &SparseR1cs,
     profile: &str,
@@ -553,18 +614,28 @@ pub fn render_compact_source_artifact_modules(
     });
 
     // ── Leaf modules: one merged conjunction per chunk, cap-sized ──────
-    const CHUNKS_PER_LEAF_MODULE: usize = 14;
-    let leaf_module_count = chunk_count.div_ceil(CHUNKS_PER_LEAF_MODULE);
-    let leaf_module_of = |chunk: usize| chunk / CHUNKS_PER_LEAF_MODULE;
+    let heavy_chunks: Vec<usize> = (0..chunk_count)
+        .filter(|&chunk| {
+            let start = chunk * chunk_rows;
+            let stop = ((chunk + 1) * chunk_rows).min(arm.n);
+            payloads.matrices[0]
+                .blocks
+                .iter()
+                .any(|block| block.row_start() < stop && block.row_end() > start)
+        })
+        .collect();
+    let (leaf_groups, leaf_module_map) = pack_leaf_groups(chunk_count, &heavy_chunks);
+    let leaf_module_count = leaf_groups.len();
+    let leaf_module_of = |chunk: usize| leaf_module_map[chunk];
     // Presence facts live in the leaf module that owns their chunk.
     let mut presence_by_module: Vec<Vec<(usize, usize, &str)>> = vec![Vec::new(); leaf_module_count];
     for (family_index, family) in census.iter().enumerate() {
         let chunk = family.source_rows()[0] / chunk_rows;
         presence_by_module[leaf_module_of(chunk)].push((family_index, chunk, family.name()));
     }
-    for leaf_module in 0..leaf_module_count {
-        let first = leaf_module * CHUNKS_PER_LEAF_MODULE;
-        let last = ((leaf_module + 1) * CHUNKS_PER_LEAF_MODULE).min(chunk_count);
+    for (leaf_module, group) in leaf_groups.iter().enumerate() {
+        let first = group[0];
+        let last = group[group.len() - 1] + 1;
         let module_name = format!("{module_namespace}Leaf{leaf_module}");
         let mut leaf_out = String::new();
         leaf_out.push_str(&format!("import {wire_namespace}\n"));
@@ -776,14 +847,15 @@ pub fn render_classification_leaves_modules(
     assignment_namespace: &str,
     module_namespace: &str,
     chunk_count: usize,
+    heavy_chunks: &[usize],
     overrides: &[ClassificationOverride],
 ) -> Result<Vec<GeneratedLeanModule>, ExportError> {
     if overrides.is_empty() {
         return Err(ExportError::new("a classification batch needs at least one override"));
     }
-    const CHUNKS_PER_LEAF_MODULE: usize = 14;
     let wire_namespace = format!("{artifact_namespace}Wire");
-    let leaf_module_count = chunk_count.div_ceil(CHUNKS_PER_LEAF_MODULE);
+    let (leaf_groups, leaf_module_map) = pack_leaf_groups(chunk_count, heavy_chunks);
+    let leaf_module_count = leaf_groups.len();
     let pairs_literal = {
         let mut text = String::from("[");
         for (index, override_entry) in overrides.iter().enumerate() {
@@ -800,9 +872,9 @@ pub fn render_classification_leaves_modules(
         text
     };
     let mut modules = Vec::with_capacity(leaf_module_count + 1);
-    for leaf_module in 0..leaf_module_count {
-        let first = leaf_module * CHUNKS_PER_LEAF_MODULE;
-        let last = ((leaf_module + 1) * CHUNKS_PER_LEAF_MODULE).min(chunk_count);
+    for (leaf_module, group) in leaf_groups.iter().enumerate() {
+        let first = group[0];
+        let last = group[group.len() - 1] + 1;
         let module_name = format!("{module_namespace}Leaf{leaf_module}");
         let mut out = String::new();
         out.push_str(&format!("import {wire_namespace}\n"));
@@ -847,7 +919,7 @@ pub fn render_classification_leaves_modules(
     out.push_str(&format!("def overridePairs : List (Nat × String) :=\n  {pairs_literal}\n\n"));
     out.push_str("theorem holdsAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
     for chunk in 0..chunk_count {
-        let leaf_module = chunk / CHUNKS_PER_LEAF_MODULE;
+        let leaf_module = leaf_module_map[chunk];
         out.push_str(&format!(
             "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).1\n"
         ));
@@ -855,7 +927,7 @@ pub fn render_classification_leaves_modules(
     out.push_str(&format!("  | n + {chunk_count}, bound => exact absurd bound (by omega)\n\n"));
     out.push_str("theorem guardsAll :\n    ∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with\n");
     for chunk in 0..chunk_count {
-        let leaf_module = chunk / CHUNKS_PER_LEAF_MODULE;
+        let leaf_module = leaf_module_map[chunk];
         out.push_str(&format!(
             "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.classLeaf{chunk}).2\n"
         ));

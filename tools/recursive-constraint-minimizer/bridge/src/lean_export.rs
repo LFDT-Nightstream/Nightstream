@@ -8,7 +8,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
 };
 use p3_field::PrimeField64;
 use recursive_constraint_minimizer::{
-    row_is_satisfied, validate_scalar_certificate, FieldModel, Problem, ScalarCertificate, Scope, Selection,
+    row_is_satisfied, validate_scalar_certificate, FieldModel, Problem, ScalarCertificate, ScalarRowCertificate, Scope,
+    Selection,
 };
 
 use super::{ExportError, FixedPointProblemExport, TerminalProblemExport};
@@ -348,23 +349,27 @@ pub fn render_terminal_redundancy_certificate_lean(
     )
 }
 
-/// Render one Lean module that checks a scalar redundancy certificate against
-/// a string-payload compact source artifact. The validity proof runs by
-/// `native_decide` because the expanded artifact is executable, not a
-/// literal, and the transport cites the Artifact-level full theorems.
+/// Render the chunk-decomposed scalar-redundancy modules for one family:
+/// one parts module holding the per-chunk certificate lists, leaf modules
+/// with one bounded conjunction proof per chunk, and one assembly that
+/// dispatches them into `familyCertificate_valid_of_chunk_parts`. No proof
+/// evaluates more than one row chunk or one certificate list.
 #[allow(clippy::too_many_arguments)]
-pub fn render_compact_redundancy_certificate_lean(
+pub fn render_compact_redundancy_modules(
     complete_problem: &Problem,
     query_problem: &Problem,
     certificate: &ScalarCertificate,
     artifact_module: &str,
     artifact_namespace: &str,
-    namespace: &str,
+    module_namespace: &str,
     reviewed_plan: &[String],
-) -> Result<String, ExportError> {
+    chunk_rows: usize,
+    chunk_count: usize,
+    heavy_chunks: &[usize],
+) -> Result<Vec<GeneratedLeanModule>, ExportError> {
     validate_namespace(artifact_module)?;
     validate_namespace(artifact_namespace)?;
-    validate_namespace(namespace)?;
+    validate_namespace(module_namespace)?;
     validate_complete_problem(complete_problem)?;
     validate_scalar_certificate(query_problem, certificate)
         .map_err(|error| ExportError::new(format!("invalid scalar certificate: {error}")))?;
@@ -375,83 +380,190 @@ pub fn render_compact_redundancy_certificate_lean(
     };
     validate_reviewed_plan(complete_problem, family, reviewed_plan)?;
     validate_certificate_slice(complete_problem, query_problem, family)?;
+    if chunk_rows == 0 || chunk_count == 0 {
+        return Err(ExportError::new("redundancy emission needs a nonempty chunk grid"));
+    }
 
+    let wire_namespace = format!("{artifact_namespace}Wire");
+    let parts_namespace = format!("{module_namespace}Parts");
+
+    let mut parts: std::collections::BTreeMap<usize, Vec<&ScalarRowCertificate>> =
+        std::collections::BTreeMap::new();
+    for row_certificate in &certificate.rows {
+        let chunk = row_certificate.candidate_source_index / chunk_rows;
+        if chunk >= chunk_count {
+            return Err(ExportError::new("certificate candidate exceeds the chunk grid"));
+        }
+        parts.entry(chunk).or_default().push(row_certificate);
+    }
+
+    let mut modules = Vec::new();
+
+    // ── Parts module: family, plan, per-chunk certificate lists ────────
     let mut out = String::new();
-    writeln!(out, "import {artifact_module}").unwrap();
+    writeln!(out, "import {wire_namespace}").unwrap();
+    writeln!(out, "import Nightstream.Assurance.ChunkedRedundancy\n").unwrap();
+    writeln!(out, "/-!\nGENERATED FILE - do not edit by hand.\n\nPer-chunk certificate lists for one redundancy family.\n-/\n").unwrap();
+    writeln!(out, "namespace {parts_namespace}\n").unwrap();
+    writeln!(out, "open Nightstream.Assurance.CompactSourceArtifact").unwrap();
+    writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "open {wire_namespace}\n").unwrap();
     writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
     writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
-    writeln!(out, "namespace {namespace}\n").unwrap();
-    writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
-    writeln!(out, "open Nightstream.SuperNeo.CheckPlan").unwrap();
-    writeln!(out, "open {artifact_namespace}\n").unwrap();
-    write!(out, "def reviewedPlan : List String := [").unwrap();
-    for (index, entry) in reviewed_plan.iter().enumerate() {
-        write!(out, "{}{}", lean_string(entry), separator(index, reviewed_plan.len())).unwrap();
-    }
-    writeln!(out, "]\n").unwrap();
-
+    writeln!(out, "def certFamily : String := {}\n", lean_string(family)).unwrap();
+    let plan_items = reviewed_plan.iter().map(|entry| lean_string(entry)).collect::<Vec<_>>();
+    write_chunked_list_def(&mut out, "certPlan", "String", &plan_items);
     let mut counter = 0usize;
-    let certificates = certificate
-        .rows
-        .iter()
-        .map(|row_certificate| {
-            let candidate = source_row(query_problem, row_certificate.candidate_source_index)?;
-            let mut hoisted = String::new();
-            let mut item = String::new();
-            write!(item, "{{ candidate := ").unwrap();
-            render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, candidate)?;
-            write!(item, ", support := [").unwrap();
-            for (support_index, support) in row_certificate.support.iter().enumerate() {
-                let source = source_row(query_problem, support.source_index)?;
-                let coefficient = support.coefficient.parse::<u64>().map_err(|_| {
-                    ExportError::new(format!(
-                        "cannot emit noncanonical certificate coefficient {:?}",
-                        support.coefficient
-                    ))
-                })?;
-                write!(item, "{{ source := ").unwrap();
-                render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, source)?;
-                write!(
-                    item,
-                    ", coefficient := ({} : Field) }}{}",
-                    coefficient,
-                    separator(support_index, row_certificate.support.len())
-                )
-                .unwrap();
-            }
-            write!(item, "] }}").unwrap();
-            Ok((hoisted, item))
-        })
-        .collect::<Result<Vec<_>, ExportError>>()?;
-    write_chunked_list_def_grouped(
-        &mut out,
-        "familyCertificateCertificates",
-        "ScalarCertificate",
-        &certificates,
-    );
-    writeln!(out, "def familyCertificate : FamilyCertificate where").unwrap();
-    writeln!(out, "  family := {}", lean_string(family)).unwrap();
-    writeln!(out, "  certificates := familyCertificateCertificates\n").unwrap();
+    for (chunk, rows) in &parts {
+        let items = rows
+            .iter()
+            .map(|row_certificate| {
+                let candidate = source_row(query_problem, row_certificate.candidate_source_index)?;
+                let mut hoisted = String::new();
+                let mut item = String::new();
+                write!(item, "{{ candidate := ").unwrap();
+                render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, candidate)?;
+                write!(item, ", support := [").unwrap();
+                for (support_index, support) in row_certificate.support.iter().enumerate() {
+                    let source = source_row(query_problem, support.source_index)?;
+                    let coefficient = support.coefficient.parse::<u64>().map_err(|_| {
+                        ExportError::new(format!(
+                            "cannot emit noncanonical certificate coefficient {:?}",
+                            support.coefficient
+                        ))
+                    })?;
+                    write!(item, "{{ source := ").unwrap();
+                    render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, source)?;
+                    write!(
+                        item,
+                        ", coefficient := ({} : Field) }}{}",
+                        coefficient,
+                        separator(support_index, row_certificate.support.len())
+                    )
+                    .unwrap();
+                }
+                write!(item, "] }}").unwrap();
+                Ok((hoisted, item))
+            })
+            .collect::<Result<Vec<_>, ExportError>>()?;
+        write_chunked_list_def_grouped(&mut out, &format!("part{chunk}"), "ScalarCertificate", &items);
+    }
+    writeln!(out, "def certParts : Nat → List ScalarCertificate := fun chunk =>").unwrap();
+    writeln!(out, "  match chunk with").unwrap();
+    for chunk in parts.keys() {
+        writeln!(out, "  | {chunk} => part{chunk}").unwrap();
+    }
+    writeln!(out, "  | _ => []\n").unwrap();
+    writeln!(out, "end {parts_namespace}").unwrap();
+    let parts_content = out.replace(&format!("{LEAN_SPLIT_MARKER}\n\n"), "");
+    modules.push(GeneratedLeanModule {
+        module_name: parts_namespace.clone(),
+        content: parts_content,
+    });
+
+    // ── Leaf modules: one bounded conjunction proof per chunk ──────────
+    let (leaf_groups, leaf_module_map) =
+        super::compact_source_export::pack_leaf_groups_public(chunk_count, heavy_chunks);
+    let leaf_module_count = leaf_groups.len();
+    for (leaf_module, group) in leaf_groups.iter().enumerate() {
+        let first = group[0];
+        let last = group[group.len() - 1] + 1;
+        let module_name = format!("{module_namespace}Leaf{leaf_module}");
+        let mut out = String::new();
+        writeln!(out, "import {parts_namespace}\n").unwrap();
+        writeln!(out, "/-!\nGENERATED FILE - do not edit by hand.\n\nBounded redundancy leaves for one slice of the artifact.\n-/\n").unwrap();
+        writeln!(out, "namespace {module_name}\n").unwrap();
+        writeln!(out, "open Nightstream.Assurance.CompactSourceArtifact").unwrap();
+        writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
+        writeln!(out, "open {wire_namespace}").unwrap();
+        writeln!(out, "open {parts_namespace}\n").unwrap();
+        writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+        writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
+        for chunk in first..last {
+            writeln!(
+                out,
+                "theorem chunkLeaf{chunk} :\n    ((rowsChunk wire {chunk}).filter\n        (fun row => decide (row.family = certFamily)) =\n      (certParts {chunk}).map (fun scalar => scalar.candidate)) ∧\n      ((certParts {chunk}).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all (supportOk wire certPlan certFamily)) = true) := by\n  native_decide\n"
+            )
+            .unwrap();
+        }
+        writeln!(out, "end {module_name}").unwrap();
+        modules.push(GeneratedLeanModule {
+            module_name,
+            content: out,
+        });
+    }
+
+    // ── Assembly: dispatchers and the structural validity instance ─────
+    let mut out = String::new();
+    writeln!(out, "import {artifact_module}").unwrap();
+    writeln!(out, "import {parts_namespace}").unwrap();
+    for leaf_module in 0..leaf_module_count {
+        writeln!(out, "import {module_namespace}Leaf{leaf_module}").unwrap();
+    }
+    writeln!(out, "\n/-!\nGENERATED FILE - do not edit by hand.\n\nChunk-decomposed redundancy certification for one family. All\nevaluation lives in the bounded leaf modules.\n-/\n").unwrap();
+    writeln!(out, "namespace {module_namespace}\n").unwrap();
+    writeln!(out, "open Nightstream.Assurance.CompactSourceArtifact").unwrap();
+    writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "open {artifact_namespace}").unwrap();
+    writeln!(out, "open {parts_namespace} in").unwrap();
+    writeln!(out, "def parts : Nat → List ScalarCertificate := certParts\n").unwrap();
+    writeln!(out, "def family : String := {}\n", lean_string(family)).unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
     writeln!(
         out,
-        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact reviewedPlan := by\n  native_decide\n"
+        "theorem candAll :\n    ∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).filter\n          (fun row => decide (row.family = {parts_namespace}.certFamily)) =\n        (parts k).map (fun scalar => scalar.candidate) := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with"
+    )
+    .unwrap();
+    for chunk in 0..chunk_count {
+        let leaf_module = leaf_module_map[chunk];
+        writeln!(out, "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.chunkLeaf{chunk}).1").unwrap();
+    }
+    writeln!(out, "  | n + {chunk_count}, bound => exact absurd bound (by omega)\n").unwrap();
+    writeln!(
+        out,
+        "theorem scalarAll :\n    ∀ k, k < wire.chunkCount →\n      (parts k).all (fun scalar =>\n        duplicateOk scalar &&\n          scalar.support.all\n            (supportOk wire {parts_namespace}.certPlan\n              {parts_namespace}.certFamily)) = true := by\n  intro k bound\n  rw [chunkCount_eq] at bound\n  match k, bound with"
+    )
+    .unwrap();
+    for chunk in 0..chunk_count {
+        let leaf_module = leaf_module_map[chunk];
+        writeln!(out, "  | {chunk}, _ => exact ({module_namespace}Leaf{leaf_module}.chunkLeaf{chunk}).2").unwrap();
+    }
+    writeln!(out, "  | n + {chunk_count}, bound => exact absurd bound (by omega)\n").unwrap();
+    writeln!(
+        out,
+        "theorem memberFam :\n    {parts_namespace}.certFamily ∈ wire.completeFamilies := by\n  native_decide\n"
     )
     .unwrap();
     writeln!(
         out,
-        "theorem redundant :\n    Redundant (FamilyHolds sourceArtifact) reviewedPlan {} :=\n  familyCertificate.redundant_of_full_valid sourceArtifact sourceArtifact\n    reviewedPlan sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n    familyCertificate_valid\n",
+        "def familyCertificate : FamilyCertificate :=\n  ⟨{parts_namespace}.certFamily,\n    (List.range wire.chunkCount).flatMap parts⟩\n"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact {parts_namespace}.certPlan :=\n  familyCertificate_valid_of_chunk_parts wire\n    {parts_namespace}.certPlan {parts_namespace}.certFamily\n    parts memberFam candAll scalarAll\n"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "theorem redundant :\n    Redundant (FamilyHolds sourceArtifact)\n      {parts_namespace}.certPlan {} :=\n  familyCertificate.redundant_of_full_valid sourceArtifact sourceArtifact\n    {parts_namespace}.certPlan sourceArtifact_coversFullRelation\n    sourceArtifact_exactValidation familyCertificate_valid\n",
         lean_string(family),
     )
     .unwrap();
     writeln!(
         out,
-        "theorem normalizedRedundant :\n    Redundant (NormalizedFamilyHolds sourceArtifact)\n      reviewedPlan {} :=\n  normalizedRedundant_of_redundant sourceArtifact\n    reviewedPlan {} redundant\n",
+        "theorem normalizedRedundant :\n    Redundant (NormalizedFamilyHolds sourceArtifact)\n      {parts_namespace}.certPlan {} :=\n  normalizedRedundant_of_redundant sourceArtifact\n    {parts_namespace}.certPlan {} redundant\n",
         lean_string(family),
         lean_string(family),
     )
     .unwrap();
-    writeln!(out, "end {namespace}").unwrap();
-    Ok(out)
+    writeln!(out, "end {module_namespace}").unwrap();
+    modules.push(GeneratedLeanModule {
+        module_name: module_namespace.to_owned(),
+        content: out,
+    });
+    Ok(modules)
 }
 
 /// Render a complete Rust-replayed removal counterexample for one fixed-point

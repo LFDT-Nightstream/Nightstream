@@ -253,6 +253,22 @@ most the capture, nothing else, and watch `free -g` at launch.
 
 ## Iteration log
 
+- 2026-08-17 iteration 17c (root cause found, one line): the whole
+  slowdown family — the 6.9 h assembly, both batch "hangs", the
+  >560 s chunk-7 leaf — was a single quadratic in
+  `expandSeededBlock`: `rows := rows.set! i (rows[i]!.push t)` holds
+  a second reference to the inner array during the push, so every
+  term copies the whole row (cost ~ messageCols^2; chunk 7 is 1,575x
+  chunk 1). Fixed with `Array.modify` (output-identical, fail-closure
+  untouched). Chunk 7's leaf now builds in 60 s (was >560 s and
+  projected ~40 min). The "multi-target lake anomaly" in 17b is
+  hereby RETRACTED as a misdiagnosis: lake had scheduled the four
+  quadratic chunks (7, 17, 57, 102) into the first wave, so small
+  modules queued behind them and solo rebuilds of those small
+  modules looked magically fast. Batched lake invocations are fine.
+  Full Data + Wire rebuild after the core edit took ~8 minutes in
+  four batches.
+
 - 2026-08-17 iteration 17b (the multi-target lake anomaly, bisected):
   after the packed leaf split, an eight-target lake invocation
   (LEAN_NUM_THREADS=4) still breached the cap with workers at ~97%

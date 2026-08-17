@@ -224,7 +224,10 @@ def expandSeededBlock (block : SeededPhi81.Block) :
             let coefficient := rotation[coordinate]!
             if coefficient != 0 then
               let rowIndex := output * dimension + coordinate
-              rows := rows.set! rowIndex (rows[rowIndex]!.push (column, coefficient))
+              -- Array.modify keeps the inner array uniquely referenced, so
+              -- the push stays O(1); a get-then-set pair would copy the
+              -- whole row on every term (quadratic in row length).
+              rows := rows.modify rowIndex (fun row => row.push (column, coefficient))
         rotation := rotateArray rotation
       messageCol := messageCol + 1
     output := output + 1

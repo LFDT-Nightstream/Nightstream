@@ -45,14 +45,16 @@ use super::{
 
 #[path = "selective_projected_rows/model.rs"]
 mod model;
+#[path = "selective_projected_rows/poseidon2.rs"]
+mod poseidon2;
 
 pub use model::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
-    SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
-    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
-    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedSourceDefinition,
-    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
-    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
+    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
+    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
+    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 
 /// Exact selected rows emitted from one prepared selective compiler plan.
@@ -852,10 +854,15 @@ fn source_provenance(
         return Err(trace_error("projected source-provenance arm is out of range"));
     };
     let plan = &layout.plans[arm];
+    let poseidon2_sbox_steps = poseidon2::project_sbox_steps(source_arm, layout, arm, row_artifacts)?;
     let mut closure = requested_source_columns
         .iter()
         .copied()
         .collect::<BTreeSet<_>>();
+    for step in &poseidon2_sbox_steps {
+        closure.extend(step.input.terms.iter().map(|term| term.column));
+        closure.extend(step.output.terms.iter().map(|term| term.column));
+    }
     if closure.iter().any(|&column| column >= slots.len()) {
         return Err(trace_error("projected source-provenance column exceeds its source arm"));
     }
@@ -1114,6 +1121,7 @@ fn source_provenance(
         retained_slots,
         linear_definitions,
         trace_eliminated_columns,
+        poseidon2_sbox_steps,
         derived_product_sums,
         rewrite_steps,
         retained_steps,

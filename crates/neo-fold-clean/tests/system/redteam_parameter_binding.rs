@@ -26,7 +26,7 @@ fn shape_selected_params_charge_pi_rlc_coordinate_extraction_loss() {
     let extraction_queries = params.max_fresh_count() as u128 + params.k_rho() as u128 + 1;
     let effective_bits = (challenge_set_size / extraction_queries).ilog2();
     let summary = params
-        .validate_ccs_shape(1 << 26, maximum_assignment_width, 3, 2)
+        .validate_ccs_shape(1 << 26, maximum_assignment_width, 4, 2)
         .expect("maximum-geometry combined census");
 
     assert!(

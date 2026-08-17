@@ -95,7 +95,7 @@ fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
     assert_eq!(pp.extension_degree(), config::EXTENSION_DEGREE);
     assert_eq!(
         pp.lambda(),
-        116,
+        115,
         "the header must bind the exact strongest lambda supported by this shape"
     );
 }
@@ -129,7 +129,8 @@ fn ccs_params_charge_matrix_count_and_degree() {
     let t8 = config::ccs_params(60, 54, 8, 2).expect("t=8 CCS params");
     let degree7 = config::ccs_params(60, 54, 3, 7).expect("degree-7 CCS params");
 
-    assert_eq!(r1cs.lambda(), 116);
+    // r1cs_params charges the corrected normalized compilation (t = 4).
+    assert_eq!(r1cs.lambda(), 115);
     assert_eq!(t8.lambda(), 115);
     assert_eq!(degree7.lambda(), 116);
 }
@@ -155,7 +156,7 @@ fn explicit_r1cs_minimum_rejects_an_unsupported_target() {
         err,
         neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: 117,
-            available: 116
+            available: 115
         }
     ));
 }

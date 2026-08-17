@@ -342,6 +342,16 @@ All remaining failure classes were fixed under the user's
   the fixtures select at the structure's true (t, max_degree) — the
   idiom f_prime.rs already used. Enforcement untouched; lambdas only
   move down.
+- The lambda-selection correction cascaded into four recording pins,
+  refreshed in the same pass: production_params lambda expectations
+  (116 -> 115 at the t=4 census), the redteam parameter-binding
+  census call (now validates at the normalized t=4 shape), the seeded
+  base-state pin artifact (lambda is bound into the protocol header,
+  so the seeded fixture values moved; soundness importers rebuilt
+  green), and the canonical conformance receipt corpora plus their
+  Lean twin. The frozen campaign profile is explicitly constructed
+  (lambda = 114) and its v2 digest gate re-verified green after all
+  fixes, so bars 2-8 evidence is untouched.
 - nifs_engine_crosscheck: PaperExact kept a pre-correction local rho
   sampler (need-based rounds, bits-packed decode) that diverged from
   the shared whole-digest schedule at the prover transcript. It now

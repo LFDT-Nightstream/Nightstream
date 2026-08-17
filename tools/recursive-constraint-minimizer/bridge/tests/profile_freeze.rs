@@ -872,3 +872,45 @@ fn print_freeze_candidate(label: &str, params: Params) {
         );
     }
 }
+
+#[test]
+#[ignore = "memory probe: quarter-slice complete export; extrapolate x4 for the v2 census budget"]
+fn probe_v2_quarter_export_peak_memory() {
+    fn vm_hwm_gb() -> f64 {
+        let status = std::fs::read_to_string("/proc/self/status").expect("read /proc/self/status");
+        let line = status.lines().find(|line| line.starts_with("VmHWM:")).expect("VmHWM line");
+        let kb: f64 = line.split_whitespace().nth(1).expect("VmHWM value").parse().expect("VmHWM number");
+        kb / 1048576.0
+    }
+    let audit = campaign_audit(nightstream_constraint_exporter::CAMPAIGN_PLAN_SEED);
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+    let census = nightstream_constraint_exporter::nebula_family_census(&audit, NebulaFPrimeBranch::Recursive)
+        .expect("complete reviewed ownership");
+    let before = vm_hwm_gb();
+    let start = Instant::now();
+    let quarter = arm.n / 4;
+    let problem = nightstream_constraint_exporter::export_sparse_problem(
+        arm,
+        nightstream_constraint_exporter::ExportRequest {
+            profile: "campaign-recursive-classification-v1".to_owned(),
+            scope: recursive_constraint_minimizer::Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: (0..quarter).collect(),
+            complete_families: census
+                .iter()
+                .filter(|family| family.source_rows().iter().all(|&row| row < quarter))
+                .map(|family| family.name().to_owned())
+                .collect(),
+        },
+    )
+    .expect("export the quarter slice");
+    println!(
+        "quarter export: rows {} in {:?}; VmHWM before {:.1} GB, after {:.1} GB (delta {:.1} GB, x4 extrapolation {:.1} GB)",
+        problem.rows.len(),
+        start.elapsed(),
+        before,
+        vm_hwm_gb(),
+        vm_hwm_gb() - before,
+        4.0 * (vm_hwm_gb() - before)
+    );
+}

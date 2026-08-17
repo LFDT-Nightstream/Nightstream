@@ -240,6 +240,17 @@ leaves and all aggregation structural:
   light assembly instantiating `valid_of_chunk_parts`; `redundant` /
   `normalizedRedundant` stay as they are.
 
+## v2 memory wall (measured 2026-08-17: downgraded)
+
+Linear extrapolation from the v1 22 GB figure predicted ~54 GB for
+the v2 complete export. Measured instead with
+`probe_v2_quarter_export_peak_memory`: a quarter export (2.80 M
+rows, 66 s) costs 3.3 GB VmHWM delta, so the complete v2 export is
+~13 GB — the v1 22 GB peak belonged to the whole gate (export plus
+slices plus certificate work), not the export alone. The census
+runner and the y_ring gate fit the 46 GB budget; run them beside at
+most the capture, nothing else, and watch `free -g` at launch.
+
 ## Iteration log
 
 - 2026-08-17 iteration 17 (cost-aware packing + y_ring rebuild): the

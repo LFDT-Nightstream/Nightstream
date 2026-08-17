@@ -8,12 +8,12 @@ repository root unless stated.
 |---|---|---|---|
 | 1 | cvc5 with finite-field support; three gate tests pass un-ignored | **met** (refutation failed, 2026-08-15 iter 1; re-verified on Linux, iter 13) | cvc5 1.3.4 (Homebrew, cocoa: yes). Gates green live and un-ignored (commit 869f94e98: exactly three `#[ignore]` lines removed, nothing weakened). Independent verifier reran the suite: 38 passed, 0 failed; the three gates execute real solver runs with hard outcome asserts. Linux re-verification (iter 13): official `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary in `~/.local/bin` (cocoa: yes); both nebula gates green (y_ring Unsat in 1,073 ms; refinement control Inconclusive with pending row 8,665) and the terminal gate green (pending row 56,700, matches README). |
 | 2 | Production profile frozen with pinned digests | **amended to v2 (k_rho=12), re-freeze executing** | User decision 2026-08-15: option (a), campaign profile v1 on the minimal shape; re-run classification when the production regime lands. `PROFILE.md` pins source digests, final-plan digest, terminal digests, and geometry for both arms and the terminal relation; non-ignored drift gate `campaign_profile_v1_digests_are_frozen` (13 s) re-derives all pins from fresh audits. Measured: source digests are plan-seed-independent (0xDA vs 0xD9); the final plan digest binds to the 0xDA mirror shape; all pins byte-match the committed Lean mirrors. Rejected regimes stay recorded: λ=125 fails the extension-policy census (114 bits available); λ=114 audit construction alone ran >2 h 06 m. |
-| 3 | Seeded-Phi81 sampler equivalence proved | in-progress: Rust side complete, Lean checks await the build | Three production-class conformance fixtures committed (`SeededPhi81ConformanceArtifact.lean`: width-41 uneven multi-chunk, kappa-2, one-rejection seed 0xC3/counter 79,842,272) with a neo-fold-clean drift gate; `tests/SeededPhi81Conformance.lean` native_decides the Lean sampler against them. The bridge mirror (`lean_sampler_mirror.rs`) transcribes the Lean cursor rules over rand_chacha, matches all fixture classes, and matches every one of the frozen profile's 36 production seeded blocks term-for-term (10.9 s; zero replacement draws in production). |
+| 3 | Seeded-Phi81 sampler equivalence proved | in-progress: both legs green, awaiting refutation pass | Three production-class conformance fixtures committed (`SeededPhi81ConformanceArtifact.lean`: width-41 uneven multi-chunk, kappa-2, one-rejection seed 0xC3/counter 79,842,272) with a neo-fold-clean drift gate; `tests/SeededPhi81Conformance.lean` native_decides the Lean sampler against them and builds green (46 s, 2026-08-17). The bridge mirror (`lean_sampler_mirror.rs`) transcribes the Lean cursor rules over rand_chacha, matches all fixture classes, and matches every one of the frozen profile's 36 production seeded blocks term-for-term (10.9 s; zero replacement draws in production). |
 | 4 | Checked bootstrap-recursive assignment committed | unblocked: v2 amendment executing; overnight capture next | Defect NAMED (2026-08-15, 6,142 s full-capture rerun): the second `append_segment_with_constraint_witness_audit` fails the paper's Definition-14 RLC guard — `ΠRLC norm bound violated: count·T·(b-1) = 3·216·1 = 648 must be < b^{k_rho} = 4`; minimum k_rho for count=3 is 10. This is not a code bug: campaign profile v1 (k_rho=2) cannot execute ANY fold, so no honest recursive assignment exists for the frozen shape. The freeze must move to a foldable shape (k_rho >= 10; paper B.2 uses 14) — a bar-2 amendment the user must decide. A k_rho=10 probe (arm sizes, digests, then a 2-segment capture attempt) is running to de-risk that decision. The persisting capture test is ready for the amended profile. |
-| 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive pipeline built, awaiting bar 4 | The complete recursive source relation is now a committed Lean authority artifact: string-payload CSR + 527-value table + 36 compact seeded blocks (197 MB payloads, emitted with a full 4.5 M-row replay against the independent recovery, 33 s). Artifact-level `*_of_full_valid` theorems added; the census runner (`recursive_census.rs`) will emit one compact necessity module per family from the shared assignment plus one column override. Base pilot flows end to end (BaseCompactSourceArtifact + BaseCampaignAssignment + BaseCompactStepInitialNecessity), pinned to the committed literal artifact by native_decide equality. y_ring stays the redundancy leg via its scalar certificate. |
+| 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive authority artifact now fully Lean-certified (2026-08-17); census awaits bar 4 | The complete recursive source relation is now a committed Lean authority artifact: string-payload CSR + 527-value table + 36 compact seeded blocks (197 MB payloads, emitted with a full 4.5 M-row replay against the independent recovery, 33 s). Artifact-level `*_of_full_valid` theorems added; the census runner (`recursive_census.rs`) will emit one compact necessity module per family from the shared assignment plus one column override. Base pilot flows end to end (BaseCompactSourceArtifact + BaseCampaignAssignment + BaseCompactStepInitialNecessity), pinned to the committed literal artifact by native_decide equality. y_ring stays the redundancy leg via its scalar certificate. |
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
 | 7 | `normalizedFullPlanInclusionMinimalSound` instantiated; ledger zero Open | unmet | One Open entry: `hypernova.recursive_size_closure` (`bridge/src/obligation_ledger.rs`). |
-| 8 | Planted redundant + necessary controls flow end to end | in-progress | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
+| 8 | Planted redundant + necessary controls flow end to end | in-progress: necessary leg Lean-green at v2 (base pilot, 2026-08-17); redundant leg re-emitted, awaits solo window | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
 | 9 | Rust, Lean, drift, axioms suites all green | in-progress | Rust suites green (core 18, bridge 39 incl. gates). Lean build not yet run this campaign. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
@@ -252,6 +252,31 @@ runner and the y_ring gate fit the 46 GB budget; run them beside at
 most the capture, nothing else, and watch `free -g` at launch.
 
 ## Iteration log
+
+- 2026-08-17 iteration 17d (the strictness trap; chains go green): the
+  grouped assembly still breached the cap, and file bisection (slices
+  through censuses, familyPresence, scalarFacts) found the real hog:
+  `scalarFacts` stated over `sourceArtifact` projections forces the
+  whole artifact struct under strict native evaluation — its `rows`
+  field is the entire 11.19M-row expansion, evaluated to read twelve
+  scalars. The wire-field form is defeq at the composition theorem and
+  evaluates nothing but scalars; the assembly then built in 3.2 s.
+  With that, the day's harvest: the complete recursive compact source
+  artifact chain is Lean-certified (171 data + wire + 32 leaves +
+  assembly; census, coverage, well-formedness, exact validation);
+  BaseBoundArtifact assembly built in 20 s; the full base pilot chain
+  is green end to end including the compact necessity theorems (the
+  missing `open Nightstream.SuperNeo.CheckPlan` in the necessity and
+  redundancy renderers was the last defect); and
+  `tests.SeededPhi81Conformance` is green (bar 3's Lean leg). Test-cap
+  work: the cvc5 duplicate gate's cost was `export_nebula_problem`'s
+  selective-binding machinery, which solver gates never read —
+  switched to `export_sparse_problem` (gate green in 19 s, solve
+  1,198 ms Unsat); a prefix-duplicates test (64 candidates, 25 s)
+  stays un-ignored while the full-family derivation test moved to the
+  solo window. Hygiene: `timeout` kills only the direct child, so
+  lean workers leak — four orphans burned cores for over an hour
+  before being found; all kills now target the setsid process group.
 
 - 2026-08-17 iteration 17c (root cause found, one line): the whole
   slowdown family — the 6.9 h assembly, both batch "hangs", the

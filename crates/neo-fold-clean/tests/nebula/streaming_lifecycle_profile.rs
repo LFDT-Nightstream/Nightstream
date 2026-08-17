@@ -90,7 +90,7 @@ fn lifecycle_profile_binds_every_source_stage_and_both_x_out_frames() {
         plan.circuit().structure().t(),
         plan.circuit().structure().max_degree(),
     )
-    .expect("shape-specific Appendix B.2 parameters");
+    .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
     let effective_lambda = params.lambda();
     let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(
@@ -167,11 +167,14 @@ fn lifecycle_profile_binds_every_source_stage_and_both_x_out_frames() {
     assert_eq!(profile.final_rows(), relation.structure().n);
     assert_eq!(profile.final_columns(), relation.structure().m);
     assert_eq!(profile.final_public_columns(), relation.public_input_len());
-    assert_eq!(profile.final_rows(), 1_346_348);
-    assert_eq!(profile.final_columns(), 8_755_452);
+    assert_eq!(profile.final_rows(), 10_306_243);
+    assert_eq!(profile.final_columns(), 28_033_344);
     assert_eq!(profile.final_public_columns(), 648);
     assert!(profile.final_rows() <= 1 << 24);
-    assert!(profile.final_columns() <= 1 << 24);
+    assert!(
+        profile.final_columns() > 1 << 24,
+        "the monolithic reference must not be mistaken for the final phased relation"
+    );
 
     let columns = profile.column_layout();
     assert_eq!(columns.logical_public_columns().start, 0);
@@ -274,6 +277,6 @@ fn lifecycle_profile_binds_every_source_stage_and_both_x_out_frames() {
     let recursive = profile.arm(NebulaFPrimeStreamingLifecycleArm::Recursive);
     assert_eq!(
         (recursive.source_rows(), recursive.source_columns()),
-        (4_286_733, 4_248_245)
+        (31_339_296, 31_063_352)
     );
 }

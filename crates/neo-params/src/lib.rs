@@ -93,6 +93,25 @@ pub mod goldilocks_paper_b2 {
     pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 }
 
+/// Nightstream Goldilocks production parameters with binary decomposition.
+///
+/// This profile keeps the field, ring, commitment, sampler, and extension
+/// parameters from the SuperNeo Goldilocks reference, but selects the
+/// Nightstream production exponent `k_rho = 16` and `B = 2^16`.
+pub mod nightstream_goldilocks_k16 {
+    pub const Q: u64 = super::goldilocks_paper_b2::Q;
+    pub const ETA: usize = super::goldilocks_paper_b2::ETA;
+    pub const D: usize = super::goldilocks_paper_b2::D;
+    pub const KAPPA: u32 = super::goldilocks_paper_b2::KAPPA;
+    pub const M: u64 = super::goldilocks_paper_b2::M;
+    pub const B_BASE: u32 = 2;
+    pub const K_RHO: u32 = 16;
+    pub const B: u64 = 1u64 << K_RHO;
+    pub const T: u32 = super::goldilocks_paper_b2::T;
+    pub const EXTENSION_DEGREE: u32 = super::goldilocks_paper_b2::EXTENSION_DEGREE;
+    pub const LAMBDA: u32 = super::goldilocks_paper_b2::LAMBDA;
+}
+
 /// Summary returned by the extension policy check for a concrete soundness factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExtensionSummary {
@@ -296,6 +315,42 @@ impl NeoParams {
             goldilocks_paper_b2::LAMBDA,
         )
         .unwrap()
+    }
+
+    /// Nightstream Goldilocks production profile: `b = 2`, `k_rho = 16`,
+    /// `B = 2^16`.
+    #[allow(non_snake_case)]
+    pub fn nightstream_goldilocks_k16() -> Self {
+        Self::new(
+            nightstream_goldilocks_k16::Q,
+            nightstream_goldilocks_k16::ETA as u32,
+            nightstream_goldilocks_k16::D as u32,
+            nightstream_goldilocks_k16::KAPPA,
+            nightstream_goldilocks_k16::M,
+            nightstream_goldilocks_k16::B_BASE,
+            nightstream_goldilocks_k16::K_RHO,
+            nightstream_goldilocks_k16::T,
+            nightstream_goldilocks_k16::EXTENSION_DEGREE,
+            nightstream_goldilocks_k16::LAMBDA,
+        )
+        .expect("Nightstream Goldilocks k_rho=16 parameters")
+    }
+
+    pub fn is_nightstream_goldilocks_k16(&self) -> bool {
+        self.has_nightstream_goldilocks_k16_core() && self.lambda == nightstream_goldilocks_k16::LAMBDA
+    }
+
+    pub fn has_nightstream_goldilocks_k16_core(&self) -> bool {
+        self.q == nightstream_goldilocks_k16::Q
+            && self.eta == nightstream_goldilocks_k16::ETA as u32
+            && self.d == nightstream_goldilocks_k16::D as u32
+            && self.kappa == nightstream_goldilocks_k16::KAPPA
+            && self.m == nightstream_goldilocks_k16::M
+            && self.b == nightstream_goldilocks_k16::B_BASE
+            && self.k_rho == nightstream_goldilocks_k16::K_RHO
+            && self.B == nightstream_goldilocks_k16::B
+            && self.T == nightstream_goldilocks_k16::T
+            && self.s == nightstream_goldilocks_k16::EXTENSION_DEGREE
     }
 
     pub fn is_goldilocks_paper_b2(&self) -> bool {

@@ -1,4 +1,6 @@
-use neo_params::{goldilocks_paper_b2, pi_rlc_sampler_completeness_summary, NeoParams, ParamsError};
+use neo_params::{
+    goldilocks_paper_b2, nightstream_goldilocks_k16, pi_rlc_sampler_completeness_summary, NeoParams, ParamsError,
+};
 
 #[test]
 fn goldilocks_paper_b2_matches_guard_and_b() {
@@ -7,6 +9,19 @@ fn goldilocks_paper_b2_matches_guard_and_b() {
     assert_eq!(p.B, goldilocks_paper_b2::B);
     let lhs = (p.k_rho as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
     assert!(lhs < p.B as u128, "guard must hold");
+}
+
+#[test]
+fn nightstream_goldilocks_k16_matches_the_frozen_binary_profile() {
+    let p = NeoParams::nightstream_goldilocks_k16();
+
+    assert!(p.is_nightstream_goldilocks_k16());
+    assert!(!p.is_goldilocks_paper_b2());
+    assert_eq!(p.b, 2);
+    assert_eq!(p.k_rho, 16);
+    assert_eq!(p.B, nightstream_goldilocks_k16::B);
+    assert_eq!(p.B, 1 << 16);
+    assert_eq!(p.max_fresh_count_from_rlc_guard().unwrap(), 287);
 }
 
 #[test]

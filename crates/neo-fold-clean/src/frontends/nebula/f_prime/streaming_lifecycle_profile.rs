@@ -4,7 +4,7 @@
 //! selective layout, the exclusive physical-stage schedule, and exact
 //! source-to-final row and XOut-field bindings.
 //!
-//! It does not own phase circuits, the 400-arm scheduled relation, protocol
+//! It does not own phase circuits, the scheduled relation, protocol
 //! authority, terminal acceptance, or permission to remove a constraint.
 
 use std::ops::Range;

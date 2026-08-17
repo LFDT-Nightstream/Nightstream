@@ -30,14 +30,15 @@ use crate::paper::digest::StateXOutDigestMode;
 use crate::paper::f_prime::digest_circuit::{alloc_constant, StateXOutDigestInputs};
 use crate::paper::reductions::accumulator_sis_circuit::{
     commit_coordinate_fields, enforce_commit_coordinate_fields, SisAccumulatorError,
-    PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG, PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+    PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG, PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
 };
 use crate::paper::reductions::pi_ccs_circuit::verifier::{append_pi_ccs_statement, squeeze_pi_ccs_challenge};
 
 use super::streaming_claim_replay::{
     alloc_persistent, digest_persistent_state, enforce_sponge_equal, PersistentState, PersistentStateVars, SpongeState,
-    COORDINATE_COMMITMENT_FIELDS, PI_CCS_RUNNING_METADATA_FIELDS, PI_CCS_STATEMENT_FIELDS,
-    PI_CCS_STATEMENT_FRESH_FIELDS,
+    COORDINATE_COMMITMENT_FIELDS, PI_CCS_RUNNING_COMMITMENT_FIELDS, PI_CCS_RUNNING_PUBLIC_FIELDS,
+    PI_CCS_STATEMENT_FIELDS, PI_CCS_STATEMENT_FRESH_FIELDS,
 };
 use super::streaming_phase_envelope::{
     enforce_streaming_carry_phase_semantic_envelope, StreamingCarryPhaseSemanticEnvelope,
@@ -52,11 +53,11 @@ use super::streaming_state_envelope::enforce_streaming_state_x_out;
 
 const PUBLIC_WORD_BITS: usize = 64;
 const FRESH_COUNT: usize = 1;
-const RUNNING_COUNT: usize = 14;
+const RUNNING_COUNT: usize = crate::config::K_RHO as usize;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = D;
 const VARIABLE_FIELDS: usize = 2 * PI_CCS_POINT_COUNT + 2 * RUNNING_COUNT * MATRIX_COUNT * COEFFICIENT_COUNT;
-const GAMMA_POWER_COUNT: usize = 10_614;
+const GAMMA_POWER_COUNT: usize = 12_130;
 const CLAIM_READY_ABSORBED: usize = CLAIM_FRAME_FIELDS % 4;
 const PI_CCS_START_PROGRAM_CURSOR: usize = FIRST_PI_CCS_ROUND_PROGRAM_CURSOR - 1;
 const CONTEXT_DOMAIN: &[u8] = b"neo.fold.clean/nebula/f-prime/streaming-pi-ccs-context/v1";
@@ -71,14 +72,14 @@ pub const STREAMING_PI_CCS_START_INITIAL_CLAIM_FAMILY: &str = "fprime.streaming.
 pub const STREAMING_PI_CCS_START_CONTEXT_FAMILY: &str = "fprime.streaming.pi_ccs.start.context";
 pub const STREAMING_PI_CCS_START_LIFECYCLE_CARRY_FAMILY: &str = "fprime.streaming.pi_ccs.start.lifecycle_carry";
 
-pub const PI_CCS_START_SOURCE_ROWS: usize = 3_693_137;
-pub const PI_CCS_START_SOURCE_COLUMNS: usize = 3_672_127;
+pub const PI_CCS_START_SOURCE_ROWS: usize = 4_115_653;
+pub const PI_CCS_START_SOURCE_COLUMNS: usize = 4_091_727;
 pub const PI_CCS_START_SOURCE_PUBLIC_COLUMNS: usize = 641;
-pub const PI_CCS_START_SOURCE_POSEIDON2_PERMUTATIONS: usize = 1_578;
-pub const PI_CCS_START_SOURCE_ARTIFACT_ID: &str = "rust:streaming-pi-ccs-start/source-v2";
+pub const PI_CCS_START_SOURCE_POSEIDON2_PERMUTATIONS: usize = 1_632;
+pub const PI_CCS_START_SOURCE_ARTIFACT_ID: &str = "rust:streaming-pi-ccs-start/source-b2-k16-v3";
 pub const PI_CCS_START_SOURCE_HASH_SCHEMA: &str = "nightstream-normalized-sparse-r1cs-compact-v1";
-pub const PI_CCS_START_SOURCE_SHA256: &str = "0210becb81639791956fd57fe411d50a6503a8d5fc4414933ff5b4b679b3aee7";
-pub const PI_CCS_START_PROFILE_ID: &str = "nightstream/goldilocks/streaming-pi-ccs-start/v2";
+pub const PI_CCS_START_SOURCE_SHA256: &str = "726102be17e658218b03b80755da76867966068a71b867000455c3240b17a270";
+pub const PI_CCS_START_PROFILE_ID: &str = "nightstream/goldilocks/b2-k16/streaming-pi-ccs-start/v3";
 pub const PI_CCS_START_LIFECYCLE_SCOPE: &str = "recursive transition: claim replay to PiCCS round 0";
 pub const PI_CCS_START_BEFORE_PROGRAM_CURSOR: usize = PI_CCS_START_PROGRAM_CURSOR;
 pub const PI_CCS_START_AFTER_PROGRAM_CURSOR: usize = FIRST_PI_CCS_ROUND_PROGRAM_CURSOR;
@@ -124,62 +125,62 @@ pub const PI_CCS_START_SOURCE_STAGE_SCHEDULE: [NebulaFPrimePiCcsStartSourceStage
         row_start: 0,
         row_end: 69,
         column_start: 641,
-        column_end: 22_103,
+        column_end: 25_235,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.ready",
         row_start: 69,
         row_end: 82,
-        column_start: 22_103,
-        column_end: 22_103,
+        column_start: 25_235,
+        column_end: 25_235,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.variable_binding",
         row_start: 82,
-        row_end: 2_631_621,
-        column_start: 22_103,
-        column_end: 2_611_202,
+        row_end: 3_006_597,
+        column_start: 25_235,
+        column_end: 2_983_262,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.transcript",
-        row_start: 2_631_621,
-        row_end: 2_828_494,
-        column_start: 2_611_202,
-        column_end: 2_808_075,
+        row_start: 3_006_597,
+        row_end: 3_203_470,
+        column_start: 2_983_262,
+        column_end: 3_180_135,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.initial_claim",
-        row_start: 2_828_494,
-        row_end: 2_934_483,
-        column_start: 2_808_075,
-        column_end: 2_914_064,
+        row_start: 3_203_470,
+        row_end: 3_324_599,
+        column_start: 3_180_135,
+        column_end: 3_301_264,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.context",
-        row_start: 2_934_483,
-        row_end: 2_970_551,
-        column_start: 2_914_064,
-        column_end: 2_950_132,
+        row_start: 3_324_599,
+        row_end: 3_376_867,
+        column_start: 3_301_264,
+        column_end: 3_353_532,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.state_digest",
-        row_start: 2_970_551,
-        row_end: 3_018_581,
-        column_start: 2_950_132,
-        column_end: 2_998_162,
+        row_start: 3_376_867,
+        row_end: 3_441_097,
+        column_start: 3_353_532,
+        column_end: 3_417_762,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.phase_envelope",
-        row_start: 3_018_581,
-        row_end: 3_681_552,
-        column_start: 2_998_162,
-        column_end: 3_661_133,
+        row_start: 3_441_097,
+        row_end: 4_104_068,
+        column_start: 3_417_762,
+        column_end: 4_080_733,
     },
     NebulaFPrimePiCcsStartSourceStage {
         path: "nebula.streaming.pi_ccs.start.state_x_out",
-        row_start: 3_681_552,
+        row_start: 4_104_068,
         row_end: PI_CCS_START_SOURCE_ROWS,
-        column_start: 3_661_133,
+        column_start: 4_080_733,
         column_end: PI_CCS_START_SOURCE_COLUMNS,
     },
 ];
@@ -280,7 +281,8 @@ impl NebulaFPrimePiCcsStartSynthesis {
     pub fn production() -> Result<Self, NebulaFPrimePiCcsStartRelationError> {
         let variable_values = fixture_variable_fields();
         let fresh_metadata_values = fixture_fresh_metadata_fields();
-        let running_metadata_values = fixture_running_metadata_fields();
+        let running_commitment_values = fixture_running_commitment_fields();
+        let running_public_values = fixture_running_public_fields();
         let statement_values = variable_values
             .iter()
             .copied()
@@ -310,20 +312,37 @@ impl NebulaFPrimePiCcsStartSynthesis {
             .collect::<Vec<_>>()
             .try_into()
             .expect("fixed rank-two statement-and-fresh commitment");
-        let running_metadata_fields = running_metadata_values
+        let running_commitment_fields = running_commitment_values
             .iter()
             .copied()
             .enumerate()
             .collect::<Vec<_>>();
-        let running_metadata_commitment: [F; COORDINATE_COMMITMENT_FIELDS] = commit_coordinate_fields(
-            PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-            PI_CCS_RUNNING_METADATA_FIELDS,
-            &running_metadata_fields,
+        let running_commitments_binding: [F; COORDINATE_COMMITMENT_FIELDS] = commit_coordinate_fields(
+            PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+            PI_CCS_RUNNING_COMMITMENT_FIELDS,
+            &running_commitment_fields,
         )?
         .data
         .try_into()
-        .expect("fixed rank-two running-metadata commitment");
-        let ready_state = fixture_ready_state(statement_fresh_commitment, running_metadata_commitment);
+        .expect("fixed rank-two running-commitments binding");
+        let running_public_fields = running_public_values
+            .iter()
+            .copied()
+            .enumerate()
+            .collect::<Vec<_>>();
+        let running_public_binding: [F; COORDINATE_COMMITMENT_FIELDS] = commit_coordinate_fields(
+            PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+            PI_CCS_RUNNING_PUBLIC_FIELDS,
+            &running_public_fields,
+        )?
+        .data
+        .try_into()
+        .expect("fixed rank-two running-public binding");
+        let ready_state = fixture_ready_state(
+            statement_fresh_commitment,
+            running_commitments_binding,
+            running_public_binding,
+        );
 
         let mut builder = R1csBuilder::new();
         builder.enable_encoding_trace();
@@ -608,9 +627,15 @@ impl NebulaFPrimePiCcsStartSynthesis {
             .map(|word| word.field.col())
     }
 
-    pub fn expected_running_metadata_commitment_columns(&self) -> [usize; COORDINATE_COMMITMENT_FIELDS] {
+    pub fn expected_running_commitments_binding_columns(&self) -> [usize; COORDINATE_COMMITMENT_FIELDS] {
         self.before
-            .running_metadata_commitment
+            .running_commitments_binding
+            .map(|word| word.field.col())
+    }
+
+    pub fn expected_running_public_binding_columns(&self) -> [usize; COORDINATE_COMMITMENT_FIELDS] {
+        self.before
+            .running_public_binding
             .map(|word| word.field.col())
     }
 
@@ -765,15 +790,22 @@ fn fixture_fresh_metadata_fields() -> Vec<F> {
         .collect()
 }
 
-fn fixture_running_metadata_fields() -> Vec<F> {
-    (0..PI_CCS_RUNNING_METADATA_FIELDS)
+fn fixture_running_commitment_fields() -> Vec<F> {
+    (0..PI_CCS_RUNNING_COMMITMENT_FIELDS)
         .map(|index| F::from_usize(700_000 + 23 * index))
+        .collect()
+}
+
+fn fixture_running_public_fields() -> Vec<F> {
+    (0..PI_CCS_RUNNING_PUBLIC_FIELDS)
+        .map(|index| F::from_usize(700_000 + 23 * (PI_CCS_RUNNING_COMMITMENT_FIELDS + index)))
         .collect()
 }
 
 fn fixture_ready_state(
     statement_fresh_commitment: [F; COORDINATE_COMMITMENT_FIELDS],
-    running_metadata_commitment: [F; COORDINATE_COMMITMENT_FIELDS],
+    running_commitments_binding: [F; COORDINATE_COMMITMENT_FIELDS],
+    running_public_binding: [F; COORDINATE_COMMITMENT_FIELDS],
 ) -> PersistentState {
     let transcript = SpongeState {
         lanes: std::array::from_fn(|lane| F::from_usize(80_000 + 31 * lane)),
@@ -785,7 +817,8 @@ fn fixture_ready_state(
         frame_cursor: CLAIM_FRAME_FIELDS as u64,
         program_cursor: PI_CCS_START_PROGRAM_CURSOR as u64,
         statement_fresh_commitment,
-        running_metadata_commitment,
+        running_commitments_binding,
+        running_public_binding,
     }
 }
 
@@ -825,16 +858,17 @@ fn enforce_context_digest(
     claim_state: PersistentStateVars,
     fresh_metadata_residual: [Var; COORDINATE_COMMITMENT_FIELDS],
 ) -> [Var; PI_CCS_CONTEXT_DIGEST_FIELDS] {
-    let mut fields = Vec::with_capacity(4 + PI_CCS_SPONGE_WIDTH + 1 + 2 * COORDINATE_COMMITMENT_FIELDS);
+    let mut fields = Vec::with_capacity(4 + PI_CCS_SPONGE_WIDTH + 1 + 3 * COORDINATE_COMMITMENT_FIELDS);
     fields.extend(header);
     fields.extend(claim_state.runtime.lanes.map(|word| word.field));
     fields.push(claim_state.runtime.absorbed.field);
     fields.extend(fresh_metadata_residual);
     fields.extend(
         claim_state
-            .running_metadata_commitment
+            .running_commitments_binding
             .map(|word| word.field),
     );
+    fields.extend(claim_state.running_public_binding.map(|word| word.field));
     let mut transcript = TranscriptGadget::new(builder, CONTEXT_DOMAIN);
     transcript.append_fields(builder, CONTEXT_FIELDS_LABEL, &fields);
     transcript.digest_fields(builder)
@@ -866,7 +900,7 @@ fn alloc_fixture_digest(builder: &mut R1csBuilder, start: usize) -> [Var; 4] {
     std::array::from_fn(|lane| builder.alloc(F::from_usize(start + lane)))
 }
 
-const _: () = assert!(VARIABLE_FIELDS == 21_220);
+const _: () = assert!(VARIABLE_FIELDS == 24_244);
 const _: () = assert!(CLAIM_READY_ABSORBED == 3);
-const _: () = assert!(PI_CCS_START_PROGRAM_CURSOR == 169);
+const _: () = assert!(PI_CCS_START_PROGRAM_CURSOR == 193);
 const _: () = assert!(GAMMA_POWER_COUNT == 2 * FRESH_COUNT + 2 * RUNNING_COUNT + RUNNING_COUNT * MATRIX_COUNT * D);

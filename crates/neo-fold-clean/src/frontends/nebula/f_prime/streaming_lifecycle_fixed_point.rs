@@ -2,7 +2,7 @@
 //!
 //! Owns the deterministic shape iteration from one folded verifier relation
 //! to the selectively lowered full base/recursive source. This is a reference
-//! upper bound. It is not the final 400-phase relation. It does not own source
+//! upper bound. It is not the final phased relation. It does not own source
 //! artifact identities, satisfying assignments, preprocessing, or terminal
 //! acceptance.
 
@@ -168,12 +168,12 @@ pub fn production_streaming_lifecycle_full_source_fixed_point_audit(
         let round_params = Params::for_ccs_shape(input.rows, input.columns, input.matrix_count, input.max_degree)
             .map_err(|error| {
                 NebulaFPrimeRelationError::Geometry(format!(
-                    "streaming fixed-point input Appendix B.2 profile: {error}"
+                    "streaming fixed-point input Nightstream Goldilocks k_rho=16 profile: {error}"
                 ))
             })?;
         if !round_params.has_production_core() {
             return Err(NebulaFPrimeRelationError::Geometry(
-                "streaming fixed-point input parameters lost the Appendix B.2 core".into(),
+                "streaming fixed-point input parameters lost the Nightstream Goldilocks k_rho=16 core".into(),
             ));
         }
         let arms = synthesize_streaming_lifecycle_source_arm_shapes(&round_params, verifier.clone(), plan)?;
@@ -206,11 +206,13 @@ pub fn production_streaming_lifecycle_full_source_fixed_point_audit(
         if input.signature() == output.signature() {
             let effective = Params::for_ccs_shape(output.rows, output.columns, output.matrix_count, output.max_degree)
                 .map_err(|error| {
-                    NebulaFPrimeRelationError::Geometry(format!("streaming fixed-point Appendix B.2 profile: {error}"))
+                    NebulaFPrimeRelationError::Geometry(format!(
+                        "streaming fixed-point Nightstream Goldilocks k_rho=16 profile: {error}"
+                    ))
                 })?;
             if !effective.has_production_core() {
                 return Err(NebulaFPrimeRelationError::Geometry(
-                    "streaming fixed-point parameters lost the Appendix B.2 core".into(),
+                    "streaming fixed-point parameters lost the Nightstream Goldilocks k_rho=16 core".into(),
                 ));
             }
 

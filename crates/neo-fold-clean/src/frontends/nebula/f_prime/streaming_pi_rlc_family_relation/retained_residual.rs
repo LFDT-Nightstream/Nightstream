@@ -21,26 +21,26 @@ use super::{production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRe
 const SCHEMA_VERSION: u64 = 1;
 const RESIDUAL_FIELDS: usize = 108;
 
-const PHASE_BINDING_START: usize = 144_278;
-const BEFORE_RESIDUAL_START: usize = 144_386;
-const AFTER_RESIDUAL_START: usize = 144_494;
-const LOCAL_COLUMNS: usize = 146_224;
+const PHASE_BINDING_START: usize = 163_502;
+const BEFORE_RESIDUAL_START: usize = 163_610;
+const AFTER_RESIDUAL_START: usize = 163_718;
+const LOCAL_COLUMNS: usize = 165_664;
 
 const SOURCE_COLUMN_SHIFT: usize = 640;
 const SOURCE_PHASE_BINDING_START: usize = PHASE_BINDING_START + SOURCE_COLUMN_SHIFT;
 const SOURCE_BEFORE_RESIDUAL_START: usize = BEFORE_RESIDUAL_START + SOURCE_COLUMN_SHIFT;
 const SOURCE_AFTER_RESIDUAL_START: usize = AFTER_RESIDUAL_START + SOURCE_COLUMN_SHIFT;
 
-const SOURCE_ROW_START: usize = 144_277;
+const SOURCE_ROW_START: usize = 163_501;
 const RESIDUAL_ROWS: usize = RESIDUAL_FIELDS;
 
-const FINAL_ROWS: usize = 282_459;
-const FINAL_COLUMNS: usize = 2_521_314;
+const FINAL_ROWS: usize = 491_046;
+const FINAL_COLUMNS: usize = 8_858_862;
 const SELECTOR_COLUMNS: [usize; 2] = [648, 649];
-const EMITTED_STARTS: [usize; 2] = [78_133, 202_109];
-const DIRECT_SOURCE_START: usize = 144_916;
-const FINAL_DIRECT_START: usize = 1_076_045;
-const GENERAL_WIDTH: usize = 23;
+const EMITTED_STARTS: [usize; 2] = [69_499, 305_010];
+const DIRECT_SOURCE_START: usize = 164_140;
+const FINAL_DIRECT_START: usize = 2_129_045;
+const GENERAL_WIDTH: usize = 41;
 
 const PORT_COUNT: usize = 13;
 const GENERAL_SELECTOR_PORT: usize = 1;
@@ -340,7 +340,7 @@ pub fn production_pi_rlc_family_body_residual_retained_audit(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
     )?
     .finish()?;
     if relation.structure().n != FINAL_ROWS
@@ -424,12 +424,12 @@ pub fn production_pi_rlc_family_body_residual_retained_audit(
             final_start(SOURCE_AFTER_RESIDUAL_START),
         ],
         widths: [GENERAL_WIDTH; 3],
-        radices: [7; 3],
+        radices: [3; 3],
         source_nnz,
         final_port_nnz,
     })
 }
 
 const _: () = assert!(RESIDUAL_ROWS == 108);
-const _: () = assert!(SOURCE_ROW_START + RESIDUAL_ROWS == 144_385);
-const _: () = assert!(SOURCE_AFTER_RESIDUAL_START + RESIDUAL_FIELDS - 1 == 145_241);
+const _: () = assert!(SOURCE_ROW_START + RESIDUAL_ROWS == 163_609);
+const _: () = assert!(SOURCE_AFTER_RESIDUAL_START + RESIDUAL_FIELDS - 1 == 164_465);

@@ -1,13 +1,11 @@
 //! Audit checks for the single production parameter profile.
 
 use neo_fold_clean::{config, Params};
-use neo_params::{goldilocks_paper_b2, NeoParams};
-
 #[test]
-fn production_params_match_superneo_goldilocks_b2() {
+fn production_params_match_nightstream_goldilocks_k16() {
     let pp = config::production_params();
 
-    assert_eq!(config::PRODUCTION_PROFILE, "superneo-appendix-b2-goldilocks-b2");
+    assert_eq!(config::PRODUCTION_PROFILE, "nightstream-goldilocks-b2-k16");
     assert!(pp.is_production());
     assert_eq!(pp.q(), config::Q);
     assert_eq!(pp.eta(), config::ETA as u32);
@@ -25,7 +23,7 @@ fn production_params_match_superneo_goldilocks_b2() {
 #[test]
 fn production_params_use_k_rho_for_b_power() {
     let pp = Params::production();
-    assert_eq!(pp.k_rho(), 14);
+    assert_eq!(pp.k_rho(), 16);
     assert_eq!(pp.big_b(), (pp.b() as u64).pow(pp.k_rho()));
 }
 
@@ -36,33 +34,6 @@ fn production_params_satisfy_superneo_rlc_guard() {
     assert!(lhs < pp.big_b() as u128, "(k_rho + 1) * T * (b - 1) must be < B");
 }
 
-#[test]
-fn radix_four_width_candidate_keeps_the_production_security_bounds() {
-    let candidate = NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        goldilocks_paper_b2::KAPPA,
-        goldilocks_paper_b2::M,
-        4,
-        7,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        114,
-    )
-    .expect("radix-four candidate parameters");
-
-    assert_eq!(candidate.B, goldilocks_paper_b2::B);
-    assert_eq!(candidate.max_fresh_count_from_rlc_guard().unwrap(), 18);
-
-    let census = candidate
-        .padded_row_security_summary_for_shape(9_304_520, 25_870_482, 13, 8, 5)
-        .expect("radix-four candidate security census");
-    assert_eq!(census.verifier_degree, 9);
-    assert_eq!(census.fork_factor, 26);
-    assert!(census.security_bits >= candidate.lambda);
-}
-
 /// Golden vector shared with
 /// `Nightstream.SuperNeo.Concrete.production_parameter_values`.
 #[test]
@@ -70,10 +41,10 @@ fn production_params_match_lean_m1_profile() {
     let pp = Params::production();
     assert_eq!(pp.q(), 18_446_744_069_414_584_321);
     assert_eq!(pp.b(), 2);
-    assert_eq!(pp.k_rho(), 14);
-    assert_eq!(pp.big_b(), 16_384);
+    assert_eq!(pp.k_rho(), 16);
+    assert_eq!(pp.big_b(), 65_536);
     assert_eq!(pp.T(), 216);
-    assert_eq!(pp.max_fresh_count(), 61);
+    assert_eq!(pp.max_fresh_count(), 287);
     assert_eq!(pp.eta(), 81);
     assert_eq!(pp.d(), 54);
     assert_eq!(pp.kappa(), 18);
@@ -87,7 +58,7 @@ fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
 
     assert_eq!(
         config::R1CS_PROFILE,
-        "superneo-appendix-b2-goldilocks-b2-shape-derived-lambda"
+        "nightstream-goldilocks-b2-k16-shape-derived-lambda"
     );
     assert!(pp.has_production_core());
     assert_eq!(pp.k_rho(), config::K_RHO);
@@ -95,7 +66,7 @@ fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
     assert_eq!(pp.extension_degree(), config::EXTENSION_DEGREE);
     assert_eq!(
         pp.lambda(),
-        116,
+        115,
         "the header must bind the exact strongest lambda supported by this shape"
     );
 }
@@ -129,9 +100,9 @@ fn ccs_params_charge_matrix_count_and_degree() {
     let t8 = config::ccs_params(60, 54, 8, 2).expect("t=8 CCS params");
     let degree7 = config::ccs_params(60, 54, 3, 7).expect("degree-7 CCS params");
 
-    assert_eq!(r1cs.lambda(), 116);
-    assert_eq!(t8.lambda(), 115);
-    assert_eq!(degree7.lambda(), 116);
+    assert_eq!(r1cs.lambda(), 115);
+    assert_eq!(t8.lambda(), 114);
+    assert_eq!(degree7.lambda(), 115);
 }
 
 #[test]
@@ -155,7 +126,7 @@ fn explicit_r1cs_minimum_rejects_an_unsupported_target() {
         err,
         neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: 117,
-            available: 116
+            available: 115
         }
     ));
 }

@@ -116,14 +116,21 @@ pub const PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccum
     domain: 0x5049_4356_4152_4244,
 };
 
-/// Coordinate-preserving binding for the running-claim commitment and
-/// public-input fields consumed by PiCCS. This map is separate from the
-/// statement-and-fresh map so both fixed production messages remain within
-/// the rank-two estimator bound.
-pub const PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+/// Coordinate-preserving binding for the running-claim commitment fields
+/// consumed by PiCCS.
+pub const PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
     seed: [0xCA; 32],
     kappa: PROTOCOL_BINDING_KAPPA,
-    domain: 0x5049_4352_554E_4D44,
+    domain: 0x5049_4352_554E_434D,
+};
+
+/// Coordinate-preserving binding for the running-claim public-input fields
+/// consumed by PiCCS. This map is separate because the combined k16 running
+/// metadata is wider than the checked rank-two estimator bound.
+pub const PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xCB; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_4352_554E_5055,
 };
 
 /// Coordinate-preserving binding for the 110 fixed PiRLC input families.

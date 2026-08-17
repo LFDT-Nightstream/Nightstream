@@ -15,11 +15,12 @@ use crate::frontends::r1cs_f_prime::{
     prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveSourceRowDisposition,
 };
 
-use super::{production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, REPLAY_AUXILIARY_START};
+use super::{
+    production_pi_rlc_family_body_source_arms, NebulaFPrimePiRlcFamilyRelationError, LANE_COUNT,
+    REPLAY_AUXILIARY_START, SOURCE_COUNT,
+};
 
 const SCHEMA_VERSION: u64 = 1;
-const SOURCE_COUNT: usize = 15;
-const LANE_COUNT: usize = 54;
 const LOCAL_CHALLENGE_START: usize = 1;
 const LOCAL_INPUT_START: usize = LOCAL_CHALLENGE_START + SOURCE_COUNT * LANE_COUNT;
 const LOCAL_OUTPUT_START: usize = LOCAL_INPUT_START + SOURCE_COUNT * LANE_COUNT;
@@ -34,15 +35,15 @@ const SOURCE_INPUT_START: usize = LOCAL_INPUT_START + SOURCE_COLUMN_SHIFT;
 const SOURCE_OUTPUT_START: usize = LOCAL_OUTPUT_START + SOURCE_COLUMN_SHIFT;
 const SOURCE_PRODUCT_START: usize = LOCAL_PRODUCT_START + SOURCE_COLUMN_SHIFT;
 
-const FINAL_ROWS: usize = 282_459;
-const FINAL_COLUMNS: usize = 2_521_314;
+const FINAL_ROWS: usize = 491_046;
+const FINAL_COLUMNS: usize = 8_858_862;
 const SELECTOR_COLUMNS: [usize; 2] = [648, 649];
-const EMITTED_STARTS: [usize; 2] = [34_296, 158_272];
+const EMITTED_STARTS: [usize; 2] = [19_830, 255_341];
 const FINAL_CHALLENGE_START: usize = 702;
-const FINAL_INPUT_START: usize = 19_332;
-const FINAL_OUTPUT_START: usize = 52_542;
-const FINAL_PRODUCT_START: usize = FINAL_OUTPUT_START + LANE_COUNT * 23;
-const GENERAL_WIDTH: usize = 23;
+const FINAL_INPUT_START: usize = FINAL_CHALLENGE_START + SOURCE_COUNT * LANE_COUNT * GENERAL_WIDTH;
+const FINAL_OUTPUT_START: usize = FINAL_INPUT_START + SOURCE_COUNT * LANE_COUNT * INPUT_WIDTH;
+const FINAL_PRODUCT_START: usize = FINAL_OUTPUT_START + LANE_COUNT * 41;
+const GENERAL_WIDTH: usize = 41;
 const INPUT_WIDTH: usize = 41;
 
 const PORT_COUNT: usize = 13;
@@ -325,9 +326,9 @@ fn selected_rows(matrix: &CcsMatrix<F>) -> Result<Vec<Vec<Term>>, NebulaFPrimePi
 
 pub(super) fn append_radix_image(terms: &mut Vec<Term>, start: usize, width: usize, coefficient: F) {
     let radix = match width {
-        INPUT_WIDTH => F::from_u64(3),
-        GENERAL_WIDTH => F::from_u64(7),
-        _ => F::from_u64(2),
+        1 => F::from_u64(2),
+        GENERAL_WIDTH => F::from_u64(3),
+        _ => unreachable!("Appendix B.2 PiRLC audit received an unsupported digit width"),
     };
     let mut power = coefficient;
     for offset in 0..width {
@@ -425,7 +426,7 @@ pub fn production_pi_rlc_family_body_algebra_retained_audit(
         0,
         D,
         0,
-        4,
+        crate::config::B_BASE,
     )?
     .finish()?;
     if relation.structure().n != FINAL_ROWS
@@ -508,13 +509,15 @@ pub fn production_pi_rlc_family_body_algebra_retained_audit(
             FINAL_PRODUCT_START,
         ],
         widths: [GENERAL_WIDTH, INPUT_WIDTH, GENERAL_WIDTH, GENERAL_WIDTH],
-        radices: [7, 3, 7, 7],
+        radices: [3; 4],
         source_nnz,
         final_port_nnz,
     })
 }
 
-const _: () = assert!(ALGEBRA_ROWS == 43_794);
-const _: () = assert!(LOCAL_COLUMNS == 45_415);
-const _: () = assert!(SOURCE_PRODUCT_START + PRODUCT_ROWS == 46_055);
-const _: () = assert!(FINAL_PRODUCT_START == 53_784);
+const _: () = assert!(ALGEBRA_ROWS == 49_626);
+const _: () = assert!(LOCAL_COLUMNS == 51_463);
+const _: () = assert!(SOURCE_PRODUCT_START + PRODUCT_ROWS == 52_103);
+const _: () = assert!(FINAL_INPUT_START == 38_340);
+const _: () = assert!(FINAL_OUTPUT_START == 75_978);
+const _: () = assert!(FINAL_PRODUCT_START == 78_192);

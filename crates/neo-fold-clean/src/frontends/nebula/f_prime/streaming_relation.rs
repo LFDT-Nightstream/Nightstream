@@ -1,6 +1,6 @@
 //! Exact production schedule adapter for the shared-row phase composer.
 //!
-//! Owns only the transfer of the verifier-owned 400-arm maps into the generic
+//! Owns only the transfer of the verifier-owned work-item maps into the generic
 //! scheduled composers. It does not own component circuits or public fields.
 
 use std::ops::Range;
@@ -308,7 +308,7 @@ pub const fn production_combined_overlay_kind_count() -> usize {
     production_claim_coordinate_overlay_kind_count() + PI_RLC_FAMILY_COUNT
 }
 
-/// Exact combined overlay kind selected by each of the 400 work items.
+/// Exact combined overlay kind selected by each verifier-owned work item.
 /// Claim and PiRLC family work items are disjoint by construction.
 pub fn production_combined_overlay_kind_map() -> Vec<usize> {
     let claim = production_claim_coordinate_overlay_kind_map();
@@ -338,7 +338,17 @@ pub fn build_production_combined_overlay_low_norm_r1cs(
     let mut arms = production_claim_coordinate_overlay_sparse_arms()?;
     arms.extend(production_pi_rlc_family_overlay_sparse_arms()?);
     debug_assert_eq!(arms.len(), production_combined_overlay_kind_count());
-    Ok(prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(arms, 0, 0, 1, 0, 4)?.finish()?)
+    Ok(
+        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+            arms,
+            0,
+            0,
+            1,
+            0,
+            crate::config::B_BASE,
+        )?
+        .finish()?,
+    )
 }
 
 /// Add the exact claim-coordinate and PiRLC family overlays to the production

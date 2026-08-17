@@ -19,8 +19,8 @@ use super::{
 use crate::frontends::nebula::f_prime::NebulaFPrimePiRlcFamilyReplayArmKind;
 
 const SCHEMA_VERSION: u64 = 1;
-const BODY_FINAL_COLUMNS: usize = 2_521_314;
-const OVERLAY_FINAL_COLUMNS: usize = 35_856;
+const BODY_FINAL_COLUMNS: usize = 8_858_862;
+const OVERLAY_FINAL_COLUMNS: usize = 42_228;
 const PARITY_COUNT: usize = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -156,13 +156,13 @@ fn link_error(reason: impl Into<String>) -> NebulaFPrimePiRlcFamilyRelationError
 const fn expected_runs() -> [NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit; 3] {
     [
         NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit {
-            body_source_start: 46_055,
+            body_source_start: 52_103,
             overlay_source_start: 1,
             outer_count: 1,
             body_source_stride: 41,
             overlay_source_stride: 41,
             field_count: 41,
-            body_final_start: 1_059_804,
+            body_final_start: 2_110_644,
             overlay_final_start: FINAL_ZERO_DIGIT_START,
             final_outer_stride: 41,
             final_field_stride: 1,
@@ -170,13 +170,13 @@ const fn expected_runs() -> [NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit; 3] {
             radix: 2,
         },
         NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit {
-            body_source_start: 46_096,
+            body_source_start: 52_144,
             overlay_source_start: 42,
             outer_count: FAMILY_INPUT_FIELDS,
             body_source_stride: 122,
             overlay_source_stride: DIGIT_COUNT,
             field_count: DIGIT_COUNT,
-            body_final_start: 19_332,
+            body_final_start: 38_340,
             overlay_final_start: FINAL_ACTIVE_DIGIT_START,
             final_outer_stride: DIGIT_COUNT,
             final_field_stride: 1,
@@ -184,13 +184,13 @@ const fn expected_runs() -> [NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit; 3] {
             radix: 2,
         },
         NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit {
-            body_source_start: 144_918,
-            overlay_source_start: 33_252,
+            body_source_start: 164_142,
+            overlay_source_start: 37_680,
             outer_count: 1,
             body_source_stride: COMMITMENT_OUTPUT_FIELDS,
             overlay_source_stride: COMMITMENT_OUTPUT_FIELDS,
             field_count: COMMITMENT_OUTPUT_FIELDS,
-            body_final_start: 1_076_091,
+            body_final_start: 2_129_127,
             overlay_final_start: FINAL_OUTPUT_START,
             final_outer_stride: COMMITMENT_OUTPUT_FIELDS * OUTPUT_WIDTH,
             final_field_stride: OUTPUT_WIDTH,
@@ -328,5 +328,5 @@ pub fn production_pi_rlc_family_normalized_link_audit(
 }
 
 const _: () = assert!(PI_RLC_FAMILY_BODY_PUBLIC_OUTPUTS == 640);
-const _: () = assert!(PI_RLC_FAMILY_LINK_FIELDS == 33_359);
-const _: () = assert!(PI_RLC_FAMILY_COUNT * PI_RLC_FAMILY_LINK_FIELDS == 3_669_490);
+const _: () = assert!(PI_RLC_FAMILY_LINK_FIELDS == 37_787);
+const _: () = assert!(PI_RLC_FAMILY_COUNT * PI_RLC_FAMILY_LINK_FIELDS == 4_156_570);

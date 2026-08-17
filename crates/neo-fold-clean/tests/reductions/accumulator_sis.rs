@@ -25,9 +25,9 @@ use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest, commit_coordinate_fields, commit_fields, enforce_accumulator_digest,
     enforce_commit_coordinate_fields, enforce_commit_fields, SisAccumulatorConfig, SisAccumulatorError,
     ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, DIGEST_COMPRESSION_MAX_MESSAGE_COLS,
-    NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG, PROTOCOL_BINDING_KAPPA,
-    PROTOCOL_BINDING_MAX_MESSAGE_COLS, SIS_DIGEST_COMPRESSION_CONFIG,
+    NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+    PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG, PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG,
+    PROTOCOL_BINDING_KAPPA, PROTOCOL_BINDING_MAX_MESSAGE_COLS, SIS_DIGEST_COMPRESSION_CONFIG,
 };
 use neo_math::{KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -356,7 +356,8 @@ fn protocol_binding_maps_match_estimated_two_level_profile() {
         PI_RLC_PROJECTION_SIS_CONFIG,
         NEBULA_LEAF_SIS_CONFIG,
         PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
-        PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
     ];
     for config in long_maps {
         assert_eq!(config.kappa, PROTOCOL_BINDING_KAPPA);
@@ -372,6 +373,7 @@ fn protocol_binding_maps_match_estimated_two_level_profile() {
         long_maps[5],
         long_maps[6],
         long_maps[7],
+        long_maps[8],
         SIS_DIGEST_COMPRESSION_CONFIG,
     ];
     for (index, config) in all_maps.iter().enumerate() {

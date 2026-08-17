@@ -149,6 +149,7 @@ pub struct NebulaFPrimePiRlcFamilyBodyRowLedger {
     columns: usize,
     source_rows: [usize; 2],
     rewrite_count: usize,
+    linear_definition_counts: [usize; 2],
     fixed_runs: Vec<NebulaFPrimePiRlcBodyFixedEmittedRun>,
     retained_runs: Vec<NebulaFPrimePiRlcBodyRetainedRun>,
     rewrite_batches: Vec<NebulaFPrimePiRlcBodyRewriteBatch>,
@@ -169,6 +170,10 @@ impl NebulaFPrimePiRlcFamilyBodyRowLedger {
 
     pub const fn rewrite_count(&self) -> usize {
         self.rewrite_count
+    }
+
+    pub const fn linear_definition_counts(&self) -> [usize; 2] {
+        self.linear_definition_counts
     }
 
     pub fn fixed_runs(&self) -> &[NebulaFPrimePiRlcBodyFixedEmittedRun] {
@@ -301,19 +306,37 @@ fn compress_points(points: &[RewritePoint]) -> Vec<NebulaFPrimePiRlcBodyRewriteB
             }
             count += 1;
         }
-        batches.push(NebulaFPrimePiRlcBodyRewriteBatch {
-            rewrite_start: first.rewrite,
-            count,
-            rewrite_stride,
-            arm: first.arm,
-            kind: first.kind,
-            source_start: first.source_start,
-            source_stride,
-            source_width: first.source_width,
-            emitted_start: first.emitted_start,
-            emitted_stride,
-            emitted_width: first.emitted_width,
-        });
+        if count == 2 && source_stride > first.source_width {
+            for index in 0..count {
+                batches.push(NebulaFPrimePiRlcBodyRewriteBatch {
+                    rewrite_start: first.rewrite + rewrite_stride * index,
+                    count: 1,
+                    rewrite_stride: 1,
+                    arm: first.arm,
+                    kind: first.kind,
+                    source_start: first.source_start + source_stride * index,
+                    source_stride: 0,
+                    source_width: first.source_width,
+                    emitted_start: first.emitted_start + emitted_stride * index,
+                    emitted_stride: 0,
+                    emitted_width: first.emitted_width,
+                });
+            }
+        } else {
+            batches.push(NebulaFPrimePiRlcBodyRewriteBatch {
+                rewrite_start: first.rewrite,
+                count,
+                rewrite_stride,
+                arm: first.arm,
+                kind: first.kind,
+                source_start: first.source_start,
+                source_stride,
+                source_width: first.source_width,
+                emitted_start: first.emitted_start,
+                emitted_stride,
+                emitted_width: first.emitted_width,
+            });
+        }
         cursor += count;
     }
     batches
@@ -356,10 +379,23 @@ fn build_ledger(
     }
     let source_rows = [PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_ODD_ROWS];
     let points = rewrite_points(audit)?;
-    let rewrite_batches = compress_points(&points);
-    if expanded_points(&rewrite_batches) != points {
-        return Err(ledger_error("affine rewrite batches do not replay the exact ledger"));
+    let emitted_points = points
+        .iter()
+        .copied()
+        .filter(|point| point.kind != NebulaFPrimePiRlcBodyRewriteKind::LinearDefinition)
+        .collect::<Vec<_>>();
+    let rewrite_batches = compress_points(&emitted_points);
+    if expanded_points(&rewrite_batches) != emitted_points {
+        return Err(ledger_error(
+            "affine emitted-rewrite batches do not replay the exact ledger",
+        ));
     }
+    let linear_definition_counts = std::array::from_fn(|arm| {
+        points
+            .iter()
+            .filter(|point| point.arm == arm && point.kind == NebulaFPrimePiRlcBodyRewriteKind::LinearDefinition)
+            .count()
+    });
 
     let mut retained_runs = Vec::new();
     for (arm_index, arm) in rows.arms().iter().enumerate() {
@@ -381,6 +417,52 @@ fn build_ledger(
                 | SelectiveSourceRowDisposition::LinearDefinition(_) => {}
                 _ => return Err(ledger_error("unsupported source row disposition")),
             }
+        }
+    }
+
+    let mut source_envelopes: [Vec<std::ops::Range<usize>>; 2] = std::array::from_fn(|_| Vec::new());
+    for run in &retained_runs {
+        let end = run
+            .source_start
+            .checked_add(run.length)
+            .ok_or_else(|| ledger_error("retained source envelope overflowed"))?;
+        source_envelopes[run.arm].push(run.source_start..end);
+    }
+    for batch in &rewrite_batches {
+        if batch.count == 0
+            || batch.arm >= source_rows.len()
+            || batch.kind == NebulaFPrimePiRlcBodyRewriteKind::LinearDefinition
+            || batch.rewrite_stride != 1
+            || (batch.count > 1 && batch.source_stride < batch.source_width)
+            || (batch.count > 1 && batch.emitted_stride != batch.emitted_width)
+        {
+            return Err(ledger_error("compact rewrite batch has invalid geometry"));
+        }
+        let source_end = batch
+            .source_stride
+            .checked_mul(batch.count - 1)
+            .and_then(|offset| batch.source_start.checked_add(offset))
+            .and_then(|last_start| last_start.checked_add(batch.source_width))
+            .ok_or_else(|| ledger_error("rewrite source envelope overflowed"))?;
+        let rewrite_end = batch
+            .rewrite_start
+            .checked_add(batch.count)
+            .ok_or_else(|| ledger_error("rewrite identifier envelope overflowed"))?;
+        let emitted_end = batch
+            .emitted_stride
+            .checked_mul(batch.count - 1)
+            .and_then(|offset| batch.emitted_start.checked_add(offset))
+            .and_then(|last_start| last_start.checked_add(batch.emitted_width))
+            .ok_or_else(|| ledger_error("rewrite emitted envelope overflowed"))?;
+        if source_end > source_rows[batch.arm] || rewrite_end > points.len() || emitted_end > rows.total_rows() {
+            return Err(ledger_error("compact rewrite batch envelope is out of range"));
+        }
+        source_envelopes[batch.arm].push(batch.source_start..source_end);
+    }
+    for envelopes in &mut source_envelopes {
+        envelopes.sort_unstable_by_key(|range| range.start);
+        if envelopes.windows(2).any(|pair| pair[0].end > pair[1].start) {
+            return Err(ledger_error("compact source envelopes overlap"));
         }
     }
 
@@ -497,6 +579,7 @@ fn build_ledger(
         columns: audit.layout().total_columns(),
         source_rows,
         rewrite_count: points.len(),
+        linear_definition_counts,
         fixed_runs,
         retained_runs,
         rewrite_batches,

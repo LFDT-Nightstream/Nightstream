@@ -23,17 +23,17 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const SCHEMA_VERSION: usize = 3;
 const PROFILE_ID: &str = "nebula-f-prime-streaming-pi-rlc-family-public-v3";
-const FAMILY_STATE_FIELDS: usize = 937;
+const FAMILY_STATE_FIELDS: usize = 1_045;
 const SHARED_PUBLIC_WORDS: usize = 10;
 const PUBLIC_BITS_PER_WORD: usize = 64;
 const FIRST_FAMILY_PROGRAM_CURSOR: usize = 199;
-const SUFFIX_POSEIDON2_CALLS: usize = 490;
+const SUFFIX_POSEIDON2_CALLS: usize = 544;
 const PHASE_ENVELOPE_POSEIDON2_CALLS: usize = 1_094;
 const PHASE_ENVELOPE_ROWS: usize = 662_971;
 const DIGEST_PIN_COUNT: usize = 13;
 const POSEIDON2_ROWS: usize = 600;
-const LOW_NORM_ROWS: usize = 474_966;
-const LOW_NORM_COLUMNS: usize = 4_687_416;
+const LOW_NORM_ROWS: usize = 491_046;
+const LOW_NORM_COLUMNS: usize = 8_858_862;
 const LOW_NORM_PUBLIC_COLUMNS: usize = 648;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -434,8 +434,8 @@ fn build_arm(
         &before_x_out_digest_columns,
         &poseidon2_calls,
     );
-    assert_eq!(after_call_start, 472);
-    assert_eq!(before_call_start, 481);
+    assert_eq!(after_call_start, SUFFIX_POSEIDON2_CALLS - 18);
+    assert_eq!(before_call_start, SUFFIX_POSEIDON2_CALLS - 9);
 
     let public_output_columns = (0..synthesis.public_columns() - 1)
         .map(|index| {
@@ -682,8 +682,8 @@ fn render_arm(arm: &ArmArtifact) -> String {
         lean_nat_list(arm.before_x_out_preimage_columns.iter().copied()),
         lean_nat_list(arm.after_x_out_digest_columns.iter().copied()),
         lean_nat_list(arm.before_x_out_digest_columns.iter().copied()),
-        render_hash(&arm.after_x_out_hash, 472),
-        render_hash(&arm.before_x_out_hash, 481),
+        render_hash(&arm.after_x_out_hash, SUFFIX_POSEIDON2_CALLS - 18),
+        render_hash(&arm.before_x_out_hash, SUFFIX_POSEIDON2_CALLS - 9),
         lean_nat_list(arm.public_word_call_indices.iter().copied()),
         lean_nat_list(arm.after_digest_pin_columns.iter().copied()),
         lean_nat_list(arm.before_digest_pin_columns.iter().copied()),

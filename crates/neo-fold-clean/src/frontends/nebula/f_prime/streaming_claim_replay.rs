@@ -29,34 +29,45 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
-use super::streaming_program::{CLAIM_CHUNK_FIELDS, CLAIM_FRAME_FIELDS, FIRST_CLAIM_PROGRAM_CURSOR};
+use super::streaming_program::{
+    CLAIM_CHUNK_FIELDS, CLAIM_FRAME_FIELDS, FIRST_CLAIM_PROGRAM_CURSOR, PI_CCS_RUNNING_COUNT,
+};
 use super::streaming_public::NebulaFPrimeStreamingPublicLayout;
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, FieldR1csLoweringError, LowNormR1csError, LoweredFieldR1cs};
 use crate::paper::reductions::accumulator_sis_circuit::{
     commit_coordinate_fields, enforce_commit_coordinate_fields, SisAccumulatorConfig,
-    PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG, PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, PROTOCOL_BINDING_KAPPA,
-    PROTOCOL_BINDING_MAX_FIELDS,
+    PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG, PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, PROTOCOL_BINDING_KAPPA, PROTOCOL_BINDING_MAX_FIELDS,
 };
 
 pub(super) const SPONGE_WIDTH: usize = 8;
 const RATE: usize = 4;
 const PUBLIC_WORD_BITS: usize = 64;
-pub(super) const PI_CCS_STATEMENT_FIELDS: usize = 21_220;
-pub(super) const PI_CCS_STATEMENT_FRESH_FIELDS: usize = 25_648;
-pub(super) const PI_CCS_RUNNING_METADATA_FIELDS: usize = 61_992;
+const PI_CCS_ROW_VARIABLES: usize = 26;
+const PI_CCS_COMMITMENT_FIELDS_PER_CLAIM: usize = 3_888;
+const PI_CCS_PUBLIC_FIELDS_PER_CLAIM: usize = 540;
+const PI_CCS_EVALUATION_FIELDS_PER_CLAIM: usize = 14 * D * 2;
+pub(super) const PI_CCS_STATEMENT_FIELDS: usize =
+    2 * PI_CCS_ROW_VARIABLES + PI_CCS_RUNNING_COUNT * PI_CCS_EVALUATION_FIELDS_PER_CLAIM;
+pub(super) const PI_CCS_STATEMENT_FRESH_FIELDS: usize =
+    PI_CCS_STATEMENT_FIELDS + PI_CCS_COMMITMENT_FIELDS_PER_CLAIM + PI_CCS_PUBLIC_FIELDS_PER_CLAIM;
+pub(super) const PI_CCS_RUNNING_COMMITMENT_FIELDS: usize = PI_CCS_RUNNING_COUNT * PI_CCS_COMMITMENT_FIELDS_PER_CLAIM;
+pub(super) const PI_CCS_RUNNING_PUBLIC_FIELDS: usize = PI_CCS_RUNNING_COUNT * PI_CCS_PUBLIC_FIELDS_PER_CLAIM;
 const PI_CCS_POINT_FIELDS: usize = 52;
 const PI_CCS_POINT_FRAME_OFFSET: usize = 383;
-const PI_CCS_RUNNING_COMMITMENT_FIELDS: usize = 54_432;
 const PI_CCS_RUNNING_COMMITMENT_FRAME_OFFSET: usize = 435;
-const PI_CCS_RUNNING_PUBLIC_FRAME_OFFSET: usize = 54_867;
-const PI_CCS_EVALUATION_FRAME_OFFSET: usize = 62_427;
-const PI_CCS_FRESH_COMMITMENT_FIELDS: usize = 3_888;
-const PI_CCS_FRESH_COMMITMENT_FRAME_OFFSET: usize = 83_595;
-const PI_CCS_FRESH_PUBLIC_FRAME_OFFSET: usize = 87_483;
+const PI_CCS_RUNNING_PUBLIC_FRAME_OFFSET: usize =
+    PI_CCS_RUNNING_COMMITMENT_FRAME_OFFSET + PI_CCS_RUNNING_COMMITMENT_FIELDS;
+const PI_CCS_EVALUATION_FRAME_OFFSET: usize =
+    PI_CCS_RUNNING_PUBLIC_FRAME_OFFSET + PI_CCS_RUNNING_COUNT * PI_CCS_PUBLIC_FIELDS_PER_CLAIM;
+const PI_CCS_FRESH_COMMITMENT_FIELDS: usize = PI_CCS_COMMITMENT_FIELDS_PER_CLAIM;
+const PI_CCS_FRESH_COMMITMENT_FRAME_OFFSET: usize =
+    PI_CCS_EVALUATION_FRAME_OFFSET + PI_CCS_RUNNING_COUNT * PI_CCS_EVALUATION_FIELDS_PER_CLAIM;
+const PI_CCS_FRESH_PUBLIC_FRAME_OFFSET: usize = PI_CCS_FRESH_COMMITMENT_FRAME_OFFSET + PI_CCS_FRESH_COMMITMENT_FIELDS;
 pub(super) const COORDINATE_COMMITMENT_FIELDS: usize = D * PROTOCOL_BINDING_KAPPA;
-pub(super) const PERSISTENT_WORDS: usize = 2 * (SPONGE_WIDTH + 1) + 2 + 2 * COORDINATE_COMMITMENT_FIELDS;
+pub(super) const PERSISTENT_WORDS: usize = 2 * (SPONGE_WIDTH + 1) + 2 + 3 * COORDINATE_COMMITMENT_FIELDS;
 const TRANSITION_WORDS: usize = 2 * PERSISTENT_WORDS;
 const STATE_DIGEST_WORDS: usize = 8;
 const PUBLIC_CURSOR_WORDS: usize = 2;
@@ -129,7 +140,8 @@ pub(super) struct PersistentState {
     pub frame_cursor: u64,
     pub program_cursor: u64,
     pub statement_fresh_commitment: [F; COORDINATE_COMMITMENT_FIELDS],
-    pub running_metadata_commitment: [F; COORDINATE_COMMITMENT_FIELDS],
+    pub running_commitments_binding: [F; COORDINATE_COMMITMENT_FIELDS],
+    pub running_public_binding: [F; COORDINATE_COMMITMENT_FIELDS],
 }
 
 #[derive(Clone, Copy)]
@@ -156,7 +168,8 @@ pub(super) struct PersistentStateVars {
     pub frame_cursor: FieldWord,
     pub program_cursor: CanonicalWord,
     pub statement_fresh_commitment: [FieldWord; COORDINATE_COMMITMENT_FIELDS],
-    pub running_metadata_commitment: [FieldWord; COORDINATE_COMMITMENT_FIELDS],
+    pub running_commitments_binding: [FieldWord; COORDINATE_COMMITMENT_FIELDS],
+    pub running_public_binding: [FieldWord; COORDINATE_COMMITMENT_FIELDS],
 }
 
 #[derive(Clone, Copy)]
@@ -221,13 +234,17 @@ pub struct NebulaFPrimeClaimReplaySynthesis {
     state_word_columns: [usize; TRANSITION_WORDS],
     after_runtime_columns: [usize; SPONGE_WIDTH],
     statement_fresh_fields: Vec<(usize, usize)>,
-    running_metadata_fields: Vec<(usize, usize)>,
+    running_commitment_fields: Vec<(usize, usize)>,
+    running_public_fields: Vec<(usize, usize)>,
     partial_statement_fresh_columns: Vec<usize>,
-    partial_running_metadata_columns: Vec<usize>,
+    partial_running_commitment_columns: Vec<usize>,
+    partial_running_public_columns: Vec<usize>,
     before_statement_fresh_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
     after_statement_fresh_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
-    before_running_metadata_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
-    after_running_metadata_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
+    before_running_commitments_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
+    after_running_commitments_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
+    before_running_public_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
+    after_running_public_columns: [usize; COORDINATE_COMMITMENT_FIELDS],
     after_digest_pin_columns: [usize; DIGEST_PIN_COUNT],
     before_digest_pin_columns: [usize; DIGEST_PIN_COUNT],
 }
@@ -344,18 +361,28 @@ impl NebulaFPrimeClaimReplaySynthesis {
         &self.statement_fresh_fields
     }
 
-    /// `(global map field, local chunk offset)` pairs for the running-metadata
-    /// binding.
-    pub fn running_metadata_fields(&self) -> &[(usize, usize)] {
-        &self.running_metadata_fields
+    /// `(global map field, local chunk offset)` pairs for the running-claim
+    /// commitment binding.
+    pub fn running_commitment_fields(&self) -> &[(usize, usize)] {
+        &self.running_commitment_fields
+    }
+
+    /// `(global map field, local chunk offset)` pairs for the running-claim
+    /// public-input binding.
+    pub fn running_public_fields(&self) -> &[(usize, usize)] {
+        &self.running_public_fields
     }
 
     pub fn partial_statement_fresh_commitment_column(&self, index: usize) -> Option<usize> {
         self.partial_statement_fresh_columns.get(index).copied()
     }
 
-    pub fn partial_running_metadata_commitment_column(&self, index: usize) -> Option<usize> {
-        self.partial_running_metadata_columns.get(index).copied()
+    pub fn partial_running_commitments_binding_column(&self, index: usize) -> Option<usize> {
+        self.partial_running_commitment_columns.get(index).copied()
+    }
+
+    pub fn partial_running_public_binding_column(&self, index: usize) -> Option<usize> {
+        self.partial_running_public_columns.get(index).copied()
     }
 
     pub const fn before_statement_fresh_commitment_column(&self, index: usize) -> Option<usize> {
@@ -374,17 +401,33 @@ impl NebulaFPrimeClaimReplaySynthesis {
         }
     }
 
-    pub const fn before_running_metadata_commitment_column(&self, index: usize) -> Option<usize> {
+    pub const fn before_running_commitments_binding_column(&self, index: usize) -> Option<usize> {
         if index < COORDINATE_COMMITMENT_FIELDS {
-            Some(self.before_running_metadata_columns[index])
+            Some(self.before_running_commitments_columns[index])
         } else {
             None
         }
     }
 
-    pub const fn after_running_metadata_commitment_column(&self, index: usize) -> Option<usize> {
+    pub const fn after_running_commitments_binding_column(&self, index: usize) -> Option<usize> {
         if index < COORDINATE_COMMITMENT_FIELDS {
-            Some(self.after_running_metadata_columns[index])
+            Some(self.after_running_commitments_columns[index])
+        } else {
+            None
+        }
+    }
+
+    pub const fn before_running_public_binding_column(&self, index: usize) -> Option<usize> {
+        if index < COORDINATE_COMMITMENT_FIELDS {
+            Some(self.before_running_public_columns[index])
+        } else {
+            None
+        }
+    }
+
+    pub const fn after_running_public_binding_column(&self, index: usize) -> Option<usize> {
+        if index < COORDINATE_COMMITMENT_FIELDS {
+            Some(self.after_running_public_columns[index])
         } else {
             None
         }
@@ -409,14 +452,26 @@ impl NebulaFPrimeClaimReplaySynthesis {
     }
 
     #[doc(hidden)]
-    pub fn normalized_before_running_metadata_commitment_column(&self, index: usize) -> Option<usize> {
-        self.before_running_metadata_commitment_column(index)
+    pub fn normalized_before_running_commitments_binding_column(&self, index: usize) -> Option<usize> {
+        self.before_running_commitments_binding_column(index)
             .and_then(|column| self.normalized_field_column(column))
     }
 
     #[doc(hidden)]
-    pub fn normalized_after_running_metadata_commitment_column(&self, index: usize) -> Option<usize> {
-        self.after_running_metadata_commitment_column(index)
+    pub fn normalized_after_running_commitments_binding_column(&self, index: usize) -> Option<usize> {
+        self.after_running_commitments_binding_column(index)
+            .and_then(|column| self.normalized_field_column(column))
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_before_running_public_binding_column(&self, index: usize) -> Option<usize> {
+        self.before_running_public_binding_column(index)
+            .and_then(|column| self.normalized_field_column(column))
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_after_running_public_binding_column(&self, index: usize) -> Option<usize> {
+        self.after_running_public_binding_column(index)
             .and_then(|column| self.normalized_field_column(column))
     }
 
@@ -487,14 +542,14 @@ impl NebulaFPrimeClaimReplaySynthesis {
     }
 }
 
-/// Compute the exact field-native and radix-four selective relation shape.
+/// Compute the exact field-native and production-profile selective relation shape.
 /// This does not allocate the final CCS matrices.
 pub fn production_claim_replay_shape_audit() -> Result<NebulaFPrimeClaimReplayShapeAudit, NebulaFPrimeClaimReplayError>
 {
     claim_replay_shape_audit_for_chunk_fields(CLAIM_CHUNK_FIELDS)
 }
 
-/// Exact verifier-owned statement-and-fresh coordinate map for all 86
+/// Exact verifier-owned statement-and-fresh coordinate map for all
 /// production claim chunks. Empty entries carry this map unchanged.
 pub fn production_claim_statement_fresh_field_map() -> Vec<Vec<(usize, usize)>> {
     let geometry = ClaimReplayGeometry::production();
@@ -503,12 +558,21 @@ pub fn production_claim_statement_fresh_field_map() -> Vec<Vec<(usize, usize)>> 
         .collect()
 }
 
-/// Exact verifier-owned running-metadata coordinate map for all 86
+/// Exact verifier-owned running-commitment coordinate map for all
 /// production claim chunks. Empty entries carry this map unchanged.
-pub fn production_claim_running_metadata_field_map() -> Vec<Vec<(usize, usize)>> {
+pub fn production_claim_running_commitment_field_map() -> Vec<Vec<(usize, usize)>> {
     let geometry = ClaimReplayGeometry::production();
     (0..=geometry.full_chunks)
-        .map(|chunk_index| claim_running_metadata_positions(chunk_index, geometry))
+        .map(|chunk_index| claim_running_commitment_positions(chunk_index, geometry))
+        .collect()
+}
+
+/// Exact verifier-owned running-public coordinate map for all production
+/// claim chunks. Empty entries carry this map unchanged.
+pub fn production_claim_running_public_field_map() -> Vec<Vec<(usize, usize)>> {
+    let geometry = ClaimReplayGeometry::production();
+    (0..=geometry.full_chunks)
+        .map(|chunk_index| claim_running_public_positions(chunk_index, geometry))
         .collect()
 }
 
@@ -535,7 +599,7 @@ pub fn claim_replay_shape_audit_for_chunk_fields(
             full_shared,
             D,
             0,
-            4,
+            crate::config::B_BASE,
         )?;
     let prepared =
         crate::frontends::r1cs_f_prime::prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
@@ -544,7 +608,7 @@ pub fn claim_replay_shape_audit_for_chunk_fields(
             0,
             D,
             0,
-            4,
+            crate::config::B_BASE,
         )?;
     let shape = prepared.shape_summary();
     Ok(NebulaFPrimeClaimReplayShapeAudit {
@@ -584,23 +648,33 @@ fn synthesize_fixture_with_coordinate_constraints(
 ) -> NebulaFPrimeClaimReplaySynthesis {
     let chunk = fixture_chunk(kind, chunk_index, geometry);
     let statement_fresh_positions = claim_statement_fresh_positions(chunk_index, geometry);
-    let running_metadata_positions = claim_running_metadata_positions(chunk_index, geometry);
+    let running_commitment_positions = claim_running_commitment_positions(chunk_index, geometry);
+    let running_public_positions = claim_running_public_positions(chunk_index, geometry);
     let partial_statement_fresh = fixture_partial_coordinate_commitment(
         PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
         PI_CCS_STATEMENT_FRESH_FIELDS,
         &chunk,
         &statement_fresh_positions,
     );
-    let partial_running_metadata = fixture_partial_coordinate_commitment(
-        PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-        PI_CCS_RUNNING_METADATA_FIELDS,
+    let partial_running_commitments = fixture_partial_coordinate_commitment(
+        PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_COMMITMENT_FIELDS,
         &chunk,
-        &running_metadata_positions,
+        &running_commitment_positions,
+    );
+    let partial_running_public = fixture_partial_coordinate_commitment(
+        PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_PUBLIC_FIELDS,
+        &chunk,
+        &running_public_positions,
     );
     let statement_fresh_commitment = fixture_coordinate_accumulator(chunk_index, 0x4000);
-    let running_metadata_commitment = fixture_coordinate_accumulator(chunk_index, 0x8000);
+    let running_commitments_binding = fixture_coordinate_accumulator(chunk_index, 0x8000);
+    let running_public_binding = fixture_coordinate_accumulator(chunk_index, 0xC000);
     let next_statement_fresh_commitment = add_partial(statement_fresh_commitment, partial_statement_fresh.as_ref());
-    let next_running_metadata_commitment = add_partial(running_metadata_commitment, partial_running_metadata.as_ref());
+    let next_running_commitments_binding =
+        add_partial(running_commitments_binding, partial_running_commitments.as_ref());
+    let next_running_public_binding = add_partial(running_public_binding, partial_running_public.as_ref());
     let runtime = SpongeState {
         lanes: std::array::from_fn(|lane| F::from_u64(0x1000 + (chunk_index as u64) * 17 + lane as u64)),
         absorbed: 0,
@@ -619,7 +693,8 @@ fn synthesize_fixture_with_coordinate_constraints(
         frame_cursor: (chunk_index * geometry.chunk_fields) as u64,
         program_cursor: (FIRST_CLAIM_PROGRAM_CURSOR + chunk_index) as u64,
         statement_fresh_commitment,
-        running_metadata_commitment,
+        running_commitments_binding,
+        running_public_binding,
     };
     let after = PersistentState {
         expected,
@@ -627,7 +702,8 @@ fn synthesize_fixture_with_coordinate_constraints(
         frame_cursor: before.frame_cursor + kind.active_fields(geometry) as u64,
         program_cursor: before.program_cursor + 1,
         statement_fresh_commitment: next_statement_fresh_commitment,
-        running_metadata_commitment: next_running_metadata_commitment,
+        running_commitments_binding: next_running_commitments_binding,
+        running_public_binding: next_running_public_binding,
     };
     synthesize(
         kind,
@@ -643,11 +719,14 @@ fn synthesize_fixture_with_coordinate_constraints(
 struct FixtureCoordinateTransition {
     before_statement_fresh: [F; COORDINATE_COMMITMENT_FIELDS],
     after_statement_fresh: [F; COORDINATE_COMMITMENT_FIELDS],
-    before_running_metadata: [F; COORDINATE_COMMITMENT_FIELDS],
-    after_running_metadata: [F; COORDINATE_COMMITMENT_FIELDS],
+    before_running_commitments: [F; COORDINATE_COMMITMENT_FIELDS],
+    after_running_commitments: [F; COORDINATE_COMMITMENT_FIELDS],
+    before_running_public: [F; COORDINATE_COMMITMENT_FIELDS],
+    after_running_public: [F; COORDINATE_COMMITMENT_FIELDS],
     chunk: Vec<F>,
     statement_fresh_positions: Vec<(usize, usize)>,
-    running_metadata_positions: Vec<(usize, usize)>,
+    running_commitment_positions: Vec<(usize, usize)>,
+    running_public_positions: Vec<(usize, usize)>,
 }
 
 fn fixture_coordinate_transition(chunk_index: usize, geometry: ClaimReplayGeometry) -> FixtureCoordinateTransition {
@@ -658,29 +737,40 @@ fn fixture_coordinate_transition(chunk_index: usize, geometry: ClaimReplayGeomet
     };
     let chunk = fixture_chunk(kind, chunk_index, geometry);
     let statement_fresh_positions = claim_statement_fresh_positions(chunk_index, geometry);
-    let running_metadata_positions = claim_running_metadata_positions(chunk_index, geometry);
+    let running_commitment_positions = claim_running_commitment_positions(chunk_index, geometry);
+    let running_public_positions = claim_running_public_positions(chunk_index, geometry);
     let partial_statement_fresh = fixture_partial_coordinate_commitment(
         PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
         PI_CCS_STATEMENT_FRESH_FIELDS,
         &chunk,
         &statement_fresh_positions,
     );
-    let partial_running_metadata = fixture_partial_coordinate_commitment(
-        PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-        PI_CCS_RUNNING_METADATA_FIELDS,
+    let partial_running_commitments = fixture_partial_coordinate_commitment(
+        PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_COMMITMENT_FIELDS,
         &chunk,
-        &running_metadata_positions,
+        &running_commitment_positions,
+    );
+    let partial_running_public = fixture_partial_coordinate_commitment(
+        PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_PUBLIC_FIELDS,
+        &chunk,
+        &running_public_positions,
     );
     let before_statement_fresh = fixture_coordinate_accumulator(chunk_index, 0x4000);
-    let before_running_metadata = fixture_coordinate_accumulator(chunk_index, 0x8000);
+    let before_running_commitments = fixture_coordinate_accumulator(chunk_index, 0x8000);
+    let before_running_public = fixture_coordinate_accumulator(chunk_index, 0xC000);
     FixtureCoordinateTransition {
         before_statement_fresh,
         after_statement_fresh: add_partial(before_statement_fresh, partial_statement_fresh.as_ref()),
-        before_running_metadata,
-        after_running_metadata: add_partial(before_running_metadata, partial_running_metadata.as_ref()),
+        before_running_commitments,
+        after_running_commitments: add_partial(before_running_commitments, partial_running_commitments.as_ref()),
+        before_running_public,
+        after_running_public: add_partial(before_running_public, partial_running_public.as_ref()),
         chunk,
         statement_fresh_positions,
-        running_metadata_positions,
+        running_commitment_positions,
+        running_public_positions,
     }
 }
 
@@ -716,12 +806,12 @@ fn statement_fresh_frame_position(field: usize) -> usize {
     }
 }
 
-fn running_metadata_frame_position(field: usize) -> usize {
-    if field < PI_CCS_RUNNING_COMMITMENT_FIELDS {
-        PI_CCS_RUNNING_COMMITMENT_FRAME_OFFSET + field
-    } else {
-        PI_CCS_RUNNING_PUBLIC_FRAME_OFFSET + (field - PI_CCS_RUNNING_COMMITMENT_FIELDS)
-    }
+fn running_commitment_frame_position(field: usize) -> usize {
+    PI_CCS_RUNNING_COMMITMENT_FRAME_OFFSET + field
+}
+
+fn running_public_frame_position(field: usize) -> usize {
+    PI_CCS_RUNNING_PUBLIC_FRAME_OFFSET + field
 }
 
 fn claim_statement_fresh_positions(chunk_index: usize, geometry: ClaimReplayGeometry) -> Vec<(usize, usize)> {
@@ -733,12 +823,21 @@ fn claim_statement_fresh_positions(chunk_index: usize, geometry: ClaimReplayGeom
     )
 }
 
-fn claim_running_metadata_positions(chunk_index: usize, geometry: ClaimReplayGeometry) -> Vec<(usize, usize)> {
+fn claim_running_commitment_positions(chunk_index: usize, geometry: ClaimReplayGeometry) -> Vec<(usize, usize)> {
     claim_binding_positions(
         chunk_index,
         geometry,
-        PI_CCS_RUNNING_METADATA_FIELDS,
-        running_metadata_frame_position,
+        PI_CCS_RUNNING_COMMITMENT_FIELDS,
+        running_commitment_frame_position,
+    )
+}
+
+fn claim_running_public_positions(chunk_index: usize, geometry: ClaimReplayGeometry) -> Vec<(usize, usize)> {
+    claim_binding_positions(
+        chunk_index,
+        geometry,
+        PI_CCS_RUNNING_PUBLIC_FIELDS,
+        running_public_frame_position,
     )
 }
 
@@ -872,7 +971,10 @@ fn synthesize(
         for coordinate in transition.before.statement_fresh_commitment {
             enforce_constant(&mut builder, coordinate.field, 0);
         }
-        for coordinate in transition.before.running_metadata_commitment {
+        for coordinate in transition.before.running_commitments_binding {
+            enforce_constant(&mut builder, coordinate.field, 0);
+        }
+        for coordinate in transition.before.running_public_binding {
             enforce_constant(&mut builder, coordinate.field, 0);
         }
     }
@@ -898,32 +1000,43 @@ fn synthesize(
     }
 
     let statement_fresh_positions = claim_statement_fresh_positions(chunk_index, geometry);
-    let running_metadata_positions = claim_running_metadata_positions(chunk_index, geometry);
-    let (partial_statement_fresh_columns, partial_running_metadata_columns) = match coordinate_constraints {
-        CoordinateConstraints::DeferredOverlay => (Vec::new(), Vec::new()),
-        CoordinateConstraints::Complete => {
-            builder.begin_encoding_stage("nebula.streaming.claim_replay.coordinate_binding");
-            let statement_fresh = enforce_coordinate_map_transition(
-                &mut builder,
-                PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
-                PI_CCS_STATEMENT_FRESH_FIELDS,
-                &statement_fresh_positions,
-                &chunk_vars,
-                transition.before.statement_fresh_commitment,
-                transition.after.statement_fresh_commitment,
-            );
-            let running_metadata = enforce_coordinate_map_transition(
-                &mut builder,
-                PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-                PI_CCS_RUNNING_METADATA_FIELDS,
-                &running_metadata_positions,
-                &chunk_vars,
-                transition.before.running_metadata_commitment,
-                transition.after.running_metadata_commitment,
-            );
-            (statement_fresh, running_metadata)
-        }
-    };
+    let running_commitment_positions = claim_running_commitment_positions(chunk_index, geometry);
+    let running_public_positions = claim_running_public_positions(chunk_index, geometry);
+    let (partial_statement_fresh_columns, partial_running_commitment_columns, partial_running_public_columns) =
+        match coordinate_constraints {
+            CoordinateConstraints::DeferredOverlay => (Vec::new(), Vec::new(), Vec::new()),
+            CoordinateConstraints::Complete => {
+                builder.begin_encoding_stage("nebula.streaming.claim_replay.coordinate_binding");
+                let statement_fresh = enforce_coordinate_map_transition(
+                    &mut builder,
+                    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+                    PI_CCS_STATEMENT_FRESH_FIELDS,
+                    &statement_fresh_positions,
+                    &chunk_vars,
+                    transition.before.statement_fresh_commitment,
+                    transition.after.statement_fresh_commitment,
+                );
+                let running_commitments = enforce_coordinate_map_transition(
+                    &mut builder,
+                    PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+                    PI_CCS_RUNNING_COMMITMENT_FIELDS,
+                    &running_commitment_positions,
+                    &chunk_vars,
+                    transition.before.running_commitments_binding,
+                    transition.after.running_commitments_binding,
+                );
+                let running_public = enforce_coordinate_map_transition(
+                    &mut builder,
+                    PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+                    PI_CCS_RUNNING_PUBLIC_FIELDS,
+                    &running_public_positions,
+                    &chunk_vars,
+                    transition.before.running_public_binding,
+                    transition.after.running_public_binding,
+                );
+                (statement_fresh, running_commitments, running_public)
+            }
+        };
 
     builder.begin_encoding_stage("nebula.streaming.claim_replay.state_digest");
     let (after_digest, after_digest_pin_columns) = digest_persistent_state(&mut builder, transition.after);
@@ -945,13 +1058,21 @@ fn synthesize(
         .after
         .statement_fresh_commitment
         .map(|word| word.field.col());
-    let before_running_metadata_columns = transition
+    let before_running_commitments_columns = transition
         .before
-        .running_metadata_commitment
+        .running_commitments_binding
         .map(|word| word.field.col());
-    let after_running_metadata_columns = transition
+    let after_running_commitments_columns = transition
         .after
-        .running_metadata_commitment
+        .running_commitments_binding
+        .map(|word| word.field.col());
+    let before_running_public_columns = transition
+        .before
+        .running_public_binding
+        .map(|word| word.field.col());
+    let after_running_public_columns = transition
+        .after
+        .running_public_binding
         .map(|word| word.field.col());
     NebulaFPrimeClaimReplaySynthesis {
         kind,
@@ -963,13 +1084,17 @@ fn synthesize(
         state_word_columns,
         after_runtime_columns,
         statement_fresh_fields: statement_fresh_positions,
-        running_metadata_fields: running_metadata_positions,
+        running_commitment_fields: running_commitment_positions,
+        running_public_fields: running_public_positions,
         partial_statement_fresh_columns,
-        partial_running_metadata_columns,
+        partial_running_commitment_columns,
+        partial_running_public_columns,
         before_statement_fresh_columns,
         after_statement_fresh_columns,
-        before_running_metadata_columns,
-        after_running_metadata_columns,
+        before_running_commitments_columns,
+        after_running_commitments_columns,
+        before_running_public_columns,
+        after_running_public_columns,
         after_digest_pin_columns,
         before_digest_pin_columns,
     }
@@ -989,8 +1114,11 @@ pub(super) fn alloc_persistent(builder: &mut R1csBuilder, value: PersistentState
     let statement_fresh_commitment = value
         .statement_fresh_commitment
         .map(|coordinate| alloc_field_word(builder, coordinate.as_canonical_u64()));
-    let running_metadata_commitment = value
-        .running_metadata_commitment
+    let running_commitments_binding = value
+        .running_commitments_binding
+        .map(|coordinate| alloc_field_word(builder, coordinate.as_canonical_u64()));
+    let running_public_binding = value
+        .running_public_binding
         .map(|coordinate| alloc_field_word(builder, coordinate.as_canonical_u64()));
     let program_cursor = alloc_canonical_word(builder, value.program_cursor);
     PersistentStateVars {
@@ -999,7 +1127,8 @@ pub(super) fn alloc_persistent(builder: &mut R1csBuilder, value: PersistentState
         frame_cursor,
         program_cursor,
         statement_fresh_commitment,
-        running_metadata_commitment,
+        running_commitments_binding,
+        running_public_binding,
     }
 }
 
@@ -1033,7 +1162,8 @@ pub(super) fn persistent_state_fields(state: PersistentStateVars) -> Vec<Var> {
     fields.push(state.frame_cursor.field);
     fields.push(state.program_cursor.field);
     fields.extend(state.statement_fresh_commitment.map(|word| word.field));
-    fields.extend(state.running_metadata_commitment.map(|word| word.field));
+    fields.extend(state.running_commitments_binding.map(|word| word.field));
+    fields.extend(state.running_public_binding.map(|word| word.field));
     debug_assert_eq!(fields.len(), PERSISTENT_WORDS);
     fields
 }
@@ -1142,13 +1272,16 @@ fn enforce_cursor_alignment(builder: &mut R1csBuilder, before: PersistentStateVa
     builder.enforce_eq(&Lc::from_var(before.frame_cursor.field), &expected);
 }
 
-const _: () = assert!(FINAL_CHUNK_FIELDS == 983);
-const _: () = assert!(FULL_CHUNKS == 85);
+const _: () = assert!(FINAL_CHUNK_FIELDS == 575);
+const _: () = assert!(FULL_CHUNKS == 97);
 const _: () = assert!(COORDINATE_COMMITMENT_FIELDS == 108);
-const _: () = assert!(PI_CCS_STATEMENT_FRESH_FIELDS == 25_648);
-const _: () = assert!(PI_CCS_RUNNING_METADATA_FIELDS == 61_992);
+const _: () = assert!(PI_CCS_STATEMENT_FIELDS == 24_244);
+const _: () = assert!(PI_CCS_STATEMENT_FRESH_FIELDS == 28_672);
+const _: () = assert!(PI_CCS_RUNNING_COMMITMENT_FIELDS == 62_208);
+const _: () = assert!(PI_CCS_RUNNING_PUBLIC_FIELDS == 8_640);
 const _: () = assert!(PI_CCS_STATEMENT_FRESH_FIELDS <= PROTOCOL_BINDING_MAX_FIELDS);
-const _: () = assert!(PI_CCS_RUNNING_METADATA_FIELDS <= PROTOCOL_BINDING_MAX_FIELDS);
+const _: () = assert!(PI_CCS_RUNNING_COMMITMENT_FIELDS <= PROTOCOL_BINDING_MAX_FIELDS);
+const _: () = assert!(PI_CCS_RUNNING_PUBLIC_FIELDS <= PROTOCOL_BINDING_MAX_FIELDS);
 const _: () = assert!(PI_CCS_FRESH_PUBLIC_FRAME_OFFSET + 540 == CLAIM_FRAME_FIELDS);
-const _: () = assert!(TRANSITION_WORDS == 472);
+const _: () = assert!(TRANSITION_WORDS == 688);
 const _: () = assert!(SHARED_PUBLIC_WORDS == 10);

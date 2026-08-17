@@ -1,6 +1,6 @@
 //! Fixed-position PiCCS coordinate overlays for claim replay.
 //!
-//! Owns one no-op kind and one exact binding kind for each of the 86 claim
+//! Owns one no-op kind and one exact binding kind for each claim
 //! chunks. Overlay inputs are private copies. The joint
 //! scheduled composer links those copies to the replay body's exact chunk and
 //! both before/after commitment fields.
@@ -13,24 +13,26 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{
     fixture_coordinate_transition, ClaimReplayGeometry, NebulaFPrimeClaimReplayError, NebulaFPrimeClaimReplaySynthesis,
-    COORDINATE_COMMITMENT_FIELDS, PI_CCS_RUNNING_METADATA_FIELDS, PI_CCS_STATEMENT_FRESH_FIELDS,
+    COORDINATE_COMMITMENT_FIELDS, PI_CCS_RUNNING_COMMITMENT_FIELDS, PI_CCS_RUNNING_PUBLIC_FIELDS,
+    PI_CCS_STATEMENT_FRESH_FIELDS,
 };
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::frontends::nebula::f_prime::streaming_program::{
     NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit,
+    CLAIM_CHUNK_FIELDS, CLAIM_FRAME_FIELDS,
 };
 use crate::frontends::r1cs_f_prime::{
     lower_field_r1cs, prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
     MultiBranchLowNormR1cs, OverlayFieldLink, OverlayKindLinks,
 };
 use crate::paper::reductions::accumulator_sis_circuit::{
-    enforce_commit_coordinate_fields, SisAccumulatorConfig, PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+    enforce_commit_coordinate_fields, SisAccumulatorConfig, PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+    PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG, PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
 };
 
 const NOOP_KIND: usize = 0;
 const FIRST_ACTIVE_KIND: usize = 1;
-const ACTIVE_CHUNKS: usize = 86;
+const ACTIVE_CHUNKS: usize = CLAIM_FRAME_FIELDS.div_ceil(CLAIM_CHUNK_FIELDS);
 const OVERLAY_KINDS: usize = FIRST_ACTIVE_KIND + ACTIVE_CHUNKS;
 
 pub const fn production_claim_coordinate_overlay_kind_count() -> usize {
@@ -76,8 +78,10 @@ pub struct NebulaFPrimeClaimCoordinateOverlaySynthesis {
     builder: R1csBuilder,
     before_statement_fresh_columns: Vec<usize>,
     after_statement_fresh_columns: Vec<usize>,
-    before_running_metadata_columns: Vec<usize>,
-    after_running_metadata_columns: Vec<usize>,
+    before_running_commitments_columns: Vec<usize>,
+    after_running_commitments_columns: Vec<usize>,
+    before_running_public_columns: Vec<usize>,
+    after_running_public_columns: Vec<usize>,
     chunk_columns: Vec<(usize, usize)>,
 }
 
@@ -101,8 +105,10 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
             builder,
             before_statement_fresh_columns: Vec::new(),
             after_statement_fresh_columns: Vec::new(),
-            before_running_metadata_columns: Vec::new(),
-            after_running_metadata_columns: Vec::new(),
+            before_running_commitments_columns: Vec::new(),
+            after_running_commitments_columns: Vec::new(),
+            before_running_public_columns: Vec::new(),
+            after_running_public_columns: Vec::new(),
             chunk_columns: Vec::new(),
         }
     }
@@ -111,7 +117,9 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
         let geometry = ClaimReplayGeometry::production();
         let transition = fixture_coordinate_transition(chunk_index, geometry);
         assert!(
-            !transition.statement_fresh_positions.is_empty() || !transition.running_metadata_positions.is_empty(),
+            !transition.statement_fresh_positions.is_empty()
+                || !transition.running_commitment_positions.is_empty()
+                || !transition.running_public_positions.is_empty(),
             "every production claim chunk owns metadata"
         );
 
@@ -120,8 +128,10 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
         builder.begin_encoding_stage("nebula.streaming.claim_coordinate_overlay.state");
         let before_statement_fresh = builder.alloc_vec(&transition.before_statement_fresh);
         let after_statement_fresh = builder.alloc_vec(&transition.after_statement_fresh);
-        let before_running_metadata = builder.alloc_vec(&transition.before_running_metadata);
-        let after_running_metadata = builder.alloc_vec(&transition.after_running_metadata);
+        let before_running_commitments = builder.alloc_vec(&transition.before_running_commitments);
+        let after_running_commitments = builder.alloc_vec(&transition.after_running_commitments);
+        let before_running_public = builder.alloc_vec(&transition.before_running_public);
+        let after_running_public = builder.alloc_vec(&transition.after_running_public);
         let before_statement_fresh_columns = before_statement_fresh
             .iter()
             .map(|wire| wire.col())
@@ -130,11 +140,19 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
             .iter()
             .map(|wire| wire.col())
             .collect::<Vec<_>>();
-        let before_running_metadata_columns = before_running_metadata
+        let before_running_commitments_columns = before_running_commitments
             .iter()
             .map(|wire| wire.col())
             .collect::<Vec<_>>();
-        let after_running_metadata_columns = after_running_metadata
+        let after_running_commitments_columns = after_running_commitments
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>();
+        let before_running_public_columns = before_running_public
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>();
+        let after_running_public_columns = after_running_public
             .iter()
             .map(|wire| wire.col())
             .collect::<Vec<_>>();
@@ -151,18 +169,28 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
         );
         chunk_columns.extend(enforce_map_transition(
             &mut builder,
-            PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
-            PI_CCS_RUNNING_METADATA_FIELDS,
+            PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG,
+            PI_CCS_RUNNING_COMMITMENT_FIELDS,
             &transition.chunk,
-            &transition.running_metadata_positions,
-            &before_running_metadata,
-            &after_running_metadata,
+            &transition.running_commitment_positions,
+            &before_running_commitments,
+            &after_running_commitments,
+        ));
+        chunk_columns.extend(enforce_map_transition(
+            &mut builder,
+            PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
+            PI_CCS_RUNNING_PUBLIC_FIELDS,
+            &transition.chunk,
+            &transition.running_public_positions,
+            &before_running_public,
+            &after_running_public,
         ));
         chunk_columns.sort_unstable_by_key(|&(offset, _)| offset);
         if chunk_index == 0 {
             for &wire in before_statement_fresh
                 .iter()
-                .chain(&before_running_metadata)
+                .chain(&before_running_commitments)
+                .chain(&before_running_public)
             {
                 builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
             }
@@ -172,8 +200,10 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
             builder,
             before_statement_fresh_columns,
             after_statement_fresh_columns,
-            before_running_metadata_columns,
-            after_running_metadata_columns,
+            before_running_commitments_columns,
+            after_running_commitments_columns,
+            before_running_public_columns,
+            after_running_public_columns,
             chunk_columns,
         }
     }
@@ -206,14 +236,24 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
         self.after_statement_fresh_columns.get(coordinate).copied()
     }
 
-    pub fn before_running_metadata_column(&self, coordinate: usize) -> Option<usize> {
-        self.before_running_metadata_columns
+    pub fn before_running_commitments_column(&self, coordinate: usize) -> Option<usize> {
+        self.before_running_commitments_columns
             .get(coordinate)
             .copied()
     }
 
-    pub fn after_running_metadata_column(&self, coordinate: usize) -> Option<usize> {
-        self.after_running_metadata_columns.get(coordinate).copied()
+    pub fn after_running_commitments_column(&self, coordinate: usize) -> Option<usize> {
+        self.after_running_commitments_columns
+            .get(coordinate)
+            .copied()
+    }
+
+    pub fn before_running_public_column(&self, coordinate: usize) -> Option<usize> {
+        self.before_running_public_columns.get(coordinate).copied()
+    }
+
+    pub fn after_running_public_column(&self, coordinate: usize) -> Option<usize> {
+        self.after_running_public_columns.get(coordinate).copied()
     }
 
     pub fn chunk_columns(&self) -> &[(usize, usize)] {
@@ -335,8 +375,14 @@ pub fn production_claim_replay_base_shape_audit(
     let (final_chunk, final_shared) = final_chunk.into_lowered()?;
     debug_assert_eq!(shared, final_shared);
     let arms = vec![full.into_parts().0, final_chunk.into_parts().0];
-    let prepared =
-        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(arms, shared, 0, neo_math::D, 0, 4)?;
+    let prepared = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        shared,
+        0,
+        neo_math::D,
+        0,
+        crate::config::B_BASE,
+    )?;
     let shape = prepared.shape_summary();
     Ok(NebulaFPrimeClaimReplayBaseShapeAudit {
         full_rows,
@@ -359,8 +405,15 @@ pub fn build_production_claim_replay_base_low_norm_r1cs() -> Result<MultiBranchL
     debug_assert_eq!(shared, final_shared);
     let arms = vec![full.into_parts().0, final_chunk.into_parts().0];
     Ok(
-        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(arms, shared, 0, neo_math::D, 0, 4)?
-            .finish()?,
+        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+            arms,
+            shared,
+            0,
+            neo_math::D,
+            0,
+            crate::config::B_BASE,
+        )?
+        .finish()?,
     )
 }
 
@@ -381,7 +434,14 @@ pub fn production_claim_coordinate_overlay_shape_audit(
                 .map(|lowered| lowered.into_parts().0)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(arms, 0, 0, 1, 0, 4)?;
+    let prepared = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        0,
+        0,
+        1,
+        0,
+        crate::config::B_BASE,
+    )?;
     let shape = prepared.shape_summary();
     Ok(NebulaFPrimeClaimCoordinateOverlayShapeAudit {
         kinds: OVERLAY_KINDS,
@@ -411,7 +471,17 @@ pub(crate) fn production_claim_coordinate_overlay_sparse_arms(
 pub fn build_production_claim_coordinate_overlay_low_norm_r1cs(
 ) -> Result<MultiBranchLowNormR1cs, NebulaFPrimeClaimReplayError> {
     let arms = production_claim_coordinate_overlay_sparse_arms()?;
-    Ok(prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(arms, 0, 0, 1, 0, 4)?.finish()?)
+    Ok(
+        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+            arms,
+            0,
+            0,
+            1,
+            0,
+            crate::config::B_BASE,
+        )?
+        .finish()?,
+    )
 }
 
 pub fn production_claim_coordinate_overlay_kind_map() -> Vec<usize> {
@@ -433,7 +503,7 @@ pub fn production_claim_coordinate_overlay_links() -> Vec<OverlayKindLinks> {
     let mut links = Vec::with_capacity(OVERLAY_KINDS - 1);
     for chunk in 0..ACTIVE_CHUNKS {
         let kind = FIRST_ACTIVE_KIND + chunk;
-        if chunk == 85 {
+        if chunk + 1 == ACTIVE_CHUNKS {
             links.push(links_for(
                 kind,
                 NebulaFPrimeStreamingCircuitKind::ClaimReplayFinal,
@@ -493,7 +563,7 @@ fn links_for(
     base: &NebulaFPrimeClaimReplaySynthesis,
     overlay: &NebulaFPrimeClaimCoordinateOverlaySynthesis,
 ) -> OverlayKindLinks {
-    let mut fields = Vec::with_capacity(4 * COORDINATE_COMMITMENT_FIELDS + overlay.chunk_columns.len());
+    let mut fields = Vec::with_capacity(6 * COORDINATE_COMMITMENT_FIELDS + overlay.chunk_columns.len());
     for coordinate in 0..COORDINATE_COMMITMENT_FIELDS {
         fields.push(OverlayFieldLink {
             phase_field: base
@@ -513,19 +583,35 @@ fn links_for(
         });
         fields.push(OverlayFieldLink {
             phase_field: base
-                .normalized_before_running_metadata_commitment_column(coordinate)
-                .expect("base before running-metadata commitment column"),
+                .normalized_before_running_commitments_binding_column(coordinate)
+                .expect("base before running-commitments binding column"),
             overlay_field: overlay
-                .before_running_metadata_column(coordinate)
-                .expect("overlay before running-metadata commitment column"),
+                .before_running_commitments_column(coordinate)
+                .expect("overlay before running-commitments binding column"),
         });
         fields.push(OverlayFieldLink {
             phase_field: base
-                .normalized_after_running_metadata_commitment_column(coordinate)
-                .expect("base after running-metadata commitment column"),
+                .normalized_after_running_commitments_binding_column(coordinate)
+                .expect("base after running-commitments binding column"),
             overlay_field: overlay
-                .after_running_metadata_column(coordinate)
-                .expect("overlay after running-metadata commitment column"),
+                .after_running_commitments_column(coordinate)
+                .expect("overlay after running-commitments binding column"),
+        });
+        fields.push(OverlayFieldLink {
+            phase_field: base
+                .normalized_before_running_public_binding_column(coordinate)
+                .expect("base before running-public binding column"),
+            overlay_field: overlay
+                .before_running_public_column(coordinate)
+                .expect("overlay before running-public binding column"),
+        });
+        fields.push(OverlayFieldLink {
+            phase_field: base
+                .normalized_after_running_public_binding_column(coordinate)
+                .expect("base after running-public binding column"),
+            overlay_field: overlay
+                .after_running_public_column(coordinate)
+                .expect("overlay after running-public binding column"),
         });
     }
     fields.extend(
@@ -546,5 +632,5 @@ fn links_for(
     }
 }
 
-const _: () = assert!(ACTIVE_CHUNKS == 86);
-const _: () = assert!(OVERLAY_KINDS == 87);
+const _: () = assert!(ACTIVE_CHUNKS == 98);
+const _: () = assert!(OVERLAY_KINDS == 99);

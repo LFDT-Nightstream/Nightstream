@@ -14,7 +14,7 @@ repository root unless stated.
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
 | 7 | `normalizedFullPlanInclusionMinimalSound` instantiated; ledger zero Open | unmet | One Open entry: `hypernova.recursive_size_closure` (`bridge/src/obligation_ledger.rs`). |
 | 8 | Planted redundant + necessary controls flow end to end | in-progress: necessary leg Lean-green at v2 (base pilot, 2026-08-17); redundant leg re-emitted, awaits solo window | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
-| 9 | Rust, Lean, drift, axioms suites all green | in-progress | Rust suites green (core 18, bridge 39 incl. gates). Lean build not yet run this campaign. |
+| 9 | Rust, Lean, drift, axioms suites all green | in-progress: full Lean side green 2026-08-17 | Rust suites green (core 18, bridge 39 incl. gates; nebula suite cap-fit and green per-test). Lean: the complete NightstreamTests library built green (5,392 jobs, 0 errors) including tests.Axioms (no guard extension needed — new theorems stay inside the pinned axiom set), tests.SeededPhi81Conformance, and every terminal necessity re-certification at v2. Remaining: cargo workspace per-package sweep. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
 ## Resource budget (hard, user-set 2026-08-15, updated for the Linux box)

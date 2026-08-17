@@ -5,12 +5,16 @@
 
 mod common;
 
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, ENTRY_CLAIMS};
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_fold_clean::paper::params::Params;
 #[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
 
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn nebula_test_params() -> Params {
     let raw = neo_params::NeoParams::new(
         neo_params::goldilocks_paper_b2::Q,

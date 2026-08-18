@@ -31,8 +31,8 @@
 //! the semantic digest, and `ccs/call.rs` refer to. The gadget-internal
 //! witness columns (position one-hot, S-box powers, and gather decoding) are
 //! allocated here in a private block right after
-//! `NAMED_COLUMN_COUNT`, mirroring how the range-check pass owns its bit
-//! columns; nothing outside this module may address them.
+//! `NAMED_COLUMN_COUNT`. Their raw indices remain private; the witness-layout
+//! registry exposes only their width metadata to generic range enforcement.
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
@@ -419,9 +419,6 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
 
         // Slot cursor + block-word one-hot lockstep (the same pattern as the
         // perm position one-hot).
-        for k in 0..8 {
-            b.push_boolean(GATHER_WORD_POSITION[k]);
-        }
         b.push_linear_zero(
             (0..8)
                 .map(|k| (GATHER_WORD_POSITION[k], F::ONE))
@@ -443,10 +440,6 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(SLOT_CURSOR_BEFORE, F::ONE)], []);
 
         // Advice uses the next code range above the raw slot kinds.
-        for j in 0..GKINDS {
-            b.push_boolean(GATHER_KIND[j]);
-        }
-        b.push_boolean(G_ADVICE);
         b.push_linear_zero(
             (0..GKINDS)
                 .map(|j| (GATHER_KIND[j], F::ONE))
@@ -485,10 +478,8 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
 
         // Result-slot limb split: each lane is written by the slot that
         // absorbs it (the stack twin of the kind-4 locals pattern). Boolean
-        // by the ROM's 0/1 limb content; the booleanity row backs the
-        // declared 1-bit width.
+        // by the ROM's 0/1 limb content.
         b.push_row([(GK_RESULT, F::ONE)], [(SLOT_VARIANT, F::ONE)], [(GK2_HI, F::ONE)]);
-        b.push_boolean(GK2_HI);
 
         // Arg slots: an addressed stack read at the table offset from the
         // argument base, limb-selected into the word.
@@ -626,10 +617,6 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
                 ),
             ],
         );
-        b.push_boolean(GMEM_LOCAL);
-        b.push_boolean(GMEM_OUTPUT);
-        b.push_boolean(GMEM_BYTE);
-        b.push_boolean(GMEM_HALF);
         // Word slots have no intra-word byte offset. Subword slots bind it
         // through the shared width/offset selector families below.
         b.push_row(
@@ -818,9 +805,7 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
     });
 }
 
-/// Position one-hot ↔ round-counter lockstep. The position columns are
-/// gadget-internal, so their booleanity rows are pushed here (the
-/// range-check pass only covers named columns).
+/// Position one-hot ↔ round-counter lockstep.
 fn push_position_onehot_constraints(b: &mut R1csBuilder) {
     b.with_tag(host_event("host event perm position"), |b| {
         push_zero_test_gadget(
@@ -829,10 +814,6 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
             COL_PERM_ROUND_BEFORE_INV,
             COL_PERM_ROUND_BEFORE_IS_ZERO,
         );
-        for pos in 0..COMM_CHAIN_PERM_ROWS {
-            b.push_boolean(PERM_POSITION[pos]);
-        }
-
         // sum(pos) = pending + (1 - round_is_zero): exactly one position on
         // perm rows, none elsewhere.
         b.push_linear_zero(

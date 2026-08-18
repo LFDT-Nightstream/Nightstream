@@ -1,17 +1,17 @@
 #[test]
 fn column_specs_are_dense_and_in_order() {
     use neo_wasm::layout::{
-        column_specs, COLUMN_SPEC_REGIONS, HOST_EVENT_COLUMN_COUNT, NAMED_COLUMN_COUNT, WASM_COLUMN_COUNT,
+        column_specs, HOST_EVENT_COLUMN_COUNT, NAMED_COLUMN_COUNT, NAMED_COLUMN_SPEC_REGIONS, WASM_COLUMN_COUNT,
     };
 
-    assert_eq!(COLUMN_SPEC_REGIONS.len(), 2);
-    assert!(COLUMN_SPEC_REGIONS[0]
+    assert_eq!(NAMED_COLUMN_SPEC_REGIONS.len(), 2);
+    assert!(NAMED_COLUMN_SPEC_REGIONS[0]
         .iter()
         .all(|spec| spec.region == "wasm_named"));
-    assert!(COLUMN_SPEC_REGIONS[1]
+    assert!(NAMED_COLUMN_SPEC_REGIONS[1]
         .iter()
         .all(|spec| spec.region == "host_event_interface"));
-    assert_eq!(COLUMN_SPEC_REGIONS[1][0].start, WASM_COLUMN_COUNT);
+    assert_eq!(NAMED_COLUMN_SPEC_REGIONS[1][0].start, WASM_COLUMN_COUNT);
     assert_eq!(NAMED_COLUMN_COUNT, WASM_COLUMN_COUNT + HOST_EVENT_COLUMN_COUNT);
 
     let mut next = 0;

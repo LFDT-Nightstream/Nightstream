@@ -6,7 +6,7 @@
 
 use crate::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
 use crate::column_registry::expanded_f_prime_widths;
-use crate::layout::{ColumnWidth, COLUMN_SPEC_REGIONS, NAMED_COLUMN_COUNT};
+use crate::layout::{ColumnWidth, WasmColumnSpec, HOST_EVENT_COLUMN_SPECS, NAMED_COLUMN_COUNT, WASM_COLUMN_SPECS};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct WitnessRegion {
@@ -32,12 +32,29 @@ const fn decomposed_bits(width: ColumnWidth) -> usize {
     }
 }
 
-const fn build_range_bit_offsets() -> [usize; NAMED_COLUMN_COUNT + 1] {
-    let mut offsets = [0; NAMED_COLUMN_COUNT + 1];
+pub(crate) const NAMED_COLUMNS: WitnessRegion = WitnessRegion::new(0, NAMED_COLUMN_COUNT);
+
+// Kept standalone so the host-event gadget can use its assigned base without
+// depending on the region value that itself contains the gadget's width.
+pub(crate) const HOST_EVENT_AUX_START: usize = NAMED_COLUMNS.end();
+pub(crate) const HOST_EVENT_AUX: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX_START, AUX_WIDTH);
+
+const DECLARED_WITNESS_COLUMN_COUNT: usize = HOST_EVENT_AUX.end();
+const DECLARED_WITNESS_COLUMN_SPEC_REGIONS: &[&[WasmColumnSpec]] =
+    &[WASM_COLUMN_SPECS, HOST_EVENT_COLUMN_SPECS, AUX_COLUMN_SPECS];
+
+pub(crate) fn declared_witness_column_specs() -> impl Iterator<Item = &'static WasmColumnSpec> {
+    DECLARED_WITNESS_COLUMN_SPEC_REGIONS
+        .iter()
+        .flat_map(|specs| specs.iter())
+}
+
+const fn build_range_bit_offsets() -> [usize; DECLARED_WITNESS_COLUMN_COUNT + 1] {
+    let mut offsets = [0; DECLARED_WITNESS_COLUMN_COUNT + 1];
     let mut column = 0;
     let mut region_index = 0;
-    while region_index < COLUMN_SPEC_REGIONS.len() {
-        let specs = COLUMN_SPEC_REGIONS[region_index];
+    while region_index < DECLARED_WITNESS_COLUMN_SPEC_REGIONS.len() {
+        let specs = DECLARED_WITNESS_COLUMN_SPEC_REGIONS[region_index];
         let mut spec_index = 0;
         while spec_index < specs.len() {
             let spec = &specs[spec_index];
@@ -52,19 +69,12 @@ const fn build_range_bit_offsets() -> [usize; NAMED_COLUMN_COUNT + 1] {
         }
         region_index += 1;
     }
-    assert!(column == NAMED_COLUMN_COUNT);
+    assert!(column == DECLARED_WITNESS_COLUMN_COUNT);
     offsets
 }
 
-const RANGE_BIT_OFFSETS: [usize; NAMED_COLUMN_COUNT + 1] = build_range_bit_offsets();
-const RANGE_BIT_COUNT: usize = RANGE_BIT_OFFSETS[NAMED_COLUMN_COUNT];
-
-pub(crate) const NAMED_COLUMNS: WitnessRegion = WitnessRegion::new(0, NAMED_COLUMN_COUNT);
-
-// Kept standalone so the host-event gadget can use its assigned base without
-// depending on the region value that itself contains the gadget's width.
-pub(crate) const HOST_EVENT_AUX_START: usize = NAMED_COLUMNS.end();
-pub(crate) const HOST_EVENT_AUX: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX_START, AUX_WIDTH);
+const RANGE_BIT_OFFSETS: [usize; DECLARED_WITNESS_COLUMN_COUNT + 1] = build_range_bit_offsets();
+const RANGE_BIT_COUNT: usize = RANGE_BIT_OFFSETS[DECLARED_WITNESS_COLUMN_COUNT];
 pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX.end(), RANGE_BIT_COUNT);
 
 /// Width of the WASM witness after named columns, host-event advice, and
@@ -72,7 +82,7 @@ pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX.e
 pub const RANGE_CHECKED_WITNESS_WIDTH: usize = RANGE_BITS.end();
 
 pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
-    if column >= NAMED_COLUMN_COUNT {
+    if column >= DECLARED_WITNESS_COLUMN_COUNT {
         return None;
     }
 
@@ -90,13 +100,11 @@ pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
 
 /// Declared F' widths of the variables in the range-checked WASM witness.
 pub(crate) fn range_checked_variable_widths() -> Vec<usize> {
-    let mut widths: Vec<usize> = COLUMN_SPEC_REGIONS
+    let mut widths: Vec<usize> = DECLARED_WITNESS_COLUMN_SPEC_REGIONS
         .iter()
         .flat_map(|specs| expanded_f_prime_widths(specs))
         .collect();
 
-    debug_assert_eq!(widths.len(), NAMED_COLUMNS.end());
-    widths.extend(expanded_f_prime_widths(AUX_COLUMN_SPECS));
     debug_assert_eq!(widths.len(), HOST_EVENT_AUX.end());
     widths.resize(RANGE_BITS.end(), 1);
     debug_assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);

@@ -6,19 +6,9 @@
 //! Does not own: source trace recording, semantic proof of each trace family,
 //! outer `F'` orchestration, or folding verification.
 //!
-//! Emits constraints: yes. It builds the selective CCS matrices and polynomial.
-//!
-//! Authority boundary: ordinary source rows remain the local implementation
-//! arithmetic reference; a temporary is removed only when reconstructed from
-//! retained constrained operands under the recorded trace contract. Protocol
-//! sufficiency and necessity remain separate Lean obligations.
-//!
-//! | Obligation | Local owner | Emits constraints? | Authority source |
-//! |---|---|---|---|
-//! | Selective layout | `prepare_selective_layout` | no | Recorded source traces |
-//! | Compiler composition | [`build_multi_branch_selective_low_norm_r1cs_with_alignment`] | no | Prepared layout and exact emitter result |
-//! | CCS matrix emission | `structure::build_structure` | yes | Retained source rows and selectors |
-//! | Width audit | selective audit entrypoints | no | Exact prepared layout |
+//! Emits constraints: yes. Ordinary source rows remain the arithmetic
+//! authority. A temporary is removed only when constrained retained operands
+//! reconstruct it under the recorded trace contract.
 
 use std::collections::BTreeSet;
 
@@ -40,6 +30,8 @@ use crate::engine::r1cs_circuit::Lc;
 
 #[path = "selective_canonical.rs"]
 mod canonical;
+#[path = "selective_combined_audit.rs"]
+mod combined_audit;
 #[path = "selective_definitions.rs"]
 mod definitions;
 #[path = "selective_emit.rs"]
@@ -56,6 +48,8 @@ mod shape;
 mod structure;
 #[path = "selective_terms.rs"]
 mod terms;
+pub(crate) use combined_audit::audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix;
+pub use combined_audit::SelectiveCompactLayoutAudit;
 use definitions::{find_linear_definitions, LinearDefinitions};
 use emit::{lc_from_column, trace_error};
 pub use projected_decoder::{
@@ -72,9 +66,9 @@ pub use projected_rows::{
     SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
     SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
     SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
-    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination,
-    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
-    SelectiveProjectedTerm,
+    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceImage,
+    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
+    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
@@ -337,15 +331,7 @@ pub(crate) fn audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix(
         residue,
         SelectiveEncoding::for_norm_base(norm_base)?,
     )?;
-    requests
-        .iter()
-        .map(|(arm, source_range)| {
-            let source_arm = arms
-                .get(*arm)
-                .ok_or_else(|| trace_error("complete decoder arm is out of range"))?;
-            projected_decoder::decoder_run_provenance(&layout, *arm, source_range.clone(), source_arm)
-        })
-        .collect()
+    combined_audit::decoder_runs_from_layout(arms, &layout, requests)
 }
 
 /// Return the complete compiler ledger from the exact prepared layout without

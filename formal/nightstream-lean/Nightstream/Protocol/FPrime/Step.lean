@@ -1196,7 +1196,68 @@ private theorem advancedState_pinned
   · exact semanticAdvance
   · cases stateless
 
-/-- Every valid F' step produces a state suitable for the next recursive link. -/
+/-- Every valid local F' step produces a state suitable for the next recursive
+link. The delayed outgoing fresh link does not affect state pinning. -/
+theorem next_state_pinned_of_local
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Digest : Type uDigest}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    {NebulaOpen : Type uNebulaOpen}
+    (hashSemantics : XOut.Semantics
+      Params StructureDigest Header Digest Nebula NebulaDigest)
+    (stepSemantics : Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : XOut.Context Params StructureDigest Header Digest)
+    (prior next : State Digest Running Fresh Nebula)
+    (input : Input Fresh Nebula NebulaOpen)
+    (proof : Proof Digest NifsProof NebulaOpen)
+    (holds : LocalHolds hashSemantics stepSemantics mode context prior next input proof) :
+    XOut.StatePinned hashSemantics mode context next := by
+  cases priorProof : prior.proof with
+  | initial =>
+      cases foldProof : proof.fold with
+      | noFold =>
+          have base :
+              BaseLocalHolds hashSemantics stepSemantics mode context
+                prior next input proof := by
+            simpa [LocalHolds, priorProof, foldProof] using holds
+          rcases base with
+            ⟨initial, _, _, semanticAdvance, _, nextEq, _⟩
+          subst next
+          exact advancedState_pinned hashSemantics stepSemantics mode context prior
+            stepSemantics.emptyRunning input proof initial.2.2.2.2.1
+            initial.2.2.2.2.2.2.1 semanticAdvance
+      | recursive nifsProof =>
+          simp [LocalHolds, priorProof, foldProof] at holds
+  | active running latest =>
+      cases foldProof : proof.fold with
+      | noFold =>
+          simp [LocalHolds, priorProof, foldProof] at holds
+      | recursive nifsProof =>
+          have recursive :
+              RecursiveLocalHolds hashSemantics stepSemantics mode context
+                prior next input proof running latest nifsProof := by
+            simpa [LocalHolds, priorProof, foldProof] using holds
+          rcases recursive with ⟨active, _, _, _, verified⟩
+          cases verifierEq : stepSemantics.nifsVerify
+              (nifsContext stepSemantics prior input) running latest nifsProof with
+          | none => simp [verifierEq] at verified
+          | some nextRunning =>
+            simp only [verifierEq] at verified
+            rcases verified with ⟨_, semanticAdvance, _, nextEq, _⟩
+            subst next
+            exact advancedState_pinned hashSemantics stepSemantics mode context prior
+              nextRunning input proof active.2.2.2.2.2.initialBoundaryPinned
+              active.2.2.2.2.2.initialSemanticStatePinned semanticAdvance
+
+/-- Every closed F' step produces a state suitable for the next recursive
+link. -/
 theorem next_state_pinned
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
@@ -1218,43 +1279,10 @@ theorem next_state_pinned
     (proof : Proof Digest NifsProof NebulaOpen)
     (holds : Holds hashSemantics stepSemantics mode context prior next input proof) :
     XOut.StatePinned hashSemantics mode context next := by
-  cases priorProof : prior.proof with
-  | initial =>
-      cases foldProof : proof.fold with
-      | noFold =>
-          have base :
-              BaseHolds hashSemantics stepSemantics mode context
-                prior next input proof := by
-            simpa [Holds, priorProof, foldProof] using holds
-          rcases base with
-            ⟨initial, _, _, semanticAdvance, _, nextEq, _, _⟩
-          subst next
-          exact advancedState_pinned hashSemantics stepSemantics mode context prior
-            stepSemantics.emptyRunning input proof initial.2.2.2.2.1
-            initial.2.2.2.2.2.2.1 semanticAdvance
-      | recursive nifsProof =>
-          simp [Holds, priorProof, foldProof] at holds
-  | active running latest =>
-      cases foldProof : proof.fold with
-      | noFold =>
-          simp [Holds, priorProof, foldProof] at holds
-      | recursive nifsProof =>
-          have recursive :
-              RecursiveHolds hashSemantics stepSemantics mode context
-                prior next input proof running latest nifsProof := by
-            simpa [Holds, priorProof, foldProof] using holds
-          rcases recursive with ⟨active, _, _, _, verified⟩
-          cases verifierEq : stepSemantics.nifsVerify
-              (nifsContext stepSemantics prior input) running latest nifsProof with
-          | none => simp [verifierEq] at verified
-          | some nextRunning =>
-            simp only [verifierEq] at verified
-            rcases verified with
-              ⟨_, semanticAdvance, _, nextEq, _, _⟩
-            subst next
-            exact advancedState_pinned hashSemantics stepSemantics mode context prior
-              nextRunning input proof active.2.2.2.2.2.initialBoundaryPinned
-              active.2.2.2.2.2.initialSemanticStatePinned semanticAdvance
+  apply next_state_pinned_of_local hashSemantics stepSemantics mode context
+    prior next input proof
+  exact (holds_iff_local_and_outgoing hashSemantics stepSemantics mode context
+    prior next input proof).1 holds |>.1
 
 /-- A valid branch exposes the exact state advance used by trace induction. -/
 theorem holds_advance_facts

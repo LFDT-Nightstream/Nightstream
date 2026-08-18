@@ -19,6 +19,7 @@ use p3_field::PrimeCharacteristicRing;
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::config::K_RHO;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 
 pub const LEAN_CANONICAL_MANIFEST_SCHEMA_VERSION: u64 = 1;
@@ -597,7 +598,7 @@ impl ManifestWire {
         }
         let exact = [
             ("fresh_source_count", profile.fresh_source_count, 1),
-            ("running_source_count", profile.running_source_count, 14),
+            ("running_source_count", profile.running_source_count, K_RHO as usize),
             ("public_carrier_width", profile.public_carrier_width, 270),
             ("fresh_legacy_width", profile.fresh_legacy_width, 257),
             ("fresh_completion_width", profile.fresh_completion_width, 13),
@@ -608,7 +609,7 @@ impl ManifestWire {
             ("poseidon_digest_width", profile.poseidon_digest_width, 4),
             ("binding_preimage_width", profile.binding_preimage_width, 23),
             ("decomposition_base", profile.decomposition_base, 2),
-            ("decomposition_children", profile.decomposition_children, 14),
+            ("decomposition_children", profile.decomposition_children, K_RHO as usize),
         ];
         for (field, actual, expected) in exact {
             if actual != expected {

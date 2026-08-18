@@ -10,6 +10,7 @@ open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority
 
 #check ringFields_length
 #check ringFields_injective
+#check ringFields_eq_protocol
 #check sourceSchedule_length
 #check sourceSchedule_values
 #check sourceBlocks_lengths
@@ -17,6 +18,8 @@ open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority
 #check phaseFields_injective
 #check inputChunks_lengths
 #check inputFrame_length
+#check familyInputFields_eq_canonical
+#check inputFrame_eq_canonical
 #check familySchedule_ordinals
 #check authoritativeInputRings
 #check piCcsOutputs_evaluations_eq_singleton

@@ -16,18 +16,40 @@ use neo_fold_clean::paper::reductions::pi_dec_circuit::stage;
 use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs, tiny_params};
 
 fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
+    const ACTIVE_MATRICES: usize = 14;
+    const ACTIVE_ROW_POINT: usize = 24;
+    const ACTIVE_LOGICAL_X: usize = 270;
+    const EXTENSION_LIMBS: usize = 2;
+    const SHAPE_FIELDS: usize = 5;
+    const FOLD_DIGEST_LANES: usize = 4;
+
     let strict = audit.strict();
+    let child_count = params.k_rho() as usize;
+    let ring_lanes = params.d() as usize;
+    let padded_ring_lanes = ring_lanes.next_power_of_two();
     assert_eq!(strict.radix, 2);
-    assert_eq!(strict.children.len(), 14);
-    assert_eq!(strict.x_sign_traces.len(), 270);
+    assert_eq!(strict.children.len(), child_count);
+    assert_eq!(strict.x_sign_traces.len(), ACTIVE_LOGICAL_X);
     assert!(
         std::iter::once(&strict.parent)
             .chain(&strict.children)
             .all(|claim| claim.adv.is_none()),
         "the exact paper carrier has no product-commitment advice"
     );
+    let expected_leaf_rows = vec![
+        ring_lanes * params.kappa() as usize,
+        0,
+        ACTIVE_LOGICAL_X,
+        ACTIVE_MATRICES * ring_lanes * EXTENSION_LIMBS,
+        SHAPE_FIELDS * child_count,
+        child_count * ACTIVE_ROW_POINT * EXTENSION_LIMBS,
+        ACTIVE_LOGICAL_X * (child_count + 2),
+        (child_count + 1) * ACTIVE_MATRICES * EXTENSION_LIMBS,
+        (child_count + 1) * ACTIVE_MATRICES * (padded_ring_lanes - ring_lanes) * EXTENSION_LIMBS,
+        child_count * FOLD_DIGEST_LANES,
+    ];
     let active_source_rows = strict.row_end - strict.row_start;
-    let expected_active_source_rows = 54 * params.kappa() as usize + 11_520;
+    let expected_active_source_rows: usize = expected_leaf_rows.iter().sum();
     assert_eq!(
         active_source_rows, expected_active_source_rows,
         "active strict PiDEC source-field R1CS row census"
@@ -55,18 +77,7 @@ fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
             .iter()
             .map(|range| range.row_end - range.row_start)
             .collect::<Vec<_>>(),
-        vec![
-            54 * params.kappa() as usize,
-            0,
-            270,
-            1_512,
-            70,
-            672,
-            4_320,
-            420,
-            4_200,
-            56,
-        ],
+        expected_leaf_rows,
         "exact source-field R1CS rows per active PiDEC leaf"
     );
     let mut cursor = strict.row_start;

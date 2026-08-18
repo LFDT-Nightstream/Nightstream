@@ -1,5 +1,9 @@
+import Mathlib.Data.Fintype.Basic
+import Mathlib.Tactic.FinCases
 import Nightstream.Implementation.R1CS.Core.Poseidon2Call
 import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.Sbox7Compact
+
+set_option maxRecDepth 65536
 
 /-!
 Contract: exact model of the 86 final `x^7` wires inside the isolated
@@ -132,7 +136,8 @@ theorem family_census :
       internalSites.length = 22 ∧
       terminalExternalSites.length = 32 ∧
       sites.length = 86 := by
-  native_decide
+  simp [initialExternalSites, internalSites, terminalExternalSites,
+    externalSites, sites]
 
 /-- The three arithmetic families are the exact 86-site enumeration and no
 output occurs twice. -/
@@ -202,10 +207,65 @@ instance (site : Site) : Decidable site.TopologicalDefinitionsExact := by
   unfold Site.TopologicalDefinitionsExact
   infer_instance
 
+private theorem initialExternalSite_topologicalDefinitions_exact
+    (round : Fin 4) (lane : Fin 8) :
+    ({ family := .initialExternal
+       round := round.val
+       lane := lane.val
+       outputColumn := 20 + 40 * round.val + 4 * lane.val
+       consumerRows :=
+         (List.range 8).map fun consumer =>
+           definitionRowOfColumn (49 + 40 * round.val + consumer) } : Site).TopologicalDefinitionsExact := by
+  fin_cases round <;> fin_cases lane <;> decide
+
+private theorem internalSite_topologicalDefinitions_exact
+    (round : Fin 22) :
+    ({ family := .internal
+       round := round.val
+       lane := 0
+       outputColumn := 180 + 12 * round.val
+       consumerRows :=
+         (List.range 8).map fun consumer =>
+           definitionRowOfColumn (181 + 12 * round.val + consumer) } : Site).TopologicalDefinitionsExact := by
+  fin_cases round <;> decide
+
+private theorem terminalExternalSite_topologicalDefinitions_exact
+    (round : Fin 4) (lane : Fin 8) :
+    ({ family := .terminalExternal
+       round := round.val
+       lane := lane.val
+       outputColumn := 444 + 40 * round.val + 4 * lane.val
+       consumerRows :=
+         (List.range 8).map fun consumer =>
+           definitionRowOfColumn (473 + 40 * round.val + consumer) } : Site).TopologicalDefinitionsExact := by
+  fin_cases round <;> fin_cases lane <;> decide
+
 /-- All 86 sites have the exact affine four-row source schedule. -/
 theorem topologicalDefinitions_exact :
     ∀ site ∈ sites, site.TopologicalDefinitionsExact := by
-  native_decide
+  intro site member
+  simp only [sites, List.mem_append] at member
+  rcases member with (initialMember | internalMember) | terminalMember
+  · simp only [initialExternalSites, externalSites] at initialMember
+    rcases List.mem_flatMap.mp initialMember with
+      ⟨round, roundMember, laneMember⟩
+    rcases List.mem_map.mp laneMember with ⟨lane, laneInRange, siteExact⟩
+    subst site
+    exact initialExternalSite_topologicalDefinitions_exact
+      ⟨round, List.mem_range.mp roundMember⟩
+      ⟨lane, List.mem_range.mp laneInRange⟩
+  · simp only [internalSites] at internalMember
+    rcases List.mem_map.mp internalMember with ⟨round, roundMember, rfl⟩
+    exact internalSite_topologicalDefinitions_exact
+      ⟨round, List.mem_range.mp roundMember⟩
+  · simp only [terminalExternalSites, externalSites] at terminalMember
+    rcases List.mem_flatMap.mp terminalMember with
+      ⟨round, roundMember, laneMember⟩
+    rcases List.mem_map.mp laneMember with ⟨lane, laneInRange, siteExact⟩
+    subst site
+    exact terminalExternalSite_topologicalDefinitions_exact
+      ⟨round, List.mem_range.mp roundMember⟩
+      ⟨lane, List.mem_range.mp laneInRange⟩
 
 /-- Exact compact semantic gate associated with one concrete source site.
 Selector column zero is the verifier-owned constant-one wire. -/

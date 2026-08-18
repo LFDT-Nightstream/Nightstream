@@ -26,7 +26,7 @@
       "event_id": "EV-PICCS-ABSORB",
       "tag": "statement",
       "payload_layout": ["canonical_statement_sections_in_section_id_order"],
-      "base_field_count": 39848
+      "base_field_count": 45356
     },
     {
       "id": "FR-PICCS-INPUT",
@@ -80,8 +80,8 @@
       "kind": "frame",
       "event_id": "EV-PICCS-OUTPUT",
       "tag": "piccs_output",
-      "payload_layout": ["15_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"],
-      "base_field_count": 22680
+      "payload_layout": ["17_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"],
+      "base_field_count": 25704
     },
     {
       "id": "LOOP-RHO-SOURCES",
@@ -133,8 +133,8 @@
       "kind": "frame",
       "event_id": "EV-PIDEC",
       "tag": "pidec_output",
-      "payload_layout": ["14_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"],
-      "base_field_count": 38556
+      "payload_layout": ["16_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"],
+      "base_field_count": 44064
     },
     {
       "id": "FR-FOLD-FINALIZE",

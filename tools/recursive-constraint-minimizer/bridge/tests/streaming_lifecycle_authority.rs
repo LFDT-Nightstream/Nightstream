@@ -1,25 +1,34 @@
 //! Exact base-lifecycle authority attack with full cvc5 and Rust replay.
 
-use std::path::PathBuf;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
 use neo_fold_clean::frontends::nebula::f_prime::{
-    prepare_streaming_lifecycle_preprocessing, synthesize_streaming_lifecycle_source_arms,
-    NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleSourceArms,
+    prepare_streaming_lifecycle_preprocessing, production_streaming_lifecycle_profile,
+    synthesize_streaming_lifecycle_source_arms, NebulaFPrimeStreamingLifecycleArm,
+    NebulaFPrimeStreamingLifecycleSourceArms,
 };
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
+use neo_fold_clean::frontends::r1cs_f_prime::build_multi_branch_selective_low_norm_r1cs_with_alignment;
 use neo_fold_clean::paper::digest::digest32_as_fields;
 use neo_fold_clean::paper::f_prime::stage as fprime_stage;
 use neo_fold_clean::paper::params::Params;
-use neo_math::F;
-use nightstream_constraint_exporter::{export_sparse_problem, sparse_family_census, ExportRequest};
+use neo_math::{D, F};
+use nightstream_constraint_exporter::{
+    export_complete_streaming_lifecycle_problem, export_sparse_problem, sparse_family_census,
+    streaming_lifecycle_x_out_typed_target, ExportRequest,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::{
-    audit_complete_typed_candidate, row_is_satisfied, Conclusion, FieldModel, LinearCombination, Scope, Selection,
-    SolverConfig, SolverMode, SolverStatus, Term, TypedTarget, TypedTargetRow, GOLDILOCKS_MODULUS,
+    audit_complete_typed_candidate, row_is_satisfied, typed_target_row_is_satisfied, Conclusion, FieldModel,
+    LinearCombination, Scope, Selection, SolverConfig, SolverMode, SolverStatus, Term, TypedTarget, TypedTargetRow,
+    GOLDILOCKS_MODULUS,
 };
 
 const VERIFIER_ADVICE_COLUMNS: &str = "fprime.streaming.base.verifier_advice";
+const BASE_VERIFIER_KEY_OMISSION_ARTIFACT_PATH: &str = "../../../formal/nightstream-lean/Nightstream/Implementation/\
+R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingLifecycleBaseVerifierKeyOmission.lean";
 
 struct LifecycleFixture {
     lifecycle: NebulaFPrimeStreamingLifecycleSourceArms,
@@ -30,8 +39,7 @@ struct LifecycleFixture {
 fn lifecycle_source(seed: u64) -> LifecycleFixture {
     let reference_params = Params::production();
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step memory profile");
-    let plan = NebulaPlan::new(memory, vec![7], [0xD9; 32], reference_params.kappa() as usize)
-        .expect("Nebula plan");
+    let plan = NebulaPlan::new(memory, vec![7], [0xD9; 32], reference_params.kappa() as usize).expect("Nebula plan");
     let params = Params::for_ccs_shape(
         plan.circuit().structure().n,
         plan.circuit().structure().m,
@@ -40,11 +48,7 @@ fn lifecycle_source(seed: u64) -> LifecycleFixture {
     )
     .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
-    let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(
-        &params,
-        plan.circuit().structure(),
-        seed,
-    );
+    let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(&params, plan.circuit().structure(), seed);
     let preprocessing =
         neo_fold_clean::lifecycle::preprocess_with_test_log(params, plan.circuit().structure().clone(), log, Some(648))
             .expect("verifier-owned lifecycle preprocessing");
@@ -52,8 +56,8 @@ fn lifecycle_source(seed: u64) -> LifecycleFixture {
         prepare_streaming_lifecycle_preprocessing(preprocessing, &plan).expect("fixed streaming lifecycle policy");
     let verifier_digest = digest32_as_fields(preprocessing.vk.digest());
     let pi_ccs_header = preprocessing.pi_ccs_header_bundle();
-    let lifecycle =
-        synthesize_streaming_lifecycle_source_arms(&preprocessing, &plan).expect("exact streaming lifecycle source rows");
+    let lifecycle = synthesize_streaming_lifecycle_source_arms(&preprocessing, &plan)
+        .expect("exact streaming lifecycle source rows");
     LifecycleFixture {
         lifecycle,
         verifier_digest,
@@ -95,6 +99,276 @@ fn fixed_value_row(id: String, one: usize, column: usize, value: u64) -> TypedTa
         }],
         c: Vec::new(),
     }
+}
+
+fn lean_range(range: std::ops::Range<usize>) -> String {
+    format!("{{ start := {}, stop := {} }}", range.start, range.end)
+}
+
+fn lean_option(value: Option<usize>) -> String {
+    value.map_or_else(|| "none".to_owned(), |value| format!("some {value}"))
+}
+
+fn render_base_verifier_key_omission_artifact() -> String {
+    let fixture = lifecycle_source(0x5354_5245_414d);
+    let lifecycle = &fixture.lifecycle;
+    let source = lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
+    let source_arms = [
+        source.clone(),
+        lifecycle
+            .arm(NebulaFPrimeStreamingLifecycleArm::Recursive)
+            .clone(),
+    ];
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&source_arms, 0, D, 0)
+        .expect("exact two-arm selective lifecycle relation");
+    let profile = production_streaming_lifecycle_profile(lifecycle, &relation)
+        .expect("exact lifecycle source-to-selective profile");
+    let problem_export = export_complete_streaming_lifecycle_problem(
+        lifecycle,
+        &relation,
+        NebulaFPrimeStreamingLifecycleArm::Base,
+        "nightstream/goldilocks/streaming-base-authority-attack/v1",
+    )
+    .expect("complete base lifecycle problem export");
+    let problem = problem_export.problem();
+    let arm_profile = profile.arm(NebulaFPrimeStreamingLifecycleArm::Base);
+    let stages = arm_profile
+        .stages()
+        .iter()
+        .filter(|stage| stage.path() == fprime_stage::BASE_VERIFIER_KEY)
+        .collect::<Vec<_>>();
+    let [stage] = stages.as_slice() else {
+        panic!("base lifecycle arm must contain exactly one verifier-key stage")
+    };
+    let advice = source
+        .column_family_ranges()
+        .iter()
+        .find(|range| range.name == VERIFIER_ADVICE_COLUMNS)
+        .expect("base verifier advice columns");
+    let changed_column = advice.column_start;
+    let baseline_value = lifecycle.base_assignment()[changed_column].as_canonical_u64();
+    let candidate_value = F::ONE.as_canonical_u64();
+    assert_ne!(baseline_value, candidate_value);
+    assert_eq!(problem.constant_one_column, 0);
+
+    let selected_row_count = problem
+        .rows
+        .iter()
+        .filter(|row| row.family == fprime_stage::BASE_VERIFIER_KEY)
+        .count();
+    let retained_row_count = problem.rows.len() - selected_row_count;
+    let mut occurrences = Vec::new();
+    for row in &problem.rows {
+        for (side, terms) in [("a", &row.a), ("b", &row.b), ("c", &row.c)] {
+            for term in terms.iter().filter(|term| term.column == changed_column) {
+                assert_eq!(
+                    row.family,
+                    fprime_stage::BASE_VERIFIER_KEY,
+                    "changed verifier advice column escapes the selected family",
+                );
+                occurrences.push((row.source_index, side, term.coefficient.as_str(), row.family.as_str()));
+            }
+        }
+    }
+    assert!(!occurrences.is_empty());
+
+    let mut source_runs = String::from("[\n");
+    let mut source_run_proof = String::from("by\n  unfold sourceRuns\n  exact ");
+    let mut source_cursor = stage.source_rows().start;
+    let mut source_run_count = 0usize;
+    for run in stage.source_runs() {
+        let rows = run.source_rows();
+        assert_eq!(rows.start, source_cursor);
+        writeln!(
+            source_runs,
+            "    {{ sourceRows := {}, disposition := \"{:?}\", emittedStart := {} }},",
+            lean_range(rows.clone()),
+            run.disposition(),
+            lean_option(run.emitted_start()),
+        )
+        .unwrap();
+        source_run_proof.push_str("SourceRunChain.cons rfl (by decide)\n    (");
+        source_cursor = rows.end;
+        source_run_count += 1;
+    }
+    assert_eq!(source_cursor, stage.source_rows().end);
+    source_run_proof.push_str(&format!("SourceRunChain.nil {source_cursor}"));
+    source_run_proof.extend(std::iter::repeat_n(')', source_run_count));
+    source_runs.push_str("  ]");
+
+    let mut final_runs = String::from("[\n");
+    let mut final_run_proof = String::from("by\n  unfold finalRuns\n  exact ");
+    let mut final_run_count = 0usize;
+    for run in stage.final_row_runs() {
+        let rows = run.rows();
+        writeln!(
+            final_runs,
+            "    {{ family := \"{:?}\", rows := {}, rewriteId := {} }},",
+            run.family(),
+            lean_range(rows),
+            lean_option(run.rewrite_id()),
+        )
+        .unwrap();
+        final_run_proof.push_str("FinalRunsWithin.cons (by decide) (by decide)\n    (");
+        final_run_count += 1;
+    }
+    final_run_proof.push_str("FinalRunsWithin.nil");
+    final_run_proof.extend(std::iter::repeat_n(')', final_run_count));
+    final_runs.push_str("  ]");
+
+    let mut occurrence_values = String::from("[\n");
+    let mut occurrence_proof = String::from("by\n  unfold occurrences\n  exact ");
+    for (source_row, side, coefficient, family) in &occurrences {
+        writeln!(
+            occurrence_values,
+            "    {{ sourceRow := {source_row}, side := .{side}, coefficient := {coefficient}, family := \"{family}\" }},",
+        )
+        .unwrap();
+        occurrence_proof.push_str("OccurrenceOwnership.cons rfl\n    (");
+    }
+    occurrence_proof.push_str("OccurrenceOwnership.nil");
+    occurrence_proof.extend(std::iter::repeat_n(')', occurrences.len()));
+    occurrence_values.push_str("  ]");
+
+    let payload = format!(
+        "def sourceRuns : List SourceRun := {source_runs}\n\n\
+         def finalRuns : List FinalRun := {final_runs}\n\n\
+         def occurrences : List Occurrence := {occurrence_values}\n\n\
+         def rawArtifact : Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleBaseVerifierKeyOmission.Artifact.RawArtifact :=\n  \
+         {{ schemaVersion := 1,\n    \
+            profileId := \"nightstream/goldilocks/streaming-base-authority-attack/v1\",\n    \
+            lifecycleScope := \"{}\",\n    \
+            sourceArtifactIdentity := \"{}\",\n    \
+            finalArtifactIdentity := \"{}\",\n    \
+            family := \"{}\", stagePath := \"{}\", occurrence := {},\n    \
+            sourceRows := {}, sourceColumns := {},\n    \
+            sourceRowCount := {}, selectedRowCount := {}, retainedRowCount := {},\n    \
+            columnCount := {}, constantOneColumn := {}, changedColumn := {},\n    \
+            baselineValue := {}, candidateValue := {},\n    \
+            finalRowCount := {}, sourceRuns := sourceRuns, finalRuns := finalRuns,\n    \
+            occurrences := occurrences }}\n\n\
+         theorem sourceRuns_cover : SourceRunChain {} sourceRuns {} :=\n{}\n\n\
+         theorem finalRuns_inside : FinalRunsWithin {} finalRuns :=\n{}\n\n\
+         theorem occurrences_owned : OccurrenceOwnership \"{}\" occurrences :=\n{}\n",
+        arm_profile.lifecycle_scope(),
+        arm_profile.source_artifact_identity(),
+        profile.final_artifact_identity(),
+        fprime_stage::BASE_VERIFIER_KEY,
+        stage.path(),
+        stage.occurrence(),
+        lean_range(stage.source_rows()),
+        lean_range(stage.source_columns()),
+        problem.rows.len(),
+        selected_row_count,
+        retained_row_count,
+        problem.column_count,
+        problem.constant_one_column,
+        changed_column,
+        baseline_value,
+        candidate_value,
+        profile.final_rows(),
+        stage.source_rows().start,
+        stage.source_rows().end,
+        source_run_proof,
+        profile.final_rows(),
+        final_run_proof,
+        fprime_stage::BASE_VERIFIER_KEY,
+        occurrence_proof,
+    );
+    format!(
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingLifecycleBaseVerifierKeyOmissionSchema\n\n\
+         /-! Generated exhaustive changed-column projection and source-to-final ownership for the base verifier-key omission audit.\n\n\
+         Rust remains the authority for the full rows and assignment. This leaf contains no digest-based row claim.\n\n\
+         Emits constraints: no.\n\
+         -/\n\n\
+         set_option autoImplicit false\n\n\
+         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingLifecycleBaseVerifierKeyOmission\n\n\
+         open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleRecursiveVerifierKey.Artifact\n\
+         open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleBaseVerifierKeyOmission.Artifact\n\n\
+         {payload}\n\
+         end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingLifecycleBaseVerifierKeyOmission\n",
+    )
+}
+
+fn base_verifier_key_omission_artifact_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(BASE_VERIFIER_KEY_OMISSION_ARTIFACT_PATH)
+}
+
+#[test]
+#[ignore = "exact base verifier-key omission projection"]
+fn base_verifier_key_omission_artifact_is_current() {
+    let path = base_verifier_key_omission_artifact_path();
+    let rendered = render_base_verifier_key_omission_artifact();
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
+        let expected = path.with_extension("lean.expected");
+        std::fs::write(&expected, rendered).expect("write expected base verifier-key omission artifact");
+        panic!(
+            "base verifier-key omission Lean artifact drifted; inspect {}",
+            expected.display()
+        );
+    }
+}
+
+#[test]
+#[ignore = "deliberately writes the reviewed base verifier-key omission artifact"]
+fn regenerate_base_verifier_key_omission_artifact() {
+    std::fs::write(
+        base_verifier_key_omission_artifact_path(),
+        render_base_verifier_key_omission_artifact(),
+    )
+    .expect("write generated base verifier-key omission artifact");
+}
+
+#[test]
+#[ignore = "expensive exact lifecycle target construction"]
+fn complete_x_out_typed_targets_match_exact_rust_assignments() {
+    let fixture = lifecycle_source(0x5354_5245_414d);
+    for arm in [
+        NebulaFPrimeStreamingLifecycleArm::Base,
+        NebulaFPrimeStreamingLifecycleArm::Recursive,
+    ] {
+        let target = streaming_lifecycle_x_out_typed_target(&fixture.lifecycle, arm)
+            .expect("complete lifecycle XOut target");
+        assert_eq!(target.column_count, fixture.lifecycle.arm(arm).m);
+        assert_eq!(target.rows.len(), 64);
+        let columns = fixture.lifecycle.x_out_preimage_columns(arm);
+        let values = fixture.lifecycle.x_out_preimage_values(arm);
+        for (state, offset, state_columns, state_values) in [
+            ("before", 0, columns.before(), values.before()),
+            ("after", 32, columns.after(), values.after()),
+        ] {
+            for (field, (&column, &value)) in state_columns.iter().zip(state_values).enumerate() {
+                assert_eq!(
+                    target.rows[offset + field],
+                    fixed_value_row(
+                        format!("{state}.x_out.field.{field}"),
+                        0,
+                        column,
+                        value.as_canonical_u64(),
+                    )
+                );
+            }
+        }
+    }
+
+    let base_model = FieldModel::from_canonical_values(
+        fixture
+            .lifecycle
+            .base_assignment()
+            .iter()
+            .map(|value| value.as_canonical_u64())
+            .collect(),
+    )
+    .expect("canonical base assignment");
+    let base_target = streaming_lifecycle_x_out_typed_target(
+        &fixture.lifecycle,
+        NebulaFPrimeStreamingLifecycleArm::Base,
+    )
+    .expect("complete base XOut target");
+    assert!(base_target
+        .rows
+        .iter()
+        .all(|row| typed_target_row_is_satisfied(row, &base_model).expect("base target replay")));
 }
 
 #[test]
@@ -226,8 +500,12 @@ fn verifier_advice_is_bound_by_the_terminal_public_image() {
     let alternate = lifecycle_source(0x5354_5245_414e);
     let baseline_assignment = baseline.lifecycle.base_assignment();
     let alternate_assignment = alternate.lifecycle.base_assignment();
-    let baseline_source = baseline.lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
-    let alternate_source = alternate.lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
+    let baseline_source = baseline
+        .lifecycle
+        .arm(NebulaFPrimeStreamingLifecycleArm::Base);
+    let alternate_source = alternate
+        .lifecycle
+        .arm(NebulaFPrimeStreamingLifecycleArm::Base);
 
     baseline_source
         .is_satisfied_by(baseline_assignment)

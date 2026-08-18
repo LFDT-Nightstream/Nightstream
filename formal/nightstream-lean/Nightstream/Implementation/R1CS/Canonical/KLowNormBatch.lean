@@ -27,7 +27,7 @@ hold, and both are hypotheses here rather than assumptions:
 - **Distinct columns.** If two digits shared a square column, the later write
   would clobber the earlier square and the earlier digit's rows would fail.
 
-`Π_DEC` decomposes every entry of the public `X` matrix into `k_rho = 14`
+`Π_DEC` decomposes every entry of the public `X` matrix into `k_rho = 16`
 balanced base-2 digits, so this batch is the check's dominant cost and the
 non-collision is the load-bearing part of its column ownership.
 -/

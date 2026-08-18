@@ -10,8 +10,8 @@ Assurance tier: model-level lifecycle authority.
 
 Owns the exact phase order, bounded phase indices, cursor advance, exclusion
 of skipped or repeated work, and the production step count for the current
-82-state-chunk, 86-claim-chunk, 26-round, 110-family, and
-82-successor-prefix-chunk schedule.
+94-state-chunk, 86-claim-chunk, 26-round, 110-family, and
+94-successor-prefix-chunk schedule.
 
 Does not own generated rows, a Rust relation, phase-local constraint
 semantics, same-assignment conformance, recursive proof integration, or a
@@ -192,22 +192,22 @@ def workItemCount (config : Config) : Nat :=
   simp [program, workItemCount, fixedWorkItems]
   omega
 
-/-- Current production schedule: both 83-thousand-field state messages and
+/-- Current production schedule: both 95-thousand-field state messages and
 the 88,023-field claim use 1,024-field chunks. PiCCS uses 26 SumCheck rounds,
 and PiRLC uses 110 narrow output-family phases. -/
 def productionConfig : Config where
-  priorStateChunks := 82
+  priorStateChunks := 94
   claimChunks := 86
   piCcsRounds := 26
   piRlcFamilies := 110
-  successorPrefixChunks := 82
+  successorPrefixChunks := 94
 
 theorem production_work_item_count :
-    workItemCount productionConfig = 400 := by
+    workItemCount productionConfig = 424 := by
   decide
 
 theorem production_program_length :
-    (program productionConfig).length = 400 := by
+    (program productionConfig).length = 424 := by
   rw [program_length, production_work_item_count]
 
 /-- Shared public columns used by the two physical lifecycle circuits and all
@@ -408,7 +408,7 @@ theorem production_complete_run_steps_exact {State : Type}
     {steps : Nat} {startValue : State} {after : Runtime State}
     (run : Runs semantics productionConfig steps (initial startValue) after)
     (complete : Complete productionConfig after) :
-    steps = 400 := by
+    steps = 424 := by
   rw [complete_run_steps_exact run complete, production_program_length]
 
 end Nightstream.Implementation.Nebula.ProductionStreamingFPrimeProgram

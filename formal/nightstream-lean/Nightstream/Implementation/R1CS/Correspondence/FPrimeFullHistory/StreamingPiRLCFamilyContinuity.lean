@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Transcript.
 Contract: local semantic-digest continuity between two accepted physical
 PiRLC family arms.
 
-Owns the independent Poseidon2 digest of the exact 937-field `FamilyState`
+Owns the independent Poseidon2 digest of the exact 1,045-field `FamilyState`
 encoding, the named collision event for two distinct canonical encodings, and
 the reduction from an explicit adjacent local semantic-digest link to equal
 semantic states or that collision event. It also recovers exact cursor
@@ -41,8 +41,8 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyState
 open Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript
 open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
 
-/-- Exact field framing used before the 937 external state fields. -/
-def familyStateFrame : List Nat := [2, 5, 435744240755, 937]
+/-- Exact field framing used before the 1,045 external state fields. -/
+def familyStateFrame : List Nat := [2, 5, 435744240755, 1045]
 
 private def absorbFields (initial : State) (values : List Field) : State :=
   values.foldl absorbElem initial
@@ -61,7 +61,7 @@ def familyStateDigest (state : FamilyState) : Fin 4 -> Field :=
     (familyStateDigestInput state)).2
 
 /-- Witness for a collision in the exact family-state Poseidon2 application
-domain. Both preimages are canonical, and their 937-field serializations are
+domain. Both preimages are canonical, and their 1,045-field serializations are
 different. -/
 structure Poseidon2FamilyStateCollisionWitness where
   left : FamilyState
@@ -75,7 +75,7 @@ structure Poseidon2FamilyStateCollisionWitness where
 def Poseidon2FamilyStateCollision : Prop :=
   Nonempty Poseidon2FamilyStateCollisionWitness
 
-/-- Equal local family digests recover the exact 937-field family state, or
+/-- Equal local family digests recover the exact 1,045-field family state, or
 exhibit a collision in the exact framed Poseidon2 application domain. -/
 theorem familyState_eq_or_poseidon2_collision
     (left right : FamilyState)
@@ -148,7 +148,7 @@ private theorem digest_operations_eq
     (kind : ArmKind) (side : StateSide) :
     digestOperations kind side =
       familyStateFrame.map ColumnReplay.Operation.pinned ++
-        ((List.range 937).map fun index =>
+        ((List.range 1045).map fun index =>
           ColumnReplay.Operation.external
             (stateWordColumnFor kind side index)) ++
           [ColumnReplay.Operation.digest] := by
@@ -166,26 +166,26 @@ private theorem semanticExecute_first_digest
   rfl
 
 /-- The assignment-dependent physical semantic replay is the independent
-digest of the decoded semantic state when all 937 preimage fields agree. -/
+digest of the decoded semantic state when all 1,045 preimage fields agree. -/
 theorem state_digest_eq_family_state_digest
     (assignment : Nat -> Nat)
     (canonical : forall column, assignment column < goldilocksP)
     (kind : ArmKind) (side : StateSide) (state : FamilyState)
     (preimage :
-      (List.range 937).map (fun index =>
+      (List.range 1045).map (fun index =>
           assignment (stateWordColumnFor kind side index)) =
         familyStateFields state) :
     stateDigest assignment canonical kind side = familyStateDigest state := by
   have assignedColumns :
-      (((List.range 937).map fun index =>
+      (((List.range 1045).map fun index =>
           stateWordColumnFor kind side index).map assignment) =
         familyStateFields state := by
     simpa only [List.map_map, Function.comp_apply] using preimage
   have externalOperations :
-      ((List.range 937).map fun index =>
+      ((List.range 1045).map fun index =>
           ColumnReplay.Operation.external
             (stateWordColumnFor kind side index)) =
-        (((List.range 937).map fun index =>
+        (((List.range 1045).map fun index =>
           stateWordColumnFor kind side index).map
             ColumnReplay.Operation.external) := by
     rw [List.map_map]
@@ -230,7 +230,7 @@ theorem accepted_before_state_fields_canonical
   apply canonical_fields_of_preimage accepted.bodyAssignment
     accepted.bodyCanonical
     (fun index => stateWordColumnFor (kindForFamily family) .before index)
-    937 accepted.beforeState
+    1045 accepted.beforeState
   simpa [AcceptedArm.beforeState] using accepted.publicBinding.beforePreimage
 
 /-- Every field in the accepted arm's decoded after state is a canonical
@@ -243,7 +243,7 @@ theorem accepted_after_state_fields_canonical
   apply canonical_fields_of_preimage accepted.bodyAssignment
     accepted.bodyCanonical
     (fun index => stateWordColumnFor (kindForFamily family) .after index)
-    937 accepted.afterState
+    1045 accepted.afterState
   simpa [AcceptedArm.afterState] using accepted.publicBinding.afterPreimage
 
 /-- Explicit local family-digest equality and exact public cursor equality
@@ -327,12 +327,12 @@ theorem accepted_semantic_continuity
       leftCanonical := canonical_fields_of_preimage left.bodyAssignment
         left.bodyCanonical
         (fun index => stateWordColumnFor (kindForFamily leftFamily) .after index)
-        937 left.afterState (by
+        1045 left.afterState (by
           simpa [AcceptedArm.afterState] using leftBinding.afterPreimage)
       rightCanonical := canonical_fields_of_preimage right.bodyAssignment
         right.bodyCanonical
         (fun index => stateWordColumnFor (kindForFamily rightFamily) .before index)
-        937 right.beforeState (by
+        1045 right.beforeState (by
           simpa [AcceptedArm.beforeState] using rightBinding.beforePreimage)
       preimagesDifferent := ?_
       digestEqual := digestEqual }⟩

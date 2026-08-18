@@ -315,7 +315,7 @@ fn valid_manifest() -> Value {
             "name": "fixed_one_plain_270",
             "matrix_count": 7,
             "fresh_source_count": 1,
-            "running_source_count": 14,
+            "running_source_count": 16,
             "public_carrier_width": 270,
             "fresh_legacy_width": 257,
             "fresh_completion_width": 13,
@@ -326,7 +326,7 @@ fn valid_manifest() -> Value {
             "poseidon_digest_width": 4,
             "binding_preimage_width": 23,
             "decomposition_base": 2,
-            "decomposition_children": 14,
+            "decomposition_children": 16,
         },
         "widths": {
             "iteration": 1,

@@ -174,6 +174,6 @@ def rhoStart : RawTranscriptSnapshot :=
   { lanes := [486171320447688243, 15824511359369214234, 14249364182315439794, 13345701385839730364, 7867704127958473334, 17372948845922433734, 7112050279880435508, 9514213426904464142]
     absorbed := 1 }
 
-def canonicalNifsProofByteCount : Nat := 202205
+def canonicalNifsProofByteCount : Nat := 227407
 
 end Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated

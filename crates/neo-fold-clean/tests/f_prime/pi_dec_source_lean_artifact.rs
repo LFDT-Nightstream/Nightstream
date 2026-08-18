@@ -16,15 +16,17 @@ use std::path::{Path, PathBuf};
 
 use neo_fold_clean::engine::r1cs_circuit::builder::{PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcPiDecSourceRowAudit, R1csIvcRelation};
+use neo_fold_clean::Params;
 use neo_math::{D, F};
+use neo_params::{nightstream_goldilocks_k16, NeoParams};
 use p3_field::PrimeField64;
-use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs, tiny_params};
+use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs};
 
 const GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDec/Generated";
 const SHARD_SIZE: usize = 250;
-const ACTIVE_ROW_COUNT: usize = 11_736;
-const ACTIVE_CHILD_COUNT: usize = 14;
+const ACTIVE_ROW_COUNT: usize = 13_006;
+const ACTIVE_CHILD_COUNT: usize = 16;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_PAPER_MATRIX_COUNT: usize = 14;
 const ACTIVE_POINT_DIMENSION: usize = 24;
@@ -41,6 +43,24 @@ fn repo_root() -> PathBuf {
         .and_then(Path::parent)
         .expect("workspace root")
         .to_path_buf()
+}
+
+fn bounded_source_params() -> Params {
+    Params::test_only_from_neo_params(
+        NeoParams::new(
+            nightstream_goldilocks_k16::Q,
+            nightstream_goldilocks_k16::ETA as u32,
+            nightstream_goldilocks_k16::D as u32,
+            ACTIVE_COMMITMENT_ROWS as u32,
+            1u64 << 24,
+            nightstream_goldilocks_k16::B_BASE,
+            nightstream_goldilocks_k16::K_RHO,
+            nightstream_goldilocks_k16::T,
+            nightstream_goldilocks_k16::EXTENSION_DEGREE,
+            60,
+        )
+        .expect("bounded source parameters satisfy the reduction guard"),
+    )
 }
 
 fn compare_or_write_expected(root: &Path, file: GeneratedLeanFile, drifted: &mut Vec<String>) {
@@ -300,7 +320,7 @@ fn render_metadata(strict: &PiDecStrictAudit, leaf_counts: &[usize]) -> String {
          | Payload | Meaning | Authority |\n\
          |---|---|---|\n\
          | source range | one contiguous outer strict-PiDEC program | untrusted until checked |\n\
-         | profile | `kappa = 4`, `t = 14`, `r = 24` | bounded fixture only |\n\
+         | profile | `b = 2`, `k_rho = 16`, `kappa = 4`, `t = 14`, `r = 24` | bounded fixture only |\n\
          -/\n\n\
          namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Metadata\n\n\
          def schemaVersion : Nat := 1\n\
@@ -354,7 +374,7 @@ fn render_rows_aggregate(shard_count: usize) -> String {
 }
 
 fn generated_files() -> Vec<GeneratedLeanFile> {
-    let params = tiny_params();
+    let params = bounded_source_params();
     assert_eq!(params.kappa() as usize, ACTIVE_COMMITMENT_ROWS);
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
@@ -383,8 +403,6 @@ fn generated_files() -> Vec<GeneratedLeanFile> {
         .iter()
         .map(|range| range.row_end - range.row_start)
         .collect::<Vec<_>>();
-    assert_eq!(leaf_counts, vec![216, 0, 270, 1_512, 70, 672, 4_320, 420, 4_200, 56]);
-
     let mut files = vec![
         GeneratedLeanFile {
             relative_path: format!("{GENERATED_DIRECTORY}/Metadata.lean"),

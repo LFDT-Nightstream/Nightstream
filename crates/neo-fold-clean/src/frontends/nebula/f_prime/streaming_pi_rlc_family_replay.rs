@@ -11,7 +11,7 @@
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget, Var};
+use crate::engine::r1cs_circuit::{builder::Poseidon2PermutationAudit, R1csBuilder, TranscriptGadget, Var};
 
 pub(crate) const SOURCE_COUNT: usize = 1 + crate::config::K_RHO as usize;
 pub(crate) const LANE_COUNT: usize = 54;
@@ -45,6 +45,7 @@ pub(crate) const OUTPUT_REPLAY_BEFORE_START: usize = INPUT_REPLAY_BEFORE_START +
 pub(crate) const REPLAY_AUXILIARY_START: usize = OUTPUT_REPLAY_BEFORE_START + 8;
 
 const POSEIDON2_ROWS_PER_CALL: usize = 600;
+const POSEIDON2_RATE: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NebulaFPrimePiRlcFamilyReplayArmKind {
@@ -100,6 +101,85 @@ pub struct NebulaFPrimePiRlcFamilyReplayShapeAudit {
     pub after_absorbed: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NebulaFPrimePiRlcFamilyReplayScope {
+    Input,
+    Output,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NebulaFPrimePiRlcFamilyReplayCallClass {
+    Direct,
+    PartialStart,
+    Chained,
+}
+
+/// Exact source-side semantic owner of one PiRLC replay permutation.
+///
+/// The record is created beside the transcript append that emits the rows.
+/// Selective projection may rename its columns, but it may not infer its
+/// scope, call class, state input, or absorbed source slice.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NebulaFPrimePiRlcFamilyReplayCallAudit {
+    scope: NebulaFPrimePiRlcFamilyReplayScope,
+    index: usize,
+    class: NebulaFPrimePiRlcFamilyReplayCallClass,
+    row_start: usize,
+    row_end: usize,
+    state_before_columns: [usize; 8],
+    absorbed_columns: Vec<usize>,
+    permutation_input_columns: [usize; 8],
+    first_allocated_column: usize,
+    allocated_column_count: usize,
+    output_columns: [usize; 8],
+}
+
+impl NebulaFPrimePiRlcFamilyReplayCallAudit {
+    pub const fn scope(&self) -> NebulaFPrimePiRlcFamilyReplayScope {
+        self.scope
+    }
+
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    pub const fn class(&self) -> NebulaFPrimePiRlcFamilyReplayCallClass {
+        self.class
+    }
+
+    pub const fn row_start(&self) -> usize {
+        self.row_start
+    }
+
+    pub const fn row_end(&self) -> usize {
+        self.row_end
+    }
+
+    pub const fn state_before_columns(&self) -> [usize; 8] {
+        self.state_before_columns
+    }
+
+    pub fn absorbed_columns(&self) -> &[usize] {
+        &self.absorbed_columns
+    }
+
+    pub const fn permutation_input_columns(&self) -> [usize; 8] {
+        self.permutation_input_columns
+    }
+
+    pub const fn first_allocated_column(&self) -> usize {
+        self.first_allocated_column
+    }
+
+    pub const fn allocated_column_count(&self) -> usize {
+        self.allocated_column_count
+    }
+
+    pub const fn output_columns(&self) -> [usize; 8] {
+        self.output_columns
+    }
+}
+
 pub struct NebulaFPrimePiRlcFamilyReplaySynthesis {
     kind: NebulaFPrimePiRlcFamilyReplayArmKind,
     builder: R1csBuilder,
@@ -109,11 +189,13 @@ pub struct NebulaFPrimePiRlcFamilyReplaySynthesis {
     input_after_columns: [usize; 8],
     output_before_columns: [usize; 8],
     output_after_columns: [usize; 8],
+    call_audits: Vec<NebulaFPrimePiRlcFamilyReplayCallAudit>,
 }
 
 pub(crate) struct AppendedPiRlcFamilyReplay {
     pub(crate) input_after_columns: [usize; 8],
     pub(crate) output_after_columns: [usize; 8],
+    pub(crate) call_audits: Vec<NebulaFPrimePiRlcFamilyReplayCallAudit>,
 }
 
 pub(crate) fn append_pi_rlc_family_replay(
@@ -142,6 +224,7 @@ pub(crate) fn append_pi_rlc_family_replay(
         .collect::<Vec<_>>();
     input_replay.append_fields_unframed_vars(builder, &input_variables);
     let input_after_columns = input_replay.variable_state().map(Var::col);
+    let input_audit_end = builder.poseidon2_permutation_audits().len();
     assert_eq!(input_replay.absorbed(), kind.after_absorbed());
     assert_eq!(
         builder.poseidon2_permutation_audits().len() - audit_start,
@@ -168,10 +251,81 @@ pub(crate) fn append_pi_rlc_family_replay(
     );
     assert_eq!(builder.rows() - row_start, kind.rows());
     assert_eq!(builder.cols() - column_start, kind.rows());
+    let permutation_audits = builder.poseidon2_permutation_audits();
+    let mut call_audits = replay_call_audits(
+        kind,
+        NebulaFPrimePiRlcFamilyReplayScope::Input,
+        input_columns,
+        input_before_columns,
+        &permutation_audits[audit_start..input_audit_end],
+    );
+    call_audits.extend(replay_call_audits(
+        kind,
+        NebulaFPrimePiRlcFamilyReplayScope::Output,
+        output_columns,
+        output_before_columns,
+        &permutation_audits[input_audit_end..],
+    ));
     AppendedPiRlcFamilyReplay {
         input_after_columns,
         output_after_columns,
+        call_audits,
     }
+}
+
+fn replay_call_audits(
+    kind: NebulaFPrimePiRlcFamilyReplayArmKind,
+    scope: NebulaFPrimePiRlcFamilyReplayScope,
+    source_columns: &[usize],
+    state_before_columns: [usize; 8],
+    permutation_audits: &[Poseidon2PermutationAudit],
+) -> Vec<NebulaFPrimePiRlcFamilyReplayCallAudit> {
+    let expected_calls = match scope {
+        NebulaFPrimePiRlcFamilyReplayScope::Input => kind.input_poseidon2_calls(),
+        NebulaFPrimePiRlcFamilyReplayScope::Output => kind.output_poseidon2_calls(),
+    };
+    assert_eq!(permutation_audits.len(), expected_calls);
+
+    let mut calls = Vec::with_capacity(expected_calls);
+    let mut state_before = state_before_columns;
+    let mut absorbed = kind.before_absorbed();
+    let mut source_cursor = 0;
+    for (index, permutation) in permutation_audits.iter().enumerate() {
+        let absorbed_count = POSEIDON2_RATE - absorbed;
+        let absorbed_columns = source_columns[source_cursor..source_cursor + absorbed_count].to_vec();
+        let mut permutation_input = state_before;
+        permutation_input[absorbed..POSEIDON2_RATE].copy_from_slice(&absorbed_columns);
+        assert_eq!(permutation.input_cols, permutation_input);
+        assert_eq!(permutation.row_end - permutation.row_start, POSEIDON2_ROWS_PER_CALL);
+        assert_eq!(permutation.allocated_col_count, POSEIDON2_ROWS_PER_CALL);
+
+        let class = if index != 0 {
+            NebulaFPrimePiRlcFamilyReplayCallClass::Chained
+        } else if absorbed == 0 {
+            NebulaFPrimePiRlcFamilyReplayCallClass::Direct
+        } else {
+            NebulaFPrimePiRlcFamilyReplayCallClass::PartialStart
+        };
+        calls.push(NebulaFPrimePiRlcFamilyReplayCallAudit {
+            scope,
+            index,
+            class,
+            row_start: permutation.row_start,
+            row_end: permutation.row_end,
+            state_before_columns: state_before,
+            absorbed_columns,
+            permutation_input_columns: permutation.input_cols,
+            first_allocated_column: permutation.first_allocated_col,
+            allocated_column_count: permutation.allocated_col_count,
+            output_columns: permutation.output_cols,
+        });
+
+        source_cursor += absorbed_count;
+        absorbed = 0;
+        state_before = permutation.output_cols;
+    }
+    assert_eq!(source_columns.len() - source_cursor, kind.after_absorbed());
+    calls
 }
 
 impl NebulaFPrimePiRlcFamilyReplaySynthesis {
@@ -231,6 +385,7 @@ impl NebulaFPrimePiRlcFamilyReplaySynthesis {
         );
         let input_after_columns = replay.input_after_columns;
         let output_after_columns = replay.output_after_columns;
+        let call_audits = replay.call_audits;
 
         assert_eq!(builder.poseidon2_permutation_audits().len(), kind.poseidon2_calls());
         assert_eq!(builder.rows(), kind.rows());
@@ -246,6 +401,7 @@ impl NebulaFPrimePiRlcFamilyReplaySynthesis {
             input_after_columns,
             output_before_columns,
             output_after_columns,
+            call_audits,
         }
     }
 
@@ -279,6 +435,10 @@ impl NebulaFPrimePiRlcFamilyReplaySynthesis {
 
     pub const fn output_after_columns(&self) -> [usize; 8] {
         self.output_after_columns
+    }
+
+    pub fn call_audits(&self) -> &[NebulaFPrimePiRlcFamilyReplayCallAudit] {
+        &self.call_audits
     }
 
     pub const fn shape_audit(&self) -> NebulaFPrimePiRlcFamilyReplayShapeAudit {

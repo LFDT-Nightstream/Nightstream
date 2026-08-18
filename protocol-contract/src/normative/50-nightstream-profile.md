@@ -8,7 +8,7 @@ The v1 profile MUST use
 q = 2^64-2^32+1
 K_ext = F_q[U]/(U^2-7)
 Phi = X^54+X^27+1
-d = 54, b = 2, k = 14, B = 16384.
+d = 54, b = 2, k_rho = 16, B = 65536.
 ```
 
 Decision: NSD-DOMAIN-001 and NSD-ENCODING-001.
@@ -19,8 +19,8 @@ The verifier-key relation artifact MUST supply the exact positive logical row
 count and the exact full committed assignment width `m` for `z=x||w`, with
 `m` a multiple of 54 and at most 16,777,206 fields, or 310,689 complete Phi81
 ring columns. The first 270 fields are `x`. The profile has one fresh claim
-and 14 running claims. Source order MUST be fresh claim 0 followed by running
-claims 0 through 13. A proof-supplied shape MUST NOT select these values.
+and 16 running claims. Source order MUST be fresh claim 0 followed by running
+claims 0 through 15. A proof-supplied shape MUST NOT select these values.
 
 Decision: NSD-DOMAIN-001 and NSD-CARRIER-001.
 
@@ -60,8 +60,8 @@ Decision: NSD-CARRIER-001 and NSD-AUTHORITY-001.
 
 ### NS-SPLIT-BINARY — Deterministic signed-bit split
 
-For a centered scalar `a` with `abs(a)<2^14`, let `s=-1` when `a<0` and
-`s=1` otherwise. Child `h` MUST be `s*bit_h(abs(a))` for `h=0..13`. The
+For a centered scalar `a` with `abs(a)<2^16`, let `s=-1` when `a<0` and
+`s=1` otherwise. Child `h` MUST be `s*bit_h(abs(a))` for `h=0..15`. The
 algorithm MUST apply coordinate-wise, encode `-1` as `q-1`, and reject an
 out-of-bound prover assignment before it emits children. The verifier MUST
 apply the same error rule only to the public parent input; it cannot inspect

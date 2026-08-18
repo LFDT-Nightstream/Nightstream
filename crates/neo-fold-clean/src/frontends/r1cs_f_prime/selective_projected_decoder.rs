@@ -7,7 +7,38 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use super::super::SparseR1cs;
-use super::{trace_error, LowNormR1csError, SelectiveLayout};
+use super::{trace_error, LowNormR1csError, SelectiveArmPlan, SelectiveLayout, SelectiveLayoutCore};
+
+#[derive(Clone, Copy)]
+struct SelectiveDecoderLayout<'a> {
+    slots: &'a [Vec<Option<(usize, usize)>>],
+    plans: &'a [SelectiveArmPlan],
+    aliases: &'a [Vec<Option<(usize, usize)>>],
+    equal_aliases: &'a [Vec<Option<usize>>],
+    final_columns: usize,
+}
+
+impl<'a> SelectiveDecoderLayout<'a> {
+    fn from_finished(layout: &'a SelectiveLayout) -> Self {
+        Self {
+            slots: &layout.slots,
+            plans: &layout.plans,
+            aliases: &layout.aliases,
+            equal_aliases: &layout.equal_aliases,
+            final_columns: layout.compiler_audit.layout().total_columns(),
+        }
+    }
+
+    fn from_core(layout: &'a SelectiveLayoutCore) -> Self {
+        Self {
+            slots: &layout.slots,
+            plans: &layout.plans,
+            aliases: &layout.aliases,
+            equal_aliases: &layout.equal_aliases,
+            final_columns: layout.summary().columns,
+        }
+    }
+}
 
 /// Exact selective-layout disposition of one requested source field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -407,6 +438,18 @@ pub(super) fn decoder_provenance(
     arm: usize,
     requested_source_columns: &[usize],
 ) -> Result<SelectiveProjectedDecoderProvenance, LowNormR1csError> {
+    decoder_provenance_from_layout(
+        &SelectiveDecoderLayout::from_finished(layout),
+        arm,
+        requested_source_columns,
+    )
+}
+
+fn decoder_provenance_from_layout(
+    layout: &SelectiveDecoderLayout<'_>,
+    arm: usize,
+    requested_source_columns: &[usize],
+) -> Result<SelectiveProjectedDecoderProvenance, LowNormR1csError> {
     let Some(slots) = layout.slots.get(arm) else {
         return Err(trace_error("projected decoder-provenance arm is out of range"));
     };
@@ -434,7 +477,7 @@ pub(super) fn decoder_provenance(
 }
 
 fn source_resolution(
-    layout: &SelectiveLayout,
+    layout: &SelectiveDecoderLayout<'_>,
     arm: usize,
     column: usize,
 ) -> Result<SelectiveProjectedSourceResolution, LowNormR1csError> {
@@ -994,7 +1037,7 @@ fn compress_template_instances(
 }
 
 fn repeated_decoder_templates(
-    layout: &SelectiveLayout,
+    layout: &SelectiveDecoderLayout<'_>,
     arm: usize,
     source_range: &Range<usize>,
     source_arm: &SparseR1cs,
@@ -1174,6 +1217,34 @@ pub(super) fn decoder_run_provenance(
     source_range: Range<usize>,
     source_arm: &SparseR1cs,
 ) -> Result<SelectiveProjectedDecoderRunProvenance, LowNormR1csError> {
+    decoder_run_provenance_from_layout(
+        &SelectiveDecoderLayout::from_finished(layout),
+        arm,
+        source_range,
+        source_arm,
+    )
+}
+
+pub(super) fn decoder_run_provenance_from_core(
+    layout: &SelectiveLayoutCore,
+    arm: usize,
+    source_range: Range<usize>,
+    source_arm: &SparseR1cs,
+) -> Result<SelectiveProjectedDecoderRunProvenance, LowNormR1csError> {
+    decoder_run_provenance_from_layout(
+        &SelectiveDecoderLayout::from_core(layout),
+        arm,
+        source_range,
+        source_arm,
+    )
+}
+
+fn decoder_run_provenance_from_layout(
+    layout: &SelectiveDecoderLayout<'_>,
+    arm: usize,
+    source_range: Range<usize>,
+    source_arm: &SparseR1cs,
+) -> Result<SelectiveProjectedDecoderRunProvenance, LowNormR1csError> {
     let Some(slots) = layout.slots.get(arm) else {
         return Err(trace_error("complete decoder arm is out of range"));
     };
@@ -1266,7 +1337,7 @@ pub(super) fn decoder_run_provenance(
     Ok(SelectiveProjectedDecoderRunProvenance {
         arm,
         source_range,
-        final_columns: layout.compiler_audit.layout().total_columns(),
+        final_columns: layout.final_columns,
         runs,
         strided_runs,
         repeated_templates,

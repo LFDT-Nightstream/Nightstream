@@ -20,7 +20,9 @@ use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstra
 use neo_fold_clean::frontends::r1cs_f_prime::{MultiBranchLowNormR1cs, SparseR1cs};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOCKS_MODULUS, PROBLEM_SCHEMA};
+use recursive_constraint_minimizer::{
+    Problem, Row, Scope, Source, Term, TypedTarget, TypedTargetRow, GOLDILOCKS_MODULUS, PROBLEM_SCHEMA,
+};
 use sha2::{Digest, Sha256};
 
 mod analysis;
@@ -522,6 +524,71 @@ pub fn export_complete_streaming_lifecycle_problem(
         ));
     }
     Ok(StreamingLifecycleProblemExport { problem, arm, profile })
+}
+
+/// Build the complete typed 32-field XOut target for one exact lifecycle arm.
+///
+/// The expected values are captured before source-row lowering. The target
+/// checks both the prior and successor XOut preimages by exact field value.
+pub fn streaming_lifecycle_x_out_typed_target(
+    lifecycle: &NebulaFPrimeStreamingLifecycleSourceArms,
+    arm: NebulaFPrimeStreamingLifecycleArm,
+) -> Result<TypedTarget, ExportError> {
+    let source = lifecycle.arm(arm);
+    let columns = lifecycle.x_out_preimage_columns(arm);
+    let values = lifecycle.x_out_preimage_values(arm);
+    let arm_name = match arm {
+        NebulaFPrimeStreamingLifecycleArm::Base => "base",
+        NebulaFPrimeStreamingLifecycleArm::Recursive => "recursive",
+    };
+    let mut rows = Vec::with_capacity(64);
+    for (state, state_columns, state_values) in [
+        ("before", columns.before(), values.before()),
+        ("after", columns.after(), values.after()),
+    ] {
+        for (field, (&column, &expected)) in state_columns.iter().zip(state_values).enumerate() {
+            if column >= source.m {
+                return Err(ExportError::new(format!(
+                    "streaming {arm_name} {state} XOut field {field} column {column} is outside source width {}",
+                    source.m
+                )));
+            }
+            rows.push(fixed_field_target_row(
+                format!("{state}.x_out.field.{field}"),
+                Var::ONE.col(),
+                column,
+                expected,
+            ));
+        }
+    }
+    Ok(TypedTarget {
+        id: format!("nightstream.streaming.{arm_name}.complete_x_out"),
+        column_count: source.m,
+        rows,
+    })
+}
+
+fn fixed_field_target_row(id: String, one: usize, column: usize, expected: F) -> TypedTargetRow {
+    let mut a = Vec::with_capacity(2);
+    if expected != F::ZERO {
+        a.push(Term {
+            column: one,
+            coefficient: (-expected).as_canonical_u64().to_string(),
+        });
+    }
+    a.push(Term {
+        column,
+        coefficient: F::ONE.as_canonical_u64().to_string(),
+    });
+    TypedTargetRow {
+        id,
+        a,
+        b: vec![Term {
+            column: one,
+            coefficient: F::ONE.as_canonical_u64().to_string(),
+        }],
+        c: Vec::new(),
+    }
 }
 
 fn stage_owners(row_count: usize, stages: &[PhysicalStageRange]) -> Vec<Option<&'static str>> {

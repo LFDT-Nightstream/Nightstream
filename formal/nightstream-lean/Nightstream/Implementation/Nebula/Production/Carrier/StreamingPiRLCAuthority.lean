@@ -54,6 +54,31 @@ abbrev InputResidual :=
 
 /-! ## Canonical family-major input frame -/
 
+private theorem flatMap_singletons
+    {Alpha Beta : Type} (items : List Alpha) (value : Alpha -> Beta) :
+    items.flatMap (fun item => [value item]) = items.map value := by
+  induction items with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp [inductionHypothesis]
+
+private theorem flatMap_eq_map_flatten
+    {Alpha Beta : Type} (items : List Alpha) (values : Alpha -> List Beta) :
+    items.flatMap values = (items.map values).flatten := by
+  induction items with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp [inductionHypothesis]
+
+private theorem map_eq_of_pointwise
+    {Alpha Beta : Type} (items : List Alpha) (left right : Alpha -> Beta)
+    (equal : forall item, left item = right item) :
+    items.map left = items.map right := by
+  induction items with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp [equal, inductionHypothesis]
+
 /-- Canonical coefficient order for one base ring. -/
 def ringFields (value : RingF) : List Nat :=
   List.ofFn fun lane => (value lane).val
@@ -70,6 +95,15 @@ theorem ringFields_injective : Function.Injective ringFields := by
   funext lane
   apply Fin.ext
   exact congrFun valuesEqual lane
+
+/-- The proof-oriented ring view is exactly the Poseidon2 protocol encoding
+used by the canonical streaming input frame. -/
+theorem ringFields_eq_protocol (value : RingF) :
+    ringFields value = ProductPoseidon2.ringFFields value := by
+  unfold ringFields ProductPoseidon2.ringFFields ProductPoseidon2.finFields
+    ProductPoseidon2.fFields
+  rw [flatMap_singletons]
+  simp [ProductPoseidon2.fFields, canonicalFinIndices]
 
 /-- Verifier-owned source order `0, ..., 16`. -/
 def sourceSchedule : List Source := canonicalFinIndices 17
@@ -131,6 +165,24 @@ def familyInputFields (inputs : InputRings) (family : Family) : List Nat :=
     (familyInputFields inputs family).length = 918 := by
   exact phaseFields_length _
 
+/-- The authority layer and the semantic PiRLC machine use one exact
+family-major serialization. -/
+theorem familyInputFields_eq_canonical
+    (inputs : InputRings) (family : Family) :
+    familyInputFields inputs family =
+      ProductionStreamingPiRlc.familyInputFrame inputs family := by
+  unfold familyInputFields phaseFields
+  unfold ProductionStreamingPiRlc.familyInputFrame
+  rw [flatMap_eq_map_flatten]
+  apply congrArg List.flatten
+  unfold sourceBlocks ProductionStreamingPiRlc.sourceSchedule
+  rw [canonicalFinIndices, List.map_ofFn]
+  apply congrArg List.ofFn
+  funext source
+  change ringFields (inputs source family) =
+    ProductPoseidon2.ringFFields (inputs source family)
+  exact ringFields_eq_protocol _
+
 /-- One exact input chunk per verifier-owned family. -/
 def inputChunks (inputs : InputRings) : List (List Nat) :=
   familySchedule.map (familyInputFields inputs)
@@ -162,6 +214,17 @@ def inputFrame (inputs : InputRings) : List Nat :=
     (inputFrame inputs).length = 100980 := by
   rw [inputFrame, List.length_flatten, inputChunks_lengths]
   decide
+
+/-- The complete authority frame is the canonical semantic input frame, not
+a second trust-boundary encoding. -/
+theorem inputFrame_eq_canonical (inputs : InputRings) :
+    inputFrame inputs = ProductionStreamingPiRlc.inputFrame inputs := by
+  unfold inputFrame inputChunks ProductionStreamingPiRlc.inputFrame
+  rw [flatMap_eq_map_flatten]
+  apply congrArg List.flatten
+  exact map_eq_of_pointwise familySchedule (familyInputFields inputs)
+    (ProductionStreamingPiRlc.familyInputFrame inputs)
+    (familyInputFields_eq_canonical inputs)
 
 /-- The family schedule is exactly ordinal order `0, ..., 109`. -/
 theorem familySchedule_ordinals :
@@ -626,7 +689,7 @@ def decodedInputs
     Source -> RingF :=
   inputRing layout assignment canonical
 
-/-- The existing 43,794 handwritten rows imply one exact fused phase. The
+/-- The existing 49,626 handwritten rows imply one exact fused phase. The
 same decoded input rings occur in the replay frame and in `combineOne`. -/
 theorem local_rows_imply_concrete_phase
     {layout : ProductPiRlcRingCombinationRows.Layout}

@@ -483,7 +483,7 @@ The v1 profile MUST use
 q = 2^64-2^32+1
 K_ext = F_q[U]/(U^2-7)
 Phi = X^54+X^27+1
-d = 54, b = 2, k = 14, B = 16384.
+d = 54, b = 2, k_rho = 16, B = 65536.
 ```
 
 Decision: NSD-DOMAIN-001 and NSD-ENCODING-001.
@@ -494,8 +494,8 @@ The verifier-key relation artifact MUST supply the exact positive logical row
 count and the exact full committed assignment width `m` for `z=x||w`, with
 `m` a multiple of 54 and at most 16,777,206 fields, or 310,689 complete Phi81
 ring columns. The first 270 fields are `x`. The profile has one fresh claim
-and 14 running claims. Source order MUST be fresh claim 0 followed by running
-claims 0 through 13. A proof-supplied shape MUST NOT select these values.
+and 16 running claims. Source order MUST be fresh claim 0 followed by running
+claims 0 through 15. A proof-supplied shape MUST NOT select these values.
 
 Decision: NSD-DOMAIN-001 and NSD-CARRIER-001.
 
@@ -535,8 +535,8 @@ Decision: NSD-CARRIER-001 and NSD-AUTHORITY-001.
 
 ### NS-SPLIT-BINARY — Deterministic signed-bit split
 
-For a centered scalar `a` with `abs(a)<2^14`, let `s=-1` when `a<0` and
-`s=1` otherwise. Child `h` MUST be `s*bit_h(abs(a))` for `h=0..13`. The
+For a centered scalar `a` with `abs(a)<2^16`, let `s=-1` when `a<0` and
+`s=1` otherwise. Child `h` MUST be `s*bit_h(abs(a))` for `h=0..15`. The
 algorithm MUST apply coordinate-wise, encode `-1` as `q-1`, and reject an
 out-of-bound prover assignment before it emits children. The verifier MUST
 apply the same error rule only to the public parent input; it cannot inspect
@@ -600,10 +600,10 @@ Decision: NSD-PICCS-001, NSD-ENCODING-001, and NSD-TRANSCRIPT-001.
 ### NS-PICCS-TERMINAL — Exact output family
 
 At the final SumCheck point, the proof MUST contain one `R_K` evaluation for
-each of 15 sources and 14 matrices, in source-major then matrix-major order.
+each of 17 sources and 14 matrices, in source-major then matrix-major order.
 `F` uses the new outputs for fresh source 0. `N` uses the new `M_0` output for
-sources 0 through 14. `E` uses the new outputs for running sources 1 through
-14 and `eq(r_new,r_old)`; `T_abs` uses those running sources' input evaluations
+sources 0 through 16. `E` uses the new outputs for running sources 1 through
+16 and `eq(r_new,r_old)`; `T_abs` uses those running sources' input evaluations
 at `r_old`. The verifier MUST derive these terminal values and check the
 reviewed joint equation.
 
@@ -628,15 +628,15 @@ Decision: NSD-COLUMN-001 and NSD-COLUMN-MAP-001.
 
 ### NS-PICCS-CENSUS — Selected algebraic planning count
 
-For `K_fresh=1`, `k=14`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
+For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
 MUST derive
 
 ```text
 D_Q = 9
 N_SC = 9*24 = 216
-D_SZ = max(24,39,10599) = 10599
-N_field = 10815
-coordinate-fork numerator = K_fresh+k+1 = 16.
+D_SZ = max(24,41,12113) = 12113
+N_field = 12329
+coordinate-fork numerator = K_fresh+k_rho+1 = 18.
 ```
 
 These values are component counts, not an end-to-end security level.
@@ -646,8 +646,8 @@ Decision: NSD-SECURITY-001 and NSD-DOMAIN-MAP-001.
 
 ### NS-PIRLC-PROFILE — Selected PiRLC inputs and challenges
 
-PiRLC MUST take the 15 CE outputs of NS-PICCS-TERMINAL in the same source
-order. It MUST sample exactly 15 ring challenges with NS-SAMPLER-CANDIDATES
+PiRLC MUST take the 17 CE outputs of NS-PICCS-TERMINAL in the same source
+order. It MUST sample exactly 17 ring challenges with NS-SAMPLER-CANDIDATES
 after every PiCCS output is transcript-bound. Coefficient `j` of challenge
 `i` MUST be the accepted signed digit for global source `i`, coefficient `j`,
 encoded through `iota_q`.
@@ -656,10 +656,10 @@ Decision: NSD-SAMPLER-001 and NSD-TRANSCRIPT-001.
 
 ### NS-PIDEC-PROFILE — Selected PiDEC children
 
-PiDEC MUST use NS-SPLIT-BINARY and output exactly 14 ordered CE children. It
+PiDEC MUST use NS-SPLIT-BINARY and output exactly 16 ordered CE children. It
 MUST derive each 270-field child public input from the public parent and check
 the commitment and all 14 ring-evaluation recomposition equations. In a
-sequence, fold `j+1` MUST use those children as its 14 ordered running claims
+sequence, fold `j+1` MUST use those children as its 16 ordered running claims
 without insertion, removal, reordering, or value change. A bad sequence link
 MUST reject.
 
@@ -669,7 +669,7 @@ Decision: NSD-SPLIT-001 and NSD-AUTHORITY-001.
 
 The Nightstream PiCCS strong relation MUST be the paper relation under the
 zero-row embedding. Its output and ambient relations MUST remain
-`BatchCE_15(b,L)` and `BatchCE_15(B_amb,L)`. The commitment projection MUST
+`BatchCE_17(b,L)` and `BatchCE_17(B_amb,L)`. The commitment projection MUST
 remain unchanged and no padding or cache field may enter it. This is the
 paper's stated zero-row normalization, not a new reduction relation.
 
@@ -849,7 +849,7 @@ Decision: NSD-SAMPLER-001 and NSD-TRANSCRIPT-001.
 
 ### NS-SAMPLER-REPETITIONS — Bounded sampler loop
 
-The verifier MUST process 15 sources in order, 54 coefficients per source,
+The verifier MUST process 17 sources in order, 54 coefficients per source,
 and at most three attempts per coefficient. If all three candidates reject,
 the whole proof MUST reject.
 
@@ -859,7 +859,7 @@ Decision: NSD-SAMPLER-001.
 
 Accepted digits MUST be exactly uniform on the five-element alphabet. The
 security reduction MUST include a per-fold exhaustion bound of at most
-`810/q^3` and MUST compose it across the selected fold limit.
+`918/q^3` and MUST compose it across the selected fold limit.
 
 Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 
@@ -868,7 +868,7 @@ Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 The v1 security target MUST be at least 96 classical bits for one proof and
 one session per verifier key with at most 64 folds. The resource census MUST
 allow at most 262,144 adaptive oracle queries, including the derived maximum
-157,313 prescribed tagged squeezes per key. The release theorem MUST be an
+178,049 prescribed tagged squeezes per key. The release theorem MUST be an
 expected-polynomial-time proof of knowledge and MUST state the Ajtai setup or
 seeded-PRG assumption.
 

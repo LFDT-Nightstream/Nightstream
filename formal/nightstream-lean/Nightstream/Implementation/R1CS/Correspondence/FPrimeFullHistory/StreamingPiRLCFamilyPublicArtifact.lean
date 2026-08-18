@@ -43,6 +43,66 @@ def armFor : ArmKind → RawArm
   | .even => evenArm
   | .odd => oddArm
 
+/-- The exact two-row Rust cursor prefix, isolated from all later glue rows. -/
+def cursorRows : ArmKind → List Row
+  | .even =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCursorRowCertificate.evenCursorRows
+  | .odd =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCursorRowCertificate.oddCursorRows
+
+/-- The stable facade transports the two-row leaf certificate without
+reducing the complete generated glue collection. -/
+theorem exact_cursor_rows (kind : ArmKind) :
+    ((armFor kind).glueRows.map
+      FPrimeFullHistoryStreamingClaimReplay.Artifact.IndexedRow.row).take 2 =
+      cursorRows kind := by
+  cases kind
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCursorRowCertificate.evenArm_cursorRows_exact
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCursorRowCertificate.oddArm_cursorRows_exact
+
+abbrev StateColumnSegment :=
+  Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCertificateSupport.Segment
+
+/-- Compact interval decomposition of either Rust-emitted before-state. -/
+def beforeStateColumnSegments : ArmKind → List StateColumnSegment
+  | .even =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenBeforeSegments
+  | .odd =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddBeforeSegments
+
+/-- Compact interval decomposition of either Rust-emitted after-state. -/
+def afterStateColumnSegments : ArmKind → List StateColumnSegment
+  | .even =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenAfterSegments
+  | .odd =>
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddAfterSegments
+
+/-- The public facade exposes the exact compact decomposition proved by the
+state-column leaf certificate. Downstream proofs do not unfold the generated
+1,045-column lists. -/
+theorem exact_before_state_column_segments (kind : ArmKind) :
+    (armFor kind).beforeStateColumns =
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCertificateSupport.expandSegments
+        (beforeStateColumnSegments kind) := by
+  cases kind
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenBefore_exact
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddBefore_exact
+
+/-- The exact compact decomposition of either Rust-emitted after-state. -/
+theorem exact_after_state_column_segments (kind : ArmKind) :
+    (armFor kind).afterStateColumns =
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCertificateSupport.expandSegments
+        (afterStateColumnSegments kind) := by
+  cases kind
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenAfter_exact
+  · exact
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddAfter_exact
+
 theorem artifact_valid : rawArtifact.Valid :=
   rawArtifact_valid
 

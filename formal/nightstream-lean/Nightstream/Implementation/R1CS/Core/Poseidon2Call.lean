@@ -49,6 +49,25 @@ instance (call : Call) (programRows : List Row) :
   unfold Call.Matches
   infer_instance
 
+/-- Direct compact-block form: satisfying the exact renamed rows induces a
+satisfying isolated Poseidon2 assignment. -/
+theorem rows_sound
+    (call : Call)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies call.rows assignment) :
+    AgreeOn
+      (Nightstream.Implementation.R1CS.Poseidon2PermutationSound.interpret
+        (pullAssignment assignment call.columnMap))
+      (pullAssignment assignment call.columnMap)
+      (knownAfter
+        Nightstream.Implementation.R1CS.Poseidon2Permutation.inputColumns
+        Nightstream.Implementation.R1CS.Poseidon2Permutation.definitions) := by
+  apply Nightstream.Implementation.R1CS.Poseidon2PermutationSound.poseidon2Permutation_renamed_sound
+    call.columnMap call.columnMap_zero canonical one
+  simpa only [Call.rows] using satisfies
+
 /-- Every satisfying global assignment induces a satisfying isolated
 Poseidon assignment under the call's checked column embedding. -/
 theorem sound
@@ -66,8 +85,7 @@ theorem sound
       (knownAfter
         Nightstream.Implementation.R1CS.Poseidon2Permutation.inputColumns
         Nightstream.Implementation.R1CS.Poseidon2Permutation.definitions) := by
-  apply Nightstream.Implementation.R1CS.Poseidon2PermutationSound.poseidon2Permutation_renamed_sound
-    call.columnMap call.columnMap_zero canonical one
+  apply rows_sound call canonical one
   intro row member
   apply satisfies row
   have inSlice : row ∈ call.programSlice programRows := by
@@ -75,23 +93,22 @@ theorem sound
     exact member
   exact List.mem_of_mem_drop (List.mem_of_mem_take inSlice)
 
-/-- Functional form used by hash/sponge compiler proofs: every global output
-wire equals the extracted permutation applied only to this call's eight input
-wires. -/
-theorem outputs_sound
+private theorem outputs_sound_of_agreement
     (call : Call)
-    (programRows : List Row)
-    (rowMatch : call.Matches programRows)
     {assignment : Nat → Nat}
-    (canonical : ∀ column, assignment column < goldilocksP)
-    (one : assignment 0 = 1)
-    (satisfies : Satisfies programRows assignment) :
+    (callSound :
+      AgreeOn
+        (Nightstream.Implementation.R1CS.Poseidon2PermutationSound.interpret
+          (pullAssignment assignment call.columnMap))
+        (pullAssignment assignment call.columnMap)
+        (knownAfter
+          Nightstream.Implementation.R1CS.Poseidon2Permutation.inputColumns
+          Nightstream.Implementation.R1CS.Poseidon2Permutation.definitions)) :
     ∀ column ∈
         Nightstream.Implementation.R1CS.Poseidon2Permutation.outputColumns,
       assignment (call.columnMap column) =
         Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permuteState
           (pullAssignment assignment call.columnMap) column := by
-  have callSound := sound call programRows rowMatch canonical one satisfies
   have functional :=
     Nightstream.Implementation.R1CS.Poseidon2PermutationSound.interpret_output_eq_permuteState
       (pullAssignment assignment call.columnMap)
@@ -109,6 +126,40 @@ theorem outputs_sound
           (pullAssignment assignment call.columnMap) column :=
         functional column member
 
+/-- Functional form used by hash/sponge compiler proofs: every global output
+wire equals the extracted permutation applied only to this call's eight input
+wires. -/
+theorem outputs_sound
+    (call : Call)
+    (programRows : List Row)
+    (rowMatch : call.Matches programRows)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies programRows assignment) :
+    ∀ column ∈
+        Nightstream.Implementation.R1CS.Poseidon2Permutation.outputColumns,
+      assignment (call.columnMap column) =
+        Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permuteState
+          (pullAssignment assignment call.columnMap) column := by
+  exact outputs_sound_of_agreement call
+    (sound call programRows rowMatch canonical one satisfies)
+
+/-- Direct compact-block output form. -/
+theorem rows_outputs_sound
+    (call : Call)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies call.rows assignment) :
+    ∀ column ∈
+        Nightstream.Implementation.R1CS.Poseidon2Permutation.outputColumns,
+      assignment (call.columnMap column) =
+        Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permuteState
+          (pullAssignment assignment call.columnMap) column := by
+  exact outputs_sound_of_agreement call
+    (rows_sound call canonical one satisfies)
+
 private theorem outputColumns_generated :
     Nightstream.Implementation.R1CS.Poseidon2Permutation.outputColumns =
       (List.range 8).map (fun lane => 601 + lane) := by
@@ -120,21 +171,20 @@ private theorem outputColumn_mem (lane : Nat) (laneLt : lane < 8) :
   rw [outputColumns_generated]
   exact List.mem_map.mpr ⟨lane, List.mem_range.mpr laneLt, rfl⟩
 
-/-- Eight-lane functional statement, independent of the call site's fresh
-column numbers. -/
-theorem lanes_sound
+private theorem lanes_sound_of_outputs
     (call : Call)
-    (programRows : List Row)
-    (rowMatch : call.Matches programRows)
     {assignment : Nat → Nat}
-    (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
-    (satisfies : Satisfies programRows assignment) :
+    (outputs :
+      ∀ column ∈
+          Nightstream.Implementation.R1CS.Poseidon2Permutation.outputColumns,
+        assignment (call.columnMap column) =
+          Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permuteState
+            (pullAssignment assignment call.columnMap) column) :
     ∀ lane, lane < 8 →
       assignment (call.columnMap (601 + lane)) =
         Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute
           (fun inputLane => assignment (call.columnMap (inputLane + 1))) lane := by
-  have outputs := outputs_sound call programRows rowMatch canonical one satisfies
   intro lane laneLt
   rw [outputs (601 + lane) (outputColumn_mem lane laneLt)]
   rw [Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute_eq]
@@ -163,5 +213,36 @@ theorem lanes_sound
         Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permutationAssignment,
         Nat.sub_add_cancel columnPositive]
   · simp [columnLt]
+
+/-- Eight-lane functional statement, independent of the call site's fresh
+column numbers. -/
+theorem lanes_sound
+    (call : Call)
+    (programRows : List Row)
+    (rowMatch : call.Matches programRows)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies programRows assignment) :
+    ∀ lane, lane < 8 →
+      assignment (call.columnMap (601 + lane)) =
+        Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute
+          (fun inputLane => assignment (call.columnMap (inputLane + 1))) lane := by
+  exact lanes_sound_of_outputs call one
+    (outputs_sound call programRows rowMatch canonical one satisfies)
+
+/-- Direct compact-block lane form. -/
+theorem rows_lanes_sound
+    (call : Call)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies call.rows assignment) :
+    ∀ lane, lane < 8 →
+      assignment (call.columnMap (601 + lane)) =
+        Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute
+          (fun inputLane => assignment (call.columnMap (inputLane + 1))) lane := by
+  exact lanes_sound_of_outputs call one
+    (rows_outputs_sound call canonical one satisfies)
 
 end Nightstream.Implementation.R1CS.Poseidon2Call

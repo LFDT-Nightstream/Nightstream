@@ -14,12 +14,15 @@ mod streaming_claim_replay;
 mod streaming_lifecycle_fixed_point;
 mod streaming_lifecycle_profile;
 mod streaming_lifecycle_relation;
+mod streaming_lifecycle_verifier_key_recipe;
 mod streaming_phase_envelope;
 mod streaming_pi_ccs_round_relation;
 mod streaming_pi_ccs_start_relation;
 mod streaming_pi_ccs_state;
 mod streaming_pi_rlc_family_relation;
 mod streaming_pi_rlc_family_replay;
+mod streaming_prelude_relation;
+mod streaming_prior_state_replay_relation;
 mod streaming_program;
 mod streaming_public;
 mod streaming_relation;
@@ -71,9 +74,17 @@ pub use streaming_lifecycle_relation::{
     NebulaFPrimeStreamingPhaseEnvelopeFields,
 };
 #[doc(hidden)]
+pub use streaming_lifecycle_verifier_key_recipe::{
+    NebulaFPrimeStreamingVerifierKeyDigestBinding, NebulaFPrimeStreamingVerifierKeyHashBlock,
+    NebulaFPrimeStreamingVerifierKeyHashRecipes,
+};
+#[doc(hidden)]
 pub use streaming_phase_envelope::{
-    enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest, STREAMING_CARRY_PHASE_ENVELOPE_FAMILY,
-    STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
+    enforce_streaming_lifecycle_semantic_link, enforce_streaming_lifecycle_source_semantic_link,
+    enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest, StreamingLifecycleBeforePayloadRule,
+    StreamingLifecycleSemanticLinkWires, STREAMING_CARRY_PHASE_ENVELOPE_FAMILY,
+    STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, STREAMING_LIFECYCLE_PAYLOAD_DOMAIN_FAMILY,
+    STREAMING_LIFECYCLE_SEMANTIC_LINK_FAMILY, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
     STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY, STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY,
     STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
 };
@@ -110,6 +121,7 @@ pub use streaming_pi_ccs_start_relation::{
 pub use streaming_pi_rlc_family_relation::{
     build_production_pi_rlc_family_body_low_norm_r1cs, build_production_pi_rlc_family_overlay_low_norm_r1cs,
     production_pi_rlc_family_body_algebra_retained_audit, production_pi_rlc_family_body_carry_retained_audit,
+    production_pi_rlc_family_body_compact_layout_and_decoder_runs_for_ranges,
     production_pi_rlc_family_body_compiler_audit, production_pi_rlc_family_body_decoder_runs,
     production_pi_rlc_family_body_low_norm_shape_audit, production_pi_rlc_family_body_opening_rows_audit,
     production_pi_rlc_family_body_projected_rows_with_source_provenance,
@@ -133,8 +145,35 @@ pub use streaming_pi_rlc_family_relation::{
 };
 #[doc(hidden)]
 pub use streaming_pi_rlc_family_replay::{
-    NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimePiRlcFamilyReplayShapeAudit,
-    NebulaFPrimePiRlcFamilyReplaySynthesis,
+    NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimePiRlcFamilyReplayCallAudit,
+    NebulaFPrimePiRlcFamilyReplayCallClass, NebulaFPrimePiRlcFamilyReplayScope,
+    NebulaFPrimePiRlcFamilyReplayShapeAudit, NebulaFPrimePiRlcFamilyReplaySynthesis,
+};
+#[doc(hidden)]
+pub use streaming_prelude_relation::{
+    production_streaming_prelude_source_arm, NebulaFPrimeStreamingPreludeSynthesis,
+    STREAMING_PRELUDE_INITIAL_REPLAY_STATE_FAMILY, STREAMING_PRELUDE_INITIAL_REPLAY_STATE_ROWS_FAMILY,
+};
+#[doc(hidden)]
+pub use streaming_prior_state_replay_relation::{
+    production_prior_state_replay_final_source_arm, production_prior_state_replay_full_source_arm,
+    NebulaFPrimePriorStateReplayArmKind, NebulaFPrimePriorStateReplayColumnLayout,
+    NebulaFPrimePriorStateReplayShapeAudit, NebulaFPrimePriorStateReplaySourceStage,
+    NebulaFPrimePriorStateReplaySynthesis, PRIOR_STATE_REPLAY_AFTER_LAST_PROGRAM_CURSOR, PRIOR_STATE_REPLAY_CHUNKS,
+    PRIOR_STATE_REPLAY_CHUNK_FIELDS, PRIOR_STATE_REPLAY_FINAL_COMMON_PUBLIC_COLUMNS, PRIOR_STATE_REPLAY_FINAL_FIELDS,
+    PRIOR_STATE_REPLAY_FINAL_SOURCE_COLUMNS, PRIOR_STATE_REPLAY_FINAL_SOURCE_COLUMN_LAYOUT,
+    PRIOR_STATE_REPLAY_FINAL_SOURCE_POSEIDON2_PERMUTATIONS, PRIOR_STATE_REPLAY_FINAL_SOURCE_ROWS,
+    PRIOR_STATE_REPLAY_FINAL_SOURCE_SHA256, PRIOR_STATE_REPLAY_FINAL_SOURCE_STAGE_SCHEDULE,
+    PRIOR_STATE_REPLAY_FINAL_TARGET_BINDING_STATUS, PRIOR_STATE_REPLAY_FIRST_PROGRAM_CURSOR,
+    PRIOR_STATE_REPLAY_FRAME_FIELDS, PRIOR_STATE_REPLAY_FULL_CHUNKS, PRIOR_STATE_REPLAY_FULL_SOURCE_COLUMNS,
+    PRIOR_STATE_REPLAY_FULL_SOURCE_COLUMN_LAYOUT, PRIOR_STATE_REPLAY_FULL_SOURCE_POSEIDON2_PERMUTATIONS,
+    PRIOR_STATE_REPLAY_FULL_SOURCE_ROWS, PRIOR_STATE_REPLAY_FULL_SOURCE_SHA256,
+    PRIOR_STATE_REPLAY_FULL_SOURCE_STAGE_SCHEDULE, PRIOR_STATE_REPLAY_LIFECYCLE_SCOPE, PRIOR_STATE_REPLAY_PROFILE_ID,
+    PRIOR_STATE_REPLAY_SOURCE_ARTIFACT_ID, PRIOR_STATE_REPLAY_SOURCE_HASH_SCHEMA,
+    PRIOR_STATE_REPLAY_SOURCE_PUBLIC_COLUMNS, STREAMING_PRIOR_STATE_REPLAY_AFTER_STATE_FAMILY,
+    STREAMING_PRIOR_STATE_REPLAY_BEFORE_STATE_FAMILY, STREAMING_PRIOR_STATE_REPLAY_CHUNK_FAMILY,
+    STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY, STREAMING_PRIOR_STATE_REPLAY_LIFECYCLE_CARRY_FAMILY,
+    STREAMING_PRIOR_STATE_REPLAY_STATE_TRANSITION_FAMILY,
 };
 #[doc(hidden)]
 pub use streaming_program::{

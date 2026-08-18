@@ -1,9 +1,9 @@
 {
   "schema_version": 4,
   "contract_id": "nightstream-superneo-v1",
-  "contract_hash": "d837f37d106da5086596ac4beecb9570d546fcdbfea1010ac0bdc4d5a2c3c50d",
+  "contract_hash": "940d9475acbad84c7dfd88f3726212f8ae5db20a2e9affcef7d972839cb1055a",
   "profile_id": "nightstream-superneo-fprime-v1",
-  "profile_hash": "f2d6175226eeadfcc47de36092913ccb0af190575927685c2bba15ccfcfd0b18",
+  "profile_hash": "02bdb96e3d30f7c236e95e80b77c238525252b353fa4aa79682793247e4bc443",
   "status": "specified",
   "states": [
     {
@@ -39,7 +39,7 @@
     {
       "id": "ST-PICCS-OUTPUT",
       "terminal": false,
-      "description": "The 15-by-14 ordered ring-output family is transcript-bound."
+      "description": "The 17-by-14 ordered ring-output family is transcript-bound."
     },
     {
       "id": "ST-PICCS-ACCEPTED",
@@ -59,7 +59,7 @@
     {
       "id": "ST-PIDEC-ACCEPTED",
       "terminal": false,
-      "description": "The 14 child instances and all recomposition equations are accepted."
+      "description": "The 16 child instances and all recomposition equations are accepted."
     },
     {
       "id": "ST-FOLD-ACCEPTED",
@@ -368,7 +368,7 @@
       "unresolved_blocker_ids": [],
       "inputs": [
         "sumcheck-terminal-claim",
-        "210-ordered-ring-outputs"
+        "238-ordered-ring-outputs"
       ],
       "outputs": [
         "bound-piccs-output-family"
@@ -405,7 +405,7 @@
         "selected-structure"
       ],
       "outputs": [
-        "15-ce-output-instances"
+        "17-ce-output-instances"
       ],
       "reject_conditions": [
         "REJECT-TERMINAL-EQUATION"
@@ -429,7 +429,7 @@
       ],
       "unresolved_blocker_ids": [],
       "inputs": [
-        "15-ce-output-instances",
+        "17-ce-output-instances",
         "piccs-output-frame"
       ],
       "outputs": [
@@ -496,8 +496,8 @@
       ],
       "unresolved_blocker_ids": [],
       "inputs": [
-        "15-sampled-ring-challenges",
-        "15-ce-output-instances"
+        "17-sampled-ring-challenges",
+        "17-ce-output-instances"
       ],
       "outputs": [
         "mixed-ce-instance",
@@ -528,10 +528,10 @@
       "unresolved_blocker_ids": [],
       "inputs": [
         "mixed-ce-instance",
-        "14-child-commitment-and-evaluation-messages"
+        "16-child-commitment-and-evaluation-messages"
       ],
       "outputs": [
-        "14-accepted-child-instances-with-derived-public-inputs",
+        "16-accepted-child-instances-with-derived-public-inputs",
         "pidec-output-frame"
       ],
       "reject_conditions": [
@@ -563,11 +563,11 @@
       ],
       "unresolved_blocker_ids": [],
       "inputs": [
-        "14-accepted-child-instances",
+        "16-accepted-child-instances",
         "next-fold-running-instances-when-present"
       ],
       "outputs": [
-        "14-ordered-terminal-or-next-fold-instances",
+        "16-ordered-terminal-or-next-fold-instances",
         "verifier-derived-fold-transcript-digest"
       ],
       "reject_conditions": [
@@ -596,9 +596,9 @@
       "parent_id": null,
       "unit": "source",
       "index_variable": "source_index",
-      "minimum": 15,
-      "maximum": 15,
-      "index_order": "0-through-14",
+      "minimum": 17,
+      "maximum": 17,
+      "index_order": "0-through-16",
       "on_exhaustion": "reject-proof"
     },
     {
@@ -797,7 +797,7 @@
     },
     {
       "id": "REJECT-OUTPUT-COUNT",
-      "description": "The PiCCS terminal family does not contain exactly 210 ring values.",
+      "description": "The PiCCS terminal family does not contain exactly 238 ring values.",
       "rule_ids": [
         "NS-PICCS-TERMINAL"
       ]
@@ -835,7 +835,7 @@
     },
     {
       "id": "REJECT-PIRLC-SOURCE-COUNT",
-      "description": "PiRLC does not receive exactly the fifteen accepted PiCCS outputs.",
+      "description": "PiRLC does not receive exactly the seventeen accepted PiCCS outputs.",
       "rule_ids": [
         "NS-PIRLC-PROFILE"
       ]
@@ -857,14 +857,14 @@
     },
     {
       "id": "REJECT-PUBLIC-SPLIT-BOUND",
-      "description": "A public parent-input coefficient is outside the strict 2^14 centered split domain.",
+      "description": "A public parent-input coefficient is outside the strict 2^16 centered split domain.",
       "rule_ids": [
         "NS-SPLIT-BINARY"
       ]
     },
     {
       "id": "REJECT-CHILD-COUNT",
-      "description": "PiDEC does not contain exactly fourteen ordered children.",
+      "description": "PiDEC does not contain exactly sixteen ordered children.",
       "rule_ids": [
         "NS-PIDEC-PROFILE"
       ]
@@ -887,7 +887,7 @@
     },
     {
       "id": "REJECT-FOLD-STATE",
-      "description": "The fold output is not the required fourteen-child CE state.",
+      "description": "The fold output is not the required sixteen-child CE state.",
       "rule_ids": [
         "SN-FOLD-TYPE",
         "NS-RED-COMPOSITION"
@@ -945,7 +945,7 @@
         "payload_layout": [
           "canonical_statement_sections_in_section_id_order"
         ],
-        "base_field_count": 39848
+        "base_field_count": 45356
       },
       {
         "id": "FR-PICCS-INPUT",
@@ -1003,9 +1003,9 @@
         "event_id": "EV-PICCS-OUTPUT",
         "tag": "piccs_output",
         "payload_layout": [
-          "15_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"
+          "17_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"
         ],
-        "base_field_count": 22680
+        "base_field_count": 25704
       },
       {
         "id": "LOOP-RHO-SOURCES",
@@ -1067,9 +1067,9 @@
         "event_id": "EV-PIDEC",
         "tag": "pidec_output",
         "payload_layout": [
-          "14_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"
+          "16_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"
         ],
-        "base_field_count": 38556
+        "base_field_count": 44064
       },
       {
         "id": "FR-FOLD-FINALIZE",

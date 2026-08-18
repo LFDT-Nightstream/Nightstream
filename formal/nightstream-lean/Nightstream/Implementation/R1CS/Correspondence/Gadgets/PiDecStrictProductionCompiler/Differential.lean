@@ -6,7 +6,7 @@ Compact Rust/Lean differential execution at the strict `PiDEC` public-X
 boundary.
 
 Assurance tier: artifact-checked differential evidence for eleven bounded
-cases over the fixed `54 x 5`, fourteen-child profile.
+cases over the fixed `54 x 5`, sixteen-child profile.
 
 Owns: an independent Lean Boolean checker over typed parent/ordered-child
 field values and paper-shape header data; exact agreement with Rust results
@@ -59,7 +59,7 @@ theorem check_eq_true_iff (case : Case) :
 /-- All generated Rust result bits agree with the independent Lean checker.
 
 The executable certificate contains exactly eleven proof-free records. Each
-record has at most fourteen child residues and fourteen arity naturals; no
+record has at most sixteen child residues and sixteen arity naturals; no
 row list, proof-carrying structure, or private assignment is evaluated. -/
 theorem generated_cases_agree :
     (cases.all fun case =>

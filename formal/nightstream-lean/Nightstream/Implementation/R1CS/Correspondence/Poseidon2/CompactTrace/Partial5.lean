@@ -9,6 +9,7 @@ namespace Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement
 theorem compact_partial_schedule_exact_5 :
     ∀ offset : Fin 2, PartialScheduleExactAt (partialShardIndex5 offset) := by
   unfold PartialScheduleExactAt
-  native_decide
+  intro offset
+  fin_cases offset <;> decide
 
 end Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement

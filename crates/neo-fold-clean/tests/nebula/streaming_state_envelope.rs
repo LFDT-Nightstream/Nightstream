@@ -250,6 +250,16 @@ fn streaming_lifecycle_source_arms_own_complete_context_and_fold_stages() {
                 "post-step Nebula lane column must exist in the source arm"
             );
         }
+        let verifier_advice = arms.verifier_advice_preimage_fields(arm_kind);
+        for range in [
+            verifier_advice.structure_digest(),
+            verifier_advice.ajtai_pp_digest(),
+            verifier_advice.initial_semantic_state_digest(),
+        ] {
+            assert_eq!(range.len(), 4);
+            assert!(range.start >= arm.m_in);
+            assert!(range.end <= arm.m);
+        }
     }
 
     let base = arms.arm(NebulaFPrimeStreamingLifecycleArm::Base);
@@ -566,6 +576,12 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
         .expect("proof-backed synthesis must retain the recursive assignment");
     assert_eq!(assignment.len(), recursive.m);
     assert_eq!(recursive.m_in, 641);
+    assert!(arms
+        .x_out_preimage_values(NebulaFPrimeStreamingLifecycleArm::Recursive)
+        .is_satisfied_by(
+            arms.x_out_preimage_columns(NebulaFPrimeStreamingLifecycleArm::Recursive),
+            assignment,
+        ));
     eprintln!(
         "Appendix B.2 recursive seed source: rows={} columns={} public={}",
         recursive.n, recursive.m, recursive.m_in

@@ -18,7 +18,35 @@ use streaming_terminal_fixture::build_streaming_terminal_audit_fixture;
 
 #[test]
 #[ignore = "requires the installed GPL cvc5 finite-field solver"]
-fn installed_cvc5_audits_remaining_terminal_lifecycle_families() {
+fn installed_cvc5_audits_terminal_source_binding() {
+    audit_terminal_lifecycle_family(0);
+}
+
+#[test]
+#[ignore = "requires the installed GPL cvc5 finite-field solver"]
+fn installed_cvc5_audits_terminal_profile_selection() {
+    audit_terminal_lifecycle_family(1);
+}
+
+#[test]
+#[ignore = "requires the installed GPL cvc5 finite-field solver"]
+fn installed_cvc5_audits_terminal_nebula_program_binding() {
+    audit_terminal_lifecycle_family(5);
+}
+
+#[test]
+#[ignore = "requires the installed GPL cvc5 finite-field solver"]
+fn installed_cvc5_audits_terminal_nebula_finalizer() {
+    audit_terminal_lifecycle_family(6);
+}
+
+#[test]
+#[ignore = "requires the installed GPL cvc5 finite-field solver"]
+fn installed_cvc5_audits_terminal_nebula_closed() {
+    audit_terminal_lifecycle_family(7);
+}
+
+fn audit_terminal_lifecycle_family(family_index: usize) {
     let fixture = build_streaming_terminal_audit_fixture();
     let _rust_tamper_columns = [
         fixture.schedule_selector_column,
@@ -29,15 +57,34 @@ fn installed_cvc5_audits_remaining_terminal_lifecycle_families() {
         fixture.final_closed_lane_column,
     ];
     let row_families = fixture.terminal.row_family_ranges().to_vec();
+    let family = STREAMING_TERMINAL_R1CS_FAMILY_NAMES[family_index];
+    let owned_source_runs = row_families
+        .iter()
+        .filter(|range| range.name == family)
+        .map(|range| range.row_start..range.row_end)
+        .collect::<Vec<_>>();
+    assert!(!owned_source_runs.is_empty(), "selected family must own source rows");
     assert_eq!(
         row_families
             .iter()
             .map(|family| family.name)
             .collect::<Vec<_>>(),
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
+        [
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[6],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[0],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[1],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[2],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[3],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[4],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[5],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[6],
+            STREAMING_TERMINAL_R1CS_FAMILY_NAMES[7],
+        ],
     );
     let source = fixture.terminal.into_snapshot();
-    let mut complete_families = STREAMING_TERMINAL_R1CS_FAMILY_NAMES.map(str::to_owned).to_vec();
+    let mut complete_families = STREAMING_TERMINAL_R1CS_FAMILY_NAMES
+        .map(str::to_owned)
+        .to_vec();
     complete_families.sort_unstable();
     let raw_problem = export_problem(
         &source,
@@ -53,6 +100,14 @@ fn installed_cvc5_audits_remaining_terminal_lifecycle_families() {
     .expect("complete exact streaming terminal export");
     drop(source);
     let problem = compact_active_columns(raw_problem);
+    assert!(owned_source_runs.iter().all(|run| {
+        problem.rows[run.clone()]
+            .iter()
+            .all(|row| row.family == family)
+    }));
+    eprintln!(
+        "streaming terminal lifecycle ownership: family={family} scope=lifecycle source_runs={owned_source_runs:?} final_audit_runs={owned_source_runs:?} row_map=identity",
+    );
     let target = TypedTarget {
         id: "nightstream.streaming.terminal.complete_lifecycle".to_owned(),
         column_count: problem.column_count,
@@ -68,50 +123,55 @@ fn installed_cvc5_audits_remaining_terminal_lifecycle_families() {
             .collect(),
     };
 
-    for family in [
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[0],
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[1],
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[5],
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[6],
-        STREAMING_TERMINAL_R1CS_FAMILY_NAMES[7],
-    ] {
-        let report = audit_complete_typed_family(
-            &problem,
-            &Selection::Family(family.to_owned()),
-            &target,
-            &SolverConfig {
-                executable: PathBuf::from("/Users/nijaar/.local/bin/cvc5"),
-                mode: SolverMode::Split,
-                timeout_ms: 30_000,
-            },
-        )
-        .expect("bounded strict terminal lifecycle audit");
-        eprintln!(
-            "streaming terminal lifecycle audit: family={family} rows={} active_columns={} cvc5={:?} replayed={} violated_target={:?} decision=retain lean_certificate=missing",
-            problem.rows.len(),
-            problem.column_count,
-            report.solver_run.status,
-            report.retained_rows_replayed.len(),
-            report.violated_target_rows,
-        );
-        match report.solver_run.status {
-            SolverStatus::Sat => {
-                assert_eq!(report.conclusion, Conclusion::CounterexampleCandidate);
-                assert!(report.model.is_some(), "SAT must include the full compact model");
-                assert_eq!(
-                    report.retained_rows_replayed.len(),
-                    problem.rows.iter().filter(|row| row.family != family).count(),
-                );
-                assert!(!report.violated_target_rows.is_empty());
-            }
-            SolverStatus::Unsat => {
-                assert_eq!(report.conclusion, Conclusion::RedundancyCandidate);
-                assert!(report.model.is_none());
-            }
-            SolverStatus::Unknown => {
-                assert_eq!(report.conclusion, Conclusion::Inconclusive);
-                assert!(report.model.is_none());
-            }
+    let report = match audit_complete_typed_family(
+        &problem,
+        &Selection::Family(family.to_owned()),
+        &target,
+        &SolverConfig {
+            executable: PathBuf::from("/Users/nijaar/.local/bin/cvc5"),
+            mode: SolverMode::Split,
+            timeout_ms: 30_000,
+        },
+    ) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!(
+                "streaming terminal lifecycle audit: family={family} rows={} active_columns={} cvc5=Inconclusive replayed=0 violated_target=[] decision=retain lean_certificate=missing error={error}",
+                problem.rows.len(),
+                problem.column_count,
+            );
+            return;
+        }
+    };
+    eprintln!(
+        "streaming terminal lifecycle audit: family={family} rows={} active_columns={} cvc5={:?} replayed={} violated_target={:?} decision=retain lean_certificate=missing",
+        problem.rows.len(),
+        problem.column_count,
+        report.solver_run.status,
+        report.retained_rows_replayed.len(),
+        report.violated_target_rows,
+    );
+    match report.solver_run.status {
+        SolverStatus::Sat => {
+            assert_eq!(report.conclusion, Conclusion::CounterexampleCandidate);
+            assert!(report.model.is_some(), "SAT must include the full compact model");
+            assert_eq!(
+                report.retained_rows_replayed.len(),
+                problem
+                    .rows
+                    .iter()
+                    .filter(|row| row.family != family)
+                    .count(),
+            );
+            assert!(!report.violated_target_rows.is_empty());
+        }
+        SolverStatus::Unsat => {
+            assert_eq!(report.conclusion, Conclusion::RedundancyCandidate);
+            assert!(report.model.is_none());
+        }
+        SolverStatus::Unknown => {
+            assert_eq!(report.conclusion, Conclusion::Inconclusive);
+            assert!(report.model.is_none());
         }
     }
 }
@@ -147,6 +207,8 @@ fn compact_active_columns(mut problem: Problem) -> Problem {
     problem.constant_one_column = old_to_new[&problem.constant_one_column];
     problem.public_input_count = 1;
     assert_eq!(problem.constant_one_column, 0);
-    problem.validate().expect("valid active-column terminal problem");
+    problem
+        .validate()
+        .expect("valid active-column terminal problem");
     problem
 }

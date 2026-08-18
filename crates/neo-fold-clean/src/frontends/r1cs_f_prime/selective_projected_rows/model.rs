@@ -68,6 +68,23 @@ pub struct SelectiveProjectedSourceSlot {
     pub(super) width: usize,
 }
 
+/// Exact final low-norm image of one explicitly requested source field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectiveProjectedSourceImage {
+    pub(super) column: usize,
+    pub(super) port: SelectiveProjectedPort,
+}
+
+impl SelectiveProjectedSourceImage {
+    pub fn column(&self) -> usize {
+        self.column
+    }
+
+    pub fn port(&self) -> &SelectiveProjectedPort {
+        &self.port
+    }
+}
+
 impl SelectiveProjectedSourceSlot {
     pub fn column(self) -> usize {
         self.column
@@ -322,6 +339,7 @@ pub struct SelectiveProjectedSourceProvenance {
     pub(super) arm: usize,
     pub(super) source_columns: Vec<usize>,
     pub(super) retained_slots: Vec<SelectiveProjectedSourceSlot>,
+    pub(super) requested_source_images: Vec<SelectiveProjectedSourceImage>,
     pub(super) linear_definitions: Vec<SelectiveProjectedSourceDefinition>,
     pub(super) trace_eliminated_columns: Vec<usize>,
     pub(super) poseidon2_sbox_steps: Vec<SelectiveProjectedPoseidon2SboxStep>,
@@ -343,6 +361,10 @@ impl SelectiveProjectedSourceProvenance {
 
     pub fn retained_slots(&self) -> &[SelectiveProjectedSourceSlot] {
         &self.retained_slots
+    }
+
+    pub fn requested_source_images(&self) -> &[SelectiveProjectedSourceImage] {
+        &self.requested_source_images
     }
 
     pub fn linear_definitions(&self) -> &[SelectiveProjectedSourceDefinition] {

@@ -28,6 +28,7 @@ open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyDigest
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArtifact
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCertificateSupport
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyReplayArtifact
 open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
 open Nightstream.SuperNeo.Concrete
@@ -98,10 +99,148 @@ def expectedStateColumns (kind : ArmKind) (side : StateSide) : List Nat :=
     challengeColumns side ++
     [cursorColumn side]
 
-/-- Rust emits all 937 columns in the exact Lean `familyStateFields` order. -/
+private theorem ofFn_affine_eq_range'
+    (start count : Nat) :
+    List.ofFn (fun index : Fin count => start + index.val) =
+      List.range' start count := by
+  induction count generalizing start with
+  | zero => simp
+  | succ count hypothesis =>
+      rw [List.ofFn_succ, List.range'_succ]
+      apply congrArg (start :: ·)
+      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+        hypothesis (start := start + 1)
+
+private theorem range'_add (start left right : Nat) :
+    List.range' start (left + right) =
+      List.range' start left ++ List.range' (start + left) right := by
+  apply (List.range'_eq_append_iff).2
+  refine ⟨left, by omega, rfl, ?_⟩
+  simp
+
+private theorem flatten_affine_blocks_eq_range'
+    (start blocks width : Nat) :
+    (List.ofFn fun block : Fin blocks =>
+      List.ofFn fun offset : Fin width =>
+        start + block.val * width + offset.val).flatten =
+      List.range' start (blocks * width) := by
+  induction blocks generalizing start with
+  | zero => simp
+  | succ blocks hypothesis =>
+      rw [List.ofFn_succ, List.flatten_cons]
+      simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero]
+      rw [ofFn_affine_eq_range']
+      have tail :
+          (List.ofFn fun block : Fin blocks =>
+            List.ofFn fun offset : Fin width =>
+              start + block.succ.val * width + offset.val).flatten =
+            List.range' (start + width) (blocks * width) := by
+        have functionsEqual :
+            (fun block : Fin blocks =>
+              List.ofFn fun offset : Fin width =>
+                start + block.succ.val * width + offset.val) =
+              (fun block : Fin blocks =>
+                List.ofFn fun offset : Fin width =>
+                  (start + width) + block.val * width + offset.val) := by
+          funext block
+          apply congrArg List.ofFn
+          funext offset
+          simp only [Fin.val_succ, Nat.add_mul, Nat.one_mul]
+          omega
+        rw [functionsEqual]
+        exact hypothesis (start := start + width)
+      rw [tail]
+      rw [show Nat.succ blocks * width = width + blocks * width by
+        simp [Nat.succ_mul, Nat.add_comm]]
+      exact (range'_add start width (blocks * width)).symm
+
+private theorem residual_columns_exact (side : StateSide) :
+    residualColumns side =
+      match side with
+      | .before => List.range' 163610 108
+      | .after => List.range' 163718 108 := by
+  cases side with
+  | before =>
+      change List.ofFn (fun output : Fin 108 => 163610 + output.val) = _
+      exact ofFn_affine_eq_range' 163610 108
+  | after =>
+      change List.ofFn (fun output : Fin 108 => 163718 + output.val) = _
+      exact ofFn_affine_eq_range' 163718 108
+
+private theorem challenge_columns_exact (side : StateSide) :
+    challengeColumns side =
+      match side with
+      | .before => List.range' 163826 918
+      | .after => List.range' 164744 918 := by
+  cases side with
+  | before =>
+      change
+        (List.ofFn fun source : Fin 17 =>
+          List.ofFn fun lane : Fin 54 =>
+            163826 + source.val * 54 + lane.val).flatten = _
+      simpa using flatten_affine_blocks_eq_range' 163826 17 54
+  | after =>
+      change
+        (List.ofFn fun source : Fin 17 =>
+          List.ofFn fun lane : Fin 54 =>
+            164744 + source.val * 54 + lane.val).flatten = _
+      simpa using flatten_affine_blocks_eq_range' 164744 17 54
+
+private def stateColumnSegments : ArmKind → StateSide → List StateColumnSegment
+  | kind, .before => beforeStateColumnSegments kind
+  | kind, .after => afterStateColumnSegments kind
+
+private theorem state_columns_segments_exact
+    (kind : ArmKind) (side : StateSide) :
+    stateColumns kind side =
+      expandSegments (stateColumnSegments kind side) := by
+  cases side
+  · simpa [stateColumns, stateColumnSegments] using
+      exact_after_state_column_segments kind
+  · simpa [stateColumns, stateColumnSegments] using
+      exact_before_state_column_segments kind
+
+private def expectedInputAbsorbed : ArmKind → StateSide → Nat
+  | .even, .before => 311014
+  | .even, .after => 311016
+  | .odd, .before => 312214
+  | .odd, .after => 312216
+
+private def expectedOutputAbsorbed : ArmKind → StateSide → Nat
+  | .even, .before => 311015
+  | .even, .after => 311017
+  | .odd, .before => 312215
+  | .odd, .after => 312217
+
+private theorem input_absorbed_column_exact
+    (kind : ArmKind) (side : StateSide) :
+    inputAbsorbedColumn kind side = expectedInputAbsorbed kind side := by
+  cases kind <;> cases side <;>
+    unfold inputAbsorbedColumn expectedInputAbsorbed <;>
+    rw [state_columns_segments_exact] <;> rfl
+
+private theorem output_absorbed_column_exact
+    (kind : ArmKind) (side : StateSide) :
+    outputAbsorbedColumn kind side = expectedOutputAbsorbed kind side := by
+  cases kind <;> cases side <;>
+    unfold outputAbsorbedColumn expectedOutputAbsorbed <;>
+    rw [state_columns_segments_exact] <;> rfl
+
+private theorem expected_state_columns_segments_exact
+    (kind : ArmKind) (side : StateSide) :
+    expectedStateColumns kind side =
+      expandSegments (stateColumnSegments kind side) := by
+  cases kind <;> cases side <;>
+    unfold expectedStateColumns <;>
+    rw [input_absorbed_column_exact, output_absorbed_column_exact,
+      residual_columns_exact, challenge_columns_exact] <;>
+    rfl
+
+/-- Rust emits all 1,045 columns in the exact Lean `familyStateFields` order. -/
 theorem state_columns_exact (kind : ArmKind) (side : StateSide) :
     stateColumns kind side = expectedStateColumns kind side := by
-  cases kind <;> cases side <;> native_decide
+  exact (state_columns_segments_exact kind side).trans
+    (expected_state_columns_segments_exact kind side).symm
 
 /-! ## Absorbed-cursor constant rows -/
 
@@ -297,8 +436,10 @@ private theorem map_getD_range {alpha : Type}
 
 private theorem state_column_count
     (kind : ArmKind) (side : StateSide) :
-    (stateColumns kind side).length = 937 := by
-  cases kind <;> cases side <;> native_decide
+    (stateColumns kind side).length = 1045 := by
+  cases side with
+  | before => exact (exact_state_column_shape kind).1
+  | after => exact (exact_state_column_shape kind).2.1
 
 private theorem state_word_column_exact
     (kind : ArmKind) (side : StateSide) (index : Nat) :
@@ -306,7 +447,7 @@ private theorem state_word_column_exact
       (stateColumns kind side).getD index 0 := by
   cases side <;> rfl
 
-/-- The 937 external operations in one digest path read the exact canonical
+/-- The 1,045 external operations in one digest path read the exact canonical
 serialization of the decoded semantic family state. -/
 theorem digest_preimage_is_family_state
     (kind : ArmKind) (side : StateSide)
@@ -314,7 +455,7 @@ theorem digest_preimage_is_family_state
     (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
     (satisfied : (armFor kind).Satisfied assignment) :
-    (List.range 937).map (fun index =>
+    (List.range 1045).map (fun index =>
         assignment (stateWordColumnFor kind side index)) =
       familyStateFields
         (familyStateAt assignment canonical kind side) := by

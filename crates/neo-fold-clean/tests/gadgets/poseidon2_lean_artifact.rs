@@ -131,22 +131,17 @@ fn lean_terms(terms: &[(usize, u64)]) -> String {
     )
 }
 
-fn lean_definition(definition: &Definition) -> String {
-    match &definition.rhs {
-        Rhs::Linear(terms) => format!("⟨{}, .linear {}⟩", definition.output, lean_terms(terms)),
-        Rhs::Product(left, right) => format!(
-            "⟨{}, .product {} {}⟩",
-            definition.output,
-            lean_terms(left),
-            lean_terms(right)
-        ),
+fn lean_rhs(rhs: &Rhs) -> String {
+    match rhs {
+        Rhs::Linear(terms) => format!(".linear {}", lean_terms(terms)),
+        Rhs::Product(left, right) => format!(".product {} {}", lean_terms(left), lean_terms(right)),
     }
 }
 
-fn lean_definitions(definitions: &[Definition]) -> String {
+fn lean_rhses(definitions: &[Definition]) -> String {
     definitions
         .iter()
-        .map(lean_definition)
+        .map(|definition| lean_rhs(&definition.rhs))
         .collect::<Vec<_>>()
         .join(",\n   ")
 }
@@ -200,6 +195,11 @@ fn artifact_hashes(honest: &BuiltPermutation, forged: &[F]) -> (String, String) 
 }
 
 fn render_artifact(honest: &BuiltPermutation, row_hash: &str, witness_hash: &str) -> String {
+    assert!(honest
+        .definitions
+        .iter()
+        .enumerate()
+        .all(|(index, definition)| definition.output == 9 + index));
     format!(
         "import Nightstream.Implementation.R1CS.Core.Program\n\n\
          /-! Generated exact SSA certificate for the production Goldilocks\n\
@@ -221,8 +221,18 @@ fn render_artifact(honest: &BuiltPermutation, row_hash: &str, witness_hash: &str
          def compactSboxInputTerms : List (List (Nat × Nat)) :=\n  {}\n\n\
          def compactSboxOutputColumns : List Nat := {}\n\n\
          def compactOutputLinearForms : List (List (Nat × Nat)) :=\n  {}\n\n\
-         def definitions : List Definition :=\n  [{}]\n\n\
+         def definitionOutputColumns : List Nat := List.range' 9 rowCount\n\n\
+         def definitionRhs : List Rhs :=\n  [{}]\n\n\
+         def definitions : List Definition :=\n  \
+         (definitionOutputColumns.zip definitionRhs).map fun entry =>\n    \
+         ⟨entry.1, entry.2⟩\n\n\
          def rows : List Row := definitions.map Definition.builderRow\n\n\
+         theorem definition_output_mem {{definition : Definition}}\n\
+             (member : definition ∈ definitions) :\n\
+             definition.output ∈ definitionOutputColumns := by\n  \
+         rw [definitions] at member\n  \
+         rcases List.mem_map.mp member with ⟨entry, entryMember, rfl⟩\n  \
+         exact (List.of_mem_zip entryMember).1\n\n\
          theorem definitions_length : definitions.length = rowCount := by decide\n\
          theorem rows_length : rows.length = rowCount := by decide\n\
          theorem definitions_canonical :\n\
@@ -240,7 +250,7 @@ fn render_artifact(honest: &BuiltPermutation, row_hash: &str, witness_hash: &str
         lean_lcs(honest.compact.sboxes.iter().map(|sbox| &sbox.input)),
         lean_nat_list(honest.compact.sboxes.iter().map(|sbox| sbox.output_col)),
         lean_lcs(&honest.compact.output_linear_forms),
-        lean_definitions(&honest.definitions),
+        lean_rhses(&honest.definitions),
     )
 }
 

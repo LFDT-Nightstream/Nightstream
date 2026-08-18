@@ -14,9 +14,9 @@ use neo_fold_clean::engine::r1cs_circuit::builder::{Poseidon2HashAudit, Poseidon
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder, Var};
 use neo_fold_clean::frontends::nebula::f_prime::{
-    NebulaFPrimePiRlcFamilyBodySynthesis, NebulaFPrimePiRlcFamilyReplayArmKind, PI_RLC_FAMILY_BODY_EVEN_COLUMNS,
-    PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, PI_RLC_FAMILY_BODY_ODD_COLUMNS,
-    PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS,
+    NebulaFPrimePiRlcFamilyBodySynthesis, NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimeStreamingProgramAudit,
+    PI_RLC_FAMILY_BODY_EVEN_COLUMNS, PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS,
+    PI_RLC_FAMILY_BODY_ODD_COLUMNS, PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS,
 };
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -26,7 +26,6 @@ const PROFILE_ID: &str = "nebula-f-prime-streaming-pi-rlc-family-public-v3";
 const FAMILY_STATE_FIELDS: usize = 1_045;
 const SHARED_PUBLIC_WORDS: usize = 10;
 const PUBLIC_BITS_PER_WORD: usize = 64;
-const FIRST_FAMILY_PROGRAM_CURSOR: usize = 199;
 const SUFFIX_POSEIDON2_CALLS: usize = 544;
 const PHASE_ENVELOPE_POSEIDON2_CALLS: usize = 1_094;
 const PHASE_ENVELOPE_ROWS: usize = 662_971;
@@ -706,6 +705,8 @@ fn render_artifact() -> String {
         assert_eq!(arm.before_x_out_digest_columns.len(), 4);
     }
 
+    let first_family_program_cursor =
+        NebulaFPrimeStreamingProgramAudit::production().first_pi_rlc_family_program_cursor();
     let mut payload = String::new();
     writeln!(payload, "def evenArm : RawArm :=\n  {}", render_arm(&even)).unwrap();
     writeln!(payload, "\ndef oddArm : RawArm :=\n  {}", render_arm(&odd)).unwrap();
@@ -715,7 +716,7 @@ fn render_artifact() -> String {
          {{ schemaVersion := {SCHEMA_VERSION}, profileId := \"{PROFILE_ID}\",\n    \
             familyStateFields := {FAMILY_STATE_FIELDS}, sharedPublicWords := {SHARED_PUBLIC_WORDS},\n    \
             publicBitsPerWord := {PUBLIC_BITS_PER_WORD},\n    \
-            firstFamilyProgramCursor := {FIRST_FAMILY_PROGRAM_CURSOR},\n    \
+            firstFamilyProgramCursor := {first_family_program_cursor},\n    \
             lowNormRows := {LOW_NORM_ROWS}, lowNormColumns := {LOW_NORM_COLUMNS},\n    \
             lowNormPublicColumns := {LOW_NORM_PUBLIC_COLUMNS},\n    \
             even := evenArm, odd := oddArm }}",

@@ -44,4 +44,42 @@ theorem distinct_states_have_equal_digest :
 
 end ConstantDigestCountermodel
 
+namespace MissingSemanticLinkCountermodel
+
+/-- Minimal selected-phase envelope. The Boolean fields stand for exact typed
+phase fields, not for a digest supplied by the prover. -/
+structure PhaseEnvelope where
+  localState : Bool
+  delayedPayload : Bool
+deriving DecidableEq
+
+def semanticDigest (phase : PhaseEnvelope) : Bool :=
+  xor phase.localState phase.delayedPayload
+
+structure Candidate where
+  phase : PhaseEnvelope
+  outerSemantic : Bool
+deriving DecidableEq
+
+def Linked (candidate : Candidate) : Prop :=
+  candidate.outerSemantic = semanticDigest candidate.phase
+
+def honest : Candidate where
+  phase := { localState := false, delayedPayload := false }
+  outerSemantic := false
+
+def omittedLink : Candidate where
+  phase := honest.phase
+  outerSemantic := true
+
+/-- If the semantic-link family is absent, all selected-phase fields can stay
+fixed while the outer semantic lane changes. The exact link rejects this
+candidate without a cryptographic assumption. -/
+theorem retained_phase_allows_wrong_outer_semantic :
+    omittedLink.phase = honest.phase ∧
+      ¬ Linked omittedLink := by
+  simp [omittedLink, honest, Linked, semanticDigest]
+
+end MissingSemanticLinkCountermodel
+
 end NightstreamTests.NebulaStateAuthorityBoundaryRows

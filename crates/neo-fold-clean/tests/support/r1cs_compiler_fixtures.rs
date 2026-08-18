@@ -9,7 +9,7 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{RecursiveStepImagePlan,
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_math::F;
-use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_params::{goldilocks_paper_b2, nightstream_goldilocks_k16, NeoParams};
 use p3_field::PrimeCharacteristicRing;
 
 pub fn one_product_r1cs() -> R1cs {
@@ -87,15 +87,15 @@ fn plan(
 
 pub fn tiny_params() -> Params {
     let inner = NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
+        nightstream_goldilocks_k16::Q,
+        nightstream_goldilocks_k16::ETA as u32,
+        nightstream_goldilocks_k16::D as u32,
         4,
         1u64 << 24,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
+        nightstream_goldilocks_k16::B_BASE,
+        nightstream_goldilocks_k16::K_RHO,
+        nightstream_goldilocks_k16::T,
+        nightstream_goldilocks_k16::EXTENSION_DEGREE,
         60,
     )
     .expect("test parameters satisfy the reduction guard");

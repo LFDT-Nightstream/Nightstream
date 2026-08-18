@@ -53,8 +53,9 @@ pub use model::{
     SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
     SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
     SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
-    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
-    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceImage, SelectiveProjectedSourceLinearCombination,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
+    SelectiveProjectedTerm,
 };
 
 /// Exact selected rows emitted from one prepared selective compiler plan.
@@ -914,6 +915,18 @@ fn source_provenance(
             terms: source_terms(&definition.rhs.terms),
         })
         .collect::<Vec<_>>();
+    let requested_source_images = requested_source_columns
+        .iter()
+        .copied()
+        .map(|column| {
+            let mut terms = MatrixTerms::new(false);
+            append_field(&mut terms, 0, column, F::ONE, slots, &plan.definitions)?;
+            Ok(SelectiveProjectedSourceImage {
+                column,
+                port: project_port(&terms, 0, layout.columns.next_multiple_of(D))?,
+            })
+        })
+        .collect::<Result<Vec<_>, LowNormR1csError>>()?;
     let definition_targets = linear_definitions
         .iter()
         .map(SelectiveProjectedSourceDefinition::target)
@@ -1119,6 +1132,7 @@ fn source_provenance(
         arm,
         source_columns: closure.into_iter().collect(),
         retained_slots,
+        requested_source_images,
         linear_definitions,
         trace_eliminated_columns,
         poseidon2_sbox_steps,

@@ -9,6 +9,7 @@ namespace Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement
 theorem compact_tail_schedule_exact :
     ∀ offset : Fin 2, ScheduleExactAt (tailArtifactIndex offset) := by
   unfold ScheduleExactAt
-  native_decide
+  intro offset
+  fin_cases offset <;> decide
 
 end Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement

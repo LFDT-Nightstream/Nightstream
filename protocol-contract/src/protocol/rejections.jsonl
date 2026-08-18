@@ -18,18 +18,18 @@
 {"id":"REJECT-ROUND-DEGREE","description":"A SumCheck round polynomial exceeds degree nine or has the wrong coefficient count.","rule_ids":["SN-SUMCHECK-ROUNDS","NS-PICCS-SUMCHECK"]}
 {"id":"REJECT-ROUND-RECURRENCE","description":"A SumCheck round does not satisfy the current equals g(0) plus g(1) equation.","rule_ids":["SN-SUMCHECK-ROUNDS"]}
 {"id":"REJECT-ROUND-ENCODING","description":"A SumCheck coefficient or round index is not in canonical order or encoding.","rule_ids":["NS-PICCS-SUMCHECK","NS-ENC-EXTENSION"]}
-{"id":"REJECT-OUTPUT-COUNT","description":"The PiCCS terminal family does not contain exactly 210 ring values.","rule_ids":["NS-PICCS-TERMINAL"]}
+{"id":"REJECT-OUTPUT-COUNT","description":"The PiCCS terminal family does not contain exactly 238 ring values.","rule_ids":["NS-PICCS-TERMINAL"]}
 {"id":"REJECT-OUTPUT-ORDER","description":"PiCCS terminal values are not in source-major then matrix-major order.","rule_ids":["NS-PICCS-TERMINAL"]}
 {"id":"REJECT-OUTPUT-ENCODING","description":"A PiCCS terminal ring value is not canonically encoded.","rule_ids":["NS-PICCS-TERMINAL","NS-ENC-RING"]}
 {"id":"REJECT-TERMINAL-EQUATION","description":"The final SumCheck value differs from the reviewed joint PiCCS equation.","rule_ids":["SN-PICCS-OUTPUT","NS-PICCS-TERMINAL"]}
 {"id":"REJECT-PICCS-OUTPUT-FRAME","description":"The PiCCS output frame is absent, malformed, or has the wrong field count.","rule_ids":["NS-PICCS-TERMINAL","NS-TRANSCRIPT-ORDER"]}
-{"id":"REJECT-PIRLC-SOURCE-COUNT","description":"PiRLC does not receive exactly the fifteen accepted PiCCS outputs.","rule_ids":["NS-PIRLC-PROFILE"]}
+{"id":"REJECT-PIRLC-SOURCE-COUNT","description":"PiRLC does not receive exactly the seventeen accepted PiCCS outputs.","rule_ids":["NS-PIRLC-PROFILE"]}
 {"id":"REJECT-SAMPLER-ORDER","description":"A source, coefficient, or attempt counter is processed out of order.","rule_ids":["NS-SAMPLER-CANDIDATES","NS-SAMPLER-REPETITIONS"]}
 {"id":"REJECT-SAMPLER-EXHAUSTION","description":"All three sampler candidates for one coefficient equal q minus one.","rule_ids":["NS-SAMPLER-REPETITIONS"]}
-{"id":"REJECT-PUBLIC-SPLIT-BOUND","description":"A public parent-input coefficient is outside the strict 2^14 centered split domain.","rule_ids":["NS-SPLIT-BINARY"]}
-{"id":"REJECT-CHILD-COUNT","description":"PiDEC does not contain exactly fourteen ordered children.","rule_ids":["NS-PIDEC-PROFILE"]}
+{"id":"REJECT-PUBLIC-SPLIT-BOUND","description":"A public parent-input coefficient is outside the strict 2^16 centered split domain.","rule_ids":["NS-SPLIT-BINARY"]}
+{"id":"REJECT-CHILD-COUNT","description":"PiDEC does not contain exactly sixteen ordered children.","rule_ids":["NS-PIDEC-PROFILE"]}
 {"id":"REJECT-COMMITMENT-RECOMPOSITION","description":"Child commitments do not recompose to the parent commitment.","rule_ids":["SN-PIDEC-EQUATIONS","NS-PIDEC-PROFILE"]}
 {"id":"REJECT-EVALUATION-RECOMPOSITION","description":"A child ring-evaluation family does not recompose to the parent family.","rule_ids":["SN-PIDEC-EQUATIONS","NS-PIDEC-PROFILE"]}
-{"id":"REJECT-FOLD-STATE","description":"The fold output is not the required fourteen-child CE state.","rule_ids":["SN-FOLD-TYPE","NS-RED-COMPOSITION"]}
+{"id":"REJECT-FOLD-STATE","description":"The fold output is not the required sixteen-child CE state.","rule_ids":["SN-FOLD-TYPE","NS-RED-COMPOSITION"]}
 {"id":"REJECT-FOLD-LIMIT","description":"The lifecycle fields do not satisfy 0 <= fold_index < fold_count <= 64.","rule_ids":["NS-ENC-CONTAINER","NS-SECURITY-POLICY"]}
 {"id":"REJECT-FOLD-LINK","description":"A bounded sequence omits, inserts, reorders, or changes a fold, or the prior ordered children do not equal the next ordered running claims as canonical typed CE claims.","rule_ids":["NS-PIDEC-PROFILE","NS-TRANSCRIPT-ORDER"]}

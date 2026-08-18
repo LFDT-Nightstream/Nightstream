@@ -627,25 +627,29 @@ end {GENERATED_NAMESPACE}",
     out
 }
 
-fn render_receipt() -> String {
+fn render_receipt(pi_dec_shard_count: usize) -> String {
     let mut out = String::new();
     out.push_str("import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PiCcs\n");
     out.push_str("import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PoseidonTraces\n");
     out.push_str("import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PiRlcInput\n");
     out.push_str("import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PiRlcCombined\n");
-    for shard in 0..7 {
+    for shard in 0..pi_dec_shard_count {
         writeln!(
             out,
             "import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PiDecChildren{shard}"
         )
         .unwrap();
     }
+    let child_shards = (0..pi_dec_shard_count)
+        .map(|shard| format!("piDecChildren{shard}"))
+        .collect::<Vec<_>>()
+        .join(" ++\n    ");
     writeln!(
         out,
         "\n/-! GENERATED FILE - assembled deterministic production NIFS receipt. -/\n\n\
 namespace {GENERATED_NAMESPACE}\n\n\
 open Nightstream.Implementation.Rust.NifsProductionGolden\n\n\
-def piDecChildren : List RawClaim :=\n  piDecChildren0 ++ piDecChildren1 ++ piDecChildren2 ++ piDecChildren3 ++\n    piDecChildren4 ++ piDecChildren5 ++ piDecChildren6\n\n\
+def piDecChildren : List RawClaim :=\n  {child_shards}\n\n\
 def receipt : ProductionReceipt :=\n  {{ relationId := relationId\n    relationMatrices := relationMatrices\n    fixtureAssignment := fixtureAssignment\n    piCcsStatement := piCcsStatement\n    piCcsProof := piCcsProof\n    poseidonPermutationTraces := poseidonPermutationTraces\n    piCcsPermutationCount := piCcsPermutationCount\n    rhoStartPermutationCount := rhoStartPermutationCount\n    piCcsOutputsDigest := piCcsOutputsDigest\n    rhoStart := rhoStart\n    piRlcInputs := piRlcInputs\n    piRlcCombined := piRlcCombined\n    piDecChildren := piDecChildren\n    canonicalNifsProofByteCount := canonicalNifsProofByteCount }}\n\n\
 end {GENERATED_NAMESPACE}"
     )
@@ -692,7 +696,8 @@ fn generated_lean_files(run: &GoldenRun, witness: &TranscriptWitness) -> Vec<(St
         "PoseidonTraces.lean".to_owned(),
         render_poseidon_traces(witness, trace_shard_count),
     ));
-    files.push(("Receipt.lean".to_owned(), render_receipt()));
+    let pi_dec_shard_count = run.proof.pi_dec.children.len().div_ceil(2);
+    files.push(("Receipt.lean".to_owned(), render_receipt(pi_dec_shard_count)));
     files
 }
 
@@ -783,5 +788,5 @@ fn production_fixture_uses_the_selected_small_shape() {
         .iter()
         .all(|round| round.len() == 5));
     assert_eq!(run.proof.pi_ccs.outputs.len(), 1);
-    assert_eq!(run.proof.pi_dec.children.len(), 14);
+    assert_eq!(run.proof.pi_dec.children.len(), run.prep.params.k_rho() as usize,);
 }

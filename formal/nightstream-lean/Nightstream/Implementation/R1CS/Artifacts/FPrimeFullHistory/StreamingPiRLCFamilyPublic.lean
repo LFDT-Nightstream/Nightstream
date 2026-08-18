@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicValidityCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicCursorRowCertificate
 
 /-! Stable facade for the generated PiRLC family public-suffix artifact. -/
 

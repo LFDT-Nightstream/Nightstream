@@ -19,6 +19,7 @@ use p3_field::PrimeCharacteristicRing;
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::config::K_RHO;
 use crate::paper::relations::Structure;
 
 use super::lean_manifest::{
@@ -637,7 +638,11 @@ impl NativeManifestWire {
         }
         let exact = [
             ("fresh_source_count", self.profile.fresh_source_count, 1),
-            ("running_source_count", self.profile.running_source_count, 14),
+            (
+                "running_source_count",
+                self.profile.running_source_count,
+                K_RHO as usize,
+            ),
             ("public_carrier_width", self.profile.public_carrier_width, 270),
             ("fresh_legacy_width", self.profile.fresh_legacy_width, 257),
             ("fresh_completion_width", self.profile.fresh_completion_width, 13),
@@ -648,7 +653,11 @@ impl NativeManifestWire {
             ("poseidon_digest_width", self.profile.poseidon_digest_width, 4),
             ("binding_preimage_width", self.profile.binding_preimage_width, 23),
             ("decomposition_base", self.profile.decomposition_base, 2),
-            ("decomposition_children", self.profile.decomposition_children, 14),
+            (
+                "decomposition_children",
+                self.profile.decomposition_children,
+                K_RHO as usize,
+            ),
         ];
         for (field, actual, expected) in exact {
             if actual != expected {

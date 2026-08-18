@@ -14,6 +14,7 @@ open Nightstream.Implementation.R1CS.Canonical.Poseidon2Layout
 theorem compact_final_exact : ∀ lane : Fin width,
     traceTerms (LinearSubstitution.terms expansion (finalState canonicalLayout lane)) =
       traceTerms (traceFinalForm lane) := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 end Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement

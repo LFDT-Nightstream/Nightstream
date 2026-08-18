@@ -606,7 +606,12 @@ pub fn build_streaming_terminal_audit_fixture() -> StreamingTerminalAuditFixture
 
     let mut terminal = R1csBuilder::new();
     let final_witness = terminal.alloc_vec(&final_assignment);
+    let family_start = terminal.rows();
     let adv_wires = alloc_adv(&mut terminal, Some(&fresh_adv)).expect("terminal fresh adv wires");
+    terminal.record_row_family(
+        neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::STREAMING_TERMINAL_R1CS_FAMILY_NAMES[6],
+        family_start,
+    );
     let adv_data_wires = adv_commitment_data_wires(&adv_wires);
     let public = StreamingTerminalPublicWires {
         vk_fs_digest: vk_fs.map(|value| terminal.alloc(value)),

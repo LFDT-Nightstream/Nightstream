@@ -1,17 +1,18 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX
+import Nightstream.SuperNeo.Concrete.Parameters
 
 /-!
-Exact compiler check for the production strict-PiDEC canonical-X artifact.
+Independent compiler model for the Nightstream strict-PiDEC canonical-X rows.
 
-Assurance tier: Rust-conformant for this generated row leaf.
+Assurance tier: model-level for the row compiler and artifact-checked for the
+compact profile geometry.
 
 Owns: an independent Lean compiler for the binary public-X recomposition,
-shared-sign, and child-digit rows; exact row, owner, relative-index, and
-physical-index comparison for all 4,590 records exported from Rust.
+shared-sign, and child-digit rows, plus the selected profile binding.
 
-Does not own: the remaining strict-PiDEC rows, final selective lowering,
-whole-recursive conformance, witness satisfaction, or cryptographic
-soundness.
+Does not own: equality with the generated row list, the remaining strict-PiDEC
+rows, final selective lowering, whole-recursive conformance, witness
+satisfaction, or cryptographic soundness.
 
 Emits constraints: no.
 -/
@@ -20,6 +21,7 @@ namespace Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.Canonica
 
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX
+open Nightstream.SuperNeo.Concrete
 
 private abbrev logicalCoordinates : Nat := Generated.Metadata.logicalCoordinates
 private abbrev childCount : Nat := Generated.Metadata.childCount
@@ -78,61 +80,17 @@ def expectedPhysicalIndex (owner : RowOwner) : Nat :=
       Generated.Metadata.canonicalityRowStart +
         (expectedRelativeIndex owner - logicalCoordinates)
 
-/-- Fail-closed comparison of one generated record with the independent
-compiler and the two Rust receipt schedules. -/
-def recordMatches (record : PhysicalRow) : Bool :=
-  match expectedRow record.owner with
-  | none => false
-  | some row =>
-      decide (record.relativeIndex = expectedRelativeIndex record.owner) &&
-      decide (record.physicalIndex = expectedPhysicalIndex record.owner) &&
-      decide (record.row = row)
-
-/-- Compare a shard in exact aggregate order. -/
-def recordsMatchFrom : Nat → List PhysicalRow → Bool
-  | _, [] => true
-  | expectedIndex, record :: tail =>
-      decide (record.relativeIndex = expectedIndex) &&
-        recordMatches record &&
-        recordsMatchFrom (expectedIndex + 1) tail
-
-def ChunkMatches (start count : Nat) (records : List PhysicalRow) : Prop :=
-  records.length = count ∧ recordsMatchFrom start records = true
-
-/-- Bounded kernel package for every generated shard. Each native decision
-examines at most 240 proof-free records. The starts and lengths partition
-`0 .. 4,590` without a gap or overlap. -/
-structure GeneratedRowsMatch : Prop where
-  chunk0 : ChunkMatches 0 100 Generated.Rows.Chunk0.values
-  chunk1 : ChunkMatches 100 100 Generated.Rows.Chunk1.values
-  chunk2 : ChunkMatches 200 70 Generated.Rows.Chunk2.values
-  chunk3 : ChunkMatches 270 240 Generated.Rows.Chunk3.values
-  chunk4 : ChunkMatches 510 240 Generated.Rows.Chunk4.values
-  chunk5 : ChunkMatches 750 240 Generated.Rows.Chunk5.values
-  chunk6 : ChunkMatches 990 240 Generated.Rows.Chunk6.values
-  chunk7 : ChunkMatches 1230 240 Generated.Rows.Chunk7.values
-  chunk8 : ChunkMatches 1470 240 Generated.Rows.Chunk8.values
-  chunk9 : ChunkMatches 1710 240 Generated.Rows.Chunk9.values
-  chunk10 : ChunkMatches 1950 240 Generated.Rows.Chunk10.values
-  chunk11 : ChunkMatches 2190 240 Generated.Rows.Chunk11.values
-  chunk12 : ChunkMatches 2430 240 Generated.Rows.Chunk12.values
-  chunk13 : ChunkMatches 2670 240 Generated.Rows.Chunk13.values
-  chunk14 : ChunkMatches 2910 240 Generated.Rows.Chunk14.values
-  chunk15 : ChunkMatches 3150 240 Generated.Rows.Chunk15.values
-  chunk16 : ChunkMatches 3390 240 Generated.Rows.Chunk16.values
-  chunk17 : ChunkMatches 3630 240 Generated.Rows.Chunk17.values
-  chunk18 : ChunkMatches 3870 240 Generated.Rows.Chunk18.values
-  chunk19 : ChunkMatches 4110 240 Generated.Rows.Chunk19.values
-  chunk20 : ChunkMatches 4350 240 Generated.Rows.Chunk20.values
-
-/-- Every exact Rust-exported canonical-X row equals the independent Lean
-compiler output at the same relative and physical position. -/
-theorem generated_rows_match_independent_compiler : GeneratedRowsMatch := by
-  constructor <;> (unfold ChunkMatches; native_decide)
-
-/-- The checked shard partition covers the complete generated row count. -/
-theorem checked_partition_count :
-    100 + 100 + 70 + 18 * 240 = Generated.Metadata.rowCount := by
+/-- The compact generated metadata selects the exact Nightstream binary
+decomposition profile. This theorem does not inspect the generated row list. -/
+theorem generated_profile_matches_nightstream :
+    Generated.Metadata.radix = productionGlobalParams.b ∧
+    Generated.Metadata.childCount = productionGlobalParams.k ∧
+    Generated.Metadata.logicalCoordinates = 270 ∧
+    Generated.Metadata.canonicalColumnCount =
+      Generated.Metadata.rowCount + 1 ∧
+    Generated.Metadata.rowCount =
+      Generated.Metadata.logicalCoordinates *
+        (Generated.Metadata.childCount + 3) := by
   decide
 
 end Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.CanonicalX

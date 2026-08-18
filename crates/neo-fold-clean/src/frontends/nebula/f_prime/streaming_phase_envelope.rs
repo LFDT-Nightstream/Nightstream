@@ -1,9 +1,9 @@
 //! Authenticated semantic envelope for one phased F-prime continuation.
 //!
 //! Owns the Poseidon2 compression of one phase-local state digest and the exact
-//! delayed Nebula payload bits. The lifecycle relation recomputes this envelope
-//! and binds it to its semantic-state lane. A selected phase must still derive
-//! and link both source slices; this digest is not independent authority.
+//! delayed Nebula payload bits. It also owns the compact same-wire lifecycle
+//! binding used by bounded authority audits. A selected phase must still derive
+//! both source slices; this digest is not independent authority.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -33,6 +33,31 @@ pub const STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY: &str = "fprime.streaming
 
 #[doc(hidden)]
 pub const STREAMING_CARRY_PHASE_ENVELOPE_FAMILY: &str = "fprime.streaming.phase.carry.semantic_envelope";
+
+#[doc(hidden)]
+pub const STREAMING_LIFECYCLE_SEMANTIC_LINK_FAMILY: &str = "fprime.streaming.lifecycle.semantic_link";
+#[doc(hidden)]
+pub const STREAMING_LIFECYCLE_PAYLOAD_DOMAIN_FAMILY: &str = "fprime.streaming.lifecycle.payload_domain";
+
+/// Exact phase fields shared with one lifecycle boundary pair.
+///
+/// The selected phase and this relation use these same wires. No digest or
+/// separately allocated alias stands in for the phase-local state or payload.
+pub struct StreamingLifecycleSemanticLinkWires<'a> {
+    pub before_semantic_digest: [Var; 4],
+    pub after_semantic_digest: [Var; 4],
+    pub before_local_state_digest: [Var; 4],
+    pub after_local_state_digest: [Var; 4],
+    pub before_delayed_payload: &'a [Var],
+    pub after_delayed_payload: &'a [Var],
+}
+
+/// Source-row rule already owned by the lifecycle scope for its before payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StreamingLifecycleBeforePayloadRule {
+    EnforceZero,
+    ReuseBinary,
+}
 
 /// Semantic digests and exact private source slices for a carry phase.
 pub struct StreamingCarryPhaseSemanticEnvelope {
@@ -75,6 +100,94 @@ pub fn enforce_streaming_phase_semantic_digest(
     preimage.extend(local_state_digest);
     preimage.extend_from_slice(delayed_payload_bits);
     enforce_poseidon2_hash(builder, &preimage)
+}
+
+/// Recompute both lifecycle semantic digests from the exact selected-phase
+/// fields. Base and recursive scopes use the same binding. Their initial-state,
+/// counter, and NIFS transition rules remain separate lifecycle obligations.
+#[doc(hidden)]
+pub fn enforce_streaming_lifecycle_semantic_link(
+    builder: &mut R1csBuilder,
+    wires: StreamingLifecycleSemanticLinkWires<'_>,
+) {
+    let row_start = builder.rows();
+    for &bit in wires
+        .before_delayed_payload
+        .iter()
+        .chain(wires.after_delayed_payload)
+    {
+        enforce_bit(builder, bit);
+    }
+    builder.record_row_family(STREAMING_LIFECYCLE_PAYLOAD_DOMAIN_FAMILY, row_start);
+
+    let row_start = builder.rows();
+    let before = enforce_streaming_phase_semantic_digest(
+        builder,
+        wires.before_local_state_digest,
+        wires.before_delayed_payload,
+        false,
+    );
+    let after = enforce_streaming_phase_semantic_digest(
+        builder,
+        wires.after_local_state_digest,
+        wires.after_delayed_payload,
+        false,
+    );
+    for lane in 0..4 {
+        builder.enforce_eq(
+            &Lc::from_var(wires.before_semantic_digest[lane]),
+            &Lc::from_var(before[lane]),
+        );
+        builder.enforce_eq(
+            &Lc::from_var(wires.after_semantic_digest[lane]),
+            &Lc::from_var(after[lane]),
+        );
+    }
+    builder.record_row_family(STREAMING_LIFECYCLE_SEMANTIC_LINK_FAMILY, row_start);
+}
+
+/// Emit the exact semantic-link rows used by the base or recursive lifecycle
+/// source stage. The caller owns wire allocation, the physical stage, and the
+/// arm-specific row-family label.
+#[doc(hidden)]
+pub fn enforce_streaming_lifecycle_source_semantic_link(
+    builder: &mut R1csBuilder,
+    wires: StreamingLifecycleSemanticLinkWires<'_>,
+    before_payload_rule: StreamingLifecycleBeforePayloadRule,
+) {
+    match before_payload_rule {
+        StreamingLifecycleBeforePayloadRule::EnforceZero => {
+            for &bit in wires.before_delayed_payload {
+                builder.enforce_zero(&Lc::from_var(bit));
+            }
+        }
+        StreamingLifecycleBeforePayloadRule::ReuseBinary => {}
+    }
+
+    let before = enforce_streaming_phase_semantic_digest(
+        builder,
+        wires.before_local_state_digest,
+        wires.before_delayed_payload,
+        false,
+    );
+    let after = enforce_streaming_phase_semantic_digest(
+        builder,
+        wires.after_local_state_digest,
+        wires.after_delayed_payload,
+        true,
+    );
+    for lane in 0..4 {
+        builder.enforce_eq(
+            &Lc::from_var(wires.before_semantic_digest[lane]),
+            &Lc::from_var(before[lane]),
+        );
+    }
+    for lane in 0..4 {
+        builder.enforce_eq(
+            &Lc::from_var(wires.after_semantic_digest[lane]),
+            &Lc::from_var(after[lane]),
+        );
+    }
 }
 
 /// Bind one phase-local transition to the frozen delayed Nebula payload.

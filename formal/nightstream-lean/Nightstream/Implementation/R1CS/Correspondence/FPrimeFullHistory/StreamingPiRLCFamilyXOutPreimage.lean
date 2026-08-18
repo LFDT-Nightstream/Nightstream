@@ -155,6 +155,19 @@ private theorem artifact_linear_row_a_perm (output : Nat)
       (negateTerms terms ++ [(output, 1)])
       ([(output, 1)] ++ negateTerms terms))
 
+/-- A certified artifact glue row also satisfies its builder-order form. -/
+theorem builder_structural_row_holds
+    (kind : ArmKind) (side : StateSide)
+    (assignment : Nat → Nat)
+    (satisfied : (armFor kind).Satisfied assignment)
+    (output : Nat) (terms : List (Nat × Nat))
+    (member : artifactLinearRow output terms ∈ rawStructuralRows kind side) :
+    RowHolds assignment (builderLinearRow output terms) := by
+  exact rowHolds_of_operand_perms assignment
+    (artifact_linear_row_a_perm output terms) (List.Perm.refl _)
+    (List.Perm.refl _)
+    (raw_structural_satisfies kind side assignment satisfied _ member)
+
 private theorem artifact_linear_row_sound
     (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP)
@@ -176,6 +189,22 @@ private theorem cursor_call_mem (kind : ArmKind) (side : StateSide) :
 private theorem pc_call_mem (kind : ArmKind) :
     pcCall kind ∈ (armFor kind).canonicalCalls := by
   cases kind <;> native_decide
+
+/-- The selected cursor call reuses its exact canonical-u64 rows. -/
+theorem cursor_call_rows_satisfied
+    (kind : ArmKind) (side : StateSide)
+    (assignment : Nat → Nat)
+    (satisfied : (armFor kind).Satisfied assignment) :
+    Satisfies (CanonicalU64Recipe.rows (cursorCall kind side).layout)
+      assignment :=
+  satisfied.1 _ (cursor_call_mem kind side)
+
+/-- The selected program-counter call reuses its exact canonical-u64 rows. -/
+theorem pc_call_rows_satisfied
+    (kind : ArmKind) (assignment : Nat → Nat)
+    (satisfied : (armFor kind).Satisfied assignment) :
+    Satisfies (CanonicalU64Recipe.rows (pcCall kind).layout) assignment :=
+  satisfied.1 _ (pc_call_mem kind)
 
 private theorem cursor_call_field_column
     (kind : ArmKind) (side : StateSide) :

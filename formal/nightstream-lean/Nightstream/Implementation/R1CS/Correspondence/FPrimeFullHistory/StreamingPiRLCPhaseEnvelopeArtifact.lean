@@ -43,18 +43,18 @@ theorem artifact_valid : rawArtifact.Valid :=
 
 theorem exact_source_identity :
     evenArm.sourceRowsSha256 =
-        "2ef4f3217310c361be90d53c37e852f9ea362786aeb4e7cd212cf56ea8e4cfce" ∧
+        "8d2b2b82c6cc9499da67d1c940e59c06af7ac1d13b8ca9530b3e98ad113e0a62" ∧
       oddArm.sourceRowsSha256 =
-        "45612a50dd5521e239f48594315aa86ed28ff53df81a3b73e1bd825d5b3c1f50" := by
+        "d83076a6fd25819e173b5f5f9aa2f0ceadc355bb2dbb7195624889df99b7aa01" := by
   exact ⟨rfl, rfl⟩
 
 theorem exact_source_ranges :
-    evenArm.phaseRowStart = 558380 ∧ evenArm.phaseRowEnd = 1221351 ∧
-      evenArm.phaseColumnStart = 558608 ∧
-      evenArm.phaseColumnEnd = 1221579 ∧
-      oddArm.phaseRowStart = 559580 ∧ oddArm.phaseRowEnd = 1222551 ∧
-      oddArm.phaseColumnStart = 559808 ∧
-      oddArm.phaseColumnEnd = 1222779 := by
+    evenArm.phaseRowStart = 626420 ∧ evenArm.phaseRowEnd = 1289391 ∧
+      evenArm.phaseColumnStart = 626648 ∧
+      evenArm.phaseColumnEnd = 1289619 ∧
+      oddArm.phaseRowStart = 627620 ∧ oddArm.phaseRowEnd = 1290591 ∧
+      oddArm.phaseColumnStart = 627848 ∧
+      oddArm.phaseColumnEnd = 1290819 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The two boundary names refer to one exact payload slice. -/

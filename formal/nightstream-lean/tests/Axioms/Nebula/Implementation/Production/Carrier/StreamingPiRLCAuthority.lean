@@ -9,6 +9,11 @@ import tests.Axioms.Support
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.complete_family_run_eq_parent
 
+/-- info: 'Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.inputFrame_eq_canonical' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.inputFrame_eq_canonical
+
 /-- info: 'Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.fused_phase_recovers_inputs_or_collision' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in

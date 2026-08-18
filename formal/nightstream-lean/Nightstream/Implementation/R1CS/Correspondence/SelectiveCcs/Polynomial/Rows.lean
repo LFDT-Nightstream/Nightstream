@@ -170,6 +170,25 @@ theorem evaluate_sboxPoint (selector input output : F) :
     Role.index, Fin.zero_mul, Fin.mul_zero, Fin.zero_add, Fin.add_zero,
     Lean.Grind.AddCommGroup.neg_zero]
 
+/-- One selected Poseidon2 row is zero exactly when its output is the seventh
+power of its input. -/
+theorem evaluate_sboxPoint_one_eq_zero_iff (input output : F) :
+    evaluate (sboxPoint 1 input output) = 0 ↔
+      input * input * input * input * input * input * input = output := by
+  rw [evaluate_sboxPoint]
+  have expanded :
+      productResidual (sboxPoint (1 : F) input output) +
+          sboxResidual (sboxPoint (1 : F) input output) =
+        input * input * input * input * input * input * input + -output := by
+    simp [productResidual, sboxResidual, sboxPoint, sparsePoint, Role.index,
+      Fin.one_mul, Fin.mul_zero, Fin.zero_add]
+    rw [Lean.Grind.Fin.add_comm]
+  rw [expanded]
+  simpa only [Fin.sub_eq_add_neg] using
+    (Lean.Grind.AddCommGroup.sub_eq_zero_iff :
+      input * input * input * input * input * input * input - output = 0 ↔
+        input * input * input * input * input * input * input = output)
+
 theorem evaluate_centeredPoint (selector unit : F) :
     evaluate (centeredPoint selector unit) =
       centeredResidual (centeredPoint selector unit) := by

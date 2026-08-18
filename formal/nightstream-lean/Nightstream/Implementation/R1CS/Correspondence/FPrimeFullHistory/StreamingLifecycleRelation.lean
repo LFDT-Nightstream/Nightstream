@@ -1,4 +1,5 @@
 import Nightstream.Implementation.Nebula.FPrime.State.OutputAuthorityRows
+import Nightstream.Implementation.R1CS.Canonical.GoldilocksField
 import Nightstream.Protocol.FPrime.DelayedTrace
 
 /-!
@@ -35,18 +36,51 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleRel
 
 open Nightstream.HyperNova.Construction2
 open Nightstream.Implementation.Nebula
+open Nightstream.Implementation.R1CS.Canonical.GoldilocksField
 open Nightstream.Protocol.FPrime
 
 universe uParams uStructure uRunning uFresh uNifsProof uNebulaOpen
   uRunningWitness uFreshWitness
 
-/-- Four canonical Goldilocks lanes. Canonicality belongs to the later row
-refinement; this model fixes the exact typed width and order. -/
-abbrev Digest := Fin 4 -> Nat
+/-- One canonical Goldilocks field value. -/
+abbrev Field := Fin goldilocksP
+
+/-- Four canonical Goldilocks lanes. -/
+abbrev Digest := Fin 4 -> Field
+
+/-- Row-level natural encoding of four canonical Goldilocks lanes. -/
+abbrev EncodedDigest := Fin 4 -> Nat
+
+def digestValues (digest : Digest) : EncodedDigest :=
+  fun lane => (digest lane).val
+
+theorem digestValues_canonical (digest : Digest) (lane : Fin 4) :
+    digestValues digest lane < goldilocksP :=
+  (digest lane).isLt
+
+theorem digestValues_injective : Function.Injective digestValues := by
+  intro left right equal
+  funext lane
+  apply Fin.ext
+  exact congrFun equal lane
 
 abbrev OuterState
     (Running : Type uRunning) (Fresh : Type uFresh) (Nebula : Type) :=
   State Digest Running Fresh Nebula
+
+/-- Exact row-level encoding of one typed field preimage. -/
+def encodePreimage
+    (preimage : XOut.XOutPreimage Digest Digest Digest) :
+    XOut.XOutPreimage EncodedDigest EncodedDigest EncodedDigest where
+  vkFsDigest := digestValues preimage.vkFsDigest
+  piCcsHeader := digestValues preimage.piCcsHeader
+  chunkCount := preimage.chunkCount
+  stepCount := preimage.stepCount
+  pc := preimage.pc
+  currentBoundary := digestValues preimage.currentBoundary
+  semanticState := preimage.semanticState.map digestValues
+  construction2Accumulator := digestValues preimage.construction2Accumulator
+  nebula := preimage.nebula.map digestValues
 
 /-- One fully typed invocation of the concrete SuperNeo NIFS checker. -/
 structure NifsCall
@@ -179,15 +213,15 @@ def payload
       NifsProof Nebula NebulaOpen armCount)
     (state : OuterState Running Fresh Nebula) :
     StateOutputAuthorityRows.Payload where
-  vkFsDigest := XOut.verifierDigest configuration.hashSemantics
-    configuration.context
-  piCcsHeader := configuration.context.piCcsHeader
+  vkFsDigest := digestValues
+    (XOut.verifierDigest configuration.hashSemantics configuration.context)
+  piCcsHeader := digestValues configuration.context.piCcsHeader
   chunkCount := state.chunkCount
   stepCount := state.stepCount
   pc := state.pc
-  currentBoundary := state.zi
-  semanticState := state.semanticState
-  accumulatorDigest := state.accumulatorDigest
+  currentBoundary := digestValues state.zi
+  semanticState := digestValues state.semanticState
+  accumulatorDigest := digestValues state.accumulatorDigest
 
 /-- Exact 32-field message for one present Nebula state. -/
 def frame
@@ -204,7 +238,7 @@ def frame
     (state : OuterState Running Fresh Nebula)
     (nebula : Nebula) : List Nat :=
   StateOutputAuthorityRows.fullFrame (payload configuration state)
-    (configuration.hashSemantics.nebulaDigest nebula)
+    (digestValues (configuration.hashSemantics.nebulaDigest nebula))
 
 theorem frame_length
     {Params : Type uParams}
@@ -239,11 +273,12 @@ theorem payload_preimage_exact
     (nebula : Nebula)
     (present : state.nebula = some nebula) :
     (payload configuration state).toXOutPreimage
-        (configuration.hashSemantics.nebulaDigest nebula) =
-      XOut.preimage configuration.hashSemantics .stateful
-        configuration.context state := by
+        (digestValues (configuration.hashSemantics.nebulaDigest nebula)) =
+      encodePreimage
+        (XOut.preimage configuration.hashSemantics .stateful
+          configuration.context state) := by
   simp [payload, StateOutputAuthorityRows.Payload.toXOutPreimage,
-    XOut.preimage, present]
+    encodePreimage, XOut.preimage, present]
 
 def expectedPublic
     {Params : Type uParams}
@@ -404,9 +439,11 @@ theorem prior_frame_exact
       NifsProof Nebula NebulaOpen armCount}
     (invocation : Invocation configuration) :
     (payload configuration invocation.prior).toXOutPreimage
-        (configuration.hashSemantics.nebulaDigest invocation.priorNebula) =
-      XOut.preimage configuration.hashSemantics .stateful
-        configuration.context invocation.prior :=
+        (digestValues
+          (configuration.hashSemantics.nebulaDigest invocation.priorNebula)) =
+      encodePreimage
+        (XOut.preimage configuration.hashSemantics .stateful
+          configuration.context invocation.prior) :=
   payload_preimage_exact configuration invocation.prior
     invocation.priorNebula invocation.priorNebulaExact
 
@@ -423,9 +460,11 @@ theorem next_frame_exact
       NifsProof Nebula NebulaOpen armCount}
     (invocation : Invocation configuration) :
     (payload configuration invocation.next).toXOutPreimage
-        (configuration.hashSemantics.nebulaDigest invocation.nextNebula) =
-      XOut.preimage configuration.hashSemantics .stateful
-        configuration.context invocation.next :=
+        (digestValues
+          (configuration.hashSemantics.nebulaDigest invocation.nextNebula)) =
+      encodePreimage
+        (XOut.preimage configuration.hashSemantics .stateful
+          configuration.context invocation.next) :=
   payload_preimage_exact configuration invocation.next invocation.nextNebula
     invocation.nextNebulaExact
 
@@ -628,6 +667,48 @@ theorem checked_fold
         (configuration.nifsExact call).1 (by
           simpa [call] using verifierExact)
       exact ⟨nextRunning, complete, nextExact⟩
+
+/-- An exact result from the configured NIFS verifier fixes the running value
+installed in the next Construction-2 state. -/
+theorem checked_fold_of_exact_verifier_output
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (recursive : Recursive configuration)
+    (authoritativeOutput : Running)
+    (accepted :
+      configuration.stepSemantics.nifsVerify
+          (Step.nifsContext configuration.stepSemantics recursive.prior
+            recursive.input)
+          recursive.running recursive.latest recursive.nifsProof =
+        some authoritativeOutput) :
+    recursive.next = Step.advancedState configuration.stepSemantics
+      recursive.prior authoritativeOutput recursive.input recursive.proof := by
+  rcases recursive.checked_fold with
+    ⟨nextRunning, complete, nextExact⟩
+  have verifierNext :
+      configuration.stepSemantics.nifsVerify
+          (Step.nifsContext configuration.stepSemantics recursive.prior
+            recursive.input)
+          recursive.running recursive.latest recursive.nifsProof =
+        some nextRunning :=
+    (configuration.nifsExact {
+      context := Step.nifsContext configuration.stepSemantics
+        recursive.prior recursive.input
+      running := recursive.running
+      latest := recursive.latest
+      proof := recursive.nifsProof
+      output := nextRunning }).2 complete
+  have outputExact : nextRunning = authoritativeOutput :=
+    Option.some.inj (verifierNext.symm.trans accepted)
+  simpa [outputExact] using nextExact
 
 /-- The selected phase consumes the exact active fresh claim checked by NIFS
 and produces the exact next batch installed by the lifecycle transition. -/
@@ -891,9 +972,11 @@ theorem frame_exact
       Nebula}
     (terminal : Terminal configuration authority) :
     (payload configuration terminal.state).toXOutPreimage
-        (configuration.hashSemantics.nebulaDigest terminal.nebula) =
-      XOut.preimage configuration.hashSemantics .stateful
-        configuration.context terminal.state :=
+        (digestValues
+          (configuration.hashSemantics.nebulaDigest terminal.nebula)) =
+      encodePreimage
+        (XOut.preimage configuration.hashSemantics .stateful
+          configuration.context terminal.state) :=
   payload_preimage_exact configuration terminal.state terminal.nebula
     terminal.nebulaExact
 

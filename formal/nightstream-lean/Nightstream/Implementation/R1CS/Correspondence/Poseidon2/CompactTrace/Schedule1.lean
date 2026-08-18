@@ -9,6 +9,7 @@ namespace Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement
 theorem compact_schedule_exact_1 :
     ∀ offset : Fin 16, ScheduleExactAt (shardIndex1 offset) := by
   unfold ScheduleExactAt
-  native_decide
+  intro offset
+  fin_cases offset <;> decide
 
 end Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement

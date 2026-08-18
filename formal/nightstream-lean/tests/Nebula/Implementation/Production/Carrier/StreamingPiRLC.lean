@@ -8,6 +8,12 @@ namespace tests.NebulaProductionStreamingPiRlc
 
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlc
 
+#check sourceSchedule_length
+#check sourceSchedule_covers
+#check sourceSchedule_nodup
+#check sourceInputFields_length
+#check familyInputFrame_length
+#check inputFrame_length
 #check run_cursor
 #check run_binding
 #check run_familySchedule_cursor

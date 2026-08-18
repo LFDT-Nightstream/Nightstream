@@ -39,10 +39,10 @@ Decision: NSD-PICCS-001, NSD-ENCODING-001, and NSD-TRANSCRIPT-001.
 ### NS-PICCS-TERMINAL — Exact output family
 
 At the final SumCheck point, the proof MUST contain one `R_K` evaluation for
-each of 15 sources and 14 matrices, in source-major then matrix-major order.
+each of 17 sources and 14 matrices, in source-major then matrix-major order.
 `F` uses the new outputs for fresh source 0. `N` uses the new `M_0` output for
-sources 0 through 14. `E` uses the new outputs for running sources 1 through
-14 and `eq(r_new,r_old)`; `T_abs` uses those running sources' input evaluations
+sources 0 through 16. `E` uses the new outputs for running sources 1 through
+16 and `eq(r_new,r_old)`; `T_abs` uses those running sources' input evaluations
 at `r_old`. The verifier MUST derive these terminal values and check the
 reviewed joint equation.
 
@@ -67,15 +67,15 @@ Decision: NSD-COLUMN-001 and NSD-COLUMN-MAP-001.
 
 ### NS-PICCS-CENSUS — Selected algebraic planning count
 
-For `K_fresh=1`, `k=14`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
+For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
 MUST derive
 
 ```text
 D_Q = 9
 N_SC = 9*24 = 216
-D_SZ = max(24,39,10599) = 10599
-N_field = 10815
-coordinate-fork numerator = K_fresh+k+1 = 16.
+D_SZ = max(24,41,12113) = 12113
+N_field = 12329
+coordinate-fork numerator = K_fresh+k_rho+1 = 18.
 ```
 
 These values are component counts, not an end-to-end security level.

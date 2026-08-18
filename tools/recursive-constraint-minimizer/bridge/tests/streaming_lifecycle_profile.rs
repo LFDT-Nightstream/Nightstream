@@ -7,6 +7,7 @@ use neo_fold_clean::frontends::nebula::f_prime::{
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
 use neo_fold_clean::frontends::r1cs_f_prime::build_multi_branch_selective_low_norm_r1cs_with_alignment;
+use neo_fold_clean::paper::f_prime::stage as fprime_stage;
 use neo_fold_clean::paper::params::Params;
 use neo_math::D;
 use nightstream_constraint_exporter::export_complete_streaming_lifecycle_problem;
@@ -58,6 +59,78 @@ fn exact_streaming_lifecycle_profile_has_frozen_artifact_identities() {
     let recursive_profile = export
         .profile()
         .arm(NebulaFPrimeStreamingLifecycleArm::Recursive);
+    for arm in [
+        NebulaFPrimeStreamingLifecycleArm::Base,
+        NebulaFPrimeStreamingLifecycleArm::Recursive,
+    ] {
+        let arm_profile = export.profile().arm(arm);
+        let stage_path = match arm {
+            NebulaFPrimeStreamingLifecycleArm::Base => fprime_stage::BASE_SEMANTIC_LINKS,
+            NebulaFPrimeStreamingLifecycleArm::Recursive => fprime_stage::RECURSIVE_SEMANTIC_LINKS,
+        };
+        let semantic_link = arm_profile
+            .stages()
+            .iter()
+            .find(|stage| stage.path() == stage_path)
+            .expect("lifecycle semantic-link physical stage");
+        let retained_source_runs = semantic_link
+            .source_runs()
+            .iter()
+            .filter(|run| run.emitted_start().is_some())
+            .count();
+        let first_final_rows = semantic_link.final_row_runs().first().map(|run| run.rows());
+        let last_final_rows = semantic_link.final_row_runs().last().map(|run| run.rows());
+        let nonempty_rewrites = semantic_link
+            .rewrites()
+            .iter()
+            .filter(|rewrite| !rewrite.final_rows().is_empty())
+            .count();
+        let expected = match arm {
+            NebulaFPrimeStreamingLifecycleArm::Base => (
+                8,
+                50_723..715_863,
+                50_543..715_683,
+                7_659,
+                4_772_321..4_774_490,
+                4_875_885..4_875_971,
+                7_657,
+            ),
+            NebulaFPrimeStreamingLifecycleArm::Recursive => (
+                11_883,
+                30_676_324..31_339_295,
+                30_400_381..31_063_352,
+                5_490,
+                5_008_421..5_010_590,
+                5_190_239..5_190_325,
+                5_488,
+            ),
+        };
+        assert_eq!(semantic_link.occurrence(), expected.0);
+        assert_eq!(semantic_link.source_rows(), expected.1);
+        assert_eq!(semantic_link.source_columns(), expected.2);
+        assert_eq!(semantic_link.source_runs().len(), expected.3);
+        assert_eq!(retained_source_runs, 2);
+        assert_eq!(semantic_link.final_row_runs().len(), 1_096);
+        assert_eq!(first_final_rows, Some(expected.4));
+        assert_eq!(last_final_rows, Some(expected.5));
+        assert_eq!(semantic_link.rewrites().len(), expected.6);
+        assert_eq!(nonempty_rewrites, 1_094);
+        eprintln!(
+            "streaming lifecycle semantic-link ownership: scope={} occurrence={} source_rows={:?} source_row_count={} source_columns={:?} source_runs={} retained_source_runs={} final_row_runs={} first_final_rows={:?} last_final_rows={:?} rewrites={} nonempty_rewrites={}",
+            arm_profile.lifecycle_scope(),
+            semantic_link.occurrence(),
+            semantic_link.source_rows(),
+            semantic_link.source_rows().len(),
+            semantic_link.source_columns(),
+            semantic_link.source_runs().len(),
+            retained_source_runs,
+            semantic_link.final_row_runs().len(),
+            first_final_rows,
+            last_final_rows,
+            semantic_link.rewrites().len(),
+            nonempty_rewrites,
+        );
+    }
     let recursive_x_out = lifecycle.x_out_preimage_columns(NebulaFPrimeStreamingLifecycleArm::Recursive);
     for (scope, binding, source_columns) in [
         ("before", recursive_profile.before_x_out(), recursive_x_out.before()),

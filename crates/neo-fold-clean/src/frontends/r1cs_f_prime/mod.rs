@@ -49,6 +49,7 @@ pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
 pub use relation_artifact::{R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID, R1CS_F_PRIME_PROFILE_ID};
 pub(crate) use selective::{
+    audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_compiler_with_shared_bit_prefix,
     audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_low_norm_shape_with_alignment,
@@ -63,17 +64,18 @@ pub use selective::{
     audit_multi_branch_selective_rows_with_alignment,
     audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_alignment,
-    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveProjectedDecoderProvenance,
-    SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus,
-    SelectiveProjectedGeometricRun, SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep,
-    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
-    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
-    SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit, SelectiveProjectedSourceDecoder,
-    SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceDecoderStridedRun,
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveCompactLayoutAudit,
+    SelectiveProjectedDecoderProvenance, SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum,
+    SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
+    SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
+    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
+    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
+    SelectiveProjectedSourceDecoder, SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceDecoderStridedRun,
     SelectiveProjectedSourceDecoderTemplate, SelectiveProjectedSourceDecoderTemplateInstances,
-    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination,
-    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun,
-    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceImage,
+    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceResolution,
+    SelectiveProjectedSourceResolutionRun, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
+    SelectiveProjectedTerm,
 };
 #[doc(hidden)]
 pub use selective::{is_canonical_selective_low_norm_polynomial, selective_polynomial};

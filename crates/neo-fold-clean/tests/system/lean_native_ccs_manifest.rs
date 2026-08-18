@@ -185,7 +185,13 @@ fn direct_combined_terminal_fixture(
         fold_digest: [0; 32],
         adv: None,
     };
-    (log, vec![zero_claim; 14], vec![zero_witness; 14], fresh)
+    let running_claim_count = neo_fold_clean::config::K_RHO as usize;
+    (
+        log,
+        vec![zero_claim; running_claim_count],
+        vec![zero_witness; running_claim_count],
+        fresh,
+    )
 }
 
 fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_clean::Preprocessing, Uncompressed) {
@@ -387,7 +393,7 @@ fn preprocessing_and_instance_are_derived_from_the_manifest() {
 }
 
 #[test]
-#[ignore = "runs one complete native F-prime fold and the 34,294-row Spartan/WHIR terminal proof"]
+#[ignore = "runs one complete native F-prime fold and terminal proof for the production-k16 profile"]
 fn manifest_owned_lifecycle_proves_and_verifies() {
     let manifest = parse(&lifecycle_manifest()).expect("valid native lifecycle manifest");
     let setup = LeanNativeCcsPreprocessing::new(manifest).expect("manifest-owned native preprocessing");
@@ -466,7 +472,7 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
 }
 
 #[test]
-#[ignore = "runs one complete combined F-prime fold and the 58,595-row Spartan/WHIR terminal proof"]
+#[ignore = "runs one complete combined F-prime fold and terminal proof for the production-k16 profile"]
 fn combined_manifest_owned_lifecycle_proves_and_verifies() {
     let manifest = parse_combined(&combined_lifecycle_manifest()).expect("valid combined lifecycle manifest");
     let setup = LeanNebulaCombinedPreprocessing::new(manifest).expect("manifest-owned combined preprocessing");
@@ -583,7 +589,6 @@ fn native_step_has_no_residual_row_or_column() {
     assert_eq!(emission.structure().n, 1);
     assert_eq!(manifest.terminal_r1cs().logical_width(), 270);
     assert_eq!(manifest.terminal_r1cs().recursive_rows(), 1);
-    assert_eq!(manifest.terminal_r1cs().cost().recurring_rows(), 34_292);
 }
 
 #[test]
@@ -704,12 +709,12 @@ fn rejects_terminal_r1cs_shape_or_cost_drift() {
     assert!(parse(&verifier).unwrap_err().contains("verifier_rows"));
 
     let mut cost = valid_manifest();
-    cost["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_052);
+    cost["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(0);
     assert!(parse(&cost).unwrap_err().contains("terminal_r1cs.cost"));
 }
 
 #[test]
-#[ignore = "materializes the complete 14-running terminal reference relation"]
+#[ignore = "materializes the complete production-k16 terminal reference relation"]
 fn terminal_r1cs_compiles_with_the_exact_lean_cost() {
     let manifest = parse(&valid_manifest()).expect("valid native manifest");
     let (log, running_claims, running_witnesses, fresh) = direct_terminal_fixture(&manifest);
@@ -724,10 +729,14 @@ fn terminal_r1cs_compiles_with_the_exact_lean_cost() {
     )
     .expect("honest terminal R1CS");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 34_292);
-    assert_eq!(relation.shape().num_rest_unpadded(), 8_101);
-    assert_eq!(relation.shape().num_public(), 26_190);
-    assert_eq!(relation.lean_public_columns(), 26_191);
+    let cost = manifest.terminal_r1cs().cost();
+    assert_eq!(relation.shape().num_constraints_unpadded(), cost.recurring_rows());
+    assert_eq!(
+        relation.shape().num_rest_unpadded(),
+        cost.committed_columns() + cost.auxiliary_columns()
+    );
+    assert_eq!(relation.shape().num_public() + 1, cost.public_columns());
+    assert_eq!(relation.lean_public_columns(), cost.public_columns());
 }
 
 #[test]
@@ -1041,19 +1050,21 @@ fn combined_terminal_r1cs_compiles_the_exact_lean_bit_lowering() {
     )
     .expect("combined terminal statement");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 58_593);
-    assert_eq!(relation.shape().num_rest_unpadded(), 9_721);
-    assert_eq!(relation.shape().num_public(), 48_870);
-    assert_eq!(relation.lean_public_columns(), 48_871);
+    let cost = manifest.terminal_r1cs().cost();
+    let private_columns = cost.committed_columns() + cost.auxiliary_columns();
+    assert_eq!(relation.shape().num_constraints_unpadded(), cost.recurring_rows());
+    assert_eq!(relation.shape().num_rest_unpadded(), private_columns);
+    assert_eq!(relation.shape().num_public() + 1, cost.public_columns());
+    assert_eq!(relation.lean_public_columns(), cost.public_columns());
     assert_eq!(statement.shape(), relation.shape());
     assert_eq!(statement.public_values(), relation.public_values());
 
     let audit = relation.constraint_audit();
     assert_eq!(audit.source().rows(), relation.shape().num_constraints_unpadded());
-    assert_eq!(audit.source().cols(), 1 + 48_870 + 9_721);
+    assert_eq!(audit.source().cols(), cost.public_columns() + private_columns);
     assert!(audit.source().is_satisfied(audit.source().witness()));
-    assert_eq!(audit.source_public_columns(), 48_871);
-    assert_eq!(audit.source_private_columns(), 9_721);
+    assert_eq!(audit.source_public_columns(), cost.public_columns());
+    assert_eq!(audit.source_private_columns(), private_columns);
     assert_eq!(audit.spartan_rows(), relation.shape().num_constraints());
     assert_eq!(
         audit.spartan_columns(),
@@ -1092,10 +1103,14 @@ fn combined_terminal_r1cs_compiles_the_exact_lean_extension_lowering() {
     )
     .expect("honest extension terminal R1CS");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 58_598);
-    assert_eq!(relation.shape().num_rest_unpadded(), 9_726);
-    assert_eq!(relation.shape().num_public(), 48_870);
-    assert_eq!(relation.lean_public_columns(), 48_871);
+    let cost = manifest.terminal_r1cs().cost();
+    assert_eq!(relation.shape().num_constraints_unpadded(), cost.recurring_rows());
+    assert_eq!(
+        relation.shape().num_rest_unpadded(),
+        cost.committed_columns() + cost.auxiliary_columns()
+    );
+    assert_eq!(relation.shape().num_public() + 1, cost.public_columns());
+    assert_eq!(relation.lean_public_columns(), cost.public_columns());
 }
 
 #[test]

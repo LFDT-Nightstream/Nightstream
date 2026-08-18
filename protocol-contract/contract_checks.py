@@ -592,7 +592,7 @@ def check_security_census(config: dict) -> None:
         "Nightstream matrix count does not include exactly one padded identity",
     )
     require(candidate["fresh_claims"] == 1, "Nightstream fresh source count differs from v1")
-    require(candidate["running_claims"] == paper["k"], "Nightstream running count differs from paper k")
+    require(candidate["running_claims"] == 16, "Nightstream running count differs from selected k_rho=16")
     require(
         candidate["source_claims"] == candidate["fresh_claims"] + candidate["running_claims"],
         "Nightstream source count differs from fresh plus running sources",
@@ -665,6 +665,7 @@ def check_security_census(config: dict) -> None:
     require(accounting["coordinate_fork_factor"] == fork, "security accounting has the wrong fork factor")
 
     sampler_profile = config["sampler_profile"]
+    require(sampler_profile["source_count"] == candidate["source_claims"] and sampler_profile["ring_degree"] == paper["phi_degree"], "sampler dimensions differ from the selected Nightstream sources")
     require(q % 5 == 1, "Goldilocks modulus does not have the selected sampler remainder")
     coefficient_count = sampler_profile["source_count"] * sampler_profile["ring_degree"]
     require(
@@ -850,7 +851,7 @@ def check_profile_consistency(config: dict) -> None:
         (paper, "phi_nonzero_degrees", [0, 27, 54]),
         (candidate, "status", "approved"),
         (candidate, "profile_version", 1),
-        (candidate, "source_index_map", "source-0=fresh-0;sources-1-through-14=running-0-through-13"),
+        (candidate, "source_index_map", "source-0=fresh-0;sources-1-through-16=running-0-through-15"),
         (candidate, "shape_authority", "verifier-key-relation-artifact-v1"),
         (candidate, "relation_artifact_format", "nightstream/verifier-key-relation"),
         (candidate, "relation_artifact_schema", 1),
@@ -862,7 +863,7 @@ def check_profile_consistency(config: dict) -> None:
         (candidate, "norm_terminal", "constant-term-of-y_ring-source-M_0"),
         (candidate, "public_carrier_authority", "x-only"),
         (candidate, "derived_carrier_evaluations", "verifier-recompute-or-discard"),
-        (candidate, "split_algorithm", "centered-common-sign-binary-little-endian-14"),
+        (candidate, "split_algorithm", "centered-common-sign-binary-little-endian-16"),
         (candidate, "split_out_of_bound", "prover-assignment-or-verifier-public-input-error"),
         (candidate, "hash_family", "Poseidon2-only"),
         (candidate, "circuit_target", "PaddedRowIdentity-current-circuit-replacement"),
@@ -1094,11 +1095,8 @@ def check_profile_consistency(config: dict) -> None:
         == "match-selected-profile-and-decoded-statement",
         "public-image output layout differs",
     )
-    require(
-        commitment["msis_infinity_bound"]
-        == 8 * strong_set["expansion_T"] * paper["B"],
-        "commitment Module-SIS bound differs",
-    )
+    selected_big_b = paper["b"] ** candidate["running_claims"]
+    require(commitment["msis_infinity_bound"] == 8 * strong_set["expansion_T"] * selected_big_b, "commitment Module-SIS bound differs")
 
     eta = strong_set["eta"]
     divisor = strong_set["theorem8_divisor"]
@@ -1122,7 +1120,7 @@ def check_profile_consistency(config: dict) -> None:
     )
     guard_left = (candidate["fresh_claims"] + candidate["running_claims"]) * strong_set["expansion_T"] * (paper["b"] - 1)
     require(strong_set["norm_guard_left"] == guard_left, "selected norm-guard left side differs")
-    require(strong_set["norm_guard_right"] == paper["B"] and guard_left < paper["B"], "selected norm guard fails")
+    require(strong_set["norm_guard_right"] == selected_big_b and guard_left < selected_big_b, "selected norm guard fails")
 
     extension_fields = algebra["extension_degree"]
     point_fields = candidate["row_variables"] * extension_fields
@@ -1140,7 +1138,7 @@ def check_profile_consistency(config: dict) -> None:
     expected_proof = [
         candidate["row_variables"] * (candidate["sumcheck_degree"] + 1) * extension_fields,
         candidate["source_claims"] * output_fields_per_claim,
-        paper["k"] * (commitment_fields + output_fields_per_claim),
+        candidate["running_claims"] * (commitment_fields + output_fields_per_claim),
     ]
     require(sections["statement_section_ids"] == sorted(set(sections["statement_section_ids"])), "statement section IDs are not unique and ordered")
     require(sections["proof_section_ids"] == sorted(set(sections["proof_section_ids"])), "proof section IDs are not unique and ordered")
@@ -1158,8 +1156,8 @@ def check_profile_consistency(config: dict) -> None:
     require(section_header_bytes == 8, "section header byte width differs")
     require(field_bytes == algebra["base_field_bytes"], "container field byte width differs")
     byte_censuses = (
-        ("statement", sections["statement_section_ids"], sections["statement_total_base_fields"], sections["statement_total_bytes"], 318832),
-        ("proof", sections["proof_section_ids"], sections["proof_total_base_fields"], sections["proof_total_bytes"], 463528),
+        ("statement", sections["statement_section_ids"], sections["statement_total_base_fields"], sections["statement_total_bytes"], 362896),
+        ("proof", sections["proof_section_ids"], sections["proof_total_base_fields"], sections["proof_total_bytes"], 527464),
     )
     for label, section_ids, total_fields, declared_bytes, expected_bytes in byte_censuses:
         computed_bytes = header_bytes + len(section_ids) * section_header_bytes + total_fields * field_bytes
@@ -1172,10 +1170,10 @@ def check_profile_consistency(config: dict) -> None:
     require(sections["lifecycle_condition"] == "0<=fold_index<fold_count<=64", "lifecycle condition differs")
     require(sections["fresh_claim_order"] == "commitment-then-270-field-x", "fresh claim order differs")
     require(sections["shared_row_point_order"] == "coordinate-0-through-23-each-as-c0-then-c1", "row point order differs")
-    require(sections["running_claim_order"] == "source-0-through-13-each-as-commitment-then-270-field-x-then-14-y_ring-values", "running claim order differs")
+    require(sections["running_claim_order"] == "source-0-through-15-each-as-commitment-then-270-field-x-then-14-y_ring-values", "running claim order differs")
     require(sections["piccs_round_order"] == "round-0-through-23-each-as-degree-0-through-9-each-c0-then-c1", "PiCCS round order differs")
-    require(sections["piccs_output_order"] == "source-0-through-14-then-matrix-0-through-13-each-R_K-in-ring-order", "PiCCS output order differs")
-    require(sections["pidec_child_order"] == "child-0-through-13-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived", "PiDEC child order differs")
+    require(sections["piccs_output_order"] == "source-0-through-16-then-matrix-0-through-13-each-R_K-in-ring-order", "PiCCS output order differs")
+    require(sections["pidec_child_order"] == "child-0-through-15-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived", "PiDEC child order differs")
 
     require(transcript["width"] == transcript["rate"] + transcript["capacity"], "sponge width differs from rate plus capacity")
     require(

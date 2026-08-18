@@ -36,8 +36,8 @@ Nightstream v1 uses `PaddedRowIdentity`:
 - one reviewed joint PiCCS SumCheck with 24 rounds;
 - the norm terminal from `ct(y_(i,0))` for the same committed assignment;
 - no FE/NC split, column proof, column carrier, or extra beta challenge;
-- 15 PiRLC ring challenges from one bounded Poseidon2 sampler;
-- 14 deterministic signed-binary PiDEC children.
+- 17 PiRLC ring challenges from one bounded Poseidon2 sampler;
+- 16 deterministic signed-binary PiDEC children.
 
 The seeded Ajtai key also has one exact ChaCha8 row-and-chunk expansion with
 checked stream and chunk-boundary vectors. Its commitment operation is the

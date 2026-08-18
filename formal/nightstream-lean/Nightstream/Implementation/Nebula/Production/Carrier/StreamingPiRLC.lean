@@ -77,6 +77,21 @@ theorem familySchedule_covers (family : Family) :
 theorem familySchedule_nodup : familySchedule.Nodup := by
   decide
 
+/-- Verifier-owned PiCCS source order: one fresh source followed by the
+sixteen running sources of the selected Nightstream profile. -/
+def sourceSchedule : List Source := canonicalFinIndices sourceCount
+
+@[simp] theorem sourceSchedule_length : sourceSchedule.length = 17 := by
+  rw [sourceSchedule, canonicalFinIndices_length]
+  exact sourceCount_eq
+
+theorem sourceSchedule_covers (source : Source) :
+    source ∈ sourceSchedule := by
+  simp [sourceSchedule, canonicalFinIndices]
+
+theorem sourceSchedule_nodup : sourceSchedule.Nodup := by
+  exact canonicalFinIndices_nodup sourceCount
+
 /-- Canonical coefficients emitted by one family phase. The family position
 is verifier-owned by `familySchedule` and is not prover advice. -/
 def familyOutputFields
@@ -92,6 +107,28 @@ def familyOutputFields
     ProductPoseidon2.finFields, ProductPoseidon2.fFields,
     canonicalFinIndices_length, ringDegree]
 
+/-- Canonical coefficients of one PiCCS-derived input ring. -/
+def sourceInputFields
+    (inputs : InputRings) (family : Family) (source : Source) : List Nat :=
+  ProductPoseidon2.ringFFields (inputs source family)
+
+@[simp] theorem sourceInputFields_length
+    (inputs : InputRings) (family : Family) (source : Source) :
+    (sourceInputFields inputs family source).length = 54 := by
+  simp [sourceInputFields, ProductPoseidon2.ringFFields,
+    ProductPoseidon2.finFields, ProductPoseidon2.fFields,
+    canonicalFinIndices_length, ringDegree]
+
+/-- All seventeen PiCCS-derived rings used by one family phase, in canonical
+source order. The same list is the phase replay frame and algebra input. -/
+def familyInputFrame (inputs : InputRings) (family : Family) : List Nat :=
+  sourceSchedule.flatMap (sourceInputFields inputs family)
+
+/-- Complete PiCCS-derived PiRLC input frame. Families are outermost, sources
+are next, and ring coefficients are innermost. -/
+def inputFrame (inputs : InputRings) : List Nat :=
+  familySchedule.flatMap (familyInputFrame inputs)
+
 /-- Complete canonical PiRLC output stream. This list is a semantic
 definition. The recursive circuit does not carry it between phases. -/
 def outputFrame
@@ -106,6 +143,20 @@ private theorem length_flatMap_uniform
   | nil => simp
   | cons head tail inductionHypothesis =>
       simp [uniform, inductionHypothesis, Nat.add_mul, Nat.add_comm]
+
+@[simp] theorem familyInputFrame_length
+    (inputs : InputRings) (family : Family) :
+    (familyInputFrame inputs family).length = 918 := by
+  unfold familyInputFrame
+  rw [length_flatMap_uniform _ _ 54
+    (sourceInputFields_length inputs family)]
+  simp
+
+@[simp] theorem inputFrame_length (inputs : InputRings) :
+    (inputFrame inputs).length = 100980 := by
+  unfold inputFrame
+  rw [length_flatMap_uniform _ _ 918 (familyInputFrame_length inputs)]
+  simp
 
 @[simp] theorem outputFrame_length
     (challenges : Source → RingF) (inputs : InputRings) :
@@ -261,7 +312,7 @@ theorem replay_eq_authoritative_or_collision
 
 /-! ## Exact local-row soundness -/
 
-/-- The existing 43,794-row single-family relation proves exactly the value
+/-- The existing 49,626-row single-family relation proves exactly the value
 computed by one narrow phase. This theorem does not yet connect generated
 selective-CCS artifact rows to this handwritten row family. -/
 theorem local_rows_imply_combineOne

@@ -163,7 +163,7 @@ Decision: NSD-SAMPLER-001 and NSD-TRANSCRIPT-001.
 
 ### NS-SAMPLER-REPETITIONS — Bounded sampler loop
 
-The verifier MUST process 15 sources in order, 54 coefficients per source,
+The verifier MUST process 17 sources in order, 54 coefficients per source,
 and at most three attempts per coefficient. If all three candidates reject,
 the whole proof MUST reject.
 
@@ -173,7 +173,7 @@ Decision: NSD-SAMPLER-001.
 
 Accepted digits MUST be exactly uniform on the five-element alphabet. The
 security reduction MUST include a per-fold exhaustion bound of at most
-`810/q^3` and MUST compose it across the selected fold limit.
+`918/q^3` and MUST compose it across the selected fold limit.
 
 Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 
@@ -182,7 +182,7 @@ Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 The v1 security target MUST be at least 96 classical bits for one proof and
 one session per verifier key with at most 64 folds. The resource census MUST
 allow at most 262,144 adaptive oracle queries, including the derived maximum
-157,313 prescribed tagged squeezes per key. The release theorem MUST be an
+178,049 prescribed tagged squeezes per key. The release theorem MUST be an
 expected-polynomial-time proof of knowledge and MUST state the Ajtai setup or
 seeded-PRG assumption.
 

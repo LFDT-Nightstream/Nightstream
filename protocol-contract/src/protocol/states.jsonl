@@ -4,10 +4,10 @@
 {"id":"ST-PICCS-INPUT","terminal":false,"description":"The ordered PiCCS source instances and prover input are transcript-bound."}
 {"id":"ST-PICCS-COINS","terminal":false,"description":"The 24 alpha coordinates and gamma are sampled from the bound PiCCS prefix."}
 {"id":"ST-PICCS-SUMCHECK","terminal":false,"description":"All 24 joint PiCCS SumCheck rounds are accepted."}
-{"id":"ST-PICCS-OUTPUT","terminal":false,"description":"The 15-by-14 ordered ring-output family is transcript-bound."}
+{"id":"ST-PICCS-OUTPUT","terminal":false,"description":"The 17-by-14 ordered ring-output family is transcript-bound."}
 {"id":"ST-PICCS-ACCEPTED","terminal":false,"description":"The joint terminal equation and padded-identity norm binding are accepted."}
 {"id":"ST-PIRLC-SAMPLING","terminal":false,"description":"All bounded strong-set sampler counters are active after PiCCS acceptance."}
 {"id":"ST-PIRLC-ACCEPTED","terminal":false,"description":"The PiRLC equations and global norm guard are accepted."}
-{"id":"ST-PIDEC-ACCEPTED","terminal":false,"description":"The 14 child instances and all recomposition equations are accepted."}
+{"id":"ST-PIDEC-ACCEPTED","terminal":false,"description":"The 16 child instances and all recomposition equations are accepted."}
 {"id":"ST-FOLD-ACCEPTED","terminal":true,"description":"One normative fold result and its final fold transcript digest are accepted."}
 {"id":"ST-REJECT","terminal":true,"description":"A fail-closed check rejected the proof."}

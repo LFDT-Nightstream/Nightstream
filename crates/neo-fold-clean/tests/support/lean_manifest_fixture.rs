@@ -10,6 +10,33 @@ use neo_fold_clean::{LeanNativeCcsManifest, LeanNebulaCombinedManifest};
 use serde_json::{json, Value};
 
 pub(super) const TEST_AJTAI_SEED: u64 = 0x5445_524d_494e_414c;
+const PHI81_RING_DEGREE: usize = 54;
+const TERMINAL_COMMITMENT_ROWS: usize = 18;
+
+fn terminal_r1cs_cost(
+    logical_width: usize,
+    matrix_count: usize,
+    public_ring_columns: usize,
+    fresh_relation_rows: usize,
+    fresh_relation_auxiliary_columns: usize,
+) -> Value {
+    let running_claims = neo_fold_clean::config::K_RHO as usize;
+    let carrier = logical_width.div_ceil(PHI81_RING_DEGREE) * PHI81_RING_DEGREE;
+    let public_width = public_ring_columns * PHI81_RING_DEGREE;
+    let verifier_width = TERMINAL_COMMITMENT_ROWS * PHI81_RING_DEGREE;
+    let evaluations = (matrix_count + 1) * PHI81_RING_DEGREE;
+    let running_statement = verifier_width + public_width + 2 * evaluations;
+    let running_rows = running_statement + 2 * carrier;
+    let fresh_statement = verifier_width + public_width;
+    let fresh_rows = fresh_statement + 2 * carrier + fresh_relation_rows;
+    let claims = running_claims + 1;
+    json!({
+        "recurring_rows": running_claims * running_rows + fresh_rows,
+        "committed_columns": claims * carrier,
+        "public_columns": 1 + running_claims * running_statement + fresh_statement,
+        "auxiliary_columns": claims * carrier + fresh_relation_auxiliary_columns,
+    })
+}
 
 pub(super) fn test_ajtai_seed() -> [u8; 32] {
     let mut seed = [0u8; 32];
@@ -138,6 +165,7 @@ pub(super) fn input_receipts(input_segments: &[Value], one: &Value, native: bool
 }
 
 pub(super) fn valid_manifest() -> Value {
+    let terminal_cost = terminal_r1cs_cost(270, 4, 5, 2, 1);
     let one = column(&prelude_owner(), 0, 0);
     let step_input = segments(&[
         ("iteration", 1, "committed"),
@@ -304,7 +332,7 @@ pub(super) fn valid_manifest() -> Value {
             "name": "fixed_one_plain_270",
             "matrix_count": 4,
             "fresh_source_count": 1,
-            "running_source_count": 14,
+            "running_source_count": neo_fold_clean::config::K_RHO,
             "public_carrier_width": 270,
             "fresh_legacy_width": 257,
             "fresh_completion_width": 13,
@@ -315,7 +343,7 @@ pub(super) fn valid_manifest() -> Value {
             "poseidon_digest_width": 4,
             "binding_preimage_width": 23,
             "decomposition_base": 2,
-            "decomposition_children": 14,
+            "decomposition_children": neo_fold_clean::config::K_RHO,
         },
         "widths": {
             "iteration": 1,
@@ -356,12 +384,7 @@ pub(super) fn valid_manifest() -> Value {
             "matrix_count": 4,
             "public_ring_columns": 5,
             "verifier_rows": 18,
-            "cost": {
-                "recurring_rows": 34_292,
-                "committed_columns": 4_050,
-                "public_columns": 26_191,
-                "auxiliary_columns": 4_051,
-            },
+            "cost": terminal_cost,
         },
         "step_result_columns": step_result_columns,
         "step_selector": step_selector,
@@ -404,8 +427,7 @@ pub(super) fn lifecycle_manifest() -> Value {
     manifest["terminal_r1cs"]["recursive_rows"] = json!(2);
     manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(4);
     manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(2);
-    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(34_294);
-    manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_052);
+    manifest["terminal_r1cs"]["cost"] = terminal_r1cs_cost(270, 4, 5, 4, 2);
     manifest
 }
 
@@ -460,6 +482,7 @@ fn combined_core(native: &Value) -> Value {
 pub(super) fn combined_manifest() -> Value {
     let native = valid_manifest();
     let core = combined_core(&native);
+    let terminal_cost = terminal_r1cs_cost(284, 19, 5, 3, 1);
     let empty = json!([]);
     let images = json!({
         "bit": [{ "column": 1, "coefficient": 1 }],
@@ -488,7 +511,7 @@ pub(super) fn combined_manifest() -> Value {
             "matrix_count": 19,
             "strict_degree_bound": 5,
             "fresh_source_count": 1,
-            "running_source_count": 14,
+            "running_source_count": neo_fold_clean::config::K_RHO,
             "polynomial": combined_polynomial(),
             "layout": {
                 "row_variables": 1,
@@ -527,12 +550,7 @@ pub(super) fn combined_manifest() -> Value {
             "matrix_count": 19,
             "public_ring_columns": 5,
             "verifier_rows": 18,
-            "cost": {
-                "recurring_rows": 58_593,
-                "committed_columns": 4_860,
-                "public_columns": 48_871,
-                "auxiliary_columns": 4_861,
-            },
+            "cost": terminal_cost,
         },
     })
 }
@@ -547,8 +565,7 @@ pub(super) fn combined_lifecycle_manifest() -> Value {
     manifest["terminal_r1cs"]["recursive_rows"] = json!(3);
     manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(5);
     manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(2);
-    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(58_595);
-    manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_862);
+    manifest["terminal_r1cs"]["cost"] = terminal_r1cs_cost(284, 19, 5, 5, 2);
     manifest
 }
 
@@ -559,6 +576,7 @@ pub(super) fn combined_public_suffix_manifest() -> Value {
     manifest["relation"]["layout"]["nebula_private_width"] = json!(0);
     manifest["relation"]["application"]["public_end"] = json!(2);
     manifest["terminal_r1cs"]["logical_width"] = json!(283);
+    manifest["terminal_r1cs"]["cost"] = terminal_r1cs_cost(283, 19, 5, 3, 1);
     manifest
 }
 
@@ -572,8 +590,7 @@ pub(super) fn extension_combined_manifest() -> Value {
     row["images"]["pad"] = json!([{ "column": 0, "coefficient": 1 }]);
     manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(8);
     manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(6);
-    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(58_598);
-    manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_866);
+    manifest["terminal_r1cs"]["cost"] = terminal_r1cs_cost(284, 19, 5, 8, 6);
     manifest
 }
 

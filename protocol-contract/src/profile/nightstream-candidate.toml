@@ -2,12 +2,12 @@
 status = "approved"
 profile_version = 1
 fresh_claims = 1
-running_claims = 14
-source_claims = 15
-source_index_map = "source-0=fresh-0;sources-1-through-14=running-0-through-13"
+running_claims = 16
+source_claims = 17
+source_index_map = "source-0=fresh-0;sources-1-through-16=running-0-through-15"
 fresh_ccs_source_indices = [0]
-norm_source_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-carried_evaluation_source_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+norm_source_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+carried_evaluation_source_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 carried_local_to_global_offset = 1
 shape_authority = "verifier-key-relation-artifact-v1"
 relation_artifact_format = "nightstream/verifier-key-relation"
@@ -39,7 +39,7 @@ column_sumcheck = "absent"
 extra_batch_challenges = "absent"
 public_carrier_authority = "x-only"
 derived_carrier_evaluations = "verifier-recompute-or-discard"
-split_algorithm = "centered-common-sign-binary-little-endian-14"
+split_algorithm = "centered-common-sign-binary-little-endian-16"
 split_out_of_bound = "prover-assignment-or-verifier-public-input-error"
 hash_family = "Poseidon2-only"
 transcript_profile = "nightstream-poseidon2-field-duplex-v1"
@@ -88,7 +88,7 @@ setup_scope = "commitment-parameter-generation-only"
 matrix_entries = "uniform-R_F-by-coefficient-rejection"
 commitment_encoding = "18-ring-elements-in-row-order"
 seed_and_dimensions_bound_by = "verifier-key-Poseidon2-digest"
-msis_infinity_bound = 28311552
+msis_infinity_bound = 113246208
 
 [structure_encoding_v1]
 id = "nightstream-sparse-structure-v1"
@@ -132,8 +132,8 @@ alphabet = [-2, -1, 0, 1, 2]
 maximum_member_norm = 2
 maximum_difference_norm = 4
 expansion_T = 216
-norm_guard_left = 3240
-norm_guard_right = 16384
+norm_guard_left = 3672
+norm_guard_right = 65536
 challenge_set_cardinality = "5^54"
 
 [transcript_profile]
@@ -165,14 +165,14 @@ profile_version_tag = 1
 [container_sections]
 statement_section_ids = [1, 2, 3, 4]
 statement_section_names = ["lifecycle", "fresh-claim", "shared-row-point", "running-claims"]
-statement_section_field_counts = [2, 1242, 48, 38556]
-statement_total_base_fields = 39848
-statement_total_bytes = 318832
+statement_section_field_counts = [2, 1242, 48, 44064]
+statement_total_base_fields = 45356
+statement_total_bytes = 362896
 proof_section_ids = [16, 17, 18]
 proof_section_names = ["piccs-round-polynomials", "piccs-output-evaluations", "pidec-child-claims"]
-proof_section_field_counts = [480, 22680, 34776]
-proof_total_base_fields = 57936
-proof_total_bytes = 463528
+proof_section_field_counts = [480, 25704, 39744]
+proof_total_base_fields = 65928
+proof_total_bytes = 527464
 container_header_bytes = 16
 section_header_bytes = 8
 field_bytes = 8
@@ -181,10 +181,10 @@ lifecycle_fields = ["fold_index", "fold_count"]
 lifecycle_condition = "0<=fold_index<fold_count<=64"
 fresh_claim_order = "commitment-then-270-field-x"
 shared_row_point_order = "coordinate-0-through-23-each-as-c0-then-c1"
-running_claim_order = "source-0-through-13-each-as-commitment-then-270-field-x-then-14-y_ring-values"
+running_claim_order = "source-0-through-15-each-as-commitment-then-270-field-x-then-14-y_ring-values"
 piccs_round_order = "round-0-through-23-each-as-degree-0-through-9-each-c0-then-c1"
-piccs_output_order = "source-0-through-14-then-matrix-0-through-13-each-R_K-in-ring-order"
-pidec_child_order = "child-0-through-13-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived"
+piccs_output_order = "source-0-through-16-then-matrix-0-through-13-each-R_K-in-ring-order"
+pidec_child_order = "child-0-through-15-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived"
 
 [lifecycle_profile]
 id = "nightstream-bounded-fold-sequence-v1"
@@ -211,7 +211,7 @@ verifier_key_frame_tag = "verifier_key"
 verifier_key_digest_base_fields = 4
 statement_frame_tag = "statement"
 statement_field_stream = "canonical-statement-section-payloads-in-section-id-order"
-statement_field_count = 39848
+statement_field_count = 45356
 digest_squeeze_tag = "statement_digest"
 digest_base_fields = 4
 public_field_order = ["contract_domain_tag", "profile_version_tag", "container_variant", "fold_index", "fold_count", "statement_digest_0", "statement_digest_1", "statement_digest_2", "statement_digest_3"]
@@ -252,8 +252,8 @@ second_squeeze_output = [3054587558125561286, 16691457812014967941, 354020392885
 id = "phi81-alphabet5-bounded3-v1"
 alphabet = [-2, -1, 0, 1, 2]
 ring_degree = 54
-source_count = 15
-coefficients_per_fold = 810
+source_count = 17
+coefficients_per_fold = 918
 candidate_domain = "uniform-Goldilocks-field-element"
 acceptance_threshold = "q-1"
 accepted_condition = "candidate<q-1"
@@ -263,7 +263,7 @@ counter_order = "source-major-then-coefficient-then-attempt"
 exhaustion = "reject-proof"
 per_candidate_reject_probability = "1/q"
 per_coefficient_exhaustion_probability = "1/q^3"
-per_fold_exhaustion_upper_bound = "810/q^3"
+per_fold_exhaustion_upper_bound = "918/q^3"
 
 [security_policy]
 model = "classical-ROM"

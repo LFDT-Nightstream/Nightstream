@@ -24,13 +24,13 @@ use crate::paper::params::Params;
 use crate::paper::reductions::pi_dec_circuit::stage;
 use crate::paper::relations::superneo_public_x_cols;
 
-const ACTIVE_CHILDREN: usize = 14;
+const ACTIVE_CHILDREN: usize = 16;
 const ACTIVE_CLAIMS: usize = ACTIVE_CHILDREN + 1;
 const ACTIVE_MATRICES: usize = 14;
 const ACTIVE_ROW_POINT: usize = 24;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_RING_DIMENSION: usize = 54;
-const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_520;
+const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 12_790;
 const ACTIVE_X_RECOMPOSITION_ROWS: usize = ACTIVE_LOGICAL_X;
 const ACTIVE_X_CANONICALITY_ROWS: usize = ACTIVE_LOGICAL_X * (2 + ACTIVE_CHILDREN);
 const ACTIVE_CANONICAL_X_SOURCE_ROWS: usize = ACTIVE_X_RECOMPOSITION_ROWS + ACTIVE_X_CANONICALITY_ROWS;
@@ -663,7 +663,7 @@ fn validate_active_strict(strict: &PiDecStrictAudit, arm: &SparseR1cs, params: &
         .collect::<Vec<_>>();
     if claims.len() != ACTIVE_CLAIMS {
         return Err(invalid_pi_dec_audit(
-            "strict PiDEC must carry one parent and fourteen children",
+            "strict PiDEC must carry one parent and sixteen children",
         ));
     }
     for (index, claim) in claims.into_iter().enumerate() {

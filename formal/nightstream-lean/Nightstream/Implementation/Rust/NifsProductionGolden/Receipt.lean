@@ -1,4 +1,5 @@
 import Nightstream.Implementation.Rust.PiCcsExecution.Receipt
+import Nightstream.SuperNeo.Concrete.Parameters
 
 /-!
 Transport data for one deterministic production NIFS execution.
@@ -139,7 +140,8 @@ def piRlcShapeCheck (receipt : ProductionReceipt) : Bool :=
 /-- Exact `Pi_RLC -> Pi_DEC` receipt surface. -/
 def piDecShapeCheck (receipt : ProductionReceipt) : Bool :=
   claimShapeCheck receipt.piRlcCombined &&
-    decide (receipt.piDecChildren.length = 14) &&
+    decide (receipt.piDecChildren.length =
+      Nightstream.SuperNeo.Concrete.productionGlobalParams.k) &&
     receipt.piDecChildren.all claimShapeCheck &&
     (receipt.piDecChildren.all fun child =>
       decide (child.foldDigest = receipt.piRlcCombined.foldDigest))
@@ -150,6 +152,6 @@ def receiptShapeCheck (receipt : ProductionReceipt) : Bool :=
     poseidonTraceShapeCheck receipt &&
     piRlcShapeCheck receipt &&
     piDecShapeCheck receipt &&
-    decide (receipt.canonicalNifsProofByteCount = 202205)
+    decide (receipt.canonicalNifsProofByteCount = 227407)
 
 end Nightstream.Implementation.Rust.NifsProductionGolden

@@ -20,10 +20,10 @@ open Nightstream.Protocol.FPrime
 /-- Canonical unsigned representative of one exported Goldilocks element. -/
 abbrev RawField := Nat
 
-private def goldilocksModulus : Nat :=
+def goldilocksModulus : Nat :=
   18446744069414584321
 
-private def twoPow32 : Nat :=
+def twoPow32 : Nat :=
   4294967296
 
 def rawFieldOfNat (value : Nat) : RawField :=

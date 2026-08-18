@@ -65,7 +65,7 @@ theorem prefixFrame_length_r26
     (statementId : StatementId)
     (value : ProductionSuccessorStateBinding.PreCarryValue candidate
       fullShape) :
-    (prefixFrame statementId value).length = 83756 := by
+    (prefixFrame statementId value).length = 95636 := by
   rw [prefixFrame_lengthFor contract.toShape statementId value,
     contract.rowVariablesExact]
   decide
@@ -76,7 +76,7 @@ theorem stateFrame_length_r26
     (statementId : StatementId)
     (value : ProductionSuccessorStateBinding.Value candidate fullShape) :
     (ProductionSuccessorStateBinding.stateFrame statementId value).length =
-      83874 := by
+      95754 := by
   rw [ProductionSuccessorStateBinding.stateFrame_lengthFor contract.toShape
       statementId value,
     contract.rowVariablesExact]
@@ -243,7 +243,7 @@ theorem production_prefix_chunk_count_exact
       fullShape)
     (chunks : List (List Nat))
     (schedule : ChunkSchedule 1024 (prefixFrame statementId value) chunks) :
-    chunks.length = 82 := by
+    chunks.length = 94 := by
   have lower := schedule.values_length_le_chunk_capacity
   have upper := schedule.chunk_capacity_lt_values_plus_width (by decide)
   rw [prefixFrame_length_r26 contract statementId value] at lower upper
@@ -257,7 +257,7 @@ theorem production_state_chunk_count_exact
     (chunks : List (List Nat))
     (schedule : ChunkSchedule 1024
       (ProductionSuccessorStateBinding.stateFrame statementId value) chunks) :
-    chunks.length = 82 := by
+    chunks.length = 94 := by
   have lower := schedule.values_length_le_chunk_capacity
   have upper := schedule.chunk_capacity_lt_values_plus_width (by decide)
   rw [stateFrame_length_r26 contract statementId value] at lower upper

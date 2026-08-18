@@ -1,3 +1,5 @@
+import Mathlib.Data.Fintype.Basic
+import Mathlib.Tactic.FinCases
 import Nightstream.Implementation.R1CS.Artifacts.Poseidon2
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2CanonicalConstants
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2Compact
@@ -100,22 +102,25 @@ theorem compact_reference_coverage :
   native_decide
 
 theorem expansion_constant : expansion 0 = [(0, 1)] := by
-  native_decide
+  decide
 
 theorem expansion_input : ∀ lane : Fin width,
     expansion (canonicalLayout.inputPort lane) =
       [(traceInputColumn lane, 1)] := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 theorem expansion_output : ∀ lane : Fin width,
     expansion (canonicalLayout.outputPort lane) =
       [(traceOutputColumn lane, 1)] := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 theorem expansion_sboxOutput : ∀ index : Fin sboxCount,
     expansion (sboxOutput canonicalLayout index.val) =
       [(traceSboxOutput index, 1)] := by
-  native_decide
+  intro index
+  fin_cases index <;> decide
 
 /-- Insert one normalized term into ascending physical-column order. This is
 only a comparison form. It emits no circuit column or constraint. -/

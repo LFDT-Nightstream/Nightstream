@@ -80,6 +80,10 @@ name = "nebula_streaming_pi_rlc_poseidon_provenance"
 path = "tests/nebula/streaming_pi_rlc_poseidon_provenance.rs"
 
 [[test]]
+name = "nebula_streaming_pi_rlc_poseidon_call_layout"
+path = "tests/nebula/streaming_pi_rlc_poseidon_call_layout.rs"
+
+[[test]]
 name = "nebula_streaming_pi_rlc_family_b2_k16"
 path = "tests/nebula/streaming_pi_rlc_family_b2_k16.rs"
 
@@ -92,8 +96,24 @@ name = "nebula_streaming_pi_rlc_phase_envelope"
 path = "tests/nebula/streaming_pi_rlc_phase_envelope.rs"
 
 [[test]]
+name = "nebula_streaming_lifecycle_semantic_link"
+path = "tests/nebula/streaming_lifecycle_semantic_link.rs"
+
+[[test]]
 name = "nebula_streaming_state_envelope"
 path = "tests/nebula/streaming_state_envelope.rs"
+
+[[test]]
+name = "nebula_streaming_prelude_relation"
+path = "tests/nebula/streaming_prelude_relation.rs"
+
+[[test]]
+name = "nebula_streaming_prior_state_replay_relation"
+path = "tests/nebula/streaming_prior_state_replay_relation.rs"
+
+[[test]]
+name = "nebula_streaming_prior_state_replay_artifact"
+path = "tests/nebula/streaming_prior_state_replay_artifact.rs"
 
 [[test]]
 name = "nebula_streaming_lifecycle_profile"

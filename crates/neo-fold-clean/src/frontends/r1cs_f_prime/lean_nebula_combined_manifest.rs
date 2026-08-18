@@ -19,6 +19,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use thiserror::Error;
 
+use crate::config::K_RHO;
 use crate::paper::f_prime::r1cs::FPrimePublicInputLayout;
 use crate::paper::relations::Structure;
 
@@ -447,7 +448,7 @@ fn validate_core(wire: &CombinedManifestWire) -> Result<LeanNativeCcsManifest, L
         native_columns,
         NATIVE_MATRIX_COUNT,
         5,
-        14,
+        K_RHO as usize,
         1,
         fresh_relation_rows,
         native_rows,
@@ -463,7 +464,7 @@ fn validate_core(wire: &CombinedManifestWire) -> Result<LeanNativeCcsManifest, L
             "name": "fixed_one_plain_270",
             "matrix_count": 4,
             "fresh_source_count": 1,
-            "running_source_count": 14,
+            "running_source_count": K_RHO,
             "public_carrier_width": 270,
             "fresh_legacy_width": 257,
             "fresh_completion_width": 13,
@@ -474,7 +475,7 @@ fn validate_core(wire: &CombinedManifestWire) -> Result<LeanNativeCcsManifest, L
             "poseidon_digest_width": 4,
             "binding_preimage_width": 23,
             "decomposition_base": 2,
-            "decomposition_children": 14
+            "decomposition_children": K_RHO
         }),
     );
     synthetic.insert(
@@ -503,10 +504,10 @@ fn validate_relation(wire: &CombinedManifestWire, core: &LeanNativeCcsManifest) 
     if relation.strict_degree_bound != COMBINED_STRICT_DEGREE_BOUND {
         return Err(invalid("relation.strict_degree_bound", "must equal five"));
     }
-    if relation.fresh_source_count != 1 || relation.running_source_count != 14 {
+    if relation.fresh_source_count != 1 || relation.running_source_count != K_RHO as usize {
         return Err(invalid(
             "relation",
-            "must select one fresh and fourteen running sources",
+            "must select one fresh source and the production running-source count",
         ));
     }
     if relation.polynomial != expected_polynomial() {

@@ -1,7 +1,7 @@
-//! Drift gate for the production-shaped strict-PiDEC canonical-X receipt.
+//! Drift gate for the Nightstream k_rho=16 strict-PiDEC canonical-X receipt.
 //!
 //! This exporter drives the live `enforce_dec_v_strict` emitter directly on
-//! the fixed `54 x 5`, fourteen-child public carrier. It never constructs or
+//! the fixed `54 x 5`, sixteen-child public carrier. It never constructs or
 //! scans the fixed-point private assignment domain.
 
 #[path = "../support/mod.rs"]
@@ -71,7 +71,7 @@ const BINARY_PROFILE: ArtifactProfile = ArtifactProfile {
     generated_namespace:
         "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated",
     radix: 2,
-    child_count: 14,
+    child_count: 16,
     profile_tag: 0,
 };
 

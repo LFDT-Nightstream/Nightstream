@@ -43,6 +43,7 @@ file without a live Rust path owner is stale and must be removed.
 | Streaming F-prime verifier program | `neo-fold-clean` target `nebula_streaming_program`, test `production_streaming_program_matches_lean_artifact` |
 | Streaming F-prime claim-replay arms | `neo-fold-clean` target `nebula_streaming_claim_replay`, test `production_claim_replay_lean_artifact_is_current` |
 | Streaming claim-digest domain Poseidon2 witnesses | `neo-fold-clean` target `streaming_claim_digest_poseidon_witnesses` |
+| Streaming Prelude compact source and collapsed-domain receipt | `neo-fold-clean` target `nebula_streaming_prelude_relation`, tests `production_prelude_compact_source_artifacts_match_committed_files` and `production_prelude_collapsed_domain_receipt_matches_committed_file` |
 | Strict PiDEC source rows | `f_prime_pi_dec_source_lean_artifact` |
 | Canonical PiDEC X rows | `f_prime_pi_dec_canonical_x_lean_artifact` |
 | One-family PiRLC selective-CCS recipe and exhaustive matrix audit | `neo-fold-clean` target `nebula_pi_rlc_family_selective_ccs` |

@@ -19,6 +19,9 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk18
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk19
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk20
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk21
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk22
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk23
 
 /-! Generated ordered PiDEC canonical-X Rows. Do not hand-edit. -/
 
@@ -47,6 +50,9 @@ def rows : List PhysicalRow :=
       Rows.Chunk17.values,
       Rows.Chunk18.values,
       Rows.Chunk19.values,
-      Rows.Chunk20.values].flatten
+      Rows.Chunk20.values,
+      Rows.Chunk21.values,
+      Rows.Chunk22.values,
+      Rows.Chunk23.values].flatten
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated

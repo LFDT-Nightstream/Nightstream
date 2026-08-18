@@ -110,7 +110,8 @@ S-box sites in the same order. -/
 private theorem siteFor_output_exact :
     ∀ index : Fin sboxCount,
       (siteFor index).outputColumn = traceSboxOutput index := by
-  native_decide
+  intro index
+  fin_cases index <;> decide
 
 /-! ## Exact symbolic elimination of materialized linear state wires -/
 
@@ -236,7 +237,8 @@ private theorem siteFor_input_expansion_exact :
     ∀ index : Fin sboxCount,
       traceTerms (expandedForm artifactImages (siteFor index).affineInput) =
         traceTerms (traceSboxInput index) := by
-  native_decide
+  intro index
+  fin_cases index <;> decide
 
 private def finalIntermediateColumn (lane : Fin width) : Nat :=
   593 + lane.val
@@ -250,27 +252,32 @@ private theorem final_intermediate_definition_exact :
     ∀ lane : Fin width,
       Artifact.definitions[584 + lane.val]? =
         some ⟨finalIntermediateColumn lane, .linear (finalRawForm lane)⟩ := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 private theorem final_output_definition_exact :
     ∀ lane : Fin width,
       Artifact.definitions[592 + lane.val]? =
         some ⟨traceOutputColumn lane,
           .linear [(finalIntermediateColumn lane, 1)]⟩ := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 private theorem final_raw_form_exact :
     ∀ lane : Fin width,
       traceTerms (finalRawForm lane) = traceTerms (traceFinalForm lane) := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 private theorem trace_input_column_exact :
     ∀ lane : Fin width, traceInputColumn lane = lane.val + 1 := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 private theorem trace_output_column_exact :
     ∀ lane : Fin width, traceOutputColumn lane = 601 + lane.val := by
-  native_decide
+  intro lane
+  fin_cases lane <;> decide
 
 /-! ## The extracted execution satisfies the compact semantic trace -/
 

@@ -32,7 +32,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyState
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutArtifact
 open Nightstream.Implementation.R1CS.Program
 
-def firstFamilyProgramCursor : Nat := 199
+def firstFamilyProgramCursor : Nat := 223
 
 def programCursorColumn (kind : ArmKind) (side : StateSide) : Nat :=
   (publicWordCall kind (cursorPublicWordIndex side)).fieldColumn
@@ -40,7 +40,7 @@ def programCursorColumn (kind : ArmKind) (side : StateSide) : Nat :=
 def cursorOffsetTerms (side : StateSide) : List (Nat × Nat) :=
   [(cursorColumn side, 1), (0, firstFamilyProgramCursor)]
 
-/-- Normalized form of Rust's exact `derived = family + 199` row. -/
+/-- Normalized form of Rust's exact scheduled cursor-offset row. -/
 def cursorOffsetRow (kind : ArmKind) (side : StateSide) : Row :=
   ⟨[(0, goldilocksP - firstFamilyProgramCursor),
       (cursorColumn side, goldilocksP - 1),
@@ -50,9 +50,22 @@ def cursorOffsetRow (kind : ArmKind) (side : StateSide) : Row :=
 def cursorOffsetRows (kind : ArmKind) : List Row :=
   [cursorOffsetRow kind .before, cursorOffsetRow kind .after]
 
-private theorem cursor_offset_rows_in_glue (kind : ArmKind) :
-    rowsIncluded (cursorOffsetRows kind) (glueProgram kind) = true := by
-  cases kind <;> native_decide
+private theorem cursor_offset_rows_exact (kind : ArmKind) :
+    cursorOffsetRows kind = cursorRows kind := by
+  cases kind <;> rfl
+
+private theorem cursor_offset_row_mem_glue
+    (kind : ArmKind) (side : StateSide) :
+    cursorOffsetRow kind side ∈ glueProgram kind := by
+  have member : cursorOffsetRow kind side ∈ cursorOffsetRows kind := by
+    cases side <;> simp [cursorOffsetRows]
+  rw [cursor_offset_rows_exact kind] at member
+  have prefixMember :
+      cursorOffsetRow kind side ∈
+        ((armFor kind).glueRows.map fun indexed => indexed.row).take 2 := by
+    rw [exact_cursor_rows kind]
+    exact member
+  simpa [glueProgram] using List.mem_of_mem_take prefixMember
 
 private theorem cursor_offset_terms_canonical (side : StateSide) :
     CanonicalTerms (cursorOffsetTerms side) := by
@@ -108,12 +121,8 @@ theorem program_cursor_field_mod
     assignment (programCursorColumn kind side) =
       (assignment (cursorColumn side) + firstFamilyProgramCursor) %
         goldilocksP := by
-  have compactSatisfies : Satisfies (cursorOffsetRows kind) assignment := by
-    intro row member
-    exact glue_satisfies kind assignment satisfied row
-      (rowsIncluded_sound (cursor_offset_rows_in_glue kind) row member)
-  have rowHolds := compactSatisfies (cursorOffsetRow kind side) (by
-    cases side <;> simp [cursorOffsetRows])
+  have rowHolds := glue_satisfies kind assignment satisfied
+    (cursorOffsetRow kind side) (cursor_offset_row_mem_glue kind side)
   have builderHolds := rowHolds_of_operand_perms assignment
     (cursor_offset_row_perms kind side).1
     (cursor_offset_row_perms kind side).2.1
@@ -164,12 +173,12 @@ structure Binding
     (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP) : Prop where
   afterPreimage :
-    (List.range 937).map (fun index =>
+    (List.range 1045).map (fun index =>
         assignment (stateWordColumnFor kind .after index)) =
       familyStateFields
         (familyStateAt assignment canonical kind .after)
   beforePreimage :
-    (List.range 937).map (fun index =>
+    (List.range 1045).map (fun index =>
         assignment (stateWordColumnFor kind .before index)) =
       familyStateFields
         (familyStateAt assignment canonical kind .before)

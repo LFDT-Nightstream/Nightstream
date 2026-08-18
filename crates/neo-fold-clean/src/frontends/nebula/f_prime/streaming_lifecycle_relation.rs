@@ -13,7 +13,13 @@ use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
-use super::streaming_phase_envelope::{enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest};
+use super::streaming_lifecycle_verifier_key_recipe::{
+    extract_recursive_verifier_key_hash_recipes, NebulaFPrimeStreamingVerifierKeyHashRecipes,
+};
+use super::streaming_phase_envelope::{
+    enforce_streaming_lifecycle_source_semantic_link, streaming_phase_semantic_digest,
+    StreamingLifecycleBeforePayloadRule, StreamingLifecycleSemanticLinkWires,
+};
 use super::streaming_public::NebulaFPrimeStreamingPublicLayout;
 use super::streaming_state_envelope::enforce_streaming_state_x_out;
 use super::{relation_config, NebulaFPrimeError, NebulaFPrimeRelationError};
@@ -54,6 +60,10 @@ use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim};
 
 const LOGICAL_PUBLIC_OUTPUTS: usize = 640;
 const X_OUT_PREIMAGE_FIELDS: usize = 32;
+const VERIFIER_ADVICE_STRUCTURE_DIGEST_FAMILY: &str = "fprime.streaming.verifier_advice.structure_digest";
+const VERIFIER_ADVICE_AJTAI_PP_DIGEST_FAMILY: &str = "fprime.streaming.verifier_advice.ajtai_pp_digest";
+const VERIFIER_ADVICE_INITIAL_SEMANTIC_DIGEST_FAMILY: &str =
+    "fprime.streaming.verifier_advice.initial_semantic_state_digest";
 const PRIVATE_DELAYED_INPUT_FAMILY: &str = "fprime.recursive.nebula.private_delayed_input.raw_bits";
 const BASE_BEFORE_PAYLOAD_FAMILY: &str = "fprime.streaming.base.phase.before.delayed_payload.raw_bits";
 const BASE_BEFORE_LOCAL_FAMILY: &str = "fprime.streaming.base.phase.before.local_state_digest";
@@ -88,6 +98,31 @@ pub struct NebulaFPrimeStreamingLifecycleSourceArms {
     x_out_preimage_columns: [NebulaFPrimeStreamingXOutPreimageColumns; 2],
     x_out_preimage_values: [NebulaFPrimeStreamingXOutPreimageValues; 2],
     after_nebula_lane_columns: [NebulaFPrimeStreamingLaneSourceColumns; 2],
+    verifier_advice_preimage_fields: [NebulaFPrimeStreamingVerifierAdvicePreimageFields; 2],
+    recursive_verifier_key_hash_recipes: NebulaFPrimeStreamingVerifierKeyHashRecipes,
+}
+
+/// Exact normalized source fields used to recompute verifier-owned lifecycle
+/// digests. The checked outputs are already part of the 32-field XOut layout.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NebulaFPrimeStreamingVerifierAdvicePreimageFields {
+    structure_digest: Range<usize>,
+    ajtai_pp_digest: Range<usize>,
+    initial_semantic_state_digest: Range<usize>,
+}
+
+impl NebulaFPrimeStreamingVerifierAdvicePreimageFields {
+    pub fn structure_digest(&self) -> Range<usize> {
+        self.structure_digest.clone()
+    }
+
+    pub fn ajtai_pp_digest(&self) -> Range<usize> {
+        self.ajtai_pp_digest.clone()
+    }
+
+    pub fn initial_semantic_state_digest(&self) -> Range<usize> {
+        self.initial_semantic_state_digest.clone()
+    }
 }
 
 /// Exact normalized source columns consumed by the before-state and
@@ -247,6 +282,17 @@ impl NebulaFPrimeStreamingLifecycleSourceArms {
         arm: NebulaFPrimeStreamingLifecycleArm,
     ) -> &NebulaFPrimeStreamingLaneSourceColumns {
         &self.after_nebula_lane_columns[arm.index()]
+    }
+
+    pub fn verifier_advice_preimage_fields(
+        &self,
+        arm: NebulaFPrimeStreamingLifecycleArm,
+    ) -> &NebulaFPrimeStreamingVerifierAdvicePreimageFields {
+        &self.verifier_advice_preimage_fields[arm.index()]
+    }
+
+    pub fn recursive_verifier_key_hash_recipes(&self) -> &NebulaFPrimeStreamingVerifierKeyHashRecipes {
+        &self.recursive_verifier_key_hash_recipes
     }
 }
 
@@ -456,6 +502,8 @@ fn assemble_lifecycle_source_arms(
     retain_recursive_assignment: bool,
     delayed_len: usize,
 ) -> Result<NebulaFPrimeStreamingLifecycleSourceArms, NebulaFPrimeRelationError> {
+    let recursive_verifier_key_hash_recipes =
+        extract_recursive_verifier_key_hash_recipes(&recursive.source, &recursive.assignment)?;
     let recursive_delayed_input_fields =
         exact_column_family(&recursive.source, PRIVATE_DELAYED_INPUT_FAMILY, delayed_len)?;
     if recursive_delayed_input_fields.start < recursive.source.m_in {
@@ -481,6 +529,10 @@ fn assemble_lifecycle_source_arms(
             delayed_len,
         )?,
     ];
+    let verifier_advice_preimage_fields = [
+        exact_verifier_advice_preimage_fields(&base.source)?,
+        exact_verifier_advice_preimage_fields(&recursive.source)?,
+    ];
     if phase_envelope_fields[NebulaFPrimeStreamingLifecycleArm::Recursive.index()].before_delayed_payload
         != recursive_delayed_input_fields
     {
@@ -498,6 +550,18 @@ fn assemble_lifecycle_source_arms(
         x_out_preimage_columns: [base.x_out_preimage_columns, recursive.x_out_preimage_columns],
         x_out_preimage_values: [base.x_out_preimage_values, recursive.x_out_preimage_values],
         after_nebula_lane_columns: [base.after_nebula_lane_columns, recursive.after_nebula_lane_columns],
+        verifier_advice_preimage_fields,
+        recursive_verifier_key_hash_recipes,
+    })
+}
+
+fn exact_verifier_advice_preimage_fields(
+    source: &SparseR1cs,
+) -> Result<NebulaFPrimeStreamingVerifierAdvicePreimageFields, NebulaFPrimeRelationError> {
+    Ok(NebulaFPrimeStreamingVerifierAdvicePreimageFields {
+        structure_digest: exact_column_family(source, VERIFIER_ADVICE_STRUCTURE_DIGEST_FAMILY, 4)?,
+        ajtai_pp_digest: exact_column_family(source, VERIFIER_ADVICE_AJTAI_PP_DIGEST_FAMILY, 4)?,
+        initial_semantic_state_digest: exact_column_family(source, VERIFIER_ADVICE_INITIAL_SEMANTIC_DIGEST_FAMILY, 4)?,
     })
 }
 
@@ -1248,9 +1312,6 @@ fn enforce_phase_envelope(
             let column_start = builder.cols();
             let payload = builder.alloc_vec(&vec![F::ZERO; payload_len]);
             builder.record_column_family(BASE_BEFORE_PAYLOAD_FAMILY, column_start);
-            for &bit in &payload {
-                builder.enforce_zero(&Lc::from_var(bit));
-            }
             payload
         }
         NebulaFPrimeStreamingLifecycleArm::Recursive => {
@@ -1276,10 +1337,22 @@ fn enforce_phase_envelope(
     let after_payload = builder.alloc_vec(&vec![F::ZERO; payload_len]);
     builder.record_column_family(after_payload_family, after_payload_start);
 
-    let before_semantic = enforce_streaming_phase_semantic_digest(builder, before_local, &before_payload, false);
-    let after_semantic = enforce_streaming_phase_semantic_digest(builder, after_local, &after_payload, true);
-    bind_digest(builder, &output.state_in.semantic_state_digest, &before_semantic);
-    bind_digest(builder, &output.state_out.semantic_state_digest, &after_semantic);
+    let before_payload_rule = match arm {
+        NebulaFPrimeStreamingLifecycleArm::Base => StreamingLifecycleBeforePayloadRule::EnforceZero,
+        NebulaFPrimeStreamingLifecycleArm::Recursive => StreamingLifecycleBeforePayloadRule::ReuseBinary,
+    };
+    enforce_streaming_lifecycle_source_semantic_link(
+        builder,
+        StreamingLifecycleSemanticLinkWires {
+            before_semantic_digest: output.state_in.semantic_state_digest,
+            after_semantic_digest: output.state_out.semantic_state_digest,
+            before_local_state_digest: before_local,
+            after_local_state_digest: after_local,
+            before_delayed_payload: &before_payload,
+            after_delayed_payload: &after_payload,
+        },
+        before_payload_rule,
+    );
     builder.record_row_family(row_family, row_start);
     Ok(())
 }
@@ -1308,9 +1381,18 @@ fn enforce_verifier_advice(
     // own matrix shape. The circuit recomputes `vk_fs_digest`; the terminal
     // relation binds that digest and the carried PiCCS header to values that
     // the external verifier derives from preprocessing.
+    let structure_digest_start = builder.cols();
     let structure_digest = alloc_digest(builder, advice.structure_digest);
+    builder.record_column_family(VERIFIER_ADVICE_STRUCTURE_DIGEST_FAMILY, structure_digest_start);
+    let ajtai_pp_digest_start = builder.cols();
     let ajtai_pp_digest = alloc_digest(builder, advice.ajtai_pp_digest);
+    builder.record_column_family(VERIFIER_ADVICE_AJTAI_PP_DIGEST_FAMILY, ajtai_pp_digest_start);
+    let initial_semantic_state_digest_start = builder.cols();
     let initial_semantic_state_digest = alloc_digest(builder, advice.initial_semantic_state_digest);
+    builder.record_column_family(
+        VERIFIER_ADVICE_INITIAL_SEMANTIC_DIGEST_FAMILY,
+        initial_semantic_state_digest_start,
+    );
     let base_vk = enforce_vk_fs_digest_circuit(
         builder,
         context.params,

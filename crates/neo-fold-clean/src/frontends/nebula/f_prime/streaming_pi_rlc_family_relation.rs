@@ -50,11 +50,12 @@ use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
 use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
 use crate::frontends::r1cs_f_prime::{
+    audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_compiler_with_shared_bit_prefix,
     audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix, lower_field_r1cs,
     prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
     project_rows_with_complete_source_provenance_with_alignment, FieldR1csLoweringError, LowNormR1csError,
-    MultiBranchLowNormR1cs, OverlayFieldLink, OverlayKindLinks, SelectiveCompilerAudit,
+    MultiBranchLowNormR1cs, OverlayFieldLink, OverlayKindLinks, SelectiveCompactLayoutAudit, SelectiveCompilerAudit,
     SelectiveProjectedDecoderRunProvenance, SelectiveProjectedRowsAudit, SparseR1cs,
 };
 use crate::paper::construction2::TRIVIAL_PC;
@@ -70,12 +71,13 @@ use super::streaming_phase_envelope::{
     enforce_streaming_carry_phase_semantic_envelope, StreamingCarryPhaseSemanticEnvelope,
 };
 use super::streaming_pi_rlc_family_replay::{
-    append_pi_rlc_family_replay, NebulaFPrimePiRlcFamilyReplayArmKind, ACTIVE_DIGIT_START, AFTER_CHALLENGE_START,
-    AFTER_CURSOR_COLUMN, AFTER_RESIDUAL_START, ALGEBRA_CHALLENGE_START, ALGEBRA_COLUMNS, ALGEBRA_INPUT_START,
-    ALGEBRA_OUTPUT_START, ALGEBRA_PRODUCT_COLUMNS, ALGEBRA_PRODUCT_START, BEFORE_CHALLENGE_START, BEFORE_CURSOR_COLUMN,
-    BEFORE_RESIDUAL_START, COMMITMENT_OUTPUT_FIELDS, COMMITMENT_OUTPUT_START, DIGIT_COUNT, FAMILY_INPUT_FIELDS,
-    INPUT_REPLAY_BEFORE_START, LANE_COUNT, OPENING_COLUMNS, OUTPUT_REPLAY_BEFORE_START, REPLAY_AUXILIARY_START,
-    SHAPE_D_COLUMN, SHAPE_KAPPA_COLUMN, SOURCE_COLUMNS, SOURCE_COUNT, ZERO_DIGIT_START,
+    append_pi_rlc_family_replay, NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimePiRlcFamilyReplayCallAudit,
+    ACTIVE_DIGIT_START, AFTER_CHALLENGE_START, AFTER_CURSOR_COLUMN, AFTER_RESIDUAL_START, ALGEBRA_CHALLENGE_START,
+    ALGEBRA_COLUMNS, ALGEBRA_INPUT_START, ALGEBRA_OUTPUT_START, ALGEBRA_PRODUCT_COLUMNS, ALGEBRA_PRODUCT_START,
+    BEFORE_CHALLENGE_START, BEFORE_CURSOR_COLUMN, BEFORE_RESIDUAL_START, COMMITMENT_OUTPUT_FIELDS,
+    COMMITMENT_OUTPUT_START, DIGIT_COUNT, FAMILY_INPUT_FIELDS, INPUT_REPLAY_BEFORE_START, LANE_COUNT, OPENING_COLUMNS,
+    OUTPUT_REPLAY_BEFORE_START, REPLAY_AUXILIARY_START, SHAPE_D_COLUMN, SHAPE_KAPPA_COLUMN, SOURCE_COLUMNS,
+    SOURCE_COUNT, ZERO_DIGIT_START,
 };
 use super::streaming_program::{
     NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit,
@@ -232,6 +234,7 @@ pub struct NebulaFPrimePiRlcFamilyBodySynthesis {
     commitment_output_columns: Vec<usize>,
     input_after_columns: [usize; 8],
     output_after_columns: [usize; 8],
+    replay_call_audits: Vec<NebulaFPrimePiRlcFamilyReplayCallAudit>,
     before_state_field_columns: Vec<usize>,
     after_state_field_columns: Vec<usize>,
     after_digest_pin_columns: [usize; DIGEST_PIN_COUNT],
@@ -382,6 +385,7 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
             input_before_vars.map(Var::col),
             output_before_vars.map(Var::col),
         );
+        let replay_call_audits = replay.call_audits.clone();
         assert_eq!(builder.rows(), expected_source_body_rows(kind));
         assert_eq!(builder.cols(), REPLAY_AUXILIARY_START + kind.rows());
 
@@ -501,6 +505,7 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
             commitment_output_columns,
             input_after_columns: replay.input_after_columns,
             output_after_columns: replay.output_after_columns,
+            replay_call_audits,
             before_state_field_columns,
             after_state_field_columns,
             after_digest_pin_columns,
@@ -559,6 +564,10 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
 
     pub const fn output_after_columns(&self) -> [usize; 8] {
         self.output_after_columns
+    }
+
+    pub fn replay_call_audits(&self) -> &[NebulaFPrimePiRlcFamilyReplayCallAudit] {
+        &self.replay_call_audits
     }
 
     pub fn before_state_field_columns(&self) -> &[usize] {
@@ -677,17 +686,15 @@ impl NebulaFPrimePiRlcFamilyBodySynthesis {
         if source == 0 {
             return Some(0);
         }
-        if let Some(index) = self
-            .public_outputs
-            .iter()
-            .position(|wire| wire.col() == source)
-        {
-            return Some(index + 1);
+        let mut public_before = 0;
+        for (index, wire) in self.public_outputs.iter().enumerate() {
+            let column = wire.col();
+            if column == source {
+                return Some(index + 1);
+            }
+            public_before += usize::from(column < source);
         }
-        let private_before = (1..source)
-            .filter(|column| !self.public_outputs.iter().any(|wire| wire.col() == *column))
-            .count();
-        Some(1 + self.public_outputs.len() + private_before)
+        Some(source + self.public_outputs.len() - public_before)
     }
 
     #[doc(hidden)]
@@ -944,6 +951,29 @@ pub fn production_pi_rlc_family_body_decoder_runs(
         crate::config::B_BASE,
         &requests,
     )?)
+}
+
+/// Complete source-row ledger and exact requested source-to-final decoder
+/// runs from one prepared Nightstream k16 production layout.
+#[doc(hidden)]
+pub fn production_pi_rlc_family_body_compact_layout_and_decoder_runs_for_ranges(
+    requests: &[(usize, Range<usize>)],
+) -> Result<
+    (SelectiveCompactLayoutAudit, Vec<SelectiveProjectedDecoderRunProvenance>),
+    NebulaFPrimePiRlcFamilyRelationError,
+> {
+    let arms = production_pi_rlc_family_body_source_arms()?;
+    Ok(
+        audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix(
+            &arms,
+            REPLAY_AUXILIARY_START - 1,
+            0,
+            D,
+            0,
+            crate::config::B_BASE,
+            requests,
+        )?,
+    )
 }
 
 /// Complete source-row and emitted-row ledger from the exact prepared layout

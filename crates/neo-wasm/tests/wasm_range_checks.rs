@@ -13,6 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 
 fn expected_aux_bits() -> usize {
     column_specs()
+        .chain(AUX_COLUMN_SPECS.iter())
         .map(|spec| match spec.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
@@ -48,7 +49,7 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
 fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
     let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
 
-    for spec in column_specs() {
+    for spec in column_specs().chain(AUX_COLUMN_SPECS.iter()) {
         let bit_count = match spec.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
@@ -71,7 +72,7 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
     }
 
     assert_eq!(next, RANGE_CHECKED_WITNESS_WIDTH);
-    assert_eq!(range_checked_bit_columns(NAMED_COLUMN_COUNT), None);
+    assert_eq!(range_checked_bit_columns(NAMED_COLUMN_COUNT + AUX_WIDTH), None);
 }
 
 #[test]

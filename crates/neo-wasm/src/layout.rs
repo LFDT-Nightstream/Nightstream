@@ -419,10 +419,12 @@ define_column_region! {
 
 pub const NAMED_COLUMN_COUNT: usize = WASM_COLUMN_COUNT + HOST_EVENT_COLUMN_COUNT;
 
-pub const COLUMN_SPEC_REGIONS: &[&[WasmColumnSpec]] = &[WASM_COLUMN_SPECS, HOST_EVENT_COLUMN_SPECS];
+pub const NAMED_COLUMN_SPEC_REGIONS: &[&[WasmColumnSpec]] = &[WASM_COLUMN_SPECS, HOST_EVENT_COLUMN_SPECS];
 
 pub fn column_specs() -> impl Iterator<Item = &'static WasmColumnSpec> {
-    COLUMN_SPEC_REGIONS.iter().flat_map(|specs| specs.iter())
+    NAMED_COLUMN_SPEC_REGIONS
+        .iter()
+        .flat_map(|specs| specs.iter())
 }
 
 pub fn column_spec(column: usize) -> Option<&'static WasmColumnSpec> {

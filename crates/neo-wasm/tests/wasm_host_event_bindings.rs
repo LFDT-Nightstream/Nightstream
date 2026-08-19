@@ -3,11 +3,14 @@
 //! The tags and slot indices below are arbitrary embedder data; neo-wasm
 //! never interprets them.
 
+mod common;
+
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
     expand_export_entry, expand_import_events, EventBlock, EventBlockBuilder, ExportTemplate, HostEventBindings,
     HostEventBindingsBuilder, ImportTemplate, Limb, MemoryBase, SlotBinding, TurnInputs,
 };
+use neo_wasm::CommChainState;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
 
@@ -69,6 +72,52 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
         .err()
         .expect("builder inputs must form a dense tuple");
     assert!(err.to_string().contains("input 0 is unreferenced"));
+    Ok(())
+}
+
+#[test]
+fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::error::Error>> {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (param i32) (result i32)
+                local.get 0))"#,
+    )?;
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[37])?;
+    let export_fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+
+    let entry = EventBlockBuilder::absorbing()
+        .input_local_i32(0, 0, 0)?
+        .finish();
+
+    let exit = EventBlockBuilder::absorbing().output_i32(0)?.finish();
+
+    let mut builder = HostEventBindingsBuilder::new(&run.program_tables);
+
+    builder.export(export_fref, vec![entry], vec![exit])?;
+
+    let bindings = builder.finish()?;
+    let inputs = [TurnInputs { entry: vec![37] }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &inputs,
+        CommChainState::default(),
+    )?;
+
+    common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
+
+    common::ccs_check_trace(&trace);
+
+    let output = trace.last().expect("final row").state_after.output;
+    assert!(output.enabled);
+    assert_eq!(output.value_lo, 37);
+
     Ok(())
 }
 

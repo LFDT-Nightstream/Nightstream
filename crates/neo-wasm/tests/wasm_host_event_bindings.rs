@@ -204,6 +204,52 @@ fn zero_arg_import_expands_to_single_const_event() {
 }
 
 #[test]
+fn direct_templates_reject_unreferenced_declared_inputs() {
+    let import = ImportTemplate {
+        events: vec![EventBlock::op(
+            1,
+            slots(&[(
+                0,
+                SlotBinding::MemoryWrite32 {
+                    input: 0,
+                    base: MemoryBase::Arg(0),
+                    byte_offset: 0,
+                },
+            )]),
+        )],
+        input_count: 2,
+    };
+
+    let err = import
+        .validate(1, 0)
+        .expect_err("declared import inputs must all be referenced");
+
+    assert!(dbg!(err.to_string()).contains("unreferenced inputs"));
+
+    let export = ExportTemplate {
+        entry: vec![EventBlock::op(
+            1,
+            slots(&[(
+                0,
+                SlotBinding::InputLocal {
+                    input: 0,
+                    local: 0,
+                    limb: Limb::Lo,
+                },
+            )]),
+        )],
+        entry_input_count: 2,
+        ..Default::default()
+    };
+
+    let err = export
+        .validate(1, 0)
+        .expect_err("declared export inputs must all be referenced");
+
+    assert!(err.to_string().contains("unreferenced inputs"));
+}
+
+#[test]
 fn validation_rejects_unresolvable_templates() {
     let event = |slot: SlotBinding| EventBlock::op(0, slots(&[(0, slot)]));
 

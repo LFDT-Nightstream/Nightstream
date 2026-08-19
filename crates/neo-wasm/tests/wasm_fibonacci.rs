@@ -43,7 +43,7 @@ fn fib_wat(n: u32) -> String {
 #[test]
 fn wasm_fibonacci_sanity_roundtrip() {
     for (n, expected) in [(1u32, 1u32), (2, 1), (3, 2), (4, 3), (5, 5), (10, 55)] {
-        let checked = common::checked_wasm_run(&fib_wat(n), "main", &[]);
+        let checked = common::checked_wasm_run(&fib_wat(n), "main");
         assert_eq!(
             checked.run.results.as_slice(),
             &[expected.to_string()],
@@ -54,7 +54,7 @@ fn wasm_fibonacci_sanity_roundtrip() {
 
 #[test]
 fn wasm_fibonacci_folding_proof_covers_control_flow() {
-    let checked = common::checked_wasm_run(&fib_wat(3), "main", &[]);
+    let checked = common::checked_wasm_run(&fib_wat(3), "main");
     assert_eq!(checked.run.results.as_slice(), &["2".to_string()]);
 
     let batch_size = 20;
@@ -77,7 +77,7 @@ fn wasm_fibonacci_folding_proof_batched() {
     let cases = [(5u32, 65usize, 1usize), (5, 13, 5), (5, 5, 13), (7, 9, 10)];
 
     for &(n, batch_size, expected_folds) in &cases {
-        let checked = common::checked_wasm_run(&fib_wat(n), "main", &[]);
+        let checked = common::checked_wasm_run(&fib_wat(n), "main");
         let trace_len = checked.trace.len();
         assert_eq!(trace_len.div_ceil(batch_size), expected_folds);
 

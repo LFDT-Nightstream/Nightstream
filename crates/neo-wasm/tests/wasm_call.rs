@@ -268,7 +268,6 @@ fn guest_call_with_loop_only_pops_frame_at_function_end() {
                 i32.const 5
                 call $count_to))"#,
         "main",
-        &[],
     );
 
     assert_eq!(checked.run.results, ["5"]);

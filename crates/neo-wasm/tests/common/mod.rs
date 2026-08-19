@@ -23,13 +23,13 @@ pub struct CheckedWasmRun {
 }
 
 pub fn checked_main(wat_src: &str) -> CheckedWasmRun {
-    checked_wasm_run(wat_src, "main", &[])
+    checked_wasm_run(wat_src, "main")
 }
 
-pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedWasmRun {
+pub fn checked_wasm_run(wat_src: &str, export: &str) -> CheckedWasmRun {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, export, &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     let witnesses = sanity_check_trace(&trace, &artifacts);
     ccs_check_trace(&trace);
@@ -71,6 +71,22 @@ fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
 }
 
 pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts) -> Vec<Vec<F>> {
+    let export_fref = trace
+        .first()
+        .map(|row| row.state_before.host_events.turn_export_fref)
+        .unwrap_or(0);
+    // Even import-free traces preload the selected export's empty template.
+    let bindings = neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref);
+    sanity_check_trace_with_bindings(trace, artifacts, &bindings)
+}
+
+/// Run lookup, memory, and commitment-chain checks with the bindings that
+/// produced `trace`.
+pub fn sanity_check_trace_with_bindings(
+    trace: &[WasmVmStep],
+    artifacts: &WasmProgramArtifacts,
+    bindings: &neo_wasm::host_event_bindings::HostEventBindings,
+) -> Vec<Vec<F>> {
     let layout = build_wasm_relation_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
@@ -80,16 +96,7 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
         witnesses.push(witness);
     }
     let mut preload = preload_from_program_artifacts(artifacts);
-    // Import-free traces run under the canonical single-shot bindings; the
-    // exit latch reads its (biased) export count cells.
-    let export_fref = trace
-        .first()
-        .map(|row| row.state_before.host_events.turn_export_fref)
-        .unwrap_or(0);
-    neo_wasm::memory_semantics::preload_host_event_tables(
-        &mut preload,
-        &neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref),
-    );
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
     neo_wasm::comm_chain::sanity_check_comm_chain(trace)

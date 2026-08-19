@@ -296,6 +296,9 @@ impl ExportTemplate {
                 }
             }
         }
+
+        validate_dense_input_indices(&self.entry, self.entry_input_count, "export entry")?;
+
         Ok(())
     }
 }
@@ -506,6 +509,7 @@ impl ImportTemplate {
                     .to_string(),
             );
         }
+        validate_dense_input_indices(&self.events, self.input_count, "host-event import")?;
         Ok(())
     }
 }
@@ -766,4 +770,60 @@ fn resolve_slot(
             "export-boundary sources do not apply to import templates".to_string(),
         )),
     }
+}
+
+fn validate_dense_input_indices(events: &[EventBlock], declared: u8, context: &str) -> Result<(), WasmBuildError> {
+    let actual = events_dense_input_count(events, context)?;
+
+    if actual != declared {
+        Err(WasmBuildError::Trace(format!(
+            "{context} unreferenced inputs: declared: {declared}, actual: {actual}"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+pub(super) fn events_dense_input_count(events: &[EventBlock], context: &str) -> Result<u8, WasmBuildError> {
+    let mut visited = vec![];
+
+    for index in events
+        .iter()
+        .flat_map(|event| &event.block)
+        .filter_map(|slot| match *slot {
+            SlotBinding::InputLocal { input, .. }
+            | SlotBinding::MemoryWrite32 { input, .. }
+            | SlotBinding::MemoryWrite16 { input, .. }
+            | SlotBinding::MemoryWrite8 { input, .. } => Some(input),
+            SlotBinding::Const(_)
+            | SlotBinding::ArgElem { .. }
+            | SlotBinding::ResultElem { .. }
+            | SlotBinding::OutputElem { .. }
+            | SlotBinding::MemoryRead32 { .. }
+            | SlotBinding::MemoryRead16 { .. }
+            | SlotBinding::MemoryRead8 { .. } => None,
+        })
+    {
+        if index as usize >= visited.len() {
+            visited.resize(index as usize + 1, false);
+        }
+
+        visited[index as usize] = true;
+    }
+
+    let mut input_count = 0u8;
+
+    for (index, visited) in visited.iter().enumerate() {
+        if !visited {
+            return Err(WasmBuildError::Trace(format!(
+                "{context} inputs must be densely indexed from zero: input {index} is unreferenced"
+            )));
+        }
+
+        input_count = input_count.checked_add(1).ok_or(WasmBuildError::Trace(
+            "host-event input index 255 cannot be represented by the u8 input count".to_string(),
+        ))?;
+    }
+
+    Ok(input_count)
 }

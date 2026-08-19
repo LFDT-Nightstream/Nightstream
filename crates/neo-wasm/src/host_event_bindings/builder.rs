@@ -1,6 +1,7 @@
 use super::{EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding};
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::comm_chain::COMM_CHAIN_BLOCK_WORDS;
+use crate::host_event_bindings::events_dense_input_count;
 use crate::ir::WasmBuildError;
 
 /// Builds one event block without exposing its zero-padding array.
@@ -267,7 +268,10 @@ impl<'a> HostEventBindingsBuilder<'a> {
     /// Bind a host import. Referenced inputs must form a dense zero-based
     /// tuple; its length becomes the per-call input count.
     pub fn import(&mut self, function_ref: u32, events: Vec<EventBlock>) -> Result<&mut Self, WasmBuildError> {
-        let input_count = input_count(&events)?;
+        let input_count = {
+            let events: &[EventBlock] = &events;
+            events_dense_input_count(events, "host-event")
+        }?;
 
         if self.bindings.imports.contains_key(&function_ref) {
             return Err(WasmBuildError::Trace(format!(
@@ -290,7 +294,10 @@ impl<'a> HostEventBindingsBuilder<'a> {
         entry: Vec<EventBlock>,
         exit: Vec<EventBlock>,
     ) -> Result<&mut Self, WasmBuildError> {
-        let entry_input_count = input_count(&entry)?;
+        let entry_input_count = {
+            let events: &[EventBlock] = &entry;
+            events_dense_input_count(events, "host-event")
+        }?;
 
         if self.bindings.exports.contains_key(&function_ref) {
             return Err(WasmBuildError::Trace(format!(
@@ -313,49 +320,5 @@ impl<'a> HostEventBindingsBuilder<'a> {
     pub fn finish(self) -> Result<HostEventBindings, WasmBuildError> {
         self.bindings.validate_against_program(self.program)?;
         Ok(self.bindings)
-    }
-}
-
-fn input_count(events: &[EventBlock]) -> Result<u8, WasmBuildError> {
-    let indices = events
-        .iter()
-        .flat_map(|event| event.block)
-        .filter_map(|slot| match slot {
-            SlotBinding::InputLocal { input, .. }
-            | SlotBinding::MemoryWrite32 { input, .. }
-            | SlotBinding::MemoryWrite16 { input, .. }
-            | SlotBinding::MemoryWrite8 { input, .. } => Some(input),
-            SlotBinding::Const(_) => None,
-            SlotBinding::ArgElem { arg: _, limb: _ } => None,
-            SlotBinding::ResultElem { limb: _ } => None,
-            SlotBinding::OutputElem { limb: _ } => None,
-            SlotBinding::MemoryRead32 {
-                base: _,
-                byte_offset: _,
-            } => None,
-            SlotBinding::MemoryRead8 {
-                base: _,
-                byte_offset: _,
-            } => None,
-            SlotBinding::MemoryRead16 {
-                base: _,
-                byte_offset: _,
-            } => None,
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-
-    match indices.last().copied() {
-        None => Ok(0),
-        Some(u8::MAX) => Err(WasmBuildError::Trace(
-            "host-event input index 255 cannot be represented by the u8 input count".to_string(),
-        )),
-        Some(max_index) => {
-            if let Some(missing) = (0..=max_index).find(|index| !indices.contains(index)) {
-                return Err(WasmBuildError::Trace(format!(
-                    "host-event inputs must be densely indexed from zero: input {missing} is unreferenced"
-                )));
-            }
-            Ok(max_index + 1)
-        }
     }
 }

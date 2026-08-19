@@ -18,13 +18,12 @@ fn compile_and_trace(
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
-    compile_and_trace_with(wat_src, "main", &[])
+    compile_and_trace_with(wat_src, "main")
 }
 
 fn compile_and_trace_with(
     wat_src: &str,
     export: &str,
-    params: &[i32],
 ) -> (
     Vec<u8>,
     Vec<WasmVmStep>,
@@ -32,7 +31,7 @@ fn compile_and_trace_with(
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
-    let checked = common::checked_wasm_run(wat_src, export, params);
+    let checked = common::checked_wasm_run(wat_src, export);
     let pc_rom = checked.artifacts.tables.pc_rom.clone();
     let pc_edge_kinds = checked.artifacts.tables.pc_edge_kinds.clone();
     let function_entries = checked.artifacts.tables.function_entries.clone();
@@ -594,11 +593,11 @@ fn wasm_trace_run_with_compare_unary_and_rotate() {
 fn wasm_trace_run_with_br_table() {
     let (_, trace, pc_rom, ..) = compile_and_trace_with(
         r#"(module
-             (func (export "main") (param i32) (result i32)
+             (func (export "main") (result i32)
                (block $default
                  (block $case1
                    (block $case0
-                     local.get 0
+                     i32.const 5
                      br_table $case0 $case1 $default
                    )
                    i32.const 10
@@ -609,7 +608,6 @@ fn wasm_trace_run_with_br_table() {
                )
                i32.const 30))"#,
         "main",
-        &[5],
     );
     let row = trace
         .iter()
@@ -725,7 +723,6 @@ fn wasm_trace_run_with_basic_i64_ops() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -749,7 +746,6 @@ fn wasm_trace_run_with_aligned_i64_linear_memory() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -772,7 +768,6 @@ fn wasm_trace_run_with_unaligned_i64_linear_memory() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -907,7 +902,6 @@ fn wasm_trace_run_with_i32_wrap_i64() {
                i64.const 0x1234567889abcdef
                i32.wrap_i64))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["-1985229329"]);
     let row = checked
@@ -935,7 +929,6 @@ fn wasm_trace_run_with_i64_extend_i32() {
                i64.eq
                i32.add))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["2"]);
     let unsigned = checked
@@ -991,7 +984,6 @@ fn wasm_trace_run_with_integer_sign_extensions() {
                i64.eq
                i32.add))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["5"]);
 

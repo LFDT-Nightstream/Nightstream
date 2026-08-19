@@ -31,7 +31,6 @@ fn direct_call_with_four_params_is_provable() {
                 call $sum4))
         "#,
         "run",
-        &[],
     );
     let final_output = checked.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
@@ -61,7 +60,6 @@ fn call_indirect_with_three_params_is_provable() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let final_output = checked.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
@@ -89,7 +87,6 @@ fn call_indirect_rejects_table_index_decoupled_from_stack_operand() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let row_index = checked
         .trace
@@ -124,7 +121,6 @@ fn call_indirect_rejects_index_read_redirected_to_other_slot() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let row_index = checked
         .trace
@@ -154,6 +150,5 @@ fn operand_held_across_call_survives() {
                 i32.add))
         "#,
         "run",
-        &[],
     );
 }

@@ -1,2 +1,1 @@
-import DirectCcsFPrime.ProofSystem.Production.Impl.PublicIO.Terminal.DirectParentOnlyProductionConcreteFPrimePriorTerminalIO
-import DirectCcsFPrime.ProofSystem.Production.Impl.PublicIO.Terminal.DirectParentOnlyProductionConcreteFPrimePriorTerminalIOInterface
+import DirectCcsFPrime.ProofSystem.Production.Impl.PublicIO.Terminal.Core

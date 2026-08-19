@@ -6,62 +6,53 @@
 //!
 //! Also provides the function to compute the corresponding witness assignment.
 
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
+use crate::layout::{ColumnWidth, COL_ONE};
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
+use crate::witness_layout::{declared_witness_column_specs, range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use std::ops::Range;
 
-fn decomposed_bits(width: ColumnWidth) -> usize {
-    match width {
-        ColumnWidth::Boolean | ColumnWidth::Field => 0,
-        ColumnWidth::Byte => 8,
-        ColumnWidth::U32 => 32,
-    }
-}
-
-/// Witness width of the range-checked wasm CCS: the declared columns plus
-/// one aux bit column per decomposed bit.
-pub fn range_checked_witness_width() -> usize {
-    NAMED_COLUMN_COUNT
-        + COLUMN_SPECS
-            .iter()
-            .map(|spec| decomposed_bits(spec.width))
-            .sum::<usize>()
+/// Aux bit columns backing one declared byte/u32 column in the extended
+/// witness. Boolean and field columns have no separate decomposition.
+pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
+    range_bit_region(column).map(|region| region.start..region.end())
 }
 
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
-    let mut aux = NAMED_COLUMN_COUNT;
-    for spec in COLUMN_SPECS {
-        let bits = decomposed_bits(spec.width);
-        let tag = WasmConstraintTag {
-            label: spec.name,
-            scope: WasmConstraintScope::Always,
-        };
-        match spec.width {
-            ColumnWidth::Field => {}
-            ColumnWidth::Boolean => {
-                b.with_tag(tag, |b| {
-                    b.push_boolean(spec.index);
-                });
-            }
-            ColumnWidth::Byte | ColumnWidth::U32 => {
-                b.with_tag(tag, |b| {
-                    for i in 0..bits {
-                        b.push_boolean(aux + i);
-                    }
-                    b.push_row(
-                        (0..bits).map(|i| (aux + i, F::from_u64(1u64 << i))),
-                        [(COL_ONE, F::ONE)],
-                        [(spec.index, F::ONE)],
-                    );
-                });
-                aux += bits;
+    for spec in declared_witness_column_specs() {
+        for column in spec.start..spec.end() {
+            let tag = WasmConstraintTag {
+                label: spec.name,
+                scope: WasmConstraintScope::Always,
+            };
+            match spec.width {
+                ColumnWidth::Field => {}
+                ColumnWidth::Boolean => {
+                    b.with_tag(tag, |b| {
+                        b.push_boolean(column);
+                    });
+                }
+                ColumnWidth::Byte | ColumnWidth::U32 => {
+                    let region = range_bit_region(column).expect("decomposed column has a range-bit region");
+                    b.with_tag(tag, |b| {
+                        for bit in region.start..region.end() {
+                            b.push_boolean(bit);
+                        }
+                        b.push_row(
+                            (region.start..region.end())
+                                .enumerate()
+                                .map(|(i, bit)| (bit, F::from_u64(1u64 << i))),
+                            [(COL_ONE, F::ONE)],
+                            [(column, F::ONE)],
+                        );
+                    });
+                }
             }
         }
     }
-    debug_assert_eq!(aux, range_checked_witness_width());
 }
 
 /// Compute (or refresh) the aux bit columns from the declared columns.
@@ -73,22 +64,22 @@ pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
 /// — the CCS failure then carries the column's name via the row tag.
 pub fn write_range_check_bits(witness: &mut Vec<F>) {
     assert!(
-        witness.len() == NAMED_COLUMN_COUNT || witness.len() == range_checked_witness_width(),
+        witness.len() == RANGE_BITS.start || witness.len() == RANGE_CHECKED_WITNESS_WIDTH,
         "witness length {} is neither the base width {} nor the range-checked width {}",
         witness.len(),
-        NAMED_COLUMN_COUNT,
-        range_checked_witness_width(),
+        RANGE_BITS.start,
+        RANGE_CHECKED_WITNESS_WIDTH,
     );
-    witness.truncate(NAMED_COLUMN_COUNT);
-    witness.reserve(range_checked_witness_width() - NAMED_COLUMN_COUNT);
-    for spec in COLUMN_SPECS {
-        let bits = decomposed_bits(spec.width);
-        if bits == 0 {
-            continue;
-        }
-        let value = witness[spec.index].as_canonical_u64();
-        for i in 0..bits {
-            witness.push(F::from_u64((value >> i) & 1));
+    witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
+    for spec in declared_witness_column_specs() {
+        for column in spec.start..spec.end() {
+            let Some(region) = range_bit_region(column) else {
+                continue;
+            };
+            let value = witness[column].as_canonical_u64();
+            for (i, bit) in (region.start..region.end()).enumerate() {
+                witness[bit] = F::from_u64((value >> i) & 1);
+            }
         }
     }
 }

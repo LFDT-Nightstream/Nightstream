@@ -17,7 +17,7 @@ Specify the multilinear less-than polynomial used to express Twist's time-prefix
 ## Module Mapping
 
 - Spec: `specs/LessThanPoly.spec.md`
-- Interface: `TwistShout/LessThanPolyInterface.lean`
+- Interface: `TwistShout/LessThanPoly.lean`
 - Implementation: `TwistShout/LessThanPoly.lean`
 
 ## Contract Surface

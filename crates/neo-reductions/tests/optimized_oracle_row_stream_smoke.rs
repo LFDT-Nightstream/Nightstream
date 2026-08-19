@@ -46,10 +46,11 @@ fn z_witness(seed: u64, m: usize) -> Mat<F> {
 
 #[test]
 fn optimized_oracle_row_stream_matches_paper_exact_q_at_challenge_point() {
-    // SuperNeo-compatible shape: n = m = D, t=4 with M0=I, and f(x)=x1*x2 - x3.
+    // SuperNeo-compatible shape covering the optimized row-polynomial term
+    // classes: product-2, selector-times-power, and product-3.
     let n = D;
     let m = D;
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).unwrap();
+    let params = NeoParams::goldilocks_auto_ccs_with(n, 4, 8, 96, 2).unwrap();
     let matrices = vec![
         Mat::<F>::identity(n),
         dense_mat::<F>(n, m, 10),
@@ -65,7 +66,15 @@ fn optimized_oracle_row_stream_matches_paper_exact_q_at_challenge_point() {
             },
             Term {
                 coeff: -F::ONE,
-                exps: vec![0, 0, 0, 1], // -x3
+                exps: vec![0, 1, 0, 1], // -x1 * x3; keeps every term in one factored group
+            },
+            Term {
+                coeff: F::from_u64(3),
+                exps: vec![0, 1, 7, 0], // 3 * x1 * x2^7
+            },
+            Term {
+                coeff: F::from_u64(5),
+                exps: vec![0, 1, 1, 1], // 5 * x1 * x2 * x3
             },
         ],
     );

@@ -37,6 +37,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
     let state_before = WasmStepState {
         pc: 2,
         sp: 1,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
@@ -45,12 +46,16 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
-        host_args: WasmCountdownState::ZERO,
-        host_result_pending: false,
+        tail_call_pending: false,
+        host_callee_fref: 0,
+        comm_chain: [0; 4],
+        event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
+        host_events: neo_wasm::WasmHostEventState::ZERO,
     };
     let state_after = WasmStepState {
         pc: 3,
         sp: 1,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
@@ -59,8 +64,11 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
-        host_args: WasmCountdownState::ZERO,
-        host_result_pending: false,
+        tail_call_pending: false,
+        host_callee_fref: 0,
+        comm_chain: [0; 4],
+        event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
+        host_events: neo_wasm::WasmHostEventState::ZERO,
     };
     WasmVmStep {
         cycle: 0,
@@ -110,6 +118,9 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
+        host_event_rom_slot: None,
+        host_event_initial_schedule_count: None,
+        host_event_exit_schedule_count: None,
     }
 }
 

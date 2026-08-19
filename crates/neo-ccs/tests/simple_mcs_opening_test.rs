@@ -40,6 +40,7 @@ fn test_mcs_opening_bug_reproduction() {
 
     // ❌ BUG CASE: Set m_in=0 even though we have 3 public inputs
     let buggy_instance = CcsClaim {
+        adv: None,
         c: commitment.clone(),
         x: public_inputs.clone(), // 3 public inputs
         m_in: 0,                  // ❌ WRONG: Should be 3, not 0!
@@ -77,6 +78,7 @@ fn test_mcs_opening_bug_reproduction() {
 
     // ✅ FIXED CASE: Set m_in to actual public input count
     let fixed_instance = CcsClaim {
+        adv: None,
         c: commitment,
         x: public_inputs.clone(),
         m_in: public_inputs.len(), // ✅ CORRECT: Use actual count

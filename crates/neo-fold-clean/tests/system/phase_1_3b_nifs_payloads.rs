@@ -53,6 +53,7 @@ fn build_nifs_fixture() -> NifsFixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh_inst,
@@ -147,6 +148,7 @@ fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimSh
         ],
         kmul_count: 8,
         ring_action_pair_count: 2,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::SignedDigit { bits: 5 },
             LowNormEncoding::SignedDigit { bits: 8 },

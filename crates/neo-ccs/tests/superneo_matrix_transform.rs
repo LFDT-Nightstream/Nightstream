@@ -30,14 +30,26 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
         }
         CcsMatrix::Csc(m) => {
             for c in 0..m.ncols {
-                let s = m.col_ptr[c];
-                let e = m.col_ptr[c + 1];
                 let block = c / D;
                 let local = c % D;
-                for k in s..e {
-                    if m.row_idx[k] == row {
+                for k in m.column_range(c) {
+                    if m.row_index(k) == row {
                         row_blocks[block][local] += m.vals[k];
                     }
+                }
+            }
+        }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
+            for c in 0..csc.ncols {
+                let block = c / D;
+                let local = c % D;
+                for k in csc.column_range(c) {
+                    if csc.row_index(k) == row {
+                        row_blocks[block][local] += csc.vals[k];
+                    }
+                }
+                for seeded in blocks {
+                    row_blocks[block][local] += seeded.entry::<F>(row, c);
                 }
             }
         }

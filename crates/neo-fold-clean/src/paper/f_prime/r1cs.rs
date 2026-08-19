@@ -11,8 +11,8 @@
 //!     fold `u_i` into `U_i` under a transcript bound to the full F' state
 //!     input, enforces the HyperNova recursive link
 //!     `u_i.public == bits(prior_x_out)`, and binds `acc_digest_in` to
-//!     the digest of the actual `running` accumulator and
-//!     `acc_digest_out` to the digest of NIFS.V's output accumulator.
+//!     the parent-authority handle of the actual `running` accumulator and
+//!     `acc_digest_out` to the parent-authority handle of NIFS.V's output.
 //!
 //! Both functions return the `x_out` wires; the caller pins them against
 //! the public-input slot.
@@ -28,8 +28,8 @@
 //!
 //!   acc_digest' = accumulator handle carried in state_out.
 //!     base:      empty accumulator handle
-//!     recursive: digest of the actual NIFS.V output accumulator
-//!                `(children, parent)` computed in this same relation.
+//!     recursive: digest of the strict Pi_DEC parent authority computed in
+//!                this same relation after checking `(parent, children)`.
 //!
 //!   x_out = state_x_out_digest(
 //!       vk_fs, structure, chunk_count', step_count',
@@ -49,15 +49,14 @@
 //!    itself does not need low norm. See `encoding.md` for the
 //!    distinction between this public-instance encoding `enc_inst(h)`
 //!    and the unresolved private-witness encoding `enc(F')`.
-//! 2. **Running accumulator binding**: `acc_digest_in == digest(running)`,
-//!    where `digest(running)` is computed in-circuit by
-//!    `enforce_accumulator_digest_from_running_circuit`. Without this,
-//!    `u_i.public` could bind to one accumulator while NIFS.V folds a
-//!    different one.
+//! 2. **Running accumulator binding**: after NIFS.V checks
+//!    `Pi_DEC(parent, running)`, `acc_digest_in` equals the compact digest of
+//!    that parent CE authority. Without this, `u_i.public` could bind to one
+//!    weak-reduction class while NIFS.V folds a different one.
 //! 3. **Output accumulator binding**:
-//!    `acc_digest_out == digest(NIFS.V.children, NIFS.V.parent)`. Without
-//!    this, the step could output a self-consistent hash over a forged
-//!    accumulator handle instead of the `U_{i+1}` it just computed.
+//!    after strict Pi_DEC verification, `acc_digest_out` equals the digest of
+//!    `NIFS.V.parent`. Without this, the step could output a self-consistent
+//!    handle unrelated to the `U_{i+1}` it just computed.
 //! 4. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build). `pc` is pinned,
 //!    linked as state, and absorbed into `state_x_out` so the local
 //!    recursive link retains HyperNova's `pc_i` binding even before
@@ -67,8 +66,12 @@
 //!    F_PRIME_PUBLIC_INPUT_LEN`. Enforced against the message shape
 //!    (the SplitNc config carries `params` + `structure` references,
 //!    not redundant integer copies).
+//! 6. **Current chunk-shape digest**: `chunk_digest` is recomputed with
+//!    Poseidon2 from the in-circuit `step_count`, fixed claim geometry, and
+//!    `rows_in_chunk`. Native witness generation is not trusted to supply this
+//!    state boundary honestly.
 
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
@@ -78,18 +81,26 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::u64_arith::{
     alloc_u64_bits, decompose_var_to_u64_bits, enforce_u64_add, enforce_u64_constant, enforce_u64_increment,
 };
-use crate::paper::construction2::TRIVIAL_PC;
+use crate::paper::construction2::{NebulaConfig, NebulaLane, TRIVIAL_PC};
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::digest::StateXOutDigestMode;
-use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
+use crate::paper::f_prime::digest_circuit::{
+    enforce_f_prime_chunk_public_digest_circuit, enforce_state_x_out_digest_circuit,
+    enforce_state_x_out_digest_with_nebula_circuit, StateXOutDigestInputs,
+};
+use crate::paper::f_prime::nebula_lane_circuit::{
+    alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, delayed_nebula_public_suffix_len,
+    enforce_delayed_nebula_claim_circuit, enforce_nebula_lane_constant_circuit,
+    enforce_nebula_lane_digest_selected_circuit, NebulaLaneWires, NebulaOpenContextWires,
+};
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use crate::paper::f_prime::source_image_circuit::{enforce_goldilocks_word_canonical, SourceImageWires};
-use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
-use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs,
+use crate::paper::nifs::circuit::{
+    enforce_nifs_v_circuit_with_transcript_and_header_bundle, NifsVCircuitConfig, NifsVCircuitMessages,
 };
+use crate::paper::params::Params;
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{enforce_ce_claim_digest, CeClaimDigestInputs};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
 /// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
@@ -126,6 +137,39 @@ pub const F_PRIME_ENC_INST_OFFSET: usize = 1;
 /// four Goldilocks digest lanes". See `encoding.md`.
 pub const F_PRIME_PUBLIC_INPUT_LEN: usize = 1 + F_PRIME_ENC_INST_BITS;
 
+/// Verifier-owned public-input shape for one F' relation.
+///
+/// Plain F' uses no suffix. A composed application may append public step
+/// data after `enc_inst(x_out)`; the next recursive step receives those
+/// coordinates through NIFS.V without treating them as part of the hash
+/// link itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FPrimePublicInputLayout {
+    suffix_len: usize,
+}
+
+impl FPrimePublicInputLayout {
+    pub const fn plain() -> Self {
+        Self { suffix_len: 0 }
+    }
+
+    pub const fn with_suffix(suffix_len: usize) -> Self {
+        Self { suffix_len }
+    }
+
+    pub const fn total_len(self) -> usize {
+        F_PRIME_PUBLIC_INPUT_LEN + self.suffix_len
+    }
+
+    pub const fn suffix_len(self) -> usize {
+        self.suffix_len
+    }
+
+    pub const fn suffix_offset(self) -> usize {
+        F_PRIME_PUBLIC_INPUT_LEN
+    }
+}
+
 /// `enc_inst(x_out)` body: encode `x_out`'s four Goldilocks lanes as
 /// `F_PRIME_ENC_INST_BITS` canonical bits (little-endian), so the body is
 /// low-norm under `b = 2`. Does **not** prepend the constant-one slot —
@@ -154,7 +198,12 @@ pub fn encode_f_prime_public_input(x_out: [F; DIGEST_LEN]) -> Vec<F> {
 /// length-`F_PRIME_ENC_INST_BITS` `public_bits` wires are the canonical
 /// little-endian 64-bit decomposition of `digest[lane]` for each lane.
 /// Each lane is canonicity-checked inside [`decompose_var_to_u64_bits`].
-fn enforce_public_bits_encode_digest(
+///
+/// This is public only as an audit/export surface for the Rust-to-Lean
+/// artifact pipeline. Both F' branches call this exact helper through their
+/// public-output and prior-link bindings.
+#[doc(hidden)]
+pub fn enforce_public_bits_encode_digest(
     builder: &mut R1csBuilder,
     public_bits: &[Var],
     digest: &[Var; DIGEST_LEN],
@@ -203,16 +252,109 @@ fn source_word_bits(source_wires: &SourceImageWires, word: Word64Image) -> [Var;
     std::array::from_fn(|i| bits[i])
 }
 
-fn enforce_counter_increment_no_wrap(builder: &mut R1csBuilder, old_bits: &[Var; 64], new_counter: Var) {
+fn enforce_counter_increment_no_wrap(builder: &mut R1csBuilder, old_bits: &[Var; 64], new_counter: Var) -> [Var; 64] {
     let new_bits = decompose_var_to_u64_bits(builder, new_counter);
     enforce_u64_increment(builder, old_bits, &new_bits);
+    new_bits
 }
 
-fn enforce_counter_add_no_wrap(builder: &mut R1csBuilder, old_bits: &[Var; 64], increment: u64, new_counter: Var) {
+fn enforce_counter_add_no_wrap(
+    builder: &mut R1csBuilder,
+    old_bits: &[Var; 64],
+    increment: u64,
+    new_counter: Var,
+) -> ([Var; 64], [Var; 64]) {
     let increment_bits = alloc_u64_bits(builder, increment);
     enforce_u64_constant(builder, &increment_bits, increment);
     let new_bits = decompose_var_to_u64_bits(builder, new_counter);
     enforce_u64_add(builder, old_bits, &increment_bits, &new_bits);
+    (increment_bits, new_bits)
+}
+
+/// Wires produced while binding the two authoritative F' input counters to
+/// their low-norm source-image words.
+///
+/// This is an audit surface for the Rust-to-Lean artifact pipeline. The same
+/// helper is used by both production F' branches, so the exported subcircuit
+/// cannot silently diverge from the rows used in recursive proofs.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct FPrimeCounterInputWires {
+    pub chunk_count_bits: [Var; 64],
+    pub step_count_bits: [Var; 64],
+}
+
+/// Bind the field-valued F' input counters to canonical 64-bit words from the
+/// source image, returning the exact bit wires used by the no-wrap arithmetic.
+#[doc(hidden)]
+pub fn enforce_f_prime_counter_input_binding(
+    builder: &mut R1csBuilder,
+    source_wires: &SourceImageWires,
+    chunk_count_word: Word64Image,
+    step_count_word: Word64Image,
+    chunk_count: Var,
+    step_count: Var,
+) -> FPrimeCounterInputWires {
+    enforce_var_matches_source_word64(builder, source_wires, chunk_count_word, chunk_count);
+    enforce_var_matches_source_word64(builder, source_wires, step_count_word, step_count);
+    FPrimeCounterInputWires {
+        chunk_count_bits: source_word_bits(source_wires, chunk_count_word),
+        step_count_bits: source_word_bits(source_wires, step_count_word),
+    }
+}
+
+/// Complete wire layout of the production recursive F' counter transition.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct FPrimeCounterTransitionWires {
+    pub chunk_count_out: Var,
+    pub step_count_out: Var,
+    pub chunk_count_out_bits: [Var; 64],
+    pub rows_in_chunk_bits: [Var; 64],
+    pub step_count_out_bits: [Var; 64],
+}
+
+/// Enforce the recursive F' counter equations over both the field and the
+/// canonical no-wrap u64 representation:
+///
+/// `chunk_count_out = chunk_count_in + 1`
+/// `step_count_out = step_count_in + rows_in_chunk`.
+///
+/// The production recursive branch and the formal-artifact exporter call this
+/// exact helper. `*_out_value` are witness values only; the emitted equations
+/// determine whether those claims are valid.
+#[doc(hidden)]
+pub fn enforce_f_prime_recursive_counter_transition(
+    builder: &mut R1csBuilder,
+    chunk_count_in: Var,
+    step_count_in: Var,
+    input_bits: &FPrimeCounterInputWires,
+    rows_in_chunk: u64,
+    chunk_count_out_value: u64,
+    step_count_out_value: u64,
+) -> FPrimeCounterTransitionWires {
+    let chunk_count_out = builder.alloc(F::from_u64(chunk_count_out_value));
+    let step_count_out = builder.alloc(F::from_u64(step_count_out_value));
+
+    let mut chunk_sum = Lc::from_var(chunk_count_in);
+    chunk_sum.add_constant(F::ONE);
+    builder.enforce_eq(&Lc::from_var(chunk_count_out), &chunk_sum);
+    let mut step_sum = Lc::from_var(step_count_in);
+    step_sum.add_constant(F::from_u64(rows_in_chunk));
+    builder.enforce_eq(&Lc::from_var(step_count_out), &step_sum);
+
+    let chunk_count_out_bits =
+        enforce_counter_increment_no_wrap(builder, &input_bits.chunk_count_bits, chunk_count_out);
+    let (rows_in_chunk_bits, step_count_out_bits) =
+        enforce_counter_add_no_wrap(builder, &input_bits.step_count_bits, rows_in_chunk, step_count_out);
+
+    FPrimeCounterTransitionWires {
+        chunk_count_out,
+        step_count_out,
+        chunk_count_out_bits,
+        rows_in_chunk_bits,
+        step_count_out_bits,
+    }
 }
 
 /// Given pre-allocated source-image bit wires `expected_bits`, constrain
@@ -256,6 +398,14 @@ pub struct FPrimeStepConfig<'a> {
     /// Optional initialization label for the F' transcript. Static so the
     /// in-circuit `TranscriptGadget` can fast-forward its init.
     pub transcript_label: &'static [u8],
+    /// Public-input shape of the foldable F' relation. The first 257
+    /// coordinates always remain `[1 || enc_inst(x_out)]`; any suffix is
+    /// application data surfaced from the previous fresh claims.
+    pub public_input_layout: FPrimePublicInputLayout,
+    /// Nebula CC-IVC constants. Presence selects the paper's delayed
+    /// commitment-carrying relation; plain F' keeps the original relation
+    /// and hash/transcript preimages byte-for-byte.
+    pub nebula: Option<&'a NebulaConfig>,
     /// Native/circuit state-x_out preimage mode. Stateless mode omits the
     /// duplicate semantic digest and this circuit enforces semantic == acc.
     pub state_x_out_digest_mode: StateXOutDigestMode,
@@ -265,7 +415,9 @@ pub struct FPrimeStepConfig<'a> {
 #[derive(Clone)]
 pub struct FPrimeStateIn {
     pub vk_fs_digest: [F; DIGEST_LEN],
-    pub structure_digest: [F; DIGEST_LEN],
+    /// SplitNc header of the relation being folded. Carried as verifier-key
+    /// advice so folded F' never embeds a digest of its own matrices.
+    pub pi_ccs_header_bundle: [F; DIGEST_LEN],
     pub chunk_count_in: u64,
     pub step_count_in: u64,
     pub z_0: [F; DIGEST_LEN],
@@ -274,6 +426,8 @@ pub struct FPrimeStateIn {
     pub semantic_state_digest_in: [F; DIGEST_LEN],
     pub acc_digest_in: [F; DIGEST_LEN],
     pub public_trace_in: [F; DIGEST_LEN],
+    /// Carried memory state. Presence must match [`FPrimeStepConfig::nebula`].
+    pub nebula: Option<NebulaLane>,
 }
 
 /// Inputs to the F' **base** step (i = 0).
@@ -371,6 +525,11 @@ pub struct FPrimeRecursiveInputs<'a> {
 pub struct FPrimeStepOutput {
     pub x_out: [Var; DIGEST_LEN],
     pub x_out_bits: Vec<Var>,
+    /// Recursive consumer-side link wires. `None` for the base branch.
+    /// This is a read-only formal-artifact surface; the enforcing rows remain
+    /// authoritative.
+    #[doc(hidden)]
+    pub prior_link: Option<FPrimePriorLinkWires>,
     pub state_in: FPrimeStateWires,
     pub state_out: FPrimeStateWires,
     pub nifs_running: Option<Vec<crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires>>,
@@ -378,16 +537,34 @@ pub struct FPrimeStepOutput {
         Option<crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires>,
     pub nifs_parent: Option<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
     pub nifs_children: Option<Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>>,
+    /// Application public suffixes carried by the fresh claims consumed in
+    /// this recursive step. Empty for the base step and for plain F'.
+    pub fresh_public_suffixes: Vec<Vec<Var>>,
+    /// Product-commitment coordinates paired index-for-index with
+    /// [`Self::fresh_public_suffixes`].
+    pub fresh_adv: Vec<Option<crate::paper::relations::product_commitment_circuit::AdvCommitmentWires>>,
+}
+
+/// Exact wires participating in the delayed HyperNova public-input link.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct FPrimePriorLinkWires {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub first_allocated_column: usize,
+    pub digest: [Var; DIGEST_LEN],
+    pub encoded_bits: Vec<Var>,
+    pub fresh_public_inputs: Vec<Vec<Var>>,
 }
 
 /// Full state wire bundle — used both for pre-step (`state_in`) and
 /// post-step (`state_out`) views. Fields that don't change across a step
-/// (vk_fs_digest, structure_digest, z_0, pc) share wires between `state_in`
+/// (vk_fs_digest, pi_ccs_header_bundle, z_0, pc) share wires between `state_in`
 /// and `state_out`.
 #[derive(Clone, Copy)]
 pub struct FPrimeStateWires {
     pub vk_fs_digest: [Var; DIGEST_LEN],
-    pub structure_digest: [Var; DIGEST_LEN],
+    pub pi_ccs_header_bundle: [Var; DIGEST_LEN],
     pub chunk_count: Var,
     pub step_count: Var,
     pub z_0: [Var; DIGEST_LEN],
@@ -396,6 +573,7 @@ pub struct FPrimeStateWires {
     pub semantic_state_digest: [Var; DIGEST_LEN],
     pub acc_digest: [Var; DIGEST_LEN],
     pub public_trace: [Var; DIGEST_LEN],
+    pub nebula: Option<NebulaLaneWires>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -410,11 +588,42 @@ impl From<crate::paper::nifs::circuit::Error> for Error {
     }
 }
 
+fn validate_nebula_configuration(
+    cfg: &FPrimeStepConfig<'_>,
+    state: &FPrimeStateIn,
+    fresh_count: Option<usize>,
+) -> Result<(), Error> {
+    match (cfg.nebula, state.nebula.as_ref()) {
+        (None, None) => Ok(()),
+        (Some(nebula), Some(_)) => {
+            if nebula.steps_per_segment == 0 {
+                return Err(Error::Inner("Nebula F' requires steps_per_segment >= 1".into()));
+            }
+            let expected_suffix = delayed_nebula_public_suffix_len(nebula.stacks);
+            if cfg.public_input_layout.suffix_len() != expected_suffix {
+                return Err(Error::Inner(format!(
+                    "Nebula F' public suffix length {} != delayed contract {expected_suffix}",
+                    cfg.public_input_layout.suffix_len()
+                )));
+            }
+            if let Some(fresh_count) = fresh_count {
+                if fresh_count != 1 {
+                    return Err(Error::Inner(format!(
+                        "Nebula F' currently requires exactly one delayed fresh claim, got {fresh_count}"
+                    )));
+                }
+            }
+            Ok(())
+        }
+        _ => Err(Error::Inner("Nebula F' config/state presence mismatch".into())),
+    }
+}
+
 /// Allocate state-in wires + the `pc == TRIVIAL_PC` guard. Shared between
 /// base and recursive F' entry points.
 struct StateInWires {
     vk_fs: [Var; DIGEST_LEN],
-    structure: [Var; DIGEST_LEN],
+    pi_ccs_header_bundle: [Var; DIGEST_LEN],
     chunk_count_in: Var,
     step_count_in: Var,
     z_0: [Var; DIGEST_LEN],
@@ -423,6 +632,7 @@ struct StateInWires {
     semantic_state_digest_in: [Var; DIGEST_LEN],
     acc_digest_in: [Var; DIGEST_LEN],
     public_trace_in: [Var; DIGEST_LEN],
+    nebula: Option<NebulaLaneWires>,
 }
 
 fn alloc_state_in(builder: &mut R1csBuilder, state: &FPrimeStateIn) -> StateInWires {
@@ -430,7 +640,7 @@ fn alloc_state_in(builder: &mut R1csBuilder, state: &FPrimeStateIn) -> StateInWi
     builder.enforce_eq(&Lc::from_var(pc), &Lc::from_const(F::from_u64(TRIVIAL_PC)));
     StateInWires {
         vk_fs: alloc_4(builder, state.vk_fs_digest),
-        structure: alloc_4(builder, state.structure_digest),
+        pi_ccs_header_bundle: alloc_4(builder, state.pi_ccs_header_bundle),
         chunk_count_in: builder.alloc(F::from_u64(state.chunk_count_in)),
         step_count_in: builder.alloc(F::from_u64(state.step_count_in)),
         z_0: alloc_4(builder, state.z_0),
@@ -439,6 +649,10 @@ fn alloc_state_in(builder: &mut R1csBuilder, state: &FPrimeStateIn) -> StateInWi
         semantic_state_digest_in: alloc_4(builder, state.semantic_state_digest_in),
         acc_digest_in: alloc_4(builder, state.acc_digest_in),
         public_trace_in: alloc_4(builder, state.public_trace_in),
+        nebula: state
+            .nebula
+            .as_ref()
+            .map(|lane| alloc_nebula_lane_wires(builder, lane)),
     }
 }
 
@@ -447,7 +661,7 @@ fn alloc_state_in(builder: &mut R1csBuilder, state: &FPrimeStateIn) -> StateInWi
 fn state_in_to_wires(sw: &StateInWires) -> FPrimeStateWires {
     FPrimeStateWires {
         vk_fs_digest: sw.vk_fs,
-        structure_digest: sw.structure,
+        pi_ccs_header_bundle: sw.pi_ccs_header_bundle,
         chunk_count: sw.chunk_count_in,
         step_count: sw.step_count_in,
         z_0: sw.z_0,
@@ -456,6 +670,7 @@ fn state_in_to_wires(sw: &StateInWires) -> FPrimeStateWires {
         semantic_state_digest: sw.semantic_state_digest_in,
         acc_digest: sw.acc_digest_in,
         public_trace: sw.public_trace_in,
+        nebula: sw.nebula,
     }
 }
 
@@ -470,10 +685,11 @@ fn state_out_wires(
     public_trace: [Var; DIGEST_LEN],
     semantic_state_digest: [Var; DIGEST_LEN],
     acc_digest: [Var; DIGEST_LEN],
+    nebula: Option<NebulaLaneWires>,
 ) -> FPrimeStateWires {
     FPrimeStateWires {
         vk_fs_digest: sw.vk_fs,
-        structure_digest: sw.structure,
+        pi_ccs_header_bundle: sw.pi_ccs_header_bundle,
         chunk_count,
         step_count,
         z_0: sw.z_0,
@@ -482,6 +698,7 @@ fn state_out_wires(
         semantic_state_digest,
         acc_digest,
         public_trace,
+        nebula,
     }
 }
 
@@ -499,6 +716,7 @@ fn build_x_out(
     new_acc_digest: [Var; DIGEST_LEN],
     new_chunk_count: Var,
     new_step_count: Var,
+    nebula: Option<&NebulaLaneWires>,
 ) -> ([Var; DIGEST_LEN], [Var; DIGEST_LEN], [Var; DIGEST_LEN]) {
     if matches!(mode, StateXOutDigestMode::Stateless) {
         enforce_digest_eq(builder, &new_semantic_state_digest, &new_acc_digest);
@@ -508,7 +726,8 @@ fn build_x_out(
     let x_out_inputs = StateXOutDigestInputs {
         mode,
         vk_fs_digest: sw.vk_fs,
-        structure_digest: sw.structure,
+        pi_ccs_header_bundle: sw.pi_ccs_header_bundle,
+        structure_digest: sw.pi_ccs_header_bundle,
         chunk_count: new_chunk_count,
         step_count: new_step_count,
         initial_boundary: sw.z_0,
@@ -518,7 +737,13 @@ fn build_x_out(
         construction2_acc: new_acc_digest,
         public_trace: new_public_trace,
     };
-    let x_out = enforce_state_x_out_digest_circuit(builder, &x_out_inputs);
+    let x_out = match nebula {
+        None => enforce_state_x_out_digest_circuit(builder, &x_out_inputs),
+        Some(lane) => {
+            let lane_digest = enforce_nebula_lane_digest_selected_circuit(builder, lane);
+            enforce_state_x_out_digest_with_nebula_circuit(builder, &x_out_inputs, lane_digest)
+        }
+    };
     (x_out, new_z_i, new_public_trace)
 }
 
@@ -533,26 +758,19 @@ fn enforce_nifs_output_acc_digest(
     parent: &CeClaimWires,
     children: &[CeClaimWires],
 ) -> Result<[Var; DIGEST_LEN], Error> {
-    let mut child_digests = Vec::with_capacity(children.len());
-    for child in children {
-        child_digests.push(enforce_dec_ce_claim_accumulator_digest(builder, child)?);
-    }
-    let parent_digest = enforce_dec_ce_claim_accumulator_digest(builder, parent)?;
-    Ok(enforce_accumulator_digest_from_running_circuit(
+    let parent_digest = enforce_dec_ce_claim_digest(builder, parent)?;
+    Ok(enforce_accumulator_digest_from_parent_circuit(
         builder,
-        &child_digests,
+        children.len(),
         Some(parent_digest),
     ))
 }
 
-fn enforce_dec_ce_claim_accumulator_digest(
-    builder: &mut R1csBuilder,
-    claim: &CeClaimWires,
-) -> Result<[Var; DIGEST_LEN], Error> {
+fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; DIGEST_LEN], Error> {
     let y_ring = dec_y_ring_kvars(claim)?;
-    enforce_accumulator_ce_claim_digest(
+    enforce_ce_claim_digest(
         builder,
-        &AccumulatorCeClaimDigestInputs {
+        &CeClaimDigestInputs {
             c_d: claim.c_d,
             c_kappa: claim.c_kappa,
             c_data: &claim.c_data,
@@ -560,14 +778,13 @@ fn enforce_dec_ce_claim_accumulator_digest(
             x_cols: claim.x_cols,
             x_flat_row_major: &claim.x,
             r: &claim.r,
-            s_col: &claim.s_col,
             y_ring: &y_ring,
-            ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
+            adv: claim.adv.as_ref(),
         },
     )
-    .map_err(|e| Error::Inner(format!("output accumulator CE digest: {e}")))
+    .map_err(|e| Error::Inner(format!("output accumulator parent CE digest: {e}")))
 }
 
 fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, Error> {
@@ -600,31 +817,64 @@ fn flat_kvars(flat: &[Var], lanes: usize, what: &str) -> Result<Vec<KVar>, Error
 /// Sets `acc_digest_out = empty_acc_digest`. Returns the `x_out` wires.
 pub fn enforce_f_prime_base_step_circuit(
     builder: &mut R1csBuilder,
-    _cfg: &FPrimeStepConfig<'_>,
+    cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
+    let base_start = builder.rows();
+    validate_nebula_configuration(cfg, &inputs.state, None)?;
     if inputs.rows_in_chunk == 0 {
         return Err(Error::Inner(
             "strict F' base: rows_in_chunk must be \u{2265} 1 (first chunk must be non-empty)".into(),
         ));
     }
+    let fresh_len = usize::try_from(inputs.rows_in_chunk)
+        .map_err(|_| Error::Inner("strict F' base: rows_in_chunk exceeds platform usize".into()))?;
+    if fresh_len > cfg.nifs.pi_ccs.params.max_fresh_count() {
+        return Err(Error::Inner(format!(
+            "strict F' base: rows_in_chunk {} exceeds max_fresh_count {}",
+            inputs.rows_in_chunk,
+            cfg.nifs.pi_ccs.params.max_fresh_count()
+        )));
+    }
 
     let sw = alloc_state_in(builder, &inputs.state);
     let chunk_digest = alloc_4(builder, inputs.chunk_digest);
+    let expected_chunk_digest = enforce_f_prime_chunk_public_digest_circuit(
+        builder,
+        sw.step_count_in,
+        fresh_len,
+        D,
+        cfg.nifs.pi_ccs.params.kappa() as usize,
+        cfg.public_input_layout.total_len(),
+    );
+    enforce_digest_eq(builder, &chunk_digest, &expected_chunk_digest);
+    if let (Some(nebula_cfg), Some(lane)) = (cfg.nebula, sw.nebula.as_ref()) {
+        enforce_nebula_lane_constant_circuit(builder, lane, &NebulaLane::base(nebula_cfg));
+    }
+    builder.record_row_family("fprime.base.prelude", base_start);
 
     // Allocate source-image bits once for the whole F' step. Each
     // coordinate becomes a bit-constrained witness wire; the public
     // x_out bits are sliced from this image below.
+    let source_start = builder.rows();
     let source_wires = SourceImageWires::alloc(builder, inputs.source_image);
 
     // Bind u64 counters to source-image words (Step 4). The `Var`s
     // remain in use downstream; this just pins them to the canonical
     // low-norm bit decomposition stored in the source image.
-    enforce_var_matches_source_word64(builder, &source_wires, inputs.chunk_count_in_word, sw.chunk_count_in);
-    enforce_var_matches_source_word64(builder, &source_wires, inputs.step_count_in_word, sw.step_count_in);
+    let counter_inputs = enforce_f_prime_counter_input_binding(
+        builder,
+        &source_wires,
+        inputs.chunk_count_in_word,
+        inputs.step_count_in_word,
+        sw.chunk_count_in,
+        sw.step_count_in,
+    );
     enforce_var_matches_source_word64(builder, &source_wires, inputs.pc_word, sw.pc);
+    builder.record_row_family("fprime.base.source", source_start);
 
     // Base pre-state: chunk_count_in == 0, step_count_in == 0, z_i_in == z_0.
+    let initial_start = builder.rows();
     builder.enforce_eq(&Lc::from_var(sw.chunk_count_in), &Lc::zero());
     builder.enforce_eq(&Lc::from_var(sw.step_count_in), &Lc::zero());
     for k in 0..DIGEST_LEN {
@@ -636,8 +886,10 @@ pub fn enforce_f_prime_base_step_circuit(
     for k in 0..DIGEST_LEN {
         builder.enforce_eq(&Lc::from_var(sw.acc_digest_in[k]), &Lc::from_const(empty_acc[k]));
     }
+    builder.record_row_family("fprime.base.initial", initial_start);
 
     // Output acc_digest is also the empty-acc constant (running stays ⊥).
+    let advance_start = builder.rows();
     let new_acc_digest = alloc_4_const(builder, empty_acc);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
 
@@ -652,20 +904,26 @@ pub fn enforce_f_prime_base_step_circuit(
         &Lc::from_var(new_step_count),
         &Lc::from_const(F::from_u64(inputs.rows_in_chunk)),
     );
-    let chunk_count_in_bits = source_word_bits(&source_wires, inputs.chunk_count_in_word);
-    let step_count_in_bits = source_word_bits(&source_wires, inputs.step_count_in_word);
-    enforce_counter_increment_no_wrap(builder, &chunk_count_in_bits, new_chunk_count);
-    enforce_counter_add_no_wrap(builder, &step_count_in_bits, inputs.rows_in_chunk, new_step_count);
+    enforce_counter_increment_no_wrap(builder, &counter_inputs.chunk_count_bits, new_chunk_count);
+    enforce_counter_add_no_wrap(
+        builder,
+        &counter_inputs.step_count_bits,
+        inputs.rows_in_chunk,
+        new_step_count,
+    );
+    builder.record_row_family("fprime.base.advance", advance_start);
 
+    let output_start = builder.rows();
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
-        _cfg.state_x_out_digest_mode,
+        cfg.state_x_out_digest_mode,
         &sw,
         chunk_digest,
         new_semantic_state_digest,
         new_acc_digest,
         new_chunk_count,
         new_step_count,
+        sw.nebula.as_ref(),
     );
     let expected_bits = source_wires.range(inputs.public_x_out_bits);
     let x_out_bits = enforce_x_out_public_bit_wires(builder, expected_bits, &x_out)?;
@@ -678,10 +936,14 @@ pub fn enforce_f_prime_base_step_circuit(
         new_public_trace,
         new_semantic_state_digest,
         new_acc_digest,
+        sw.nebula,
     );
+    builder.record_row_family("fprime.base.output", output_start);
+    builder.record_row_family("fprime.base.total", base_start);
     Ok(FPrimeStepOutput {
         x_out,
         x_out_bits,
+        prior_link: None,
         state_in,
         state_out,
         // Base step does not run NIFS.V; no children/running wires.
@@ -689,6 +951,8 @@ pub fn enforce_f_prime_base_step_circuit(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     })
 }
 
@@ -701,10 +965,9 @@ pub fn enforce_f_prime_base_step_circuit(
 ///   - non-empty fresh batch (`inputs.nifs_msg.fresh.len() >= 1`).
 ///   - `inputs.rows_in_chunk >= 1` — the new chunk being deposited
 ///     must be non-empty.
-///   - every fresh `u_i,j` has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and
-///     `x.len() == F_PRIME_PUBLIC_INPUT_LEN`. Public input encodes the
-///     prior `x_out` digest as `DIGEST_LEN * 64` low-norm bits — raw
-///     Goldilocks digest lanes can't be CCS public inputs under `b = 2`.
+///   - every fresh `u_i,j` has the verifier-configured public-input length.
+///     Its fixed prefix encodes the prior `x_out` digest as `DIGEST_LEN *
+///     64` low-norm bits; an optional application suffix follows it.
 ///   - all K fresh public inputs are bound to the **same** prior
 ///     `x_out` source-image bits; the whole batch is treated as one
 ///     SuperNeo chunk rooted at one prior Construction-2 state.
@@ -714,22 +977,35 @@ pub fn enforce_f_prime_recursive_step_circuit(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
+    let recursive_start = builder.rows();
     // ── Strict-mode shape ──────────────────────────────────────────────
     if inputs.nifs_msg.fresh.is_empty() {
         return Err(Error::Inner(
             "strict F' recursive: fresh batch must be non-empty".into(),
         ));
     }
+    validate_nebula_configuration(cfg, &inputs.state, Some(inputs.nifs_msg.fresh.len()))?;
     if inputs.rows_in_chunk == 0 {
         return Err(Error::Inner(
             "strict F' recursive: rows_in_chunk must be \u{2265} 1 (new chunk must be non-empty)".into(),
         ));
     }
+    let next_fresh_len = usize::try_from(inputs.rows_in_chunk)
+        .map_err(|_| Error::Inner("strict F' recursive: rows_in_chunk exceeds platform usize".into()))?;
+    if next_fresh_len > cfg.nifs.pi_ccs.params.max_fresh_count() {
+        return Err(Error::Inner(format!(
+            "strict F' recursive: rows_in_chunk {} exceeds max_fresh_count {}",
+            inputs.rows_in_chunk,
+            cfg.nifs.pi_ccs.params.max_fresh_count()
+        )));
+    }
+    let expected_public_input_len = cfg.public_input_layout.total_len();
     for (idx, fresh) in inputs.nifs_msg.fresh.iter().enumerate() {
-        if fresh.m_in != F_PRIME_PUBLIC_INPUT_LEN || fresh.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+        if fresh.m_in != expected_public_input_len || fresh.x.len() != expected_public_input_len {
             return Err(Error::Inner(format!(
-                "strict F' recursive: fresh[{idx}] public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits], \
+                "strict F' recursive: fresh[{idx}] public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits | {} suffix fields], \
                  got m_in={}, x.len={}",
+                cfg.public_input_layout.suffix_len(),
                 fresh.m_in,
                 fresh.x.len()
             )));
@@ -748,6 +1024,19 @@ pub fn enforce_f_prime_recursive_step_circuit(
 
     let sw = alloc_state_in(builder, &inputs.state);
     let chunk_digest = alloc_4(builder, inputs.chunk_digest);
+    let expected_chunk_digest = enforce_f_prime_chunk_public_digest_circuit(
+        builder,
+        sw.step_count_in,
+        next_fresh_len,
+        D,
+        cfg.nifs.pi_ccs.params.kappa() as usize,
+        cfg.public_input_layout.total_len(),
+    );
+    enforce_digest_eq(builder, &chunk_digest, &expected_chunk_digest);
+    let nebula_lane_in_digest = sw
+        .nebula
+        .as_ref()
+        .map(|lane| enforce_nebula_lane_digest_selected_circuit(builder, lane));
 
     // Allocate source-image bits once for the whole F' step. Each
     // coordinate becomes a bit-constrained witness wire; the public
@@ -755,8 +1044,14 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let source_wires = SourceImageWires::alloc(builder, inputs.source_image);
 
     // Bind u64 counters to source-image words (Step 4).
-    enforce_var_matches_source_word64(builder, &source_wires, inputs.chunk_count_in_word, sw.chunk_count_in);
-    enforce_var_matches_source_word64(builder, &source_wires, inputs.step_count_in_word, sw.step_count_in);
+    let counter_inputs = enforce_f_prime_counter_input_binding(
+        builder,
+        &source_wires,
+        inputs.chunk_count_in_word,
+        inputs.step_count_in_word,
+        sw.chunk_count_in,
+        sw.step_count_in,
+    );
     enforce_var_matches_source_word64(builder, &source_wires, inputs.pc_word, sw.pc);
 
     // In-circuit nonzero gadgets: prove counter · inv == 1. If a malicious
@@ -786,9 +1081,11 @@ pub fn enforce_f_prime_recursive_step_circuit(
     }
 
     // ── NIFS.V composition ──────────────────────────────────────────────
+    builder.record_row_family("fprime.recursive.prelude", recursive_start);
+    let transcript_start = builder.rows();
     let mut transcript = TranscriptGadget::new(builder, cfg.transcript_label);
     transcript.append_fields(builder, b"f_prime/vk_fs", &sw.vk_fs);
-    transcript.append_fields(builder, b"f_prime/structure", &sw.structure);
+    transcript.append_fields(builder, b"f_prime/pi_ccs_header", &sw.pi_ccs_header_bundle);
     transcript.append_fields(builder, b"f_prime/chunk_count_in", &[sw.chunk_count_in]);
     transcript.append_fields(builder, b"f_prime/step_count_in", &[sw.step_count_in]);
     transcript.append_fields(builder, b"f_prime/z_0", &sw.z_0);
@@ -797,10 +1094,24 @@ pub fn enforce_f_prime_recursive_step_circuit(
     transcript.append_fields(builder, b"f_prime/semantic_state_in", &sw.semantic_state_digest_in);
     transcript.append_fields(builder, b"f_prime/acc_digest_in", &sw.acc_digest_in);
     transcript.append_fields(builder, b"f_prime/public_trace_in", &sw.public_trace_in);
+    if let Some(lane_digest) = nebula_lane_in_digest.as_ref() {
+        transcript.append_fields(builder, b"f_prime/nebula_lane_in", lane_digest);
+    }
     transcript.append_fields(builder, b"f_prime/chunk_digest", &chunk_digest);
 
-    let nifs_outputs =
-        enforce_nifs_v_circuit_with_transcript(builder, pp, &cfg.nifs, &mut transcript, &inputs.nifs_msg)?;
+    builder.record_row_family("fprime.recursive.transcript", transcript_start);
+    let nifs_start = builder.rows();
+    let nifs_outputs = enforce_nifs_v_circuit_with_transcript_and_header_bundle(
+        builder,
+        pp,
+        &cfg.nifs,
+        &mut transcript,
+        &inputs.nifs_msg,
+        sw.pi_ccs_header_bundle,
+    )?;
+    builder.record_row_family("fprime.recursive.nifs", nifs_start);
+    let prior_link_start = builder.rows();
+    let prior_link_first_column = builder.cols();
 
     // ── HyperNova recursive link: u_i.public == bits(prior_x_out) ───────
     //
@@ -810,7 +1121,8 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let prior_x_out_inputs = StateXOutDigestInputs {
         mode: cfg.state_x_out_digest_mode,
         vk_fs_digest: sw.vk_fs,
-        structure_digest: sw.structure,
+        pi_ccs_header_bundle: sw.pi_ccs_header_bundle,
+        structure_digest: sw.pi_ccs_header_bundle,
         chunk_count: sw.chunk_count_in,
         step_count: sw.step_count_in,
         initial_boundary: sw.z_0,
@@ -823,7 +1135,10 @@ pub fn enforce_f_prime_recursive_step_circuit(
     if matches!(cfg.state_x_out_digest_mode, StateXOutDigestMode::Stateless) {
         enforce_digest_eq(builder, &sw.semantic_state_digest_in, &sw.acc_digest_in);
     }
-    let prior_x_out = enforce_state_x_out_digest_circuit(builder, &prior_x_out_inputs);
+    let prior_x_out = match nebula_lane_in_digest {
+        None => enforce_state_x_out_digest_circuit(builder, &prior_x_out_inputs),
+        Some(lane_digest) => enforce_state_x_out_digest_with_nebula_circuit(builder, &prior_x_out_inputs, lane_digest),
+    };
 
     if nifs_outputs.fresh_x.is_empty() {
         return Err(Error::Inner("strict F' missing fresh u_i".into()));
@@ -843,11 +1158,12 @@ pub fn enforce_f_prime_recursive_step_circuit(
     //      either side breaks the link.
     let prior_bits = source_wires.range(inputs.prior_x_out_bits);
     enforce_public_bits_encode_digest(builder, prior_bits, &prior_x_out)?;
+    let mut fresh_public_suffixes = Vec::with_capacity(nifs_outputs.fresh_x.len());
     for (idx, fresh_x) in nifs_outputs.fresh_x.iter().enumerate() {
-        if fresh_x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+        if fresh_x.len() != expected_public_input_len {
             return Err(Error::Inner(format!(
-                "strict F' fresh[{idx}] public input length {} != F_PRIME_PUBLIC_INPUT_LEN ({F_PRIME_PUBLIC_INPUT_LEN})",
-                fresh_x.len()
+                "strict F' fresh[{idx}] public input length {} != configured length {expected_public_input_len}",
+                fresh_x.len(),
             )));
         }
         // CCS constant-one slot.
@@ -855,13 +1171,60 @@ pub fn enforce_f_prime_recursive_step_circuit(
             &Lc::from_var(fresh_x[F_PRIME_PUBLIC_ONE_OFFSET]),
             &Lc::from_const(F::ONE),
         );
-        for (fresh_bit, source_bit) in fresh_x[F_PRIME_ENC_INST_OFFSET..]
+        let link_end = F_PRIME_ENC_INST_OFFSET + F_PRIME_ENC_INST_BITS;
+        for (fresh_bit, source_bit) in fresh_x[F_PRIME_ENC_INST_OFFSET..link_end]
             .iter()
             .zip(prior_bits.iter())
         {
             builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*source_bit));
         }
+        fresh_public_suffixes.push(fresh_x[cfg.public_input_layout.suffix_offset()..].to_vec());
     }
+    builder.record_row_family("fprime.recursive.prior_link", prior_link_start);
+    let prior_link = FPrimePriorLinkWires {
+        row_start: prior_link_start,
+        row_end: builder.rows(),
+        first_allocated_column: prior_link_first_column,
+        digest: prior_x_out,
+        encoded_bits: prior_bits.to_vec(),
+        fresh_public_inputs: nifs_outputs.fresh_x.clone(),
+    };
+
+    // Nebula Construction 2 follows the same one-step delay as HyperNova:
+    // this F' invocation consumes the previous fresh claim's public memory
+    // data and split witness commitment while producing the next claim.
+    let nebula_start = builder.rows();
+    let new_nebula_lane = match (cfg.nebula, sw.nebula.as_ref()) {
+        (None, None) => None,
+        (Some(nebula_cfg), Some(lane)) => {
+            let delayed =
+                decode_delayed_nebula_public_suffix_circuit(builder, &fresh_public_suffixes[0], nebula_cfg.stacks)
+                    .map_err(|e| Error::Inner(format!("delayed Nebula suffix: {e}")))?;
+            let adv = nifs_outputs.fresh_adv[0]
+                .as_ref()
+                .ok_or_else(|| Error::Inner("delayed Nebula fresh claim is missing adv".into()))?;
+            let plan_digest = alloc_4_const(builder, nebula_cfg.plan_digest);
+            let context = NebulaOpenContextWires {
+                vk_fs: sw.vk_fs,
+                z_i: sw.z_i_in,
+                acc_digest: sw.acc_digest_in,
+                plan_digest,
+            };
+            let transition = enforce_delayed_nebula_claim_circuit(
+                builder,
+                lane,
+                &delayed,
+                adv,
+                &context,
+                nebula_cfg.steps_per_segment,
+                nebula_cfg.seg_max,
+            )
+            .map_err(|e| Error::Inner(format!("delayed Nebula transition: {e}")))?;
+            Some(transition.lane)
+        }
+        _ => unreachable!("presence checked before allocation"),
+    };
+    builder.record_row_family("fprime.recursive.nebula", nebula_start);
 
     // ── Bind acc_digest_in to digest(running) ──────────────────────────
     //
@@ -876,6 +1239,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
     // binding — see the *same* digest wires, so a tampered `running` is
     // caught either via the absorbed handle (Fiat-Shamir) or via this
     // wire-level equality.
+    let accumulator_start = builder.rows();
     let running_acc_digest = nifs_outputs.running_acc_digest;
     for k in 0..DIGEST_LEN {
         builder.enforce_eq(&Lc::from_var(running_acc_digest[k]), &Lc::from_var(sw.acc_digest_in[k]));
@@ -893,6 +1257,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
+    builder.record_row_family("fprime.recursive.accumulator", accumulator_start);
 
     // Counter advance.
     //
@@ -902,22 +1267,32 @@ pub fn enforce_f_prime_recursive_step_circuit(
     // **not** `inputs.nifs_msg.fresh.len()` — that's the previous batch
     // being folded by NIFS.V at this step. The two only coincide when
     // every step's batch has the same size.
+    let counter_start = builder.rows();
     let rows_in_chunk = inputs.rows_in_chunk;
-    let new_chunk_count_val = inputs.state.chunk_count_in + 1;
-    let new_step_count_val = inputs.state.step_count_in + rows_in_chunk;
-    let new_chunk_count = builder.alloc(F::from_u64(new_chunk_count_val));
-    let new_step_count = builder.alloc(F::from_u64(new_step_count_val));
-    let mut chunk_sum = Lc::from_var(sw.chunk_count_in);
-    chunk_sum.add_constant(F::ONE);
-    builder.enforce_eq(&Lc::from_var(new_chunk_count), &chunk_sum);
-    let mut step_sum = Lc::from_var(sw.step_count_in);
-    step_sum.add_constant(F::from_u64(rows_in_chunk));
-    builder.enforce_eq(&Lc::from_var(new_step_count), &step_sum);
-    let chunk_count_in_bits = source_word_bits(&source_wires, inputs.chunk_count_in_word);
-    let step_count_in_bits = source_word_bits(&source_wires, inputs.step_count_in_word);
-    enforce_counter_increment_no_wrap(builder, &chunk_count_in_bits, new_chunk_count);
-    enforce_counter_add_no_wrap(builder, &step_count_in_bits, rows_in_chunk, new_step_count);
+    let new_chunk_count_val = inputs
+        .state
+        .chunk_count_in
+        .checked_add(1)
+        .ok_or_else(|| Error::Inner("strict F' recursive: chunk_count overflow".into()))?;
+    let new_step_count_val = inputs
+        .state
+        .step_count_in
+        .checked_add(rows_in_chunk)
+        .ok_or_else(|| Error::Inner("strict F' recursive: step_count overflow".into()))?;
+    let counter_outputs = enforce_f_prime_recursive_counter_transition(
+        builder,
+        sw.chunk_count_in,
+        sw.step_count_in,
+        &counter_inputs,
+        rows_in_chunk,
+        new_chunk_count_val,
+        new_step_count_val,
+    );
+    let new_chunk_count = counter_outputs.chunk_count_out;
+    let new_step_count = counter_outputs.step_count_out;
+    builder.record_row_family("fprime.recursive.counter", counter_start);
 
+    let output_start = builder.rows();
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
         cfg.state_x_out_digest_mode,
@@ -927,6 +1302,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
         new_acc_digest,
         new_chunk_count,
         new_step_count,
+        new_nebula_lane.as_ref(),
     );
 
     let expected_bits = source_wires.range(inputs.public_x_out_bits);
@@ -941,16 +1317,22 @@ pub fn enforce_f_prime_recursive_step_circuit(
         new_public_trace,
         new_semantic_state_digest,
         new_acc_digest,
+        new_nebula_lane,
     );
+    builder.record_row_family("fprime.recursive.output", output_start);
+    builder.record_row_family("fprime.recursive.total", recursive_start);
     Ok(FPrimeStepOutput {
         x_out,
         x_out_bits,
+        prior_link: Some(prior_link),
         state_in,
         state_out,
         nifs_running: Some(nifs_outputs.running),
         nifs_running_parent_authority: nifs_outputs.running_parent_authority,
         nifs_parent: Some(nifs_outputs.parent),
         nifs_children: Some(nifs_outputs.children),
+        fresh_public_suffixes,
+        fresh_adv: nifs_outputs.fresh_adv,
     })
 }
 

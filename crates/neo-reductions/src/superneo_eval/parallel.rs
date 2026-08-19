@@ -1,4 +1,4 @@
-use super::{accumulate_by_digit_block, accumulate_pair_by_digit_block, is_all_zero, Rq, F};
+use super::{is_all_zero, Rq, SuperneoZBlocks, F};
 use neo_math::{KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -14,8 +14,7 @@ pub(super) fn eval_active_blocks(
     active_blocks: &[usize],
     agg_re: &[Rq],
     agg_im: &[Rq],
-    z_re: &[Rq],
-    z_nonzero: &[bool],
+    z_blocks: &SuperneoZBlocks,
 ) -> Option<[K; D]> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
@@ -28,21 +27,17 @@ pub(super) fn eval_active_blocks(
                 let mut local_re = [F::ZERO; D];
                 let mut local_im = [F::ZERO; D];
                 for &blk in blocks {
-                    if !z_nonzero[blk] {
+                    if !z_blocks.real_nonzero(blk) {
                         continue;
                     }
                     let re_nonzero = !is_all_zero(&agg_re[blk].0);
                     let im_nonzero = !is_all_zero(&agg_im[blk].0);
                     match (re_nonzero, im_nonzero) {
-                        (true, true) => accumulate_pair_by_digit_block(
-                            &mut local_re,
-                            &mut local_im,
-                            &agg_re[blk],
-                            &agg_im[blk],
-                            &z_re[blk],
-                        ),
-                        (true, false) => accumulate_by_digit_block(&mut local_re, &agg_re[blk], &z_re[blk]),
-                        (false, true) => accumulate_by_digit_block(&mut local_im, &agg_im[blk], &z_re[blk]),
+                        (true, true) => {
+                            z_blocks.accumulate_real_pair(&mut local_re, &mut local_im, &agg_re[blk], &agg_im[blk], blk)
+                        }
+                        (true, false) => z_blocks.accumulate_real(&mut local_re, &agg_re[blk], blk),
+                        (false, true) => z_blocks.accumulate_real(&mut local_im, &agg_im[blk], blk),
                         (false, false) => {}
                     }
                 }
@@ -66,7 +61,7 @@ pub(super) fn eval_active_blocks(
     }
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
-        let _ = (active_blocks, agg_re, agg_im, z_re, z_nonzero);
+        let _ = (active_blocks, agg_re, agg_im, z_blocks);
         None
     }
 }

@@ -1,10 +1,9 @@
 //! Phase 1.1-mini-2 — parent_authority CE digest trace.
 //!
-//! Reuses the production [`poseidon_trace`] module from mini-1 verbatim;
-//! adds a test-local preimage builder mirroring
-//! [`paper::digest::ce_claim_digest`] for the parent_authority claim,
-//! then asserts the decoded digest equals the production reference and
-//! every committed coord is a bit.
+//! Reuses the historical bit-backed [`poseidon_trace`] module from mini-1.
+//! Production CE binding now applies two-level SIS compression before Poseidon2, so
+//! this test checks only the legacy direct-Poseidon trace and explicitly pins
+//! that it is not the production digest.
 //!
 //! Out of scope:
 //! - NIFS circuit rewiring or any change to `nifs/circuit.rs`.
@@ -50,10 +49,9 @@ fn pack_bytes_as_fields(bytes: &[u8]) -> Vec<F> {
     out
 }
 
-/// Build the preimage `paper::digest::ce_claim_digest` would hash for
-/// the given parent_authority CeClaim. Kept here (and not in production)
-/// per Phase 1.1-mini-2 scope: prove the trace module works for this
-/// digest without exposing a new public preimage-builder API yet.
+/// Build the field sequence that production feeds into its SIS binding.
+/// The legacy shell below hashes this sequence directly only to exercise its
+/// retired bit-backed Poseidon trace.
 fn parent_authority_ce_digest_preimage(parent: &CeClaim) -> Vec<F> {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ce_claim_digest/v2");
 
@@ -110,6 +108,7 @@ fn build_parent_authority_fixture() -> CeClaim {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,
@@ -132,12 +131,11 @@ fn phase_1_mini_2_parent_authority_committed_coords_are_bits() {
 }
 
 #[test]
-fn phase_1_mini_2_parent_authority_decoded_digest_matches_ce_claim_digest() {
+fn phase_1_mini_2_parent_authority_legacy_poseidon_trace_is_not_production_digest() {
     let parent = build_parent_authority_fixture();
 
-    // Reference: production `ce_claim_digest`. By construction this is
-    // the digest the Π_CCS verifier will absorb into the Fiat-Shamir
-    // transcript at step 4-5 (see `pi_ccs_split_nc_circuit/verifier.rs`).
+    // Production applies domain-separated two-level SIS compression before the
+    // final Poseidon2 digest.
     let reference = ce_claim_digest(&parent);
 
     let preimage = parent_authority_ce_digest_preimage(&parent);
@@ -148,13 +146,9 @@ fn phase_1_mini_2_parent_authority_decoded_digest_matches_ce_claim_digest() {
         decoded, image.digest_native,
         "decoded digest bits must match the bit-backed builder's reported digest"
     );
-    assert_eq!(
-        image.digest_native, reference,
-        "bit-backed builder's digest must match production ce_claim_digest"
-    );
-    assert_eq!(
+    assert_ne!(
         decoded, reference,
-        "decoded digest must match production ce_claim_digest (transitive parity)"
+        "the retired direct-Poseidon shell must not be mistaken for the production SIS digest"
     );
 }
 

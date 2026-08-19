@@ -1,30 +1,6 @@
-use std::collections::BTreeMap;
-use std::collections::HashSet;
-
 use neo_wasm::layout::SELECTOR_COLS;
-use neo_wasm::{WasmOpcode, WasmVmSpec};
-
-#[test]
-fn constraint_catalog_exposes_per_opcode_rows() {
-    let vm = WasmVmSpec::default();
-    let catalog = vm.constraint_catalog();
-    let i32_add_rows: HashSet<_> = catalog
-        .rows_owned_by_opcode(WasmOpcode::I32Add)
-        .into_iter()
-        .collect();
-    let i64_load_rows: HashSet<_> = catalog
-        .rows_owned_by_opcode(WasmOpcode::I64Load)
-        .into_iter()
-        .collect();
-
-    assert!(!i32_add_rows.is_empty());
-    assert!(!i64_load_rows.is_empty());
-    assert_ne!(
-        i32_add_rows, i64_load_rows,
-        "opcode-owned constraint rows should differ across unrelated opcodes"
-    );
-    assert!(catalog.count_owned_by_opcode(WasmOpcode::CallIndirect) > 0);
-}
+use neo_wasm::{WasmConstraintScope, WasmOpcode, WasmVmSpec};
+use std::collections::BTreeMap;
 
 #[test]
 #[ignore]
@@ -40,6 +16,11 @@ fn dump_constraint_catalog_by_opcode() {
         let tag = &catalog.row_tags[row];
         println!("  row={row} label={}", tag.label);
     }
+    println!();
+
+    let host_event_rows = catalog.host_event_rows();
+    println!("host-event rows: count={}", catalog.count_host_event_rows());
+    print_label_counts(catalog, &host_event_rows, "  ");
     println!();
 
     for opcode in WasmOpcode::supported() {
@@ -59,6 +40,35 @@ fn dump_constraint_catalog_by_opcode() {
             println!("        row={row} label={}", tag.label);
         }
         println!();
+    }
+}
+
+#[test]
+fn host_event_constraints_have_semantic_scope() {
+    let vm = WasmVmSpec::default();
+    let catalog = vm.constraint_catalog();
+    let rows = catalog.host_event_rows();
+
+    assert!(
+        !rows.is_empty(),
+        "host-event constraints must expose semantic ownership"
+    );
+    assert_eq!(rows.len(), catalog.count_host_event_rows());
+    assert!(rows
+        .iter()
+        .all(|&row| catalog.row_tags[row].scope == WasmConstraintScope::HostEvent));
+
+    for label in [
+        "host event interface",
+        "host-event gather binding",
+        "host event buffer write",
+        "host event perm full round",
+        "host event chain update",
+    ] {
+        assert!(
+            rows.iter().any(|&row| catalog.row_tags[row].label == label),
+            "missing HostEvent-tagged constraint family `{label}`"
+        );
     }
 }
 

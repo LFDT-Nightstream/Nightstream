@@ -1,10 +1,11 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
 use super::isa::WasmOpTable;
-use super::layout::{ColumnWidth, COLUMN_SPECS};
+use super::layout::ColumnWidth;
 use super::relation_layout::{
     WasmAuxiliaryRelations, WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec,
 };
+use crate::witness_layout::declared_witness_column_specs;
 use neo_math::F;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField64;
@@ -94,7 +95,7 @@ pub fn append_lookup_semantics_digest(tr: &mut Poseidon2Transcript, semantics: &
 }
 
 pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]) -> Result<(), String> {
-    let expected = crate::range_check::range_checked_witness_width();
+    let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
     if witness.len() != expected {
         return Err(format!(
             "lookup sanity check expected witness width {}, got {}",
@@ -105,13 +106,15 @@ pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]
     // Per-row check that every byte column carries a value in [0, 256). This
     // replaces the old `byte_u8` lookup family — `ColumnWidth::Byte` on the
     // column spec is now the single source of truth for byte-shaped columns.
-    for spec in COLUMN_SPECS.iter().filter(|s| s.width == ColumnWidth::Byte) {
-        let value = witness[spec.index].as_canonical_u64();
-        if value > 0xff {
-            return Err(format!(
-                "column `{}` declared ColumnWidth::Byte but witness value is {value} (> 255)",
-                spec.name
-            ));
+    for spec in declared_witness_column_specs().filter(|s| s.width == ColumnWidth::Byte) {
+        for column in spec.start..spec.end() {
+            let value = witness[column].as_canonical_u64();
+            if value > 0xff {
+                return Err(format!(
+                    "column `{}` declared ColumnWidth::Byte but witness value is {value} (> 255)",
+                    spec.name
+                ));
+            }
         }
     }
     let families = auxiliary

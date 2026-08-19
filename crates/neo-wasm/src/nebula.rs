@@ -1,0 +1,751 @@
+//! Authoritative WASM proof path over the Nebula + terminal-induction backend.
+
+use std::collections::BTreeMap;
+
+#[cfg(feature = "perf-timers")]
+use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
+use neo_fold_clean::frontends::nebula::application::{
+    ApplicationError, MemoryPortLayout, MemoryRegion, MemoryRegionKind, NebulaApplication,
+};
+use neo_fold_clean::frontends::nebula::f_prime::{
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreprocessing,
+};
+use neo_fold_clean::frontends::nebula::layout::NebulaParams;
+use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
+use neo_fold_clean::frontends::nebula::trace::Memory;
+use neo_fold_clean::lifecycle::{verify_uncompressed, Uncompressed};
+use neo_fold_clean::paper::params::Params;
+use thiserror::Error;
+
+use crate::adapters::wasmtime::WasmProgramArtifacts;
+use crate::batch::padding_step_after;
+use crate::comm_chain::CommChainState;
+use crate::host_event_bindings::HostEventBindings;
+use crate::ir::{WasmStepState, WasmVmStep};
+use crate::lookup_circuit::{extend_witness, LookupCircuitError};
+use crate::memory_routing::{build_batched_memory_slots, build_single_step_memory_slots};
+use crate::memory_semantics::preload_host_event_tables;
+use crate::preprocess::{
+    canonical_wasm_nebula_shape_batched_with_initial_state_digest, host_event_top_level_initial_state_digest,
+    semantic_state_digest, WasmPreprocessError,
+};
+use crate::relation_layout::build_wasm_relation_layout;
+use crate::witness_builder::build_witness_vector;
+use crate::{preload_from_program_artifacts, WasmMemoryId, WasmOpcode};
+
+const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
+const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
+// Largest fixed instruction batch that keeps the production relation below
+// the 16M committed-coordinate gate.
+const WASM_NEBULA_BATCH_SIZE: usize = 3;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WasmNebulaLimits {
+    stack_cells: u64,
+    call_stack_cells: u64,
+    local_frames: u64,
+    locals_per_frame: u64,
+    linear_memory_words: u64,
+    globals: u64,
+    tables: u64,
+    table_elements: u64,
+}
+
+impl WasmNebulaLimits {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        stack_cells: u64,
+        call_stack_cells: u64,
+        local_frames: u64,
+        locals_per_frame: u64,
+        linear_memory_words: u64,
+        globals: u64,
+        tables: u64,
+        table_elements: u64,
+    ) -> Result<Self, WasmNebulaError> {
+        let out = Self {
+            stack_cells,
+            call_stack_cells,
+            local_frames,
+            locals_per_frame,
+            linear_memory_words,
+            globals,
+            tables,
+            table_elements,
+        };
+        for (name, value) in out.named_values() {
+            if value < 2 || !value.is_power_of_two() {
+                return Err(WasmNebulaError::NonPowerOfTwoLimit { name, value });
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn production() -> Self {
+        Self::new(4096, 256, 256, 16, 32768, 64, 8, 256).expect("production WASM Nebula limits")
+    }
+
+    #[doc(hidden)]
+    pub fn test_profile() -> Self {
+        Self::new(16, 8, 8, 4, 64, 4, 2, 4).expect("test WASM Nebula limits")
+    }
+
+    fn named_values(self) -> [(&'static str, u64); 8] {
+        [
+            ("stack_cells", self.stack_cells),
+            ("call_stack_cells", self.call_stack_cells),
+            ("local_frames", self.local_frames),
+            ("locals_per_frame", self.locals_per_frame),
+            ("linear_memory_words", self.linear_memory_words),
+            ("globals", self.globals),
+            ("tables", self.tables),
+            ("table_elements", self.table_elements),
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WasmNebulaProfile {
+    memory: NebulaParams,
+    limits: WasmNebulaLimits,
+    batch_size: usize,
+}
+
+impl WasmNebulaProfile {
+    pub fn production() -> Self {
+        let memory = batched_memory_geometry(NebulaParams::v3_targets(), WASM_NEBULA_BATCH_SIZE);
+        Self {
+            memory,
+            limits: WasmNebulaLimits::production(),
+            batch_size: WASM_NEBULA_BATCH_SIZE,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn test_profile() -> Self {
+        let memory = NebulaParams::new(10, 10, 64, 1024, 16).expect("test WASM Nebula geometry");
+        Self::test_profile_with_geometry(memory)
+    }
+
+    /// Test profile over a caller-chosen memory geometry, for fixtures whose
+    /// ROM plan (pc space, host-event tables) outgrows the default `r = 10`.
+    #[doc(hidden)]
+    pub fn test_profile_with_geometry(memory: NebulaParams) -> Self {
+        Self {
+            memory: batched_memory_geometry(memory, WASM_NEBULA_BATCH_SIZE),
+            limits: WasmNebulaLimits::test_profile(),
+            batch_size: WASM_NEBULA_BATCH_SIZE,
+        }
+    }
+
+    pub fn memory(&self) -> &NebulaParams {
+        &self.memory
+    }
+
+    pub fn limits(&self) -> WasmNebulaLimits {
+        self.limits
+    }
+
+    pub fn batch_size(&self) -> usize {
+        self.batch_size
+    }
+}
+
+fn batched_memory_geometry(memory: NebulaParams, batch_size: usize) -> NebulaParams {
+    let step_slots = build_single_step_memory_slots(build_wasm_relation_layout()).len();
+    NebulaParams::new(
+        memory.r,
+        memory.mu,
+        step_slots * batch_size,
+        memory.b_scan,
+        memory.seg_max,
+    )
+    .expect("batched WASM Nebula memory geometry")
+}
+
+pub struct WasmNebulaPreprocessing {
+    inner: NebulaFPrimePreprocessing,
+    profile: WasmNebulaProfile,
+    lookup_auxiliary_columns_per_instruction: usize,
+    lookup_auxiliary_columns_total: usize,
+    has_linear_memory: bool,
+    // Event-bound preprocessing binds host calls through the event chain,
+    // so `prove` accepts host-call rows instead of rejecting them.
+    allows_host_calls: bool,
+}
+
+impl WasmNebulaPreprocessing {
+    pub fn inner(&self) -> &NebulaFPrimePreprocessing {
+        &self.inner
+    }
+
+    pub fn profile(&self) -> WasmNebulaProfile {
+        self.profile
+    }
+
+    #[doc(hidden)]
+    pub fn lookup_auxiliary_columns_per_instruction(&self) -> usize {
+        self.lookup_auxiliary_columns_per_instruction
+    }
+
+    #[doc(hidden)]
+    pub fn total_lookup_auxiliary_columns(&self) -> usize {
+        self.lookup_auxiliary_columns_total
+    }
+}
+
+pub struct WasmNebulaProof {
+    proof: Uncompressed,
+}
+
+impl WasmNebulaProof {
+    pub fn inner(&self) -> &Uncompressed {
+        &self.proof
+    }
+}
+
+pub fn preprocess(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    preprocess_inner(params, profile, artifacts, entry_pc, None, None, PreprocessMode::Normal)
+}
+
+#[doc(hidden)]
+pub fn preprocess_seeded(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        entry_pc,
+        None,
+        Some(seed),
+        PreprocessMode::Normal,
+    )
+}
+
+/// Builds a structurally faithful tiny fixture without claiming that its
+/// reduced linear-memory domain implements full WASM page capacity.
+#[doc(hidden)]
+pub fn preprocess_seeded_reduced_memory_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    reject_host_imports(artifacts)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        entry_pc,
+        None,
+        Some(seed),
+        PreprocessMode::Normal,
+    )
+}
+
+/// Host-event preprocessing with an explicit initial commitment state.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn preprocess_seeded_host_events_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    bindings: &HostEventBindings,
+    export_fref: u32,
+    seed: u64,
+    initial_comm_chain: CommChainState,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_host_event_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        entry_pc,
+        Some((bindings, export_fref, initial_comm_chain)),
+        Some(seed),
+        PreprocessMode::Normal,
+    )
+}
+
+#[cfg(feature = "perf-timers")]
+#[doc(hidden)]
+pub fn preprocess_seeded_unbounded_profile(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        entry_pc,
+        None,
+        Some(seed),
+        PreprocessMode::UnboundedProfile,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum PreprocessMode {
+    Normal,
+    #[cfg(feature = "perf-timers")]
+    UnboundedProfile,
+}
+
+fn preprocess_inner(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    bindings: Option<(&HostEventBindings, u32, CommChainState)>,
+    seed: Option<u64>,
+    mode: PreprocessMode,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    let allows_host_calls = bindings.is_some();
+    // Import-free preprocessing uses the canonical single-shot bindings, so
+    // the ROM image and the initial anchor match what the normalizer emits
+    // for plain traces.
+    let import_free_bindings;
+    let (bindings, export_fref, initial_comm_chain) = match bindings {
+        Some((bindings, export_fref, initial_comm_chain)) => (bindings, export_fref, initial_comm_chain),
+        None => {
+            let export_fref = crate::preprocess::export_fref_for_entry_pc(&artifacts.tables, entry_pc);
+            import_free_bindings = HostEventBindings::import_free(export_fref);
+            (&import_free_bindings, export_fref, CommChainState::default())
+        }
+    };
+    let initial_state = host_event_top_level_initial_state_digest(
+        &artifacts.tables,
+        entry_pc,
+        bindings,
+        export_fref,
+        initial_comm_chain,
+    )?;
+    let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
+    let backend = build_memory_backend(artifacts, Some(bindings), &profile, canonical.single_step_columns)?;
+    let plan = NebulaPlan::new_with_initial_ram(
+        profile.memory,
+        backend.rom_image,
+        backend.ram_image,
+        WASM_NEBULA_PLAN_SEED,
+        params.kappa() as usize,
+    )?;
+    let lookup_auxiliary_columns_per_instruction = canonical.lookup_auxiliary_columns_per_instruction;
+    let lookup_auxiliary_columns_total = canonical.lookup_auxiliary_columns_total;
+    let application = NebulaApplication::new(canonical.sparse_r1cs, canonical.plan, backend.layout)?;
+    let inner = match mode {
+        PreprocessMode::Normal => match seed {
+            Some(seed) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
+            None => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
+        },
+        #[cfg(feature = "perf-timers")]
+        PreprocessMode::UnboundedProfile => {
+            NebulaFPrimePreprocessing::new_seeded_with_application_unbounded_for_profile(
+                params,
+                plan,
+                application,
+                seed.expect("unbounded profiler requires a deterministic setup seed"),
+            )?
+        }
+    };
+    Ok(WasmNebulaPreprocessing {
+        inner,
+        profile,
+        lookup_auxiliary_columns_per_instruction,
+        lookup_auxiliary_columns_total,
+        has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
+        allows_host_calls,
+    })
+}
+
+#[cfg(feature = "perf-timers")]
+#[doc(hidden)]
+pub fn build_application_segment_for_profile(
+    prep: &WasmNebulaPreprocessing,
+    trace: &[WasmVmStep],
+) -> Result<ApplicationSegmentTrace, WasmNebulaError> {
+    if trace.is_empty() {
+        return Err(WasmNebulaError::EmptyTrace);
+    }
+    reject_host_trace(trace)?;
+    let plan = prep.inner.plan();
+    let application = prep
+        .inner
+        .relation()
+        .application()
+        .ok_or(WasmNebulaError::MissingApplication)?;
+    let rows_per_segment = plan.params().steps_per_segment() * prep.profile.batch_size;
+    let mut rows = trace[..trace.len().min(rows_per_segment)].to_vec();
+    while rows.len() < rows_per_segment {
+        let previous = rows.last().expect("profile segment starts nonempty");
+        rows.push(padding_step_after(previous));
+    }
+    let assignments = rows
+        .chunks_exact(prep.profile.batch_size)
+        .map(compact_batched_assignment)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut memory = Memory::new_with_initial_ram(*plan.params(), plan.rom_image(), plan.ram_image())?;
+    Ok(application.trace_segment(&mut memory, assignments)?)
+}
+
+pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<WasmNebulaProof, WasmNebulaError> {
+    if trace.is_empty() {
+        return Err(WasmNebulaError::EmptyTrace);
+    }
+    if !trace.last().expect("nonempty").state_after.halted {
+        return Err(WasmNebulaError::NonTerminalTrace);
+    }
+    if !prep.allows_host_calls {
+        reject_host_trace(trace)?;
+    }
+
+    let plan = prep.inner.plan();
+    let mut memory = Memory::new_with_initial_ram(*plan.params(), plan.rom_image(), plan.ram_image())?;
+    let application = prep
+        .inner
+        .relation()
+        .application()
+        .ok_or(WasmNebulaError::MissingApplication)?;
+    let steps_per_segment = plan.params().steps_per_segment();
+    let rows_per_segment = steps_per_segment * prep.profile.batch_size;
+    let mut chain = NebulaFPrimeChainBuilder::new(&prep.inner);
+    for chunk in trace.chunks(rows_per_segment) {
+        let mut rows = chunk.to_vec();
+        while rows.len() < rows_per_segment {
+            let previous = rows.last().expect("each trace chunk is nonempty");
+            rows.push(padding_step_after(previous));
+        }
+        let assignments = rows
+            .chunks_exact(prep.profile.batch_size)
+            .map(compact_batched_assignment)
+            .collect::<Result<Vec<_>, _>>()?;
+        debug_assert_eq!(assignments.len(), steps_per_segment);
+        let segment = application.trace_segment(&mut memory, assignments)?;
+        chain.append_application_segment(&segment)?;
+    }
+    Ok(WasmNebulaProof { proof: chain.finish()? })
+}
+
+fn compact_batched_assignment(rows: &[WasmVmStep]) -> Result<Vec<neo_math::F>, LookupCircuitError> {
+    let mut assignment = Vec::new();
+    for row in rows {
+        assignment.extend(extend_witness(build_witness_vector(row))?);
+    }
+    Ok(assignment)
+}
+
+pub fn verify(
+    prep: &WasmNebulaPreprocessing,
+    proof: &WasmNebulaProof,
+    claimed_final_state: WasmStepState,
+) -> Result<(), WasmNebulaError> {
+    if !claimed_final_state.halted {
+        return Err(WasmNebulaError::FalseTerminalClaim);
+    }
+    let pages_present = claimed_final_state.memory_pages.is_some();
+    let max_present = claimed_final_state.max_memory_pages.is_some();
+    if pages_present != prep.has_linear_memory || max_present != prep.has_linear_memory {
+        return Err(WasmNebulaError::MemoryPresenceMismatch {
+            expected: prep.has_linear_memory,
+            pages_present,
+            max_present,
+        });
+    }
+    verify_uncompressed(&prep.inner.prep, &proof.proof)?;
+    if proof.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {
+        return Err(WasmNebulaError::FinalStateMismatch);
+    }
+    Ok(())
+}
+
+struct MemoryBackend {
+    layout: MemoryPortLayout,
+    rom_image: Vec<u32>,
+    ram_image: Vec<u32>,
+}
+
+fn build_memory_backend(
+    artifacts: &WasmProgramArtifacts,
+    bindings: Option<&HostEventBindings>,
+    profile: &WasmNebulaProfile,
+    single_step_columns: usize,
+) -> Result<MemoryBackend, WasmNebulaError> {
+    let relation = build_wasm_relation_layout();
+    let mut preload = preload_from_program_artifacts(artifacts);
+    if let Some(bindings) = bindings {
+        preload_host_event_tables(&mut preload, bindings);
+    }
+    let entries = preload.entries();
+    let mut by_memory: BTreeMap<WasmMemoryId, Vec<(Vec<u32>, u32)>> = BTreeMap::new();
+    for (memory, address, value) in &entries {
+        by_memory
+            .entry(*memory)
+            .or_default()
+            .push((address.clone(), *value));
+    }
+
+    let mut regions = Vec::with_capacity(relation.auxiliary.memories.len());
+    let mut region_by_id = BTreeMap::new();
+    let mut rom_cursor = 0u64;
+    let mut ram_cursor = 0u64;
+    for memory in &relation.auxiliary.memories {
+        let kind = if memory.id.is_rom() {
+            MemoryRegionKind::Rom
+        } else {
+            MemoryRegionKind::Ram
+        };
+        let component_bits = if memory.id.is_rom() {
+            rom_component_bits(
+                memory.id,
+                memory.columns[0].address_columns.len(),
+                by_memory.get(&memory.id),
+            )?
+        } else {
+            ram_component_bits(memory.id, profile.limits)?
+        };
+        let base = match kind {
+            MemoryRegionKind::Rom => rom_cursor,
+            MemoryRegionKind::Ram => ram_cursor,
+        };
+        let region = MemoryRegion::new(memory.id.name(), kind, base, component_bits)?;
+        match kind {
+            MemoryRegionKind::Rom => rom_cursor += region.cells(),
+            MemoryRegionKind::Ram => ram_cursor += region.cells(),
+        }
+        region_by_id.insert(memory.id, regions.len());
+        regions.push(region);
+    }
+    if rom_cursor > profile.memory.rom_cells() || ram_cursor > profile.memory.ram_cells() {
+        return Err(WasmNebulaError::MemoryPlanTooLarge {
+            rom: rom_cursor,
+            rom_capacity: profile.memory.rom_cells(),
+            ram: ram_cursor,
+            ram_capacity: profile.memory.ram_cells(),
+        });
+    }
+
+    let mut rom_image = vec![0; profile.memory.rom_cells() as usize];
+    let mut ram_image = vec![0; profile.memory.ram_cells() as usize];
+    for (memory, address, value) in entries {
+        let region = &regions[*region_by_id
+            .get(&memory)
+            .ok_or_else(|| WasmNebulaError::UnknownMemory(memory.to_string()))?];
+        let components = address
+            .iter()
+            .map(|&value| u64::from(value))
+            .collect::<Vec<_>>();
+        let physical = region.address(&components)? as usize;
+        match region.kind() {
+            MemoryRegionKind::Rom => rom_image[physical] = value,
+            MemoryRegionKind::Ram => ram_image[physical] = value,
+        }
+    }
+
+    let slots = build_batched_memory_slots(relation, profile.batch_size, single_step_columns);
+    Ok(MemoryBackend {
+        layout: MemoryPortLayout::new(regions, slots)?,
+        rom_image,
+        ram_image,
+    })
+}
+
+fn rom_component_bits(
+    memory: WasmMemoryId,
+    arity: usize,
+    entries: Option<&Vec<(Vec<u32>, u32)>>,
+) -> Result<Vec<u8>, WasmNebulaError> {
+    let mut maxima = vec![1u64; arity];
+    for (address, _) in entries.into_iter().flatten() {
+        if address.len() != arity {
+            return Err(WasmNebulaError::MemoryAddressArity {
+                memory: memory.to_string(),
+                expected: arity,
+                actual: address.len(),
+            });
+        }
+        for (index, &value) in address.iter().enumerate() {
+            maxima[index] = maxima[index].max(u64::from(value) + 1);
+        }
+    }
+    Ok(maxima.into_iter().map(bits_for_bound).collect())
+}
+
+fn ram_component_bits(memory: WasmMemoryId, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
+    let dimensions = match memory {
+        WasmMemoryId::Stack => vec![limits.stack_cells],
+        WasmMemoryId::CallStackReturnPc | WasmMemoryId::CallStackCallerFbp | WasmMemoryId::CallStackCallerSpBase => {
+            vec![limits.call_stack_cells]
+        }
+        WasmMemoryId::LinearMemory => vec![limits.linear_memory_words],
+        WasmMemoryId::LocalLo | WasmMemoryId::LocalHi => vec![limits.local_frames, limits.locals_per_frame],
+        WasmMemoryId::GlobalLo | WasmMemoryId::GlobalHi => vec![limits.globals],
+        WasmMemoryId::TableElement => vec![limits.tables, limits.table_elements],
+        WasmMemoryId::TableSize => vec![limits.tables],
+        other => return Err(WasmNebulaError::UnknownMemory(other.to_string())),
+    };
+    Ok(dimensions.into_iter().map(bits_for_bound).collect())
+}
+
+fn bits_for_bound(bound: u64) -> u8 {
+    let rounded = bound.max(2).next_power_of_two();
+    rounded.ilog2() as u8
+}
+
+fn reject_imported_state(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebulaError> {
+    if artifacts.tables.has_imported_memory || artifacts.tables.imported_global_count != 0 {
+        return Err(WasmNebulaError::ImportedStateUnsupported);
+    }
+    Ok(())
+}
+
+fn reject_host_imports(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebulaError> {
+    reject_imported_state(artifacts)?;
+    if artifacts
+        .tables
+        .function_call_metadata
+        .iter()
+        .any(|&(_, metadata)| !crate::ir::function_call_metadata_is_guest(metadata))
+    {
+        return Err(WasmNebulaError::HostImportsUnsupported);
+    }
+    Ok(())
+}
+
+/// Event templates bind host FUNCTION calls through the event chain; imported
+/// memories and globals are still verifier-unbound state, and the declared
+/// linear-memory limits apply regardless.
+fn validate_host_event_program(
+    artifacts: &WasmProgramArtifacts,
+    limits: WasmNebulaLimits,
+) -> Result<(), WasmNebulaError> {
+    reject_imported_state(artifacts)?;
+    validate_linear_memory_limits(artifacts, limits)
+}
+
+fn validate_sound_program(artifacts: &WasmProgramArtifacts, limits: WasmNebulaLimits) -> Result<(), WasmNebulaError> {
+    reject_host_imports(artifacts)?;
+    validate_linear_memory_limits(artifacts, limits)
+}
+
+fn validate_linear_memory_limits(
+    artifacts: &WasmProgramArtifacts,
+    limits: WasmNebulaLimits,
+) -> Result<(), WasmNebulaError> {
+    let Some(initial_pages) = artifacts.tables.initial_memory_pages else {
+        return Ok(());
+    };
+    let max_pages = artifacts
+        .tables
+        .max_memory_pages
+        .expect("parsed linear memory always carries a maximum");
+    let capacity_pages = limits.linear_memory_words / WASM32_PAGE_WORDS;
+    if u64::from(initial_pages) > capacity_pages || u64::from(max_pages) > capacity_pages {
+        return Err(WasmNebulaError::DeclaredLinearMemoryTooLarge {
+            initial_pages,
+            max_pages,
+            capacity_pages,
+        });
+    }
+    Ok(())
+}
+
+fn reject_host_trace(trace: &[WasmVmStep]) -> Result<(), WasmNebulaError> {
+    // Import-free preprocessing anchors the canonical single-shot bindings:
+    // nothing absorbed, no re-entry. Any host-call, gather, or turn row means
+    // the trace was normalized against richer bindings than this prep.
+    let has_host_row = trace.iter().any(|row| {
+        (matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+            && row.function_ref.is_some()
+            && !row.target_function_is_guest)
+            || row.row_kind.is_host_event_gather()
+            || row.row_kind.is_turn_boundary()
+    });
+    if has_host_row {
+        return Err(WasmNebulaError::HostImportsUnsupported);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Error)]
+pub enum WasmNebulaError {
+    #[error(transparent)]
+    WasmBuild(#[from] crate::ir::WasmBuildError),
+    #[error(transparent)]
+    LookupCircuit(#[from] LookupCircuitError),
+    #[error(transparent)]
+    Preprocess(#[from] WasmPreprocessError),
+    #[error(transparent)]
+    Plan(#[from] PlanError),
+    #[error(transparent)]
+    Application(#[from] ApplicationError),
+    #[error(transparent)]
+    Chain(#[from] NebulaFPrimeChainError),
+    #[error(transparent)]
+    Lifecycle(#[from] neo_fold_clean::lifecycle::Error),
+    #[error(transparent)]
+    Trace(#[from] neo_fold_clean::frontends::nebula::trace::TraceError),
+    #[error("WASM Nebula limit `{name}` must be a power of two >= 2, got {value}")]
+    NonPowerOfTwoLimit { name: &'static str, value: u64 },
+    #[error("WASM memory plan needs ROM {rom}/{rom_capacity} and RAM {ram}/{ram_capacity} cells")]
+    MemoryPlanTooLarge {
+        rom: u64,
+        rom_capacity: u64,
+        ram: u64,
+        ram_capacity: u64,
+    },
+    #[error("WASM memory plan has no resource rule for `{0}`")]
+    UnknownMemory(String),
+    #[error("WASM memory `{memory}` expects {expected} address components, preload has {actual}")]
+    MemoryAddressArity {
+        memory: String,
+        expected: usize,
+        actual: usize,
+    },
+    #[error("imported host functions are unsupported without host-event templates binding their calls")]
+    HostImportsUnsupported,
+    #[error("imported memories and globals are unsupported until their state is verifier-bound")]
+    ImportedStateUnsupported,
+    #[error(
+        "declared linear memory ({initial_pages} initial, {max_pages} maximum pages) exceeds the dense proof domain ({capacity_pages} pages)"
+    )]
+    DeclaredLinearMemoryTooLarge {
+        initial_pages: u32,
+        max_pages: u32,
+        capacity_pages: u64,
+    },
+    #[error("cannot prove an empty WASM trace")]
+    EmptyTrace,
+    #[error("WASM trace does not end in a terminal state")]
+    NonTerminalTrace,
+    #[error("WASM terminal verifier requires halted = true")]
+    FalseTerminalClaim,
+    #[error(
+        "WASM terminal memory presence does not match the program (expected={expected}, pages_present={pages_present}, max_present={max_present})"
+    )]
+    MemoryPresenceMismatch {
+        expected: bool,
+        pages_present: bool,
+        max_present: bool,
+    },
+    #[error("WASM proof final semantic state does not match the claimed state")]
+    FinalStateMismatch,
+    #[error("WASM Nebula preprocessing is missing its application relation")]
+    MissingApplication,
+}

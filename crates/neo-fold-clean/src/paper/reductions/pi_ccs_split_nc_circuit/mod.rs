@@ -7,7 +7,7 @@
 //! neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_perf
 //!   → optimized_verify_with_cache_and_public_instance_digest_impl
 //!       → bind_header_and_instance_digest_with_digest    (instance-digest variant)
-//!       → bind_me_inputs_accumulator_handle               (full-running U_i handle)
+//!       → bind_me_inputs_accumulator_handle               (verified-parent U_i handle)
 //!       → sample_challenges  → sample_beta_m
 //!       → FE sumcheck (verify_sumcheck_rounds_poseidon_v3) → FE terminal identity
 //!       → NC sumcheck (verify_sumcheck_rounds_poseidon_v3) → NC terminal identity
@@ -79,13 +79,13 @@ pub use nc::{
     NcTerminalInputs,
 };
 pub use transcript::{
-    absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
-    enforce_header_digest_catch_up, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
-    EngineChallenges,
+    absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
+    absorb_engine_me_inputs_accumulator_handle, enforce_header_digest_catch_up, enforce_header_digest_catch_up_wires,
+    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, EngineChallenges,
 };
 pub use verifier::{
-    enforce_split_nc_pi_ccs_v, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVDerived,
-    SplitNcPiCcsVMessages,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
+    SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages, SplitNcVerifierRelation,
 };
 
 /// Errors emitted by the SplitNcV1 in-circuit verifier and its building-block

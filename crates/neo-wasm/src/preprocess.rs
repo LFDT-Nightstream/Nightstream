@@ -14,14 +14,21 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
-use crate::ir::{WasmCountdownState, WasmOutputState, WasmStepState};
+use crate::comm_chain::CommChainState;
+use crate::ir::{
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventState, WasmOutputState, WasmStepState,
+};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
+    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
+    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
+    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
+use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
@@ -57,6 +64,8 @@ pub enum WasmPreprocessError {
     R1csFPrime(#[from] neo_fold_clean::frontends::r1cs_f_prime::Error),
     #[error(transparent)]
     Batch(#[from] BatchError),
+    #[error(transparent)]
+    Lookup(#[from] LookupCircuitError),
 }
 
 /// Canonical structural inputs for the wasm R1CS-F' frontend.
@@ -68,6 +77,14 @@ pub struct WasmCanonicalFPrimeShape {
     pub sparse_r1cs: SparseR1cs,
     pub plan: RecursiveStepImagePlan,
     pub structure: FPrimeStructure,
+}
+
+pub(crate) struct WasmNebulaCanonicalShape {
+    pub(crate) sparse_r1cs: SparseR1cs,
+    pub(crate) plan: RecursiveStepImagePlan,
+    pub(crate) lookup_auxiliary_columns_per_instruction: usize,
+    pub(crate) lookup_auxiliary_columns_total: usize,
+    pub(crate) single_step_columns: usize,
 }
 
 pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
@@ -88,6 +105,32 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
         sparse_r1cs,
         plan,
         structure,
+    })
+}
+
+pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
+    batch_size: usize,
+    initial_semantic_state_digest: [u8; 32],
+) -> Result<WasmNebulaCanonicalShape, WasmPreprocessError> {
+    let mut single = batch::build_batched_wasm_ccs(1)?;
+    single.sparse_r1cs.m_in = 1;
+    let compact = extend_relation(&single.sparse_r1cs, single.widths)?;
+    let single_step_columns = compact.relation.m;
+    let lookup_auxiliary_columns_per_instruction = compact.auxiliary_column_count;
+    let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
+    let (plan, _) = wasm_recursive_plan_and_structure(
+        &batched.sparse_r1cs,
+        &batched.widths,
+        batch_size,
+        batched.sparse_r1cs.m_in,
+        initial_semantic_state_digest,
+    );
+    Ok(WasmNebulaCanonicalShape {
+        sparse_r1cs: batched.sparse_r1cs,
+        plan,
+        lookup_auxiliary_columns_per_instruction,
+        lookup_auxiliary_columns_total: lookup_auxiliary_columns_per_instruction * batch_size,
+        single_step_columns,
     })
 }
 
@@ -117,35 +160,42 @@ pub fn preprocess_seeded_batched(
     )?)
 }
 
-/// Top-level VM state before executing an exported wasm function.
+/// Top-level VM state before executing an exported wasm function of an
+/// import-free program: [`host_event_top_level_initial_state`] specialized to
+/// the canonical import-free bindings (empty boundary template for the
+/// invoked export, zero commitment chain).
 ///
-/// The entry PC is an explicit verifier claim: callers should resolve it from
-/// the export they intend to prove. The remaining state is the canonical empty
-/// top-level call boundary plus the module's static initial memory page count.
+/// The entry PC is an explicit verifier input: callers should resolve it from
+/// the export they intend to prove.
 pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
-    WasmStepState {
-        pc: entry_pc,
-        sp: 0,
-        output: WasmOutputState::ZERO,
-        call_stack_depth: 0,
-        memory_pages: tables.initial_memory_pages,
-        max_memory_pages: tables.max_memory_pages,
-        locals_fbp: 0,
-        halted: false,
-        trapped: false,
-        param_init: WasmCountdownState::ZERO,
-        host_args: WasmCountdownState::ZERO,
-        host_result_pending: false,
-    }
+    let export_fref = export_fref_for_entry_pc(tables, entry_pc);
+    host_event_top_level_initial_state(
+        tables,
+        entry_pc,
+        &crate::host_event_bindings::HostEventBindings::import_free(export_fref),
+        export_fref,
+        CommChainState::default(),
+    )
+    .expect("canonical import-free bindings contain the selected export")
+}
+
+/// The function ref whose body starts at `entry_pc`; the verifier-side
+/// counterpart of the normalizer reading the entered export off the trace.
+pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64) -> u32 {
+    tables
+        .function_entries
+        .iter()
+        .find(|&&(_, pc)| pc == entry_pc)
+        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
+        .unwrap_or_else(|| panic!("entry pc {entry_pc} is not a function entry"))
 }
 
 /// Hash a carried VM state into the IVC semantic-state digest: the
 /// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
 /// and the final-state claim checked by [`crate::verify`].
 ///
-/// Note `halted` is not a carried field — it is not part of the digest. A
-/// final state with `output.enabled = true` provably halted (output capture
-/// is CCS-gated on the halting row).
+/// `halted` is carried explicitly, so the terminal claim cannot be changed
+/// independently of the folded semantic-state digest.
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
     let fields = layout
@@ -158,15 +208,104 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
+/// Host-event initial state: seeds the commitment chain and loads the invoked
+/// export's entry schedule. Event values remain
+/// bound by the final commitment rather than this per-program anchor.
+pub fn host_event_top_level_initial_state(
+    tables: &WasmProgramTables,
+    entry_pc: u64,
+    bindings: &crate::host_event_bindings::HostEventBindings,
+    export_fref: u32,
+    initial_comm_chain: CommChainState,
+) -> Result<WasmStepState, WasmBuildError> {
+    bindings.validate_against_program(tables)?;
+    let entry_fref = tables
+        .function_entries
+        .iter()
+        .find(|&&(_, pc)| pc == entry_pc)
+        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
+        .ok_or_else(|| WasmBuildError::Trace(format!("entry pc {entry_pc} is not a function entry")))?;
+    if entry_fref != export_fref {
+        return Err(WasmBuildError::Trace(format!(
+            "export fref {export_fref} enters at a different pc than selected entry pc {entry_pc} (which belongs to fref {entry_fref})"
+        )));
+    }
+    let template = bindings.exports.get(&export_fref).ok_or_else(|| {
+        WasmBuildError::Trace(format!(
+            "host-event bindings have no export template for selected export fref {export_fref}"
+        ))
+    })?;
+    let mut state = WasmStepState {
+        pc: entry_pc,
+        sp: 0,
+        stack_frame_base: 0,
+        output: WasmOutputState::ZERO,
+        call_stack_depth: 0,
+        memory_pages: tables.initial_memory_pages,
+        max_memory_pages: tables.max_memory_pages,
+        locals_fbp: 0,
+        halted: false,
+        trapped: false,
+        param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
+        host_callee_fref: 0,
+        comm_chain: initial_comm_chain.canonical_u64(),
+        event_absorb: WasmEventAbsorbState::ZERO,
+        host_events: WasmHostEventState::ZERO,
+    };
+    state.host_callee_fref = export_fref;
+    state.host_events.turn_export_fref = export_fref;
+    state.host_events.events_remaining = template.entry.len() as u32;
+    Ok(state)
+}
+
 /// Convenience wrapper for the common top-level export-entry boundary.
 pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
     semantic_state_digest(top_level_initial_state(tables, entry_pc))
 }
 
+/// [`top_level_initial_state_digest`] for an event-bound program.
+pub fn host_event_top_level_initial_state_digest(
+    tables: &WasmProgramTables,
+    entry_pc: u64,
+    bindings: &crate::host_event_bindings::HostEventBindings,
+    export_fref: u32,
+    initial_comm_chain: CommChainState,
+) -> Result<[u8; 32], WasmBuildError> {
+    Ok(semantic_state_digest(host_event_top_level_initial_state(
+        tables,
+        entry_pc,
+        bindings,
+        export_fref,
+        initial_comm_chain,
+    )?))
+}
+
 fn carried_state_field(state: WasmStepState, column: Column) -> F {
+    if let Some(limb) = COL_COMM_CHAIN_BEFORE
+        .iter()
+        .position(|&candidate| candidate == column.0)
+    {
+        return F::from_u64(state.comm_chain[limb]);
+    }
+    if let Some(word) = COL_EVBUF_BEFORE
+        .iter()
+        .position(|&candidate| candidate == column.0)
+    {
+        return F::from_u64(state.event_absorb.evbuf[word]);
+    }
+    if let Some(lane) = COL_PERM_STATE_BEFORE
+        .iter()
+        .position(|&candidate| candidate == column.0)
+    {
+        return F::from_u64(state.event_absorb.perm_state[lane]);
+    }
+
     match column.0 {
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
+        COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),
+        COL_HALTED_BEFORE => bool_field(state.halted),
         COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
         COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
         COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),
@@ -176,9 +315,15 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
-        COL_HOST_ARGS_ACTIVE_BEFORE => bool_field(state.host_args.active),
-        COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
-        COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
+        COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
+        COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
+        COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.host_events.turn_export_fref)),
+        COL_HOST_EVENTS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),
+        COL_HOST_EVENT_INDEX_BEFORE => F::from_u64(u64::from(state.host_events.event_index)),
+        COL_HOST_EVENT_ARGS_BASE_BEFORE => F::from_u64(state.host_events.args_base),
+        COL_HOST_EVENT_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.host_events.slot_cursor)),
+        COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
+        COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }
@@ -197,7 +342,7 @@ fn bool_field(value: bool) -> F {
 /// only `kappa`, `m`, `lambda` are shrunk so the lifecycle fits under the
 /// 5-minute test cap. Π_RLC / Π_DEC algebraic identities hold bit-for-bit;
 /// only the Ajtai-SIS security parameter is reduced.
-fn wasm_tiny_params() -> NeoParams {
+pub(crate) fn wasm_tiny_params() -> NeoParams {
     NeoParams::new(
         goldilocks_paper_b2::Q,
         goldilocks_paper_b2::ETA as u32,
@@ -235,7 +380,7 @@ fn wasm_tiny_params() -> NeoParams {
 /// fixed point: seed both, build the structure, recompute the required
 /// lengths, repeat until stable. The dependency is logarithmic in both
 /// directions, so convergence is 1-2 iterations.
-fn wasm_recursive_plan_and_structure(
+pub(crate) fn wasm_recursive_plan_and_structure(
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
     batch_size: usize,
@@ -279,6 +424,7 @@ fn wasm_recursive_plan_and_structure(
             boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
             kmul_count: 0,
             ring_action_pair_count: 0,
+            projection_batches: Vec::new(),
             ring_action_pair_layout: RingActionTraceLayout::new(
                 LowNormEncoding::U64,
                 LowNormEncoding::U64,

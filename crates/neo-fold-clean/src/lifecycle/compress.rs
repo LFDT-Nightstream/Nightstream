@@ -37,15 +37,28 @@ pub fn compress(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Compre
     })
 }
 
-/// Finalize an [`UncompressedAudit`] into a **terminal-only**
-/// [`Uncompressed`] by folding the trailing `latest` into the running
-/// accumulator and dropping the per-step audit trail.
+/// Finalize an [`UncompressedAudit`] into a compact [`Uncompressed`] proof.
+/// Plain authoritative F' keeps HyperNova's running/latest pair; Nebula and
+/// legacy one-chunk relations use the terminal-fold representation.
 ///
 /// Pass the result to [`super::verify::verify_uncompressed`] (the
 /// non-replay IVC verifier). If you also need the audit trail —
 /// e.g. for the Spartan decider or for chain-replay debugging — use
 /// [`finish_uncompressed_with_audit`] instead.
 pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Uncompressed, Error> {
+    // HyperNova Construction 2 verifies the running accumulator and newest
+    // fresh F' instance separately. Once preprocessing certifies that F'
+    // itself constrains the preceding NIFS.V fold, a plain chain needs no
+    // extra terminal fold: preserve `(running, latest)` for that verifier.
+    // Nebula remains on the final-fold path because its one-step-delayed
+    // memory claim must still be consumed and the segment closed.
+    if prep.enforces_terminal_induction() && prep.nebula().is_none() {
+        check_trailing_latest_batch_size(prep, &audit.proof.state)?;
+        if audit.proof.final_fold.is_some() {
+            return Err(Error::FinalizedProofInconsistent);
+        }
+        return Ok(audit.proof);
+    }
     Ok(finish_uncompressed_with_audit(prep, audit)?.proof)
 }
 
@@ -67,9 +80,9 @@ pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Re
 ///
 /// Terminal-only callers use [`finish_uncompressed`] +
 /// [`super::verify::verify_uncompressed`]; the audit trail is dropped
-/// because that verifier never reads it. Multi-chunk F' callers
-/// must keep this audit-bearing form until the compressed decider is
-/// wired, because the per-step recursive-link evidence lives here.
+/// because that verifier never reads it. Authoritative generic and Nebula F'
+/// relations carry multi-chunk induction inside the folded relation;
+/// historical image-only callers must keep this audit-bearing form for replay.
 pub fn finish_uncompressed_with_audit(
     prep: &Preprocessing,
     audit: UncompressedAudit,
@@ -100,6 +113,10 @@ pub fn finish_uncompressed_with_audit(
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &prep.vk,
+        prep.nebula().map(|cfg| &cfg.scheme),
+        prep.enforces_terminal_induction()
+            .then(|| prep.nebula())
+            .flatten(),
         state,
         prep.semantic_state_mode,
     )?;

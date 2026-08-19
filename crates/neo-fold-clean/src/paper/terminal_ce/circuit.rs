@@ -3,9 +3,14 @@ use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_hash;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::engine::r1cs_circuit::{Lc, Var};
 use crate::lifecycle::Preprocessing;
-use crate::paper::digest::{pack_bytes_as_fields, params_digest, terminal_ce_relation_digest};
+use crate::paper::digest::{
+    pack_bytes_as_fields, params_digest, terminal_ce_relation_digest, NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG,
+    NEBULA_LEAF_OPS_TAG,
+};
+use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_leaf_digest_circuit;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+use crate::paper::relations::product_commitment_circuit::validate_adv_shape;
 use crate::paper::relations::{superneo_public_x_cols, Structure};
 use crate::paper::terminal_ce::{TerminalCeProof, TerminalCeVerifyError};
 use neo_math::{D, F};
@@ -144,6 +149,8 @@ pub enum TerminalCeCircuitError {
     },
     #[error("terminal CE public circuit: child {index} carries unsupported {field} (expected empty/zero)")]
     UnsupportedSidecar { index: usize, field: &'static str },
+    #[error("terminal CE public circuit: child {index} invalid product commitment: {detail}")]
+    ProductCommitment { index: usize, detail: String },
 }
 
 /// Recompute the compact terminal CE public statement from terminal child
@@ -284,6 +291,16 @@ fn enforce_terminal_ce_claim_digest(
     preimage.push(alloc_const(builder, F::ZERO));
     preimage.push(alloc_const(builder, F::ZERO));
     preimage.push(alloc_const(builder, F::ZERO));
+    if let Some(adv) = &claim.adv {
+        preimage.push(alloc_const(builder, F::from_u64(NEBULA_ADV_PRESENT_MARKER)));
+        for digest in [
+            enforce_nebula_leaf_digest_circuit(builder, NEBULA_LEAF_OPS_TAG, adv.ops.d, adv.ops.kappa, &adv.ops.data),
+            enforce_nebula_leaf_digest_circuit(builder, NEBULA_LEAF_MEM_TAG, adv.is.d, adv.is.kappa, &adv.is.data),
+            enforce_nebula_leaf_digest_circuit(builder, NEBULA_LEAF_MEM_TAG, adv.fs.d, adv.fs.kappa, &adv.fs.data),
+        ] {
+            preimage.extend_from_slice(&digest);
+        }
+    }
 
     Ok(enforce_poseidon2_hash(builder, &preimage))
 }
@@ -317,6 +334,8 @@ fn validate_terminal_child_wires(
             got: claim.c_data.len(),
         });
     }
+    validate_adv_shape(claim.adv.as_ref(), claim.c_d, claim.c_kappa, "terminal child")
+        .map_err(|detail| TerminalCeCircuitError::ProductCommitment { index, detail })?;
     if claim.x_rows != D {
         return Err(TerminalCeCircuitError::XRows {
             index,

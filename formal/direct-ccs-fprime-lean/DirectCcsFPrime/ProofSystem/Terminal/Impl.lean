@@ -1,2 +1,1 @@
 import DirectCcsFPrime.ProofSystem.Terminal.Impl.DirectConcreteInstantiation
-import DirectCcsFPrime.ProofSystem.Terminal.Impl.DirectConcreteInstantiationInterface

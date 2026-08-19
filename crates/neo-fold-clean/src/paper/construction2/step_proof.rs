@@ -30,6 +30,11 @@ pub enum FoldProof {
 #[derive(Clone, Debug)]
 pub struct StepProof {
     pub fold: FoldProof,
+    /// Nebula segment-open payload (spec §6.2, L0b): the prover-claimed
+    /// per-lane `D_pre` chain digests, present exactly on the step that
+    /// opens a segment. The verifier replays `open_segment` from it; its
+    /// authority is retroactive via the close equality `D_seen == D_pre`.
+    pub nebula_open: Option<[[neo_math::F; 4]; 3]>,
     /// Outgoing semantic state digest for this F' step. Stateless
     /// frontends set this equal to the outgoing accumulator digest,
     /// preserving the legacy `semantic_acc == construction2_acc` path.
@@ -62,6 +67,10 @@ pub struct TerminalFoldInputs {
     /// to be folded into the running). Witnesses inside are empty when
     /// read from a proof.
     pub latest: LatestInstance,
+    /// Nebula lane before terminal finalization consumes the trailing
+    /// delayed claim. `None` for plain chains. The verifier advances this
+    /// constant-size public state and binds the result to the terminal lane.
+    pub pre_nebula: Option<crate::paper::construction2::NebulaLane>,
 }
 
 /// Terminal fold proof emitted when finalization folds the last trailing

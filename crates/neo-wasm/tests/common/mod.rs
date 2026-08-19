@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 
+pub mod audit;
+pub mod host_event_fixture;
+
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::layout::COLUMN_SPECS;
+use neo_wasm::layout::column_spec;
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
@@ -20,15 +23,15 @@ pub struct CheckedWasmRun {
 }
 
 pub fn checked_main(wat_src: &str) -> CheckedWasmRun {
-    checked_wasm_run(wat_src, "main", &[])
+    checked_wasm_run(wat_src, "main")
 }
 
-pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedWasmRun {
+pub fn checked_wasm_run(wat_src: &str, export: &str) -> CheckedWasmRun {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, export, &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let witnesses = sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    let witnesses = sanity_check_trace(&trace, &artifacts);
     ccs_check_trace(&trace);
     assert_output_matches_reference(&trace, &run.results);
     CheckedWasmRun {
@@ -67,10 +70,22 @@ fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
     );
 }
 
-pub fn sanity_check_trace(
+pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts) -> Vec<Vec<F>> {
+    let export_fref = trace
+        .first()
+        .map(|row| row.state_before.host_events.turn_export_fref)
+        .unwrap_or(0);
+    // Even import-free traces preload the selected export's empty template.
+    let bindings = neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref);
+    sanity_check_trace_with_bindings(trace, artifacts, &bindings)
+}
+
+/// Run lookup, memory, and commitment-chain checks with the bindings that
+/// produced `trace`.
+pub fn sanity_check_trace_with_bindings(
     trace: &[WasmVmStep],
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
+    bindings: &neo_wasm::host_event_bindings::HostEventBindings,
 ) -> Vec<Vec<F>> {
     let layout = build_wasm_relation_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
@@ -80,9 +95,12 @@ pub fn sanity_check_trace(
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
-    let preload = preload_from_program_artifacts(artifacts, initial_locals);
+    let mut preload = preload_from_program_artifacts(artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
+    neo_wasm::comm_chain::sanity_check_comm_chain(trace)
+        .unwrap_or_else(|err| panic!("comm chain semantics rejected trace: {err}"));
     witnesses
 }
 
@@ -110,6 +128,7 @@ pub fn step(
         WasmStepState {
             pc,
             sp,
+            stack_frame_base: 0,
             output: WasmOutputState::ZERO,
             call_stack_depth: 0,
             memory_pages: None,
@@ -118,8 +137,11 @@ pub fn step(
             halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
-            host_args: WasmCountdownState::ZERO,
-            host_result_pending: false,
+            tail_call_pending: false,
+            host_callee_fref: 0,
+            comm_chain: [0; 4],
+            event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
+            host_events: neo_wasm::WasmHostEventState::ZERO,
         }
     }
 
@@ -140,12 +162,13 @@ pub fn step(
         && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
         && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
     let div_trap = div_zero_trap || div_overflow_trap;
+    let trapped = matches!(opcode, WasmOpcode::Unreachable) || div_trap;
     WasmVmStep {
         cycle,
         row_kind: WasmRowKind::Program,
         state_before: state(pc_before, sp_before, false),
         state_after: WasmStepState {
-            trapped: matches!(opcode, WasmOpcode::Unreachable) || div_trap,
+            trapped,
             ..state(pc_before + 1, sp_after, halted)
         },
         control_choice: 0,
@@ -192,6 +215,12 @@ pub fn step(
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
+        host_event_rom_slot: None,
+        // A clean halt fires the exit latch, which re-reads the (biased)
+        // entry-count cell and the exit count; the empty boundary template
+        // of a single-shot row is (1, 0).
+        host_event_initial_schedule_count: (halted && !trapped).then_some(1),
+        host_event_exit_schedule_count: (halted && !trapped).then_some(0),
     }
 }
 
@@ -205,6 +234,7 @@ pub fn assert_satisfied(z: &[F], label: &str) {
     // Keep aux bits consistent with any caller-mutated declared columns.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
+    neo_wasm::write_turn_entry_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
 }
@@ -216,6 +246,7 @@ pub fn assert_rejected(z: &[F], label: &str) {
     // Keep aux bits consistent so in-range forgeries exercise semantic rows.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
+    neo_wasm::write_turn_entry_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
         check_ccs_rowwise_zero(ccs, x, w).is_err(),
@@ -298,7 +329,7 @@ fn format_terms(terms: &[(usize, F)]) -> String {
     terms
         .iter()
         .map(|(col, coeff)| {
-            let name = COLUMN_SPECS.get(*col).map(|spec| spec.name).unwrap_or("?");
+            let name = column_spec(*col).map(|spec| spec.name).unwrap_or("?");
             format!("{coeff:?}*{name}[{col}]")
         })
         .collect::<Vec<_>>()

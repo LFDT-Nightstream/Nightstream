@@ -1,4 +1,4 @@
-use neo_ccs::{CcsMatrix, CcsStructure, Mat, SparsePoly};
+use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SparsePoly};
 use neo_math::F;
 use neo_reductions::engines::optimized_engine::oracle::SparseCache;
 use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
@@ -109,5 +109,27 @@ fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_column() {
     assert_ne!(
         baseline, changed,
         "digest must bind nonzero column placement, not just dims/values"
+    );
+}
+
+fn geometric_structure(initial: F) -> CcsStructure<F> {
+    let csc = CscMat::from_triplets(Vec::new(), 8, 108);
+    let matrix = CcsMatrix::csc_with_compact_rows(
+        csc,
+        Vec::new(),
+        vec![GeometricRowRun::new(3, 41, 41, initial, F::from_u64(3))],
+    )
+    .expect("valid geometric run");
+    CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, vec![])).expect("valid geometric CCS")
+}
+
+#[test]
+fn cache_aware_matrix_digest_binds_geometric_run_descriptors() {
+    let baseline = geometric_structure(F::from_u64(7));
+    let tampered = geometric_structure(F::from_u64(8));
+    assert_ne!(
+        digest_ccs_matrices_with_sparse_cache(&baseline, Some(&SparseCache::build(&baseline))),
+        digest_ccs_matrices_with_sparse_cache(&tampered, Some(&SparseCache::build(&tampered))),
+        "changing a compact coefficient must change the verifier-bound matrix digest"
     );
 }

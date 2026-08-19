@@ -13,6 +13,7 @@ use crate::paper::digest::{digest32_as_fields, initial_boundary_digest, public_t
 use crate::paper::f_prime::r1cs::{FPrimeStateWires, FPrimeStepOutput, F_PRIME_ENC_INST_BITS};
 use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
 use crate::paper::reductions::pi_dec_circuit::alloc_ce_claim;
+use crate::paper::relations::product_commitment_circuit::alloc_adv;
 use crate::paper::relations::{CcsClaim, CeClaim, WitnessMat};
 use crate::paper::terminal_ce::circuit::{
     enforce_public_from_children, enforce_verify_from_children, TerminalCeVerifierContext,
@@ -296,12 +297,15 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     };
 
     emit_terminal_fold(
@@ -363,12 +367,15 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
         nifs_running_parent_authority: None,
         nifs_parent: Some(last_parent),
         nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     };
 
     emit_terminal_fold(
@@ -430,12 +437,15 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: Some(last_children),
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     };
 
     let (_emitted, _latest_link, _parent_link, _final_acc, terminal_running, _terminal_children) = emit_terminal_fold(
@@ -547,7 +557,13 @@ pub fn enforce_terminal_latest_link_against(
         .iter()
         .map(|x| x.iter().map(|&bit| builder.alloc(bit)).collect())
         .collect();
-    super::enforce_terminal_latest_link(&mut builder, &fresh_x, &last_bits).map_err(|e| e.to_string())?;
+    super::enforce_terminal_latest_link(
+        &mut builder,
+        crate::paper::f_prime::r1cs::FPrimePublicInputLayout::plain(),
+        &fresh_x,
+        &last_bits,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(builder)
 }
 
@@ -576,7 +592,7 @@ pub fn enforce_base_state_constants_against(
     let empty_acc = AccumulatorHandle::empty().digest();
     let state = FPrimeStateWires {
         vk_fs_digest: alloc_digest32(&mut builder, prep.vk.digest()),
-        structure_digest: alloc_digest_fields(&mut builder, structure),
+        pi_ccs_header_bundle: alloc_digest_fields(&mut builder, prep.pi_ccs_header_bundle()),
         chunk_count: builder.alloc(F::ZERO),
         step_count: builder.alloc(F::ZERO),
         z_0: alloc_digest32(&mut builder, z_0),
@@ -585,16 +601,20 @@ pub fn enforce_base_state_constants_against(
         semantic_state_digest: alloc_digest32(&mut builder, initial_semantic_state_digest),
         acc_digest: alloc_digest32(&mut builder, empty_acc),
         public_trace: alloc_digest32(&mut builder, public_trace),
+        nebula: None,
     };
     let base = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, [F::ZERO; 4]),
         x_out_bits: Vec::new(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     };
     let public = PublicImage {
         vk_fs_digest: prep.vk.digest(),
@@ -611,7 +631,7 @@ pub fn enforce_base_state_constants_against(
     };
     let probes = BaseStateProbeWires {
         vk_fs0: base.state_in.vk_fs_digest[0],
-        structure0: base.state_in.structure_digest[0],
+        structure0: base.state_in.pi_ccs_header_bundle[0],
         chunk_count: base.state_in.chunk_count,
         step_count: base.state_in.step_count,
         z_0_0: base.state_in.z_0[0],
@@ -639,7 +659,7 @@ pub fn enforce_public_image_pins_against_chain(
     let mut builder = R1csBuilder::new();
     let state = FPrimeStateWires {
         vk_fs_digest: alloc_digest32(&mut builder, chain.vk_fs_digest),
-        structure_digest: alloc_digest_fields(&mut builder, *prep.structure_digest()),
+        pi_ccs_header_bundle: alloc_digest_fields(&mut builder, prep.pi_ccs_header_bundle()),
         chunk_count: builder.alloc(F::from_u64(chain.chunk_count)),
         step_count: builder.alloc(F::from_u64(chain.step_count)),
         z_0: alloc_digest32(&mut builder, chain.z_0),
@@ -648,16 +668,20 @@ pub fn enforce_public_image_pins_against_chain(
         semantic_state_digest: alloc_digest32(&mut builder, chain.semantic_state_digest),
         acc_digest: alloc_digest32(&mut builder, chain.acc_digest),
         public_trace: alloc_digest32(&mut builder, chain.public_trace),
+        nebula: None,
     };
     let last = FPrimeStepOutput {
         x_out: alloc_digest32(&mut builder, chain.x_out.digest_bytes),
         x_out_bits: Vec::new(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
     };
     let final_acc_digest = alloc_digest32(&mut builder, chain.acc_digest);
     super::pin_public_image(&mut builder, public, prep, &last, &final_acc_digest);
@@ -685,7 +709,7 @@ pub fn enforce_state_link_against_self() -> (R1csBuilder, StateLinkProbeWires) {
     let b = dummy_state_wires(&mut builder, acc_digest);
     let probes = StateLinkProbeWires {
         vk_fs0: b.vk_fs_digest[0],
-        structure0: b.structure_digest[0],
+        structure0: b.pi_ccs_header_bundle[0],
         chunk_count: b.chunk_count,
         step_count: b.step_count,
         z_0_0: b.z_0[0],
@@ -715,7 +739,7 @@ fn dummy_state_wires(builder: &mut R1csBuilder, acc_digest: [u8; 32]) -> FPrimeS
     let zero = [F::ZERO; 4];
     FPrimeStateWires {
         vk_fs_digest: alloc_digest_fields(builder, zero),
-        structure_digest: alloc_digest_fields(builder, zero),
+        pi_ccs_header_bundle: alloc_digest_fields(builder, zero),
         chunk_count: builder.alloc(F::ZERO),
         step_count: builder.alloc(F::ZERO),
         z_0: alloc_digest_fields(builder, zero),
@@ -724,6 +748,7 @@ fn dummy_state_wires(builder: &mut R1csBuilder, acc_digest: [u8; 32]) -> FPrimeS
         semantic_state_digest: alloc_digest_fields(builder, zero),
         acc_digest: alloc_digest32(builder, acc_digest),
         public_trace: alloc_digest_fields(builder, zero),
+        nebula: None,
     }
 }
 
@@ -740,6 +765,7 @@ fn alloc_running_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> SplitNcPiC
         c_kappa: claim.c.kappa,
         c_kappa_var: builder.alloc(F::from_u64(claim.c.kappa as u64)),
         c_data: builder.alloc_vec(&claim.c.data),
+        adv: alloc_adv(builder, claim.adv.as_ref()),
         x,
         x_rows: claim.X.rows(),
         x_rows_var: builder.alloc(F::from_u64(claim.X.rows() as u64)),

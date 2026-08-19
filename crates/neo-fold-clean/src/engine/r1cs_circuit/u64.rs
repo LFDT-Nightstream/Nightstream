@@ -56,6 +56,16 @@ pub fn alloc_u64_bits(builder: &mut R1csBuilder, value: u64) -> [Var; U64_BITS] 
 ///
 /// where `hi`, `lo` are the upper and lower 32-bit halves.
 pub fn decompose_var_to_u64_bits(builder: &mut R1csBuilder, var: Var) -> [Var; U64_BITS] {
+    if let Some(bits) = builder.canonical_u64_decomposition(var) {
+        return bits;
+    }
+
+    let bits = decompose_var_to_u64_bits_inner(builder, var);
+    builder.record_canonical_u64_decomposition(var, bits);
+    bits
+}
+
+fn decompose_var_to_u64_bits_inner(builder: &mut R1csBuilder, var: Var) -> [Var; U64_BITS] {
     // 1. Take canonical u64 from the witness value.
     let raw: F = builder.witness()[var.col()];
     use p3_field::PrimeField64;

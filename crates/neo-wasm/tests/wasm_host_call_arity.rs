@@ -1,48 +1,112 @@
-//! Host-call arity coverage: call rows pop only the indirect table index.
-//! `HostCallArg` rows pop arguments, and `HostCallResult` pushes a single
-//! result.
+//! Host-call arity coverage: the call row pops all args (`sp' = args_base`,
+//! plus the table index on `call_indirect`), arg gather rows read the popped
+//! region above the live stack top, and the result-lo gather row pushes.
+//! Fixtures here use 3+ params so gather addressing past the 1-2 arg
+//! fixtures elsewhere is exercised, and `call_indirect` to a host import
+//! covers the `CI_HOST_CALL` path.
 
 mod common;
 
-use neo_math::F;
-use neo_wasm::layout::{
-    COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV,
-    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-};
+use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
+use neo_wasm::host_event_bindings::{EventBlock, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{
-    collect_wasmtime_component_run_with_linker, extract_first_component_core_program_artifacts,
-    traces_from_wasmtime_steps, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind, WasmVmStep, WasmtimeTraceState,
-};
+use neo_wasm::{WasmBuildError, WasmHostEventSlotKind, WasmOpcode, WasmVmStep, WasmtimeTraceState};
 use p3_field::PrimeCharacteristicRing;
 
-fn checked_component_run(
+const ZERO: SlotBinding = SlotBinding::Const(0);
+
+fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
+    let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
+    for &(idx, source) in entries {
+        out[idx] = source;
+    }
+    out
+}
+
+struct CheckedImportRun {
+    trace: Vec<WasmVmStep>,
+    import_fref: u32,
+}
+
+/// Run a single-import component under `template`, normalize with the
+/// bindings, and put the trace through the full native check stack: per-row
+/// CCS, lookup semantics, comm chain, and memory rows with the bindings ROM
+/// preloaded.
+fn checked_import_run(
     component_wat: &str,
+    template: ImportTemplate,
     define_host: impl FnOnce(&mut wasmtime::component::Linker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
-) -> Vec<WasmVmStep> {
+) -> CheckedImportRun {
     let component_bytes = wat::parse_str(component_wat).expect("component wat");
-    let run =
-        collect_wasmtime_component_run_with_linker(&component_bytes, "run", define_host).expect("component trace run");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
-    let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
-    common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", define_host)
+        .expect("component run");
+    let mut import_frefs: Vec<u32> = run
+        .steps
+        .iter()
+        .filter(|row| {
+            matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
+                && !row.target_function_is_guest
+        })
+        .filter_map(|row| row.function_ref)
+        .collect();
+    import_frefs.dedup();
+    let [import_fref] = import_frefs[..] else {
+        panic!("expected exactly one host import call, got {import_frefs:?}");
+    };
+    let export_fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+    let mut bindings = HostEventBindings::default();
+    bindings.imports.insert(import_fref, template);
+    bindings
+        .exports
+        .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect("bindings trace");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
-    trace
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    for (row, witness) in trace.iter().zip(&witness_rows) {
+        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness)
+            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+    }
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("bindings ROM contents match");
+    CheckedImportRun { trace, import_fref }
 }
 
-fn host_arg_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
+fn host_call_row(trace: &[WasmVmStep]) -> &WasmVmStep {
     trace
         .iter()
-        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::HostCallArg))
-        .collect()
+        .find(|row| {
+            row.row_kind.is_program()
+                && matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+                && !row.target_function_is_guest
+        })
+        .expect("host-call row")
 }
 
-fn host_result_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
+fn arg_gather_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
     trace
         .iter()
-        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::HostCallResult))
+        .filter(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .host_event_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Arg)
+        })
         .collect()
 }
 
@@ -76,8 +140,34 @@ fn five_arg_component_wat() -> &'static str {
     "#
 }
 
-fn five_arg_trace() -> Vec<WasmVmStep> {
-    checked_component_run(five_arg_component_wat(), |linker| {
+fn sum5_template() -> ImportTemplate {
+    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
+    ImportTemplate {
+        events: vec![
+            EventBlock::op(
+                10,
+                slots(&[
+                    (0, arg(0, Limb::Lo)),
+                    (1, arg(1, Limb::Lo)),
+                    (2, arg(2, Limb::Lo)),
+                    (3, arg(3, Limb::Lo)),
+                    (4, arg(4, Limb::Lo)),
+                ]),
+            ),
+            EventBlock::op(
+                12,
+                slots(&[
+                    (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                    (1, SlotBinding::ResultElem { limb: Limb::Hi }),
+                ]),
+            ),
+        ],
+        input_count: 0,
+    }
+}
+
+fn five_arg_run() -> CheckedImportRun {
+    checked_import_run(five_arg_component_wat(), sum5_template(), |linker| {
         linker
             .root()
             .func_wrap("host-sum5", |_store, (a, b, c, d, e): (i32, i32, i32, i32, i32)| {
@@ -87,96 +177,71 @@ fn five_arg_trace() -> Vec<WasmVmStep> {
     })
 }
 
-/// Direct host calls can have more scalar arguments than the on-row read lanes.
+/// Direct host call with five scalar args: the call row pops them all, and
+/// each arg gather row reads its table-pinned slot above the live stack top.
 #[test]
 fn direct_host_call_with_five_scalar_args_is_provable() {
-    let trace = five_arg_trace();
+    let run = five_arg_run();
 
-    let args = host_arg_rows(&trace);
-    assert_eq!(args.len(), 5, "one HostCallArg aux row per argument");
-    // Args pop top-down and the remaining counter walks 5 -> 0.
-    for (i, row) in args.iter().enumerate() {
-        assert_eq!(row.state_before.host_args.remaining, 5 - i as u32);
-        assert_eq!(row.state_after.host_args.remaining, 4 - i as u32);
-        assert_eq!(row.state_after.sp, row.state_before.sp - 1);
-        assert!(row.state_before.host_result_pending);
-    }
+    let call_row = host_call_row(&run.trace);
+    assert_eq!(call_row.opcode, WasmOpcode::Call);
     assert_eq!(
-        args.iter()
-            .map(|row| row.stack_read0.expect("arg pop").value_lo)
-            .collect::<Vec<_>>(),
-        vec![5, 4, 3, 2, 1],
+        call_row.state_after.sp,
+        call_row.state_before.sp - 5,
+        "the call row pops all five args"
     );
 
-    let results = host_result_rows(&trace);
-    assert_eq!(results.len(), 1, "one HostCallResult aux row");
-    let result = results[0];
-    assert_eq!(result.stack_write0.expect("result push").value_lo, 15);
-    assert_eq!(result.state_after.sp, result.state_before.sp + 1);
-    assert!(!result.state_after.host_result_pending);
+    let arg_rows = arg_gather_rows(&run.trace);
+    assert_eq!(
+        arg_rows
+            .iter()
+            .map(|row| row.stack_read0.expect("arg read").value_lo)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3, 4, 5],
+        "arg gather rows read the popped region bottom-up"
+    );
+    assert!(
+        arg_rows
+            .iter()
+            .all(|row| row.state_after.sp == row.state_before.sp),
+        "arg reads never pop"
+    );
 
-    let final_output = trace.last().expect("final row").state_after.output;
+    let events = neo_wasm::comm_chain::absorbed_event_blocks(&run.trace);
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].words, [10, 1, 2, 3, 4, 5, 0, 0]);
+    assert_eq!(events[1].words, [12, 15, 0, 0, 0, 0, 0, 0]);
+    assert!(events
+        .iter()
+        .all(|event| event.metadata.attributed_fref == run.import_fref));
+
+    let final_output = run.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
     assert_eq!(final_output.value_lo, 15);
 }
 
-/// i64 host args carry their high limbs through the arg aux rows, exactly
-/// like guest param-init does.
-#[test]
-fn host_call_with_i64_args_is_provable() {
-    let trace = checked_component_run(
-        r#"
-        (component
-          (type $host-add64 (func (param "x" s64) (param "y" s64) (result s64)))
-          (type $run-type (func (result s64)))
-          (import "host-add64" (func $host-add64 (type $host-add64)))
-          (core module $m
-            (type $host-ty (func (param i64 i64) (result i64)))
-            (import "" "0" (func $host-add64-core (type $host-ty)))
-            (func (export "run") (result i64)
-              i64.const 4294967296
-              i64.const 8589934592
-              call $host-add64-core))
-          (core func $lowered (canon lower (func $host-add64)))
-          (core instance $lowered-host
-            (export "0" (func $lowered)))
-          (core instance $i
-            (instantiate $m
-              (with "" (instance $lowered-host))))
-          (alias core export $i "run" (core func $run))
-          (func (export "run") (type $run-type)
-            (canon lift (core func $run))))
-        "#,
-        |linker| {
-            linker
-                .root()
-                .func_wrap("host-add64", |_store, (x, y): (i64, i64)| Ok((x + y,)))
-                .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
-        },
-    );
-
-    let args = host_arg_rows(&trace);
-    assert_eq!(args.len(), 2);
-    // 2^32 and 2^33: both args live entirely in the high limb.
-    assert_eq!(
-        args.iter()
-            .map(|row| row.stack_read0.expect("arg pop").value_hi)
-            .collect::<Vec<_>>(),
-        vec![Some(2), Some(1)],
-    );
-    assert!(args.iter().all(|row| row.wide_values_enabled));
-
-    let results = host_result_rows(&trace);
-    assert_eq!(results.len(), 1);
-    let write = results[0].stack_write0.expect("result push");
-    assert_eq!((write.value_hi, write.value_lo), (Some(3), 0));
-}
-
-/// Indirect host calls keep the table index on the call row and pop arguments
-/// through aux rows.
+/// `call_indirect` to a host import: the call row also pops the table index
+/// (the `CI_HOST_CALL` path) and falls through to the next instruction.
 #[test]
 fn indirect_host_call_with_three_args_is_provable() {
-    let trace = checked_component_run(
+    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
+    let template = ImportTemplate {
+        events: vec![
+            EventBlock::op(
+                3,
+                slots(&[(0, arg(0, Limb::Lo)), (1, arg(1, Limb::Lo)), (2, arg(2, Limb::Lo))]),
+            ),
+            EventBlock::op(
+                4,
+                slots(&[
+                    (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                    (1, SlotBinding::ResultElem { limb: Limb::Hi }),
+                ]),
+            ),
+        ],
+        input_count: 0,
+    };
+    let run = checked_import_run(
         r#"
         (component
           (type $host-sum3 (func (param "a" s32) (param "b" s32) (param "c" s32) (result s32)))
@@ -203,6 +268,7 @@ fn indirect_host_call_with_three_args_is_provable() {
           (func (export "run") (type $run-type)
             (canon lift (core func $run))))
         "#,
+        template,
         |linker| {
             linker
                 .root()
@@ -211,233 +277,53 @@ fn indirect_host_call_with_three_args_is_provable() {
         },
     );
 
-    let args = host_arg_rows(&trace);
-    assert_eq!(args.len(), 3, "table index pops on the call row, args on aux rows");
+    let call_row = host_call_row(&run.trace);
+    assert_eq!(call_row.opcode, WasmOpcode::CallIndirect);
     assert_eq!(
-        args.iter()
-            .map(|row| row.stack_read0.expect("arg pop").value_lo)
-            .collect::<Vec<_>>(),
-        vec![30, 20, 10],
+        call_row.state_after.sp,
+        call_row.state_before.sp - 4,
+        "three args plus the table index"
     );
-    assert_eq!(host_result_rows(&trace).len(), 1);
+    assert_eq!(
+        call_row.pc_edge_kind,
+        neo_wasm::WasmPcEdgeKind::DynamicCallIndirect,
+        "the continuation pc is bound through the call site's return-pc slot"
+    );
 
-    let final_output = trace.last().expect("final row").state_after.output;
+    let events = neo_wasm::comm_chain::absorbed_event_blocks(&run.trace);
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].words, [3, 10, 20, 30, 0, 0, 0, 0]);
+    assert_eq!(events[1].words, [4, 60, 0, 0, 0, 0, 0, 0]);
+    assert!(events
+        .iter()
+        .all(|event| event.metadata.attributed_fref == run.import_fref));
+
+    let final_output = run.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
     assert_eq!(final_output.value_lo, 60);
 }
 
+/// The host-call row must latch the ROM/table-bound callee fref; claiming a
+/// different import identity (which would redirect the event-schedule
+/// lookup) is rejected.
 #[test]
-fn zero_arg_host_call_emits_only_a_result_row() {
-    let trace = checked_component_run(
-        r#"
-        (component
-          (type $host-const (func (result s32)))
-          (type $run-type (func (result s32)))
-          (import "host-const" (func $host-const (type $host-const)))
-          (core module $m
-            (type $host-ty (func (result i32)))
-            (import "" "0" (func $host-const-core (type $host-ty)))
-            (func (export "run") (result i32)
-              call $host-const-core))
-          (core func $lowered (canon lower (func $host-const)))
-          (core instance $lowered-host
-            (export "0" (func $lowered)))
-          (core instance $i
-            (instantiate $m
-              (with "" (instance $lowered-host))))
-          (alias core export $i "run" (core func $run))
-          (func (export "run") (type $run-type)
-            (canon lift (core func $run))))
-        "#,
-        |linker| {
-            linker
-                .root()
-                .func_wrap("host-const", |_store, (): ()| Ok((42,)))
-                .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
-        },
-    );
-
-    assert!(host_arg_rows(&trace).is_empty());
-    let results = host_result_rows(&trace);
-    assert_eq!(results.len(), 1);
-    assert_eq!(results[0].stack_write0.expect("result push").value_lo, 42);
-}
-
-#[test]
-fn host_call_without_results_emits_no_result_row() {
-    let trace = checked_component_run(
-        r#"
-        (component
-          (type $host-sink (func (param "x" s32)))
-          (type $run-type (func (result s32)))
-          (import "host-sink" (func $host-sink (type $host-sink)))
-          (core module $m
-            (type $host-ty (func (param i32)))
-            (import "" "0" (func $host-sink-core (type $host-ty)))
-            (func (export "run") (result i32)
-              i32.const 7
-              call $host-sink-core
-              i32.const 1))
-          (core func $lowered (canon lower (func $host-sink)))
-          (core instance $lowered-host
-            (export "0" (func $lowered)))
-          (core instance $i
-            (instantiate $m
-              (with "" (instance $lowered-host))))
-          (alias core export $i "run" (core func $run))
-          (func (export "run") (type $run-type)
-            (canon lift (core func $run))))
-        "#,
-        |linker| {
-            linker
-                .root()
-                .func_wrap("host-sink", |_store, (_x,): (i32,)| Ok(()))
-                .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
-        },
-    );
-
-    let args = host_arg_rows(&trace);
-    assert_eq!(args.len(), 1);
-    assert!(!args[0].state_before.host_result_pending);
-    assert!(host_result_rows(&trace).is_empty());
-}
-
-/// Skipping the remaining-counter decrement on an arg row must not satisfy
-/// the CCS: the counter is what forces exactly `param_count` pops.
-#[test]
-fn host_arg_row_rejects_skipped_remaining_decrement() {
-    let trace = five_arg_trace();
-    let arg_row = host_arg_rows(&trace)[0];
-    let mut witness = build_witness_vector(arg_row);
-    common::assert_satisfied(&witness, "untampered host arg row");
-    witness[COL_HOST_ARGS_REMAINING_AFTER] = witness[COL_HOST_ARGS_REMAINING_AFTER] + F::ONE;
-    common::assert_rejected(&witness, "host arg row with skipped remaining decrement");
-}
-
-/// The host-call row must load the ROM-declared param count into the
-/// remaining counter; a prover claiming fewer pending pops is rejected.
-#[test]
-fn host_call_row_rejects_tampered_remaining_count() {
-    let trace = five_arg_trace();
-    let call_row = trace
-        .iter()
-        .find(|row| row.row_kind.is_program() && row.state_after.host_args.active)
-        .expect("host call row");
+fn host_call_row_rejects_forged_callee_attribution() {
+    let run = five_arg_run();
+    let call_row = host_call_row(&run.trace);
     let mut witness = build_witness_vector(call_row);
-    common::assert_satisfied(&witness, "untampered host call row");
-    witness[COL_HOST_ARGS_REMAINING_AFTER] = F::from_u64(1);
-    common::assert_rejected(&witness, "host call row with understated arg count");
+    common::assert_satisfied(&witness, "untampered host-call row");
+    witness[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "host-call row claiming a different callee");
 }
 
-/// The result row must consume the owed-result flag; keeping it pending
-/// would let a prover push a second value.
+/// Non-boundary rows preserve the latched callee fref; switching the
+/// attribution mid-event is rejected.
 #[test]
-fn host_result_row_rejects_unconsumed_pending_flag() {
-    let trace = five_arg_trace();
-    let result_row = host_result_rows(&trace)[0];
-    let mut witness = build_witness_vector(result_row);
-    common::assert_satisfied(&witness, "untampered host result row");
-    witness[COL_HOST_RESULT_PENDING_AFTER] = F::ONE;
-    common::assert_rejected(&witness, "host result row keeping the pending flag");
-}
-
-#[test]
-fn host_result_row_rejects_redirected_write_address() {
-    let trace = five_arg_trace();
-    let result_row = host_result_rows(&trace)[0];
-    let mut witness = build_witness_vector(result_row);
-    witness[COL_STACK_WRITE0_ADDR_LO] = witness[COL_STACK_WRITE0_ADDR_LO] + F::from_u64(2);
-    witness[COL_STACK_WRITE0_ADDR_HI] = witness[COL_STACK_WRITE0_ADDR_HI] + F::from_u64(2);
-    common::assert_rejected(&witness, "host result row writing to a redirected slot");
-}
-
-/// A program row cannot execute while a host result push is still owed: the
-/// row-kind one-hot forces the pending flag to be consumed first.
-#[test]
-fn program_row_rejects_pending_host_result() {
-    let trace = five_arg_trace();
-    let program_row = trace
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row");
-    let mut witness = build_witness_vector(program_row);
-    witness[COL_HOST_RESULT_PENDING_BEFORE] = F::ONE;
-    common::assert_rejected(&witness, "program row with an unconsumed host result");
-}
-
-/// Only host-call rows may enter host-arg mode. A guest call to a zero-param
-/// callee never activates param-init, so without the full
-/// `is_program − call − ci_not_trap + guest_call_active` gate a prover could enter
-/// host-arg mode there and append phantom arg pops that shift sp inside the
-/// callee. The forgery keeps the exit-mode identity and zero-test gadget
-/// satisfied (remaining = 1, inv = 1, is_zero = 0), so only the enter-mode
-/// gate can reject it.
-#[test]
-fn guest_call_row_rejects_forged_host_arg_mode() {
-    let checked = common::checked_wasm_run(
-        r#"(module
-            (func $noargs (result i32)
-                i32.const 7)
-            (func (export "run") (result i32)
-                call $noargs))
-        "#,
-        "run",
-        &[],
-    );
-    let call_row = checked
-        .trace
-        .iter()
-        .find(|row| row.row_kind.is_program() && row.opcode == WasmOpcode::Call)
-        .expect("guest call row");
-    assert!(call_row.call_stack_push.is_some(), "call targets a guest callee");
-    let mut witness = build_witness_vector(call_row);
-    common::assert_satisfied(&witness, "untampered guest call row");
-    witness[COL_HOST_ARGS_ACTIVE_AFTER] = F::ONE;
-    witness[COL_HOST_ARGS_REMAINING_AFTER] = F::ONE;
-    witness[COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO] = F::ZERO;
-    witness[COL_HOST_ARGS_REMAINING_AFTER_INV] = F::ONE;
-    common::assert_rejected(&witness, "guest call row entering host-arg mode");
-}
-
-/// Param-init aux rows must preserve host-call state; they cannot forge a
-/// pending host result while guest-call params are being initialized.
-#[test]
-fn param_init_row_rejects_forged_host_result_pending() {
-    let checked = common::checked_wasm_run(
-        r#"(module
-            (func $double (param i32) (result i32)
-                local.get 0
-                local.get 0
-                i32.add)
-            (func (export "run") (result i32)
-                i32.const 21
-                call $double))
-        "#,
-        "run",
-        &[],
-    );
-    let param_init_row = checked
-        .trace
-        .iter()
-        .find(|row| row.row_kind.is_call_param_init())
-        .expect("param-init aux row");
-    let mut witness = build_witness_vector(param_init_row);
-    common::assert_satisfied(&witness, "untampered param-init row");
-    witness[COL_HOST_RESULT_PENDING_AFTER] = F::ONE;
-    common::assert_rejected(&witness, "param-init row forging an owed host result");
-}
-
-/// Host-arg aux rows must preserve param-init state; they cannot enter guest
-/// param-init mode while host args are being popped.
-#[test]
-fn host_arg_row_rejects_forged_param_init_mode() {
-    let trace = five_arg_trace();
-    let arg_row = host_arg_rows(&trace)[0];
+fn gather_row_rejects_switched_callee_attribution() {
+    let run = five_arg_run();
+    let arg_row = arg_gather_rows(&run.trace)[0];
     let mut witness = build_witness_vector(arg_row);
-    common::assert_satisfied(&witness, "untampered host arg row");
-    witness[COL_PARAM_INIT_ACTIVE_AFTER] = F::ONE;
-    witness[COL_PARAM_INIT_REMAINING_AFTER] = F::ONE;
-    witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ZERO;
-    witness[COL_PARAM_INIT_REMAINING_AFTER_INV] = F::ONE;
-    common::assert_rejected(&witness, "host arg row entering param-init mode");
+    common::assert_satisfied(&witness, "untampered arg gather row");
+    witness[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "arg gather row switching the callee attribution");
 }

@@ -1,13 +1,14 @@
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
-    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX,
+    COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE,
+    COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
-    sanity_check_memory_rows, traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryPreload,
-    WasmOpcode,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryId,
+    WasmMemoryPreload, WasmOpcode,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -17,7 +18,14 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let witnesses = trace.iter().map(build_witness_vector).collect();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = preload_from_program_artifacts(&artifacts);
+    // Import-free traces run under the canonical single-shot bindings; the
+    // exit latch reads its (biased) export count cells.
+    let export_fref = trace[0].state_before.host_events.turn_export_fref;
+    neo_wasm::memory_semantics::preload_host_event_tables(
+        &mut preload,
+        &neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref),
+    );
     (trace, witnesses, preload)
 }
 
@@ -39,6 +47,33 @@ fn memory_semantics_accept_real_direct_call_trace() {
 }
 
 #[test]
+fn memory_semantics_rejects_tampered_function_call_metadata() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    );
+    let call_idx = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::Call)
+        .expect("call row");
+    witnesses[call_idx][COL_CALL_TARGET_METADATA] += F::ONE;
+
+    let layout = build_wasm_relation_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered metadata must fail");
+    assert!(
+        err.contains("memory `function_call_metadata` ROM mismatch"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
     let (trace, mut witnesses, preload) = witness_run(
         r#"(module
@@ -53,7 +88,7 @@ fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
         .position(|row| row.opcode == WasmOpcode::I64Add)
         .expect("i64.add row");
 
-    witnesses[add_idx][COL_STACK_READ0_VALUE_HI] = F::from_u64(9);
+    witnesses[add_idx][COL_STACK_READ_VALUE_HI[0]] = F::from_u64(9);
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
@@ -79,7 +114,10 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
         .iter()
         .find(|row| matches!(row.opcode, WasmOpcode::Call))
         .expect("call row");
-    preload.remove("pc_rom", &[call_row.state_before.pc as u32, call_row.control_choice]);
+    preload.remove(
+        WasmMemoryId::PcRom,
+        &[call_row.state_before.pc as u32, call_row.control_choice],
+    );
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -101,7 +139,7 @@ fn memory_semantics_rejects_wrong_program_opcode() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong opcode must fail");
-    assert!(err.contains("memory `program_opcodes` ROM mismatch"));
+    assert!(err.contains("memory `program_opcode` ROM mismatch"));
 }
 
 #[test]
@@ -121,7 +159,7 @@ fn memory_semantics_rejects_wrong_program_local_index() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local index must fail");
-    assert!(err.contains("memory `program_local_indices` ROM mismatch"));
+    assert!(err.contains("memory `program_local_index` ROM mismatch"));
 }
 
 #[test]
@@ -142,7 +180,7 @@ fn memory_semantics_rejects_wrong_program_memory_offset() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong memory offset must fail");
-    assert!(err.contains("memory `program_memory_offsets` ROM mismatch"));
+    assert!(err.contains("memory `program_memory_offset` ROM mismatch"));
 }
 
 #[test]
@@ -161,7 +199,7 @@ fn memory_semantics_rejects_wrong_program_i64_const_high_limb() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong i64 const hi must fail");
-    assert!(err.contains("memory `program_i64_const_values_hi` ROM mismatch"));
+    assert!(err.contains("memory `program_i64_const_value_hi` ROM mismatch"));
 }
 
 #[test]
@@ -187,7 +225,7 @@ fn memory_semantics_rejects_wrong_program_call_indirect_expected_type() {
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("wrong call_indirect expected type must fail");
-    assert!(err.contains("memory `program_call_indirect_expected_type_ids` ROM mismatch"));
+    assert!(err.contains("memory `program_call_indirect_expected_type_id` ROM mismatch"));
 }
 
 #[test]
@@ -208,7 +246,7 @@ fn memory_semantics_reject_missing_call_return_pc_rom_edge() {
         .find(|row| row.call_stack_push.is_some())
         .expect("call row");
     preload.remove(
-        "pc_rom",
+        WasmMemoryId::PcRom,
         &[call_row.state_before.pc as u32, PC_ROM_CALL_RETURN_CHOICE as u32],
     );
     let layout = build_wasm_relation_layout();
@@ -237,7 +275,7 @@ fn memory_semantics_rejects_return_pc_not_read_from_call_stack() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken return pc read must fail");
-    assert!(err.contains("memory `call_stack_return_pcs` read mismatch"));
+    assert!(err.contains("memory `call_stack_return_pc` read mismatch"));
 }
 
 #[test]
@@ -257,7 +295,7 @@ fn memory_semantics_rejects_wrong_current_function_local_count() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local count must fail");
-    assert!(err.contains("memory `function_local_counts` ROM mismatch"));
+    assert!(err.contains("memory `function_local_count` ROM mismatch"));
 }
 
 #[test]
@@ -283,7 +321,7 @@ fn memory_semantics_rejects_wrong_current_function_ref() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong function ref must fail");
-    assert!(err.contains("memory `pc_function_refs` ROM mismatch"));
+    assert!(err.contains("memory `pc_function_ref` ROM mismatch"));
 }
 
 #[test]
@@ -305,15 +343,15 @@ fn memory_semantics_rejects_wrong_call_indirect_target() {
         .find(|row| matches!(row.opcode, WasmOpcode::CallIndirect))
         .expect("call_indirect row");
     let function_ref = row.table_value.expect("call_indirect function ref");
-    preload.remove("function_entries", &[function_ref]);
+    preload.remove(WasmMemoryId::FunctionEntry, &[function_ref]);
     preload.insert(
-        "function_entries",
+        WasmMemoryId::FunctionEntry,
         vec![function_ref],
         row.state_after.pc.saturating_add(1) as u32,
     );
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong call_indirect target must fail");
-    assert!(err.contains("memory `function_entries` ROM mismatch"));
+    assert!(err.contains("memory `function_entry` ROM mismatch"));
 }
 
 #[test]
@@ -334,7 +372,7 @@ fn memory_semantics_rejects_missing_if_taken_edge() {
         .find(|row| matches!(row.opcode, WasmOpcode::If))
         .expect("if row");
     assert_eq!(row.control_choice, 1);
-    preload.remove("pc_rom", &[row.state_before.pc as u32, row.control_choice]);
+    preload.remove(WasmMemoryId::PcRom, &[row.state_before.pc as u32, row.control_choice]);
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -358,7 +396,7 @@ fn memory_semantics_rejects_missing_br_if_taken_edge() {
         .find(|row| matches!(row.opcode, WasmOpcode::BrIf))
         .expect("br_if row");
     assert_eq!(row.control_choice, 1);
-    preload.remove("pc_rom", &[row.state_before.pc as u32, row.control_choice]);
+    preload.remove(WasmMemoryId::PcRom, &[row.state_before.pc as u32, row.control_choice]);
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing br_if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -400,7 +438,10 @@ fn memory_semantics_rejects_tampered_table_funcref() {
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table funcref must fail");
-    assert!(err.contains("memory `tables` read mismatch"), "unexpected error: {err}");
+    assert!(
+        err.contains("memory `table_element` read mismatch"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -418,7 +459,7 @@ fn memory_semantics_rejects_nonnull_read_of_uninitialized_table_entry() {
     let layout = build_wasm_relation_layout();
     let err =
         sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("non-null uninitialized read must fail");
-    assert!(err.contains("memory `tables`"), "unexpected error: {err}");
+    assert!(err.contains("memory `table_element`"), "unexpected error: {err}");
 }
 
 #[test]
@@ -433,7 +474,7 @@ fn memory_semantics_rejects_tampered_table_size() {
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table size must fail");
     assert!(
-        err.contains("memory `table_sizes` read mismatch"),
+        err.contains("memory `table_size` read mismatch"),
         "unexpected error: {err}"
     );
 }
@@ -468,7 +509,7 @@ fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged callee type must fail");
     assert!(
-        err.contains("memory `function_types` ROM mismatch"),
+        err.contains("memory `function_type` ROM mismatch"),
         "unexpected error: {err}"
     );
 }
@@ -505,7 +546,7 @@ fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged table size must fail");
     assert!(
-        err.contains("memory `table_sizes` read mismatch"),
+        err.contains("memory `table_size` read mismatch"),
         "unexpected error: {err}"
     );
 }

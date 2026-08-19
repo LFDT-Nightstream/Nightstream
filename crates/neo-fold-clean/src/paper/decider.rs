@@ -162,12 +162,14 @@ pub fn validate_witness(
     vk: &VerifierKey,
     public_input_len: Option<usize>,
     f_prime_recursive_link: bool,
+    terminal_induction: bool,
     semantic_mode: SemanticStateMode,
     // Verifier-owned initial app/VM semantic-state seed. Pulled from
     // `prep.initial_semantic_state_digest()` at the lifecycle layer;
     // MUST equal `statement.public.initial_semantic_state_digest` or
     // `validate_witness` returns `Error::PublicImageMismatch`.
     initial_semantic_state_digest_anchor: [u8; 32],
+    nebula: Option<&crate::paper::construction2::NebulaConfig>,
     statement: &Statement,
 ) -> Result<(), Error> {
     // (0) Pin the prover's claimed initial app-state to the verifier's
@@ -208,6 +210,9 @@ pub fn validate_witness(
     let public_trace = public_trace_seed_digest(structure_digest_v);
     let acc_digest = AccumulatorHandle::empty().digest();
     let mut state = State::base(z_0, public_trace, acc_digest, initial_semantic_state_digest_anchor);
+    if let Some(cfg) = nebula {
+        state.nebula = Some(crate::paper::construction2::NebulaLane::base(cfg));
+    }
 
     // Walk each step through F'.verify. Before every recursive fold, pin
     // the currently pending `latest` claim's public input to the current
@@ -231,10 +236,64 @@ pub fn validate_witness(
             params,
             structure_digest_v,
             vk,
+            public_input_len,
             f_prime_recursive_link,
             &state,
             semantic_mode,
         )?;
+        // Nebula lane replay (spec §6.3): recompute the advanced lane
+        // from the deposited claims and the step's segment-open payload —
+        // the same shared transition the prover ran. Divergence surfaces
+        // as the specific §6.3 check that failed, before x_out.
+        let nebula_advance = match (nebula, &state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let mut lane_out = lane.clone();
+                if terminal_induction {
+                    if step_proof.nebula_open.is_some() {
+                        return Err(Error::WalkFailed(
+                            "folded F' carries Nebula open data in the delayed claim suffix".into(),
+                        ));
+                    }
+                    if let ProofState::Active { latest, .. } = &state.proof {
+                        lane_out
+                            .advance_for_delayed_claims(
+                                cfg,
+                                vk.digest(),
+                                state.z_i,
+                                state.acc_digest,
+                                crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN,
+                                &latest.claims(),
+                            )
+                            .map_err(|e| Error::WalkFailed(format!("nebula lane: {e}")))?;
+                    }
+                } else {
+                    lane_out
+                        .advance_for_batch(
+                            cfg,
+                            vk.digest(),
+                            state.z_i,
+                            state.acc_digest,
+                            step_proof.nebula_open,
+                            public_batch,
+                        )
+                        .map_err(|e| Error::WalkFailed(format!("nebula lane: {e}")))?;
+                }
+                Some(crate::paper::construction2::NebulaAdvance {
+                    lane_out,
+                    open: if terminal_induction {
+                        None
+                    } else {
+                        step_proof.nebula_open
+                    },
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(Error::WalkFailed(
+                    "nebula config/lane presence mismatch between preprocessing and chain state".into(),
+                ))
+            }
+        };
         state = construction2::verify_step(
             params,
             structure,
@@ -247,6 +306,7 @@ pub fn validate_witness(
             public_batch,
             step_proof,
             semantic_mode,
+            nebula_advance,
         )
         .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
     }
@@ -255,6 +315,7 @@ pub fn validate_witness(
         params,
         structure_digest_v,
         vk,
+        public_input_len,
         f_prime_recursive_link,
         &state,
         semantic_mode,
@@ -269,6 +330,7 @@ pub fn validate_witness(
         mix_rhos_commits,
         combine_b_pows,
         vk,
+        terminal_induction.then_some(nebula).flatten(),
         state,
         final_fold.as_ref(),
         semantic_mode,
@@ -364,6 +426,7 @@ fn check_terminal_latest_link(
     params: &Params,
     structure_digest: &[F; 4],
     vk: &VerifierKey,
+    public_input_len: Option<usize>,
     f_prime_recursive_link: bool,
     state: &State,
     semantic_mode: SemanticStateMode,
@@ -379,9 +442,10 @@ fn check_terminal_latest_link(
     }
 
     let expected = construction2::compute_x_out(vk, params, structure_digest, state, semantic_mode).bits();
+    let expected_public_input_len = public_input_len.unwrap_or(F_PRIME_PUBLIC_INPUT_LEN);
     for (index, instance) in latest.instances.iter().enumerate() {
         let claim = &instance.claim;
-        if claim.m_in != F_PRIME_PUBLIC_INPUT_LEN || claim.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+        if claim.m_in != expected_public_input_len || claim.x.len() != expected_public_input_len {
             return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
         if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {

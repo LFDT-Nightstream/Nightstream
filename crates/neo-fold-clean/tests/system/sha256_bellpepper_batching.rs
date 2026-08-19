@@ -269,8 +269,8 @@ fn sha256_serial_quad_app_var_width_histogram_snapshot() {
         let mut map = std::collections::BTreeMap::<usize, Vec<(usize, u64)>>::new();
         if let CcsMatrix::Csc(csc) = mat {
             for col in 0..csc.ncols {
-                for k in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    map.entry(csc.row_idx[k])
+                for k in csc.column_range(col) {
+                    map.entry(csc.row_index(k))
                         .or_default()
                         .push((col, csc.vals[k].as_canonical_u64()));
                 }
@@ -1362,9 +1362,30 @@ fn push_remapped_trips(
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    out.push((row_offset + csc.row_idx[idx], map_col(col), csc.vals[idx]));
+                for idx in csc.column_range(col) {
+                    out.push((row_offset + csc.row_index(idx), map_col(col), csc.vals[idx]));
                 }
+            }
+        }
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            for col in 0..csc.ncols {
+                for idx in csc.column_range(col) {
+                    out.push((row_offset + csc.row_index(idx), map_col(col), csc.vals[idx]));
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, value| {
+                    out.push((row_offset + row, map_col(col), value));
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, value| {
+                    out.push((row_offset + row, map_col(col), value));
+                });
             }
         }
     }
@@ -1482,6 +1503,7 @@ fn sha256_lifecycle_plan_with_ce_shape(
         boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

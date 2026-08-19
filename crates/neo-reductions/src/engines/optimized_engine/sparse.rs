@@ -16,8 +16,8 @@ use rayon::prelude::*;
 pub struct CscMat<Ff> {
     pub nrows: usize,
     pub ncols: usize,
-    pub col_ptr: Vec<usize>,
-    pub row_idx: Vec<usize>,
+    pub col_ptr: Vec<u32>,
+    pub row_idx: Vec<u32>,
     pub vals: Vec<Ff>,
 }
 
@@ -72,8 +72,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_indices(col_ptr),
+            row_idx: compact_indices(row_idx),
             vals,
         }
     }
@@ -156,8 +156,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         CscMat {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_indices(col_ptr),
+            row_idx: compact_indices(row_idx),
             vals,
         }
     }
@@ -180,14 +180,14 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             y.par_iter_mut().enumerate().for_each(|(c, yc)| {
-                let s = self.col_ptr[c];
-                let e = self.col_ptr[c + 1];
+                let s = self.col_ptr[c] as usize;
+                let e = self.col_ptr[c + 1] as usize;
                 if s == e {
                     return;
                 }
                 let mut sum = *yc;
                 for k in s..e {
-                    let r = self.row_idx[k];
+                    let r = self.row_idx[k] as usize;
                     if r < n_eff {
                         sum += Kf::from(self.vals[k]) * x[r];
                     }
@@ -198,14 +198,14 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         {
             for c in 0..self.ncols {
-                let s = self.col_ptr[c];
-                let e = self.col_ptr[c + 1];
+                let s = self.col_ptr[c] as usize;
+                let e = self.col_ptr[c + 1] as usize;
                 if s == e {
                     continue;
                 }
                 let mut sum = y[c];
                 for k in s..e {
-                    let r = self.row_idx[k];
+                    let r = self.row_idx[k] as usize;
                     if r < n_eff {
                         sum += Kf::from(self.vals[k]) * x[r];
                     }
@@ -231,10 +231,10 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
             if xc == zero {
                 continue;
             }
-            let s = self.col_ptr[c];
-            let e = self.col_ptr[c + 1];
+            let s = self.col_ptr[c] as usize;
+            let e = self.col_ptr[c + 1] as usize;
             for k in s..e {
-                let r = self.row_idx[k];
+                let r = self.row_idx[k] as usize;
                 if r < n_eff {
                     y[r] += Kf::from(self.vals[k]) * xc;
                 }
@@ -243,16 +243,36 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
     }
 }
 
+fn compact_indices(indices: Vec<usize>) -> Vec<u32> {
+    indices
+        .into_iter()
+        .map(|index| u32::try_from(index).unwrap_or_else(|_| panic!("CSC index exceeds u32: {index}")))
+        .collect()
+}
+
 /// Cache of CSC matrix formats used by optimized routines.
 #[derive(Clone)]
 pub struct SparseCache<Ff> {
-    // For each j: None (identity), or Some(CSC)
-    csc: Vec<Option<CscMat<Ff>>>,
+    source: SparseCacheSource<Ff>,
+}
+
+#[derive(Clone)]
+enum SparseCacheSource<Ff> {
+    Owned(Vec<Option<CscMat<Ff>>>),
+    Shared(std::sync::Arc<CcsStructure<Ff>>),
 }
 
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
     pub fn from_csc(csc: Vec<Option<CscMat<Ff>>>) -> Self {
-        Self { csc }
+        Self {
+            source: SparseCacheSource::Owned(csc),
+        }
+    }
+
+    pub fn from_shared_structure(structure: std::sync::Arc<CcsStructure<Ff>>) -> Self {
+        Self {
+            source: SparseCacheSource::Shared(structure),
+        }
     }
 
     pub fn from_triplets(nrows: usize, ncols: usize, matrices: Vec<Option<Vec<(usize, usize, Ff)>>>) -> Self {
@@ -279,19 +299,35 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
                     row_idx: m.row_idx.clone(),
                     vals: m.vals.clone(),
                 })),
+                CcsMatrix::CscWithSeededPhi81 { csc: m, .. } => csc.push(Some(CscMat {
+                    nrows: m.nrows,
+                    ncols: m.ncols,
+                    col_ptr: m.col_ptr.clone(),
+                    row_idx: m.row_idx.clone(),
+                    vals: m.vals.clone(),
+                })),
             }
         }
 
-        Self { csc }
+        Self::from_csc(csc)
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.csc.len()
+        match &self.source {
+            SparseCacheSource::Owned(csc) => csc.len(),
+            SparseCacheSource::Shared(structure) => structure.matrices.len(),
+        }
     }
 
     #[inline]
     pub fn csc(&self, j: usize) -> Option<&CscMat<Ff>> {
-        self.csc.get(j).and_then(|m| m.as_ref())
+        match &self.source {
+            SparseCacheSource::Owned(csc) => csc.get(j).and_then(|matrix| matrix.as_ref()),
+            // Shared structures already expose their canonical neo-ccs CSC
+            // arrays to the digest path. Returning `None` selects those
+            // arrays without cloning them into this engine-local CSC type.
+            SparseCacheSource::Shared(_) => None,
+        }
     }
 }

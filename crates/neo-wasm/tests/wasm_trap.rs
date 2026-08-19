@@ -9,9 +9,9 @@
 
 mod common;
 
-use neo_wasm::{
-    preprocess_seeded_batched, prove_batched, top_level_initial_state_digest, verify, WasmOpcode, WasmProveError,
-};
+use common::audit::{prove_batched, verify, AuditProveError};
+use neo_wasm::preprocess::preprocess_seeded_batched;
+use neo_wasm::{top_level_initial_state_digest, WasmOpcode};
 
 #[test]
 fn unreachable_trap_is_a_provable_terminal_state() {
@@ -48,7 +48,7 @@ fn unreachable_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -80,7 +80,7 @@ fn div_by_zero_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -140,7 +140,7 @@ fn i32_signed_division_overflow_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -204,7 +204,7 @@ fn linear_memory_oob_load_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -241,7 +241,7 @@ fn linear_memory_oob_store_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -285,7 +285,7 @@ fn call_indirect_null_entry_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -333,7 +333,7 @@ fn call_indirect_oob_index_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }
 
@@ -375,6 +375,6 @@ fn call_indirect_type_mismatch_trap_is_a_provable_terminal_state() {
     clean_claim.trapped = false;
     assert!(matches!(
         verify(&prep, &proof, clean_claim),
-        Err(WasmProveError::FinalStateMismatch)
+        Err(AuditProveError::FinalStateMismatch)
     ));
 }

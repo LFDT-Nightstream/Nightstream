@@ -24,7 +24,7 @@ pub use runtime_read::build_debug_function_id_map;
 use runtime_read::{build_single_trace_store_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
-pub use normalize::traces_from_wasmtime_steps;
+pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_host_events};
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -71,7 +71,8 @@ pub struct WasmtimeTraceStep {
     pub memory_max_pages: Option<u32>,
     pub memory: Option<WasmtimeTraceMemoryAccess>,
     pub locals: Vec<String>,
-    pub locals_words_hi: Vec<u32>,
+    /// Numeric `(lo, hi)` lanes, one pair per captured local.
+    pub locals_words: Vec<(u32, u32)>,
     pub operand_stack: Vec<String>,
     pub operand_stack_words: Vec<u32>,
     pub operand_stack_words_hi: Vec<u32>,
@@ -84,6 +85,11 @@ pub struct WasmtimeTraceStep {
     /// this is the return PC; for branches it is the linear successor, not
     /// necessarily the runtime next PC.
     pub pc_after_instruction: Option<u64>,
+    /// Per-call host-event input words recorded by the embedder's host
+    /// function while servicing this host-call row (see
+    /// [`WasmtimeTraceState::record_call_inputs`]). Consumed by event-bound
+    /// normalization.
+    pub host_call_inputs: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -109,8 +115,11 @@ pub struct WasmtimeTraceMemoryAccess {
     pub value_after_i32: Option<i32>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct WasmtimeTraceRun {
+    /// Verifier-owned static program tables used by host-event-aware
+    /// normalization and memory preloading.
+    pub program_tables: WasmProgramTables,
     /// Normalized string form of the export results, as produced by the
     /// reference wasmtime interpreter (`func.call_async`).
     ///
@@ -121,9 +130,6 @@ pub struct WasmtimeTraceRun {
     /// by `verify` against the prover-disclosed final `WasmStepState`.
     pub results: Vec<String>,
     pub steps: Vec<WasmtimeTraceStep>,
-    /// Values of all locals (params + pure locals) at function entry, indexed by local index.
-    /// Params have the argument values; pure locals are zero. Populated from the first frame step.
-    pub initial_locals: Vec<u32>,
 }
 
 /// Single-step tracing hook for store data that exposes [`WasmtimeTraceState`].
@@ -239,6 +245,28 @@ impl WasmtimeTraceState {
     pub fn set_func_ref_ids(&mut self, func_ref_ids: BTreeMap<usize, u32>) {
         Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
     }
+
+    /// Record per-call host-event input words for the in-flight host call
+    /// (for example, ref ids or caller identities). Call from
+    /// inside a host-function implementation (`store.data_mut()`): the debug
+    /// hook captures each instruction before it executes, so the latest
+    /// captured step is the host-call row being serviced and the batch
+    /// attaches to it — no call-order bookkeeping. Repeated calls append.
+    pub fn record_call_inputs(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
+        let row = self.steps.last_mut().ok_or_else(|| {
+            WasmBuildError::Trace("record_call_inputs: no captured step; not inside a traced host call".to_string())
+        })?;
+        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
+            && !row.target_function_is_guest;
+        if !is_host_call {
+            return Err(WasmBuildError::Trace(format!(
+                "record_call_inputs: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
+                row.step, row.opcode
+            )));
+        }
+        row.host_call_inputs.extend_from_slice(words);
+        Ok(())
+    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -324,21 +352,11 @@ pub fn collect_wasmtime_steps(
     };
 
     let steps = store.data().steps.clone();
-    let initial_locals = steps
-        .iter()
-        .find(|s| s.frame_depth == 0 && s.pc.is_some())
-        .map(|s| {
-            s.locals
-                .iter()
-                .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
-                .collect()
-        })
-        .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
+        program_tables: parsed.tables,
         results,
         steps,
-        initial_locals,
     })
 }
 
@@ -357,6 +375,21 @@ pub fn collect_wasmtime_component_run(
 pub fn collect_wasmtime_component_run_with_linker<F>(
     component_bytes: &[u8],
     export: &str,
+    configure_linker: F,
+) -> Result<WasmtimeTraceRun, WasmBuildError>
+where
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+{
+    collect_wasmtime_component_run_with_linker_and_args(component_bytes, export, &[], configure_linker)
+}
+
+/// [`collect_wasmtime_component_run_with_linker`] for exports with
+/// parameters: `args` are passed to the component-level call (canonical ABI
+/// lowering lands them in the export's locals).
+pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
+    component_bytes: &[u8],
+    export: &str,
+    args: &[ComponentVal],
     configure_linker: F,
 ) -> Result<WasmtimeTraceRun, WasmBuildError>
 where
@@ -400,28 +433,18 @@ where
         .results()
         .map(default_component_result_value)
         .collect::<Result<_, _>>()?;
-    block_on(func.call_async(&mut store, &[], &mut results))
+    block_on(func.call_async(&mut store, args, &mut results))
         .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
     let steps = store.data().steps.clone();
-    let initial_locals = steps
-        .iter()
-        .find(|s| s.frame_depth == 0 && s.pc.is_some())
-        .map(|s| {
-            s.locals
-                .iter()
-                .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
-                .collect()
-        })
-        .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
+        program_tables: parsed.tables,
         results: results
             .iter()
             .map(component_val_to_string)
             .collect::<Result<_, _>>()?,
         steps,
-        initial_locals,
     })
 }
 

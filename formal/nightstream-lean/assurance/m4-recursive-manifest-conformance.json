@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "milestone_slice": "M4 recursive program ownership manifest",
+  "status": "pass",
+  "overall_m4_status": "complete only for the separate advertised [1,1] fixed profile",
+  "property_id": "CIR-FPR-RECURSIVE-MANIFEST",
+  "profile": "plain/stateless/minimal-supported-bit-carrier/steady-recursive",
+  "artifact": "assurance/fprime-recursive-program-manifest.json",
+  "exact_shape": {
+    "rows": 2640071,
+    "columns": 2308212,
+    "nonzero_entries": 11918689
+  },
+  "completion_checks": {
+    "artifact_identity": "pass: exact sparse triplets are hashed by contiguous owner range",
+    "top_level_coverage": "pass: eight ranges cover rows [0, 2640071) without gaps or overlaps",
+    "nifs_coverage": "pass: PiCCS, PiRLC, PiDEC, and point binding cover rows [20038, 2592246)",
+    "projection_census": "pass: one 1,892-row shared block plus 31 equal-shape 1,916-row identities, each with 15 pairs",
+    "honest_runtime_witness": "pass: the production builder reports the exact program satisfied",
+    "lean_kernel_coverage": "pass: topLevel_covers_program, nifs_covers_block, and projection census shape/ownership theorems",
+    "drift_gate": "pass: Rust and Lean source hashes are embedded in the regenerated manifest",
+    "semantic_correspondence": "partial: exact extracted projection traces imply BatchAccepted and reduce to LocalHolds or BadRoot; global PiRLC-range trace extraction remains open"
+  },
+  "semantic_target": [
+    "Nightstream.Assurance.FPrimeRecursiveCircuit.decodedChecks_sound",
+    "Nightstream.Assurance.FPrimeRecursiveCircuit.decodedChecks_local_sound",
+    "Nightstream.Implementation.R1CS.ProjectionProgram.ProjectionTrace.census_batchAccepted"
+  ],
+  "largest_open_owner": {
+    "name": "nifs.pi_rlc",
+    "rows": 1836082
+  },
+  "does_not_claim": [
+    "CIR-SOUND",
+    "CIR-COMPLETE",
+    "full-history artifact correspondence",
+    "stateful or Nebula profile correspondence"
+  ]
+}

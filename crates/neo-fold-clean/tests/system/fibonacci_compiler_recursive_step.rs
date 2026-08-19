@@ -7,7 +7,7 @@
 //!   doesn't enforce the Fibonacci app step.
 //! - **Post-fold accumulator binding** — catches a compiler that
 //!   computes the outgoing accumulator handle from anything other than
-//!   the verified full post-fold running accumulator. Unified mode no
+//!   the verified post-fold parent authority. Unified mode no
 //!   longer stores the full CE payload in the low-norm source image.
 //! - **Post vs pre confusion** — catches a compiler that uses
 //!   `pre_running.parent_authority` instead of
@@ -268,11 +268,11 @@ fn compiler_binds_post_fold_full_running_to_state_out_acc_digest() {
     assert_eq!(
         compiled.encoded.image.decode_state_out().new_acc_digest,
         expected,
-        "recursive source image must carry the accumulator handle derived from the verified full post-fold running accumulator"
+        "recursive source image must carry the accumulator handle derived from the verified post-fold parent authority"
     );
     assert_eq!(
         compiled.encoded.image.layout.nifs_payloads.bits, 0,
-        "unified mode must not re-store the full post-fold CE payload in the source image"
+        "unified mode must not re-store the post-fold CE payload in the source image"
     );
 }
 
@@ -319,7 +319,7 @@ fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
 
     assert_eq!(
         decoded, expected_post,
-        "compiler must derive state_out.acc_digest from the post-fold full running accumulator"
+        "compiler must derive state_out.acc_digest from the post-fold parent authority"
     );
     assert_ne!(
         decoded, expected_pre,

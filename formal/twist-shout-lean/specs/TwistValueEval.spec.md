@@ -18,7 +18,7 @@ Specify the reconstruction of `Val` from committed increments inside Twist.
 ## Module Mapping
 
 - Spec: `specs/TwistValueEval.spec.md`
-- Interface: `TwistShout/TwistValueEvalInterface.lean`
+- Interface: `TwistShout/TwistValueEval.lean`
 - Implementation: `TwistShout/TwistValueEval.lean`
 
 ## Contract Surface

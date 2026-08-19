@@ -18,9 +18,9 @@ use super::super::gadgets::push_gated_linear_zero;
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CI_OOB, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
-    COL_LOCAL_WRITE_ENABLED, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
+    COL_LOCAL_WRITE_ENABLED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED,
+    COL_TABLE_VALUE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{opcode_tag, shared};
@@ -30,11 +30,24 @@ use p3_field::PrimeCharacteristicRing;
 type R1csBuilder = WasmTaggedR1csBuilder;
 
 const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
-const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIndirect];
-const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableSize, WasmOpcode::CallIndirect];
+const TABLE_READ_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableGet,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
+const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableSize,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
 const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
-const TABLE_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::TableSet, WasmOpcode::CallIndirect];
+const TABLE_VALUE_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableGet,
+    WasmOpcode::TableSet,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
 
 /// Emit every operand-stack ↔ memory-family binding the wasm VM
 /// needs. First the gate-column declarations the lookup layer reads
@@ -56,6 +69,7 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
             (COL_TABLE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
             (COL_CI_OOB, F::ONE),
         ]);
     });
@@ -65,6 +79,7 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
             (COL_TABLE_SIZE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableSize).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
         ]);
     });
 
@@ -91,12 +106,12 @@ fn push_local_value_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalSet).unwrap(),
-        [(COL_LOCAL_VALUE, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_LOCAL_VALUE, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(COL_LOCAL_VALUE, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_LOCAL_VALUE, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
@@ -112,12 +127,12 @@ fn push_local_value_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalSet).unwrap(),
-        [(COL_LOCAL_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+        [(COL_LOCAL_VALUE_HI, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(COL_LOCAL_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+        [(COL_LOCAL_VALUE_HI, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
@@ -135,7 +150,7 @@ fn push_global_value_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::GlobalSet).unwrap(),
-        [(COL_GLOBAL_VALUE, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_GLOBAL_VALUE, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
@@ -145,7 +160,7 @@ fn push_global_value_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::GlobalSet).unwrap(),
-        [(COL_GLOBAL_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+        [(COL_GLOBAL_VALUE_HI, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
 }
 
@@ -158,17 +173,17 @@ fn push_table_value_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSet).unwrap(),
-        [(COL_TABLE_VALUE, F::ONE), (COL_STACK_READ1_VALUE_LO, -F::ONE)],
+        [(COL_TABLE_VALUE, F::ONE), (COL_STACK_READ_VALUE_LO[1], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableGet).unwrap(),
-        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSet).unwrap(),
-        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
 }
 

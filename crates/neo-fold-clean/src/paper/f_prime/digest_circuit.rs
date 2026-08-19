@@ -33,7 +33,38 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
-use crate::paper::digest::{StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_STATE_X_OUT_DOMAIN};
+use crate::paper::digest::{
+    StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_CHUNK_CLAIM_DIGEST_TAG,
+    F_PRIME_CHUNK_PUBLIC_DIGEST_TAG, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
+};
+
+/// Recompute the F' step/shape digest from verifier-owned claim geometry and
+/// the in-circuit start index. The native digest deliberately excludes claim
+/// contents to avoid the recursive-link fixed point, but its shape preimage
+/// still must be computed in-circuit; a prover-supplied `chunk_digest` is not
+/// authority merely because native witness generation chose it honestly.
+pub fn enforce_f_prime_chunk_public_digest_circuit(
+    builder: &mut R1csBuilder,
+    start_index: Var,
+    fresh_len: usize,
+    c_d: usize,
+    c_kappa: usize,
+    m_in: usize,
+) -> [Var; DIGEST_LEN] {
+    let mut claim_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_CLAIM_DIGEST_TAG);
+    claim_preimage.push(alloc_constant(builder, F::from_u64(c_d as u64)));
+    claim_preimage.push(alloc_constant(builder, F::from_u64(c_kappa as u64)));
+    claim_preimage.push(alloc_constant(builder, F::from_u64(m_in as u64)));
+    let claim_digest = enforce_poseidon2_hash(builder, &claim_preimage);
+
+    let mut chunk_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_PUBLIC_DIGEST_TAG);
+    chunk_preimage.push(start_index);
+    chunk_preimage.push(alloc_constant(builder, F::from_u64(fresh_len as u64)));
+    for _ in 0..fresh_len {
+        chunk_preimage.extend_from_slice(&claim_digest);
+    }
+    enforce_poseidon2_hash(builder, &chunk_preimage)
+}
 
 /// Tag for `public_trace_update_digest`.
 pub const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
@@ -75,6 +106,9 @@ pub struct StateXOutDigestInputs {
     pub mode: StateXOutDigestMode,
     /// `vk_fs_digest` — 4 limbs (from 32 LE bytes natively).
     pub vk_fs_digest: [Var; DIGEST_LEN],
+    /// SplitNc verifier header carried as part of `vk_fs`. These are
+    /// witness wires so folded F' does not embed a hash of its own matrices.
+    pub pi_ccs_header_bundle: [Var; DIGEST_LEN],
     /// CCS structure digest — 4 native F limbs.
     ///
     /// Retained on the input struct because callers already carry it,
@@ -111,8 +145,28 @@ pub fn enforce_state_x_out_digest_circuit(
     builder: &mut R1csBuilder,
     inputs: &StateXOutDigestInputs,
 ) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, None)
+}
+
+/// Nebula-chain variant of [`enforce_state_x_out_digest_circuit`]. The
+/// lane digest extension is present at both open and closed segment states;
+/// plain chains continue to use the original entrypoint unchanged.
+pub fn enforce_state_x_out_digest_with_nebula_circuit(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+    nebula_lane_digest: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, Some(nebula_lane_digest))
+}
+
+fn enforce_state_x_out_digest_inner(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+    nebula_lane_digest: Option<[Var; DIGEST_LEN]>,
+) -> [Var; DIGEST_LEN] {
     let mut preimage = vec![alloc_constant(builder, F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN))];
     preimage.extend_from_slice(&inputs.vk_fs_digest);
+    preimage.extend_from_slice(&inputs.pi_ccs_header_bundle);
 
     let [chunk_lo, chunk_hi] = enforce_u64_halves_from_var(builder, inputs.chunk_count);
     preimage.push(chunk_lo);
@@ -133,19 +187,25 @@ pub fn enforce_state_x_out_digest_circuit(
     }
     preimage.extend_from_slice(&inputs.construction2_acc);
 
+    if let Some(lane) = nebula_lane_digest {
+        preimage.push(alloc_constant(builder, F::from_u64(NEBULA_ADV_PRESENT_MARKER)));
+        preimage.extend_from_slice(&lane);
+    }
+
     enforce_poseidon2_hash(builder, &preimage)
 }
 
 // Accumulator-digest circuit lives in
 // `crate::paper::reductions::accumulator_digest_circuit` — see that module
-// for the full-running Construction-2 handle that binds HyperNova's `U_i`
+// for the verified-parent Construction-2 handle that binds HyperNova's `U_i`
 // as child CE-claim digests plus the Π_RLC parent-authority digest.
 
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 /// Allocate constant wires for a packed domain tag — `pack_bytes_as_fields`
-/// at gadget-emit time. Output length is `1 + ceil(len/7)`.
-fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
+/// at gadget-emit time. Output length is `1 + ceil(len/7)`. Shared with
+/// the Nebula lane mirrors (`nebula_lane_circuit`).
+pub(crate) fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
     const BYTES_PER_LIMB: usize = 7;
     let mut out = Vec::with_capacity(1 + tag.len().div_ceil(BYTES_PER_LIMB));
     out.push(alloc_constant(builder, F::from_u64(tag.len() as u64)));
@@ -157,7 +217,7 @@ fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
     out
 }
 
-fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
+pub(crate) fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
     let v = builder.alloc(c);
     builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(c));
     v

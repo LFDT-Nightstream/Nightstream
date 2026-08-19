@@ -243,7 +243,8 @@ fn pack_binary_column_bits(z: &Mat<Fq>, d: usize, m: usize) -> Option<Vec<u64>> 
     let mut column_bits = vec![0u64; m];
     for row in 0..d {
         let bit = 1u64 << row;
-        for (col, &value) in z.row(row).iter().enumerate() {
+        for col in 0..m {
+            let value = z[(row, col)];
             if value == Fq::ZERO {
                 continue;
             }
@@ -266,7 +267,8 @@ fn pack_signed_unit_column_bits(z: &Mat<Fq>, d: usize, m: usize) -> Option<(Vec<
     let mut neg_bits = vec![0u64; m];
     for row in 0..d {
         let bit = 1u64 << row;
-        for (col, &value) in z.row(row).iter().enumerate() {
+        for col in 0..m {
+            let value = z[(row, col)];
             if value == Fq::ZERO {
                 continue;
             }
@@ -974,6 +976,17 @@ impl AjtaiSModule {
         match &self.pp {
             PpSource::Owned(pp) => (pp.d, pp.m),
             PpSource::Global { d, m } => (*d, *m),
+        }
+    }
+
+    /// Materialize the public matrix for verifier-side constraint emission.
+    /// Commitment code should continue to use [`SModuleHomomorphism::commit`];
+    /// this accessor exists for proof systems that must encode the same
+    /// linear map as arithmetic constraints.
+    pub fn verification_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
+        match &self.pp {
+            PpSource::Owned(pp) => Ok(pp.clone()),
+            PpSource::Global { d, m } => get_or_load_global_pp_for_dims(*d, *m),
         }
     }
 }

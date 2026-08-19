@@ -15,8 +15,13 @@
 pub mod compiler;
 pub mod encoder;
 pub mod instance;
+pub mod ivc;
 pub mod lifecycle;
+pub mod lowering;
+mod selective;
+mod selective_audit;
 pub mod structure;
+mod ternary_encoding;
 
 pub use compiler::{
     compile_chunk, compile_step, start_chain, R1csChainState, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
@@ -25,6 +30,25 @@ pub use compiler::{
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 pub use instance::build_instance;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
+pub use lowering::{
+    build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
+    build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
+    lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
+    LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
+};
+pub(crate) use selective::{
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
+};
+pub use selective::{
+    audit_multi_branch_selective_low_norm_width_with_alignment,
+    audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
+};
+pub use selective_audit::{
+    SelectiveArmWidthAudit, SelectiveFamilyWidthAudit, SelectiveLowNormWidthAudit, SelectiveTraceWidthAudit,
+};
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 
 use std::sync::Arc;
@@ -51,7 +75,7 @@ use crate::paper::params::Params;
 /// output/public-only binding (`app_public_input*_indices`): in either
 /// case `state_x_out` absorbs an independent semantic digest that must
 /// be authenticated by the generated F' structure.
-fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateMode {
+pub(crate) fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateMode {
     let Some(state_x_out) = plan.state_x_out.as_ref() else {
         return SemanticStateMode::Stateless;
     };
@@ -70,7 +94,7 @@ fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateM
 /// `empty_semantic_state_digest()` for stateless plans. This is the
 /// value that gets baked into `vk_fs_digest` AND into the F' image's
 /// CCS structure's base-step constraint.
-fn initial_semantic_state_digest_for_plan(plan: &RecursiveStepImagePlan) -> [u8; 32] {
+pub(crate) fn initial_semantic_state_digest_for_plan(plan: &RecursiveStepImagePlan) -> [u8; 32] {
     plan.state_x_out
         .as_ref()
         .and_then(|sxo| sxo.initial_semantic_state_digest_anchor)
@@ -568,7 +592,7 @@ pub fn preprocess_seeded_prepared_with_params(
     let log = ajtai::setup_seeded(&params, &prepared.structure.ccs, seed);
     let prep = preprocess_with_test_log_and_optimized_cache(
         params,
-        prepared.structure.ccs.clone(),
+        std::sync::Arc::new(prepared.structure.ccs.clone()),
         log,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
@@ -600,6 +624,16 @@ fn derive_structure(
     plan: &RecursiveStepImagePlan,
     r1cs: &R1csShape,
 ) -> Result<(Arc<FPrimeStructure>, R1csRowAnchors, usize), Error> {
+    validate_plan(plan, r1cs)?;
+    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
+    let public_input_len = 1 + layout.boundary.bits;
+    let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
+    Ok((Arc::new(structure), anchors, public_input_len))
+}
+
+/// Validate the application-state contract shared by both the historical
+/// image compiler and the authoritative recursive R1CS-IVC relation.
+pub(crate) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> Result<(), Error> {
     let boolean_vars = r1cs.boolean_constrained_variables();
     let proven_widths = if plan.app_private_var_widths.is_empty() {
         Vec::new()
@@ -743,8 +777,5 @@ fn derive_structure(
         return Err(Error::PlanSemanticStateAnchorWithoutIndices);
     }
 
-    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
-    let public_input_len = 1 + layout.boundary.bits;
-    let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
-    Ok((Arc::new(structure), anchors, public_input_len))
+    Ok(())
 }

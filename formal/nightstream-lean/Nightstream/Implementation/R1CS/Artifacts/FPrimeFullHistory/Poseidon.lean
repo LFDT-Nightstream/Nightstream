@@ -1,0 +1,7 @@
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryPriorLinkPoseidonHashes
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryPublicPinsPoseidonHashes
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryRecursiveAccumulatorCorePoseidonHashes
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryRecursiveOutputPoseidonHashes
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalAccumulatorPoseidonHashes
+
+/-! Stable facade for generated full-history Poseidon2 call certificates. -/

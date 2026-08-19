@@ -1,4 +1,4 @@
-use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsStructure};
+use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsMatrix, CcsStructure, CscMat, GeometricRowRun};
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
@@ -63,6 +63,43 @@ fn transformed_eval_matches_direct_eval_for_sparse_mats() {
     let direct = eval_all_mats_direct(&s, &z, &chi_r, n);
     let via_bar = eval_all_mats_transformed(&s_bar, &z, &chi_r, n);
     assert_eq!(direct, via_bar);
+}
+
+#[test]
+fn geometric_rows_match_expanded_csc_in_direct_cached_and_transformed_evaluation() {
+    let n = 4usize;
+    let m = 2 * D;
+    let run = GeometricRowRun::new(2, D - 9, 41, F::from_u64(7), F::from_u64(3));
+    let mut expanded = Vec::new();
+    run.for_each_term(|row, column, value| expanded.push((row, column, value)));
+    expanded.push((0, 0, F::from_u64(11)));
+
+    let expanded_matrix = CcsMatrix::Csc(CscMat::from_triplets(expanded, n, m));
+    let structured_matrix = CcsMatrix::csc_with_compact_rows(
+        CscMat::from_triplets(vec![(0, 0, F::from_u64(11))], n, m),
+        Vec::new(),
+        vec![run],
+    )
+    .expect("valid compact matrix");
+    let polynomial = SparsePoly::new(1, vec![]);
+    let expanded = CcsStructure::new_sparse(vec![expanded_matrix], polynomial.clone()).expect("expanded structure");
+    let structured = CcsStructure::new_sparse(vec![structured_matrix], polynomial).expect("structured relation");
+
+    let z = (0..m)
+        .map(|index| K::from_coeffs([F::from_u64((index + 1) as u64), F::from_u64((index % 5) as u64)]))
+        .collect::<Vec<_>>();
+    let point = [K::from_coeffs([F::from_u64(3), F::from_u64(1)]); 2];
+    let chi_r = chi_table(&point);
+    let expected = eval_all_mats_direct(&expanded, &z, &chi_r, n);
+    assert_eq!(eval_all_mats_direct(&structured, &z, &chi_r, n), expected);
+
+    let cache = build_superneo_eval_cache(&structured).expect("structured SuperNeo cache");
+    assert_eq!(eval_all_mats_cached(&cache, &z, &chi_r, n), expected);
+
+    let transformed = structured
+        .transform_matrices_superneo()
+        .expect("transform structured matrix");
+    assert_eq!(eval_all_mats_transformed(&transformed, &z, &chi_r, n), expected);
 }
 
 #[test]
@@ -242,6 +279,83 @@ fn weighted_row_table_matches_direct_weighted_rows_for_complex_witness() {
 
     let projected = cache.eval_weighted_row_table(&z_blocks, &weights, &mat_coeffs, n, n_pad);
     assert_eq!(projected, direct);
+}
+
+#[test]
+fn weighted_row_table_supports_more_rows_than_columns_without_identity() {
+    let rows = 2 * D;
+    let columns = D;
+    let mut matrix = Mat::zero(rows, columns, F::ZERO);
+    for row in 0..rows {
+        matrix[(row, row % columns)] = F::from_u64((row + 1) as u64);
+    }
+    let structure = CcsStructure::new(vec![matrix], SparsePoly::new(1, vec![])).expect("valid rectangular CCS");
+    let cache = build_superneo_eval_cache(&structure).expect("rectangular cache");
+    let weights = core::array::from_fn(|index| {
+        K::from_coeffs([F::from_u64((index + 2) as u64), F::from_u64((2 * index + 1) as u64)])
+    });
+    let z = (0..columns)
+        .map(|column| {
+            K::from_coeffs([
+                F::from_u64((3 * column + 1) as u64),
+                F::from_u64((5 * column + 2) as u64),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let expected = (0..rows)
+        .map(|row| {
+            cache
+                .matrix(0)
+                .expect("matrix cache")
+                .row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        cache.eval_weighted_row_table(&z_blocks, &weights, &[K::ONE], rows, rows),
+        expected
+    );
+}
+
+#[test]
+fn weighted_identity_projection_matches_ring_formula() {
+    let s = CcsStructure::new(vec![Mat::<F>::identity(D)], SparsePoly::new(1, vec![])).expect("identity CCS");
+    let cache = build_superneo_eval_cache(&s).expect("identity cache");
+    let weights = core::array::from_fn(|index| {
+        K::from_coeffs([F::from_u64((3 * index + 5) as u64), F::from_u64((5 * index + 2) as u64)])
+    });
+    let z = core::array::from_fn::<_, D, _>(|index| {
+        K::from_coeffs([
+            F::from_u64((7 * index + 11) as u64),
+            F::from_u64((11 * index + 3) as u64),
+        ])
+    });
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let direct: [K; D] = core::array::from_fn(|row| {
+        cache
+            .matrix(0)
+            .expect("identity matrix")
+            .row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights)
+    });
+
+    let weight_re = Rq(weights.map(|value| value.real()));
+    let weight_im = Rq(weights.map(|value| value.imag()));
+    let z_re = Rq(z.map(|value| value.real()));
+    let z_im = Rq(z.map(|value| value.imag()));
+    let rr = Rq(superneo_bar_block(weight_re.0)).mul(&z_re);
+    let ir = Rq(superneo_bar_block(weight_im.0)).mul(&z_re);
+    let ri = Rq(superneo_bar_block(weight_re.0)).mul(&z_im);
+    let ii = Rq(superneo_bar_block(weight_im.0)).mul(&z_im);
+    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let expected = core::array::from_fn(|local| {
+        K::from_coeffs([rr.0[local], ir.0[local]]) + extension_generator * K::from_coeffs([ri.0[local], ii.0[local]])
+    });
+    assert_eq!(direct, expected);
+    assert_eq!(
+        cache.eval_weighted_row_table(&z_blocks, &weights, &[K::ONE], D, D),
+        direct
+    );
 }
 
 #[test]

@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "path": "crates/neo-fold-clean/src/paper/f_prime/native.rs",
+      "sha256": "dada9fc3ede08255160579b14e1fde1cdfce00be830224d53595148cff68d436"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/construction2/transition.rs",
+      "sha256": "3be0700ff6765f3bc586c5b3aab4d003696ae0d69bc7a2647d8164347b42c04b"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/lifecycle/verify.rs",
+      "sha256": "ee20983c20a16f359717f382a74d896462b2961d63f5a1db96ca8260c5dd4bb7"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/decider.rs",
+      "sha256": "204000f870e126b39b8d4bdc0f1ec4d65fbfda2c50bd022ff03d80248a6450d0"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/decider_ce_relation/mod.rs",
+      "sha256": "bdb8d7e3df49d3d3d15662df1393325c66dd0dfac14298f12f224efdc85d46df"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/terminal_ce/public.rs",
+      "sha256": "b30520f49addf248f0d78078c05a6335f840a0c58672a91cbc602633133582f9"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/formal_conformance.rs",
+      "sha256": "76f5a96dd84683297601302ed25e0fef9e18ff7be33f047c00ba1e296f0f34a5"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Protocol/FPrime/Step.lean",
+      "sha256": "07305cb68277641117acf250c833e3ffb772e90cf93289ae49d748e411c3d5e3"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Protocol/Terminal/CE.lean",
+      "sha256": "ce46162fe4361039287da85777c5be3e7955bfac01b8af2ee929a60b3195bd44"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/FPrime.lean",
+      "sha256": "9808a16918233d44fc3ba2ab918d2106880455abe3d952d8fcf194098bb6a1c5"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
+      "sha256": "5920e181bf541cef0fa9711798dbe92e5ee27528ec9323efd2bea6f4a18341ca"
+    }
+  ],
+  "theorem_anchors": [
+    {
+      "path": "formal/nightstream-lean/Nightstream/Protocol/Terminal/CE.lean",
+      "name": "theorem terminalCE_sound"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Protocol/Terminal/CE.lean",
+      "name": "theorem terminalCE_complete"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/FPrime.lean",
+      "name": "theorem verify_eq_ok_iff_checkLocal"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/FPrime.lean",
+      "name": "theorem success_with_outgoing_refines_step"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/FPrime.lean",
+      "name": "theorem invalid_has_named_rejection"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
+      "name": "theorem success_refines_terminalCE"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
+      "name": "theorem invalid_has_named_rejection"
+    }
+  ]
+}

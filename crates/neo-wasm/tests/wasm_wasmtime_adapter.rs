@@ -347,10 +347,14 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let (a_run_steps, a_shared_steps) = split_after_first_end(trace_a.steps()).expect("A run_a segment");
     let a_run_trace = traces_from_wasmtime_steps(a_run_steps).expect("normalize A run_a");
     let a_shared_trace = traces_from_wasmtime_steps(a_shared_steps).expect("normalize A shared");
-    let b_trace = traces_from_wasmtime_steps(trace_b.steps()).expect("normalize B run_b");
     assert!(!a_run_trace.is_empty());
     assert!(!a_shared_trace.is_empty());
-    assert!(!b_trace.is_empty());
+    // B calls across the instance boundary: from B's perspective the shared
+    // function is a host import, so proving it needs an import template.
+    let b_err = traces_from_wasmtime_steps(trace_b.steps()).expect_err("cross-instance import needs a template");
+    assert!(b_err
+        .to_string()
+        .contains("no host-event template for host import"));
 }
 
 #[test]
@@ -507,6 +511,34 @@ fn float_global_initializer_is_rejected_at_parse() {
     assert!(
         err.to_string().contains("float initializer"),
         "expected float-initializer rejection, got: {err}",
+    );
+}
+
+#[test]
+fn function_type_arity_limit_is_checked_without_truncation() {
+    let params_255 = vec!["i32"; 255].join(" ");
+    let params_256 = vec!["i32"; 256].join(" ");
+    let results_255 = vec!["i32"; 255].join(" ");
+    let results_256 = vec!["i32"; 256].join(" ");
+
+    let accepted_params = wat::parse_str(format!("(module (type (func (param {params_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_params).expect("255 parameters are supported");
+    let rejected_params = wat::parse_str(format!("(module (type (func (param {params_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_params).expect_err("256 parameters must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 parameters; neo-wasm supports at most 255"),
+        "unexpected parameter-limit error: {err}",
+    );
+
+    let accepted_results = wat::parse_str(format!("(module (type (func (result {results_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_results).expect("255 results are supported");
+    let rejected_results = wat::parse_str(format!("(module (type (func (result {results_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_results).expect_err("256 results must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 results; neo-wasm supports at most 255"),
+        "unexpected result-limit error: {err}",
     );
 }
 
@@ -1040,13 +1072,16 @@ fn wasmtime_trace_normalizes_compare_unary_and_rotate_rows() {
 
 #[test]
 fn wasmtime_trace_normalizes_br_table_rows() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func (export "run") (param i32) (result i32)
+    // One module per selector value: the selector is a baked-in constant
+    // (plain-mode locals start all-zero, so it cannot be an entry param).
+    let wat_for = |selector: i32| {
+        format!(
+            r#"(module
+            (func (export "run") (result i32)
                 (block $default
                     (block $case1
                         (block $case0
-                            local.get 0
+                            i32.const {selector}
                             br_table $case0 $case1 $default
                         )
                         i32.const 10
@@ -1056,13 +1091,14 @@ fn wasmtime_trace_normalizes_br_table_rows() {
                     return
                 )
                 i32.const 30))
-        "#,
-    )
-    .expect("wat");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        "#
+        )
+    };
 
     for (param, expected_value, expected_choice) in [(0, 10, 1_u32), (1, 20, 2_u32), (5, 30, 0_u32)] {
-        let run = collect_wasmtime_steps(&wasm, "run", &[param]).expect("trace run");
+        let wasm = wat::parse_str(wat_for(param)).expect("wat");
+        let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
         let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
         let row = trace
             .iter()

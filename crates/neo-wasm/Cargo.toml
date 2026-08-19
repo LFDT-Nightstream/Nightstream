@@ -10,6 +10,7 @@ workspace = true
 
 [features]
 default = []
+perf-timers = ["neo-fold-clean/perf-timers"]
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
@@ -26,6 +27,7 @@ once_cell = { workspace = true }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 serde = { workspace = true }
@@ -33,7 +35,7 @@ sha2 = "0.10"
 spartan2 = { workspace = true }
 thiserror = { workspace = true }
 wasmparser = "0.240"
-wasmtime = { version = "46.0.0", features = ["debug", "cranelift"] }
+wasmtime = { version = "47.0.0", features = ["debug", "cranelift"] }
 
 [dev-dependencies]
 object = "0.37"

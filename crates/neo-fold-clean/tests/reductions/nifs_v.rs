@@ -127,6 +127,7 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![first],
@@ -145,6 +146,7 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![second],
@@ -187,6 +189,7 @@ fn trivial_public_dec_children(
             continue;
         }
         children.push(neo_fold_clean::CeClaim {
+            adv: None,
             c: Commitment::zeros(parent.c.d, parent.c.kappa),
             X: Mat::zero(parent.X.rows(), parent.X.cols(), F::ZERO),
             r: parent.r.clone(),
@@ -240,7 +243,7 @@ fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVCo
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -474,6 +477,7 @@ fn nifs_v_rejects_proof_generated_with_inconsistent_running_parent_authority() {
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
         &fixture.prep.log,
+        None,
         fixture.prep.mix_rhos_commits(),
         fixture.prep.combine_b_pows(),
         vec![second],

@@ -17,7 +17,7 @@ Specify plain and `d`-dimensional one-hot encodings for memory addresses.
 ## Module Mapping
 
 - Spec: `specs/OneHotEncoding.spec.md`
-- Interface: `TwistShout/OneHotEncodingInterface.lean`
+- Interface: `TwistShout/OneHotEncoding.lean`
 - Implementation: `TwistShout/OneHotEncoding.lean`
 
 ## Contract Surface

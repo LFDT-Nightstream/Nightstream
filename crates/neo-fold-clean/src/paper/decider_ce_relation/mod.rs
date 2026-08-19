@@ -148,12 +148,13 @@ mod commitment;
 mod evaluation;
 mod witness;
 
-pub(crate) use commitment::{enforce_ajtai_opening, enforce_x_projection};
+pub(crate) use commitment::{enforce_ajtai_opening, enforce_ajtai_slice_opening, enforce_x_projection};
 pub(crate) use evaluation::{enforce_ct_from_y_ring, enforce_y_ring_from_z_at_r, enforce_y_zcol_from_z_at_s_col};
 pub(crate) use witness::alloc_final_witness;
 
 use thiserror::Error;
 
+use crate::engine::r1cs_circuit::builder::TerminalCeClaimAudit;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::lifecycle::Preprocessing;
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
@@ -177,6 +178,8 @@ pub(crate) enum CeRelationError {
          rejects b < 2; this only fires from a hand-crafted Preprocessing)"
     )]
     InvalidNormBound { b: u32 },
+    #[error("decider_ce_relation: claim {index} Nebula adv presence does not match preprocessing")]
+    NebulaAdvPresence { index: usize },
 }
 
 /// Emit the terminal CE-relation constraint rows.
@@ -208,6 +211,8 @@ pub(crate) fn enforce_final_ce_relations(
     let b = prep.params.b();
 
     for (index, (claim_wires, witness)) in final_claims_wires.iter().zip(final_witnesses).enumerate() {
+        let claim_start = builder.rows();
+        let claim_first_column = builder.cols();
         if claim_wires.m_in > expected_m {
             return Err(CeRelationError::ShapeMismatch {
                 index,
@@ -231,6 +236,7 @@ pub(crate) fn enforce_final_ce_relations(
         let witness_wires =
             alloc_final_witness(builder, witness, expected_m).map_err(|err| witness_shape_err(index, err))?;
 
+        let phase_start = builder.rows();
         enforce_ajtai_opening(
             builder,
             &witness_wires,
@@ -240,30 +246,117 @@ pub(crate) fn enforce_final_ce_relations(
         )
         .map_err(|err| ajtai_setup_err(index, err))?;
 
+        match (prep.nebula(), claim_wires.adv.as_ref()) {
+            (None, None) => {}
+            (Some(nebula), Some(adv)) => {
+                let ops_pp = nebula.scheme.ops_module().verification_pp().map_err(|_| {
+                    let (d, cols) = nebula.scheme.ops_module().dims();
+                    CeRelationError::AjtaiSetupMissing { d, cols }
+                })?;
+                let mem_pp = nebula.scheme.mem_module().verification_pp().map_err(|_| {
+                    let (d, cols) = nebula.scheme.mem_module().dims();
+                    CeRelationError::AjtaiSetupMissing { d, cols }
+                })?;
+                let ranges = nebula.scheme.ranges();
+                for (commitment, columns, pp) in [
+                    (&adv.ops, ranges.ops.clone(), ops_pp.as_ref()),
+                    (&adv.is, ranges.is.clone(), mem_pp.as_ref()),
+                    (&adv.fs, ranges.fs.clone(), mem_pp.as_ref()),
+                ] {
+                    enforce_ajtai_slice_opening(
+                        builder,
+                        &witness_wires,
+                        &commitment.data,
+                        commitment.d,
+                        commitment.kappa,
+                        columns,
+                        pp,
+                    )
+                    .map_err(|err| ajtai_setup_err(index, err))?;
+                }
+            }
+            _ => return Err(CeRelationError::NebulaAdvPresence { index }),
+        }
+        builder.record_row_family("terminal_ce.claim.commitment", phase_start);
+
+        let phase_start = builder.rows();
         enforce_x_projection(builder, &witness_wires, claim_wires).map_err(|err| projection_err(index, err))?;
+        builder.record_row_family("terminal_ce.claim.public_input", phase_start);
 
         // Low-norm: enforce every entry of `Z` lies in the SuperNeo
         // NC-bound alphabet `{-(b-1), …, +(b-1)}`, matching the native
         // `neo_math::balanced::within_nc_bound`'s `|x| < b` predicate.
         // Implemented as `Π_{a ∈ alphabet} (Z[i,j] - a) = 0`. See
         // [`witness::enforce_balanced_alphabet`].
+        let phase_start = builder.rows();
+        let norm_first_allocated_column = builder.cols();
         witness::enforce_balanced_alphabet(builder, &witness_wires, b)
             .map_err(|err| CeRelationError::InvalidNormBound { b: err.b })?;
+        builder.record_row_family("terminal_ce.claim.norm", phase_start);
 
         // `enforce_y_ring_from_z_at_r` owns the exact `claim.r` length
         // guard (`|r| == log2(next_pow2(n).max(2))`), so there's no weaker
         // pre-check here.
+        let phase_start = builder.rows();
         enforce_y_ring_from_z_at_r(builder, prep, &witness_wires, claim_wires).map_err(|err| y_ring_err(index, err))?;
+        builder.record_row_family("terminal_ce.claim.evaluations", phase_start);
         // ct[j] is the constant-term lane of y_ring[j] (Paper Theorem 5).
         // Wire-equality binding `ct[j] == y_ring[j][lane=0]` closes the
         // CE-relation contract so the circuit matches the native
         // `verify_uncompressed` verifier's full obligation set.
+        let phase_start = builder.rows();
         enforce_ct_from_y_ring(builder, claim_wires).map_err(|err| y_ring_err(index, err))?;
+        builder.record_row_family("terminal_ce.claim.constant_term", phase_start);
         // `s_col/y_zcol` are an implementation-side NC channel carried in
         // accumulator digests. If present, bind them to the same terminal
         // witness Z so they are not digest-only authority.
+        let phase_start = builder.rows();
         enforce_y_zcol_from_z_at_s_col(builder, prep, &witness_wires, claim_wires)
             .map_err(|err| y_ring_err(index, err))?;
+        builder.record_row_family("terminal_ce.claim.nc_channel", phase_start);
+        builder.record_terminal_ce_claim(TerminalCeClaimAudit {
+            row_start: claim_start,
+            row_end: builder.rows(),
+            first_allocated_column: claim_first_column,
+            norm_bound: b,
+            expected_public_width: prep.public_input_len,
+            structure_rows: structure.n,
+            structure_columns: structure.m,
+            witness_rows: witness_wires.rows,
+            witness_columns: witness_wires.cols,
+            witness_cols: witness_wires.values.iter().map(|wire| wire.col()).collect(),
+            norm_first_allocated_column,
+            commitment_cols: claim_wires.c_data.iter().map(|wire| wire.col()).collect(),
+            commitment_d: claim_wires.c_d,
+            commitment_kappa: claim_wires.c_kappa,
+            public_cols: claim_wires.x.iter().map(|wire| wire.col()).collect(),
+            public_rows: claim_wires.x_rows,
+            public_width: claim_wires.x_cols,
+            public_input_len: claim_wires.m_in,
+            point_cols: claim_wires
+                .r
+                .iter()
+                .map(|value| [value.c0.col(), value.c1.col()])
+                .collect(),
+            evaluation_cols: claim_wires
+                .y_ring
+                .iter()
+                .map(|row| row.iter().map(|wire| wire.col()).collect())
+                .collect(),
+            constant_term_cols: claim_wires
+                .ct
+                .iter()
+                .map(|value| [value.c0.col(), value.c1.col()])
+                .collect(),
+            nc_point_cols: claim_wires
+                .s_col
+                .iter()
+                .map(|value| [value.c0.col(), value.c1.col()])
+                .collect(),
+            nc_evaluation_cols: claim_wires.y_zcol.iter().map(|wire| wire.col()).collect(),
+            nc_evaluation_lanes: claim_wires.y_zcol_lanes,
+        });
+        builder.record_program_range("terminal_ce.claim", claim_start, claim_first_column);
     }
     Ok(())
 }

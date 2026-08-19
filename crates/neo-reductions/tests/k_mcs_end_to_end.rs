@@ -47,7 +47,7 @@ fn build_mcs_step(
         Z[(c % D, c / D)] = val;
     }
     let c = l.commit(&Z);
-    (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
 }
 
 fn build_mcs_step_packed_digits(
@@ -71,7 +71,7 @@ fn build_mcs_step_packed_digits(
     let x: Vec<F> = z_cols[..m_in].to_vec();
     let w = z_cols[m_in..].to_vec();
     let c = l.commit(&Z);
-    (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
 }
 
 fn run_case_with_n(n: usize, k_mcs: usize) {
@@ -122,6 +122,7 @@ fn run_case(k_mcs: usize) {
 
 fn make_dummy_me_input(m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
     CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

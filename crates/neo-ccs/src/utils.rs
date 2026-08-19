@@ -114,25 +114,54 @@ pub fn mat_vec_mul_fk<F: Field, K: Field + From<F>>(m: &[F], n_rows: usize, n_co
 }
 
 /// Extract triplets from a [`CcsMatrix`], applying row/col offsets for block-diagonal embedding.
-fn embed_matrix_triplets<F: Field>(
+fn embed_matrix_parts<F: Field>(
     src: &crate::sparse::CcsMatrix<F>,
     row_offset: usize,
     col_offset: usize,
-) -> Vec<(usize, usize, F)> {
+) -> (
+    Vec<(usize, usize, F)>,
+    Vec<crate::SeededPhi81LinearBlock>,
+    Vec<crate::GeometricRowRun<F>>,
+) {
     match src {
-        crate::sparse::CcsMatrix::Identity { n } => (0..*n)
-            .map(|i| (row_offset + i, col_offset + i, F::ONE))
-            .collect(),
+        crate::sparse::CcsMatrix::Identity { n } => (
+            (0..*n)
+                .map(|i| (row_offset + i, col_offset + i, F::ONE))
+                .collect(),
+            Vec::new(),
+            Vec::new(),
+        ),
         crate::sparse::CcsMatrix::Csc(m) => {
             let mut trips = Vec::with_capacity(m.vals.len());
             for col in 0..m.ncols {
-                let s = m.col_ptr[col];
-                let e = m.col_ptr[col + 1];
-                for k in s..e {
-                    trips.push((row_offset + m.row_idx[k], col_offset + col, m.vals[k]));
+                for k in m.column_range(col) {
+                    trips.push((row_offset + m.row_index(k), col_offset + col, m.vals[k]));
                 }
             }
-            trips
+            (trips, Vec::new(), Vec::new())
+        }
+        crate::sparse::CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            let mut trips = Vec::with_capacity(csc.vals.len());
+            for col in 0..csc.ncols {
+                for k in csc.column_range(col) {
+                    trips.push((row_offset + csc.row_index(k), col_offset + col, csc.vals[k]));
+                }
+            }
+            (
+                trips,
+                blocks
+                    .iter()
+                    .map(|block| block.shifted(row_offset, col_offset))
+                    .collect(),
+                geometric_runs
+                    .iter()
+                    .map(|run| run.shifted(row_offset, col_offset))
+                    .collect(),
+            )
         }
     }
 }
@@ -154,14 +183,22 @@ fn build_stacked_matrices<F: Field>(
 
     // Top-left block (ccs1): no offset
     for j in 0..ccs1.t() {
-        let trips = embed_matrix_triplets(&ccs1.matrices[j], 0, 0);
-        stacked.push(CcsMatrix::Csc(CscMat::from_triplets(trips, n_total, m_total)));
+        let (trips, blocks, geometric_runs) = embed_matrix_parts(&ccs1.matrices[j], 0, 0);
+        let csc = CscMat::from_triplets(trips, n_total, m_total);
+        stacked.push(
+            CcsMatrix::csc_with_compact_rows(csc, blocks, geometric_runs)
+                .expect("embedded compact terms must remain inside the direct-sum matrix"),
+        );
     }
 
     // Bottom-right block (ccs2): offset by (n1, m1)
     for j in 0..ccs2.t() {
-        let trips = embed_matrix_triplets(&ccs2.matrices[j], ccs1.n, ccs1.m);
-        stacked.push(CcsMatrix::Csc(CscMat::from_triplets(trips, n_total, m_total)));
+        let (trips, blocks, geometric_runs) = embed_matrix_parts(&ccs2.matrices[j], ccs1.n, ccs1.m);
+        let csc = CscMat::from_triplets(trips, n_total, m_total);
+        stacked.push(
+            CcsMatrix::csc_with_compact_rows(csc, blocks, geometric_runs)
+                .expect("embedded compact terms must remain inside the direct-sum matrix"),
+        );
     }
 
     stacked

@@ -83,6 +83,59 @@ pub enum WasmOpTable {
 }
 
 impl WasmOpTable {
+    pub fn opcode(self) -> WasmOpcode {
+        match self {
+            Self::I32Clz => WasmOpcode::I32Clz,
+            Self::I32Ctz => WasmOpcode::I32Ctz,
+            Self::I32LtS => WasmOpcode::I32LtS,
+            Self::I32LtU => WasmOpcode::I32LtU,
+            Self::I32GtS => WasmOpcode::I32GtS,
+            Self::I32GtU => WasmOpcode::I32GtU,
+            Self::I32LeS => WasmOpcode::I32LeS,
+            Self::I32LeU => WasmOpcode::I32LeU,
+            Self::I32GeS => WasmOpcode::I32GeS,
+            Self::I32GeU => WasmOpcode::I32GeU,
+            Self::I32And => WasmOpcode::I32And,
+            Self::I32Or => WasmOpcode::I32Or,
+            Self::I32Xor => WasmOpcode::I32Xor,
+            Self::I32Mul => WasmOpcode::I32Mul,
+            Self::I64And => WasmOpcode::I64And,
+            Self::I64Or => WasmOpcode::I64Or,
+            Self::I64Xor => WasmOpcode::I64Xor,
+            Self::I64Mul => WasmOpcode::I64Mul,
+            Self::I32Shl => WasmOpcode::I32Shl,
+            Self::I32ShrU => WasmOpcode::I32ShrU,
+            Self::I32ShrS => WasmOpcode::I32ShrS,
+            Self::I32Rotl => WasmOpcode::I32Rotl,
+            Self::I32Rotr => WasmOpcode::I32Rotr,
+            Self::I32DivU => WasmOpcode::I32DivU,
+            Self::I32DivS => WasmOpcode::I32DivS,
+            Self::I32RemU => WasmOpcode::I32RemU,
+            Self::I32RemS => WasmOpcode::I32RemS,
+            Self::I32Popcnt => WasmOpcode::I32Popcnt,
+            Self::I64LtS => WasmOpcode::I64LtS,
+            Self::I64LtU => WasmOpcode::I64LtU,
+            Self::I64GtS => WasmOpcode::I64GtS,
+            Self::I64GtU => WasmOpcode::I64GtU,
+            Self::I64LeS => WasmOpcode::I64LeS,
+            Self::I64LeU => WasmOpcode::I64LeU,
+            Self::I64GeS => WasmOpcode::I64GeS,
+            Self::I64GeU => WasmOpcode::I64GeU,
+            Self::I64Shl => WasmOpcode::I64Shl,
+            Self::I64ShrS => WasmOpcode::I64ShrS,
+            Self::I64ShrU => WasmOpcode::I64ShrU,
+            Self::I64Rotl => WasmOpcode::I64Rotl,
+            Self::I64Rotr => WasmOpcode::I64Rotr,
+            Self::I64DivS => WasmOpcode::I64DivS,
+            Self::I64DivU => WasmOpcode::I64DivU,
+            Self::I64RemS => WasmOpcode::I64RemS,
+            Self::I64RemU => WasmOpcode::I64RemU,
+            Self::I64Clz => WasmOpcode::I64Clz,
+            Self::I64Ctz => WasmOpcode::I64Ctz,
+            Self::I64Popcnt => WasmOpcode::I64Popcnt,
+        }
+    }
+
     pub fn all() -> [Self; 48] {
         [
             Self::I32Clz,
@@ -390,6 +443,8 @@ pub enum WasmOpcode {
     BrTable,
     Call,
     CallIndirect,
+    ReturnCall,
+    ReturnCallIndirect,
     Return,
     LocalGet,
     LocalSet,
@@ -401,7 +456,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 113] {
+    pub fn supported() -> [Self; 115] {
         [
             Self::Nop,
             Self::I32Const,
@@ -490,6 +545,8 @@ impl WasmOpcode {
             Self::BrTable,
             Self::Call,
             Self::CallIndirect,
+            Self::ReturnCall,
+            Self::ReturnCallIndirect,
             Self::Return,
             Self::LocalGet,
             Self::LocalSet,
@@ -634,6 +691,8 @@ impl WasmOpcode {
             Self::I64Clz => Some(110),
             Self::I64Ctz => Some(111),
             Self::I64Popcnt => Some(112),
+            Self::ReturnCall => Some(113),
+            Self::ReturnCallIndirect => Some(114),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -643,6 +702,29 @@ impl WasmOpcode {
     /// [`crate::ccs::linear_memory`].
     pub fn uses_linear_memory(self) -> bool {
         self.memory_access_info().is_some()
+    }
+
+    /// True when the instruction consumes the PC-indexed local immediate.
+    pub fn uses_local_index_immediate(self) -> bool {
+        matches!(self, Self::LocalGet | Self::LocalSet | Self::LocalTee)
+    }
+
+    /// True when the instruction consumes the PC-indexed global immediate.
+    pub fn uses_global_index_immediate(self) -> bool {
+        matches!(self, Self::GlobalGet | Self::GlobalSet)
+    }
+
+    /// True when the instruction consumes the PC-indexed table namespace.
+    pub fn uses_table_id_immediate(self) -> bool {
+        matches!(
+            self,
+            Self::TableSize | Self::TableGet | Self::TableSet | Self::CallIndirect | Self::ReturnCallIndirect
+        )
+    }
+
+    /// True when the instruction consumes the call-indirect type immediates.
+    pub fn uses_call_indirect_immediates(self) -> bool {
+        matches!(self, Self::CallIndirect | Self::ReturnCallIndirect)
     }
 
     /// True for opcodes whose row carries a meaningful `wide_values_enabled`
@@ -710,6 +792,8 @@ impl WasmOpcode {
                 | Self::Select
                 | Self::Call
                 | Self::CallIndirect
+                | Self::ReturnCall
+                | Self::ReturnCallIndirect
                 | Self::LocalGet
                 | Self::LocalSet
                 | Self::LocalTee
@@ -956,6 +1040,8 @@ impl WasmOpcode {
             Self::BrTable => "br_table",
             Self::Call => "call",
             Self::CallIndirect => "call_indirect",
+            Self::ReturnCall => "return_call",
+            Self::ReturnCallIndirect => "return_call_indirect",
             Self::Return => "return",
             Self::LocalGet => "local_get",
             Self::LocalSet => "local_set",
@@ -1096,12 +1182,12 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::Select => info(op, code, Class::ControlFlow, 3, 1, false, None),
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
-        // Call/CallIndirect: static arity is 0 here; the trace overrides it
-        // per row (0, or 1 for the indirect table index). Args are popped by
-        // aux rows: param-init for guest callees, host-arg for host callees,
-        // and a host-result aux row pushes the host's single result.
+        // Call-like arity is dynamic: direct rows read 0, indirect rows read
+        // the table index, and aux rows handle arguments and host results.
         Op::Call => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::CallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
+        Op::ReturnCall => info(op, code, Class::ControlFlow, 0, 0, false, None),
+        Op::ReturnCallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::Return => info(op, code, Class::System, 0, 0, false, None),
         // stack_reads/writes are the operand stack effects only; local memory accesses
         // are tracked separately via local_read_value / local_write_value in the IR.
@@ -1228,6 +1314,8 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::BrTable => 0x0E,
         WasmOpcode::Call => 0x10,
         WasmOpcode::CallIndirect => 0x11,
+        WasmOpcode::ReturnCall => 0x12,
+        WasmOpcode::ReturnCallIndirect => 0x13,
         WasmOpcode::Return => 0x0F,
         WasmOpcode::LocalGet => 0x20,
         WasmOpcode::LocalSet => 0x21,
@@ -1348,6 +1436,8 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::BrTable) => WasmOpcode::BrTable,
         x if x == opcode_code(WasmOpcode::Call) => WasmOpcode::Call,
         x if x == opcode_code(WasmOpcode::CallIndirect) => WasmOpcode::CallIndirect,
+        x if x == opcode_code(WasmOpcode::ReturnCall) => WasmOpcode::ReturnCall,
+        x if x == opcode_code(WasmOpcode::ReturnCallIndirect) => WasmOpcode::ReturnCallIndirect,
         x if x == opcode_code(WasmOpcode::Return) => WasmOpcode::Return,
         x if x == opcode_code(WasmOpcode::LocalGet) => WasmOpcode::LocalGet,
         x if x == opcode_code(WasmOpcode::LocalSet) => WasmOpcode::LocalSet,

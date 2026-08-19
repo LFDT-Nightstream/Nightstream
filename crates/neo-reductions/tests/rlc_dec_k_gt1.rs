@@ -175,6 +175,7 @@ fn build_me_from_z(
     let (y_ring, ct) = compute_y_from_Z_and_r(s, Z, r, ell_d, params.b);
     let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
     CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,
@@ -782,6 +783,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &child_commitments,
         combine_commitments_b_pows,
         &superneo_cache,
+        None,
     );
 
     assert_eq!(trusted.1, checked.1, "ok_y mismatch");

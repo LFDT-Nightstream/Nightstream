@@ -12,6 +12,8 @@
 //! - `klc_add`, `klc_add_scaled` — linear, emit no constraints.
 //! - `enforce_k_mul` — Karatsuba-form `out = a · b` in 𝕂, emitting
 //!   3 mult-constraints + 2 linear-equalities.
+//! - `enforce_k_dot_product` — the same K multiplications with one exact
+//!   product-sum trace, allowing direct CCS lowering of the linear sum.
 //!
 //! ## Soundness
 //!
@@ -23,7 +25,9 @@ use neo_math::{Fq, F};
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{
+    Lc, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace, R1csBuilder, Var,
+};
 
 /// `K = F[X]/(X² − W)`. For Goldilocks-quadratic, `W = 7`.
 fn w_constant() -> F {
@@ -116,11 +120,7 @@ pub struct KMulIntermediates {
     pub r: Var,
 }
 
-/// Allocate `out = a · b` in 𝕂 and emit the constraints. Same shape as
-/// [`enforce_k_mul`] but returns the three Karatsuba intermediates as
-/// well, for tests and audit tooling that need to bind them to a
-/// bit-backed `KMulView` slot.
-pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
+fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
     let p_var = builder.alloc_mul(&a.c0, &b.c0);
     let q_var = builder.alloc_mul(&a.c1, &b.c1);
     let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
@@ -131,23 +131,19 @@ pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &
     let p = builder.witness()[p_var.col()];
     let q = builder.witness()[q_var.col()];
     let r = builder.witness()[r_var.col()];
-    let out_c0_value = p + w * q;
-    let out_c1_value = r - p - q;
-    let out_c0 = builder.alloc(out_c0_value);
-    let out_c1 = builder.alloc(out_c1_value);
+    let out_c0 = builder.alloc(p + w * q);
+    let out_c1 = builder.alloc(r - p - q);
 
-    // out_c0 = p + W · q
-    let lhs = Lc::from_var(out_c0);
-    let rhs = Lc::from_var(p_var).add_scaled(&Lc::from_var(q_var), w);
-    builder.enforce_eq(&lhs, &rhs);
-
-    // out_c1 = r - p - q
-    let lhs = Lc::from_var(out_c1);
-    let rhs = Lc::from_var(r_var)
-        .add_scaled(&Lc::from_var(p_var), -F::ONE)
-        .add_scaled(&Lc::from_var(q_var), -F::ONE);
-    builder.enforce_eq(&lhs, &rhs);
-
+    builder.enforce_eq(
+        &Lc::from_var(out_c0),
+        &Lc::from_var(p_var).add_scaled(&Lc::from_var(q_var), w),
+    );
+    builder.enforce_eq(
+        &Lc::from_var(out_c1),
+        &Lc::from_var(r_var)
+            .add_scaled(&Lc::from_var(p_var), -F::ONE)
+            .add_scaled(&Lc::from_var(q_var), -F::ONE),
+    );
     builder.record_k_mul(p_var, q_var, r_var);
     (
         KVar::new(out_c0, out_c1),
@@ -157,6 +153,56 @@ pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &
             r: r_var,
         },
     )
+}
+
+/// Allocate `out = a · b` in 𝕂 and emit the constraints. Same shape as
+/// [`enforce_k_mul`] but returns the three Karatsuba intermediates as
+/// well, for tests and audit tooling that need to bind them to a
+/// bit-backed `KMulView` slot.
+pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
+    let row_start = builder.rows();
+    let column_start = builder.cols();
+    let (out, intermediates) = alloc_k_mul(builder, a, b);
+    let w = w_constant();
+    builder.record_product_sum_batch(ProductSumBatchTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        retained_columns: vec![out.c0.col(), out.c1.col()],
+        identities: vec![
+            ProductSumIdentityTrace {
+                factors: vec![
+                    ProductFactorTrace {
+                        left: a.c0.clone(),
+                        right: b.c0.clone(),
+                        coefficient: F::ONE,
+                    },
+                    ProductFactorTrace {
+                        left: a.c1.clone(),
+                        right: b.c1.clone(),
+                        coefficient: w,
+                    },
+                ],
+                result: Lc::from_var(out.c0),
+            },
+            ProductSumIdentityTrace {
+                factors: vec![
+                    ProductFactorTrace {
+                        left: a.c0.clone(),
+                        right: b.c1.clone(),
+                        coefficient: F::ONE,
+                    },
+                    ProductFactorTrace {
+                        left: a.c1.clone(),
+                        right: b.c0.clone(),
+                        coefficient: F::ONE,
+                    },
+                ],
+                result: Lc::from_var(out.c1),
+            },
+        ],
+    });
+    (out, intermediates)
 }
 
 /// Allocate `out = a · b` in 𝕂 and emit the constraints.
@@ -178,6 +224,82 @@ pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &
 /// [`enforce_k_mul_with_intermediates`].
 pub fn enforce_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> KVar {
     let (out, _) = enforce_k_mul_with_intermediates(builder, a, b);
+    out
+}
+
+/// Allocate `sum_i lhs[i] * rhs[i]` in K.
+///
+/// The emitted R1CS is the ordinary sequence of Karatsuba multiplications
+/// plus linear sums. Its trace exposes the three exact aggregate sums `P`,
+/// `Q`, and `R`; retaining `Q` is enough to derive both output limbs without
+/// retaining every per-term K output.
+pub fn enforce_k_dot_product(builder: &mut R1csBuilder, lhs: &[KVar], rhs: &[KVar]) -> KVar {
+    assert_eq!(lhs.len(), rhs.len(), "K dot-product length mismatch");
+    assert!(!lhs.is_empty(), "K dot product must be nonempty");
+
+    let row_start = builder.rows();
+    let column_start = builder.cols();
+    let mut sum = KLc::zero();
+    let mut q_sum_lc = Lc::zero();
+    for (&left, &right) in lhs.iter().zip(rhs) {
+        let (term, intermediates) = alloc_k_mul(builder, &KLc::from_var(left), &KLc::from_var(right));
+        sum.c0.add_term(term.c0, F::ONE);
+        sum.c1.add_term(term.c1, F::ONE);
+        q_sum_lc.add_term(intermediates.q, F::ONE);
+    }
+    let q_sum = builder.alloc(builder.eval(&q_sum_lc));
+    builder.enforce_eq(&Lc::from_var(q_sum), &q_sum_lc);
+    let out = alloc_klc(builder, &sum);
+    let w = w_constant();
+    let q_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c1),
+            right: Lc::from_var(right.c1),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let p_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c0),
+            right: Lc::from_var(right.c0),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let r_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c0).add_scaled(&Lc::from_var(left.c1), F::ONE),
+            right: Lc::from_var(right.c0).add_scaled(&Lc::from_var(right.c1), F::ONE),
+            coefficient: F::ONE,
+        })
+        .collect();
+    builder.record_product_sum_batch(ProductSumBatchTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        retained_columns: vec![q_sum.col(), out.c0.col(), out.c1.col()],
+        identities: vec![
+            ProductSumIdentityTrace {
+                factors: q_factors,
+                result: Lc::from_var(q_sum),
+            },
+            ProductSumIdentityTrace {
+                factors: p_factors,
+                result: Lc::from_var(out.c0).add_scaled(&Lc::from_var(q_sum), -w),
+            },
+            ProductSumIdentityTrace {
+                factors: r_factors,
+                result: Lc::from_var(out.c1)
+                    .add_scaled(&Lc::from_var(out.c0), F::ONE)
+                    .add_scaled(&Lc::from_var(q_sum), F::ONE - w),
+            },
+        ],
+    });
     out
 }
 

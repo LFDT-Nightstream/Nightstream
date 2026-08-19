@@ -17,6 +17,7 @@ use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonz
 use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
+    PiDecProverPrecompute,
 };
 use thiserror::Error;
 
@@ -68,7 +69,7 @@ pub fn prove_pi_ccs<L>(
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
     log: &L,
-) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof, PiDecProverPrecompute), Error>
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
@@ -85,7 +86,7 @@ pub fn prove_pi_ccs_parts<L>(
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
     log: &L,
-) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof, PiDecProverPrecompute), Error>
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
@@ -98,20 +99,36 @@ where
     // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
     let me_handle = running_parent_accumulator_handle(running)?;
 
-    let (outputs, proof, _perf) = optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        fresh_witnesses,
-        &running.claims,
-        &running.witnesses,
-        instance_digest,
-        me_handle,
-        log,
-        cache,
-    )?;
-    Ok((outputs, proof))
+    let (outputs, proof, perf, pi_dec_precompute) =
+        optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            pp.inner(),
+            s,
+            fresh_claims,
+            fresh_witnesses,
+            &running.claims,
+            &running.witnesses,
+            instance_digest,
+            me_handle,
+            log,
+            cache,
+        )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
+        perf.bind_ms,
+        perf.sample_challenges_ms,
+        perf.fe_sumcheck_ms,
+        perf.nc_sumcheck_ms,
+        perf.output_materialize_ms,
+        perf.total_ms,
+        fresh_claims.len(),
+        running.claims.len(),
+        outputs.len(),
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
+    Ok((outputs, proof, pi_dec_precompute))
 }
 
 /// Π_CCS (§7.3) verify — mirror of [`prove_pi_ccs`] using the optimized
@@ -143,7 +160,7 @@ pub fn verify_pi_ccs(
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
     // Same parent-authority handle the prover bound.
     let me_handle = running_parent_accumulator_handle(running)?;
-    let (ok, _perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
         s,
@@ -155,6 +172,21 @@ pub fn verify_pi_ccs(
         instance_digest,
         me_handle,
     )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
+        perf.bind_ms,
+        perf.bind_header_instances_ms,
+        perf.bind_me_inputs_ms,
+        perf.bind_sample_challenges_ms,
+        perf.fe_sumcheck_ms,
+        perf.nc_sumcheck_ms,
+        perf.output_checks_ms,
+        perf.terminal_ms,
+        perf.total_ms,
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
     if !ok {
         return Ok(false);
     }
@@ -298,7 +330,7 @@ pub fn verify_pi_rlc<MR>(
 where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
 {
-    let (ok, _perf) = nr::rlc_public_matches_verified_inputs_with_perf(
+    let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
         s,
         pp.inner(),
         rhos,
@@ -307,6 +339,20 @@ where
         mix_rhos_commits,
         ell_d(),
     )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/verify] rho={:.2}ms X={:.2}ms y={:.2}ms y_zcol={:.2}ms aux={:.2}ms commit={:.2}ms total={:.2}ms inputs={}",
+        perf.rho_mats_ms + perf.rho_k_lift_ms,
+        perf.x_ms,
+        perf.y_ms,
+        perf.y_zcol_ms,
+        perf.aux_ms,
+        perf.commitment_ms,
+        perf.total_ms,
+        me_inputs.len(),
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
     Ok(ok)
 }
 
@@ -326,12 +372,19 @@ pub fn prove_pi_dec<L, MB>(
     log: &L,
     parent: &CeClaim,
     parent_witness: &Mat<F>,
+    precompute: Option<&PiDecProverPrecompute>,
     combine_b_pows: MB,
 ) -> Result<(Vec<CeClaim>, Vec<Mat<F>>), Error>
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
     MB: Fn(&[Commitment], u32) -> Commitment,
 {
+    if let Some(precompute) = precompute {
+        assert_eq!(
+            precompute.row_chals, parent.r,
+            "Π_DEC prover precompute must belong to the parent claim's row point"
+        );
+    }
     let k = pp.k_rho() as usize;
     #[cfg(feature = "perf-timers")]
     let t_split = std::time::Instant::now();
@@ -387,6 +440,7 @@ where
         &child_commitments,
         combine_b_pows,
         cache.superneo(),
+        None,
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(

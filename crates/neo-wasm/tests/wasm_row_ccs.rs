@@ -4,11 +4,13 @@ use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_CALL_ACTIVE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_AFTER, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
+    COL_OUTPUT_ENABLED_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -24,98 +26,65 @@ fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
 }
 
-#[test]
-fn direct_rows_satisfy_real_wasm_ccs() {
-    let rows = vec![
-        build_witness_vector(&step(
-            0,
-            0,
-            opcode_code(WasmOpcode::I32Const),
-            0,
-            1,
-            None,
-            None,
-            None,
-            Some(StackValueAccess::new(0, 7)),
-            None,
-            0,
-            false,
-        )),
-        build_witness_vector(&step(
-            1,
-            1,
-            opcode_code(WasmOpcode::I32Const),
-            1,
-            2,
-            None,
-            None,
-            None,
-            Some(StackValueAccess::new(1, 9)),
-            None,
-            0,
-            false,
-        )),
-        build_witness_vector(&step(
-            2,
-            2,
-            opcode_code(WasmOpcode::I32Add),
-            2,
-            1,
-            Some(StackValueAccess::new(0, 7)),
-            Some(StackValueAccess::new(1, 9)),
-            None,
-            Some(StackValueAccess::new(0, 16)),
-            None,
-            0,
-            false,
-        )),
-        build_witness_vector(&step(
-            3,
-            3,
-            opcode_code(WasmOpcode::I32Sub),
-            2,
-            1,
-            Some(StackValueAccess::new(0, 20)),
-            Some(StackValueAccess::new(1, 5)),
-            None,
-            Some(StackValueAccess::new(0, 15)),
-            None,
-            0,
-            false,
-        )),
-        build_witness_vector(&step(
-            4,
-            4,
-            opcode_code(WasmOpcode::Select),
-            3,
-            1,
-            Some(StackValueAccess::new(0, 11)),
-            Some(StackValueAccess::new(1, 22)),
-            Some(StackValueAccess::new(2, 1)),
-            Some(StackValueAccess::new(0, 11)),
-            None,
-            0,
-            false,
-        )),
-        build_witness_vector(&step(
-            5,
-            5,
-            opcode_code(WasmOpcode::Return),
-            1,
-            1,
-            None,
-            None,
-            None,
-            None,
-            None,
-            0,
-            true,
-        )),
-    ];
-
-    for (idx, row) in rows.iter().enumerate() {
-        assert_satisfied(row, &format!("row {idx}"));
+fn assert_program_immediate_gates_required(wat_src: &str, opcode: WasmOpcode, gates: &[usize]) {
+    let trace = trace_from_wat(wat_src);
+    let step = trace
+        .iter()
+        .find(|step| step.opcode == opcode)
+        .expect("immediate-consuming row");
+    let honest = build_witness_vector(step);
+    assert_satisfied(&honest, "honest immediate-consuming row");
+    for &gate in gates {
+        let mut suppressed = honest.clone();
+        suppressed[gate] = F::ZERO;
+        assert_rejected(&suppressed, "consumer cannot suppress its program-immediate ROM read");
     }
+}
+
+#[test]
+fn program_immediate_consumers_require_their_rom_gates() {
+    assert_program_immediate_gates_required(
+        r#"(module (func (export "main") (result i32) (local i32) local.get 0))"#,
+        WasmOpcode::LocalGet,
+        &[COL_PROGRAM_LOCAL_INDEX_ACTIVE],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module (global $g (mut i32) (i32.const 0)) (func (export "main") (result i32) global.get $g))"#,
+        WasmOpcode::GlobalGet,
+        &[COL_PROGRAM_GLOBAL_INDEX_ACTIVE],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module (memory 1) (func (export "main") (result i32) i32.const 0 i32.load offset=8))"#,
+        WasmOpcode::I32Load,
+        &[COL_LINEAR_MEM_USE_LANE0],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module
+            (type $t (func (result i32)))
+            (func $f (type $t) (result i32) i32.const 7)
+            (table 1 funcref)
+            (elem (i32.const 0) func $f)
+            (func (export "main") (result i32)
+                i32.const 0
+                call_indirect (type $t)))"#,
+        WasmOpcode::CallIndirect,
+        &[COL_PROGRAM_TABLE_ID_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE],
+    );
+}
+
+#[test]
+fn padding_row_rejects_forged_output_capture() {
+    let trace = trace_from_wat(r#"(module (func (export "main") (result i32) i32.const 0))"#);
+    let mut row = build_witness_vector(&neo_wasm::batch::padding_step_after(
+        trace.last().expect("terminal row"),
+    ));
+    row[COL_OUTPUT_CAPTURED] = F::ONE;
+    row[COL_OUTPUT_ENABLED_BEFORE] = F::ZERO;
+    row[COL_OUTPUT_ENABLED_AFTER] = F::ONE;
+    row[COL_SP_BEFORE] = F::ONE;
+    row[COL_SP_AFTER] = F::ZERO;
+
+    assert_rejected(&row, "padding row cannot capture a program output");
 }
 
 #[test]
@@ -157,9 +126,9 @@ fn add_row_rejects_tampered_static_stack_arity() {
 
     row[COL_STACK_READS] = F::ONE;
     row[COL_STACK_WRITES] = F::ZERO;
-    row[COL_STACK_READ0_ACTIVE] = F::ONE;
-    row[COL_STACK_READ1_ACTIVE] = F::ZERO;
-    row[COL_STACK_READ2_ACTIVE] = F::ZERO;
+    row[COL_STACK_READ_ACTIVE[0]] = F::ONE;
+    row[COL_STACK_READ_ACTIVE[1]] = F::ZERO;
+    row[COL_STACK_READ_ACTIVE[2]] = F::ZERO;
     row[COL_STACK_WRITE0_ACTIVE] = F::ZERO;
 
     assert_rejected(&row, "tampered i32.add stack arity");
@@ -1176,14 +1145,14 @@ fn call_row_rejects_tampered_current_function_num_locals() {
                 local.get 0
                 i32.const 1
                 i32.add)
-            (func (export "run") (param i32) (result i32)
+            (func (export "run") (result i32)
                 i32.const 5
                 call $add_one))
         "#,
     )
     .expect("wat");
 
-    let trace = collect_wasmtime_steps(&wasm, "run", &[9])
+    let trace = collect_wasmtime_steps(&wasm, "run", &[])
         .and_then(|run| traces_from_wasmtime_steps(&run.steps))
         .expect("normalize");
     let row = trace
@@ -1237,7 +1206,7 @@ fn guest_call_row_rejects_suppressed_guest_call_flag() {
         .expect("call row");
     assert!(row.target_function_is_guest);
     let mut witness = build_witness_vector(row);
-    witness[COL_GUEST_CALL_ACTIVE] = F::ZERO;
+    witness[COL_GUEST_ENTRY_ACTIVE] = F::ZERO;
     witness[COL_PARAM_INIT_ACTIVE_AFTER] = F::ZERO;
     witness[COL_PARAM_INIT_REMAINING_AFTER] = F::ZERO;
     witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ONE;

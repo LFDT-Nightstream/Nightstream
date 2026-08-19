@@ -1,9 +1,9 @@
-import TwistShout.ShoutOneHotInterface
-import TwistShout.MLEInterface
+import TwistShout.ShoutOneHot
+import TwistShout.MLE
 
 open scoped BigOperators
-open TwistShout.ShoutOneHotInterface
-open TwistShout.MLEInterface
+open TwistShout
+open TwistShout
 
 namespace tests
 

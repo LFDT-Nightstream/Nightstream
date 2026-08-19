@@ -1,68 +1,64 @@
 use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
-use super::ir::{WasmRowKind, WasmVmStep};
+use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB,
-    COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
-    COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
+    COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA,
+    COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV,
+    COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV,
+    COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
     COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS,
-    COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
-    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
-    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
-    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0,
-    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3, COL_LINEAR_MEM_IMM_OFFSET, COL_LINEAR_MEM_IS_BYTE_WIDTH,
-    COL_LINEAR_MEM_IS_DOUBLE_WIDTH, COL_LINEAR_MEM_IS_FULL_WIDTH, COL_LINEAR_MEM_IS_HALF_WIDTH,
-    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE,
-    COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2,
-    COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE,
-    COL_LINEAR_MEM_LANE0_LOAD_ACTIVE, COL_LINEAR_MEM_LANE0_STORE_ACTIVE, COL_LINEAR_MEM_LANE0_VALUE,
-    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_BYTE0,
-    COL_LINEAR_MEM_LANE1_BYTE0_BEFORE, COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE1_BEFORE,
-    COL_LINEAR_MEM_LANE1_BYTE2, COL_LINEAR_MEM_LANE1_BYTE2_BEFORE, COL_LINEAR_MEM_LANE1_BYTE3,
-    COL_LINEAR_MEM_LANE1_BYTE3_BEFORE, COL_LINEAR_MEM_LANE1_LOAD_ACTIVE, COL_LINEAR_MEM_LANE1_STORE_ACTIVE,
-    COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE1_VALUE_BEFORE, COL_LINEAR_MEM_LANE2_ADDR,
+    COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
+    COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2,
+    COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6,
+    COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0,
+    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2,
+    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0,
+    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2,
+    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0,
+    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2,
+    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1,
+    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0,
+    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3,
+    COL_LINEAR_MEM_IMM_OFFSET, COL_LINEAR_MEM_IS_BYTE_WIDTH, COL_LINEAR_MEM_IS_DOUBLE_WIDTH,
+    COL_LINEAR_MEM_IS_FULL_WIDTH, COL_LINEAR_MEM_IS_HALF_WIDTH, COL_LINEAR_MEM_LANE0_BYTE0,
+    COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE,
+    COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3,
+    COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE1_BYTE0, COL_LINEAR_MEM_LANE1_BYTE0_BEFORE,
+    COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE1_BEFORE, COL_LINEAR_MEM_LANE1_BYTE2,
+    COL_LINEAR_MEM_LANE1_BYTE2_BEFORE, COL_LINEAR_MEM_LANE1_BYTE3, COL_LINEAR_MEM_LANE1_BYTE3_BEFORE,
     COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE0_BEFORE, COL_LINEAR_MEM_LANE2_BYTE1,
     COL_LINEAR_MEM_LANE2_BYTE1_BEFORE, COL_LINEAR_MEM_LANE2_BYTE2, COL_LINEAR_MEM_LANE2_BYTE2_BEFORE,
-    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE, COL_LINEAR_MEM_LANE2_LOAD_ACTIVE,
-    COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_LANE2_VALUE_BEFORE,
-    COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
-    COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
-    COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
-    COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_PC_ROM_CALL_RETURN_CHOICE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
-    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
-    COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
-    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
-    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    COL_WIDE_VALUES_ENABLED, NAMED_COLUMN_COUNT, PC_ROM_CALL_RETURN_CHOICE,
+    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE, COL_LINEAR_MEM_LANE_ADDR,
+    COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE, COL_LINEAR_MEM_LANE_VALUE,
+    COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1,
+    COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1,
+    COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
+    COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
+    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
+    COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
+    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
+    COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
-use super::step_build::WasmStepBuild;
 use crate::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
     COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
@@ -70,32 +66,16 @@ use crate::layout::{
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// Build one R1CS-satisfying assignment per normalized wasm step.
-///
-/// The R1CS-F' chain builder in `neo-fold-clean` bit-decomposes each
-/// assignment during `compile_step` and constructs the foldable F'-encoded
-/// `CcsInstance` internally; neo-wasm does not commit to the assignment.
-/// Assignments match the canonical (range-checked) wasm CCS: the declared
-/// columns followed by the range-check bit columns.
-pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
-    steps
-        .iter()
-        .map(|step| WasmStepBuild {
-            assignment: build_witness_vector(step),
-        })
-        .collect()
-}
-
 pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
-    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT];
+    let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
     // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and
     // inactive memory specs are gated off, so 1 is the canonical inactive
     // high address. Active lanes overwrite this below with `addr + 1`.
-    wit[COL_STACK_READ0_ADDR_HI] = F::ONE;
-    wit[COL_STACK_READ1_ADDR_HI] = F::ONE;
-    wit[COL_STACK_READ2_ADDR_HI] = F::ONE;
+    wit[COL_STACK_READ_ADDR_HI[0]] = F::ONE;
+    wit[COL_STACK_READ_ADDR_HI[1]] = F::ONE;
+    wit[COL_STACK_READ_ADDR_HI[2]] = F::ONE;
     wit[COL_STACK_WRITE0_ADDR_HI] = F::ONE;
     let opcode_code = if trace.row_kind.is_program() {
         trace.info.code
@@ -105,6 +85,26 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code));
     wit[COL_PC_BEFORE] = F::from_u64(trace.state_before.pc);
     wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
+    wit[COL_STACK_FRAME_BASE_BEFORE] = F::from_u64(trace.state_before.stack_frame_base);
+    wit[COL_STACK_FRAME_BASE_AFTER] = F::from_u64(trace.state_after.stack_frame_base);
+    wit[COL_TAIL_CALL_PENDING_BEFORE] = if trace.state_before.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_CALL_PENDING_AFTER] = if trace.state_after.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_ENTER_ACTIVE] = if trace.row_kind.is_tail_enter() {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if trace.row_kind.is_tail_enter() {
+        wit[COL_TAIL_DISCARD_COUNT] = F::from_u64(trace.state_before.sp - trace.state_after.sp);
+    }
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
     let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
@@ -115,27 +115,18 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     let (remaining_is_zero, remaining_inv) = zero_test_witness_u64(u64::from(trace.state_after.param_init.remaining));
     wit[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = remaining_is_zero;
     wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
-    write_host_args_state(&mut wit, true, trace.state_before.host_args);
-    write_host_args_state(&mut wit, false, trace.state_after.host_args);
-    let (host_remaining_is_zero, host_remaining_inv) =
-        zero_test_witness_u64(u64::from(trace.state_after.host_args.remaining));
-    wit[COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO] = host_remaining_is_zero;
-    wit[COL_HOST_ARGS_REMAINING_AFTER_INV] = host_remaining_inv;
-    wit[COL_HOST_RESULT_PENDING_BEFORE] = if trace.state_before.host_result_pending {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    wit[COL_HOST_RESULT_PENDING_AFTER] = if trace.state_after.host_result_pending {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    wit[COL_HOST_RESULT_ACTIVE] = if trace.state_before.host_result_pending && !trace.state_before.host_args.active {
-        F::ONE
-    } else {
-        F::ZERO
-    };
+    wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
+    wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
+    wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_events.turn_export_fref));
+    wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_events.turn_export_fref));
+    for (i, (before_col, after_col)) in COL_COMM_CHAIN_BEFORE
+        .into_iter()
+        .zip(COL_COMM_CHAIN_AFTER)
+        .enumerate()
+    {
+        wit[before_col] = F::from_u64(trace.state_before.comm_chain[i]);
+        wit[after_col] = F::from_u64(trace.state_after.comm_chain[i]);
+    }
     wit[COL_WIDE_VALUES_ENABLED] = if trace.wide_values_enabled { F::ONE } else { F::ZERO };
     wit[COL_SP_BEFORE] = F::from_u64(trace.state_before.sp);
     wit[COL_SP_AFTER] = F::from_u64(trace.state_after.sp);
@@ -161,6 +152,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.state_before.locals_fbp);
     wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.state_after.locals_fbp);
     wit[COL_HALTED] = if trace.state_after.halted { F::ONE } else { F::ZERO };
+    wit[COL_HALTED_BEFORE] = if trace.state_before.halted { F::ONE } else { F::ZERO };
     wit[COL_TRAPPED_BEFORE] = if trace.state_before.trapped { F::ONE } else { F::ZERO };
     wit[COL_TRAPPED_AFTER] = if trace.state_after.trapped { F::ONE } else { F::ZERO };
     wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
@@ -175,17 +167,27 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    // Guest call ⟺ a return context is pushed: the CCS defines this column
-    // as `(call + call_indirect) · is_guest`, and the call-stack push is one
-    // of its consequences; the trace's push record is the same fact.
-    wit[COL_GUEST_CALL_ACTIVE] = if trace.call_stack_push.is_some() {
+    wit[COL_CALL_STACK_PUSH_PRESENT] = if trace.call_stack_push.is_some() {
         F::ONE
     } else {
         F::ZERO
     };
-    if let Some((return_pc, caller_fbp)) = trace.call_stack_push.or(trace.call_stack_pop) {
+    wit[COL_GUEST_ENTRY_ACTIVE] = if trace.target_function_is_guest
+        && matches!(
+            trace.opcode,
+            super::isa::WasmOpcode::Call
+                | super::isa::WasmOpcode::CallIndirect
+                | super::isa::WasmOpcode::ReturnCall
+                | super::isa::WasmOpcode::ReturnCallIndirect
+        ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if let Some((return_pc, caller_fbp, caller_stack_base)) = trace.call_stack_push.or(trace.call_stack_pop) {
         wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(return_pc);
         wit[COL_CALL_STACK_CALLER_FBP_VALUE] = F::from_u64(caller_fbp);
+        wit[COL_CALL_STACK_CALLER_SP_BASE_VALUE] = F::from_u64(caller_stack_base);
     }
     if trace.call_stack_push.is_some() {
         wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_before.call_stack_depth);
@@ -228,12 +230,20 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     let stack_writes = trace
         .stack_writes_override
         .unwrap_or(trace.info.stack_writes);
-    wit[COL_STACK_READ0_ACTIVE] = if stack_reads >= 1 { F::ONE } else { F::ZERO };
-    wit[COL_STACK_READ1_ACTIVE] = if stack_reads >= 2 { F::ONE } else { F::ZERO };
-    wit[COL_STACK_READ2_ACTIVE] = if stack_reads >= 3 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_READ_ACTIVE[0]] = if stack_reads >= 1 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_READ_ACTIVE[1]] = if stack_reads >= 2 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_READ_ACTIVE[2]] = if stack_reads >= 3 { F::ONE } else { F::ZERO };
     wit[COL_STACK_WRITE0_ACTIVE] = if stack_writes >= 1 { F::ONE } else { F::ZERO };
     wit[COL_OP_TABLE_ENABLED] = if trace.info.uses_op_table { F::ONE } else { F::ZERO };
-    wit[COL_LINEAR_MEM_USE_LANE0] = if trace.linear_memory.is_some() { F::ONE } else { F::ZERO };
+    let is_core_linear_memory = trace.row_kind.is_program() && trace.opcode.uses_linear_memory();
+    let is_host_event_byte_memory = trace
+        .host_event_rom_slot
+        .is_some_and(|rom| rom.variant.uses_byte_memory_width());
+    let is_host_event_half_memory = trace
+        .host_event_rom_slot
+        .is_some_and(|rom| rom.variant.uses_half_memory_width());
+    let is_host_event_subword_memory = is_host_event_byte_memory || is_host_event_half_memory;
+    wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
     wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
@@ -244,7 +254,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     };
     wit[COL_TABLE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
@@ -253,22 +265,37 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // table_sizes is read by table.size and by call_indirect (the OOB check).
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableSize | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableSize
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
         F::ZERO
     };
 
-    if matches!(trace.row_kind, WasmRowKind::Program) {
+    let is_program_row = matches!(trace.row_kind, WasmRowKind::Program);
+    if is_program_row {
         if let Some(col) = selector_col(trace.opcode) {
             wit[col] = F::ONE;
         }
     }
+    let program_immediate_gate = |consumes| {
+        if is_program_row && consumes {
+            F::ONE
+        } else {
+            F::ZERO
+        }
+    };
+    wit[COL_PROGRAM_LOCAL_INDEX_ACTIVE] = program_immediate_gate(trace.opcode.uses_local_index_immediate());
+    wit[COL_PROGRAM_GLOBAL_INDEX_ACTIVE] = program_immediate_gate(trace.opcode.uses_global_index_immediate());
+    wit[COL_PROGRAM_TABLE_ID_ACTIVE] = program_immediate_gate(trace.opcode.uses_table_id_immediate());
+    wit[COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE] =
+        program_immediate_gate(trace.opcode.uses_call_indirect_immediates());
     if let Some(read) = trace.stack_read0 {
-        wit[COL_STACK_READ0_ADDR_LO] = F::from_u64(read.addr_lo);
-        wit[COL_STACK_READ0_ADDR_HI] = F::from_u64(read.addr_lo + 1);
-        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
+        wit[COL_STACK_READ_ADDR_LO[0]] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ_ADDR_HI[0]] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.output_captured {
         debug_assert_eq!(
@@ -277,34 +304,34 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             "output capture reuses inactive stack_read0 columns"
         );
         let output_addr = trace.state_before.sp.saturating_sub(1).saturating_mul(2);
-        wit[COL_STACK_READ0_ADDR_LO] = F::from_u64(output_addr);
-        wit[COL_STACK_READ0_ADDR_HI] = F::from_u64(output_addr + 1);
-        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(trace.state_after.output.value_lo));
-        wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(trace.state_after.output.value_hi));
+        wit[COL_STACK_READ_ADDR_LO[0]] = F::from_u64(output_addr);
+        wit[COL_STACK_READ_ADDR_HI[0]] = F::from_u64(output_addr + 1);
+        wit[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(u64::from(trace.state_after.output.value_lo));
+        wit[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(u64::from(trace.state_after.output.value_hi));
     }
     if trace.wide_values_enabled {
         if let Some(read0_value_hi) = trace.stack_read0.and_then(|read| read.value_hi) {
-            wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(read0_value_hi));
+            wit[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(u64::from(read0_value_hi));
         }
     }
     if let Some(read) = trace.stack_read1 {
-        wit[COL_STACK_READ1_ADDR_LO] = F::from_u64(read.addr_lo);
-        wit[COL_STACK_READ1_ADDR_HI] = F::from_u64(read.addr_lo + 1);
-        wit[COL_STACK_READ1_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
+        wit[COL_STACK_READ_ADDR_LO[1]] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ_ADDR_HI[1]] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ_VALUE_LO[1]] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.wide_values_enabled {
         if let Some(read1_value_hi) = trace.stack_read1.and_then(|read| read.value_hi) {
-            wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
+            wit[COL_STACK_READ_VALUE_HI[1]] = F::from_u64(u64::from(read1_value_hi));
         }
     }
     if let Some(read) = trace.stack_read2 {
-        wit[COL_STACK_READ2_ADDR_LO] = F::from_u64(read.addr_lo);
-        wit[COL_STACK_READ2_ADDR_HI] = F::from_u64(read.addr_lo + 1);
-        wit[COL_STACK_READ2_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
+        wit[COL_STACK_READ_ADDR_LO[2]] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ_ADDR_HI[2]] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ_VALUE_LO[2]] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.wide_values_enabled {
         if let Some(read2_value_hi) = trace.stack_read2.and_then(|read| read.value_hi) {
-            wit[COL_STACK_READ2_VALUE_HI] = F::from_u64(u64::from(read2_value_hi));
+            wit[COL_STACK_READ_VALUE_HI[2]] = F::from_u64(u64::from(read2_value_hi));
         }
     }
     if let Some(write) = trace.stack_write0 {
@@ -319,21 +346,25 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     }
 
     // Mirror the CCS div/rem trap gates (zero divisor and MIN / -1 overflow).
-    let divisor = wit[COL_STACK_READ1_VALUE_LO] + wit[COL_STACK_READ1_VALUE_HI];
+    let divisor = wit[COL_STACK_READ_VALUE_LO[1]] + wit[COL_STACK_READ_VALUE_HI[1]];
     let (divisor_is_zero, divisor_inv) = zero_test_witness_field(divisor);
     wit[COL_DIV_DIVISOR_IS_ZERO] = divisor_is_zero;
     wit[COL_DIV_DIVISOR_INV] = divisor_inv;
     let sel_i32_div_s = wit[selector_col(super::isa::WasmOpcode::I32DivS).expect("i32.div_s selector")];
+    let sel_i32_rem_s = wit[selector_col(super::isa::WasmOpcode::I32RemS).expect("i32.rem_s selector")];
     let sel_i64_div_s = wit[selector_col(super::isa::WasmOpcode::I64DivS).expect("i64.div_s selector")];
-    let dividend_min = wit[COL_STACK_READ0_VALUE_LO] + wit[COL_STACK_READ0_VALUE_HI] * F::from_u64(1 << 32)
-        - sel_i32_div_s * F::from_u64(1 << 31)
-        - sel_i64_div_s * F::from_u64(1 << 63);
+    let sel_i64_rem_s = wit[selector_col(super::isa::WasmOpcode::I64RemS).expect("i64.rem_s selector")];
+    let sel_i32_signed = sel_i32_div_s + sel_i32_rem_s;
+    let sel_i64_signed = sel_i64_div_s + sel_i64_rem_s;
+    let dividend_min = wit[COL_STACK_READ_VALUE_LO[0]] + wit[COL_STACK_READ_VALUE_HI[0]] * F::from_u64(1 << 32)
+        - sel_i32_signed * F::from_u64(1 << 31)
+        - sel_i64_signed * F::from_u64(1 << 63);
     let (dividend_is_min, dividend_min_inv) = zero_test_witness_field(dividend_min);
     wit[COL_DIV_DIVIDEND_IS_MIN] = dividend_is_min;
     wit[COL_DIV_DIVIDEND_MIN_INV] = dividend_min_inv;
-    let divisor_neg1 = wit[COL_STACK_READ1_VALUE_LO] + wit[COL_STACK_READ1_VALUE_HI]
-        - sel_i32_div_s * F::from_u64(0xFFFF_FFFF)
-        - sel_i64_div_s * F::from_u64(0x1_FFFF_FFFE);
+    let divisor_neg1 = wit[COL_STACK_READ_VALUE_LO[1]] + wit[COL_STACK_READ_VALUE_HI[1]]
+        - sel_i32_signed * F::from_u64(0xFFFF_FFFF)
+        - sel_i64_signed * F::from_u64(0x1_FFFF_FFFE);
     let (divisor_is_neg1, divisor_neg1_inv) = zero_test_witness_field(divisor_neg1);
     wit[COL_DIV_DIVISOR_IS_NEG1] = divisor_is_neg1;
     wit[COL_DIV_DIVISOR_NEG1_INV] = divisor_neg1_inv;
@@ -348,10 +379,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_OP_TABLE_ENABLED] = F::ZERO;
     }
     if let Some(access) = trace.linear_memory {
-        wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
-        wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
-        wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
-        wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
+        if is_core_linear_memory {
+            wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
+        }
+        if is_core_linear_memory || is_host_event_subword_memory {
+            wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
+            wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
+            wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
+        }
         // Witness the CCS-bound load/store lane gates used by the memory spec.
         let is_load = trace
             .opcode
@@ -374,74 +409,76 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         let store_live = if is_store { not_oob } else { F::ZERO };
         wit[COL_MEM_LOAD_LIVE] = load_live;
         wit[COL_MEM_STORE_LIVE] = store_live;
-        wit[COL_LINEAR_MEM_LANE0_LOAD_ACTIVE] = load_live;
-        wit[COL_LINEAR_MEM_LANE1_LOAD_ACTIVE] = if access.lane1.is_some() { load_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE2_LOAD_ACTIVE] = if access.lane2.is_some() { load_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE0_STORE_ACTIVE] = store_live;
-        wit[COL_LINEAR_MEM_LANE1_STORE_ACTIVE] = if access.lane1.is_some() { store_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = if access.lane2.is_some() { store_live } else { F::ZERO };
-        match access.byte_offset {
-            0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
-            1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
-            2 => wit[COL_LINEAR_MEM_OFFSET_IS_2] = F::ONE,
-            3 => wit[COL_LINEAR_MEM_OFFSET_IS_3] = F::ONE,
-            _ => {}
-        }
-        if access.width_bytes == 4 {
-            wit[COL_LINEAR_MEM_IS_FULL_WIDTH] = F::ONE;
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[0]] = load_live;
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[1]] = if access.lane1.is_some() { load_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[2]] = if access.lane2.is_some() { load_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[0]] = store_live;
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[1]] = if access.lane1.is_some() { store_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[2]] = if access.lane2.is_some() { store_live } else { F::ZERO };
+        if is_core_linear_memory || is_host_event_subword_memory {
             match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3] = F::ONE,
+                0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_OFFSET_IS_3] = F::ONE,
                 _ => {}
             }
-        } else if access.width_bytes == 8 {
-            wit[COL_LINEAR_MEM_IS_DOUBLE_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
-            }
-            match trace.opcode {
-                super::isa::WasmOpcode::I64Load => match access.byte_offset {
-                    0 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0] = F::ONE,
-                    1 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1] = F::ONE,
-                    2 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2] = F::ONE,
-                    3 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3] = F::ONE,
+            if access.width_bytes == 4 {
+                wit[COL_LINEAR_MEM_IS_FULL_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3] = F::ONE,
                     _ => {}
-                },
-                super::isa::WasmOpcode::I64Store => match access.byte_offset {
-                    0 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0] = F::ONE,
-                    1 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1] = F::ONE,
-                    2 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2] = F::ONE,
-                    3 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3] = F::ONE,
+                }
+            } else if access.width_bytes == 8 {
+                wit[COL_LINEAR_MEM_IS_DOUBLE_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3] = F::ONE,
                     _ => {}
-                },
-                _ => {}
-            }
-        } else if access.width_bytes == 1 {
-            wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
-            }
-        } else if access.width_bytes == 2 {
-            wit[COL_LINEAR_MEM_IS_HALF_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
+                }
+                match trace.opcode {
+                    super::isa::WasmOpcode::I64Load => match access.byte_offset {
+                        0 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0] = F::ONE,
+                        1 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1] = F::ONE,
+                        2 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2] = F::ONE,
+                        3 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3] = F::ONE,
+                        _ => {}
+                    },
+                    super::isa::WasmOpcode::I64Store => match access.byte_offset {
+                        0 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0] = F::ONE,
+                        1 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1] = F::ONE,
+                        2 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2] = F::ONE,
+                        3 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3] = F::ONE,
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            } else if access.width_bytes == 1 {
+                wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                }
+            } else if access.width_bytes == 2 {
+                wit[COL_LINEAR_MEM_IS_HALF_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                }
             }
         }
-        wit[COL_LINEAR_MEM_LANE0_ADDR] = F::from_u64(access.lane0.word_addr);
+        wit[COL_LINEAR_MEM_LANE_ADDR[0]] = F::from_u64(access.lane0.word_addr);
         let lane0_value = match trace.opcode {
             super::isa::WasmOpcode::I32Load
             | super::isa::WasmOpcode::I64Load
@@ -455,7 +492,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             | super::isa::WasmOpcode::I32Store16 => access.lane0.value_after,
             _ => access.lane0.value_after,
         };
-        wit[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(u64::from(lane0_value));
+        wit[COL_LINEAR_MEM_LANE_VALUE[0]] = F::from_u64(u64::from(lane0_value));
         write_u32_le_bytes(
             &mut wit,
             [
@@ -467,7 +504,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             lane0_value,
         );
         // Prior word state for the store-side RMW read and byte preservation.
-        wit[COL_LINEAR_MEM_LANE0_VALUE_BEFORE] = F::from_u64(u64::from(access.lane0.value_before));
+        wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] = F::from_u64(u64::from(access.lane0.value_before));
         write_u32_le_bytes(
             &mut wit,
             [
@@ -479,7 +516,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             access.lane0.value_before,
         );
         if let Some(lane1) = access.lane1 {
-            wit[COL_LINEAR_MEM_LANE1_ADDR] = F::from_u64(lane1.word_addr);
+            wit[COL_LINEAR_MEM_LANE_ADDR[1]] = F::from_u64(lane1.word_addr);
             let lane1_value = match trace.opcode {
                 super::isa::WasmOpcode::I32Load
                 | super::isa::WasmOpcode::I64Load
@@ -493,7 +530,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 | super::isa::WasmOpcode::I32Store16 => lane1.value_after,
                 _ => lane1.value_after,
             };
-            wit[COL_LINEAR_MEM_LANE1_VALUE] = F::from_u64(u64::from(lane1_value));
+            wit[COL_LINEAR_MEM_LANE_VALUE[1]] = F::from_u64(u64::from(lane1_value));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -504,7 +541,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 ],
                 lane1_value,
             );
-            wit[COL_LINEAR_MEM_LANE1_VALUE_BEFORE] = F::from_u64(u64::from(lane1.value_before));
+            wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[1]] = F::from_u64(u64::from(lane1.value_before));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -517,13 +554,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             );
         }
         if let Some(lane2) = access.lane2 {
-            wit[COL_LINEAR_MEM_LANE2_ADDR] = F::from_u64(lane2.word_addr);
+            wit[COL_LINEAR_MEM_LANE_ADDR[2]] = F::from_u64(lane2.word_addr);
             let lane2_value = match trace.opcode {
                 super::isa::WasmOpcode::I64Load => lane2.value_before,
                 super::isa::WasmOpcode::I64Store => lane2.value_after,
                 _ => lane2.value_after,
             };
-            wit[COL_LINEAR_MEM_LANE2_VALUE] = F::from_u64(u64::from(lane2_value));
+            wit[COL_LINEAR_MEM_LANE_VALUE[2]] = F::from_u64(u64::from(lane2_value));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -534,7 +571,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 ],
                 lane2_value,
             );
-            wit[COL_LINEAR_MEM_LANE2_VALUE_BEFORE] = F::from_u64(u64::from(lane2.value_before));
+            wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[2]] = F::from_u64(u64::from(lane2.value_before));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -583,6 +620,15 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                     .and_then(|lane| lane.value_hi)
                     .unwrap_or(0),
             ),
+            _ if is_host_event_byte_memory => (
+                u32::from(access.lane0.value_after.to_le_bytes()[usize::from(access.byte_offset)]),
+                0,
+            ),
+            _ if is_host_event_half_memory => {
+                let bytes = access.lane0.value_after.to_le_bytes();
+                let offset = usize::from(access.byte_offset);
+                (u32::from(u16::from_le_bytes([bytes[offset], bytes[offset + 1]])), 0)
+            }
             _ => (0, 0),
         };
         write_u32_le_bytes(
@@ -659,6 +705,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         trace.opcode,
         super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
     ) || trace.row_kind.is_call_param_init()
+        // Bootstrap gather rows write runtime inputs into the locals family.
+        || trace.row_kind.is_host_event_gather()
     {
         if let Some(idx) = trace.local_index {
             wit[COL_LOCAL_INDEX] = F::from_u64(u64::from(idx));
@@ -720,6 +768,11 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     if let Some(result_count) = trace.call_result_count {
         wit[COL_CALL_RESULT_COUNT] = F::from_u64(u64::from(result_count));
     }
+    wit[COL_CALL_TARGET_METADATA] = F::from_u64(pack_function_call_metadata(
+        trace.call_param_count.unwrap_or(0),
+        trace.call_result_count.unwrap_or(0),
+        trace.target_function_is_guest,
+    ));
     if let Some(function_type_id) = trace.function_type_id {
         wit[COL_FUNCTION_TYPE_ID] = F::from_u64(u64::from(function_type_id));
     }
@@ -734,7 +787,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // callee type mismatch) and the derived read-activation gates. Placed
     // after the table/type columns above, which the comparison and zero tests
     // read.
-    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")];
+    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
     // ge = (table_index >= table_size); the gadget is gated on call_indirect,
     // so the columns only carry meaning (and ci_oob) on those rows.
     if sel_call_indirect == F::ONE {
@@ -776,6 +830,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     if wit[COL_CI_HOST_CALL] == F::ONE {
         wit[COL_PC_ROM_CALL_RETURN_CHOICE] = F::from_u64(PC_ROM_CALL_RETURN_CHOICE);
     }
+
+    fill_event_absorb(&mut wit, trace);
+    crate::ccs::host_event_chain::fill_witness(&mut wit, trace);
 
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {
@@ -905,21 +962,124 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit
 }
 
+/// Host-event absorb machinery witness: carried state columns, the perm-row
+/// position one-hot, gather decoding, and the S-box power columns (whose unconditional mult rows are witness-filled
+/// with the powers of their linear input expression on every row).
+/// Fill the named host-event absorb interface columns (carried state); the
+/// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
+fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
+    use crate::layout::{
+        COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
+        COL_HOST_EVENTS_REMAINING_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
+        COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE,
+        COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_AFTER,
+        COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG,
+        COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_IMMEDIATE0,
+        COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT, COL_PERM_PENDING_AFTER,
+        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
+    };
+
+    let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
+    let before = trace.state_before.event_absorb;
+    let after = trace.state_after.event_absorb;
+
+    for j in 0..8 {
+        wit[COL_EVBUF_BEFORE[j]] = F::from_u64(before.evbuf[j]);
+        wit[COL_EVBUF_AFTER[j]] = F::from_u64(after.evbuf[j]);
+    }
+    wit[COL_PERM_PENDING_BEFORE] = bool_f(before.perm_pending);
+    wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
+    wit[COL_PERM_ROUND_BEFORE] = F::from_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_AFTER] = F::from_u64(u64::from(after.perm_round));
+    let (round_is_zero, round_inv) = zero_test_witness_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_BEFORE_IS_ZERO] = round_is_zero;
+    wit[COL_PERM_ROUND_BEFORE_INV] = round_inv;
+    for lane in 0..12 {
+        wit[COL_PERM_STATE_BEFORE[lane]] = F::from_u64(before.perm_state[lane]);
+        wit[COL_PERM_STATE_AFTER[lane]] = F::from_u64(after.perm_state[lane]);
+    }
+
+    // Gather and host-call interface gates read by the gadget.
+    wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
+    wit[crate::layout::COL_PC_FREF_ACTIVE] = bool_f(
+        !trace.row_kind.is_host_event_gather()
+            && !trace.row_kind.is_turn_boundary()
+            && !trace.row_kind.is_padding()
+            && trace.state_before.event_absorb.perm_round == 0
+            && !trace.state_before.event_absorb.perm_pending,
+    );
+    let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
+        + wit[COL_CALL_INDIRECT_IS_NOT_TRAP]
+        - wit[COL_GUEST_ENTRY_ACTIVE];
+    wit[crate::layout::COL_HOST_CALL_ACTIVE] = host_call_gate;
+    wit[COL_GATHER_LOCAL_WRITE] = if trace.row_kind.is_host_event_gather()
+        && trace
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal)
+    {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
+        && trace
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal && rom.variant.is_low_limb())
+    {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    // Hi-word stack write port gate: ordinary write0 activity, plus
+    // result-hi gather rows (which write only the pushed cell's hi lane).
+    let result_hi_gather = trace.row_kind.is_host_event_gather()
+        && trace
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
+    wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
+        wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
+    wit[COL_HOST_EVENT_EXIT_LATCH] =
+        bool_f(!trace.state_before.halted && trace.state_after.halted && !trace.state_after.trapped);
+    wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
+
+    // Host-event gather machinery: carried schedule/cursor state plus
+    // the per-row host-event ROM interface columns.
+    let g_before = trace.state_before.host_events;
+    let g_after = trace.state_after.host_events;
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
+    wit[COL_HOST_EVENTS_REMAINING_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
+    let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = evrem_is_zero;
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE_INV] = evrem_inv;
+    wit[COL_HOST_EVENT_INDEX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
+    wit[COL_HOST_EVENT_INDEX_AFTER] = F::from_u64(u64::from(g_after.event_index));
+    wit[COL_HOST_EVENT_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);
+    wit[COL_HOST_EVENT_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
+    wit[COL_HOST_EVENT_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
+    wit[COL_HOST_EVENT_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
+    if let Some(rom) = trace.host_event_rom_slot {
+        wit[COL_HOST_EVENT_SLOT_KIND] =
+            F::from_u64(u64::from(rom.kind.code()) + WasmHostEventSlotKind::COUNT as u64 * u64::from(rom.advice));
+        wit[COL_HOST_EVENT_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
+        wit[COL_HOST_EVENT_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
+        wit[COL_HOST_EVENT_SLOT_IMMEDIATE0] = F::from_u64(u64::from(rom.immediate0));
+        wit[COL_HOST_EVENT_SLOT_IMMEDIATE1] = F::from_u64(u64::from(rom.immediate1));
+    }
+    if let Some(count) = trace.host_event_initial_schedule_count {
+        wit[COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = F::from_u64(u64::from(count));
+    }
+    if let Some(count) = trace.host_event_exit_schedule_count {
+        wit[COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = F::from_u64(u64::from(count));
+    }
+}
+
 fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {
     let (active_col, remaining_col) = if before {
         (COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE)
     } else {
         (COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER)
-    };
-    wit[active_col] = if state.active { F::ONE } else { F::ZERO };
-    wit[remaining_col] = F::from_u64(u64::from(state.remaining));
-}
-
-fn write_host_args_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {
-    let (active_col, remaining_col) = if before {
-        (COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE)
-    } else {
-        (COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_REMAINING_AFTER)
     };
     wit[active_col] = if state.active { F::ONE } else { F::ZERO };
     wit[remaining_col] = F::from_u64(u64::from(state.remaining));

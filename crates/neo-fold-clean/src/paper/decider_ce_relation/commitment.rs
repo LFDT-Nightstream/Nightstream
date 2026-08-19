@@ -4,7 +4,10 @@
 //! `enforce_ajtai_commitment` (`get_global_pp_for_dims` +
 //! `precompute_rot_columns`) into the clean's `R1csBuilder` world.
 
-use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns};
+use std::ops::Range;
+
+use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns, PP};
+use neo_math::ring::Rq;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
@@ -55,6 +58,68 @@ pub(crate) fn enforce_ajtai_opening(
         });
     }
     let pp = get_global_pp_for_dims(rows, cols).map_err(|_| AjtaiOpeningError::SetupMissing { d: rows, cols })?;
+    enforce_ajtai_opening_with_pp(builder, witness, c_data, c_d, c_kappa, 0..cols, &pp)
+}
+
+/// Enforce an opening of one whole-column witness slice under an explicit
+/// Ajtai matrix. Nebula uses this for its independent `A_ops` and `A_mem`
+/// coordinates; the full-witness commitment uses [`enforce_ajtai_opening`].
+pub(crate) fn enforce_ajtai_slice_opening(
+    builder: &mut R1csBuilder,
+    witness: &FinalWitnessWires,
+    c_data: &[Var],
+    c_d: usize,
+    c_kappa: usize,
+    columns: Range<usize>,
+    pp: &PP<Rq>,
+) -> Result<(), AjtaiOpeningError> {
+    enforce_ajtai_opening_with_pp(builder, witness, c_data, c_d, c_kappa, columns, pp)
+}
+
+fn enforce_ajtai_opening_with_pp(
+    builder: &mut R1csBuilder,
+    witness: &FinalWitnessWires,
+    c_data: &[Var],
+    c_d: usize,
+    c_kappa: usize,
+    columns: Range<usize>,
+    pp: &PP<Rq>,
+) -> Result<(), AjtaiOpeningError> {
+    let rows = witness.rows;
+    if rows != c_d {
+        return Err(AjtaiOpeningError::Shape {
+            what: "witness rows vs c_d",
+            expected: c_d,
+            got: rows,
+        });
+    }
+    if columns.end > witness.cols {
+        return Err(AjtaiOpeningError::Shape {
+            what: "witness slice columns",
+            expected: columns.end,
+            got: witness.cols,
+        });
+    }
+    let cols = columns.len();
+    let coord_count = rows.checked_mul(c_kappa).ok_or(AjtaiOpeningError::Shape {
+        what: "c_data length overflow",
+        expected: 0,
+        got: 0,
+    })?;
+    if c_data.len() != coord_count {
+        return Err(AjtaiOpeningError::Shape {
+            what: "c_data length",
+            expected: coord_count,
+            got: c_data.len(),
+        });
+    }
+    if pp.d != rows || pp.m != cols {
+        return Err(AjtaiOpeningError::Shape {
+            what: "Ajtai matrix dimensions",
+            expected: rows * cols,
+            got: pp.d * pp.m,
+        });
+    }
     if pp.m_rows.len() != c_kappa {
         return Err(AjtaiOpeningError::Shape {
             what: "Ajtai kappa",
@@ -82,7 +147,8 @@ pub(crate) fn enforce_ajtai_opening(
     for (commit_col, pp_row) in pp.m_rows.iter().enumerate() {
         for coord_row in 0..rows {
             let mut lhs = Lc::zero();
-            for (witness_col, ring_el) in pp_row.iter().copied().enumerate() {
+            for (local_col, ring_el) in pp_row.iter().copied().enumerate() {
+                let witness_col = columns.start + local_col;
                 let mut rots = [[F::ZERO; D]; D];
                 precompute_rot_columns(ring_el, &mut rots);
                 for witness_row in 0..rows {

@@ -2,14 +2,14 @@ import Nightstream.Implementation.Nebula.Production.Carrier.StreamingFPrimeProgr
 import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingClaimSchedule
 
 /-!
-Contract: exact physical overlay schedule for the two-map PiCCS claim binding.
+Contract: exact physical overlay schedule for the three-map PiCCS claim binding.
 
 Assurance tier: model-level schedule contract.
 
-Owns the 87 overlay kinds, the exact kind selected by each claim work item,
-and the 86 compact source-link runs. The runs cover every authoritative
-claim-frame field from offset 383 through 88,022 and both carried
-108-coordinate commitments.
+Owns the 99 overlay kinds, the exact kind selected by each claim work item,
+and the 98 compact source-link runs. The runs cover every authoritative
+claim-frame field from offset 383 through 99,902 and both carried
+states of all three 108-coordinate commitments.
 
 Does not own coordinate-map row soundness, Rust artifact conformance,
 accumulator terminal equality, lifecycle semantics, or security reduction.
@@ -24,24 +24,24 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayO
 open Nightstream.Implementation.Nebula.ProductionStreamingFPrimeProgram
 open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingClaimSchedule
 
-/-- Kind zero is the no-op. Each of the 86 claim chunks owns one distinct
+/-- Kind zero is the no-op. Each of the 98 claim chunks owns one distinct
 nonzero physical overlay kind. -/
 def overlayKindCodeAt (chunk : Fin claimChunkCount) : Nat :=
   chunk.val + 1
 
 theorem overlayKindCodeAt_lt (chunk : Fin claimChunkCount) :
-    overlayKindCodeAt chunk < 87 := by
+    overlayKindCodeAt chunk < 99 := by
   have bound := chunk.isLt
   unfold claimChunkCount at bound
   simp [overlayKindCodeAt]
   omega
 
-def overlayKindAt (chunk : Fin claimChunkCount) : Fin 87 :=
+def overlayKindAt (chunk : Fin claimChunkCount) : Fin 99 :=
   ⟨overlayKindCodeAt chunk, overlayKindCodeAt_lt chunk⟩
 
 /-- Invalid claim indices map to no-op. The production program has no such
 index. -/
-def overlayKindForWorkItem (item : WorkItem) : Fin 87 :=
+def overlayKindForWorkItem (item : WorkItem) : Fin 99 :=
   if item.phase = .claimReplay then
     if bound : item.index < claimChunkCount then
       overlayKindAt ⟨item.index, bound⟩
@@ -59,10 +59,10 @@ def productionOverlayKindMap : List Nat :=
 def productionOverlayLinkRunAt
     (chunk : Fin claimChunkCount) : Nat × Nat × Nat × Nat × Nat :=
   ( chunk.val + 1
-  , if chunk.val = 85 then 4 else 3
+  , if chunk.val = 97 then 4 else 3
   , chunk.val
   , if chunk.val = 0 then 383 else 0
-  , if chunk.val = 0 then 641 else if chunk.val = 85 then 983 else 1024 )
+  , if chunk.val = 0 then 641 else if chunk.val = 97 then 575 else 1024 )
 
 def productionOverlayLinkRuns : List (Nat × Nat × Nat × Nat × Nat) :=
   List.ofFn productionOverlayLinkRunAt
@@ -96,42 +96,42 @@ theorem productionOverlayLinkRunChunk_checked :
     productionOverlayLinkRunChunk.length = 64 ∧
       (productionOverlayLinkRunChunk.map fun run => run.2.2.2.2).sum =
         65_153 ∧
-      (productionOverlayLinkRunChunk.map fun run => 432 + run.2.2.2.2).sum =
-        92_801 := by
+      (productionOverlayLinkRunChunk.map fun run => 648 + run.2.2.2.2).sum =
+        106_625 := by
   exact ⟨rfl, rfl, rfl⟩
 
 theorem productionOverlayLinkRunTail_checked :
-    productionOverlayLinkRunTail.length = 22 ∧
+    productionOverlayLinkRunTail.length = 34 ∧
       (productionOverlayLinkRunTail.map fun run => run.2.2.2.2).sum =
-        22_487 ∧
-      (productionOverlayLinkRunTail.map fun run => 432 + run.2.2.2.2).sum =
-        31_991 := by
+        34_367 ∧
+      (productionOverlayLinkRunTail.map fun run => 648 + run.2.2.2.2).sum =
+        56_399 := by
   exact ⟨rfl, rfl, rfl⟩
 
 @[simp] theorem productionOverlayKindMap_length :
-    productionOverlayKindMap.length = 400 := by
+    productionOverlayKindMap.length = 436 := by
   unfold productionOverlayKindMap
   rw [List.length_map, production_program_length]
 
 @[simp] theorem productionOverlayLinkRuns_length :
-    productionOverlayLinkRuns.length = 86 := by
+    productionOverlayLinkRuns.length = 98 := by
   exact length_of_take_drop
     productionOverlayLinkRunChunk_checked.1
     productionOverlayLinkRunTail_checked.1
 
 theorem productionOverlayLinkRuns_census :
-    (productionOverlayLinkRuns.map fun run => run.2.2.2.2).sum = 87_640 /\
-      (productionOverlayLinkRuns.map fun run => 432 + run.2.2.2.2).sum =
-        124_792 := by
+      (productionOverlayLinkRuns.map fun run => run.2.2.2.2).sum = 99_520 /\
+      (productionOverlayLinkRuns.map fun run => 648 + run.2.2.2.2).sum =
+        163_024 := by
   constructor
   · have total := mapSum_of_take_drop productionOverlayLinkRuns
-      (fun run => run.2.2.2.2) 64 65_153 22_487
+      (fun run => run.2.2.2.2) 64 65_153 34_367
       productionOverlayLinkRunChunk_checked.2.1
       productionOverlayLinkRunTail_checked.2.1
     norm_num at total
     exact total
   · have total := mapSum_of_take_drop productionOverlayLinkRuns
-      (fun run => 432 + run.2.2.2.2) 64 92_801 31_991
+      (fun run => 648 + run.2.2.2.2) 64 106_625 56_399
       productionOverlayLinkRunChunk_checked.2.2
       productionOverlayLinkRunTail_checked.2.2
     norm_num at total
@@ -142,7 +142,7 @@ theorem productionOverlayLinkRuns_census :
   rfl
 
 @[simp] theorem overlayKindAt_final :
-    (overlayKindAt ⟨85, by decide⟩).val = 86 := by
+    (overlayKindAt ⟨97, by decide⟩).val = 98 := by
   rfl
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayOverlaySchedule

@@ -7,12 +7,12 @@ use neo_fold_clean::frontends::nebula::circuit::StepData;
 use neo_fold_clean::frontends::nebula::f_prime::{
     enforce_streaming_phase_semantic_digest, enforce_streaming_state_x_out_bits,
     prepare_streaming_lifecycle_preprocessing, production_phase_envelope_link_profile,
-    production_pi_rlc_family_body_source_arms, streaming_phase_semantic_digest,
-    synthesize_streaming_lifecycle_source_arms, synthesize_streaming_lifecycle_source_arms_with_recursive_assignment,
-    NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingProgramAudit,
-    NebulaFPrimeStreamingPublicLayout, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
-    STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY, STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY,
-    STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
+    production_pi_rlc_family_body_source_arms, production_prior_state_replay_final_source_arm,
+    streaming_phase_semantic_digest, synthesize_streaming_lifecycle_source_arms,
+    synthesize_streaming_lifecycle_source_arms_with_recursive_assignment, NebulaFPrimeStreamingCircuitKind,
+    NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingPublicLayout,
+    STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY, STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY,
+    STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY, STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
 };
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
 use neo_fold_clean::frontends::nebula::layout::{encode_delayed_f_prime_suffix, NebulaParams};
@@ -238,6 +238,15 @@ fn streaming_lifecycle_source_arms_own_complete_context_and_fold_stages() {
             assert!(column >= arm.m_in, "x_out authority must remain private");
             assert!(column < arm.m, "x_out authority column must exist in the source arm");
         }
+        if arm_kind == NebulaFPrimeStreamingLifecycleArm::Recursive {
+            for column in arms.recursive_prior_state_digest_columns() {
+                assert!(column >= arm.m_in, "prior-state digest authority must remain private");
+                assert!(
+                    column < arm.m,
+                    "prior-state digest authority column must exist in the source arm"
+                );
+            }
+        }
         let lane_columns = arms.after_nebula_lane_columns(arm_kind).all();
         assert_eq!(lane_columns.len(), 50);
         for column in lane_columns {
@@ -365,11 +374,14 @@ fn streaming_lifecycle_source_arms_own_complete_context_and_fold_stages() {
         .expect("two PiRLC parity arms");
     phase_sources[NebulaFPrimeStreamingCircuitKind::PiRlcFamilyEven.code() as usize] = even_pi_rlc;
     phase_sources[NebulaFPrimeStreamingCircuitKind::PiRlcFamilyOdd.code() as usize] = odd_pi_rlc;
+    phase_sources[NebulaFPrimeStreamingCircuitKind::PriorStateReplayFinal.code() as usize] =
+        production_prior_state_replay_final_source_arm()
+            .expect("synthesize exact final prior-state replay source rows");
     let link_profile = production_phase_envelope_link_profile(&arms, &phase_sources)
         .expect("derive all production common-to-phase envelope links");
     assert_eq!(link_profile.phase_kind_count(), 23);
     assert_eq!(link_profile.fields_per_kind(), 4_346);
-    assert_eq!(link_profile.total_links(), 99_958);
+    assert_eq!(link_profile.total_links(), 99_962);
 
     phase_sources[0] = phase_envelope_source(payload_len, Some(STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY));
     let error = production_phase_envelope_link_profile(&arms, &phase_sources)

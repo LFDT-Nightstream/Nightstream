@@ -261,6 +261,11 @@ impl NebulaFPrimeClaimCoordinateOverlaySynthesis {
     }
 
     #[doc(hidden)]
+    pub fn builder_for_artifact(&self) -> &R1csBuilder {
+        &self.builder
+    }
+
+    #[doc(hidden)]
     pub fn witness_value(&self, column: usize) -> Option<F> {
         self.builder.witness().get(column).copied()
     }

@@ -18,7 +18,7 @@ use crate::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot, Var};
 use crate::frontends::nebula::f_prime::{
     enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest,
     NebulaFPrimeStreamingTerminalFieldBinding, NebulaFPrimeStreamingTerminalProfile,
-    STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS,
+    STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS,
 };
 use crate::paper::construction2::{NebulaConfig, NebulaLane};
 use crate::paper::digest::{F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER};
@@ -68,6 +68,9 @@ pub struct StreamingTerminalXOutAuthorityAudit {
     source: R1csSnapshot,
     row_families: Vec<RowFamilyRange>,
     x_out_columns: [usize; 32],
+    local_state_columns: [usize; 4],
+    delayed_payload_columns: Vec<usize>,
+    post_phase_lane_columns: [usize; 50],
 }
 
 impl StreamingTerminalXOutAuthorityAudit {
@@ -81,6 +84,18 @@ impl StreamingTerminalXOutAuthorityAudit {
 
     pub const fn x_out_columns(&self) -> [usize; 32] {
         self.x_out_columns
+    }
+
+    pub const fn local_state_columns(&self) -> [usize; 4] {
+        self.local_state_columns
+    }
+
+    pub fn delayed_payload_columns(&self) -> &[usize] {
+        &self.delayed_payload_columns
+    }
+
+    pub const fn post_phase_lane_columns(&self) -> [usize; 50] {
+        self.post_phase_lane_columns
     }
 }
 
@@ -263,7 +278,7 @@ pub fn streaming_terminal_x_out_authority_audit() -> StreamingTerminalXOutAuthor
     let pi_ccs_header = [F::from_u64(13); 4];
     let boundary = [F::from_u64(17); 4];
     let local_state = [F::from_u64(19); 4];
-    let delayed_payload = [F::ZERO, F::ONE, F::ONE, F::ZERO];
+    let delayed_payload = vec![F::ZERO; STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS];
     let semantic = streaming_phase_semantic_digest(local_state, &delayed_payload);
     let accumulator = [F::from_u64(23); 4];
     let lane = NebulaLane {
@@ -296,8 +311,11 @@ pub fn streaming_terminal_x_out_authority_audit() -> StreamingTerminalXOutAuthor
     let x_out = x_out_values.map(|value| builder.alloc(value));
     let x_out_columns = x_out.map(Var::col);
     let local_state = local_state.map(|value| builder.alloc(value));
+    let local_state_columns = local_state.map(Var::col);
     let delayed_payload = builder.alloc_vec(&delayed_payload);
+    let delayed_payload_columns = delayed_payload.iter().map(|var| var.col()).collect();
     let post_phase_lane = alloc_nebula_lane_wires(&mut builder, &lane);
+    let post_phase_lane_columns = lane_wire_columns(&post_phase_lane);
     let public = StreamingTerminalPublicWires {
         vk_fs_digest: vk_fs.map(|value| builder.alloc(value)),
         pi_ccs_header: pi_ccs_header.map(|value| builder.alloc(value)),
@@ -327,6 +345,9 @@ pub fn streaming_terminal_x_out_authority_audit() -> StreamingTerminalXOutAuthor
         source,
         row_families,
         x_out_columns,
+        local_state_columns,
+        delayed_payload_columns,
+        post_phase_lane_columns,
     }
 }
 
@@ -417,6 +438,20 @@ fn lane_from_fields(fields: [Var; 50]) -> NebulaLaneWires {
             .try_into()
             .expect("four memory-digest fields"),
     }
+}
+
+fn lane_wire_columns(lane: &NebulaLaneWires) -> [usize; 50] {
+    let mut fields = Vec::with_capacity(50);
+    fields.extend(lane.program_binding_digest.map(Var::col));
+    fields.extend([lane.open, lane.seg_idx, lane.idx, lane.ts].map(Var::col));
+    for value in lane.gamma.iter().chain(&lane.h) {
+        fields.extend([value.c0.col(), value.c1.col()]);
+    }
+    fields.extend(lane.sp.map(Var::col));
+    fields.extend(lane.d_pre.iter().flatten().map(|value| value.col()));
+    fields.extend(lane.d_seen.iter().flatten().map(|value| value.col()));
+    fields.extend(lane.d_mem.map(Var::col));
+    fields.try_into().expect("50 Nebula lane fields")
 }
 
 fn bind_const(builder: &mut R1csBuilder, actual: Var, expected: F) {

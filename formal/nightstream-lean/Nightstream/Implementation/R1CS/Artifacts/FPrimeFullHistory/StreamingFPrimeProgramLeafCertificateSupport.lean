@@ -5,8 +5,8 @@ Contract: structural support for bounded streaming-program leaf certificates.
 
 Assurance tier: artifact-checked certificate support.
 
-Owns exact, nonoverlapping 64-entry partitions for 400-entry schedule data and
-86-entry claim-link data. Each certificate checks the complete source and
+Owns exact, nonoverlapping 64-entry partitions for 436-entry schedule data and
+98-entry claim-link data. Each certificate checks the complete source and
 target lengths and the exact final remainder length.
 
 Does not own generated data, semantic schedule definitions, or relation rows.
@@ -41,12 +41,12 @@ private theorem all_of_take_drop
   rw [← List.take_append_drop count items, List.all_append, head, tail]
   rfl
 
-/-- Six 64-entry leaves and one 16-entry remainder cover an exact 400-entry
+/-- Six 64-entry leaves and one 52-entry remainder cover an exact 436-entry
 list. The recursive `tail64` definition makes the partitions adjacent and
 nonoverlapping. -/
-structure Chunked400Eq {α : Type} (left right : List α) : Prop where
-  leftLength : left.length = 400
-  rightLength : right.length = 400
+structure Chunked436Eq {α : Type} (left right : List α) : Prop where
+  leftLength : left.length = 436
+  rightLength : right.length = 436
   chunk0 : chunk64 left 0 = chunk64 right 0
   chunk1 : chunk64 left 1 = chunk64 right 1
   chunk2 : chunk64 left 2 = chunk64 right 2
@@ -54,12 +54,12 @@ structure Chunked400Eq {α : Type} (left right : List α) : Prop where
   chunk4 : chunk64 left 4 = chunk64 right 4
   chunk5 : chunk64 left 5 = chunk64 right 5
   remainder : tail64 left 6 = tail64 right 6
-  leftRemainderLength : (tail64 left 6).length = 16
-  rightRemainderLength : (tail64 right 6).length = 16
+  leftRemainderLength : (tail64 left 6).length = 52
+  rightRemainderLength : (tail64 right 6).length = 52
 
-theorem Chunked400Eq.sound
+theorem Chunked436Eq.sound
     {α : Type} {left right : List α}
-    (certificate : Chunked400Eq left right) :
+    (certificate : Chunked436Eq left right) :
     left = right := by
   have tail5 : tail64 left 5 = tail64 right 5 :=
     list_eq_of_take_drop certificate.chunk5 certificate.remainder
@@ -73,10 +73,10 @@ theorem Chunked400Eq.sound
     list_eq_of_take_drop certificate.chunk1 tail2
   exact list_eq_of_take_drop certificate.chunk0 tail1
 
-/-- Bounded predicate checks over the same exact 400-entry partition. -/
-structure Chunked400All {α : Type}
+/-- Bounded predicate checks over the same exact 436-entry partition. -/
+structure Chunked436All {α : Type}
     (items : List α) (predicate : α → Bool) : Prop where
-  length : items.length = 400
+  length : items.length = 436
   chunk0 : (chunk64 items 0).all predicate = true
   chunk1 : (chunk64 items 1).all predicate = true
   chunk2 : (chunk64 items 2).all predicate = true
@@ -84,11 +84,11 @@ structure Chunked400All {α : Type}
   chunk4 : (chunk64 items 4).all predicate = true
   chunk5 : (chunk64 items 5).all predicate = true
   remainder : (tail64 items 6).all predicate = true
-  remainderLength : (tail64 items 6).length = 16
+  remainderLength : (tail64 items 6).length = 52
 
-theorem Chunked400All.sound
+theorem Chunked436All.sound
     {α : Type} {items : List α} {predicate : α → Bool}
-    (certificate : Chunked400All items predicate) :
+    (certificate : Chunked436All items predicate) :
     items.all predicate = true := by
   have tail5 : (tail64 items 5).all predicate = true :=
     all_of_take_drop certificate.chunk5 certificate.remainder
@@ -102,33 +102,33 @@ theorem Chunked400All.sound
     all_of_take_drop certificate.chunk1 tail2
   exact all_of_take_drop certificate.chunk0 tail1
 
-/-- One 64-entry leaf and one 22-entry remainder cover an exact 86-entry
+/-- One 64-entry leaf and one 34-entry remainder cover an exact 98-entry
 list. -/
-structure Chunked86Eq {α : Type} (left right : List α) : Prop where
-  leftLength : left.length = 86
-  rightLength : right.length = 86
+structure Chunked98Eq {α : Type} (left right : List α) : Prop where
+  leftLength : left.length = 98
+  rightLength : right.length = 98
   chunk : chunk64 left 0 = chunk64 right 0
   remainder : tail64 left 1 = tail64 right 1
-  leftRemainderLength : (tail64 left 1).length = 22
-  rightRemainderLength : (tail64 right 1).length = 22
+  leftRemainderLength : (tail64 left 1).length = 34
+  rightRemainderLength : (tail64 right 1).length = 34
 
-theorem Chunked86Eq.sound
+theorem Chunked98Eq.sound
     {α : Type} {left right : List α}
-    (certificate : Chunked86Eq left right) :
+    (certificate : Chunked98Eq left right) :
     left = right :=
   list_eq_of_take_drop certificate.chunk certificate.remainder
 
-/-- Bounded predicate checks over the exact 86-entry partition. -/
-structure Chunked86All {α : Type}
+/-- Bounded predicate checks over the exact 98-entry partition. -/
+structure Chunked98All {α : Type}
     (items : List α) (predicate : α → Bool) : Prop where
-  length : items.length = 86
+  length : items.length = 98
   chunk : (chunk64 items 0).all predicate = true
   remainder : (tail64 items 1).all predicate = true
-  remainderLength : (tail64 items 1).length = 22
+  remainderLength : (tail64 items 1).length = 34
 
-theorem Chunked86All.sound
+theorem Chunked98All.sound
     {α : Type} {items : List α} {predicate : α → Bool}
-    (certificate : Chunked86All items predicate) :
+    (certificate : Chunked98All items predicate) :
     items.all predicate = true :=
   all_of_take_drop certificate.chunk certificate.remainder
 

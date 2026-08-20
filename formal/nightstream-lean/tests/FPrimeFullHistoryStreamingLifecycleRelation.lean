@@ -9,11 +9,16 @@ namespace tests.FPrimeFullHistoryStreamingLifecycleRelation
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleRelation
 
 #check frame_length
+#check frame_canonical
 #check payload_preimage_exact
 #check ActiveArm.selector_eq_true_iff
+#check ActiveArm.selected_eq_of_cursor
 #check Invocation.before_public_exact
 #check Invocation.prior_frame_exact
 #check Invocation.next_frame_exact
+#check Invocation.prior_frame_canonical
+#check Invocation.next_frame_canonical
+#check Invocation.selected_cursor_exact
 #check Invocation.selectedPhase
 #check Base.baseLocalHolds
 #check Base.prior_counters_zero
@@ -27,5 +32,6 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleRelation
 #check Terminal.accumulator_exact
 #check Terminal.state_pinned
 #check Terminal.frame_exact
+#check Terminal.frame_canonical
 
 end tests.FPrimeFullHistoryStreamingLifecycleRelation

@@ -9,7 +9,7 @@ F-prime program schedule.
 
 Assurance tier: Rust-conformant schedule certificate.
 
-Owns exact 400-entry schedule and selector-map identity, exact 86-entry claim
+Owns exact 436-entry schedule and selector-map identity, exact 98-entry claim
 link identity, and bounded wire-geometry checks. Each large list is checked in
 64-entry leaves with an exact final remainder.
 
@@ -48,7 +48,7 @@ def rustClaimCoordinateOverlayLinkRuns :
       run.activeFieldCount)
 
 theorem rustProgram_chunked :
-    Chunked400Eq rawProgram.expanded expectedWorkItems := by
+    Chunked436Eq rawProgram.expanded expectedWorkItems := by
   exact
     { leftLength := rfl
       rightLength := rfl
@@ -67,7 +67,7 @@ theorem rust_program_exact :
   rustProgram_chunked.sound
 
 theorem lifecycleGroupMap_chunked :
-    Chunked400Eq rawProgram.lifecycleGroupMap
+    Chunked436Eq rawProgram.lifecycleGroupMap
       (lifecycleCircuitMap productionConfig) := by
   exact
     { leftLength := rfl
@@ -87,7 +87,7 @@ theorem lifecycle_group_map_exact :
   lifecycleGroupMap_chunked.sound
 
 theorem circuitKindMap_chunked :
-    Chunked400Eq rawProgram.circuitKindMap
+    Chunked436Eq rawProgram.circuitKindMap
       (circuitKindMap productionConfig) := by
   exact
     { leftLength := rfl
@@ -107,7 +107,7 @@ theorem circuit_kind_map_exact :
   circuitKindMap_chunked.sound
 
 theorem claimCoordinateOverlayKindMap_chunked :
-    Chunked400Eq rawProgram.claimCoordinateOverlayKindMap
+    Chunked436Eq rawProgram.claimCoordinateOverlayKindMap
       productionOverlayKindMap := by
   exact
     { leftLength := rfl
@@ -127,7 +127,7 @@ theorem claim_coordinate_overlay_kind_map_exact :
   claimCoordinateOverlayKindMap_chunked.sound
 
 theorem piRlcFamilyOverlayKindMap_chunked :
-    Chunked400Eq rawProgram.piRlcFamilyOverlayKindMap
+    Chunked436Eq rawProgram.piRlcFamilyOverlayKindMap
       expectedPiRlcFamilyOverlayKindMap := by
   exact
     { leftLength := rfl
@@ -148,7 +148,7 @@ theorem pi_rlc_family_overlay_kind_map_exact :
   piRlcFamilyOverlayKindMap_chunked.sound
 
 theorem claimCoordinateOverlayLinkRuns_chunked :
-    Chunked86Eq rustClaimCoordinateOverlayLinkRuns
+    Chunked98Eq rustClaimCoordinateOverlayLinkRuns
       productionOverlayLinkRuns := by
   exact
     { leftLength := rfl
@@ -163,7 +163,7 @@ theorem claim_coordinate_overlay_link_runs_exact :
   claimCoordinateOverlayLinkRuns_chunked.sound
 
 theorem lifecycleGroupMapBounds_chunked :
-    Chunked400All rawProgram.lifecycleGroupMap
+    Chunked436All rawProgram.lifecycleGroupMap
       (fun group => group < rawProgram.lifecycleGroupCount) := by
   exact
     { length := rfl
@@ -182,7 +182,7 @@ theorem lifecycle_group_map_bounds :
   lifecycleGroupMapBounds_chunked.sound
 
 theorem circuitKindMapBounds_chunked :
-    Chunked400All rawProgram.circuitKindMap
+    Chunked436All rawProgram.circuitKindMap
       (fun kind => kind < rawProgram.circuitKindCount) := by
   exact
     { length := rfl
@@ -201,7 +201,7 @@ theorem circuit_kind_map_bounds :
   circuitKindMapBounds_chunked.sound
 
 theorem claimCoordinateOverlayKindMapBounds_chunked :
-    Chunked400All rawProgram.claimCoordinateOverlayKindMap
+    Chunked436All rawProgram.claimCoordinateOverlayKindMap
       (fun kind => kind < rawProgram.claimCoordinateOverlayKindCount) := by
   exact
     { length := rfl
@@ -220,7 +220,7 @@ theorem claim_coordinate_overlay_kind_map_bounds :
   claimCoordinateOverlayKindMapBounds_chunked.sound
 
 theorem piRlcFamilyOverlayKindMapBounds_chunked :
-    Chunked400All rawProgram.piRlcFamilyOverlayKindMap
+    Chunked436All rawProgram.piRlcFamilyOverlayKindMap
       (fun kind => kind < rawProgram.combinedOverlayKindCount) := by
   exact
     { length := rfl
@@ -239,7 +239,7 @@ theorem pi_rlc_family_overlay_kind_map_bounds :
   piRlcFamilyOverlayKindMapBounds_chunked.sound
 
 theorem claimCoordinateOverlayLinkRunsBounds_chunked :
-    Chunked86All rawProgram.claimCoordinateOverlayLinkRuns
+    Chunked98All rawProgram.claimCoordinateOverlayLinkRuns
       (RawOverlayLinkRun.valid rawProgram) := by
   exact
     { length := rfl
@@ -253,7 +253,7 @@ theorem claim_coordinate_overlay_link_runs_bounds :
   claimCoordinateOverlayLinkRunsBounds_chunked.sound
 
 theorem claimOverlayKinds_chunked :
-    Chunked86Eq
+    Chunked98Eq
       (rawProgram.claimCoordinateOverlayLinkRuns.map
         (fun run => run.overlayKind))
       ((List.range rawProgram.claimCoordinateOverlayKindCount).drop 1) := by

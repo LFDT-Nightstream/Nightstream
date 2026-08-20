@@ -63,12 +63,12 @@ pub(crate) use projected_rows::{
 };
 pub use projected_rows::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
-    SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
-    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
-    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
-    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceImage,
-    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
-    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedPort, SelectiveProjectedPoseidon2OutputStep, SelectiveProjectedPoseidon2SboxStep,
+    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
+    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
+    SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition,
+    SelectiveProjectedSourceImage, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
+    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
@@ -1419,7 +1419,10 @@ fn decomposition_aliases(
 ) -> Vec<Option<(usize, usize)>> {
     let mut aliases = vec![None; arm.m];
     let shared_end = arm.m_in + shared_private_fields;
-    for CanonicalU64Decomposition { field_col, bit_cols } in arm.canonical_u64_decompositions() {
+    for CanonicalU64Decomposition {
+        field_col, bit_cols, ..
+    } in arm.canonical_u64_decompositions()
+    {
         if *field_col == 0 || widths[*field_col] != BINARY_FIELD_WIDTH {
             continue;
         }

@@ -107,7 +107,7 @@ theorem decoded_offsets_exact :
   simp only [decodedSteps, decodedRows, List.map_append]
   rw [head_offsets_exact, tail_offsets_exact]
 
-private theorem paired_of_offsets :
+theorem paired_of_offsets :
     ∀ (steps : List Wire.Step) (rows : List Wire.Row),
       steps.map (fun step => step.rowOffset) =
           rows.map (fun row => row.rowOffset) →
@@ -136,7 +136,7 @@ theorem decoded_row_tail_shapes_checked :
     decodedRowTail.all sboxShapeCheck = true := by
   rfl
 
-private theorem shapes_of_all_checked :
+theorem shapes_of_all_checked :
     ∀ (rows : List Wire.Row), rows.all sboxShapeCheck = true →
       ∀ row ∈ rows, IsSboxShape row
   | [], _ => by simp

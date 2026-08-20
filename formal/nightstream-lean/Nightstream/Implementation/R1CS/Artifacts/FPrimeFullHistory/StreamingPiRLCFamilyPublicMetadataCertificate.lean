@@ -20,6 +20,7 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrim
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact
 
 theorem rawArtifact_metadata_valid : rawArtifact.MetadataValid := by
-  norm_num [RawArtifact.MetadataValid, rawArtifact, evenArm, oddArm]
+  norm_num [RawArtifact.MetadataValid, RawPublicDecoder.Valid, rawArtifact,
+    evenArm, oddArm]
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicMetadataCertificate

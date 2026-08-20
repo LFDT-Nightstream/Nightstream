@@ -88,6 +88,14 @@ structure Row where
 private def decodeField :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Decoder.decodeField
 
+/-- A canonical artifact word decodes to the same Goldilocks field element. -/
+@[simp] theorem decodeField_of_lt (value : Nat)
+    (canonical : value < goldilocksModulus) :
+    decodeField value = some ⟨value, canonical⟩ := by
+  simp [decodeField,
+    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Decoder.decodeField,
+    canonical]
+
 def decodeSourceColumn : RawSourceColumn → Option SourceColumn
   | .externalA lane =>
       if bounded : lane < 4 then some (.externalA ⟨lane, bounded⟩) else none

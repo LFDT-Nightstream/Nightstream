@@ -62,14 +62,14 @@ private abbrev Family :=
 private abbrev Setup :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.InputBindingSetup
 
-/-- The zero digit source field moves from physical column 45,415 to
-normalized source column 46,055. Its one-coordinate final slot starts at
-1,059,804. -/
+/-- The zero digit source field moves from physical column 51,463 to
+normalized source column 52,103. Its one-coordinate final slot starts at
+2,110,644. -/
 def bodyZeroDigitValue
     (assignment : Fin BodyFinalColumns → F) (digit : Digit) : F :=
-  assignment ⟨1059804 + digit.val, by
+  assignment ⟨2110644 + digit.val, by
     have upper := digit.isLt
-    change 1059804 + digit.val < 2484972
+    change 2110644 + digit.val < 8858862
     omega⟩
 
 /-- Each active digit aliases one coordinate of the retained 41-coordinate
@@ -77,19 +77,19 @@ balanced-ternary input slot. -/
 def bodyActiveDigitValue
     (assignment : Fin BodyFinalColumns → F)
     (source : Source) (lane : Lane) (digit : Digit) : F :=
-  assignment ⟨19332 + (source.val * 54 + lane.val) * 41 + digit.val, by
+  assignment ⟨38340 + (source.val * 54 + lane.val) * 41 + digit.val, by
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
     have digitUpper := digit.isLt
-    change source.val < 15 at sourceUpper
-    change 19332 + (source.val * 54 + lane.val) * 41 + digit.val < 2484972
+    change source.val < 17 at sourceUpper
+    change 38340 + (source.val * 54 + lane.val) * 41 + digit.val < 8858862
     omega⟩
 
 def overlayZeroSourceColumn (digit : Digit) :
     Fin Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedOverlayRows.Normalized.sourceColumns :=
   ⟨1 + digit.val, by
     have upper := digit.isLt
-    change 1 + digit.val < 33360
+    change 1 + digit.val < 37788
     omega⟩
 
 def overlayActiveSourceColumn
@@ -99,8 +99,8 @@ def overlayActiveSourceColumn
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
     have digitUpper := digit.isLt
-    change source.val < 15 at sourceUpper
-    change 42 + (source.val * 54 + lane.val) * 41 + digit.val < 33360
+    change source.val < 17 at sourceUpper
+    change 42 + (source.val * 54 + lane.val) * 41 + digit.val < 37788
     omega⟩
 
 def overlayZeroDigitValue
@@ -119,11 +119,11 @@ def bodyOutputSourceColumn (output : Output) :
   ⟨sourceLayout.input.phase.outputColumn output, by
     have upper := output.isLt
     change output.val < 108 at upper
-    change 144278 + output.val < 146224
+    change 163502 + output.val < 165664
     omega⟩
 
-/-- The body commitment output is the same radix-seven source value read by
-the retained residual rows. Its final slot starts at 1,076,091. -/
+/-- The body commitment output is the same radix-three source value read by
+the retained residual rows. Its final slot starts at 2,129,127. -/
 def bodyOutputValue
     (assignment : Fin BodyFinalColumns → F) (output : Output) : F :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedCarryRows.Normalized.sourceColumnValue
@@ -283,7 +283,7 @@ private theorem bodyOutputValue_numeric
       Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedCarryRows.Normalized.sourceColumns := by
     have upper := output.isLt
     change output.val < 108 at upper
-    change 144278 + output.val < 146224
+    change 163502 + output.val < 165664
     omega
   unfold
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedResidualRows.Normalized.numericAssignment
@@ -355,10 +355,21 @@ theorem receipt_geometry_exact :
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink.audit.publicOutputCount =
         640 /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink.audit.linkCountPerFamily =
-        33359 /\
+        37787 /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink.audit.totalLinkCount =
-        3669490 := by
-  native_decide
+        4156570 := by
+  rcases
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink.audit_valid with
+    ⟨shapeExact, _sourceGeometry, _finalGeometry, censusExact,
+      _crossReceipts⟩
+  rcases shapeExact with
+    ⟨_schema, _familyCount, _parityCount, publicOutputCount,
+      bodyFinalColumns, overlayFinalColumns, _phaseKinds, _runs⟩
+  rcases censusExact with
+    ⟨_linkCounts, _linkCountSum, linkCountPerFamily, _totalProduct,
+      totalLinkCount⟩
+  exact ⟨bodyFinalColumns.symm, overlayFinalColumns.symm,
+    publicOutputCount, linkCountPerFamily, totalLinkCount⟩
 
 end Normalized
 

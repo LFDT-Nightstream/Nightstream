@@ -6,6 +6,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder};
+use neo_fold_clean::frontends::nebula::f_prime::STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS;
 use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
     streaming_terminal_x_out_authority_audit, STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
 };
@@ -23,20 +24,29 @@ const LEAF_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-x-out-c
 const LEAF_ARTIFACT_PATH: &str = "../../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
 FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingTerminalXOutContext.lean";
 const LEAF_SOURCE_IDENTITY: &str = "rust:streaming-terminal-x-out-context/v1";
-const PHASE_LEAF_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-phase-semantic/v1";
+const PHASE_LEAF_SCHEMA_VERSION: usize = 2;
+const PHASE_LEAF_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-phase-semantic/v2";
 const PHASE_LEAF_ARTIFACT_PATH: &str = "../../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
 FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingTerminalXOutPhaseSemantic.lean";
-const PHASE_LEAF_SOURCE_IDENTITY: &str = "rust:streaming-terminal-phase-semantic/v1";
-const NEBULA_LINK_LEAF_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-nebula-state-digest-link/v1";
+const PHASE_LEAF_SOURCE_IDENTITY: &str = "rust:streaming-terminal-phase-semantic/v2";
+const NEBULA_LINK_LEAF_SCHEMA_VERSION: usize = 2;
+const NEBULA_LINK_LEAF_PROFILE_ID: &str = "nightstream/goldilocks/streaming-terminal-nebula-state-digest/v2";
 const NEBULA_LINK_LEAF_ARTIFACT_PATH: &str =
     "../../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
 FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingTerminalXOutNebulaStateDigestLink.lean";
-const NEBULA_LINK_LEAF_SOURCE_IDENTITY: &str = "rust:streaming-terminal-nebula-state-digest-link/v1";
+const NEBULA_LINK_LEAF_SOURCE_IDENTITY: &str = "rust:streaming-terminal-nebula-state-digest/v2";
 const PHASE_CONSTANT_FIELDS: usize = 11;
-const PHASE_INPUT_FIELDS: usize = 19;
+const PHASE_INPUT_FIELDS: usize = PHASE_CONSTANT_FIELDS + 4 + STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS;
 const POSEIDON2_ROWS: usize = 600;
-const PHASE_FAMILY_ROWS: usize = 3_636;
+const PHASE_ABSORB_ROUNDS: usize = PHASE_INPUT_FIELDS.div_ceil(4);
+const PHASE_HASH_ROWS: usize =
+    PHASE_CONSTANT_FIELDS + 1 + PHASE_INPUT_FIELDS + PHASE_ABSORB_ROUNDS * POSEIDON2_ROWS + 1 + POSEIDON2_ROWS;
+const PHASE_FAMILY_ROWS: usize = PHASE_HASH_ROWS + 4;
 const NEBULA_STATE_DIGEST_FAMILY_ROWS: usize = 19_353;
+const NEBULA_ABSENT_CONSTANT_FIELDS: usize = 13;
+const NEBULA_ABSENT_INPUT_FIELDS: usize = 58;
+const NEBULA_PRESENT_CONSTANT_FIELDS: usize = 10;
+const NEBULA_PRESENT_INPUT_FIELDS: usize = 59;
 
 struct ContextLeafArtifact {
     source_rows_sha256: String,
@@ -61,11 +71,19 @@ struct PhaseSemanticLeafArtifact {
     constant_values: [u64; PHASE_CONSTANT_FIELDS],
     constant_start_column: usize,
     local_columns: [usize; 4],
-    payload_columns: [usize; 4],
+    payload_column_start: usize,
+    payload_column_count: usize,
     hash_output_columns: [usize; 4],
     x_out_semantic_columns: [usize; 4],
     baseline_digest_value: u64,
     equality_row_start: usize,
+}
+
+struct VariableHashLeafArtifact {
+    constant_values: Vec<u64>,
+    constant_start_column: usize,
+    input_columns: Vec<usize>,
+    output_columns: [usize; 4],
 }
 
 struct NebulaStateDigestLinkLeafArtifact {
@@ -73,9 +91,15 @@ struct NebulaStateDigestLinkLeafArtifact {
     row_count: usize,
     column_count: usize,
     source_row_start: usize,
+    open_column: usize,
+    absent: VariableHashLeafArtifact,
+    present: VariableHashLeafArtifact,
     hash_output_columns: [usize; 4],
     x_out_state_columns: [usize; 4],
     baseline_digest_value: u64,
+    absent_row_start: usize,
+    present_row_start: usize,
+    mux_row_start: usize,
     equality_row_start: usize,
     selected_source_row: usize,
 }
@@ -137,6 +161,22 @@ fn exact_linear_row(output: usize, terms: &[(usize, F)]) -> ExactRow {
         ),
         b: normalized_terms([(0, F::ONE)]),
         c: Vec::new(),
+    }
+}
+
+fn exact_bit_row(column: usize) -> ExactRow {
+    ExactRow {
+        a: normalized_terms([(column, F::ONE)]),
+        b: normalized_terms([(column, F::ONE), (0, -F::ONE)]),
+        c: Vec::new(),
+    }
+}
+
+fn exact_mux_row(selector: usize, present: usize, absent: usize, output: usize) -> ExactRow {
+    ExactRow {
+        a: normalized_terms([(selector, F::ONE)]),
+        b: normalized_terms([(present, F::ONE), (absent, -F::ONE)]),
+        c: normalized_terms([(output, F::ONE), (absent, -F::ONE)]),
     }
 }
 
@@ -215,6 +255,124 @@ fn assert_poseidon2_rows(
     }
 }
 
+fn variable_hash_row_count(constant_fields: usize, input_fields: usize) -> usize {
+    let absorb_rounds = input_fields.div_ceil(4);
+    constant_fields + 1 + input_fields + absorb_rounds * POSEIDON2_ROWS + 1 + POSEIDON2_ROWS
+}
+
+fn positive_output(row: &ExactRow) -> usize {
+    positive_column(&row.a, "linear row must have one positive output")
+}
+
+fn positive_column(terms: &[Term], message: &str) -> usize {
+    let outputs = terms
+        .iter()
+        .filter(|term| term.column != 0 && term.coefficient == "1")
+        .map(|term| term.column)
+        .collect::<Vec<_>>();
+    assert_eq!(outputs.len(), 1, "{message}");
+    outputs[0]
+}
+
+fn parse_variable_hash_leaf(
+    rows: &[ExactRow],
+    constant_fields: usize,
+    input_fields: usize,
+    witness: &[F],
+    template: &[ExactRow],
+) -> VariableHashLeafArtifact {
+    let row_count = variable_hash_row_count(constant_fields, input_fields);
+    assert_eq!(rows.len(), row_count);
+
+    let constant_start_column = positive_output(&rows[0]);
+    let constant_values = (0..constant_fields)
+        .map(|index| {
+            let output = constant_start_column + index;
+            let value = witness[output];
+            assert_eq!(rows[index], exact_linear_row(output, &[(0, value)]));
+            value.as_canonical_u64()
+        })
+        .collect::<Vec<_>>();
+
+    let zero_column = constant_start_column + constant_fields;
+    assert_eq!(rows[constant_fields], exact_linear_row(zero_column, &[]));
+
+    let mut input_columns = Vec::with_capacity(input_fields);
+    let mut prior_outputs = [zero_column; 8];
+    let mut row_start = constant_fields + 1;
+    let mut column_start = zero_column + 1;
+    while input_columns.len() < input_fields {
+        let chunk_len = (input_fields - input_columns.len()).min(4);
+        for lane in 0..chunk_len {
+            let row = &rows[row_start + lane];
+            let output = column_start + lane;
+            assert_eq!(positive_output(row), output);
+            let candidates = row
+                .a
+                .iter()
+                .filter(|term| {
+                    term.column != output && term.column != prior_outputs[lane] && term.column != 0
+                })
+                .map(|term| term.column)
+                .collect::<Vec<_>>();
+            assert_eq!(candidates.len(), 1, "absorb row must expose one new input");
+            let input = candidates[0];
+            assert_eq!(
+                *row,
+                exact_linear_row(output, &[(prior_outputs[lane], F::ONE), (input, F::ONE)]),
+            );
+            input_columns.push(input);
+        }
+        let permutation_inputs = std::array::from_fn(|lane| {
+            if lane < chunk_len {
+                column_start + lane
+            } else {
+                prior_outputs[lane]
+            }
+        });
+        let first_allocated = column_start + chunk_len;
+        assert_poseidon2_rows(
+            rows,
+            row_start + chunk_len..row_start + chunk_len + POSEIDON2_ROWS,
+            permutation_inputs,
+            first_allocated,
+            template,
+        );
+        prior_outputs = std::array::from_fn(|lane| first_allocated + 592 + lane);
+        row_start += chunk_len + POSEIDON2_ROWS;
+        column_start = first_allocated + POSEIDON2_ROWS;
+    }
+
+    assert_eq!(
+        rows[row_start],
+        exact_linear_row(column_start, &[(prior_outputs[0], F::ONE), (0, F::ONE)]),
+    );
+    let pad_inputs = std::array::from_fn(|lane| {
+        if lane == 0 {
+            column_start
+        } else {
+            prior_outputs[lane]
+        }
+    });
+    let first_allocated = column_start + 1;
+    assert_poseidon2_rows(
+        rows,
+        row_start + 1..row_start + 1 + POSEIDON2_ROWS,
+        pad_inputs,
+        first_allocated,
+        template,
+    );
+    let output_columns = std::array::from_fn(|lane| first_allocated + 592 + lane);
+    assert_eq!(row_start + 1 + POSEIDON2_ROWS, rows.len());
+
+    VariableHashLeafArtifact {
+        constant_values,
+        constant_start_column,
+        input_columns,
+        output_columns,
+    }
+}
+
 fn build_phase_semantic_leaf_artifact() -> PhaseSemanticLeafArtifact {
     let audit = streaming_terminal_x_out_authority_audit();
     let source = audit.source();
@@ -243,7 +401,10 @@ fn build_phase_semantic_leaf_artifact() -> PhaseSemanticLeafArtifact {
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), PHASE_FAMILY_ROWS);
     assert_eq!(selected[0].source_index, 24);
-    assert_eq!(selected[PHASE_FAMILY_ROWS - 1].source_index, 3_659);
+    assert_eq!(
+        selected[PHASE_FAMILY_ROWS - 1].source_index,
+        selected[0].source_index + PHASE_FAMILY_ROWS - 1,
+    );
     let rows = selected
         .iter()
         .map(|row| exact_exported_row(row))
@@ -275,13 +436,20 @@ fn build_phase_semantic_leaf_artifact() -> PhaseSemanticLeafArtifact {
         .column;
     assert_eq!(rows[zero_row], exact_linear_row(zero_column, &[]));
 
-    let local_columns = [33, 34, 35, 36];
-    let payload_columns = [37, 38, 39, 40];
+    let local_columns = audit.local_state_columns();
+    let payload_columns = audit.delayed_payload_columns();
+    assert_eq!(payload_columns.len(), STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS);
+    let payload_column_start = payload_columns[0];
+    assert_eq!(
+        payload_columns,
+        (payload_column_start..payload_column_start + STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS)
+            .collect::<Vec<_>>(),
+    );
     let input_columns = constant_columns
         .iter()
         .copied()
         .chain(local_columns)
-        .chain(payload_columns)
+        .chain(payload_columns.iter().copied())
         .collect::<Vec<_>>();
     assert_eq!(input_columns.len(), PHASE_INPUT_FIELDS);
 
@@ -358,7 +526,8 @@ fn build_phase_semantic_leaf_artifact() -> PhaseSemanticLeafArtifact {
         constant_values: std::array::from_fn(|index| source.witness()[constant_columns[index]].as_canonical_u64()),
         constant_start_column: constant_columns[0],
         local_columns,
-        payload_columns,
+        payload_column_start,
+        payload_column_count: payload_columns.len(),
         hash_output_columns: digest_columns,
         x_out_semantic_columns,
         baseline_digest_value,
@@ -398,15 +567,72 @@ fn build_nebula_state_digest_link_leaf_artifact() -> NebulaStateDigestLinkLeafAr
         .filter(|row| row.family == family)
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), NEBULA_STATE_DIGEST_FAMILY_ROWS);
-    assert_eq!(selected[0].source_index, 3_660);
-    assert_eq!(selected[NEBULA_STATE_DIGEST_FAMILY_ROWS - 1].source_index, 23_012);
+    assert_eq!(selected[0].source_index, 24 + PHASE_FAMILY_ROWS);
+    assert_eq!(
+        selected[NEBULA_STATE_DIGEST_FAMILY_ROWS - 1].source_index,
+        selected[0].source_index + NEBULA_STATE_DIGEST_FAMILY_ROWS - 1,
+    );
 
+    let rows = selected
+        .iter()
+        .map(|row| exact_exported_row(row))
+        .collect::<Vec<_>>();
+    let open_column = positive_output(&rows[0]);
+    assert_eq!(rows[0], exact_bit_row(open_column));
+
+    let absent_row_start = 1;
+    let absent_row_count = variable_hash_row_count(NEBULA_ABSENT_CONSTANT_FIELDS, NEBULA_ABSENT_INPUT_FIELDS);
+    let present_row_start = absent_row_start + absent_row_count;
+    let present_row_count =
+        variable_hash_row_count(NEBULA_PRESENT_CONSTANT_FIELDS, NEBULA_PRESENT_INPUT_FIELDS);
+    let mux_row_start = present_row_start + present_row_count;
     let equality_row_start = selected.len() - 4;
+    assert_eq!(mux_row_start + 4, equality_row_start);
+
+    let template = poseidon2_template();
+    let absent = parse_variable_hash_leaf(
+        &rows[absent_row_start..present_row_start],
+        NEBULA_ABSENT_CONSTANT_FIELDS,
+        NEBULA_ABSENT_INPUT_FIELDS,
+        source.witness(),
+        &template,
+    );
+    let present = parse_variable_hash_leaf(
+        &rows[present_row_start..mux_row_start],
+        NEBULA_PRESENT_CONSTANT_FIELDS,
+        NEBULA_PRESENT_INPUT_FIELDS,
+        source.witness(),
+        &template,
+    );
+    let hash_output_columns = std::array::from_fn(|lane| {
+        positive_column(
+            &rows[mux_row_start + lane].c,
+            "mux row must have one positive output",
+        )
+    });
+    for lane in 0..4 {
+        assert_eq!(
+            rows[mux_row_start + lane],
+            exact_mux_row(
+                open_column,
+                present.output_columns[lane],
+                absent.output_columns[lane],
+                hash_output_columns[lane],
+            ),
+        );
+    }
     let x_out_state_columns = std::array::from_fn(|lane| audit.x_out_columns()[28 + lane]);
-    let hash_output_columns =
-        std::array::from_fn(|lane| copied_source(selected[equality_row_start + lane], x_out_state_columns[lane]));
+    for lane in 0..4 {
+        assert_eq!(
+            rows[equality_row_start + lane],
+            exact_linear_row(x_out_state_columns[lane], &[(hash_output_columns[lane], F::ONE)]),
+        );
+    }
     let selected_source_row = selected[equality_row_start].source_index;
-    assert_eq!(selected_source_row, 23_009);
+    assert_eq!(
+        selected_source_row,
+        selected[0].source_index + equality_row_start,
+    );
     let baseline_digest_value = source.witness()[hash_output_columns[0]].as_canonical_u64();
     assert_eq!(
         source.witness()[x_out_state_columns[0]].as_canonical_u64(),
@@ -423,9 +649,15 @@ fn build_nebula_state_digest_link_leaf_artifact() -> NebulaStateDigestLinkLeafAr
         row_count: selected.len(),
         column_count: problem.column_count,
         source_row_start: selected[0].source_index,
+        open_column,
+        absent,
+        present,
         hash_output_columns,
         x_out_state_columns,
         baseline_digest_value,
+        absent_row_start,
+        present_row_start,
+        mux_row_start,
         equality_row_start,
         selected_source_row,
     }
@@ -597,12 +829,12 @@ fn render_phase_semantic_leaf_artifact() -> String {
     writeln!(
         payload,
         "\ndef rawArtifact : RawArtifact :=\n  \
-         {{ schemaVersion := {LEAF_SCHEMA_VERSION}, profileId := \"{PHASE_LEAF_PROFILE_ID}\",\n    \
+         {{ schemaVersion := {PHASE_LEAF_SCHEMA_VERSION}, profileId := \"{PHASE_LEAF_PROFILE_ID}\",\n    \
             sourceIdentity := \"{PHASE_LEAF_SOURCE_IDENTITY}\",\n    \
             sourceRowsSha256 := \"{}\", rowCount := {}, columnCount := {},\n    \
             sourceRowStart := {}, finalRowStart := {},\n    \
             constantValues := phaseConstantValues, constantStartColumn := {},\n    \
-            localColumns := {}, payloadColumns := {},\n    \
+            localColumns := {}, payloadColumns := List.range' {} {},\n    \
             hashOutputColumns := {}, xOutSemanticColumns := {},\n    \
             baselineDigestValue := {}, equalityRowStart := {} }}",
         artifact.source_rows_sha256,
@@ -612,7 +844,8 @@ fn render_phase_semantic_leaf_artifact() -> String {
         artifact.source_row_start,
         artifact.constant_start_column,
         lean_nat_list(artifact.local_columns),
-        lean_nat_list(artifact.payload_columns),
+        artifact.payload_column_start,
+        artifact.payload_column_count,
         lean_nat_list(artifact.hash_output_columns),
         lean_nat_list(artifact.x_out_semantic_columns),
         artifact.baseline_digest_value,
@@ -623,7 +856,7 @@ fn render_phase_semantic_leaf_artifact() -> String {
     format!(
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerminalXOutPhaseSemanticSchema\n\n\
          /-! Generated compact geometry for the exact Rust terminal XOut phase-semantic family.\n\n\
-         Rust compares all 3,636 source rows with the structural Lean recipe.\n\n\
+         Rust compares all {PHASE_FAMILY_ROWS} source rows with the structural Lean recipe.\n\n\
          Emits constraints: no.\n\
          -/\n\n\
          set_option autoImplicit false\n\n\
@@ -637,30 +870,59 @@ fn render_phase_semantic_leaf_artifact() -> String {
 
 fn render_nebula_state_digest_link_leaf_artifact() -> String {
     let artifact = build_nebula_state_digest_link_leaf_artifact();
-    let payload = format!(
-        "def rawArtifact : RawArtifact :=\n  \
-         {{ schemaVersion := {LEAF_SCHEMA_VERSION}, profileId := \"{NEBULA_LINK_LEAF_PROFILE_ID}\",\n    \
+    let mut payload = String::new();
+    writeln!(
+        payload,
+        "def absentConstantValues : List Nat := {}\n\n\
+         def presentConstantValues : List Nat := {}",
+        lean_nat_list(artifact.absent.constant_values.iter().map(|&value| value as usize)),
+        lean_nat_list(artifact.present.constant_values.iter().map(|&value| value as usize)),
+    )
+    .unwrap();
+    write!(
+        payload,
+        "\ndef rawArtifact : RawArtifact :=\n  \
+         {{ schemaVersion := {NEBULA_LINK_LEAF_SCHEMA_VERSION}, profileId := \"{NEBULA_LINK_LEAF_PROFILE_ID}\",\n    \
             sourceIdentity := \"{NEBULA_LINK_LEAF_SOURCE_IDENTITY}\",\n    \
             sourceRowsSha256 := \"{}\", rowCount := {}, columnCount := {},\n    \
             sourceRowStart := {}, finalRowStart := {},\n    \
+            openColumn := {},\n    \
+            absentConstantValues := absentConstantValues, absentConstantStartColumn := {},\n    \
+            absentInputColumns := {}, absentOutputColumns := {},\n    \
+            presentConstantValues := presentConstantValues, presentConstantStartColumn := {},\n    \
+            presentInputColumns := {}, presentOutputColumns := {},\n    \
             hashOutputColumns := {}, xOutStateColumns := {},\n    \
-            baselineDigestValue := {}, equalityRowStart := {}, selectedSourceRow := {} }}",
+            baselineDigestValue := {},\n    \
+            absentRowStart := {}, presentRowStart := {}, muxRowStart := {},\n    \
+            equalityRowStart := {}, selectedSourceRow := {} }}",
         artifact.source_rows_sha256,
         artifact.row_count,
         artifact.column_count,
         artifact.source_row_start,
         artifact.source_row_start,
+        artifact.open_column,
+        artifact.absent.constant_start_column,
+        lean_nat_list(artifact.absent.input_columns.iter().copied()),
+        lean_nat_list(artifact.absent.output_columns),
+        artifact.present.constant_start_column,
+        lean_nat_list(artifact.present.input_columns.iter().copied()),
+        lean_nat_list(artifact.present.output_columns),
         lean_nat_list(artifact.hash_output_columns),
         lean_nat_list(artifact.x_out_state_columns),
         artifact.baseline_digest_value,
+        artifact.absent_row_start,
+        artifact.present_row_start,
+        artifact.mux_row_start,
         artifact.equality_row_start,
         artifact.selected_source_row,
-    );
+    )
+    .unwrap();
     let artifact_hash = sha256_hex(&payload);
     format!(
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerminalXOutNebulaStateDigestLinkSchema\n\n\
-         /-! Generated link projection for the exact Rust terminal Nebula-state-digest family.\n\n\
-         Rust checks the four final links and their ownership in the 19,353-row source family.\n\n\
+         /-! Generated compact recipe for the exact Rust terminal Nebula-state-digest family.\n\n\
+         Rust checks both Poseidon2 branches, the Boolean selector, four mux rows,\n\
+         and four final links against all 19,353 source rows.\n\n\
          Emits constraints: no.\n\
          -/\n\n\
          set_option autoImplicit false\n\n\

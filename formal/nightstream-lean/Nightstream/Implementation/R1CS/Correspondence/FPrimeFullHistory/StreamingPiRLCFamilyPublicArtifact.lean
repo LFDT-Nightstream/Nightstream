@@ -7,7 +7,7 @@ import Nightstream.Implementation.R1CS.Core.Poseidon2Call
 Contract: exact Rust artifact boundary for the PiRLC family public suffix.
 
 Assurance tier: Rust-conformant for property
-`FPRIME-STREAMING-PIRLC-FAMILY-FULL-XOUT-ROWS-V3`.
+`FPRIME-STREAMING-PIRLC-FAMILY-FULL-XOUT-ROWS-V4`.
 
 Owns both parity shapes, the exact suffix boundary outside one delegated
 phase-envelope range, the 1045-field local states, both 32-field full XOut
@@ -164,6 +164,16 @@ theorem exact_public_word_layout :
       rawArtifact.odd.publicWordCallIndices =
         [3, 4, 5, 6, 7, 8, 9, 10, 0, 1] /\
       rawArtifact.lowNormPublicColumns = 648 := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The Rust-checked selective compiler copies all 640 logical public bits to
+the same final indices and completes the public carrier with seven zeros. -/
+theorem exact_public_decoder :
+    rawArtifact.publicDecoder.constantOneColumn = 0 /\
+      rawArtifact.publicDecoder.sourceFieldStart = 1 /\
+      rawArtifact.publicDecoder.sourceFieldEnd = 641 /\
+      rawArtifact.publicDecoder.paddingStart = 641 /\
+      rawArtifact.publicDecoder.paddingEnd = 648 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Each serialized side has exactly the complete 1045-field `FamilyState`.

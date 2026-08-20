@@ -27,69 +27,69 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseid
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallPermutation
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallProjection
 
-def absoluteExplicitValue (kind : LeafClass)
+def absoluteExplicitValue (site : CallSite)
     (assignment : Fin productionFinalColumns → F) : ExplicitColumn → F
   | .one => absoluteValue assignment 0
-  | .selector => absoluteValue assignment (selectorColumn kind)
+  | .selector => absoluteValue assignment (selectorColumn site.kind)
 
-def absoluteDigitValue (kind : LeafClass) (index : Nat)
+def absoluteDigitValue (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (slot : Slot) (digit : Fin 41) : F :=
-  match digitColumn kind index slot digit with
+  match digitColumn site slot digit with
   | some column => absoluteValue assignment column
   | none => 0
 
-def absoluteExplicitAction (kind : LeafClass)
+def absoluteExplicitAction (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (terms : List ExplicitTerm) : F :=
   sum (terms.map fun term =>
-    term.coefficient * absoluteExplicitValue kind assignment term.column)
+    term.coefficient * absoluteExplicitValue site assignment term.column)
 
-def absoluteGeometricAction (kind : LeafClass) (index : Nat)
+def absoluteGeometricAction (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (run : GeometricRun) : F :=
   sum (List.ofFn fun digit : Fin 41 =>
     geometricCoefficient run.initial run.ratio digit.val *
-      absoluteDigitValue kind index assignment run.slot digit)
+      absoluteDigitValue site assignment run.slot digit)
 
-def absolutePortAction (kind : LeafClass) (index : Nat)
+def absolutePortAction (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (port : Port) : F :=
-  absoluteExplicitAction kind assignment port.explicit +
+  absoluteExplicitAction site assignment port.explicit +
     sum (port.geometric.map fun run =>
-      absoluteGeometricAction kind index assignment run)
+      absoluteGeometricAction site assignment run)
 
-def absolutePoint (kind : LeafClass) (index : Nat)
+def absolutePoint (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (row : Wire.Row) : Fin 13 → F :=
-  fun port => absolutePortAction kind index assignment (row.port port)
+  fun port => absolutePortAction site assignment (row.port port)
 
-def absoluteResidual (kind : LeafClass) (index : Nat)
+def absoluteResidual (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (row : Wire.Row) : F :=
   Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics.evaluate
-    (absolutePoint kind index assignment row)
+    (absolutePoint site assignment row)
 
-theorem absoluteExplicitValue_eq_projected (kind : LeafClass) (index : Nat)
+theorem absoluteExplicitValue_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (column : ExplicitColumn) :
-    absoluteExplicitValue kind assignment column =
-      (projectFinalAssignment kind index assignment).explicit column := by
+    absoluteExplicitValue site assignment column =
+      (projectFinalAssignment site assignment).explicit column := by
   cases column <;> rfl
 
-theorem absoluteDigitValue_eq_projected (kind : LeafClass) (index : Nat)
+theorem absoluteDigitValue_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (slot : Slot) (digit : Fin 41) :
-    absoluteDigitValue kind index assignment slot digit =
-      (projectFinalAssignment kind index assignment).digit slot digit := by
+    absoluteDigitValue site assignment slot digit =
+      (projectFinalAssignment site assignment).digit slot digit := by
   rfl
 
-theorem absoluteExplicitAction_eq_projected (kind : LeafClass) (index : Nat)
+theorem absoluteExplicitAction_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (terms : List ExplicitTerm) :
-    absoluteExplicitAction kind assignment terms =
+    absoluteExplicitAction site assignment terms =
       sum (terms.map fun term =>
         term.coefficient *
-          (projectFinalAssignment kind index assignment).explicit
+          (projectFinalAssignment site assignment).explicit
             term.column) := by
   unfold absoluteExplicitAction
   induction terms with
@@ -98,55 +98,55 @@ theorem absoluteExplicitAction_eq_projected (kind : LeafClass) (index : Nat)
       simp only [List.map_cons, sum]
       rw [absoluteExplicitValue_eq_projected, inductionHypothesis]
 
-theorem absoluteGeometricAction_eq_projected (kind : LeafClass) (index : Nat)
+theorem absoluteGeometricAction_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     (run : GeometricRun) :
-    absoluteGeometricAction kind index assignment run =
-      geometricAction run (projectFinalAssignment kind index assignment) := by
+    absoluteGeometricAction site assignment run =
+      geometricAction run (projectFinalAssignment site assignment) := by
   unfold absoluteGeometricAction geometricAction
   congr 1
 
-theorem absolutePortAction_eq_projected (kind : LeafClass) (index : Nat)
+theorem absolutePortAction_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (port : Port) :
-    absolutePortAction kind index assignment port =
-      portAction port (projectFinalAssignment kind index assignment) := by
+    absolutePortAction site assignment port =
+      portAction port (projectFinalAssignment site assignment) := by
   unfold absolutePortAction portAction
   rw [absoluteExplicitAction_eq_projected]
   congr 1
 
-theorem absolutePoint_eq_projected (kind : LeafClass) (index : Nat)
+theorem absolutePoint_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (row : Wire.Row) :
-    absolutePoint kind index assignment row =
-      point row (projectFinalAssignment kind index assignment) := by
+    absolutePoint site assignment row =
+      point row (projectFinalAssignment site assignment) := by
   funext port
-  exact absolutePortAction_eq_projected kind index assignment (row.port port)
+  exact absolutePortAction_eq_projected site assignment (row.port port)
 
-theorem absoluteResidual_eq_projected (kind : LeafClass) (index : Nat)
+theorem absoluteResidual_eq_projected (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (row : Wire.Row) :
-    absoluteResidual kind index assignment row =
+    absoluteResidual site assignment row =
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonLeafModel.residual
-        row (projectFinalAssignment kind index assignment) := by
+        row (projectFinalAssignment site assignment) := by
   unfold absoluteResidual
     Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonLeafModel.residual
   rw [absolutePoint_eq_projected]
 
 theorem absoluteResidual_eq_of_perm
-    (kind : LeafClass) (index : Nat)
+    (site : CallSite)
     (assignment : Fin productionFinalColumns → F)
     {left right : Wire.Row} (permutation : RowPermutes left right) :
-    absoluteResidual kind index assignment left =
-      absoluteResidual kind index assignment right := by
+    absoluteResidual site assignment left =
+      absoluteResidual site assignment right := by
   rw [absoluteResidual_eq_projected, absoluteResidual_eq_projected]
   exact residual_eq_of_perm permutation
-    (projectFinalAssignment kind index assignment)
+    (projectFinalAssignment site assignment)
 
 theorem absolute_rows_imply_projected_rows
-    (kind : LeafClass) (index : Nat)
+    (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (rows : List Wire.Row)
-    (holds : ∀ row ∈ rows, absoluteResidual kind index assignment row = 0) :
+    (holds : ∀ row ∈ rows, absoluteResidual site assignment row = 0) :
     ∀ row ∈ rows,
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonLeafModel.residual
-        row (projectFinalAssignment kind index assignment) = 0 := by
+        row (projectFinalAssignment site assignment) = 0 := by
   intro row member
   rw [← absoluteResidual_eq_projected]
   exact holds row member

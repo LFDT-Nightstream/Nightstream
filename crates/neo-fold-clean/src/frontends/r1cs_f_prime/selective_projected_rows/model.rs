@@ -188,6 +188,39 @@ pub struct SelectiveProjectedPoseidon2SboxStep {
     pub(super) output: SelectiveProjectedSourceLinearCombination,
 }
 
+/// One retained Poseidon2 permutation output bound to its exact source
+/// linear form.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectiveProjectedPoseidon2OutputStep {
+    pub(super) emitted_row: usize,
+    pub(super) rewrite_id: usize,
+    pub(super) source_rows: Vec<(usize, usize)>,
+    pub(super) output: SelectiveProjectedSourceLinearCombination,
+    pub(super) linear_form: SelectiveProjectedSourceLinearCombination,
+}
+
+impl SelectiveProjectedPoseidon2OutputStep {
+    pub fn emitted_row(&self) -> usize {
+        self.emitted_row
+    }
+
+    pub fn rewrite_id(&self) -> usize {
+        self.rewrite_id
+    }
+
+    pub fn source_rows(&self) -> &[(usize, usize)] {
+        &self.source_rows
+    }
+
+    pub fn output(&self) -> &SelectiveProjectedSourceLinearCombination {
+        &self.output
+    }
+
+    pub fn linear_form(&self) -> &SelectiveProjectedSourceLinearCombination {
+        &self.linear_form
+    }
+}
+
 impl SelectiveProjectedPoseidon2SboxStep {
     pub fn emitted_row(&self) -> usize {
         self.emitted_row
@@ -343,6 +376,7 @@ pub struct SelectiveProjectedSourceProvenance {
     pub(super) linear_definitions: Vec<SelectiveProjectedSourceDefinition>,
     pub(super) trace_eliminated_columns: Vec<usize>,
     pub(super) poseidon2_sbox_steps: Vec<SelectiveProjectedPoseidon2SboxStep>,
+    pub(super) poseidon2_output_steps: Vec<SelectiveProjectedPoseidon2OutputStep>,
     pub(super) derived_product_sums: Vec<SelectiveProjectedDerivedProductSum>,
     pub(super) rewrite_steps: Vec<SelectiveProjectedRewriteStep>,
     pub(super) retained_steps: Vec<SelectiveProjectedRetainedStep>,
@@ -380,6 +414,10 @@ impl SelectiveProjectedSourceProvenance {
 
     pub fn poseidon2_sbox_steps(&self) -> &[SelectiveProjectedPoseidon2SboxStep] {
         &self.poseidon2_sbox_steps
+    }
+
+    pub fn poseidon2_output_steps(&self) -> &[SelectiveProjectedPoseidon2OutputStep] {
+        &self.poseidon2_output_steps
     }
 
     pub fn derived_product_sums(&self) -> &[SelectiveProjectedDerivedProductSum] {

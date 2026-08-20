@@ -249,7 +249,7 @@ def RawArm.ScalarValid (arm : RawArm) : Prop :=
     arm.publicColumnCount ≤ arm.columnCount ∧
     arm.publicColumnCount = 641 ∧
     arm.replayPoseidon2CallCount = arm.activeFields / 4 ∧
-    arm.stateDigestPoseidon2CallCount = 122 ∧
+    arm.stateDigestPoseidon2CallCount = 176 ∧
     arm.poseidon2Calls.length =
       arm.replayPoseidon2CallCount + arm.stateDigestPoseidon2CallCount
 
@@ -258,7 +258,7 @@ instance (arm : RawArm) : Decidable arm.ScalarValid := by
   infer_instance
 
 def RawArm.StateWordLayoutValid (arm : RawArm) : Prop :=
-  arm.stateWordColumns.length = 472 ∧
+  arm.stateWordColumns.length = 688 ∧
     arm.stateWordColumns.Nodup ∧
     ∀ column ∈ arm.stateWordColumns, column < arm.columnCount
 
@@ -381,13 +381,13 @@ structure RawArtifact where
 deriving DecidableEq, Repr
 
 def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
-  artifact.schemaVersion = 4 ∧
-    artifact.profileId = "nebula-f-prime-streaming-claim-replay-goldilocks-b2-k16-v5" ∧
-    artifact.frameFields = 88023 ∧
+  artifact.schemaVersion = 5 ∧
+    artifact.profileId = "nebula-f-prime-streaming-claim-replay-goldilocks-b2-k16-v6" ∧
+    artifact.frameFields = 99903 ∧
     artifact.chunkFields = 1024 ∧
-    artifact.finalChunkFields = 983 ∧
-    artifact.fullChunks = 85 ∧
-    artifact.transitionStateWords = 472 ∧
+    artifact.finalChunkFields = 575 ∧
+    artifact.fullChunks = 97 ∧
+    artifact.transitionStateWords = 688 ∧
     artifact.stateDigestWords = 8 ∧
     artifact.sharedPublicWords = 10 ∧
     artifact.publicBitsPerWord = 64 ∧
@@ -400,20 +400,20 @@ def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
     artifact.finalChunk.publicWordCallIndices =
       [2, 3, 4, 5, 6, 7, 8, 9, 0, 1] ∧
     artifact.full.coordinateCalls.map CoordinateCall.mapKind =
-      [.statementFresh, .runningMetadata] ∧
+      [.statementFresh, .runningCommitments] ∧
     artifact.finalChunk.coordinateCalls.map CoordinateCall.mapKind =
       [.statementFresh] ∧
-    artifact.sharedPrivateFields = 476 ∧
-    artifact.lowNormRows = 167491 ∧
-    artifact.lowNormColumns = 808110 ∧
+    artifact.sharedPrivateFields = 692 ∧
+    artifact.lowNormRows = 118213 ∧
+    artifact.lowNormColumns = 1608012 ∧
     artifact.lowNormPublicColumns = 648 ∧
-    artifact.lowNormTotalCoordinates = 808068 ∧
+    artifact.lowNormTotalCoordinates = 1608006 ∧
     artifact.lowNormArity = 13 ∧ artifact.lowNormDegree = 8 ∧
-    artifact.lowNormSharedPrivateCoordinates = 476 ∧
-    artifact.lowNormFullBranchCoordinates = 796380 ∧
-    artifact.lowNormFinalBranchCoordinates = 786634 ∧
-    artifact.lowNormFullPoseidon2Coordinates = 748196 ∧
-    artifact.lowNormFinalPoseidon2Coordinates = 726438
+    artifact.lowNormSharedPrivateCoordinates = 692 ∧
+    artifact.lowNormFullBranchCoordinates = 1578966 ∧
+    artifact.lowNormFinalBranchCoordinates = 1160758 ∧
+    artifact.lowNormFullPoseidon2Coordinates = 1523744 ∧
+    artifact.lowNormFinalPoseidon2Coordinates = 1125306
 
 instance (artifact : RawArtifact) : Decidable artifact.MetadataValid := by
   unfold RawArtifact.MetadataValid

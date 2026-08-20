@@ -10,6 +10,8 @@
 //! `z_app[j]` is recomposed from its verifier-owned app-private slot in the
 //! `app_private` region.
 
+use std::ops::Range;
+
 use neo_ccs::{sparse_r1cs_to_ccs, CcsMatrix};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -149,6 +151,18 @@ impl SparseR1cs {
 
     pub(crate) fn canonical_u64_decompositions(&self) -> &[CanonicalU64Decomposition] {
         &self.canonical_u64_decompositions
+    }
+
+    pub(crate) fn canonical_u64_source_rows(&self, field_col: usize) -> Option<Range<usize>> {
+        let matches = self
+            .canonical_u64_decompositions
+            .iter()
+            .filter(|decomposition| decomposition.field_col == field_col)
+            .collect::<Vec<_>>();
+        let [decomposition] = matches.as_slice() else {
+            return None;
+        };
+        Some(decomposition.source_rows.clone())
     }
 
     pub(crate) fn balanced_ternary_decompositions(&self) -> &[BalancedTernaryDecomposition] {

@@ -71,10 +71,13 @@ pub use streaming_lifecycle_relation::{
     prepare_streaming_lifecycle_preprocessing, synthesize_streaming_lifecycle_source_arms,
     synthesize_streaming_lifecycle_source_arms_with_recursive_assignment, NebulaFPrimeStreamingLaneSourceColumns,
     NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleSourceArms,
-    NebulaFPrimeStreamingPhaseEnvelopeFields,
+    NebulaFPrimeStreamingPhaseEnvelopeFields, NebulaFPrimeStreamingXOutHashAudit,
+    NebulaFPrimeStreamingXOutPreimageColumns, NebulaFPrimeStreamingXOutPreimageValues,
+    NebulaFPrimeStreamingXOutPublicWordAudit,
 };
 #[doc(hidden)]
 pub use streaming_lifecycle_verifier_key_recipe::{
+    extract_base_verifier_key_core_recipes, NebulaFPrimeStreamingVerifierKeyCoreRecipes,
     NebulaFPrimeStreamingVerifierKeyDigestBinding, NebulaFPrimeStreamingVerifierKeyHashBlock,
     NebulaFPrimeStreamingVerifierKeyHashRecipes,
 };

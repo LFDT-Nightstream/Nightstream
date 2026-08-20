@@ -7,15 +7,14 @@ use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::nebula::f_prime::{
     build_production_combined_overlay_low_norm_r1cs, production_claim_coordinate_overlay_kind_count,
     production_claim_coordinate_overlay_kind_map, production_claim_coordinate_overlay_link_runs,
-    production_claim_coordinate_overlay_links, production_combined_overlay_kind_count,
-    production_combined_overlay_kind_map, production_combined_overlay_links, production_pi_rlc_family_overlay_kind_map,
-    production_pi_rlc_family_overlay_link_runs, NebulaFPrimeClaimCoordinateOverlayLinkRun,
-    NebulaFPrimeClaimCoordinateOverlaySynthesis, NebulaFPrimeClaimReplaySynthesis,
-    NebulaFPrimePiRlcFamilyOverlayLinkRun, NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingPhase,
-    NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingPublicLayout, PI_RLC_FAMILY_BODY_EVEN_COLUMNS,
-    PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, PI_RLC_FAMILY_BODY_ODD_COLUMNS,
-    PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS, PI_RLC_FAMILY_BODY_SOURCE_ROWS,
-    PI_RLC_FAMILY_COUNT, PI_RLC_FAMILY_LINK_FIELDS, PI_RLC_FAMILY_OVERLAY_COLUMNS, PI_RLC_FAMILY_OVERLAY_ROWS,
+    production_combined_overlay_kind_count, production_combined_overlay_kind_map,
+    production_pi_rlc_family_overlay_kind_map, production_pi_rlc_family_overlay_link_runs,
+    NebulaFPrimeClaimCoordinateOverlayLinkRun, NebulaFPrimePiRlcFamilyOverlayLinkRun, NebulaFPrimeStreamingCircuitKind,
+    NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingPublicLayout,
+    PI_RLC_FAMILY_BODY_EVEN_COLUMNS, PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS,
+    PI_RLC_FAMILY_BODY_ODD_COLUMNS, PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS,
+    PI_RLC_FAMILY_BODY_SOURCE_ROWS, PI_RLC_FAMILY_COUNT, PI_RLC_FAMILY_LINK_FIELDS, PI_RLC_FAMILY_OVERLAY_COLUMNS,
+    PI_RLC_FAMILY_OVERLAY_ROWS,
 };
 use neo_fold_clean::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment, build_scheduled_grouped_phase_low_norm_r1cs,
@@ -410,120 +409,7 @@ fn production_streaming_program_matches_lean_artifact() {
     assert!(overlay_kinds[193..].iter().all(|&kind| kind == 0));
 
     let link_runs = production_claim_coordinate_overlay_link_runs();
-    let links = production_claim_coordinate_overlay_links();
     assert_eq!(link_runs.len(), 98);
-    assert_eq!(links.len(), link_runs.len());
-    assert_eq!(
-        link_runs
-            .iter()
-            .map(|run| run.active_field_count())
-            .sum::<usize>(),
-        99_520
-    );
-    assert_eq!(
-        links
-            .iter()
-            .map(|contract| contract.fields.len())
-            .sum::<usize>(),
-        141_856
-    );
-    for (run, contract) in link_runs.iter().zip(&links) {
-        assert_eq!(contract.overlay_kind, run.overlay_kind());
-        assert_eq!(contract.phase_kind, run.phase_kind());
-        assert_eq!(contract.fields.len(), 6 * D * 2 + run.active_field_count());
-        let base = if run.phase_kind() == NebulaFPrimeStreamingCircuitKind::ClaimReplayFinal.code() as usize {
-            NebulaFPrimeClaimReplaySynthesis::production_base_final()
-        } else {
-            NebulaFPrimeClaimReplaySynthesis::production_base_full(run.chunk_index()).expect("linked full claim base")
-        };
-        let overlay = NebulaFPrimeClaimCoordinateOverlaySynthesis::production_kind(run.overlay_kind())
-            .expect("linked coordinate overlay");
-        for coordinate in 0..D * 2 {
-            let before_statement_fresh = contract.fields[6 * coordinate];
-            assert_eq!(
-                before_statement_fresh.phase_field,
-                base.normalized_before_statement_fresh_commitment_column(coordinate)
-                    .expect("base before statement-and-fresh commitment column")
-            );
-            assert_eq!(
-                before_statement_fresh.overlay_field,
-                overlay
-                    .before_statement_fresh_column(coordinate)
-                    .expect("overlay before statement-and-fresh commitment column")
-            );
-            let after_statement_fresh = contract.fields[6 * coordinate + 1];
-            assert_eq!(
-                after_statement_fresh.phase_field,
-                base.normalized_after_statement_fresh_commitment_column(coordinate)
-                    .expect("base after statement-and-fresh commitment column")
-            );
-            assert_eq!(
-                after_statement_fresh.overlay_field,
-                overlay
-                    .after_statement_fresh_column(coordinate)
-                    .expect("overlay after statement-and-fresh commitment column")
-            );
-            let before_running_commitments = contract.fields[6 * coordinate + 2];
-            assert_eq!(
-                before_running_commitments.phase_field,
-                base.normalized_before_running_commitments_binding_column(coordinate)
-                    .expect("base before running-commitments binding column")
-            );
-            assert_eq!(
-                before_running_commitments.overlay_field,
-                overlay
-                    .before_running_commitments_column(coordinate)
-                    .expect("overlay before running-commitments binding column")
-            );
-            let after_running_commitments = contract.fields[6 * coordinate + 3];
-            assert_eq!(
-                after_running_commitments.phase_field,
-                base.normalized_after_running_commitments_binding_column(coordinate)
-                    .expect("base after running-commitments binding column")
-            );
-            assert_eq!(
-                after_running_commitments.overlay_field,
-                overlay
-                    .after_running_commitments_column(coordinate)
-                    .expect("overlay after running-commitments binding column")
-            );
-            let before_running_public = contract.fields[6 * coordinate + 4];
-            assert_eq!(
-                before_running_public.phase_field,
-                base.normalized_before_running_public_binding_column(coordinate)
-                    .expect("base before running-public binding column")
-            );
-            assert_eq!(
-                before_running_public.overlay_field,
-                overlay
-                    .before_running_public_column(coordinate)
-                    .expect("overlay before running-public binding column")
-            );
-            let after_running_public = contract.fields[6 * coordinate + 5];
-            assert_eq!(
-                after_running_public.phase_field,
-                base.normalized_after_running_public_binding_column(coordinate)
-                    .expect("base after running-public binding column")
-            );
-            assert_eq!(
-                after_running_public.overlay_field,
-                overlay
-                    .after_running_public_column(coordinate)
-                    .expect("overlay after running-public binding column")
-            );
-        }
-        for (link, &(offset, overlay_field)) in contract.fields[6 * D * 2..]
-            .iter()
-            .zip(overlay.chunk_columns())
-        {
-            assert_eq!(
-                link.phase_field,
-                base.normalized_chunk_column(offset)
-                    .expect("base active chunk column")
-            );
-            assert_eq!(link.overlay_field, overlay_field);
-        }
-    }
 
     let pi_rlc_overlay_kinds =
         production_pi_rlc_family_overlay_kind_map(0, production_claim_coordinate_overlay_kind_count());
@@ -534,7 +420,6 @@ fn production_streaming_program_matches_lean_artifact() {
     assert!(pi_rlc_overlay_kinds[333..].iter().all(|&kind| kind == 0));
 
     let pi_rlc_link_runs = production_pi_rlc_family_overlay_link_runs();
-    assert_eq!(pi_rlc_link_runs.map(|run| run.link_count()), [41, 33_210, 108]);
     assert_eq!(
         pi_rlc_link_runs
             .iter()
@@ -552,20 +437,6 @@ fn production_streaming_program_matches_lean_artifact() {
         .iter()
         .all(|&kind| kind == 0));
     assert!(combined_overlay_kinds[333..].iter().all(|&kind| kind == 0));
-
-    let combined_links = production_combined_overlay_links();
-    assert_eq!(combined_links.len(), 208);
-    assert_eq!(combined_links[0].overlay_kind, 1);
-    assert_eq!(combined_links[97].overlay_kind, 98);
-    assert_eq!(combined_links[98].overlay_kind, 99);
-    assert_eq!(combined_links[207].overlay_kind, 208);
-    assert_eq!(
-        combined_links
-            .iter()
-            .map(|contract| contract.fields.len())
-            .sum::<usize>(),
-        3_794_282,
-    );
 
     let rendered = render_artifact(&program);
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);

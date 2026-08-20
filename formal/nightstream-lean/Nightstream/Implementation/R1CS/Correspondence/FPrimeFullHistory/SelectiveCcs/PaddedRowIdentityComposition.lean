@@ -5,9 +5,9 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.PiRlcCompos
 /-!
 Contract: finite interactive composition for the selected one-joint profile.
 
-Owns: the exact `1 + 14` source adapter from selected `Pi_CCS` into paper
+Owns: the exact `1 + 16` source adapter from selected `Pi_CCS` into paper
 `Pi_RLC`; construction of both selected `Pi_CCS` probability contracts from
-root counting; the exact 16-coordinate-fork numerator; and the complete
+root counting; the exact 18-unit coordinate-fork numerator; and the complete
 `Pi_CCS -> Pi_RLC -> Pi_DEC` reduction with zero added `Pi_DEC` loss.
 
 Does not own: low-norm invertibility in the Phi81 quotient ring, Ajtai/MSIS
@@ -114,23 +114,29 @@ theorem selectedAmbientAdmissible :
         productionGlobalParams := by
   decide
 
-/-- Exact ideal-interactive loss after `Pi_CCS`, the 15-coordinate `Pi_RLC`
+/-- Coordinate-fork loss derived from the selected `K + k` source arity. -/
+def piRlcForkNumerator : Nat := PaperProfile.arity.total + 1
+
+theorem piRlcForkNumerator_exact : piRlcForkNumerator = 18 := by
+  rfl
+
+/-- Exact ideal-interactive loss after `Pi_CCS`, the 17-coordinate `Pi_RLC`
 fork, and exact `Pi_DEC`. The only symbolic term is the square-root envelope
 for relaxed Ajtai binding. -/
 def selectedInteractiveLoss
-    (piRlcAlphabetCardinality : Nat)
+  (piRlcAlphabetCardinality : Nat)
     (relaxedBindingRoot : Rat) : Rat :=
-  ratio 16 piRlcAlphabetCardinality +
-    ((ratio 10599 (goldilocksP * goldilocksP) +
-      ratio 216 (goldilocksP * goldilocksP)) + relaxedBindingRoot)
+  ratio piRlcForkNumerator piRlcAlphabetCardinality +
+    ((ratio mixingNumerator (goldilocksP * goldilocksP) +
+      ratio sumCheckNumerator (goldilocksP * goldilocksP)) + relaxedBindingRoot)
 
 theorem selectedInteractiveLoss_explicit
     (piRlcAlphabetCardinality : Nat)
     (relaxedBindingRoot : Rat) :
     selectedInteractiveLoss piRlcAlphabetCardinality relaxedBindingRoot =
-      ratio 16 piRlcAlphabetCardinality +
-        ((ratio 10599 (goldilocksP * goldilocksP) +
-          ratio 216 (goldilocksP * goldilocksP)) +
+      ratio piRlcForkNumerator piRlcAlphabetCardinality +
+        ((ratio mixingNumerator (goldilocksP * goldilocksP) +
+          ratio sumCheckNumerator (goldilocksP * goldilocksP)) +
             relaxedBindingRoot) := by
   rfl
 
@@ -234,7 +240,8 @@ theorem selectedFiniteReductionThroughPiDec
         unfold ratio
         positivity)
       ops bindingLaws binding selectedAmbientAdmissible contracts
-  simpa [selectedInteractiveLoss, mixingNumerator, sumCheckNumerator,
+  simpa [selectedInteractiveLoss, piRlcForkNumerator, mixingNumerator,
+    sumCheckNumerator,
     fullChallengeSupport_cardinality] using reduction
 
 end SelectedComposition

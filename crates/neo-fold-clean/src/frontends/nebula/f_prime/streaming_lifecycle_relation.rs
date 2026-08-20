@@ -73,6 +73,14 @@ const RECURSIVE_BEFORE_LOCAL_FAMILY: &str = "fprime.streaming.recursive.phase.be
 const RECURSIVE_AFTER_LOCAL_FAMILY: &str = "fprime.streaming.recursive.phase.after.local_state_digest";
 const RECURSIVE_AFTER_PAYLOAD_FAMILY: &str = "fprime.streaming.recursive.phase.after.delayed_payload.raw_bits";
 
+mod x_out_hash_audit;
+
+use x_out_hash_audit::exact_after_x_out_hash_audit;
+pub use x_out_hash_audit::{
+    NebulaFPrimeStreamingXOutHashAudit, NebulaFPrimeStreamingXOutPreimageColumns,
+    NebulaFPrimeStreamingXOutPreimageValues, NebulaFPrimeStreamingXOutPublicWordAudit,
+};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NebulaFPrimeStreamingLifecycleArm {
     Base,
@@ -80,7 +88,7 @@ pub enum NebulaFPrimeStreamingLifecycleArm {
 }
 
 impl NebulaFPrimeStreamingLifecycleArm {
-    const fn index(self) -> usize {
+    pub(super) const fn index(self) -> usize {
         match self {
             Self::Base => 0,
             Self::Recursive => 1,
@@ -93,10 +101,12 @@ pub struct NebulaFPrimeStreamingLifecycleSourceArms {
     arms: [SparseR1cs; 2],
     base_assignment: Vec<F>,
     recursive_assignment: Option<Vec<F>>,
+    recursive_prior_state_digest_columns: [usize; 4],
     recursive_delayed_input_fields: Range<usize>,
     phase_envelope_fields: [NebulaFPrimeStreamingPhaseEnvelopeFields; 2],
     x_out_preimage_columns: [NebulaFPrimeStreamingXOutPreimageColumns; 2],
     x_out_preimage_values: [NebulaFPrimeStreamingXOutPreimageValues; 2],
+    after_x_out_hash_audits: [NebulaFPrimeStreamingXOutHashAudit; 2],
     after_nebula_lane_columns: [NebulaFPrimeStreamingLaneSourceColumns; 2],
     verifier_advice_preimage_fields: [NebulaFPrimeStreamingVerifierAdvicePreimageFields; 2],
     recursive_verifier_key_hash_recipes: NebulaFPrimeStreamingVerifierKeyHashRecipes,
@@ -122,52 +132,6 @@ impl NebulaFPrimeStreamingVerifierAdvicePreimageFields {
 
     pub fn initial_semantic_state_digest(&self) -> Range<usize> {
         self.initial_semantic_state_digest.clone()
-    }
-}
-
-/// Exact normalized source columns consumed by the before-state and
-/// after-state `x_out` Poseidon2 rows.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NebulaFPrimeStreamingXOutPreimageColumns {
-    before: [usize; X_OUT_PREIMAGE_FIELDS],
-    after: [usize; X_OUT_PREIMAGE_FIELDS],
-}
-
-impl NebulaFPrimeStreamingXOutPreimageColumns {
-    pub fn before(&self) -> &[usize; X_OUT_PREIMAGE_FIELDS] {
-        &self.before
-    }
-
-    pub fn after(&self) -> &[usize; X_OUT_PREIMAGE_FIELDS] {
-        &self.after
-    }
-}
-
-/// Exact semantic values consumed by the before-state and after-state
-/// `x_out` Poseidon2 rows, captured before source-column normalization.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NebulaFPrimeStreamingXOutPreimageValues {
-    before: [F; X_OUT_PREIMAGE_FIELDS],
-    after: [F; X_OUT_PREIMAGE_FIELDS],
-}
-
-impl NebulaFPrimeStreamingXOutPreimageValues {
-    pub fn before(&self) -> &[F; X_OUT_PREIMAGE_FIELDS] {
-        &self.before
-    }
-
-    pub fn after(&self) -> &[F; X_OUT_PREIMAGE_FIELDS] {
-        &self.after
-    }
-
-    /// Check the complete typed lifecycle target against one normalized
-    /// source assignment. This compares values, not digests.
-    pub fn is_satisfied_by(&self, columns: &NebulaFPrimeStreamingXOutPreimageColumns, assignment: &[F]) -> bool {
-        self.before
-            .iter()
-            .zip(columns.before())
-            .chain(self.after.iter().zip(columns.after()))
-            .all(|(expected, column)| assignment.get(*column) == Some(expected))
     }
 }
 
@@ -250,6 +214,13 @@ impl NebulaFPrimeStreamingLifecycleSourceArms {
         self.recursive_assignment.as_deref()
     }
 
+    /// Exact normalized source columns for the recursive prior-state XOut
+    /// digest. The recursive prior-link rows derive these lanes from the
+    /// complete prior-state preimage.
+    pub const fn recursive_prior_state_digest_columns(&self) -> [usize; 4] {
+        self.recursive_prior_state_digest_columns
+    }
+
     /// Exact normalized source-field slice for
     /// `[step_x_bits || open || bits(D_pre)]` in the recursive arm.
     pub fn recursive_delayed_input_fields(&self) -> Range<usize> {
@@ -275,6 +246,13 @@ impl NebulaFPrimeStreamingLifecycleSourceArms {
         arm: NebulaFPrimeStreamingLifecycleArm,
     ) -> &NebulaFPrimeStreamingXOutPreimageValues {
         &self.x_out_preimage_values[arm.index()]
+    }
+
+    pub fn after_x_out_hash_audit(
+        &self,
+        arm: NebulaFPrimeStreamingLifecycleArm,
+    ) -> &NebulaFPrimeStreamingXOutHashAudit {
+        &self.after_x_out_hash_audits[arm.index()]
     }
 
     pub fn after_nebula_lane_columns(
@@ -306,6 +284,7 @@ struct FinalizedPublic {
 struct SynthesizedLifecycleArm {
     source: SparseR1cs,
     assignment: Vec<F>,
+    prior_state_digest_columns: Option<[usize; 4]>,
     x_out_preimage_columns: NebulaFPrimeStreamingXOutPreimageColumns,
     x_out_preimage_values: NebulaFPrimeStreamingXOutPreimageValues,
     after_nebula_lane_columns: NebulaFPrimeStreamingLaneSourceColumns,
@@ -533,6 +512,10 @@ fn assemble_lifecycle_source_arms(
         exact_verifier_advice_preimage_fields(&base.source)?,
         exact_verifier_advice_preimage_fields(&recursive.source)?,
     ];
+    let after_x_out_hash_audits = [
+        exact_after_x_out_hash_audit(&base.source, &base.x_out_preimage_columns)?,
+        exact_after_x_out_hash_audit(&recursive.source, &recursive.x_out_preimage_columns)?,
+    ];
     if phase_envelope_fields[NebulaFPrimeStreamingLifecycleArm::Recursive.index()].before_delayed_payload
         != recursive_delayed_input_fields
     {
@@ -541,14 +524,24 @@ fn assemble_lifecycle_source_arms(
         ));
     }
     let recursive_assignment = retain_recursive_assignment.then(|| std::mem::take(&mut recursive.assignment));
+    if base.prior_state_digest_columns.is_some() {
+        return Err(NebulaFPrimeRelationError::Geometry(
+            "base lifecycle arm unexpectedly owns a prior-state digest".into(),
+        ));
+    }
+    let recursive_prior_state_digest_columns = recursive.prior_state_digest_columns.ok_or_else(|| {
+        NebulaFPrimeRelationError::Geometry("recursive lifecycle arm has no prior-state digest columns".into())
+    })?;
     Ok(NebulaFPrimeStreamingLifecycleSourceArms {
         arms: [base.source, recursive.source],
         base_assignment: base.assignment,
         recursive_assignment,
+        recursive_prior_state_digest_columns,
         recursive_delayed_input_fields,
         phase_envelope_fields,
         x_out_preimage_columns: [base.x_out_preimage_columns, recursive.x_out_preimage_columns],
         x_out_preimage_values: [base.x_out_preimage_values, recursive.x_out_preimage_values],
+        after_x_out_hash_audits,
         after_nebula_lane_columns: [base.after_nebula_lane_columns, recursive.after_nebula_lane_columns],
         verifier_advice_preimage_fields,
         recursive_verifier_key_hash_recipes,
@@ -720,6 +713,7 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedLifecycleArm
     Ok(SynthesizedLifecycleArm {
         source,
         assignment,
+        prior_state_digest_columns: None,
         x_out_preimage_columns,
         x_out_preimage_values,
         after_nebula_lane_columns,
@@ -915,6 +909,16 @@ fn synthesize_recursive_from_messages(
     )?;
     let x_out_preimage_values = exact_x_out_preimage_values(&builder, &public)?;
     let x_out_preimage_columns = exact_x_out_preimage_columns(builder.cols(), &public)?;
+    let prior_state_digest_columns = normalized_var_array(
+        builder.cols(),
+        &public.outputs,
+        output
+            .prior_link
+            .as_ref()
+            .ok_or_else(|| NebulaFPrimeRelationError::Geometry("recursive lifecycle arm has no prior link".into()))?
+            .digest,
+        "recursive prior-state digest",
+    )?;
     let after_nebula_lane_columns =
         exact_lane_source_columns(builder.cols(), &public.outputs, &public.after_nebula_lane)?;
     let (source, mut assignment) = lower_field_r1cs(builder, &public.outputs)?.into_parts();
@@ -933,6 +937,7 @@ fn synthesize_recursive_from_messages(
     Ok(SynthesizedLifecycleArm {
         source,
         assignment,
+        prior_state_digest_columns: Some(prior_state_digest_columns),
         x_out_preimage_columns,
         x_out_preimage_values,
         after_nebula_lane_columns,

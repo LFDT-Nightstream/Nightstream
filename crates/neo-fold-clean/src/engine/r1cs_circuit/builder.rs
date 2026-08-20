@@ -24,6 +24,7 @@
 //! | Encoding traces | row/column ownership only | none; consumers revalidate rows |
 
 use std::collections::{BTreeMap, HashMap};
+use std::ops::Range;
 
 use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
@@ -143,6 +144,9 @@ pub struct RingMulAuditEntry {
 pub(crate) struct CanonicalU64Decomposition {
     pub(crate) field_col: usize,
     pub(crate) bit_cols: [usize; 64],
+    pub(crate) high_is_max_col: usize,
+    pub(crate) inverse_col: usize,
+    pub(crate) source_rows: Range<usize>,
 }
 
 pub const BALANCED_TERNARY_DIGITS: usize = 41;
@@ -200,6 +204,7 @@ pub(crate) struct Poseidon2HashRoundTrace {
     pub(crate) state_before_cols: [usize; 8],
     pub(crate) permutation_input_cols: [usize; 8],
     pub(crate) defining_rows: Vec<usize>,
+    pub(crate) first_allocated_column: usize,
     pub(crate) permutation_output_cols: [usize; 8],
 }
 
@@ -226,6 +231,7 @@ pub struct Poseidon2HashRoundAudit {
     pub state_before_cols: [usize; 8],
     pub permutation_input_cols: [usize; 8],
     pub defining_rows: Vec<usize>,
+    pub first_allocated_column: usize,
     pub permutation_output_cols: [usize; 8],
 }
 
@@ -250,6 +256,8 @@ pub struct Poseidon2HashAudit {
 pub struct CanonicalU64Audit {
     pub field_col: usize,
     pub bit_cols: [usize; 64],
+    pub high_is_max_col: usize,
+    pub inverse_col: usize,
 }
 
 /// One identity inside a selectively lowered batch: `result = sum(a_i*b_i)`.
@@ -755,6 +763,9 @@ impl R1csBuilder {
                 .push(CanonicalU64Decomposition {
                     field_col: field.col(),
                     bit_cols: bits.map(Var::col),
+                    high_is_max_col: high_is_max.col(),
+                    inverse_col: inverse.col(),
+                    source_rows: source_rows.clone(),
                 });
         }
         if self.encoding_trace_enabled {
@@ -1094,6 +1105,8 @@ impl R1csBuilder {
             .map(|decomposition| CanonicalU64Audit {
                 field_col: decomposition.field_col,
                 bit_cols: decomposition.bit_cols,
+                high_is_max_col: decomposition.high_is_max_col,
+                inverse_col: decomposition.inverse_col,
             })
             .collect()
     }
@@ -1121,6 +1134,7 @@ impl R1csBuilder {
                         state_before_cols: round.state_before_cols,
                         permutation_input_cols: round.permutation_input_cols,
                         defining_rows: round.defining_rows.clone(),
+                        first_allocated_column: round.first_allocated_column,
                         permutation_output_cols: round.permutation_output_cols,
                     })
                     .collect(),

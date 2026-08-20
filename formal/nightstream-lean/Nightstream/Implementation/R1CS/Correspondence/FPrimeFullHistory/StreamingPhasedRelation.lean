@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Selectiv
 /-!
 Contract: schedule authority for the phased production F-prime relation.
 
-Owns the exact 400-arm selector vocabulary, its two physical lifecycle
+Owns the exact 436-arm selector vocabulary, its two physical lifecycle
 circuits, 23 physical phase kinds, base/bootstrap/steady logical modes, the
 cursor-to-arm binding, and refinement to one exact streaming-program step.
 
@@ -27,7 +27,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorCompo
 /-- One selector arm for each exact item in the production streaming program. -/
 abbrev WorkArm := Fin (program productionConfig).length
 
-theorem workArm_count : Fintype.card WorkArm = 400 := by
+theorem workArm_count : Fintype.card WorkArm = 436 := by
   rw [Fintype.card_fin, production_program_length]
 
 /-- The verifier-owned work item selected by an arm. -/
@@ -234,14 +234,14 @@ theorem linkedAccepts_implies_step
   rcases semanticsExists with ⟨arm, _, phase⟩
   exact phaseAtArm_to_step phase
 
-/-- Terminal acceptance from the initial cursor requires exactly 400 phased
+/-- Terminal acceptance from the initial cursor requires exactly 436 phased
 steps. -/
 theorem terminal_complete_steps_exact {State : Type}
     {phaseSemantics : WorkItem → State → State → Prop}
     {steps : Nat} {startValue : State} {after : Runtime State}
     (run : Runs phaseSemantics productionConfig steps (initial startValue) after)
     (complete : Complete productionConfig after) :
-    steps = 400 :=
+    steps = 436 :=
   production_complete_run_steps_exact run complete
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedRelation

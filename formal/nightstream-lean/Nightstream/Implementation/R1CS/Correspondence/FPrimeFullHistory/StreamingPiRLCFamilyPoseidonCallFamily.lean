@@ -25,10 +25,16 @@ set_option autoImplicit false
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallFamily
 
 open Nightstream.SuperNeo.Concrete
+open Nightstream.Implementation.R1CS
+open Nightstream.Implementation.R1CS.Canonical
+open Nightstream.Implementation.R1CS.Canonical.Poseidon2Core
+open Nightstream.Implementation.R1CS.Canonical.Poseidon2Reference
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallProjection
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallRowProjection
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallSound
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCompactTrace
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonLeafModel
+open Nightstream.Implementation.R1CS.Poseidon2CompactTraceRefinement
 
 private abbrev RawRun :=
   Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPoseidonCallLayout.RawRun
@@ -51,6 +57,29 @@ def Run.globalIndexAt (run : Run) (index : Nat) : Nat :=
 def Run.localFinalAt (run : Run) (index : Nat) : Nat :=
   run.raw.localFinalStart + index *
     Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPoseidonCallLayout.localFinalStride
+
+/-- Exact projection roots for one call. Every changing root comes from the
+same Rust-emitted run record. -/
+def Run.callSiteAt (run : Run) (index : Nat) : CallSite where
+  kind := run.leafClassAt index
+  localIndex := index
+  freshFinalStart := run.raw.freshFinalStart
+  firstFreshCount := run.raw.firstFreshCount
+  initialCarriedFinalStart := run.raw.initialCarriedFinalStart
+  initialCapacityFinalStart := run.raw.initialCapacityFinalStart
+  localFinalStart := run.localFinalAt index
+
+theorem Run.callSiteAt_roots
+    (run : Run) (index : Nat) :
+    let site := run.callSiteAt index
+    site.kind = run.leafClassAt index ∧
+      site.localIndex = index ∧
+      site.freshFinalStart = run.raw.freshFinalStart ∧
+      site.firstFreshCount = run.raw.firstFreshCount ∧
+      site.initialCarriedFinalStart = run.raw.initialCarriedFinalStart ∧
+      site.initialCapacityFinalStart = run.raw.initialCapacityFinalStart ∧
+      site.localFinalStart = run.localFinalAt index := by
+  simp [Run.callSiteAt]
 
 structure Run.Valid (run : Run) : Prop where
   callCountPositive : 0 < run.raw.callCount
@@ -207,8 +236,7 @@ theorem rowsFor_length (kind : LeafClass) : (rowsFor kind).length = 86 := by
 
 structure EmittedBlock where
   finalRowStart : Nat
-  kind : LeafClass
-  globalIndex : Nat
+  site : CallSite
   rows : List Wire.Row
 
 def EmittedBlock.finalRows (block : EmittedBlock) : List Nat :=
@@ -217,15 +245,14 @@ def EmittedBlock.finalRows (block : EmittedBlock) : List Nat :=
 def EmittedBlock.Satisfied (block : EmittedBlock)
     (assignment : Fin productionFinalColumns → F) : Prop :=
   ∀ row ∈ block.rows,
-    absoluteResidual block.kind block.globalIndex assignment row = 0
+    absoluteResidual block.site assignment row = 0
 
 def Run.emittedBlockAt (run : Run) (index : Fin run.raw.callCount) :
     EmittedBlock where
   finalRowStart :=
     run.raw.emittedRowStart + index.val *
       Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPoseidonCallLayout.emittedCallRows
-  kind := run.leafClassAt index.val
-  globalIndex := run.globalIndexAt index.val
+  site := run.callSiteAt index.val
   rows := rowsFor (run.leafClassAt index.val)
 
 theorem Run.emittedBlockAt_finalRows_exact
@@ -249,32 +276,35 @@ theorem rows_imply_step_sboxes
     (selectorOne :
       absoluteValue assignment (selectorColumn (run.leafClassAt index)) = 1)
     (holds : ∀ row ∈ rowsFor (run.leafClassAt index),
-      absoluteResidual (run.leafClassAt index) (run.globalIndexAt index)
-        assignment row = 0) :
+      absoluteResidual (run.callSiteAt index) assignment row = 0) :
     ∀ step ∈ sharedSteps,
       StepSboxHolds
         (sourceFor (run.leafClassAt index)
-          (projectFinalAssignment (run.leafClassAt index)
-            (run.globalIndexAt index) assignment)) step := by
+          (projectFinalAssignment (run.callSiteAt index) assignment)) step := by
   cases index with
   | zero =>
       cases firstClass : run.raw.firstClass with
       | direct =>
-          simp only [Run.leafClassAt, firstClass, if_pos, Run.globalIndexAt,
+          simp only [Run.leafClassAt, firstClass, if_pos,
             rowsFor, sourceFor, selectorColumn] at selectorOne holds ⊢
           exact direct_absolute_rows_imply_step_sboxes
-            run.globalStart assignment one selectorOne holds
+            (run.callSiteAt 0) (by
+              simp [Run.callSiteAt, Run.leafClassAt, firstClass])
+            assignment one selectorOne holds
       | partialStart =>
-          simp only [Run.leafClassAt, firstClass, if_pos, Run.globalIndexAt,
+          simp only [Run.leafClassAt, firstClass, if_pos,
             rowsFor, sourceFor, selectorColumn] at selectorOne holds ⊢
           exact partial_absolute_rows_imply_step_sboxes
-            run.globalStart assignment one selectorOne holds
+            (run.callSiteAt 0) (by
+              simp [Run.callSiteAt, Run.leafClassAt, firstClass])
+            assignment one selectorOne holds
   | succ index =>
       simp only [Run.leafClassAt, Nat.succ_ne_zero, if_false,
-        Run.globalIndexAt, rowsFor, sourceFor, selectorColumn]
+        rowsFor, sourceFor, selectorColumn]
         at selectorOne holds ⊢
       exact chained_absolute_rows_imply_step_sboxes
-        run.raw.selectorColumn (run.globalStart + index.succ)
+        (run.callSiteAt index.succ) run.raw.selectorColumn (by
+          simp [Run.callSiteAt, Run.leafClassAt])
         assignment one selectorOne holds
 
 theorem emitted_block_implies_step_sboxes
@@ -288,8 +318,36 @@ theorem emitted_block_implies_step_sboxes
     ∀ step ∈ sharedSteps,
       StepSboxHolds
         (sourceFor (run.leafClassAt index.val)
-          (projectFinalAssignment (run.leafClassAt index.val)
-            (run.globalIndexAt index.val) assignment)) step := by
+          (projectFinalAssignment (run.callSiteAt index.val) assignment)) step := by
   exact rows_imply_step_sboxes run index.val assignment one selectorOne satisfied
+
+/-- Every indexed block in the four exact production runs forces the complete
+eight-lane independent Lean Poseidon2 reference result. The production-run
+membership binds this theorem to the frozen 486-call family. -/
+theorem production_emitted_block_computes_reference
+    (run : Run) (_productionRun : run ∈ runs)
+    (index : Fin run.raw.callCount)
+    (assignment : Fin productionFinalColumns → F)
+    (one : absoluteValue assignment 0 = 1)
+    (selectorOne :
+      absoluteValue assignment
+        (selectorColumn (run.leafClassAt index.val)) = 1)
+    (satisfied : (run.emittedBlockAt index).Satisfied assignment)
+    (lane : Fin width) :
+    lcEval
+        (sourcePhysical
+          (sourceFor (run.leafClassAt index.val)
+            (projectFinalAssignment (run.callSiteAt index.val) assignment)))
+        (traceFinalForm lane) =
+      referencePermutation Poseidon2CanonicalConstants.selected
+        (fun inputLane =>
+          (sourceInput
+            (sourceFor (run.leafClassAt index.val)
+              (projectFinalAssignment (run.callSiteAt index.val) assignment))
+            inputLane).val)
+        lane :=
+  step_sboxes_compute_reference _
+    (emitted_block_implies_step_sboxes
+      run index assignment one selectorOne satisfied) lane
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallFamily

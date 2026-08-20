@@ -49,6 +49,7 @@ pub(super) fn remap(audits: &[Poseidon2HashAudit], old_to_new: &[usize]) -> Vec<
                     state_before_cols: round.state_before_cols.map(column),
                     permutation_input_cols: round.permutation_input_cols.map(column),
                     defining_rows: round.defining_rows.clone(),
+                    first_allocated_column: column(round.first_allocated_column),
                     permutation_output_cols: round.permutation_output_cols.map(column),
                 })
                 .collect(),

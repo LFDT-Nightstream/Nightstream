@@ -15,6 +15,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const SCHEMA_VERSION: usize = 1;
 const ARTIFACT_KIND: &str = "nebula/f-prime/streaming-claim-digest-domain-witnesses";
+const GAMMA_ARTIFACT_KIND: &str = "nebula/f-prime/streaming-gamma-domain-witness";
 
 const INPUTS: [[u64; 8]; 4] = [
     [1, 44, 27_428_916_078_536_046, 32_774_695_491_433_326, 0, 0, 0, 0],
@@ -93,6 +94,25 @@ const OUTPUTS: [[u64; 8]; 4] = [
     ],
 ];
 
+const GAMMA_INPUT: [u64; 8] = [
+    13_426,
+    30,
+    30_521_782_141_150_574,
+    31_069_335_676_202_596,
+    2_250_958_222_046_521_952,
+    15_440_103_732_085_447_511,
+    6_547_395_164_335_706_312,
+    10_272_340_994_444_577_429,
+];
+
+const GAMMA_CAPACITY_OUTPUT: [u64; 5] = [
+    17_411_973_590_883_579_087,
+    6_939_038_333_896_971_149,
+    3_171_679_524_884_682_263,
+    2_890_321_166_649_729_893,
+    13_044_081_322_747_540_714,
+];
+
 fn build_witness(input: [u64; 8]) -> Vec<F> {
     let mut builder = R1csBuilder::new();
     let input_vars = input.map(|value| builder.alloc(F::from_u64(value)));
@@ -126,6 +146,15 @@ fn render_witness(name: &str, witness: &[F]) -> String {
         write!(rendered, "{}", value.as_canonical_u64()).unwrap();
     }
     rendered.push_str("]\n");
+    rendered
+}
+
+fn render_assignment(name: &str, witness: &[F]) -> String {
+    let mut rendered = format!("def {name} : Nat → Nat\n");
+    for (column, value) in witness.iter().enumerate() {
+        writeln!(rendered, "  | {column} => {}", value.as_canonical_u64()).unwrap();
+    }
+    rendered.push_str("  | _ => 0\n");
     rendered
 }
 
@@ -163,10 +192,55 @@ fn render_artifact() -> String {
     )
 }
 
+fn build_gamma_witness() -> (Vec<F>, [u64; 8]) {
+    let mut builder = R1csBuilder::new();
+    let input_vars = GAMMA_INPUT.map(|value| builder.alloc(F::from_u64(value)));
+    let output = enforce_poseidon2_permutation(&mut builder, &input_vars);
+    assert_eq!(builder.rows(), 600);
+    assert_eq!(builder.cols(), 609);
+    assert!(builder.is_satisfied());
+    let output_values = output.map(|column| builder.witness()[column.col()].as_canonical_u64());
+    assert_eq!(output_values[3..], GAMMA_CAPACITY_OUTPUT);
+    (builder.witness().to_vec(), output_values)
+}
+
+fn render_gamma_artifact() -> String {
+    let (witness, output_values) = build_gamma_witness();
+    let mut payload = String::new();
+    writeln!(payload, "def schemaVersion : Nat := {SCHEMA_VERSION}").unwrap();
+    writeln!(payload, "def artifactKind : String := \"{GAMMA_ARTIFACT_KIND}\"\n").unwrap();
+    writeln!(payload, "{}", render_assignment("gammaCheckpointAssignment", &witness)).unwrap();
+    writeln!(
+        payload,
+        "def gammaCheckpointOutputValues : List Nat := {output_values:?}\n"
+    )
+    .unwrap();
+    writeln!(payload, "def gammaCheckpointColumnCount : Nat := 609").unwrap();
+
+    let hash = sha256_hex(&payload);
+    format!(
+        "import Nightstream.Implementation.R1CS.Core.Semantics\n\n\
+         /-! Generated fixed witness for the terminal Nebula gamma-domain\n\
+         Poseidon2 checkpoint. Regenerate only through the Rust drift gate. -/\n\n\
+         set_option autoImplicit false\n\n\
+         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingGammaDomainWitness\n\n\
+         def artifactSha256 : String := \"{hash}\"\n\n\
+         {payload}\n\
+         end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingGammaDomainWitness\n"
+    )
+}
+
 fn generated_artifact_path() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(
         "../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
          FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingClaimDigestWitnesses.lean",
+    )
+}
+
+fn generated_gamma_artifact_path() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
+         FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingGammaDomainWitness.lean",
     )
 }
 
@@ -186,4 +260,22 @@ fn streaming_claim_digest_poseidon_witness_artifact_is_current() {
 fn regenerate_streaming_claim_digest_poseidon_witness_artifact() {
     std::fs::write(generated_artifact_path(), render_artifact())
         .expect("write generated claim-digest witness artifact");
+}
+
+#[test]
+fn streaming_gamma_domain_poseidon_witness_artifact_is_current() {
+    let path = generated_gamma_artifact_path();
+    let rendered = render_gamma_artifact();
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
+        let expected = path.with_extension("lean.expected");
+        std::fs::write(&expected, rendered).expect("write expected gamma-domain witness artifact");
+        panic!("gamma-domain witness artifact drifted; inspect {}", expected.display());
+    }
+}
+
+#[test]
+#[ignore = "explicit deterministic artifact regeneration"]
+fn regenerate_streaming_gamma_domain_poseidon_witness_artifact() {
+    std::fs::write(generated_gamma_artifact_path(), render_gamma_artifact())
+        .expect("write generated gamma-domain witness artifact");
 }

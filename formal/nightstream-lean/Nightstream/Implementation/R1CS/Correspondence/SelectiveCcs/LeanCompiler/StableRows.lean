@@ -106,7 +106,7 @@ private theorem foldl_pointwise_add
         (leftInitial + left column * assignment column)
         (rightInitial + right column * assignment column)
 
-private theorem eval_pointwise_add
+theorem eval_pointwise_add
     {columns : Nat}
     (left right : DirectRows.LinearCombination columns)
     (assignment : Fin columns → F) :
@@ -119,7 +119,7 @@ private theorem eval_pointwise_add
     (foldl_pointwise_add (canonicalFinIndices columns) left right assignment
       0 0)
 
-private theorem eval_zero
+theorem eval_zero
     {columns : Nat}
     (assignment : Fin columns → F) :
     DirectRows.LinearCombination.eval (fun _ => 0) assignment = 0 := by
@@ -203,14 +203,14 @@ private theorem foldl_single
         exact inductionHypothesis
           (List.nodup_cons.mp nodup).2 memberTail
 
-private def single
+def single
     {columns : Nat}
     (selected : Fin columns)
     (coefficient : F) :
     DirectRows.LinearCombination columns :=
   fun column => if column = selected then coefficient else 0
 
-private theorem eval_single
+theorem eval_single
     {columns : Nat}
     (selected : Fin columns)
     (coefficient : F)

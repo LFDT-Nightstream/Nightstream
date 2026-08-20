@@ -36,6 +36,10 @@ pub struct NebulaFPrimeStreamingPreludeSynthesis {
     initial_replay_state_columns: [usize; REPLAY_STATE_FIELDS],
     before_local_state_digest_columns: [usize; 4],
     after_local_state_digest_columns: [usize; 4],
+    before_x_out_preimage_columns: [usize; 32],
+    after_x_out_preimage_columns: [usize; 32],
+    before_x_out_digest_columns: [usize; 4],
+    after_x_out_digest_columns: [usize; 4],
     before_program_cursor_column: usize,
     after_program_cursor_column: usize,
 }
@@ -118,6 +122,22 @@ impl NebulaFPrimeStreamingPreludeSynthesis {
             },
             nebula_lane_digest,
         );
+        let before_x_out_preimage_columns = before_x_out
+            .preimage
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("Prelude before XOut preimage has 32 fields");
+        let after_x_out_preimage_columns = after_x_out
+            .preimage
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("Prelude after XOut preimage has 32 fields");
+        let before_x_out_digest_columns = before_x_out.digest.map(Var::col);
+        let after_x_out_digest_columns = after_x_out.digest.map(Var::col);
 
         let before_cursor_bits = decompose_var_to_u64_bits(&mut builder, before_program_cursor);
         let after_cursor_bits = decompose_var_to_u64_bits(&mut builder, after_program_cursor);
@@ -135,6 +155,10 @@ impl NebulaFPrimeStreamingPreludeSynthesis {
             initial_replay_state_columns: initial_replay_state.map(Var::col),
             before_local_state_digest_columns: phase_envelope.before_local_state_digest.map(Var::col),
             after_local_state_digest_columns: phase_envelope.after_local_state_digest.map(Var::col),
+            before_x_out_preimage_columns,
+            after_x_out_preimage_columns,
+            before_x_out_digest_columns,
+            after_x_out_digest_columns,
             before_program_cursor_column: before_program_cursor.col(),
             after_program_cursor_column: after_program_cursor.col(),
             builder,
@@ -164,6 +188,22 @@ impl NebulaFPrimeStreamingPreludeSynthesis {
 
     pub fn after_local_state_digest_columns(&self) -> &[usize; 4] {
         &self.after_local_state_digest_columns
+    }
+
+    pub fn before_x_out_preimage_columns(&self) -> &[usize; 32] {
+        &self.before_x_out_preimage_columns
+    }
+
+    pub fn after_x_out_preimage_columns(&self) -> &[usize; 32] {
+        &self.after_x_out_preimage_columns
+    }
+
+    pub fn before_x_out_digest_columns(&self) -> &[usize; 4] {
+        &self.before_x_out_digest_columns
+    }
+
+    pub fn after_x_out_digest_columns(&self) -> &[usize; 4] {
+        &self.after_x_out_digest_columns
     }
 
     pub const fn before_program_cursor_column(&self) -> usize {

@@ -88,43 +88,64 @@ def currentLocalSlotStart (index : Nat) : Nat :=
 def previousLocalSlotStart (index : Nat) : Nat :=
   firstLocalSlotStart + (index - 1) * (localSlotCount * slotWidth)
 
-def externalASlotStart : LeafClass → Fin 4 → Nat
-  | .direct, lane => directExternalASlotStart + lane.val * slotWidth
-  | .chained _, lane =>
-      directExternalASlotStart + (4 + lane.val) * slotWidth
-  | .partialStart, lane =>
-      if lane.val < 2 then
-        partialCarriedSlotStart + lane.val * slotWidth
-      else
-        directExternalASlotStart + (lane.val - 2) * slotWidth
+/-! A call site carries every root that changes between input and output runs.
+The roots come from one `RawRun`; leaf class alone is not enough to select
+them. -/
 
-def externalBSlotStartFor (lane : Fin 4) : Nat :=
-  externalBSlotStart + lane.val * slotWidth
+structure CallSite where
+  kind : LeafClass
+  localIndex : Nat
+  freshFinalStart : Nat
+  firstFreshCount : Nat
+  initialCarriedFinalStart : Option Nat
+  initialCapacityFinalStart : Nat
+  localFinalStart : Nat
+
+def CallSite.freshOrdinal (site : CallSite) (lane : Fin 4) : Option Nat :=
+  match site.localIndex, site.kind with
+  | 0, .direct => some lane.val
+  | 0, .partialStart =>
+      if lane.val < 2 then none else some (lane.val - 2)
+  | index + 1, .chained _ =>
+      some (site.firstFreshCount + index * 4 + lane.val)
+  | _, _ => none
+
+def CallSite.externalASlotStart
+    (site : CallSite) (lane : Fin 4) : Option Nat :=
+  match site.freshOrdinal lane with
+  | some ordinal => some (site.freshFinalStart + ordinal * slotWidth)
+  | none =>
+      match site.localIndex, site.kind, site.initialCarriedFinalStart with
+      | 0, .partialStart, some start => some (start + lane.val * slotWidth)
+      | _, _, _ => none
+
+def CallSite.externalBSlotStart
+    (site : CallSite) (lane : Fin 4) : Option Nat :=
+  match site.localIndex, site.kind with
+  | 0, .direct | 0, .partialStart =>
+      some (site.initialCapacityFinalStart + lane.val * slotWidth)
+  | _, _ => none
+
+def CallSite.previousLocalSlotStart (site : CallSite) : Option Nat :=
+  match site.localIndex, site.kind with
+  | _index + 1, .chained _ =>
+      some (site.localFinalStart - localSlotCount * slotWidth)
+  | _, _ => none
 
 /-- Absolute column of one relative digit. `none` means that the selected
 leaf class does not own that slot class. -/
-def digitColumn (kind : LeafClass) (index : Nat) :
+def digitColumn (site : CallSite) :
     Slot → Fin 41 → Option Nat
   | .externalA lane, digit =>
-      some (externalASlotStart kind lane + digit.val)
+      (site.externalASlotStart lane).map (fun start => start + digit.val)
   | .externalB lane, digit =>
-      match kind with
-      | .direct | .partialStart =>
-          some (externalBSlotStartFor lane + digit.val)
-      | .chained _ => none
+      (site.externalBSlotStart lane).map (fun start => start + digit.val)
   | .previousLocal slotIndex, digit =>
-      match kind with
-      | .chained _ =>
-          if 0 < index then
-            some
-              (previousLocalSlotStart index + slotIndex.val * slotWidth +
-                digit.val)
-          else
-            none
-      | .direct | .partialStart => none
+      (site.previousLocalSlotStart).map (fun start =>
+        start + slotIndex.val * slotWidth + digit.val)
   | .local slotIndex, digit =>
       some
-        (currentLocalSlotStart index + slotIndex.val * slotWidth + digit.val)
+        (site.localFinalStart + slotIndex.val * slotWidth + digit.val)
 
 /-- Totalized access to the exact finite CCS assignment. An out-of-range
 column fails closed to zero. -/
@@ -141,102 +162,49 @@ theorem absoluteValue_of_lt
     absoluteValue assignment column = assignment ⟨column, bounded⟩ := by
   simp [absoluteValue, bounded]
 
-def projectFinalAssignment (kind : LeafClass) (index : Nat)
+def projectFinalAssignment (site : CallSite)
     (assignment : Fin productionFinalColumns → F) : FinalAssignment where
   explicit
     | .one => absoluteValue assignment 0
-    | .selector => absoluteValue assignment (selectorColumn kind)
+    | .selector => absoluteValue assignment (selectorColumn site.kind)
   digit slot digit :=
-    match digitColumn kind index slot digit with
+    match digitColumn site slot digit with
     | some column => absoluteValue assignment column
     | none => 0
 
-@[simp] theorem projected_one (kind : LeafClass) (index : Nat)
+@[simp] theorem projected_one (site : CallSite)
     (assignment : Fin productionFinalColumns → F) :
-    (projectFinalAssignment kind index assignment).explicit .one =
+    (projectFinalAssignment site assignment).explicit .one =
       absoluteValue assignment 0 := by
   rfl
 
-@[simp] theorem projected_selector (kind : LeafClass) (index : Nat)
+@[simp] theorem projected_selector (site : CallSite)
     (assignment : Fin productionFinalColumns → F) :
-    (projectFinalAssignment kind index assignment).explicit .selector =
-      absoluteValue assignment (selectorColumn kind) := by
+    (projectFinalAssignment site assignment).explicit .selector =
+      absoluteValue assignment (selectorColumn site.kind) := by
   rfl
 
-theorem projected_digit_of_some (kind : LeafClass) (index : Nat)
+theorem projected_digit_of_some (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (slot : Slot)
     (digit : Fin 41) (column : Nat)
-    (owned : digitColumn kind index slot digit = some column) :
-    (projectFinalAssignment kind index assignment).digit slot digit =
+    (owned : digitColumn site slot digit = some column) :
+    (projectFinalAssignment site assignment).digit slot digit =
       absoluteValue assignment column := by
   simp [projectFinalAssignment, owned]
 
-theorem projected_digit_of_none (kind : LeafClass) (index : Nat)
+theorem projected_digit_of_none (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (slot : Slot)
     (digit : Fin 41)
-    (unsupported : digitColumn kind index slot digit = none) :
-    (projectFinalAssignment kind index assignment).digit slot digit = 0 := by
+    (unsupported : digitColumn site slot digit = none) :
+    (projectFinalAssignment site assignment).digit slot digit = 0 := by
   simp [projectFinalAssignment, unsupported]
 
-@[simp] theorem projected_externalA (kind : LeafClass) (index : Nat)
-    (assignment : Fin productionFinalColumns → F) (lane : Fin 4)
-    (digit : Fin 41) :
-    (projectFinalAssignment kind index assignment).digit (.externalA lane) digit =
-      absoluteValue assignment (externalASlotStart kind lane + digit.val) := by
-  simp [projectFinalAssignment, digitColumn]
-
-@[simp] theorem projected_direct_externalB (index : Nat)
-    (assignment : Fin productionFinalColumns → F) (lane : Fin 4)
-    (digit : Fin 41) :
-    (projectFinalAssignment .direct index assignment).digit (.externalB lane) digit =
-      absoluteValue assignment (externalBSlotStartFor lane + digit.val) := by
-  simp [projectFinalAssignment, digitColumn]
-
-@[simp] theorem projected_partial_externalB (index : Nat)
-    (assignment : Fin productionFinalColumns → F) (lane : Fin 4)
-    (digit : Fin 41) :
-    (projectFinalAssignment .partialStart index assignment).digit (.externalB lane) digit =
-      absoluteValue assignment (externalBSlotStartFor lane + digit.val) := by
-  simp [projectFinalAssignment, digitColumn]
-
-@[simp] theorem projected_chained_externalB (selector index : Nat)
-    (assignment : Fin productionFinalColumns → F) (lane : Fin 4)
-    (digit : Fin 41) :
-    (projectFinalAssignment (.chained selector) index assignment).digit
-        (.externalB lane) digit = 0 := by
-  simp [projectFinalAssignment, digitColumn]
-
-@[simp] theorem projected_direct_previousLocal (index : Nat)
+@[simp] theorem projected_local (site : CallSite)
     (assignment : Fin productionFinalColumns → F) (slotIndex : Fin 86)
     (digit : Fin 41) :
-    (projectFinalAssignment .direct index assignment).digit
-        (.previousLocal slotIndex) digit = 0 := by
-  simp [projectFinalAssignment, digitColumn]
-
-@[simp] theorem projected_partial_previousLocal (index : Nat)
-    (assignment : Fin productionFinalColumns → F) (slotIndex : Fin 86)
-    (digit : Fin 41) :
-    (projectFinalAssignment .partialStart index assignment).digit
-        (.previousLocal slotIndex) digit = 0 := by
-  simp [projectFinalAssignment, digitColumn]
-
-theorem projected_chained_previousLocal (selector index : Nat)
-    (positive : 0 < index)
-    (assignment : Fin productionFinalColumns → F) (slotIndex : Fin 86)
-    (digit : Fin 41) :
-    (projectFinalAssignment (.chained selector) index assignment).digit
-        (.previousLocal slotIndex) digit =
+    (projectFinalAssignment site assignment).digit (.local slotIndex) digit =
       absoluteValue assignment
-        (previousLocalSlotStart index + slotIndex.val * slotWidth +
-          digit.val) := by
-  simp [projectFinalAssignment, digitColumn, positive]
-
-@[simp] theorem projected_local (kind : LeafClass) (index : Nat)
-    (assignment : Fin productionFinalColumns → F) (slotIndex : Fin 86)
-    (digit : Fin 41) :
-    (projectFinalAssignment kind index assignment).digit (.local slotIndex) digit =
-      absoluteValue assignment
-        (currentLocalSlotStart index + slotIndex.val * slotWidth +
+        (site.localFinalStart + slotIndex.val * slotWidth +
           digit.val) := by
   simp [projectFinalAssignment, digitColumn]
 
@@ -246,15 +214,16 @@ theorem projected_local_from_indexedOwnership
     {placement : Placement} {index : Nat}
     {call : Poseidon2Call.Call}
     (ownership : placement.IndexedOwnership index call)
-    (kind : LeafClass) (assignment : Fin productionFinalColumns → F)
+    (site : CallSite)
+    (localRoot : site.localFinalStart = 2218425 + index * (86 * 41))
+    (assignment : Fin productionFinalColumns → F)
     (slotIndex : Fin 86) (digit : Fin 41) :
-    (projectFinalAssignment kind index assignment).digit
+    (projectFinalAssignment site assignment).digit
         (.local slotIndex) digit =
       absoluteValue assignment
         (placement.decoder.finalStart +
           index * placement.decoder.finalStride +
           slotIndex.val * slotWidth + digit.val) := by
-  rw [projected_local, ownership.decoderFinalStart]
-  rfl
+  rw [projected_local, localRoot, ownership.decoderFinalStart]
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPoseidonCallProjection

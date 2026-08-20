@@ -560,6 +560,7 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
         }
         // Permute.
         let permutation_input_cols = next.map(Var::col);
+        let first_allocated_column = builder.cols();
         state = enforce_poseidon2_permutation(builder, &next);
         rounds.push(Poseidon2HashRoundTrace {
             kind: Poseidon2HashRoundKind::Absorb {
@@ -568,6 +569,7 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
             state_before_cols,
             permutation_input_cols,
             defining_rows,
+            first_allocated_column,
             permutation_output_cols: state.map(Var::col),
         });
     }
@@ -586,12 +588,14 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
 
     // Final permute.
     let permutation_input_cols = state.map(Var::col);
+    let first_allocated_column = builder.cols();
     state = enforce_poseidon2_permutation(builder, &state);
     rounds.push(Poseidon2HashRoundTrace {
         kind: Poseidon2HashRoundKind::Pad,
         state_before_cols,
         permutation_input_cols,
         defining_rows: vec![padding_row],
+        first_allocated_column,
         permutation_output_cols: state.map(Var::col),
     });
 

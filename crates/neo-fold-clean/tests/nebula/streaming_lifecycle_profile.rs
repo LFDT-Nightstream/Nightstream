@@ -10,9 +10,11 @@ use std::path::{Path, PathBuf};
 use lean_artifact_support::sha256_hex;
 
 use neo_fold_clean::frontends::nebula::f_prime::{
-    prepare_streaming_lifecycle_preprocessing, production_streaming_lifecycle_full_source_fixed_point_audit,
-    production_streaming_lifecycle_profile, synthesize_streaming_lifecycle_source_arms,
-    NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingVerifierKeyDigestBinding,
+    extract_base_verifier_key_core_recipes, prepare_streaming_lifecycle_preprocessing,
+    production_streaming_lifecycle_full_source_fixed_point_audit, production_streaming_lifecycle_profile,
+    synthesize_streaming_lifecycle_source_arms, NebulaFPrimeStreamingLifecycleArm,
+    NebulaFPrimeStreamingLifecycleProfile, NebulaFPrimeStreamingLifecycleSourceArms,
+    NebulaFPrimeStreamingLifecycleStageBinding, NebulaFPrimeStreamingVerifierKeyDigestBinding,
     NebulaFPrimeStreamingVerifierKeyHashBlock, STREAMING_LIFECYCLE_BASE_SOURCE_ARTIFACT_ID,
     STREAMING_LIFECYCLE_FINAL_ARTIFACT_ID, STREAMING_LIFECYCLE_PROFILE_ID,
     STREAMING_LIFECYCLE_RECURSIVE_SOURCE_ARTIFACT_ID,
@@ -27,6 +29,8 @@ use neo_math::D;
 
 const RECURSIVE_VERIFIER_KEY_ARTIFACT_PATH: &str = "../../formal/nightstream-lean/Nightstream/Implementation/\
 R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingLifecycleRecursiveVerifierKey.lean";
+const BASE_VERIFIER_KEY_ARTIFACT_PATH: &str = "../../formal/nightstream-lean/Nightstream/Implementation/\
+R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingLifecycleBaseVerifierKey.lean";
 
 fn lean_range(range: std::ops::Range<usize>) -> String {
     format!("{{ start := {}, stop := {} }}", range.start, range.end)
@@ -36,7 +40,7 @@ fn lean_option(value: Option<usize>) -> String {
     value.map_or_else(|| "none".to_string(), |value| format!("some {value}"))
 }
 
-fn render_recursive_verifier_key_hash_block(block: &NebulaFPrimeStreamingVerifierKeyHashBlock) -> String {
+fn render_verifier_key_hash_block(block: &NebulaFPrimeStreamingVerifierKeyHashBlock) -> String {
     format!(
         "{{ sourceRows := {}, recipe := {{ constantValues := {:?}, constantStartColumn := {}, \
          localColumns := {:?}, payloadColumns := [], orderedInputColumns := {:?}, outputColumns := {:?} }} }}",
@@ -49,7 +53,7 @@ fn render_recursive_verifier_key_hash_block(block: &NebulaFPrimeStreamingVerifie
     )
 }
 
-fn render_recursive_verifier_key_digest_binding(binding: &NebulaFPrimeStreamingVerifierKeyDigestBinding) -> String {
+fn render_verifier_key_digest_binding(binding: &NebulaFPrimeStreamingVerifierKeyDigestBinding) -> String {
     format!(
         "{{ sourceRows := {}, leftColumns := {:?}, rightColumns := {:?} }}",
         lean_range(binding.source_rows()),
@@ -58,7 +62,10 @@ fn render_recursive_verifier_key_digest_binding(binding: &NebulaFPrimeStreamingV
     )
 }
 
-fn render_recursive_verifier_key_artifact() -> String {
+fn lifecycle_profile_fixture() -> (
+    NebulaFPrimeStreamingLifecycleSourceArms,
+    NebulaFPrimeStreamingLifecycleProfile,
+) {
     let reference_params = Params::production();
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step memory profile");
     let plan = NebulaPlan::new(memory, vec![7], [0xD9; 32], reference_params.kappa() as usize).expect("Nebula plan");
@@ -93,6 +100,64 @@ fn render_recursive_verifier_key_artifact() -> String {
         .expect("exact two-arm selective lifecycle relation");
     let profile = production_streaming_lifecycle_profile(&lifecycle, &relation)
         .expect("exact lifecycle source-to-selective profile");
+    (lifecycle, profile)
+}
+
+fn render_source_runs(stage: &NebulaFPrimeStreamingLifecycleStageBinding) -> (String, String) {
+    let mut source_runs = String::from("[\n");
+    let mut source_run_proof = String::from("by\n  unfold sourceRuns\n  exact ");
+    let mut source_cursor = stage.source_rows().start;
+    let mut source_run_count = 0usize;
+    for run in stage.source_runs() {
+        let rows = run.source_rows();
+        assert_eq!(rows.start, source_cursor);
+        assert!(rows.start <= rows.end);
+        writeln!(
+            source_runs,
+            "    {{ sourceRows := {}, disposition := \"{:?}\", emittedStart := {} }},",
+            lean_range(rows.clone()),
+            run.disposition(),
+            lean_option(run.emitted_start()),
+        )
+        .unwrap();
+        source_run_proof.push_str("SourceRunChain.cons rfl (by decide)\n    (");
+        source_cursor = rows.end;
+        source_run_count += 1;
+    }
+    assert_eq!(source_cursor, stage.source_rows().end);
+    source_run_proof.push_str(&format!("SourceRunChain.nil {source_cursor}"));
+    source_run_proof.extend(std::iter::repeat_n(')', source_run_count));
+    source_runs.push_str("  ]");
+    (source_runs, source_run_proof)
+}
+
+fn render_final_runs(stage: &NebulaFPrimeStreamingLifecycleStageBinding, final_row_count: usize) -> (String, String) {
+    let mut final_runs = String::from("[\n");
+    let mut final_run_proof = String::from("by\n  unfold finalRuns\n  exact ");
+    let mut final_run_count = 0usize;
+    for run in stage.final_row_runs() {
+        let rows = run.rows();
+        assert!(rows.start <= rows.end);
+        assert!(rows.end <= final_row_count);
+        writeln!(
+            final_runs,
+            "    {{ family := \"{:?}\", rows := {}, rewriteId := {} }},",
+            run.family(),
+            lean_range(rows),
+            lean_option(run.rewrite_id()),
+        )
+        .unwrap();
+        final_run_proof.push_str("FinalRunsWithin.cons (by decide) (by decide)\n    (");
+        final_run_count += 1;
+    }
+    final_run_proof.push_str("FinalRunsWithin.nil");
+    final_run_proof.extend(std::iter::repeat_n(')', final_run_count));
+    final_runs.push_str("  ]");
+    (final_runs, final_run_proof)
+}
+
+fn render_recursive_verifier_key_artifact() -> String {
+    let (lifecycle, profile) = lifecycle_profile_fixture();
     let branch = profile.arm(NebulaFPrimeStreamingLifecycleArm::Recursive);
     let verifier_advice = lifecycle.verifier_advice_preimage_fields(NebulaFPrimeStreamingLifecycleArm::Recursive);
     let stages = branch
@@ -119,52 +184,8 @@ fn render_recursive_verifier_key_artifact() -> String {
         "recursive verifier-key recipe validation must reject source-row drift",
     );
 
-    let mut source_runs = String::from("[\n");
-    let mut source_run_proof = String::from("by\n  unfold sourceRuns\n  exact ");
-    let mut source_cursor = stage.source_rows().start;
-    let mut source_run_count = 0usize;
-    for run in stage.source_runs() {
-        let rows = run.source_rows();
-        assert_eq!(rows.start, source_cursor);
-        assert!(rows.start <= rows.end);
-        writeln!(
-            source_runs,
-            "    {{ sourceRows := {}, disposition := \"{:?}\", emittedStart := {} }},",
-            lean_range(rows.clone()),
-            run.disposition(),
-            lean_option(run.emitted_start()),
-        )
-        .unwrap();
-        source_run_proof.push_str("SourceRunChain.cons rfl (by decide)\n    (");
-        source_cursor = rows.end;
-        source_run_count += 1;
-    }
-    assert_eq!(source_cursor, stage.source_rows().end);
-    source_run_proof.push_str(&format!("SourceRunChain.nil {source_cursor}"));
-    source_run_proof.extend(std::iter::repeat_n(')', source_run_count));
-    source_runs.push_str("  ]");
-
-    let mut final_runs = String::from("[\n");
-    let mut final_run_proof = String::from("by\n  unfold finalRuns\n  exact ");
-    let mut final_run_count = 0usize;
-    for run in stage.final_row_runs() {
-        let rows = run.rows();
-        assert!(rows.start <= rows.end);
-        assert!(rows.end <= profile.final_rows());
-        writeln!(
-            final_runs,
-            "    {{ family := \"{:?}\", rows := {}, rewriteId := {} }},",
-            run.family(),
-            lean_range(rows),
-            lean_option(run.rewrite_id()),
-        )
-        .unwrap();
-        final_run_proof.push_str("FinalRunsWithin.cons (by decide) (by decide)\n    (");
-        final_run_count += 1;
-    }
-    final_run_proof.push_str("FinalRunsWithin.nil");
-    final_run_proof.extend(std::iter::repeat_n(')', final_run_count));
-    final_runs.push_str("  ]");
+    let (source_runs, source_run_proof) = render_source_runs(stage);
+    let (final_runs, final_run_proof) = render_final_runs(stage, profile.final_rows());
 
     let payload = format!(
         "def sourceRuns : List SourceRun := {source_runs}\n\n\
@@ -200,12 +221,12 @@ fn render_recursive_verifier_key_artifact() -> String {
         lean_range(verifier_advice.structure_digest()),
         lean_range(verifier_advice.ajtai_pp_digest()),
         lean_range(verifier_advice.initial_semantic_state_digest()),
-        render_recursive_verifier_key_hash_block(&base_hash),
-        render_recursive_verifier_key_hash_block(&policy_hash),
-        render_recursive_verifier_key_digest_binding(policy_digest_binding),
-        render_recursive_verifier_key_hash_block(&initial_boundary_hash),
-        render_recursive_verifier_key_digest_binding(initial_boundary_binding),
-        render_recursive_verifier_key_digest_binding(public_trace_binding),
+        render_verifier_key_hash_block(base_hash),
+        render_verifier_key_hash_block(policy_hash),
+        render_verifier_key_digest_binding(policy_digest_binding),
+        render_verifier_key_hash_block(initial_boundary_hash),
+        render_verifier_key_digest_binding(initial_boundary_binding),
+        render_verifier_key_digest_binding(public_trace_binding),
         profile.final_rows(),
         stage.source_rows().start,
         stage.source_rows().end,
@@ -227,6 +248,119 @@ fn render_recursive_verifier_key_artifact() -> String {
          {payload}\n\
          end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingLifecycleRecursiveVerifierKey\n",
     )
+}
+
+fn render_base_verifier_key_artifact() -> String {
+    let (lifecycle, profile) = lifecycle_profile_fixture();
+    let arm = NebulaFPrimeStreamingLifecycleArm::Base;
+    let source = lifecycle.arm(arm);
+    let branch = profile.arm(arm);
+    let verifier_advice = lifecycle.verifier_advice_preimage_fields(arm);
+    let stages = branch
+        .stages()
+        .iter()
+        .filter(|stage| stage.path() == fprime_stage::BASE_VERIFIER_KEY)
+        .collect::<Vec<_>>();
+    let [stage] = stages.as_slice() else {
+        panic!("base lifecycle arm must contain exactly one verifier-key stage")
+    };
+    let core = extract_base_verifier_key_core_recipes(source, lifecycle.base_assignment())
+        .expect("exact base verifier-key core recipes");
+    let mut corrupted_base_hash = core.base_verifier_key().clone();
+    corrupted_base_hash.apply_constant_value_test_mutation(0, core.base_verifier_key().constant_values()[0] + 1);
+    assert!(
+        corrupted_base_hash
+            .validate_source_rows_for_test(source)
+            .is_err(),
+        "base verifier-key recipe validation must reject source-row drift",
+    );
+    let (source_runs, source_run_proof) = render_source_runs(stage);
+    let (final_runs, final_run_proof) = render_final_runs(stage, profile.final_rows());
+    let payload = format!(
+        "def sourceRuns : List SourceRun := {source_runs}\n\n\
+         def finalRuns : List FinalRun := {final_runs}\n\n\
+         def rawArtifact : RawArtifact :=\n  \
+         {{ schemaVersion := 1,\n    \
+            profileId := \"{}\",\n    \
+            sourceArtifactIdentity := \"{}\",\n    \
+            finalArtifactIdentity := \"{}\",\n    \
+            stagePath := \"{}\", occurrence := {},\n    \
+            sourceRows := {}, sourceColumns := {},\n    \
+            structureDigestColumns := {},\n    \
+            ajtaiPpDigestColumns := {},\n    \
+            initialSemanticStateDigestColumns := {},\n    \
+            baseVerifierKeyHash := {},\n    \
+            policyVerifierKeyHash := {},\n    \
+            policyDigestBinding := {},\n    \
+            initialBoundaryHash := {},\n    \
+            initialBoundaryBinding := {},\n    \
+            finalRowCount := {},\n    \
+            sourceRuns := sourceRuns,\n    \
+            finalRuns := finalRuns }}\n\n\
+         theorem sourceRuns_cover : SourceRunChain {} sourceRuns {} :=\n{}\n\n\
+         theorem finalRuns_inside : FinalRunsWithin {} finalRuns :=\n{}\n",
+        profile.profile_id(),
+        branch.source_artifact_identity(),
+        profile.final_artifact_identity(),
+        stage.path(),
+        stage.occurrence(),
+        lean_range(stage.source_rows()),
+        lean_range(stage.source_columns()),
+        lean_range(verifier_advice.structure_digest()),
+        lean_range(verifier_advice.ajtai_pp_digest()),
+        lean_range(verifier_advice.initial_semantic_state_digest()),
+        render_verifier_key_hash_block(core.base_verifier_key()),
+        render_verifier_key_hash_block(core.policy_verifier_key()),
+        render_verifier_key_digest_binding(core.policy_digest_binding()),
+        render_verifier_key_hash_block(core.initial_boundary()),
+        render_verifier_key_digest_binding(core.initial_boundary_binding()),
+        profile.final_rows(),
+        stage.source_rows().start,
+        stage.source_rows().end,
+        source_run_proof,
+        profile.final_rows(),
+        final_run_proof,
+    );
+    let artifact_hash = sha256_hex(&payload);
+    format!(
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingLifecycleBaseVerifierKeySchema\n\n\
+         /-! Generated exact source-to-final provenance for the base lifecycle verifier-key core.\n\n\
+         This is a compact leaf of the monolithic reference compiler audit. It is not the final phased profile.\n\n\
+         Emits constraints: no.\n\
+         -/\n\n\
+         set_option autoImplicit false\n\n\
+         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingLifecycleBaseVerifierKey\n\n\
+         open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingLifecycleBaseVerifierKey.Artifact\n\n\
+         def artifactSha256 : String := \"{artifact_hash}\"\n\n\
+         {payload}\n\
+         end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingLifecycleBaseVerifierKey\n",
+    )
+}
+
+fn base_verifier_key_artifact_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(BASE_VERIFIER_KEY_ARTIFACT_PATH)
+}
+
+#[test]
+#[ignore = "exact monolithic reference projection; run only for this leaf artifact"]
+fn lifecycle_base_verifier_key_artifact_is_current() {
+    let path = base_verifier_key_artifact_path();
+    let rendered = render_base_verifier_key_artifact();
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
+        let expected = path.with_extension("lean.expected");
+        std::fs::write(&expected, rendered).expect("write expected base verifier-key artifact");
+        panic!(
+            "base verifier-key Lean artifact drifted; inspect {}",
+            expected.display()
+        );
+    }
+}
+
+#[test]
+#[ignore = "deliberately writes the reviewed generated Lean artifact"]
+fn regenerate_lifecycle_base_verifier_key_artifact() {
+    std::fs::write(base_verifier_key_artifact_path(), render_base_verifier_key_artifact())
+        .expect("write generated base verifier-key artifact");
 }
 
 fn recursive_verifier_key_artifact_path() -> PathBuf {

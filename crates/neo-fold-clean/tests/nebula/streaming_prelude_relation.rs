@@ -1,18 +1,22 @@
-use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder};
+use neo_fold_clean::engine::r1cs_circuit::builder::{Poseidon2HashAudit, Poseidon2HashRoundAuditKind};
+use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder, R1csSnapshot, Var};
 use neo_fold_clean::frontends::f_prime::gadget_native::audit_r1cs_gadget_native_source_manifest;
 use neo_fold_clean::frontends::nebula::f_prime::{
     production_streaming_prelude_source_arm, NebulaFPrimeStreamingPreludeSynthesis, NebulaFPrimeStreamingPublicLayout,
     STREAMING_PRELUDE_INITIAL_REPLAY_STATE_FAMILY, STREAMING_PRELUDE_INITIAL_REPLAY_STATE_ROWS_FAMILY,
 };
+use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fmt::Write;
 
 const PROFILE_ID: &str = "nightstream-goldilocks-b2-k16";
 const GENERATED_REL_DIR: &str =
     "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated";
 const MAIN_FILE: &str = "FPrimeFullHistoryStreamingPreludeSource.lean";
+const X_OUT_FILE: &str = "FPrimeFullHistoryStreamingPreludeXOut.lean";
 const COLLAPSED_DOMAIN_RECEIPT_FILE: &str = "FPrimeFullHistoryStreamingPreludeCollapsedDomainReceipt.lean";
 const POSEIDON_FILE: &str = "FPrimeFullHistoryStreamingPreludePoseidonCalls.lean";
 const CANONICAL_FILE: &str = "FPrimeFullHistoryStreamingPreludeCanonicalCalls.lean";
@@ -84,9 +88,30 @@ struct StageData {
 }
 
 #[derive(Clone)]
+struct ExactHashBlock {
+    source_rows: RangeData,
+    zero_column: usize,
+    input_columns: Vec<usize>,
+    output_columns: Vec<usize>,
+}
+
+#[derive(Clone)]
+struct ExactPublicEncoding {
+    canonical_calls: Vec<CanonicalCall>,
+    normalized_bit_base: usize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
 struct ColumnBinding {
     source: usize,
     normalized: usize,
+}
+
+#[derive(Clone)]
+struct ColumnSpan {
+    source_start: usize,
+    normalized_start: usize,
+    length: usize,
 }
 
 struct CompactSource {
@@ -95,9 +120,18 @@ struct CompactSource {
     normalized_columns: usize,
     public_columns: usize,
     public_bindings: Vec<ColumnBinding>,
+    public_spans: Vec<ColumnSpan>,
     initial_replay_state: Vec<ColumnBinding>,
     before_local_state_digest: Vec<ColumnBinding>,
     after_local_state_digest: Vec<ColumnBinding>,
+    before_x_out_preimage: Vec<ColumnBinding>,
+    after_x_out_preimage: Vec<ColumnBinding>,
+    before_x_out_digest: Vec<ColumnBinding>,
+    after_x_out_digest: Vec<ColumnBinding>,
+    after_x_out_hash: ExactHashBlock,
+    before_x_out_hash: ExactHashBlock,
+    after_x_out_public: ExactPublicEncoding,
+    before_x_out_public: ExactPublicEncoding,
     before_program_cursor: ColumnBinding,
     after_program_cursor: ColumnBinding,
     stages: Vec<StageData>,
@@ -190,11 +224,292 @@ fn bind_column(public_source_columns: &[usize], source: usize) -> ColumnBinding 
     }
 }
 
+fn column_spans(bindings: &[ColumnBinding]) -> Vec<ColumnSpan> {
+    let mut spans = Vec::<ColumnSpan>::new();
+    for binding in bindings {
+        if let Some(span) = spans.last_mut() {
+            if span.source_start + span.length == binding.source
+                && span.normalized_start + span.length == binding.normalized
+            {
+                span.length += 1;
+                continue;
+            }
+        }
+        spans.push(ColumnSpan {
+            source_start: binding.source,
+            normalized_start: binding.normalized,
+            length: 1,
+        });
+    }
+    spans
+}
+
+fn span_normalized_column(spans: &[ColumnSpan], source: usize) -> usize {
+    if source == 0 {
+        return 0;
+    }
+    if let Some(span) = spans
+        .iter()
+        .find(|span| span.source_start <= source && source < span.source_start + span.length)
+    {
+        return span.normalized_start + (source - span.source_start);
+    }
+    let public_count = spans.iter().map(|span| span.length).sum::<usize>();
+    let public_before = spans
+        .iter()
+        .map(|span| source.saturating_sub(span.source_start).min(span.length))
+        .sum::<usize>();
+    let private_before = source
+        .checked_sub(1 + public_before)
+        .expect("public spans cannot outnumber earlier nonconstant columns");
+    1 + public_count + private_before
+}
+
 fn source_terms(terms: &[(usize, F)]) -> Vec<(usize, u64)> {
     terms
         .iter()
         .map(|&(column, coefficient)| (column, coefficient.as_canonical_u64()))
         .collect()
+}
+
+fn normalized_terms(terms: impl IntoIterator<Item = (usize, F)>) -> Vec<(usize, u64)> {
+    let mut normalized = BTreeMap::<usize, F>::new();
+    for (column, coefficient) in terms {
+        *normalized.entry(column).or_insert(F::ZERO) += coefficient;
+    }
+    normalized
+        .into_iter()
+        .filter(|(_, coefficient)| *coefficient != F::ZERO)
+        .map(|(column, coefficient)| (column, coefficient.as_canonical_u64()))
+        .collect()
+}
+
+fn remapped_source_terms(spans: &[ColumnSpan], terms: &[(usize, F)]) -> Vec<(usize, u64)> {
+    normalized_terms(
+        terms
+            .iter()
+            .map(|&(column, coefficient)| (span_normalized_column(spans, column), coefficient)),
+    )
+}
+
+fn validate_normalized_rows(
+    source: &R1csSnapshot,
+    normalized: &SparseR1cs,
+    spans: &[ColumnSpan],
+    rows: &RangeData,
+    scope: &str,
+) -> Result<(), String> {
+    for row in rows.start..rows.stop {
+        let expected = [
+            remapped_source_terms(spans, source.a_row(row)),
+            remapped_source_terms(spans, source.b_row(row)),
+            remapped_source_terms(spans, source.c_row(row)),
+        ];
+        let actual = [
+            normalized_terms(
+                normalized
+                    .a
+                    .materialize_row(row)
+                    .ok_or_else(|| format!("{scope} row {row} escapes normalized A"))?,
+            ),
+            normalized_terms(
+                normalized
+                    .b
+                    .materialize_row(row)
+                    .ok_or_else(|| format!("{scope} row {row} escapes normalized B"))?,
+            ),
+            normalized_terms(
+                normalized
+                    .c
+                    .materialize_row(row)
+                    .ok_or_else(|| format!("{scope} row {row} escapes normalized C"))?,
+            ),
+        ];
+        if actual != expected {
+            return Err(format!("{scope} row {row} differs after source-to-normalized lowering"));
+        }
+    }
+    Ok(())
+}
+
+fn expect_affine_source_row(
+    source: &R1csSnapshot,
+    row: usize,
+    terms: impl IntoIterator<Item = (usize, F)>,
+    scope: &str,
+) -> Result<(), String> {
+    if row >= source.rows() {
+        return Err(format!("{scope} row {row} escapes the source"));
+    }
+    let actual_a = normalized_terms(source.a_row(row).iter().copied());
+    let actual_b = normalized_terms(source.b_row(row).iter().copied());
+    let actual_c = normalized_terms(source.c_row(row).iter().copied());
+    let expected_a = normalized_terms(terms);
+    let expected_b = vec![(Var::ONE.col(), F::ONE.as_canonical_u64())];
+    if actual_a != expected_a || actual_b != expected_b || !actual_c.is_empty() {
+        return Err(format!("{scope} row {row} differs from the exact affine recipe"));
+    }
+    Ok(())
+}
+
+fn validate_exact_hash_block(
+    builder: &R1csBuilder,
+    audit: &Poseidon2HashAudit,
+    block: &ExactHashBlock,
+    scope: &str,
+) -> Result<(), String> {
+    if audit.row_start != audit.zero_row
+        || block.source_rows.start != audit.zero_row
+        || block.source_rows.stop != audit.row_end
+        || block.zero_column != audit.zero_col
+        || block.input_columns != audit.input_cols
+        || block.output_columns.as_slice() != audit.output_cols
+        || audit.rounds.len() != 9
+        || audit.row_end - audit.row_start != 5_434
+    {
+        return Err(format!("{scope} hash geometry differs"));
+    }
+
+    let source = builder.snapshot();
+    expect_affine_source_row(&source, audit.zero_row, [(audit.zero_col, F::ONE)], scope)?;
+
+    let permutations = builder.encoding_trace().poseidon_permutations();
+    let mut state = [audit.zero_col; 8];
+    let mut input_cursor = 0usize;
+    let mut row_cursor = audit.zero_row + 1;
+    for (round_index, round) in audit.rounds.iter().enumerate() {
+        if round.state_before_cols != state {
+            return Err(format!("{scope} round {round_index} state link differs"));
+        }
+        let defining_count = match &round.kind {
+            Poseidon2HashRoundAuditKind::Absorb { chunk_cols } => {
+                if chunk_cols.is_empty()
+                    || chunk_cols.len() > 4
+                    || input_cursor + chunk_cols.len() > audit.input_cols.len()
+                    || chunk_cols.as_slice() != &audit.input_cols[input_cursor..input_cursor + chunk_cols.len()]
+                {
+                    return Err(format!("{scope} round {round_index} input order differs"));
+                }
+                for (lane, &input) in chunk_cols.iter().enumerate() {
+                    expect_affine_source_row(
+                        &source,
+                        row_cursor + lane,
+                        [
+                            (round.permutation_input_cols[lane], F::ONE),
+                            (state[lane], -F::ONE),
+                            (input, -F::ONE),
+                        ],
+                        scope,
+                    )?;
+                }
+                if round.permutation_input_cols[chunk_cols.len()..] != state[chunk_cols.len()..] {
+                    return Err(format!("{scope} round {round_index} changes a capacity lane"));
+                }
+                input_cursor += chunk_cols.len();
+                chunk_cols.len()
+            }
+            Poseidon2HashRoundAuditKind::Pad => {
+                if input_cursor != audit.input_cols.len() || round.permutation_input_cols[1..] != state[1..] {
+                    return Err(format!("{scope} padding is disconnected"));
+                }
+                expect_affine_source_row(
+                    &source,
+                    row_cursor,
+                    [
+                        (round.permutation_input_cols[0], F::ONE),
+                        (state[0], -F::ONE),
+                        (Var::ONE.col(), -F::ONE),
+                    ],
+                    scope,
+                )?;
+                1
+            }
+        };
+        let expected_rows = row_cursor..row_cursor + defining_count;
+        if round.defining_rows != expected_rows.clone().collect::<Vec<_>>() {
+            return Err(format!("{scope} round {round_index} definition ownership differs"));
+        }
+        let calls = permutations
+            .iter()
+            .filter(|call| call.source_rows == (expected_rows.end..expected_rows.end + 600))
+            .collect::<Vec<_>>();
+        let [call] = calls.as_slice() else {
+            return Err(format!("{scope} round {round_index} does not select one permutation"));
+        };
+        if call.input_columns != round.permutation_input_cols || call.output_columns != round.permutation_output_cols {
+            return Err(format!("{scope} round {round_index} permutation mapping differs"));
+        }
+        row_cursor = call.source_rows.end;
+        state = round.permutation_output_cols;
+    }
+    if input_cursor != audit.input_cols.len() || row_cursor != audit.row_end || audit.output_cols != state[..4] {
+        return Err(format!("{scope} hash does not close exactly"));
+    }
+    Ok(())
+}
+
+fn exact_hash_block(
+    builder: &R1csBuilder,
+    input_columns: &[usize],
+    output_columns: &[usize],
+    scope: &str,
+) -> Result<ExactHashBlock, String> {
+    let audits = builder.poseidon2_hash_audits();
+    let matches = audits
+        .iter()
+        .filter(|audit| audit.input_cols == input_columns && audit.output_cols.as_slice() == output_columns)
+        .collect::<Vec<_>>();
+    let [audit] = matches.as_slice() else {
+        return Err(format!("{scope} does not select one Poseidon2 hash"));
+    };
+    let block = ExactHashBlock {
+        source_rows: RangeData {
+            start: audit.row_start,
+            stop: audit.row_end,
+        },
+        zero_column: audit.zero_col,
+        input_columns: audit.input_cols.clone(),
+        output_columns: audit.output_cols.to_vec(),
+    };
+    validate_exact_hash_block(builder, audit, &block, scope)?;
+    Ok(block)
+}
+
+fn exact_public_encoding(
+    canonical_calls: &[CanonicalCall],
+    public_source_columns: &[usize],
+    digest_columns: &[ColumnBinding],
+    normalized_bit_base: usize,
+    scope: &str,
+) -> Result<ExactPublicEncoding, String> {
+    if digest_columns.len() != 4 {
+        return Err(format!("{scope} does not contain four digest lanes"));
+    }
+    let mut selected = Vec::with_capacity(4);
+    for (lane, digest) in digest_columns.iter().enumerate() {
+        let matches = canonical_calls
+            .iter()
+            .filter(|call| call.field_column == digest.source)
+            .collect::<Vec<_>>();
+        let [call] = matches.as_slice() else {
+            return Err(format!("{scope} lane {lane} does not select one canonical-u64 call"));
+        };
+        for bit in 0..64 {
+            let source = call.bit_base + bit;
+            let normalized = normalized_column(public_source_columns, source);
+            let expected = normalized_bit_base + 64 * lane + bit;
+            if normalized != expected {
+                return Err(format!(
+                    "{scope} lane {lane} bit {bit} maps to {normalized}, not {expected}"
+                ));
+            }
+        }
+        selected.push((*call).clone());
+    }
+    Ok(ExactPublicEncoding {
+        canonical_calls: selected,
+        normalized_bit_base,
+    })
 }
 
 fn build_compact_source() -> CompactSource {
@@ -328,7 +643,18 @@ fn build_compact_source() -> CompactSource {
         .iter()
         .copied()
         .map(|source| bind_column(&public_source_columns, source))
-        .collect();
+        .collect::<Vec<_>>();
+    let public_spans = column_spans(&public_bindings);
+    assert_eq!(
+        public_spans.iter().map(|span| span.length).sum::<usize>(),
+        public_bindings.len()
+    );
+    for binding in &public_bindings {
+        assert_eq!(
+            span_normalized_column(&public_spans, binding.source),
+            binding.normalized
+        );
+    }
     let initial_replay_state = synthesis
         .initial_replay_state_columns()
         .iter()
@@ -347,6 +673,111 @@ fn build_compact_source() -> CompactSource {
         .copied()
         .map(|source| bind_column(&public_source_columns, source))
         .collect();
+    let before_x_out_preimage = synthesis
+        .before_x_out_preimage_columns()
+        .iter()
+        .copied()
+        .map(|source| bind_column(&public_source_columns, source))
+        .collect();
+    let after_x_out_preimage = synthesis
+        .after_x_out_preimage_columns()
+        .iter()
+        .copied()
+        .map(|source| bind_column(&public_source_columns, source))
+        .collect();
+    let before_x_out_digest: Vec<ColumnBinding> = synthesis
+        .before_x_out_digest_columns()
+        .iter()
+        .copied()
+        .map(|source| bind_column(&public_source_columns, source))
+        .collect();
+    let after_x_out_digest: Vec<ColumnBinding> = synthesis
+        .after_x_out_digest_columns()
+        .iter()
+        .copied()
+        .map(|source| bind_column(&public_source_columns, source))
+        .collect();
+    let after_x_out_hash = exact_hash_block(
+        builder,
+        synthesis.after_x_out_preimage_columns(),
+        synthesis.after_x_out_digest_columns(),
+        "Prelude after-XOut",
+    )
+    .expect("exact Prelude after-XOut hash rows");
+    let before_x_out_hash = exact_hash_block(
+        builder,
+        synthesis.before_x_out_preimage_columns(),
+        synthesis.before_x_out_digest_columns(),
+        "Prelude before-XOut",
+    )
+    .expect("exact Prelude before-XOut hash rows");
+    let public_layout = NebulaFPrimeStreamingPublicLayout::production();
+    let after_x_out_public = exact_public_encoding(
+        &canonical_calls,
+        &public_source_columns,
+        &after_x_out_digest,
+        public_layout.after_state_digest_bits().start,
+        "Prelude after-XOut public encoding",
+    )
+    .expect("exact Prelude after-XOut public encoding");
+    let before_x_out_public = exact_public_encoding(
+        &canonical_calls,
+        &public_source_columns,
+        &before_x_out_digest,
+        public_layout.before_state_digest_bits().start,
+        "Prelude before-XOut public encoding",
+    )
+    .expect("exact Prelude before-XOut public encoding");
+    validate_normalized_rows(
+        &snapshot,
+        &lowered,
+        &public_spans,
+        &after_x_out_hash.source_rows,
+        "normalized Prelude after-XOut hash",
+    )
+    .expect("Prelude after-XOut hash rows survive exact lowering");
+    validate_normalized_rows(
+        &snapshot,
+        &lowered,
+        &public_spans,
+        &before_x_out_hash.source_rows,
+        "normalized Prelude before-XOut hash",
+    )
+    .expect("Prelude before-XOut hash rows survive exact lowering");
+    for (scope, public) in [
+        ("normalized Prelude after-XOut public encoding", &after_x_out_public),
+        ("normalized Prelude before-XOut public encoding", &before_x_out_public),
+    ] {
+        for call in &public.canonical_calls {
+            validate_normalized_rows(
+                &snapshot,
+                &lowered,
+                &public_spans,
+                &RangeData {
+                    start: call.row_start,
+                    stop: call.row_end,
+                },
+                scope,
+            )
+            .expect("Prelude public canonical rows survive exact lowering");
+        }
+    }
+    let mut corrupted = after_x_out_hash.clone();
+    corrupted.input_columns[0] += 1;
+    assert!(
+        validate_exact_hash_block(
+            builder,
+            builder
+                .poseidon2_hash_audits()
+                .iter()
+                .find(|audit| audit.output_cols.as_slice() == synthesis.after_x_out_digest_columns())
+                .expect("Prelude after-XOut audit"),
+            &corrupted,
+            "corrupted Prelude after-XOut",
+        )
+        .is_err(),
+        "Prelude XOut validator must reject input-column drift",
+    );
 
     CompactSource {
         rows: snapshot.rows(),
@@ -354,9 +785,18 @@ fn build_compact_source() -> CompactSource {
         normalized_columns: lowered.m,
         public_columns: lowered.m_in,
         public_bindings,
+        public_spans,
         initial_replay_state,
         before_local_state_digest,
         after_local_state_digest,
+        before_x_out_preimage,
+        after_x_out_preimage,
+        before_x_out_digest,
+        after_x_out_digest,
+        after_x_out_hash,
+        before_x_out_hash,
+        after_x_out_public,
+        before_x_out_public,
         before_program_cursor: bind_column(&public_source_columns, synthesis.before_program_cursor_column()),
         after_program_cursor: bind_column(&public_source_columns, synthesis.after_program_cursor_column()),
         stages,
@@ -473,6 +913,24 @@ fn lean_binding(binding: &ColumnBinding) -> String {
     )
 }
 
+fn lean_column_span(span: &ColumnSpan) -> String {
+    format!(
+        "{{ sourceStart := {}, normalizedStart := {}, length := {} }}",
+        span.source_start, span.normalized_start, span.length
+    )
+}
+
+fn lean_column_spans(spans: &[ColumnSpan]) -> String {
+    format!(
+        "[{}]",
+        spans
+            .iter()
+            .map(lean_column_span)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
 fn lean_bindings(bindings: &[ColumnBinding]) -> String {
     format!(
         "[{}]",
@@ -481,6 +939,86 @@ fn lean_bindings(bindings: &[ColumnBinding]) -> String {
             .map(lean_binding)
             .collect::<Vec<_>>()
             .join(", ")
+    )
+}
+
+fn lean_canonical_call(call: &CanonicalCall) -> String {
+    format!(
+        "{{ rowStart := {}, rowEnd := {}, fieldColumn := {}, bitBase := {}, highFlagColumn := {}, inverseColumn := {} }}",
+        call.row_start,
+        call.row_end,
+        call.field_column,
+        call.bit_base,
+        call.high_flag_column,
+        call.inverse_column,
+    )
+}
+
+fn lean_canonical_calls(calls: &[CanonicalCall]) -> String {
+    format!(
+        "[{}]",
+        calls
+            .iter()
+            .map(lean_canonical_call)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn render_x_out_hash_block(
+    block: &ExactHashBlock,
+    columns: &[ColumnBinding],
+    digest: &[ColumnBinding],
+    public: &ExactPublicEncoding,
+) -> String {
+    format!(
+        "{{ sourceRows := {}, preimageColumns := {}, digestColumns := {}, canonicalCalls := {}, normalizedBitBase := {}, recipe := {{ constantValues := [], constantStartColumn := {}, localColumns := {:?}, payloadColumns := [], orderedInputColumns := {:?}, outputColumns := {:?} }} }}",
+        lean_range(&block.source_rows),
+        lean_bindings(columns),
+        lean_bindings(digest),
+        lean_canonical_calls(&public.canonical_calls),
+        public.normalized_bit_base,
+        block.zero_column,
+        block.input_columns,
+        block.input_columns,
+        block.output_columns,
+    )
+}
+
+fn render_x_out_artifact(source: &CompactSource, source_identity: &str) -> String {
+    format!(
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPreludeXOutSchema\n\n\
+/-! GENERATED FILE. DO NOT EDIT. Exact Rust Prelude XOut hash-row ownership. -/\n\n\
+set_option autoImplicit false\n\n\
+namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPreludeXOut\n\n\
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPreludeXOut.Artifact\n\n\
+def rawArtifact : RawArtifact :=\n\
+{{ schemaVersion := 3,\n  \
+   profileId := \"{PROFILE_ID}\",\n  \
+   sourceArtifactIdentity := \"{source_identity}\",\n  \
+   branchScope := \"base\", lifecycleScope := \"prelude\",\n  \
+   stagePath := \"nebula.streaming.prelude.state_x_out\",\n  \
+   sourceRowCount := {}, sourceColumnCount := {}, normalizedColumnCount := {},\n  \
+   publicSpans := {},\n  \
+   afterXOut := {},\n  \
+   beforeXOut := {} }}\n\n\
+end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPreludeXOut\n",
+        source.rows,
+        source.source_columns,
+        source.normalized_columns,
+        lean_column_spans(&source.public_spans),
+        render_x_out_hash_block(
+            &source.after_x_out_hash,
+            &source.after_x_out_preimage,
+            &source.after_x_out_digest,
+            &source.after_x_out_public,
+        ),
+        render_x_out_hash_block(
+            &source.before_x_out_hash,
+            &source.before_x_out_preimage,
+            &source.before_x_out_digest,
+            &source.before_x_out_public,
+        ),
     )
 }
 
@@ -692,10 +1230,14 @@ set_option maxRecDepth 2048\n\n",
     .expect("render main");
     writeln!(
         out,
-        "  semanticColumns := {{ initialReplayState := {}, beforeLocalStateDigest := {}, afterLocalStateDigest := {}, beforeProgramCursor := {}, afterProgramCursor := {} }}",
+        "  semanticColumns := {{ initialReplayState := {}, beforeLocalStateDigest := {}, afterLocalStateDigest := {}, beforeXOutPreimage := {}, afterXOutPreimage := {}, beforeXOutDigest := {}, afterXOutDigest := {}, beforeProgramCursor := {}, afterProgramCursor := {} }}",
         lean_bindings(&source.initial_replay_state),
         lean_bindings(&source.before_local_state_digest),
         lean_bindings(&source.after_local_state_digest),
+        lean_bindings(&source.before_x_out_preimage),
+        lean_bindings(&source.after_x_out_preimage),
+        lean_bindings(&source.before_x_out_digest),
+        lean_bindings(&source.after_x_out_digest),
         lean_binding(&source.before_program_cursor),
         lean_binding(&source.after_program_cursor),
     )
@@ -755,6 +1297,7 @@ fn render_artifacts() -> Vec<RenderedArtifact> {
     identity_payload.push_str(&main_without_identity);
     let source_identity = format!("sha256:{}", sha256_hex(&identity_payload));
     let main = render_main(&source, &source_identity, residual.len());
+    let x_out = render_x_out_artifact(&source, &source_identity);
 
     let mut artifacts = vec![
         RenderedArtifact {
@@ -770,6 +1313,10 @@ fn render_artifacts() -> Vec<RenderedArtifact> {
     artifacts.push(RenderedArtifact {
         name: MAIN_FILE.to_owned(),
         contents: main,
+    });
+    artifacts.push(RenderedArtifact {
+        name: X_OUT_FILE.to_owned(),
+        contents: x_out,
     });
     for artifact in &artifacts {
         assert!(

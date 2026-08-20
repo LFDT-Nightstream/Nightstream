@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - oai/nebula-fprime-latest-retry
+  pull_request:
+    branches:
+      - nico/f-prime-constraints-cuda-formal
 
 permissions:
   contents: read

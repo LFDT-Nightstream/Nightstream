@@ -1,0 +1,26 @@
+name: OAI source export
+
+on:
+  push:
+    branches:
+      - oai/nebula-fprime-latest-retry
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Package source tree
+        run: |
+          tar --exclude=.git --exclude=target -czf /tmp/nightstream-source.tar.gz .
+      - name: Upload source tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightstream-source
+          path: /tmp/nightstream-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error

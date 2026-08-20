@@ -31,7 +31,7 @@ jobs:
   diagnose-streaming-fixed-point:
     if: github.event_name == 'pull_request'
     runs-on: self-hosted
-    timeout-minutes: 60
+    timeout-minutes: 6
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Measure exact latest streaming lifecycle fixed point
         run: |
-          cargo test --release -p neo-fold-clean \
+          timeout --signal=KILL 300s cargo test --release -p neo-fold-clean \
             --test nebula_streaming_lifecycle_profile \
             lifecycle_full_source_profile_reaches_a_recursive_shape_fixed_point \
-            --features testing -- --ignored --nocapture
+            -- --ignored --nocapture

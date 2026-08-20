@@ -3,38 +3,51 @@
 //! Owns only the transfer of the verifier-owned work-item maps into the generic
 //! scheduled composers. It does not own component circuits or public fields.
 
+mod lifecycle_kernel;
+
 use std::ops::Range;
 
+use neo_math::D;
 use thiserror::Error;
 
 use crate::frontends::r1cs_f_prime::{
+    build_multi_branch_selective_low_norm_r1cs_with_alignment,
     build_scheduled_grouped_phase_low_norm_r1cs_with_field_links,
     build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links,
-    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, LinkedOverlayError, LowNormR1csError,
-    MultiBranchLowNormR1cs, OverlayKindLinks, ScheduledCommonPhaseFieldLink, ScheduledCursorBits,
-    ScheduledGroupedPhaseError, ScheduledGroupedPhaseLowNormR1cs, ScheduledLinkedOverlayLowNormR1cs,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, LinkedOverlayError,
+    LowNormR1csError, MultiBranchLowNormR1cs, OverlayKindLinks,
+    ScheduledCommonPhaseFieldLink, ScheduledCursorBits, ScheduledGroupedPhaseError,
+    ScheduledGroupedPhaseLowNormR1cs, ScheduledLinkedOverlayLowNormR1cs,
     ScheduledPhaseKindLinks, SparseR1cs,
 };
 
 use super::streaming_claim_replay::{
-    production_claim_coordinate_overlay_kind_count, production_claim_coordinate_overlay_kind_map,
-    production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_sparse_arms,
-    NebulaFPrimeClaimReplayError,
+    production_claim_coordinate_overlay_kind_count,
+    production_claim_coordinate_overlay_kind_map, production_claim_coordinate_overlay_links,
+    production_claim_coordinate_overlay_sparse_arms, NebulaFPrimeClaimReplayError,
 };
 use super::streaming_lifecycle_relation::{
     NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleSourceArms,
 };
 use super::streaming_phase_envelope::{
-    STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY, STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY,
-    STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY, STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
+    STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
+    STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY,
+    STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY,
+    STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
 };
 use super::streaming_pi_rlc_family_relation::{
     production_pi_rlc_family_overlay_kind_map, production_pi_rlc_family_overlay_links,
-    production_pi_rlc_family_overlay_sparse_arms, NebulaFPrimePiRlcFamilyRelationError, PI_RLC_FAMILY_COUNT,
+    production_pi_rlc_family_overlay_sparse_arms, NebulaFPrimePiRlcFamilyRelationError,
+    PI_RLC_FAMILY_COUNT,
 };
 use super::streaming_prior_state_replay_relation::STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY;
-use super::streaming_program::{NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingProgramAudit};
+use super::streaming_program::{
+    NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingProgramAudit,
+};
 use super::streaming_public::NebulaFPrimeStreamingPublicLayout;
+
+const STREAMING_JOINT_ROW_BOUND: usize = 1 << 24;
+const STREAMING_MAX_ASSIGNMENT_FIELDS: usize = 16_777_206;
 
 #[derive(Debug, Error)]
 pub enum NebulaFPrimeStreamingRelationError {
@@ -50,6 +63,16 @@ pub enum NebulaFPrimeStreamingRelationError {
     LinkedOverlay(#[from] LinkedOverlayError),
     #[error("streaming F-prime phase-envelope link profile: {0}")]
     PhaseEnvelope(String),
+    #[error(
+        "streaming F-prime {relation} relation exceeds the production joint domain: rows {rows} (bound {row_bound}), assignment fields {assignment_fields} (bound {assignment_bound})"
+    )]
+    JointDomain {
+        relation: &'static str,
+        rows: usize,
+        assignment_fields: usize,
+        row_bound: usize,
+        assignment_bound: usize,
+    },
 }
 
 /// Checked source-field links for all production phase kinds.
@@ -78,6 +101,41 @@ impl NebulaFPrimeStreamingPhaseEnvelopeLinkProfile {
             .sum()
     }
 
+    /// Compile the exact two-arm compact lifecycle common relation and derive
+    /// all common-to-phase source-field links from the same Rust sources.
+    ///
+    /// The returned common relation owns XOut recomputation, cursor succession,
+    /// and the semantic envelope. It does not replace the phase circuits or the
+    /// monolithic lifecycle correspondence audit.
+    pub fn compile_compact_lifecycle(
+        phase_sources: &[SparseR1cs],
+    ) -> Result<(MultiBranchLowNormR1cs, Self), NebulaFPrimeStreamingRelationError> {
+        let lifecycle = lifecycle_kernel::production_streaming_lifecycle_kernel_source_arms()
+            .map_err(|error| NebulaFPrimeStreamingRelationError::PhaseEnvelope(error.to_string()))?;
+        let common = build_multi_branch_selective_low_norm_r1cs_with_alignment(lifecycle.arms(), 0, D, 0)?;
+        validate_production_joint_domain(
+            "compact lifecycle common",
+            common.structure().n,
+            common.structure().m,
+        )?;
+
+        let common_sources = [
+            lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base),
+            lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Recursive),
+        ];
+        let common_ranges = [
+            kernel_envelope_ranges(lifecycle.phase_envelope_fields(NebulaFPrimeStreamingLifecycleArm::Base)),
+            kernel_envelope_ranges(lifecycle.phase_envelope_fields(NebulaFPrimeStreamingLifecycleArm::Recursive)),
+        ];
+        let profile = production_phase_envelope_link_profile_from_sources(
+            common_sources,
+            common_ranges,
+            lifecycle.recursive_prior_state_digest_columns(),
+            phase_sources,
+        )?;
+        Ok((common, profile))
+    }
+
     fn into_links(self) -> Vec<ScheduledPhaseKindLinks> {
         self.links
     }
@@ -97,6 +155,54 @@ pub fn production_phase_envelope_link_profile(
     lifecycle: &NebulaFPrimeStreamingLifecycleSourceArms,
     phase_sources: &[SparseR1cs],
 ) -> Result<NebulaFPrimeStreamingPhaseEnvelopeLinkProfile, NebulaFPrimeStreamingRelationError> {
+    let common_sources = [
+        lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base),
+        lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Recursive),
+    ];
+    let common_ranges = [
+        lifecycle_envelope_ranges(
+            lifecycle.phase_envelope_fields(NebulaFPrimeStreamingLifecycleArm::Base),
+        ),
+        lifecycle_envelope_ranges(
+            lifecycle.phase_envelope_fields(NebulaFPrimeStreamingLifecycleArm::Recursive),
+        ),
+    ];
+    production_phase_envelope_link_profile_from_sources(
+        common_sources,
+        common_ranges,
+        lifecycle.recursive_prior_state_digest_columns(),
+        phase_sources,
+    )
+}
+
+fn lifecycle_envelope_ranges(
+    fields: &super::streaming_lifecycle_relation::NebulaFPrimeStreamingPhaseEnvelopeFields,
+) -> PhaseEnvelopeRanges {
+    PhaseEnvelopeRanges {
+        before_local_state_digest: fields.before_local_state_digest(),
+        before_delayed_payload: fields.before_delayed_payload(),
+        after_local_state_digest: fields.after_local_state_digest(),
+        after_delayed_payload: fields.after_delayed_payload(),
+    }
+}
+
+fn kernel_envelope_ranges(
+    fields: &lifecycle_kernel::NebulaFPrimeStreamingLifecycleKernelEnvelopeFields,
+) -> PhaseEnvelopeRanges {
+    PhaseEnvelopeRanges {
+        before_local_state_digest: fields.before_local_state_digest(),
+        before_delayed_payload: fields.before_delayed_payload(),
+        after_local_state_digest: fields.after_local_state_digest(),
+        after_delayed_payload: fields.after_delayed_payload(),
+    }
+}
+
+fn production_phase_envelope_link_profile_from_sources(
+    common_sources: [&SparseR1cs; 2],
+    common_ranges: [PhaseEnvelopeRanges; 2],
+    recursive_prior_state_digest_columns: [usize; 4],
+    phase_sources: &[SparseR1cs],
+) -> Result<NebulaFPrimeStreamingPhaseEnvelopeLinkProfile, NebulaFPrimeStreamingRelationError> {
     let program = NebulaFPrimeStreamingProgramAudit::production();
     if phase_sources.len() != program.circuit_kind_count() {
         return Err(NebulaFPrimeStreamingRelationError::PhaseEnvelope(format!(
@@ -106,23 +212,11 @@ pub fn production_phase_envelope_link_profile(
         )));
     }
 
-    let recursive_fields = lifecycle.phase_envelope_fields(NebulaFPrimeStreamingLifecycleArm::Recursive);
-    let delayed_payload_fields = recursive_fields.before_delayed_payload().len();
-    let mut common_ranges = Vec::with_capacity(program.lifecycle_group_count());
-    for arm in [
-        NebulaFPrimeStreamingLifecycleArm::Base,
-        NebulaFPrimeStreamingLifecycleArm::Recursive,
-    ] {
-        let source = lifecycle.arm(arm);
-        let fields = lifecycle.phase_envelope_fields(arm);
-        let ranges = PhaseEnvelopeRanges {
-            before_local_state_digest: fields.before_local_state_digest(),
-            before_delayed_payload: fields.before_delayed_payload(),
-            after_local_state_digest: fields.after_local_state_digest(),
-            after_delayed_payload: fields.after_delayed_payload(),
-        };
-        validate_envelope_ranges("lifecycle", source, &ranges, delayed_payload_fields)?;
-        common_ranges.push(ranges);
+    let delayed_payload_fields = common_ranges[NebulaFPrimeStreamingLifecycleArm::Recursive.index()]
+        .before_delayed_payload
+        .len();
+    for (source, ranges) in common_sources.iter().zip(&common_ranges) {
+        validate_envelope_ranges("lifecycle", source, ranges, delayed_payload_fields)?;
     }
 
     let mut lifecycle_group_by_kind = vec![None; program.circuit_kind_count()];
@@ -183,8 +277,7 @@ pub fn production_phase_envelope_link_profile(
             }
             let target = exact_private_family(phase_source, STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY, 4)?;
             fields.extend(
-                lifecycle
-                    .recursive_prior_state_digest_columns()
+                recursive_prior_state_digest_columns
                     .into_iter()
                     .zip(target)
                     .map(|(common_field, phase_field)| ScheduledCommonPhaseFieldLink {
@@ -204,7 +297,10 @@ pub fn production_phase_envelope_link_profile(
         });
     }
 
-    Ok(NebulaFPrimeStreamingPhaseEnvelopeLinkProfile { links, fields_per_kind })
+    Ok(NebulaFPrimeStreamingPhaseEnvelopeLinkProfile {
+        links,
+        fields_per_kind,
+    })
 }
 
 fn exact_phase_envelope_ranges(
@@ -238,9 +334,9 @@ fn exact_private_family(
         .column_family_ranges()
         .iter()
         .filter(|family| family.name == family_name);
-    let family = matches
-        .next()
-        .ok_or_else(|| NebulaFPrimeStreamingRelationError::PhaseEnvelope(format!("source is missing {family_name}")))?;
+    let family = matches.next().ok_or_else(|| {
+        NebulaFPrimeStreamingRelationError::PhaseEnvelope(format!("source is missing {family_name}"))
+    })?;
     if matches.next().is_some() {
         return Err(NebulaFPrimeStreamingRelationError::PhaseEnvelope(format!(
             "source contains duplicate {family_name} ranges"
@@ -298,7 +394,11 @@ fn validate_private_range(
     Ok(())
 }
 
-fn append_range_links(links: &mut Vec<ScheduledCommonPhaseFieldLink>, common: &Range<usize>, phase: &Range<usize>) {
+fn append_range_links(
+    links: &mut Vec<ScheduledCommonPhaseFieldLink>,
+    common: &Range<usize>,
+    phase: &Range<usize>,
+) {
     debug_assert_eq!(common.len(), phase.len());
     links.extend(
         common
@@ -311,6 +411,23 @@ fn append_range_links(links: &mut Vec<ScheduledCommonPhaseFieldLink>, common: &R
     );
 }
 
+fn validate_production_joint_domain(
+    relation: &'static str,
+    rows: usize,
+    assignment_fields: usize,
+) -> Result<(), NebulaFPrimeStreamingRelationError> {
+    if rows > STREAMING_JOINT_ROW_BOUND || assignment_fields > STREAMING_MAX_ASSIGNMENT_FIELDS {
+        return Err(NebulaFPrimeStreamingRelationError::JointDomain {
+            relation,
+            rows,
+            assignment_fields,
+            row_bound: STREAMING_JOINT_ROW_BOUND,
+            assignment_bound: STREAMING_MAX_ASSIGNMENT_FIELDS,
+        });
+    }
+    Ok(())
+}
+
 pub fn build_production_streaming_schedule_low_norm_r1cs(
     common: MultiBranchLowNormR1cs,
     phase_kinds: MultiBranchLowNormR1cs,
@@ -318,14 +435,20 @@ pub fn build_production_streaming_schedule_low_norm_r1cs(
 ) -> Result<ScheduledGroupedPhaseLowNormR1cs, NebulaFPrimeStreamingRelationError> {
     let program = NebulaFPrimeStreamingProgramAudit::production();
     let public = NebulaFPrimeStreamingPublicLayout::production();
-    Ok(build_scheduled_grouped_phase_low_norm_r1cs_with_field_links(
+    let relation = build_scheduled_grouped_phase_low_norm_r1cs_with_field_links(
         common,
         phase_kinds,
         program.lifecycle_group_map(),
         program.circuit_kind_map(),
         ScheduledCursorBits::new(public.before_cursor_bits(), public.after_cursor_bits()),
         phase_envelope_links.into_links(),
-    )?)
+    )?;
+    validate_production_joint_domain(
+        "recursive scheduled",
+        relation.structure().n,
+        relation.structure().m,
+    )?;
+    Ok(relation)
 }
 
 pub const fn production_combined_overlay_kind_count() -> usize {
@@ -362,17 +485,21 @@ pub fn build_production_combined_overlay_low_norm_r1cs(
     let mut arms = production_claim_coordinate_overlay_sparse_arms()?;
     arms.extend(production_pi_rlc_family_overlay_sparse_arms()?);
     debug_assert_eq!(arms.len(), production_combined_overlay_kind_count());
-    Ok(
-        prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
-            arms,
-            0,
-            0,
-            1,
-            0,
-            crate::config::B_BASE,
-        )?
-        .finish()?,
-    )
+    let overlay = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        0,
+        0,
+        1,
+        0,
+        crate::config::B_BASE,
+    )?
+    .finish()?;
+    validate_production_joint_domain(
+        "combined overlay",
+        overlay.structure().n,
+        overlay.structure().m,
+    )?;
+    Ok(overlay)
 }
 
 /// Add the exact claim-coordinate and PiRLC family overlays to the production
@@ -387,7 +514,7 @@ pub fn build_production_streaming_schedule_with_overlays_low_norm_r1cs(
     let program = NebulaFPrimeStreamingProgramAudit::production();
     let public = NebulaFPrimeStreamingPublicLayout::production();
     let overlay = build_production_combined_overlay_low_norm_r1cs()?;
-    Ok(build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links(
+    let relation = build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links(
         common,
         phase_kinds,
         overlay,
@@ -397,5 +524,38 @@ pub fn build_production_streaming_schedule_with_overlays_low_norm_r1cs(
         ScheduledCursorBits::new(public.before_cursor_bits(), public.after_cursor_bits()),
         phase_envelope_links.into_links(),
         production_combined_overlay_links(),
-    )?)
+    )?;
+    validate_production_joint_domain(
+        "recursive scheduled plus overlays",
+        relation.structure().n,
+        relation.structure().m,
+    )?;
+    Ok(relation)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn production_joint_domain_is_fail_closed() {
+        validate_production_joint_domain(
+            "boundary",
+            STREAMING_JOINT_ROW_BOUND,
+            STREAMING_MAX_ASSIGNMENT_FIELDS,
+        )
+        .unwrap();
+        assert!(validate_production_joint_domain(
+            "row overflow",
+            STREAMING_JOINT_ROW_BOUND + 1,
+            STREAMING_MAX_ASSIGNMENT_FIELDS,
+        )
+        .is_err());
+        assert!(validate_production_joint_domain(
+            "assignment overflow",
+            STREAMING_JOINT_ROW_BOUND,
+            STREAMING_MAX_ASSIGNMENT_FIELDS + 1,
+        )
+        .is_err());
+    }
 }

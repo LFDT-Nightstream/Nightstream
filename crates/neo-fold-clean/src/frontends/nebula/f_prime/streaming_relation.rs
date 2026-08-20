@@ -32,7 +32,8 @@ use super::streaming_pi_rlc_family_relation::{
     production_pi_rlc_family_overlay_kind_map, production_pi_rlc_family_overlay_links,
     production_pi_rlc_family_overlay_sparse_arms, NebulaFPrimePiRlcFamilyRelationError, PI_RLC_FAMILY_COUNT,
 };
-use super::streaming_program::NebulaFPrimeStreamingProgramAudit;
+use super::streaming_prior_state_replay_relation::STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY;
+use super::streaming_program::{NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingProgramAudit};
 use super::streaming_public::NebulaFPrimeStreamingPublicLayout;
 
 #[derive(Debug, Error)]
@@ -151,7 +152,9 @@ pub fn production_phase_envelope_link_profile(
         })?;
         let phase_ranges = exact_phase_envelope_ranges(phase_source, delayed_payload_fields)?;
         let common = &common_ranges[lifecycle_group];
-        let mut fields = Vec::with_capacity(fields_per_kind);
+        let is_final_prior_state_replay =
+            kind == NebulaFPrimeStreamingCircuitKind::PriorStateReplayFinal.code() as usize;
+        let mut fields = Vec::with_capacity(fields_per_kind + usize::from(is_final_prior_state_replay) * 4);
         append_range_links(
             &mut fields,
             &common.before_local_state_digest,
@@ -172,7 +175,28 @@ pub fn production_phase_envelope_link_profile(
             &common.after_delayed_payload,
             &phase_ranges.after_delayed_payload,
         );
-        debug_assert_eq!(fields.len(), fields_per_kind);
+        if is_final_prior_state_replay {
+            if lifecycle_group != NebulaFPrimeStreamingLifecycleArm::Recursive.index() {
+                return Err(NebulaFPrimeStreamingRelationError::PhaseEnvelope(
+                    "final prior-state replay is not in the recursive lifecycle group".into(),
+                ));
+            }
+            let target = exact_private_family(phase_source, STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY, 4)?;
+            fields.extend(
+                lifecycle
+                    .recursive_prior_state_digest_columns()
+                    .into_iter()
+                    .zip(target)
+                    .map(|(common_field, phase_field)| ScheduledCommonPhaseFieldLink {
+                        common_field,
+                        phase_field,
+                    }),
+            );
+        }
+        debug_assert_eq!(
+            fields.len(),
+            fields_per_kind + usize::from(is_final_prior_state_replay) * 4
+        );
         links.push(ScheduledPhaseKindLinks {
             lifecycle_group,
             phase_kind: kind,

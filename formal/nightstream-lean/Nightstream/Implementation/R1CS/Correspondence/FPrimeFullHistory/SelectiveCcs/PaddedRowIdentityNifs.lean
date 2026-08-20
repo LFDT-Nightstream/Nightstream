@@ -6,7 +6,7 @@ import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.InteractiveComposit
 Contract: exact noninteractive NIFS key for `PaddedRowIdentity`.
 
 Owns: construction of the one-joint NIFS key from the selected 24-variable,
-14-matrix relation; exact `1 + 14` arity; degree nine; one identity-first
+14-matrix relation; exact `1 + 16` arity; degree nine; one identity-first
 matrix; definitional equality between the NIFS interactive context and the
 selected finite-security context; the exact selected interactive budget; and
 specialization of the complete finite random-oracle soundness theorem to this
@@ -50,10 +50,10 @@ extension. Only the relaxed-binding terms remain caller supplied. -/
 def selectedInteractiveBudget
     (piRlcAlphabetCardinality : Nat)
     (relaxedBindingRaw relaxedBindingRoot : Rat) :
-    InteractiveErrorBudget Rat where
-  piCcsSumCheck := ratio 216 (goldilocksP * goldilocksP)
-  piCcsSchwartzZippel := ratio 10599 (goldilocksP * goldilocksP)
-  piRlcForkSampling := ratio 16 piRlcAlphabetCardinality
+  InteractiveErrorBudget Rat where
+  piCcsSumCheck := ratio sumCheckNumerator (goldilocksP * goldilocksP)
+  piCcsSchwartzZippel := ratio mixingNumerator (goldilocksP * goldilocksP)
+  piRlcForkSampling := ratio piRlcForkNumerator piRlcAlphabetCardinality
   relaxedBindingRaw := relaxedBindingRaw
   relaxedBindingRoot := relaxedBindingRoot
 

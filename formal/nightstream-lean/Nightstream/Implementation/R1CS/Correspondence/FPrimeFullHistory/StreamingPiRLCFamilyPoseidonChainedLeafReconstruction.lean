@@ -168,7 +168,7 @@ private theorem add_interchange (a b c d : F) :
     Lean.Grind.Fin.add_assoc c b d,
     ← Lean.Grind.Fin.add_assoc a c (b + d)]
 
-private theorem portAction_add
+theorem portAction_add
     (left right : Wire.Port) (final : FinalAssignment) :
     portAction (addPort left right) final =
       portAction left final + portAction right final := by
@@ -176,7 +176,7 @@ private theorem portAction_add
   simp only [List.map_append, sum_append]
   exact add_interchange _ _ _ _
 
-private theorem portAction_scale
+theorem portAction_scale
     (coefficient : F) (port : Wire.Port) (final : FinalAssignment) :
     portAction (scalePort coefficient port) final =
       coefficient * portAction port final := by
@@ -211,7 +211,7 @@ private theorem portAction_scale
   rw [explicitScale, geometricScale]
   exact (Lean.Grind.Fin.left_distrib _ _ _).symm
 
-private theorem portAction_constant
+theorem portAction_constant
     (constant : F) (final : FinalAssignment)
     (one : final.explicit .one = 1) :
     portAction (constantPort constant) final = constant := by

@@ -1,5 +1,6 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPriorStateReplayRelation
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPriorStateReplayExecutionCertificate
+import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.TranscriptMachineDuplex
 
 /-!
 Exact source-row boundary for prior-state replay executions.
@@ -19,6 +20,7 @@ set_option autoImplicit false
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplayArtifact
 
+open Nightstream.Implementation.Nebula
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplay.Artifact
@@ -28,6 +30,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplayT
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplayDigestExecutionCertificate
 open Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript
 open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
+open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachineDuplex
 
 def fullStatePinRows : List IndexedRow :=
   (fullResidualRows0Part0.drop 13).take 30
@@ -541,5 +544,217 @@ theorem final_target_refines
   apply ColumnReplay.execute_sound canonical final_target_pins_canonical one
     (final_target_trace_accepted assignment canonical one satisfied)
   exact final_target_execution
+
+/-! ## Structural replay-to-duplex bridge -/
+
+private theorem replay_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (start result : ColumnReplay.Run)
+    (columns : List Nat)
+    (operations : List ColumnReplay.Operation)
+    (operationsExact :
+      operations = columns.map ColumnReplay.Operation.external)
+    (refines :
+      ColumnReplay.semanticExecuteSlice assignment canonical
+          (ColumnReplay.decodeRun assignment canonical start) operations =
+        ColumnReplay.decodeRun assignment canonical result) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical start).state) := by
+  calc
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical result).state =
+        toDuplex
+          (ColumnReplay.semanticExecuteSlice assignment canonical
+            (ColumnReplay.decodeRun assignment canonical start)
+            operations).state :=
+      congrArg (fun run => toDuplex run.state) refines.symm
+    _ = Poseidon2Duplex.absorbSlice
+          Poseidon2CanonicalConstants.selected (columns.map assignment)
+          (toDuplex
+            (ColumnReplay.decodeRun assignment canonical start).state) := by
+      rw [operationsExact]
+      exact semanticExecuteSlice_external_toDuplex assignment canonical _ _
+    _ = Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+          (columns.map assignment)
+          (toDuplex
+            (ColumnReplay.decodeRun assignment canonical start).state) := by
+      rfl
+
+def fullSlice0Columns : List Nat :=
+  List.range' 155 64 ++ (List.range' 219 64 ++
+    (List.range' 283 64 ++ List.range' 347 64))
+
+def fullSlice1Columns : List Nat :=
+  List.range' 411 64 ++ (List.range' 475 64 ++
+    (List.range' 539 64 ++ List.range' 603 64))
+
+def fullSlice2Columns : List Nat :=
+  List.range' 667 64 ++ (List.range' 731 64 ++
+    (List.range' 795 64 ++ List.range' 859 64))
+
+def fullSlice3Columns : List Nat :=
+  List.range' 923 64 ++ (List.range' 987 64 ++
+    (List.range' 1051 64 ++ List.range' 1115 64))
+
+def finalSlice0Columns : List Nat :=
+  List.range' 159 64 ++ (List.range' 223 64 ++
+    (List.range' 287 64 ++ List.range' 351 64))
+
+def finalSlice1Columns : List Nat :=
+  List.range' 415 64 ++ (List.range' 479 64 ++
+    (List.range' 543 64 ++ List.range' 607 64))
+
+def finalTailColumns : List Nat := List.range' 671 10
+
+private theorem fullSlice0Operations_exact :
+    fullSlice0Operations =
+      fullSlice0Columns.map ColumnReplay.Operation.external := by
+  simp [fullSlice0Operations, fullSlice0Operations0,
+    fullSlice0Operations1, fullSlice0Operations2, fullSlice0Operations3,
+    fullSlice0Columns]
+
+private theorem fullSlice1Operations_exact :
+    fullSlice1Operations =
+      fullSlice1Columns.map ColumnReplay.Operation.external := by
+  simp [fullSlice1Operations, fullSlice1Operations0,
+    fullSlice1Operations1, fullSlice1Operations2, fullSlice1Operations3,
+    fullSlice1Columns]
+
+private theorem fullSlice2Operations_exact :
+    fullSlice2Operations =
+      fullSlice2Columns.map ColumnReplay.Operation.external := by
+  simp [fullSlice2Operations, fullSlice2Operations0,
+    fullSlice2Operations1, fullSlice2Operations2, fullSlice2Operations3,
+    fullSlice2Columns]
+
+private theorem fullSlice3Operations_exact :
+    fullSlice3Operations =
+      fullSlice3Columns.map ColumnReplay.Operation.external := by
+  simp [fullSlice3Operations, fullSlice3Operations0,
+    fullSlice3Operations1, fullSlice3Operations2, fullSlice3Operations3,
+    fullSlice3Columns]
+
+private theorem finalSlice0Operations_exact :
+    finalSlice0Operations =
+      finalSlice0Columns.map ColumnReplay.Operation.external := by
+  simp [finalSlice0Operations, finalSlice0Operations0,
+    finalSlice0Operations1, finalSlice0Operations2, finalSlice0Operations3,
+    finalSlice0Columns]
+
+private theorem finalSlice1Operations_exact :
+    finalSlice1Operations =
+      finalSlice1Columns.map ColumnReplay.Operation.external := by
+  simp [finalSlice1Operations, finalSlice1Operations0,
+    finalSlice1Operations1, finalSlice1Operations2, finalSlice1Operations3,
+    finalSlice1Columns]
+
+theorem full_slice0_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : fullArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical fullSlice0Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (fullSlice0Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical fullSlice0Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    fullSlice0Operations_exact
+    (full_slice0_refines assignment canonical one satisfied)
+
+theorem full_slice1_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : fullArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical fullSlice1Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (fullSlice1Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical fullSlice1Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    fullSlice1Operations_exact
+    (full_slice1_refines assignment canonical one satisfied)
+
+theorem full_slice2_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : fullArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical fullSlice2Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (fullSlice2Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical fullSlice2Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    fullSlice2Operations_exact
+    (full_slice2_refines assignment canonical one satisfied)
+
+theorem full_slice3_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : fullArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical fullSlice3Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (fullSlice3Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical fullSlice3Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    fullSlice3Operations_exact
+    (full_slice3_refines assignment canonical one satisfied)
+
+theorem final_slice0_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : finalArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical finalSlice0Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (finalSlice0Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical finalSlice0Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    finalSlice0Operations_exact
+    (final_slice0_refines assignment canonical one satisfied)
+
+theorem final_slice1_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : finalArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical finalSlice1Result).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (finalSlice1Columns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical finalSlice1Start).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _
+    finalSlice1Operations_exact
+    (final_slice1_refines assignment canonical one satisfied)
+
+theorem final_tail_eq_absorbSlice
+    (assignment : Nat → Nat)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfied : finalArtifact.Satisfied assignment) :
+    toDuplex
+        (ColumnReplay.decodeRun assignment canonical finalTailResult).state =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants
+        (finalTailColumns.map assignment)
+        (toDuplex
+          (ColumnReplay.decodeRun assignment canonical finalTailStart).state) :=
+  replay_eq_absorbSlice assignment canonical _ _ _ _ rfl
+    (final_tail_refines assignment canonical one satisfied)
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplayArtifact

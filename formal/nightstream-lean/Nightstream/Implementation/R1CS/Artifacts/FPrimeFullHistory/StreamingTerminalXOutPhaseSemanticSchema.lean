@@ -23,11 +23,14 @@ open Nightstream.Implementation.R1CS.Program
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingVariableHashRecipe.Artifact
 
 def digestFields : Nat := 4
-def payloadFields : Nat := 4
+def payloadFields : Nat := 2169
 def constantFields : Nat := 11
-def hashInputFields : Nat := 19
-def absorbRounds : Nat := 5
-def hashTotalRows : Nat := 3632
+def hashInputFields : Nat := constantFields + digestFields + payloadFields
+def absorbRounds : Nat :=
+  (hashInputFields + (rate - 1)) / rate
+def hashTotalRows : Nat :=
+  constantFields + 1 + hashInputFields +
+    absorbRounds * permutationRows + 1 + permutationRows
 def equalityRowCount : Nat := 4
 def totalRows : Nat := hashTotalRows + equalityRowCount
 
@@ -86,25 +89,26 @@ def expectedConstantValues : List Nat :=
   [57, 30521782141150574, 31069335676202596,
     27422324158721583, 30796712690673199, 27414614995316581,
     29396737889036653, 30792317818729313, 33266151269363297,
-    49, 4]
+    49, payloadFields]
 
 def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
-  artifact.schemaVersion = 1 ∧
+  artifact.schemaVersion = 2 ∧
     artifact.profileId =
-      "nightstream/goldilocks/streaming-terminal-phase-semantic/v1" ∧
-    artifact.sourceIdentity = "rust:streaming-terminal-phase-semantic/v1" ∧
-    artifact.sourceRowsSha256.length = 64 ∧
+      "nightstream/goldilocks/streaming-terminal-phase-semantic/v2" ∧
+    artifact.sourceIdentity = "rust:streaming-terminal-phase-semantic/v2" ∧
+    artifact.sourceRowsSha256 =
+      "89aae9a5eb9aa1f455cb97d60b648c7fdd03d729935d6d6cc87fe5419773173d" ∧
     artifact.rowCount = totalRows ∧
-    artifact.columnCount = 23087 ∧
+    artifact.columnCount = 352017 ∧
     artifact.sourceRowStart = 24 ∧
     artifact.finalRowStart = artifact.sourceRowStart ∧
     artifact.constantValues = expectedConstantValues ∧
     artifact.constantValues.length = constantFields ∧
     (∀ value ∈ artifact.constantValues, value < goldilocksP) ∧
-    artifact.constantStartColumn = 107 ∧
+    artifact.constantStartColumn = 2272 ∧
     artifact.localColumns = [33, 34, 35, 36] ∧
-    artifact.payloadColumns = [37, 38, 39, 40] ∧
-    artifact.hashOutputColumns = [3731, 3732, 3733, 3734] ∧
+    artifact.payloadColumns = List.range' 37 payloadFields ∧
+    artifact.hashOutputColumns = [332661, 332662, 332663, 332664] ∧
     artifact.xOutSemanticColumns = [20, 21, 22, 23] ∧
     artifact.baselineDigestValue < goldilocksP ∧
     artifact.equalityRowStart = hashTotalRows

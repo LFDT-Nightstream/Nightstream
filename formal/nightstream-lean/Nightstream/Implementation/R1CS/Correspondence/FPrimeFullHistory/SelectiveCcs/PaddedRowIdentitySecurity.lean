@@ -23,7 +23,7 @@ Emits constraints: no.
 | `fullChallengeSupport` | ideal public-coin alphabet | contain each element of `K` exactly once | cardinality `q^2` |
 | `selectedContext` | one-joint interactive protocol | use the selected relation, degree, and finite challenge support | exact typed context |
 | `fixedFirstBadBound_of_rootCounting` | algebraic soundness error | bound both bad events without assuming either probability contract | exact finite root-count bound |
-| `algebraicNumerator_exact` | selected one-fold loss | include mixing and all 24 degree-nine SumCheck rounds | `10815` field units |
+| `algebraicNumerator_exact` | selected one-fold loss | include mixing and all 24 degree-nine SumCheck rounds | `12329` field units |
 -/
 
 set_option autoImplicit false
@@ -231,13 +231,13 @@ def sumCheckNumerator : Nat := shape.cubeVariables * 9
 /-- Total one-fold algebraic union-bound numerator. -/
 def algebraicNumerator : Nat := mixingNumerator + sumCheckNumerator
 
-theorem mixingNumerator_exact : mixingNumerator = 10599 := by
+theorem mixingNumerator_exact : mixingNumerator = 12113 := by
   decide
 
 theorem sumCheckNumerator_exact : sumCheckNumerator = 216 := by
   decide
 
-theorem algebraicNumerator_exact : algebraicNumerator = 10815 := by
+theorem algebraicNumerator_exact : algebraicNumerator = 12329 := by
   decide
 
 /-- The exact numerator still gives at least 114 classical bits for one fold
@@ -362,10 +362,9 @@ theorem fullChallengeFixedFirstBadBound
       (selectedContext openingMaps matrices commitments publicInputs
         priorPoint claimedCoefficient fullChallengeSupport)
       fullChallengeSupport adversary
-      (ratio 10599 (goldilocksP * goldilocksP) +
-        ratio 216 (goldilocksP * goldilocksP)) := by
-  simpa [mixingNumerator_exact, sumCheckNumerator_exact,
-    fullChallengeSupport_cardinality] using
+      (ratio mixingNumerator (goldilocksP * goldilocksP) +
+        ratio sumCheckNumerator (goldilocksP * goldilocksP)) := by
+  simpa [fullChallengeSupport_cardinality] using
     fixedFirstBadBound_of_rootCounting openingMaps matrices commitments
       publicInputs priorPoint claimedCoefficient fullChallengeSupport adversary
 

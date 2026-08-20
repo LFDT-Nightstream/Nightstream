@@ -14,7 +14,7 @@ opening rows.
 Assurance tier: model-level row semantics, security-reduced centered-pair
 packing, and a separate Rust-conformant exhaustive matrix receipt.
 
-Owns the 16,605 packed active-digit rows, both 41-row zero words, all 1,620
+Owns the 18,819 packed active-digit rows, both 41-row zero words, all 1,836
 copies of the 21-row canonical opening, their exact normalized coordinates,
 and the implication from their acceptance to the body source-digit authority
 used by the normalized field links.
@@ -58,14 +58,19 @@ abbrev Arm :=
 theorem bodyFinalColumns_positive : 0 < BodyFinalColumns :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedLinkRows.Normalized.bodyFinalColumns_positive
 
+def openingCount : Nat :=
+  Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBinding.fieldsPerFamily
 def activeDigitCount : Nat :=
-  810 * Nightstream.Implementation.R1CS.ShiftedTernaryCompiler.digitCount
+  openingCount * Nightstream.Implementation.R1CS.ShiftedTernaryCompiler.digitCount
 def centeredRowCount : Nat := activeDigitCount / 2
 
-theorem activeDigitCount_exact : activeDigitCount = 33210 := by
+theorem openingCount_exact : openingCount = 918 := by
   decide
 
-theorem centeredRowCount_exact : centeredRowCount = 16605 := by
+theorem activeDigitCount_exact : activeDigitCount = 37638 := by
+  decide
+
+theorem centeredRowCount_exact : centeredRowCount = 18819 := by
   decide
 
 def selectorColumn (arm : Arm) : Fin BodyFinalColumns :=
@@ -74,41 +79,41 @@ def selectorColumn (arm : Arm) : Fin BodyFinalColumns :=
 def constantColumn : Fin BodyFinalColumns :=
   ⟨0, bodyFinalColumns_positive⟩
 
-def openingIndex (source : Source) (lane : Lane) : Fin 810 :=
+def openingIndex (source : Source) (lane : Lane) : Fin openingCount :=
   ⟨source.val * ringDegree + lane.val, by
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
-    change source.val < 15 at sourceUpper
+    change source.val < 17 at sourceUpper
     change lane.val < 54 at laneUpper
-    change source.val * 54 + lane.val < 810
+    change source.val * 54 + lane.val < 918
     omega⟩
 
-/-- One coordinate in the contiguous 33,210-coordinate active digit run. -/
+/-- One coordinate in the contiguous 37,638-coordinate active digit run. -/
 def flatDigitValue
     (assignment : Fin BodyFinalColumns → F)
     (index : Fin activeDigitCount) : F :=
-  assignment ⟨19332 + index.val, by
+  assignment ⟨38340 + index.val, by
     have upper := index.isLt
-    have upperConcrete : index.val < 33210 := by
+    have upperConcrete : index.val < 37638 := by
       calc
         index.val < activeDigitCount := upper
-        _ = 33210 := activeDigitCount_exact
-    change 19332 + index.val < 2484972
+        _ = 37638 := activeDigitCount_exact
+    change 38340 + index.val < 8858862
     omega⟩
 
 def bodyBorrowValue
     (assignment : Fin BodyFinalColumns → F)
     (source : Source) (lane : Lane) (borrow : Borrow) : F :=
-  assignment ⟨1059845 + (source.val * ringDegree + lane.val) * 20 +
+  assignment ⟨2110685 + (source.val * ringDegree + lane.val) * 20 +
       borrow.val, by
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
     have borrowUpper := borrow.isLt
-    change source.val < 15 at sourceUpper
+    change source.val < 17 at sourceUpper
     change lane.val < 54 at laneUpper
     change borrow.val < 20 at borrowUpper
-    change 1059845 + (source.val * 54 + lane.val) * 20 + borrow.val <
-      2484972
+    change 2110685 + (source.val * 54 + lane.val) * 20 + borrow.val <
+      8858862
     omega⟩
 
 theorem bodyActiveDigitValue_eq_flat
@@ -121,9 +126,13 @@ theorem bodyActiveDigitValue_eq_flat
             Nightstream.Implementation.R1CS.ShiftedTernaryCompiler.digitCount +
             digit.val, by
           have openingUpper := (openingIndex source lane).isLt
+          have openingUpperConcrete : (openingIndex source lane).val < 918 := by
+            calc
+              (openingIndex source lane).val < openingCount := openingUpper
+              _ = 918 := openingCount_exact
           have digitUpper := digit.isLt
           change digit.val < 41 at digitUpper
-          change (openingIndex source lane).val * 41 + digit.val < 810 * 41
+          change (openingIndex source lane).val * 41 + digit.val < 918 * 41
           omega⟩ := by
   apply congrArg assignment
   apply Fin.ext
@@ -208,20 +217,20 @@ structure ProductionAccepted
         (flatDigitValue assignment
           ⟨2 * row.val, by
             have upper := row.isLt
-            have upperConcrete : row.val < 16605 := by
+            have upperConcrete : row.val < 18819 := by
               calc
                 row.val < centeredRowCount := upper
-                _ = 16605 := centeredRowCount_exact
-            change 2 * row.val < 810 * 41
+                _ = 18819 := centeredRowCount_exact
+            change 2 * row.val < 918 * 41
             omega⟩)
         (flatDigitValue assignment
           ⟨2 * row.val + 1, by
             have upper := row.isLt
-            have upperConcrete : row.val < 16605 := by
+            have upperConcrete : row.val < 18819 := by
               calc
                 row.val < centeredRowCount := upper
-                _ = 16605 := centeredRowCount_exact
-            change 2 * row.val + 1 < 810 * 41
+                _ = 18819 := centeredRowCount_exact
+            change 2 * row.val + 1 < 918 * 41
             omega⟩)) = 0
   zero : ∀ digit : Digit,
     Semantics.evaluate
@@ -293,23 +302,23 @@ theorem flatDigit_normTwo
       (flatDigitValue assignment index).val := by
   let row : Fin centeredRowCount := ⟨index.val / 2, by
     have upper := index.isLt
-    have upperConcrete : index.val < 33210 := by
+    have upperConcrete : index.val < 37638 := by
       calc
         index.val < activeDigitCount := upper
-        _ = 33210 := activeDigitCount_exact
-    have quotientUpper : index.val / 2 < 16605 := by omega
+        _ = 37638 := activeDigitCount_exact
+    have quotientUpper : index.val / 2 < 18819 := by omega
     calc
-      index.val / 2 < 16605 := quotientUpper
+      index.val / 2 < 18819 := quotientUpper
       _ = centeredRowCount := centeredRowCount_exact.symm⟩
-  have rowUpperConcrete : row.val < 16605 := by
+  have rowUpperConcrete : row.val < 18819 := by
     calc
       row.val < centeredRowCount := row.isLt
-      _ = 16605 := centeredRowCount_exact
+      _ = 18819 := centeredRowCount_exact
   let leftIndex : Fin activeDigitCount := ⟨2 * row.val, by
-    change 2 * row.val < 810 * 41
+    change 2 * row.val < 918 * 41
     omega⟩
   let rightIndex : Fin activeDigitCount := ⟨2 * row.val + 1, by
-    change 2 * row.val + 1 < 810 * 41
+    change 2 * row.val + 1 < 918 * 41
     omega⟩
   have rowAccepted := accepted.centered row
   change Semantics.evaluate
@@ -692,12 +701,13 @@ private theorem algebraInput_eq_fieldLowValue
       Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout.input
           source lane <
         Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.columns := by
-    rw [Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_input]
+    simp only [
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_input,
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.columns_eq]
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
-    change source.val < 15 at sourceUpper
+    change source.val < 17 at sourceUpper
     change lane.val < 54 at laneUpper
-    change 811 + source.val * 54 + lane.val < 45415
     omega
   simp only [
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.algebraAssignment,
@@ -716,16 +726,16 @@ private theorem algebraInput_eq_fieldLowValue
   simp only [dif_neg inputNonzero]
   have outsideChallenges :
       ¬ Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout.input
-          source lane < 811 := by
+          source lane < 919 := by
     rw [Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_input]
     omega
   have insideInputs :
       Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout.input
-          source lane < 1621 := by
+          source lane < 1837 := by
     rw [Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_input]
     have sourceUpper := source.isLt
     have laneUpper := lane.isLt
-    change source.val < 15 at sourceUpper
+    change source.val < 17 at sourceUpper
     change lane.val < 54 at laneUpper
     omega
   let inputColumn : Fin
@@ -745,17 +755,17 @@ private theorem algebraInput_eq_fieldLowValue
     rw [dif_neg outsideChallenges, dif_pos insideInputs]
   have inputSlotStart :
       inputSlot.start =
-        19332 + (source.val * 54 + lane.val) * 41 := by
+        38340 + (source.val * 54 + lane.val) * 41 := by
     unfold inputSlot inputColumn
     unfold
       Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized.localSlot
     rw [dif_neg outsideChallenges, dif_pos insideInputs]
     change
-      19332 +
+      38340 +
             (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout.input
-                source lane - 811) *
+                source lane - 919) *
               41 =
-        19332 + (source.val * 54 + lane.val) * 41
+        38340 + (source.val * 54 + lane.val) * 41
     rw [Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_input]
     omega
   have slotCoordinateEq (index : Fin inputSlot.width) :
@@ -780,7 +790,7 @@ private theorem algebraInput_eq_fieldLowValue
     apply congrArg assignment
     apply Fin.ext
     change inputSlot.start + index.val =
-      19332 + (source.val * 54 + lane.val) * 41 + index.val
+      38340 + (source.val * 54 + lane.val) * 41 + index.val
     rw [inputSlotStart]
   have slotRadixEq :
       Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.SourceImage.slotRadix
@@ -1046,6 +1056,84 @@ theorem accepted_implies_bodyPhaseBindingPlaced
       bodySelectorOne outerNorm openingsAccepted
   · exact linksAccepted
   · exact overlayAccepted
+
+/-- Accepted opening, link, overlay, algebra, carry, and residual rows imply
+one concrete PiRLC family phase on the same body assignment. Lifecycle state
+placement and Poseidon2 replay remain explicit authority premises. -/
+theorem accepted_implies_concrete_phase
+    {setup :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.InputBindingSetup}
+    {family :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBinding.Family}
+    {arm : Arm}
+    {linkSelector : F}
+    {bodyAssignment : Fin BodyFinalColumns → F}
+    {overlayAssignment : Fin
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedLinkRows.Normalized.OverlayFinalColumns → F}
+    (bodyConstantOne : bodyAssignment constantColumn = 1)
+    (bodySelectorOne : bodyAssignment (selectorColumn arm) = 1)
+    (linkSelectorOne : linkSelector = 1)
+    (overlayConstantOne :
+      overlayAssignment
+          ⟨0,
+            Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedLinkRows.Normalized.overlayFinalColumns_positive⟩ =
+        1)
+    (outerNorm : BorrowCoordinatesNormFour bodyAssignment)
+    (openingsAccepted : ProductionAccepted arm bodyAssignment)
+    (linksAccepted :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedLinkRows.Normalized.ProductionAccepted
+        linkSelector bodyAssignment overlayAssignment)
+    (overlayAccepted :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedOverlayRows.Normalized.ProductionAccepted
+        setup family overlayAssignment)
+    (algebraAccepted :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized.ProductionAccepted
+        arm bodyAssignment)
+    (carryAccepted :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedCarryRows.Normalized.ProductionAccepted
+        arm bodyAssignment)
+    (residualAccepted :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedResidualRows.Normalized.ProductionAccepted
+        arm bodyAssignment)
+    (before after :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.FamilyState)
+    (statePlaced :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyCarryRows.StateColumnsPlaced
+        (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilySourceRows.carryLayout
+          Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyCompleteRows.layout)
+        (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.carryAssignment
+          bodyAssignment)
+        before after)
+    (strongSet :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedCarryRows.Normalized.ChallengesInStrongSet
+        before.challenges)
+    (residualStatePlaced :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedResidualRows.Normalized.StateColumnsPlaced
+        bodyAssignment before after)
+    (cursorExact : before.familyCursor =
+      ProductPiRlcAlgebraRows.familyOrdinal family)
+    (replay :
+      Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.ReplayTransition
+        before after
+        (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.algebraInputs
+          bodyAssignment)
+        (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.algebraOutput
+          bodyAssignment)) :
+    Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.FamilyPhaseRelation
+      setup before after family
+      (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.algebraInputs
+        bodyAssignment)
+      (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.algebraOutput
+        bodyAssignment) := by
+  have phaseBindingPlaced :=
+    accepted_implies_bodyPhaseBindingPlaced bodyConstantOne bodySelectorOne
+      linkSelectorOne overlayConstantOne outerNorm openingsAccepted
+      linksAccepted overlayAccepted
+  exact
+    Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedFamilyRows.Normalized.jointAccepted_implies_concrete_phase
+      arm bodyAssignment bodyConstantOne algebraAccepted carryAccepted
+      residualAccepted setup before after family statePlaced strongSet
+      residualStatePlaced phaseBindingPlaced cursorExact replay
 
 end Normalized
 

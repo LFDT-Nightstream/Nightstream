@@ -1,6 +1,7 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyDigest
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2Sponge
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.TranscriptMachineDuplex
+import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.PureSponge
 
 /-!
 Contract: exact full-`XOut` Poseidon2 execution for one PiRLC family arm.
@@ -264,6 +265,15 @@ def xOutChunks
     List Poseidon2Sponge.RateChunk :=
   Poseidon2Sponge.chunkList (xOutChunkAt assignment kind side)
     (xOutChunkAt_bounded assignment kind side) 8
+
+/-- The indexed PiRLC XOut chunks are exactly the shared eight full-rate
+chunks of the ordered 32 Rust hash-input columns. -/
+theorem xOutChunks_exact
+    (assignment : Nat → Nat) (kind : ArmKind) (side : StateSide) :
+    xOutChunks assignment kind side =
+      Poseidon2PureSponge.fullRateChunks
+        ((xOutHashFor kind side).inputColumns.map assignment) 8 := by
+  cases kind <;> cases side <;> rfl
 
 private theorem data_input_low_refines
     (kind : ArmKind) (side : StateSide)

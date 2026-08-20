@@ -91,6 +91,25 @@ structure RawArm where
   owners : List Owner
 deriving DecidableEq, Repr
 
+/-- Run-compressed source ownership for the final selective public prefix.
+Column zero is the affine constant, the middle interval copies source fields
+at the same indices, and the last interval is verifier-pinned zero padding. -/
+structure RawPublicDecoder where
+  constantOneColumn : Nat
+  sourceFieldStart : Nat
+  sourceFieldEnd : Nat
+  paddingStart : Nat
+  paddingEnd : Nat
+deriving DecidableEq, Repr
+
+def RawPublicDecoder.Valid
+    (decoder : RawPublicDecoder) (logicalColumns publicColumns : Nat) : Prop :=
+  decoder.constantOneColumn = 0 ∧
+    decoder.sourceFieldStart = 1 ∧
+    decoder.sourceFieldEnd = logicalColumns ∧
+    decoder.paddingStart = logicalColumns ∧
+    decoder.paddingEnd = publicColumns
+
 def Owner.Matches (arm : RawArm) (owner : Owner) : Prop :=
   match owner.kind with
   | .canonical =>
@@ -277,14 +296,15 @@ structure RawArtifact where
   lowNormRows : Nat
   lowNormColumns : Nat
   lowNormPublicColumns : Nat
+  publicDecoder : RawPublicDecoder
   even : RawArm
   odd : RawArm
 deriving DecidableEq, Repr
 
 def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
-  artifact.schemaVersion = 3 ∧
+  artifact.schemaVersion = 4 ∧
     artifact.profileId =
-      "nebula-f-prime-streaming-pi-rlc-family-public-v3" ∧
+      "nebula-f-prime-streaming-pi-rlc-family-public-v4" ∧
     artifact.familyStateFields = 1045 ∧
     artifact.sharedPublicWords = 10 ∧
     artifact.publicBitsPerWord = 64 ∧
@@ -292,6 +312,8 @@ def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
     artifact.lowNormRows = 491046 ∧
     artifact.lowNormColumns = 8858862 ∧
     artifact.lowNormPublicColumns = 648 ∧
+    artifact.publicDecoder.Valid artifact.even.publicColumnCount
+      artifact.lowNormPublicColumns ∧
     artifact.even.sourceRowCount = 310646 ∧
     artifact.even.rowCount = 1300897 ∧
     artifact.even.columnCount = 1301126 ∧

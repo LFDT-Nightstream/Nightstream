@@ -10,8 +10,9 @@ use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
 use neo_fold_clean::frontends::nebula::f_prime::{
     prepare_streaming_lifecycle_preprocessing, production_streaming_terminal_profile, streaming_phase_semantic_digest,
     synthesize_streaming_lifecycle_source_arms, NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingLifecycleArm,
-    NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingPublicLayout, NebulaFPrimeStreamingTerminalFieldBinding,
-    NebulaFPrimeStreamingTerminalFieldDomain, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
+    NebulaFPrimeStreamingLifecycleSourceArms, NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingPublicLayout,
+    NebulaFPrimeStreamingTerminalFieldBinding, NebulaFPrimeStreamingTerminalFieldDomain,
+    NebulaFPrimeStreamingTerminalProfile, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
     STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY, STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY,
     STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY, STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS,
 };
@@ -23,10 +24,12 @@ use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
 use neo_fold_clean::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment,
     build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links, lower_field_r1cs, OverlayKindLinks,
-    ScheduledCommonPhaseFieldLink, ScheduledCursorBits, ScheduledPhaseKindLinks, SparseR1cs,
+    ScheduledCommonPhaseFieldLink, ScheduledCursorBits, ScheduledLinkedOverlayLowNormR1cs, ScheduledPhaseKindLinks,
+    SparseR1cs,
 };
-use neo_fold_clean::paper::construction2::NebulaLane;
+use neo_fold_clean::paper::construction2::{NebulaLane, StackShape};
 use neo_fold_clean::paper::digest::{self, StateXOutDigestMode, StateXOutPreimageInstruction};
+use neo_fold_clean::paper::f_prime::nebula_lane_circuit::NebulaLaneWires;
 use neo_fold_clean::paper::f_prime::stage as fprime_stage;
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::product_commitment_circuit::{adv_commitment_data_wires, alloc_adv};
@@ -193,6 +196,20 @@ fn lane_fields(lane: &NebulaLane) -> Vec<F> {
     fields
 }
 
+fn lane_wire_columns(lane: &NebulaLaneWires) -> [usize; 50] {
+    let mut fields = Vec::with_capacity(50);
+    fields.extend(lane.program_binding_digest.map(|wire| wire.col()));
+    fields.extend([lane.open, lane.seg_idx, lane.idx, lane.ts].map(|wire| wire.col()));
+    for value in lane.gamma.iter().chain(&lane.h) {
+        fields.extend([value.c0.col(), value.c1.col()]);
+    }
+    fields.extend(lane.sp.map(|wire| wire.col()));
+    fields.extend(lane.d_pre.iter().flatten().map(|wire| wire.col()));
+    fields.extend(lane.d_seen.iter().flatten().map(|wire| wire.col()));
+    fields.extend(lane.d_mem.map(|wire| wire.col()));
+    fields.try_into().expect("50 Nebula lane fields")
+}
+
 fn terminal_x_out_preimage(
     vk_fs: [F; 4],
     pi_ccs_header: [F; 4],
@@ -223,13 +240,33 @@ fn terminal_x_out_preimage(
 }
 
 pub struct StreamingTerminalAuditFixture {
+    pub lifecycle: NebulaFPrimeStreamingLifecycleSourceArms,
+    pub relation: ScheduledLinkedOverlayLowNormR1cs,
+    pub profile: NebulaFPrimeStreamingTerminalProfile,
     pub terminal: R1csBuilder,
+    pub final_witness_column_start: usize,
+    pub source_binding_decoded_column_start: usize,
     pub schedule_selector_column: usize,
+    pub lifecycle_selector_column: usize,
+    pub phase_selector_column: usize,
     pub verifier_key_column: usize,
+    pub vk_fs_columns: [usize; 4],
+    pub pi_ccs_header_columns: [usize; 4],
+    pub boundary_columns: [usize; 4],
+    pub accumulator_columns: [usize; 4],
     pub program_binding_column: usize,
     pub delayed_payload_column: usize,
     pub fresh_adv_column: usize,
     pub final_closed_lane_column: usize,
+    pub fresh_adv_shape_columns: [[usize; 2]; 3],
+    pub fresh_adv_data_columns: LaneCommitments<Vec<usize>>,
+    pub fresh_adv_d: usize,
+    pub fresh_adv_kappa: usize,
+    pub delayed_payload_columns: Vec<usize>,
+    pub final_lane_columns: [usize; 50],
+    pub steps_per_segment: u64,
+    pub seg_max: u64,
+    pub stacks: StackShape,
 }
 
 pub fn build_streaming_terminal_audit_fixture() -> StreamingTerminalAuditFixture {
@@ -619,6 +656,7 @@ pub fn build_streaming_terminal_audit_fixture() -> StreamingTerminalAuditFixture
         current_boundary: boundary.map(|value| terminal.alloc(value)),
         accumulator_digest: accumulator.map(|value| terminal.alloc(value)),
     };
+    let source_binding_decoded_column_start = terminal.cols();
     let terminal_output = enforce_streaming_terminal_lifecycle(
         &mut terminal,
         &profile,
@@ -638,13 +676,65 @@ pub fn build_streaming_terminal_audit_fixture() -> StreamingTerminalAuditFixture
     assert_eq!(terminal.witness()[terminal_output.final_lane.idx.col()], F::ZERO);
     assert_eq!(terminal_output.delayed_payload.len(), payload_len);
 
+    let fresh_adv_shape_columns = [
+        [adv_wires.ops.d_var.col(), adv_wires.ops.kappa_var.col()],
+        [adv_wires.is.d_var.col(), adv_wires.is.kappa_var.col()],
+        [adv_wires.fs.d_var.col(), adv_wires.fs.kappa_var.col()],
+    ];
+    let fresh_adv_data_columns = LaneCommitments {
+        ops: adv_data_wires
+            .ops
+            .data
+            .iter()
+            .map(|wire| wire.col())
+            .collect(),
+        is: adv_data_wires
+            .is
+            .data
+            .iter()
+            .map(|wire| wire.col())
+            .collect(),
+        fs: adv_data_wires
+            .fs
+            .data
+            .iter()
+            .map(|wire| wire.col())
+            .collect(),
+    };
+    let delayed_payload_columns = terminal_output
+        .delayed_payload
+        .iter()
+        .map(|wire| wire.col())
+        .collect();
+    let final_lane_columns = lane_wire_columns(&terminal_output.final_lane);
+
     StreamingTerminalAuditFixture {
+        lifecycle,
+        relation,
+        final_witness_column_start: final_witness[0].col(),
+        source_binding_decoded_column_start,
         schedule_selector_column: final_witness[profile.schedule_selector_column()].col(),
+        lifecycle_selector_column: final_witness[profile.lifecycle_selector_column()].col(),
+        phase_selector_column: final_witness[profile.phase_selector_column()].col(),
         verifier_key_column: public.vk_fs_digest[0].col(),
+        vk_fs_columns: public.vk_fs_digest.map(|wire| wire.col()),
+        pi_ccs_header_columns: public.pi_ccs_header.map(|wire| wire.col()),
+        boundary_columns: public.current_boundary.map(|wire| wire.col()),
+        accumulator_columns: public.accumulator_digest.map(|wire| wire.col()),
         program_binding_column: terminal_output.post_phase_lane.program_binding_digest[0].col(),
         delayed_payload_column: terminal_output.delayed_payload[0].col(),
         fresh_adv_column: adv_wires.ops.data[0].col(),
         final_closed_lane_column: terminal_output.final_lane.h[0].c0.col(),
+        fresh_adv_shape_columns,
+        fresh_adv_data_columns,
+        fresh_adv_d: adv_data_wires.ops.d,
+        fresh_adv_kappa: adv_data_wires.ops.kappa,
+        delayed_payload_columns,
+        final_lane_columns,
+        steps_per_segment: config.steps_per_segment,
+        seg_max: config.seg_max,
+        stacks: config.stacks,
         terminal,
+        profile,
     }
 }

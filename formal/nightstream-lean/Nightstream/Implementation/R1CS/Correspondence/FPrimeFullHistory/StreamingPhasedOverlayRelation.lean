@@ -3,10 +3,10 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Streamin
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.ScheduledLinkedOverlay
 
 /-!
-Contract: exact 400-arm semantic interface for the production base-plus-overlay
+Contract: exact 436-arm semantic interface for the production base-plus-overlay
 F-prime relation.
 
-Owns the exact 197-kind claim-coordinate and PiRLC-family overlay map, the
+Owns the exact 209-kind claim-coordinate and PiRLC-family overlay map, the
 joint meaning of lifecycle, phase, schedule, overlay, and private-link rows on
 one before/after pair, and refinement of accepted rows to the
 verifier-selected program step.
@@ -43,22 +43,22 @@ def phaseKind (arm : WorkArm) : Fin 23 :=
   Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedRelation.phaseKind arm
 
 /-- Embed one claim-coordinate kind in the combined overlay vocabulary. -/
-def liftClaimOverlayKind (kind : Fin 87) : Fin 197 :=
+def liftClaimOverlayKind (kind : Fin 99) : Fin 209 :=
   ⟨kind.val, by omega⟩
 
 /-- Exact combined overlay kind selected by one verifier-owned work item.
 Invalid family indices map to no-op; they do not occur in the production
 program. -/
-def combinedOverlayKindForWorkItem (item : WorkItem) : Fin 197 :=
+def combinedOverlayKindForWorkItem (item : WorkItem) : Fin 209 :=
   if item.phase = .piRlcFamily then
     if bound : item.index < 110 then
-      ⟨87 + item.index, by omega⟩
+      ⟨99 + item.index, by omega⟩
     else
       0
   else
     liftClaimOverlayKind (overlayKindForWorkItem item)
 
-def overlayKind (arm : WorkArm) : Fin 197 :=
+def overlayKind (arm : WorkArm) : Fin 209 :=
   combinedOverlayKindForWorkItem (workItem arm)
 
 theorem overlayKind_nonOverlay
@@ -81,7 +81,7 @@ theorem overlayKind_claim
 theorem overlayKind_piRlcFamily
     (arm : WorkArm) (family : (workItem arm).phase = .piRlcFamily)
     (bound : (workItem arm).index < 110) :
-    overlayKind arm = ⟨87 + (workItem arm).index, by omega⟩ := by
+    overlayKind arm = ⟨99 + (workItem arm).index, by omega⟩ := by
   simp [overlayKind, combinedOverlayKindForWorkItem, family, bound]
 
 /-- Complete meaning of one selected base-plus-overlay arm. All row families
@@ -114,7 +114,7 @@ theorem jointExactRefinement {State : Type}
     (commonRows : Fin 2 → ResidualFamily)
     (phaseKindRows : Fin 23 → ResidualFamily)
     (scheduleRows : WorkArm → ResidualFamily)
-    (overlayRows fieldLinkRows : Fin 197 → ResidualFamily)
+    (overlayRows fieldLinkRows : Fin 209 → ResidualFamily)
     (commonSemantics : Fin 2 → Runtime State → Runtime State → Prop)
     (phaseSemantics : WorkItem → State → State → Prop)
     (before after : Runtime State)
@@ -156,7 +156,7 @@ theorem exists_linkedAccepts_iff_jointArmSemantics
     (commonRows : Fin 2 → ResidualFamily)
     (phaseKindRows : Fin 23 → ResidualFamily)
     (scheduleRows : WorkArm → ResidualFamily)
-    (overlayRows fieldLinkRows : Fin 197 → ResidualFamily)
+    (overlayRows fieldLinkRows : Fin 209 → ResidualFamily)
     (commonSemantics : Fin 2 → Runtime State → Runtime State → Prop)
     (phaseSemantics : WorkItem → State → State → Prop)
     (before after : Runtime State)
@@ -182,6 +182,48 @@ theorem exists_linkedAccepts_iff_jointArmSemantics
       fieldLinkRows commonSemantics phaseSemantics before after commonExact
       scheduleExact localExact)
 
+/-- Soundness-only refinement to one selected arm. The common lifecycle rows,
+phase body, selected overlay, field links, and cursor rows all refer to this
+same arm and the same runtime values. -/
+theorem linkedAccepts_implies_jointArmSemantics_of_joint_sound
+    (noZeroProducts : NoZeroProducts)
+    {State : Type}
+    {commonRows : Fin 2 → ResidualFamily}
+    {phaseKindRows : Fin 23 → ResidualFamily}
+    {scheduleRows : WorkArm → ResidualFamily}
+    {overlayRows fieldLinkRows : Fin 209 → ResidualFamily}
+    {commonSemantics : Fin 2 → Runtime State → Runtime State → Prop}
+    {phaseSemantics : WorkItem → State → State → Prop}
+    {before after : Runtime State}
+    (commonSound : ∀ circuit,
+      RowsZero (commonRows circuit) →
+        commonSemantics circuit before after)
+    (scheduleSound : ∀ arm,
+      RowsZero (scheduleRows arm) →
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedRelation.CursorAtArm
+          arm before after)
+    (localSound : ∀ arm,
+      RowsZero (phaseKindRows (phaseKind arm)) →
+      RowsZero (overlayRows (overlayKind arm)) →
+      RowsZero (fieldLinkRows (overlayKind arm)) →
+        phaseSemantics (workItem arm) before.value after.value)
+    {weights : WorkArm → F}
+    {lifecycleWeights : Fin 2 → F}
+    {phaseKindWeights : Fin 23 → F}
+    {overlayWeights : Fin 209 → F}
+    (accepted :
+      LinkedAccepts lifecycleCircuit phaseKind overlayKind weights
+        lifecycleWeights phaseKindWeights overlayWeights commonRows
+        phaseKindRows scheduleRows overlayRows fieldLinkRows) :
+    ∃ arm, JointArmSemantics commonSemantics phaseSemantics
+      before after arm := by
+  rcases linkedAccepts_sound noZeroProducts accepted with
+    ⟨arm, commonZero, phaseZero, scheduleZero, overlayZero, fieldLinksZero⟩
+  have cursor := scheduleSound arm scheduleZero
+  exact ⟨arm, commonSound (lifecycleCircuit arm) commonZero,
+    cursor.1, cursor.2,
+    localSound arm phaseZero overlayZero fieldLinksZero⟩
+
 /-- Soundness interface for production split rows. This direction is enough
 for verification: the selected phase body, overlay body, and field links must
 jointly imply the verifier-owned phase relation. -/
@@ -191,7 +233,7 @@ theorem linkedAccepts_implies_step_of_joint_sound
     {commonRows : Fin 2 → ResidualFamily}
     {phaseKindRows : Fin 23 → ResidualFamily}
     {scheduleRows : WorkArm → ResidualFamily}
-    {overlayRows fieldLinkRows : Fin 197 → ResidualFamily}
+    {overlayRows fieldLinkRows : Fin 209 → ResidualFamily}
     {phaseSemantics : WorkItem → State → State → Prop}
     {before after : Runtime State}
     (scheduleSound : ∀ arm,
@@ -206,7 +248,7 @@ theorem linkedAccepts_implies_step_of_joint_sound
     {weights : WorkArm → F}
     {lifecycleWeights : Fin 2 → F}
     {phaseKindWeights : Fin 23 → F}
-    {overlayWeights : Fin 197 → F}
+    {overlayWeights : Fin 209 → F}
     (accepted :
       LinkedAccepts lifecycleCircuit phaseKind overlayKind weights
         lifecycleWeights phaseKindWeights overlayWeights commonRows
@@ -227,7 +269,7 @@ theorem exactRefinement {State : Type}
     (commonRows : Fin 2 → ResidualFamily)
     (phaseKindRows : Fin 23 → ResidualFamily)
     (scheduleRows : WorkArm → ResidualFamily)
-    (overlayRows fieldLinkRows : Fin 197 → ResidualFamily)
+    (overlayRows fieldLinkRows : Fin 209 → ResidualFamily)
     (commonSemantics : Fin 2 → Runtime State → Runtime State → Prop)
     (phaseSemantics : WorkItem → State → State → Prop)
     (overlaySemantics : WorkArm → Runtime State → Runtime State → Prop)
@@ -273,7 +315,7 @@ theorem exists_linkedAccepts_iff_overlayArmSemantics
     (commonRows : Fin 2 → ResidualFamily)
     (phaseKindRows : Fin 23 → ResidualFamily)
     (scheduleRows : WorkArm → ResidualFamily)
-    (overlayRows fieldLinkRows : Fin 197 → ResidualFamily)
+    (overlayRows fieldLinkRows : Fin 209 → ResidualFamily)
     (commonSemantics : Fin 2 → Runtime State → Runtime State → Prop)
     (phaseSemantics : WorkItem → State → State → Prop)
     (overlaySemantics : WorkArm → Runtime State → Runtime State → Prop)
@@ -310,7 +352,7 @@ theorem linkedAccepts_implies_step
     {commonRows : Fin 2 → ResidualFamily}
     {phaseKindRows : Fin 23 → ResidualFamily}
     {scheduleRows : WorkArm → ResidualFamily}
-    {overlayRows fieldLinkRows : Fin 197 → ResidualFamily}
+    {overlayRows fieldLinkRows : Fin 209 → ResidualFamily}
     {commonSemantics : Fin 2 → Runtime State → Runtime State → Prop}
     {phaseSemantics : WorkItem → State → State → Prop}
     {overlaySemantics : WorkArm → Runtime State → Runtime State → Prop}
@@ -331,7 +373,7 @@ theorem linkedAccepts_implies_step
     {weights : WorkArm → F}
     {lifecycleWeights : Fin 2 → F}
     {phaseKindWeights : Fin 23 → F}
-    {overlayWeights : Fin 197 → F}
+    {overlayWeights : Fin 209 → F}
     (accepted :
       LinkedAccepts lifecycleCircuit phaseKind overlayKind weights
         lifecycleWeights phaseKindWeights overlayWeights commonRows

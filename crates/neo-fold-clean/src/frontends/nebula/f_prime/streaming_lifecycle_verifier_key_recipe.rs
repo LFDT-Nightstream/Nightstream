@@ -101,16 +101,15 @@ impl NebulaFPrimeStreamingVerifierKeyHashBlock {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NebulaFPrimeStreamingVerifierKeyHashRecipes {
+pub struct NebulaFPrimeStreamingVerifierKeyCoreRecipes {
     base_verifier_key: NebulaFPrimeStreamingVerifierKeyHashBlock,
     policy_verifier_key: NebulaFPrimeStreamingVerifierKeyHashBlock,
     policy_digest_binding: NebulaFPrimeStreamingVerifierKeyDigestBinding,
     initial_boundary: NebulaFPrimeStreamingVerifierKeyHashBlock,
     initial_boundary_binding: NebulaFPrimeStreamingVerifierKeyDigestBinding,
-    public_trace_binding: NebulaFPrimeStreamingVerifierKeyDigestBinding,
 }
 
-impl NebulaFPrimeStreamingVerifierKeyHashRecipes {
+impl NebulaFPrimeStreamingVerifierKeyCoreRecipes {
     pub fn base_verifier_key(&self) -> &NebulaFPrimeStreamingVerifierKeyHashBlock {
         &self.base_verifier_key
     }
@@ -130,24 +129,84 @@ impl NebulaFPrimeStreamingVerifierKeyHashRecipes {
     pub fn initial_boundary_binding(&self) -> &NebulaFPrimeStreamingVerifierKeyDigestBinding {
         &self.initial_boundary_binding
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NebulaFPrimeStreamingVerifierKeyHashRecipes {
+    core: NebulaFPrimeStreamingVerifierKeyCoreRecipes,
+    public_trace_binding: NebulaFPrimeStreamingVerifierKeyDigestBinding,
+}
+
+impl NebulaFPrimeStreamingVerifierKeyHashRecipes {
+    pub fn base_verifier_key(&self) -> &NebulaFPrimeStreamingVerifierKeyHashBlock {
+        self.core.base_verifier_key()
+    }
+
+    pub fn policy_verifier_key(&self) -> &NebulaFPrimeStreamingVerifierKeyHashBlock {
+        self.core.policy_verifier_key()
+    }
+
+    pub fn policy_digest_binding(&self) -> &NebulaFPrimeStreamingVerifierKeyDigestBinding {
+        self.core.policy_digest_binding()
+    }
+
+    pub fn initial_boundary(&self) -> &NebulaFPrimeStreamingVerifierKeyHashBlock {
+        self.core.initial_boundary()
+    }
+
+    pub fn initial_boundary_binding(&self) -> &NebulaFPrimeStreamingVerifierKeyDigestBinding {
+        self.core.initial_boundary_binding()
+    }
 
     pub fn public_trace_binding(&self) -> &NebulaFPrimeStreamingVerifierKeyDigestBinding {
         &self.public_trace_binding
     }
 }
 
+#[doc(hidden)]
+pub fn extract_base_verifier_key_core_recipes(
+    source: &SparseR1cs,
+    assignment: &[F],
+) -> Result<NebulaFPrimeStreamingVerifierKeyCoreRecipes, NebulaFPrimeRelationError> {
+    extract_verifier_key_core_recipes(source, assignment, fprime_stage::BASE_VERIFIER_KEY, 4).map(|(core, _)| core)
+}
+
 pub(super) fn extract_recursive_verifier_key_hash_recipes(
     source: &SparseR1cs,
     assignment: &[F],
 ) -> Result<NebulaFPrimeStreamingVerifierKeyHashRecipes, NebulaFPrimeRelationError> {
+    let (core, stage_rows) =
+        extract_verifier_key_core_recipes(source, assignment, fprime_stage::RECURSIVE_VERIFIER_KEY, 3)?;
+    if core.initial_boundary.source_rows.end + 8 != stage_rows.end {
+        return Err(geometry("recursive verifier-key suffix geometry differs"));
+    }
+    let source_rows = SourceRowWindow::new(source, stage_rows)?;
+    let public_trace_binding = extract_digest_binding(
+        &source_rows,
+        core.initial_boundary.source_rows.end + 4..core.initial_boundary.source_rows.end + 8,
+        None,
+        "recursive verifier-key public-trace binding",
+    )?;
+    Ok(NebulaFPrimeStreamingVerifierKeyHashRecipes {
+        core,
+        public_trace_binding,
+    })
+}
+
+fn extract_verifier_key_core_recipes(
+    source: &SparseR1cs,
+    assignment: &[F],
+    stage_path: &str,
+    expected_hash_count: usize,
+) -> Result<(NebulaFPrimeStreamingVerifierKeyCoreRecipes, Range<usize>), NebulaFPrimeRelationError> {
     let stages = source
         .physical_stage_ranges()
         .iter()
-        .filter(|stage| stage.path() == fprime_stage::RECURSIVE_VERIFIER_KEY)
+        .filter(|stage| stage.path() == stage_path)
         .collect::<Vec<_>>();
     let [stage] = stages.as_slice() else {
         return Err(geometry(
-            "recursive lifecycle arm must contain exactly one verifier-key stage",
+            "lifecycle arm must contain exactly one requested verifier-key stage",
         ));
     };
     let stage_rows = stage.rows();
@@ -156,10 +215,11 @@ pub(super) fn extract_recursive_verifier_key_hash_recipes(
         .iter()
         .filter(|audit| stage_rows.start <= audit.zero_row && audit.row_end <= stage_rows.end)
         .collect::<Vec<_>>();
-    let [base_hash, policy_hash, initial_boundary_hash] = hashes.as_slice() else {
-        return Err(geometry(
-            "recursive verifier-key stage must contain exactly three Poseidon2 hashes",
-        ));
+    if hashes.len() != expected_hash_count {
+        return Err(geometry("verifier-key stage Poseidon2 hash count differs"));
+    }
+    let [base_hash, policy_hash, initial_boundary_hash, ..] = hashes.as_slice() else {
+        return Err(geometry("verifier-key stage has fewer than three Poseidon2 hashes"));
     };
     if [
         base_hash.rounds.len(),
@@ -224,9 +284,9 @@ pub(super) fn extract_recursive_verifier_key_hash_recipes(
     if base_verifier_key.source_rows.start != stage_rows.start
         || base_verifier_key.source_rows.end != policy_verifier_key.source_rows.start
         || policy_verifier_key.source_rows.end + 4 != initial_boundary.source_rows.start
-        || initial_boundary.source_rows.end + 8 != stage_rows.end
+        || initial_boundary.source_rows.end + 4 > stage_rows.end
     {
-        return Err(geometry("recursive verifier-key hash block geometry differs"));
+        return Err(geometry("verifier-key core hash block geometry differs"));
     }
     let policy_digest_binding = extract_digest_binding(
         &source_rows,
@@ -238,22 +298,18 @@ pub(super) fn extract_recursive_verifier_key_hash_recipes(
         &source_rows,
         initial_boundary.source_rows.end..initial_boundary.source_rows.end + 4,
         Some(initial_boundary.output_columns),
-        "recursive verifier-key initial-boundary binding",
+        "verifier-key initial-boundary binding",
     )?;
-    let public_trace_binding = extract_digest_binding(
-        &source_rows,
-        initial_boundary.source_rows.end + 4..stage_rows.end,
-        None,
-        "recursive verifier-key public-trace binding",
-    )?;
-    Ok(NebulaFPrimeStreamingVerifierKeyHashRecipes {
-        base_verifier_key,
-        policy_verifier_key,
-        policy_digest_binding,
-        initial_boundary,
-        initial_boundary_binding,
-        public_trace_binding,
-    })
+    Ok((
+        NebulaFPrimeStreamingVerifierKeyCoreRecipes {
+            base_verifier_key,
+            policy_verifier_key,
+            policy_digest_binding,
+            initial_boundary,
+            initial_boundary_binding,
+        },
+        stage_rows,
+    ))
 }
 
 struct IsolatedPermutation {

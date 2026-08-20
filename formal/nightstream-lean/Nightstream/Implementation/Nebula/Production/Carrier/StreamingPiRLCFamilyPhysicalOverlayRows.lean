@@ -5,7 +5,7 @@ Contract: same-assignment authority for one physical PiRLC family overlay.
 
 Assurance tier: generated-source and physical-link soundness.
 
-Owns the 33,360-column physical overlay layout and the 33,359 exact field
+Owns the 37,788-column physical overlay layout and the 37,787 exact field
 links from one shared parity body. Proves that accepted physical overlay rows
 and those links imply the same `FamilyPhaseRelation` as the source layout.
 
@@ -57,15 +57,15 @@ def physicalLayout : InputPhaseLayout where
   zeroDigitStart := 1
   dColumn := 0
   kappaColumn := 0
-  outputColumn := fun output => 33252 + output.val
+  outputColumn := fun output => 37680 + output.val
   seededRowStart := 0
 
 theorem physical_layout_exact :
     physicalLayout.zeroDigitStart = 1 /\
       physicalLayout.digitStart ⟨0, by decide⟩ ⟨0, by decide⟩ = 42 /\
-      physicalLayout.digitStart ⟨14, by decide⟩ ⟨53, by decide⟩ = 33211 /\
-      physicalLayout.outputColumn ⟨0, by decide⟩ = 33252 /\
-      physicalLayout.outputColumn ⟨107, by decide⟩ = 33359 := by
+      physicalLayout.digitStart ⟨16, by decide⟩ ⟨53, by decide⟩ = 37639 /\
+      physicalLayout.outputColumn ⟨0, by decide⟩ = 37680 /\
+      physicalLayout.outputColumn ⟨107, by decide⟩ = 37787 := by
   decide
 
 /-- The exact physical rows selected for one family position. -/
@@ -94,9 +94,9 @@ structure FieldLinksHold
     bodyAssignment (sourceLayout.input.phase.outputColumn output) =
       overlayAssignment (physicalLayout.outputColumn output)
 
-def fieldLinkCount : Nat := 41 + 15 * 54 * 41 + 108
+def fieldLinkCount : Nat := 41 + 17 * 54 * 41 + 108
 
-theorem fieldLinkCount_exact : fieldLinkCount = 33359 := by
+theorem fieldLinkCount_exact : fieldLinkCount = 37787 := by
   decide
 
 /-- The compact link runs start at the exact body and physical columns and
@@ -108,11 +108,11 @@ theorem link_run_geometry_exact :
           ⟨0, by decide⟩ ⟨0, by decide⟩ = 51504 /\
       physicalLayout.digitStart ⟨0, by decide⟩ ⟨0, by decide⟩ = 42 /\
       sourceLayout.input.phase.outputColumn ⟨0, by decide⟩ = 163502 /\
-      physicalLayout.outputColumn ⟨0, by decide⟩ = 33252 := by
+      physicalLayout.outputColumn ⟨0, by decide⟩ = 37680 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Exact body source digits transfer to the physical overlay assignment
-through all 33,251 input links. -/
+through all 37,679 input links. -/
 theorem physicalSourceColumnsExact_of_links
     {bodyAssignment overlayAssignment : Nat → Nat}
     {inputs : Source → RingF}

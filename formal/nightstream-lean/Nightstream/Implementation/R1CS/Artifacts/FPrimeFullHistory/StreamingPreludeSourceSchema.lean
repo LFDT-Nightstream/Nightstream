@@ -51,6 +51,10 @@ structure SemanticColumns where
   initialReplayState : List ColumnBinding
   beforeLocalStateDigest : List ColumnBinding
   afterLocalStateDigest : List ColumnBinding
+  beforeXOutPreimage : List ColumnBinding
+  afterXOutPreimage : List ColumnBinding
+  beforeXOutDigest : List ColumnBinding
+  afterXOutDigest : List ColumnBinding
   beforeProgramCursor : ColumnBinding
   afterProgramCursor : ColumnBinding
 deriving DecidableEq, Repr

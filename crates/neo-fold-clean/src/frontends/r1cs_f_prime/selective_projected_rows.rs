@@ -23,7 +23,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use neo_ccs::CcsMatrix;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
@@ -47,15 +46,17 @@ use super::{
 mod model;
 #[path = "selective_projected_rows/poseidon2.rs"]
 mod poseidon2;
+#[path = "selective_projected_rows/row_index.rs"]
+mod row_index;
 
 pub use model::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
-    SelectiveProjectedPort, SelectiveProjectedPoseidon2SboxStep, SelectiveProjectedProductFactor,
-    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
-    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
-    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceImage, SelectiveProjectedSourceLinearCombination,
-    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
-    SelectiveProjectedTerm,
+    SelectiveProjectedPort, SelectiveProjectedPoseidon2OutputStep, SelectiveProjectedPoseidon2SboxStep,
+    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
+    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
+    SelectiveProjectedRowArtifact, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceImage,
+    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
+    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 
 /// Exact selected rows emitted from one prepared selective compiler plan.
@@ -718,72 +719,6 @@ fn projected_factor(factor: &ProductFactorTrace) -> SelectiveProjectedProductFac
     }
 }
 
-fn source_row_lc(
-    matrix: &CcsMatrix<F>,
-    row: usize,
-) -> Result<SelectiveProjectedSourceLinearCombination, LowNormR1csError> {
-    let mut canonical = BTreeMap::<usize, F>::new();
-    let mut add = |column: usize, coefficient: F| {
-        if coefficient != F::ZERO {
-            *canonical.entry(column).or_insert(F::ZERO) += coefficient;
-        }
-    };
-    let mut append_csc = |csc: &neo_ccs::CscMat<F>| {
-        for column in 0..csc.ncols {
-            for entry in csc.column_range(column) {
-                if csc.row_index(entry) == row {
-                    add(column, csc.vals[entry]);
-                }
-            }
-        }
-    };
-    match matrix {
-        CcsMatrix::Identity { n } => {
-            if row >= *n {
-                return Err(trace_error("projected retained source row exceeds identity port"));
-            }
-            add(row, F::ONE);
-        }
-        CcsMatrix::Csc(csc) => append_csc(csc),
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
-            if blocks
-                .iter()
-                .any(|block| (block.row_start()..block.row_end()).contains(&row))
-            {
-                return Err(trace_error(
-                    "projected retained source row intersects a compact seeded row",
-                ));
-            }
-            append_csc(csc);
-            for run in geometric_runs.iter().filter(|run| run.row() == row) {
-                let mut coefficient = *run.initial();
-                for column in run.column_start()..run.column_start() + run.len() {
-                    add(column, coefficient);
-                    coefficient *= *run.ratio();
-                }
-            }
-        }
-        CcsMatrix::VerifierArtifact { .. } => {
-            return Err(trace_error(
-                "projected source-row audit requires materialized matrix content",
-            ));
-        }
-    }
-    canonical.retain(|_, coefficient| *coefficient != F::ZERO);
-    let constant = canonical.remove(&0).unwrap_or(F::ZERO);
-    Ok(SelectiveProjectedSourceLinearCombination {
-        constant,
-        terms: canonical
-            .into_iter()
-            .map(|(column, coefficient)| SelectiveProjectedSourceTerm { column, coefficient })
-            .collect(),
-    })
-}
-
 fn verify_retained_step(
     step: &SelectiveProjectedRetainedStep,
     artifact: &SelectiveProjectedRowArtifact,
@@ -855,7 +790,13 @@ fn source_provenance(
         return Err(trace_error("projected source-provenance arm is out of range"));
     };
     let plan = &layout.plans[arm];
-    let poseidon2_sbox_steps = poseidon2::project_sbox_steps(source_arm, layout, arm, row_artifacts)?;
+    let (poseidon2_sbox_steps, poseidon2_output_steps) =
+        poseidon2::project_steps(source_arm, layout, arm, row_artifacts)?;
+    let retained_source_rows = retained_row_pairs
+        .iter()
+        .map(|&(source_row, _)| source_row)
+        .collect::<BTreeSet<_>>();
+    let retained_source_ports = row_index::source_rows(source_arm, &retained_source_rows)?;
     let mut closure = requested_source_columns
         .iter()
         .copied()
@@ -863,6 +804,18 @@ fn source_provenance(
     for step in &poseidon2_sbox_steps {
         closure.extend(step.input.terms.iter().map(|term| term.column));
         closure.extend(step.output.terms.iter().map(|term| term.column));
+    }
+    for step in &poseidon2_output_steps {
+        closure.extend(step.output.terms.iter().map(|term| term.column));
+        closure.extend(step.linear_form.terms.iter().map(|term| term.column));
+    }
+    for ports in retained_source_ports.values() {
+        closure.extend(
+            ports
+                .iter()
+                .flat_map(|port| &port.terms)
+                .map(|term| term.column),
+        );
     }
     if closure.iter().any(|&column| column >= slots.len()) {
         return Err(trace_error("projected source-provenance column exceeds its source arm"));
@@ -1003,21 +956,18 @@ fn source_provenance(
     let retained_steps = retained_row_pairs
         .iter()
         .map(|&(source_row, emitted_row)| {
-            if source_row >= source_arm.n {
-                return Err(trace_error("projected retained source row is out of range"));
-            }
             let artifact = artifacts_by_row
                 .get(&emitted_row)
                 .copied()
                 .ok_or_else(|| trace_error("projected retained emitted row is absent"))?;
+            let ports = retained_source_ports
+                .get(&source_row)
+                .cloned()
+                .ok_or_else(|| trace_error("projected retained source row is absent"))?;
             let step = SelectiveProjectedRetainedStep {
                 emitted_row,
                 source_row,
-                ports: [
-                    source_row_lc(&source_arm.a, source_row)?,
-                    source_row_lc(&source_arm.b, source_row)?,
-                    source_row_lc(&source_arm.c, source_row)?,
-                ],
+                ports,
             };
             verify_retained_step(&step, artifact, layout, arm)?;
             Ok(step)
@@ -1127,6 +1077,17 @@ fn source_provenance(
             "projected retained source step references a source column outside its closure",
         ));
     }
+    if poseidon2_output_steps.iter().any(|step| {
+        step.output
+            .terms
+            .iter()
+            .chain(&step.linear_form.terms)
+            .any(|term| !closure.contains(&term.column))
+    }) {
+        return Err(trace_error(
+            "projected Poseidon2 output step references a source column outside its closure",
+        ));
+    }
 
     Ok(SelectiveProjectedSourceProvenance {
         arm,
@@ -1136,6 +1097,7 @@ fn source_provenance(
         linear_definitions,
         trace_eliminated_columns,
         poseidon2_sbox_steps,
+        poseidon2_output_steps,
         derived_product_sums,
         rewrite_steps,
         retained_steps,
@@ -1236,10 +1198,7 @@ fn project_rows_inner(
         }
     }
 
-    let mut row_artifacts = Vec::with_capacity(selected_rows.len());
-    for &row in selected_rows {
-        row_artifacts.push(project_row_artifact(&emitted, &layout.compiler_audit, row)?);
-    }
+    let row_artifacts = row_index::project_rows(&emitted, &layout.compiler_audit, selected_rows)?;
 
     let public_padding_runs = layout
         .compiler_audit

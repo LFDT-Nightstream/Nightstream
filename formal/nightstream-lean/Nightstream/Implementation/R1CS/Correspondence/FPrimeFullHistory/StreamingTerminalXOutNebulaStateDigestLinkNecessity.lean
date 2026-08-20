@@ -1,12 +1,12 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerminalXOutNebulaStateDigestLink
 
 /-!
-Contract: exact omission counterexample for the terminal Nebula-state-digest
-family's final links.
+Contract: exact omission counterexample for the complete terminal
+Nebula-state-digest family.
 
 Rust exports the baseline values on the violated equality-row support and
 replays the complete assignment against every retained row. This leaf proves
-that the same support values violate source row 23009.
+that the same support values violate source row 349774.
 
 Assurance tier: artifact-checked.
 -/
@@ -83,13 +83,17 @@ private theorem violatedRow_member :
   · norm_num [digestFields]
   · norm_num [violatedRow, changedColumn, digestColumn, rawArtifact]
 
-theorem selected_source_row : rawArtifact.selectedSourceRow = 23009 := by
+private theorem violatedRow_member_program :
+    violatedRow ∈ rawArtifact.program := by
+  simp [RawArtifact.program, RawArtifact.programPieces, violatedRow_member]
+
+theorem selected_source_row : rawArtifact.selectedSourceRow = 349774 := by
   norm_num [rawArtifact]
 
-theorem linkRows_fail :
-    ¬ rawArtifact.LinkSatisfied omissionAssignment := by
+theorem familyRows_fail :
+    ¬ rawArtifact.Satisfied omissionAssignment := by
   intro satisfied
-  have holds := satisfied violatedRow violatedRow_member
+  have holds := satisfied violatedRow violatedRow_member_program
   have exact := builderLinearRow_sound omissionAssignment_canonical
     omissionAssignment_one changedColumn [(digestColumn, 1)]
       (by norm_num [CanonicalTerms, goldilocksP]) holds
@@ -104,10 +108,10 @@ theorem exact_removal_counterexample :
       (∀ column, omissionAssignment column < goldilocksP) ∧
       omissionAssignment changedColumn = rawArtifact.baselineDigestValue + 1 ∧
       omissionAssignment digestColumn = rawArtifact.baselineDigestValue ∧
-      rawArtifact.selectedSourceRow = 23009 ∧
-      ¬ rawArtifact.LinkSatisfied omissionAssignment :=
+      rawArtifact.selectedSourceRow = 349774 ∧
+      ¬ rawArtifact.Satisfied omissionAssignment :=
   ⟨omissionAssignment_one, omissionAssignment_canonical,
     replay_support_exact.1, replay_support_exact.2,
-    selected_source_row, linkRows_fail⟩
+    selected_source_row, familyRows_fail⟩
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingTerminalXOutNebulaStateDigestLinkNecessity

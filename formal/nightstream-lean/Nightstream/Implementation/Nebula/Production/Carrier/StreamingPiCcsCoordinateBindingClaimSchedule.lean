@@ -102,8 +102,8 @@ theorem evaluation_chunk_geometry
     69 ≤ (claimChunk field).val /\
       (claimChunk field).val ≤ 93 := by
   have fieldBound := field.isLt
-  change 60 ≤ claimFramePosition field / claimChunkWidth /\
-    claimFramePosition field / claimChunkWidth ≤ 81
+  change 69 ≤ claimFramePosition field / claimChunkWidth /\
+    claimFramePosition field / claimChunkWidth ≤ 93
   unfold claimFramePosition
   rw [if_neg (Nat.not_lt.mpr evaluation)]
   unfold pointFieldCount at evaluation

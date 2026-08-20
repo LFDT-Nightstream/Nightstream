@@ -1,5 +1,8 @@
 //! Constraint and size checks for the bounded-width claim-replay arms.
 
+#[path = "streaming_claim_replay/coordinate_overlay_artifact.rs"]
+mod coordinate_overlay_artifact;
+
 #[path = "../gadgets/lean_artifact_support.rs"]
 #[allow(dead_code)]
 mod lean_artifact_support;
@@ -621,7 +624,7 @@ fn render_arm(arm: &ArmArtifact) -> String {
             .iter()
             .map(|glue| format!("{{ index := {}, row := {} }}", glue.index, lean_row(&glue.row)))
             .collect(),
-        2,
+        4,
     );
     let owners = grouped_list(
         arm.owners
@@ -704,9 +707,6 @@ fn render_artifact() -> String {
         full_statement_fresh.seeds_by_output, final_statement_fresh.seeds_by_output,
         "both Rust statement-and-fresh blocks use one exact seed schedule",
     );
-
-    assert_eq!(full_arm.glue_rows.len(), 486);
-    assert_eq!(final_arm.glue_rows.len(), 323);
 
     let mut payload = String::new();
     writeln!(

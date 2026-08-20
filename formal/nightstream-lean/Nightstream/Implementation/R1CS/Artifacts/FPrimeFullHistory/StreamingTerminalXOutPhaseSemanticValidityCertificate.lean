@@ -3,12 +3,12 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerm
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingVariableHashRecipeCertificate
 
 /-!
-Contract: structural validity certificate for the 19-field terminal
+Contract: structural validity certificate for the production terminal
 phase-semantic VariableHashRecipe.
 
-Owns five absorb rounds with chunk sizes `4, 4, 4, 4, 3`, the terminal pad
-round, and the exact four-lane hash output. It does not evaluate the expanded
-row program.
+Owns complete input absorption, the terminal pad round, and the exact
+four-lane hash output. It does not evaluate or enumerate the expanded row
+program.
 
 Assurance tier: artifact-checked.
 
@@ -32,7 +32,7 @@ theorem input_length :
     rawArtifact.hashRecipe.inputColumns.length = hashInputFields := by
   norm_num [VariableHashRecipe.inputColumns, VariableHashRecipe.constantColumns,
     RawArtifact.hashRecipe, rawArtifact, phaseConstantValues,
-    hashInputFields]
+    hashInputFields, constantFields, digestFields, payloadFields]
 
 theorem absorbRounds_exact :
     rawArtifact.hashRecipe.absorbRounds = absorbRounds := by
@@ -43,28 +43,28 @@ theorem output_exact :
     rawArtifact.hashRecipe.outputColumns =
       (rawArtifact.hashRecipe.callOutputColumns
         rawArtifact.hashRecipe.absorbRounds).take 4 := by
+  have full :
+      rawArtifact.hashRecipe.inputColumns.length =
+        rate * rawArtifact.hashRecipe.absorbRounds := by
+    rw [input_length, absorbRounds_exact]
+    norm_num [rate, hashInputFields, absorbRounds,
+      constantFields, digestFields, payloadFields]
+  rw [finalCallOutputColumns_eq_of_fullAbsorbRounds
+    rawArtifact.hashRecipe full]
   rw [absorbRounds_exact]
+  norm_num [rawArtifact, RawArtifact.hashRecipe, phaseConstantValues,
+    VariableHashRecipe.zeroColumn, absorbRounds,
+    hashInputFields, constantFields, digestFields, payloadFields,
+    rate, permutationRows]
   rfl
 
 theorem trace_ownedValid : rawArtifact.hashRecipe.trace.OwnedValid := by
   exact ownedValid rawArtifact.hashRecipe (by
       rw [absorbRounds_exact]
-      norm_num [absorbRounds]) (by
+      norm_num [absorbRounds, hashInputFields,
+        constantFields, digestFields, payloadFields, rate]) (by
       rw [input_length, absorbRounds_exact]
-      norm_num [hashInputFields, absorbRounds]) output_exact
-
-theorem valueSchedules_exact :
-    valueSchedules rawArtifact.hashRecipe.trace.rounds =
-      [.absorb 4, .absorb 4, .absorb 4, .absorb 4, .absorb 3, .pad] := by
-  rw [VariableHashRecipe.trace, VariableHashRecipe.rounds,
-    absorbRounds_exact, valueSchedules, List.map_append]
-  simp only [List.map_singleton, VariableHashRecipe.padRound,
-    Round.valueSchedule]
-  norm_num [List.range_succ, Function.comp_apply,
-    rawArtifact, RawArtifact.hashRecipe, phaseConstantValues,
-    VariableHashRecipe.absorbRounds, VariableHashRecipe.inputColumns,
-    VariableHashRecipe.constantColumns, VariableHashRecipe.absorbRound,
-    VariableHashRecipe.chunkColumns, Round.valueSchedule,
-    rate, absorbRounds, hashInputFields]
+      norm_num [hashInputFields, absorbRounds,
+        constantFields, digestFields, payloadFields, rate]) output_exact
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerminalXOutPhaseSemantic

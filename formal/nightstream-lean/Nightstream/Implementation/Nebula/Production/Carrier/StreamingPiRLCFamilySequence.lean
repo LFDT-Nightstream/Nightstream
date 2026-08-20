@@ -11,7 +11,9 @@ boundary.
 Owns one continuous family-state chain, exact ordinal family selection,
 cross-family challenge carry, telescoping of all 110 concrete residual
 updates, the terminal cursor value, and recovery of the authoritative PiCCS
-inputs from a zero terminal residual or one named Module-SIS failure.
+inputs from a zero terminal residual or one named Module-SIS failure. It also
+reconstructs the typed PiRLC fields from the accepted family outputs and joins
+them to the verifier-computed monolithic parent.
 
 Does not own generated start or finish rows, normalized artifact decoding,
 Rust assignment conformance, Poseidon2 collision resistance, the outer
@@ -31,6 +33,12 @@ open Nightstream.Implementation.Nebula.ProductionStreamingPiRlc
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBinding
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBindingSetup
+open Nightstream.Protocol.Nebula.ProductionProfileCandidates
+open Nightstream.SuperNeo
+open Nightstream.SuperNeo.Concrete
+open Nightstream.SuperNeo.Concrete.Phi81Relation
+open Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 abbrev Family := ProductionStreamingPiRlcInputBinding.Family
 abbrev Source := ProductionStreamingPiRlcInputBinding.Source
@@ -290,6 +298,148 @@ theorem outputs_exact_or_failure
     intro family
     simpa [familyOutput] using
       run.output_eq_authoritative start (familyIndex family)
+  · exact Or.inr failure
+
+/-! ## Typed parent reconstruction -/
+
+/-- Commitment bundle reconstructed directly from the accepted family
+outputs. -/
+def acceptedOutputBundle
+    {setup : InputBindingSetup} {inputs : InputRings}
+    (run : AcceptedRun setup inputs) :
+    ProductCommitmentAlgebra.BundleValue :=
+  fun component row => run.output (.commitment component row)
+
+/-- Public input reconstructed directly from the accepted family outputs. -/
+def acceptedOutputPublic
+    {rowVariables logicalWidth : Nat}
+    {publicFits : 540 <= Phi81CarrierLayout.carrierWidth logicalWidth}
+    {setup : InputBindingSetup} {inputs : InputRings}
+    (run : AcceptedRun setup inputs) :
+    ProductPaperAlgebraFor.PublicInput rowVariables logicalWidth publicFits :=
+  fun column =>
+    run.output
+      (.publicInput
+        (PiRLCAlgebra.PublicInput.publicBlockIndex
+          (ProductPaperAlgebraFor.FullShape rowVariables logicalWidth
+            publicFits) column))
+      (PiRLCAlgebra.PublicInput.publicLaneIndex column)
+
+/-- Evaluation family reconstructed directly from the accepted family
+outputs. -/
+def acceptedOutputEvaluation
+    {rowVariables : Nat}
+    {setup : InputBindingSetup} {inputs : InputRings}
+    (run : AcceptedRun setup inputs) :
+    ProductPaperAlgebraFor.Evaluation rowVariables :=
+  fun matrix lane =>
+    ⟨run.output (.evaluation matrix 0) lane,
+      run.output (.evaluation matrix 1) lane⟩
+
+private theorem k_eq_of_components
+    {left right : K} (low : left.c0 = right.c0)
+    (high : left.c1 = right.c1) : left = right := by
+  cases left
+  cases right
+  simp_all
+
+/-- A complete accepted family chain reconstructs the current typed PiRLC
+output from the authoritative input rings, or exposes the named complete-input
+binding failure. -/
+theorem typed_outputs_exact_or_failure
+    {rowVariables logicalWidth : Nat}
+    {publicFits : 540 <= Phi81CarrierLayout.carrierWidth logicalWidth}
+    {setup : InputBindingSetup}
+    {typed : ProductionStreamingPiRlc.TypedInputs rowVariables logicalWidth
+      publicFits}
+    {supplied : InputRings}
+    {authoritativeChallenges : Source -> RingF}
+    (run : AcceptedRun setup supplied)
+    (start : FamilyStartRelation (run.state 0) authoritativeChallenges
+      (concreteBinding setup
+        (ProductionStreamingPiRlc.typedInputRings typed)))
+    (finish : FamilyFinishRelation (run.state exactFamilyCount)) :
+    Or
+      (acceptedOutputBundle run =
+          ProductionStreamingPiRlc.outputBundle authoritativeChallenges typed /\
+        acceptedOutputPublic run =
+          ProductionStreamingPiRlc.outputPublic authoritativeChallenges typed /\
+        acceptedOutputEvaluation run =
+          ProductionStreamingPiRlc.outputEvaluation authoritativeChallenges
+            typed)
+      (ConcreteBindingFailure setup) := by
+  rcases run.outputs_exact_or_failure start finish with exact | failure
+  · left
+    constructor
+    · funext component row lane
+      exact congrFun (exact (.commitment component row)) lane
+    constructor
+    · funext column
+      exact congrFun
+        (exact
+          (.publicInput
+            (PiRLCAlgebra.PublicInput.publicBlockIndex
+              (ProductPaperAlgebraFor.FullShape rowVariables logicalWidth
+                publicFits) column)))
+        (PiRLCAlgebra.PublicInput.publicLaneIndex column)
+    · funext matrix lane
+      apply k_eq_of_components
+      · exact congrFun (exact (.evaluation matrix 0)) lane
+      · exact congrFun (exact (.evaluation matrix 1)) lane
+  · exact Or.inr failure
+
+/-- The accepted 110-family chain yields every field of the verifier-computed
+paper PiRLC parent, or exposes the named complete-input binding failure. -/
+theorem parent_fields_exact_or_failure
+    (candidate : Id)
+    {rowVariables logicalWidth : Nat}
+    {publicFits : 540 <= Phi81CarrierLayout.carrierWidth logicalWidth}
+    {operationsShape snapshotShape : Phi81Relation.Shape}
+    (statementId : ProductConcreteNifsFor.StatementId)
+    (config : ProductPaperAlgebraFor.Config rowVariables logicalWidth
+      publicFits operationsShape snapshotShape)
+    (artifact : ProductConcreteNifsFor.RelationArtifact rowVariables
+      logicalWidth publicFits)
+    (running : ProductNifsCodec.RunningFor rowVariables
+      (ProductPaperAlgebraFor.FullShape rowVariables logicalWidth publicFits))
+    (fresh : ProductNifsCodec.FreshFor rowVariables
+      (ProductPaperAlgebraFor.FullShape rowVariables logicalWidth publicFits))
+    (proof : ProductionProductPiCcsTypedBridgeFor.ExactProof rowVariables)
+    (setup : InputBindingSetup) {supplied : InputRings}
+    (run : AcceptedRun setup supplied)
+    (start : FamilyStartRelation (run.state 0)
+      ((ProductionProductPiCcsTypedBridgeFor.paperKey candidate statementId
+        config artifact).piRlcChallenges running fresh proof)
+      (concreteBinding setup
+        (ProductionStreamingPiRlcAuthority.authoritativeInputRings candidate
+          statementId config artifact running fresh proof)))
+    (finish : FamilyFinishRelation (run.state exactFamilyCount)) :
+    let key := ProductionProductPiCcsTypedBridgeFor.paperKey candidate
+      statementId config artifact
+    Or
+      (acceptedOutputBundle run = (key.parent running fresh proof).commitment /\
+        acceptedOutputPublic run = (key.parent running fresh proof).publicInput /\
+        #[acceptedOutputEvaluation run] =
+          (key.parent running fresh proof).evaluations)
+      (ConcreteBindingFailure setup) := by
+  dsimp only
+  let key := ProductionProductPiCcsTypedBridgeFor.paperKey candidate statementId
+    config artifact
+  let typed := ProductionStreamingPiRlcAuthority.authoritativeInputs candidate
+    statementId config artifact running fresh proof
+  let challenges := key.piRlcChallenges running fresh proof
+  have runExact := typed_outputs_exact_or_failure
+    (typed := typed) run start finish
+  rcases runExact with exact | failure
+  · left
+    have parentExact :=
+      ProductionStreamingPiRlcAuthority.complete_family_run_eq_parent candidate
+        statementId config artifact running fresh proof
+    dsimp only [key, typed, challenges] at exact parentExact
+    exact
+      ⟨exact.1.trans parentExact.1,
+        exact.2.1.trans parentExact.2.1,
+        (congrArg (fun value => #[value]) exact.2.2).trans parentExact.2.2⟩
   · exact Or.inr failure
 
 end AcceptedRun

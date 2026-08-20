@@ -140,6 +140,34 @@ theorem absorbElem_toDuplex
         Poseidon2Duplex.absorbElem, Poseidon2Duplex.guarded, full,
         Poseidon2Duplex.permute_absorbed, toDuplex]
 
+/-- Transcript digest state transition is the independent duplex gate on the
+same state. -/
+theorem digest_state_toDuplex (state : TranscriptMachine.State) :
+    toDuplex (TranscriptMachine.digest state).1 =
+      Poseidon2Duplex.gate Poseidon2CanonicalConstants.selected
+        (toDuplex state) := by
+  unfold TranscriptMachine.digest Poseidon2Duplex.gate
+  rw [permute_toDuplex, absorbElem_toDuplex]
+  rfl
+
+/-- Each transcript digest output is the matching lane of the independent
+duplex gate. -/
+theorem digest_output_toDuplex
+    (state : TranscriptMachine.State) (lane : Fin 4) :
+    ((TranscriptMachine.digest state).2 lane).val =
+      (Poseidon2Duplex.gate Poseidon2CanonicalConstants.selected
+        (toDuplex state)).lanes ⟨lane.val, by
+          have laneLt := lane.isLt
+          change lane.val < 8
+          omega⟩ := by
+  have stateEqual := congrArg
+    (fun duplex => duplex.lanes ⟨lane.val, by
+      have laneLt := lane.isLt
+      change lane.val < 8
+      omega⟩)
+    (digest_state_toDuplex state)
+  simpa [TranscriptMachine.digest, toDuplex] using stateEqual
+
 /-- External-column execution preserves the independent duplex absorb-list
 semantics on the exact values read from those columns. -/
 theorem semanticExecute_external_toDuplex

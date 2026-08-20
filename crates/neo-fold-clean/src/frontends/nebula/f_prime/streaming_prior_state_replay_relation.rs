@@ -362,8 +362,12 @@ impl NebulaFPrimePriorStateReplaySynthesis {
         builder.record_column_family(STREAMING_PRIOR_STATE_REPLAY_AFTER_STATE_FAMILY, after_state_start);
         let before_program_cursor = alloc_canonical_word(&mut builder, before_program_cursor_value as u64);
         let after_program_cursor = alloc_canonical_word(&mut builder, after_program_cursor_value as u64);
-        let target_digest = (kind == NebulaFPrimePriorStateReplayArmKind::Final)
-            .then(|| gated_digest(after).map(|value| builder.alloc(value)));
+        let target_digest = (kind == NebulaFPrimePriorStateReplayArmKind::Final).then(|| {
+            let target_start = builder.cols();
+            let target = gated_digest(after).map(|value| builder.alloc(value));
+            builder.record_column_family(STREAMING_PRIOR_STATE_REPLAY_FINAL_TARGET_FAMILY, target_start);
+            target
+        });
 
         builder.begin_encoding_stage("nebula.streaming.prior_state_replay.chunk");
         let chunk_start = builder.cols();

@@ -14,15 +14,16 @@ use neo_fold_clean::engine::r1cs_circuit::builder::{Poseidon2HashAudit, Poseidon
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder, Var};
 use neo_fold_clean::frontends::nebula::f_prime::{
-    NebulaFPrimePiRlcFamilyBodySynthesis, NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimeStreamingProgramAudit,
-    PI_RLC_FAMILY_BODY_EVEN_COLUMNS, PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS,
-    PI_RLC_FAMILY_BODY_ODD_COLUMNS, PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS,
+    production_pi_rlc_family_body_compiler_audit, NebulaFPrimePiRlcFamilyBodySynthesis,
+    NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimeStreamingProgramAudit, PI_RLC_FAMILY_BODY_EVEN_COLUMNS,
+    PI_RLC_FAMILY_BODY_EVEN_ROWS, PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, PI_RLC_FAMILY_BODY_ODD_COLUMNS,
+    PI_RLC_FAMILY_BODY_ODD_ROWS, PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS,
 };
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-const SCHEMA_VERSION: usize = 3;
-const PROFILE_ID: &str = "nebula-f-prime-streaming-pi-rlc-family-public-v3";
+const SCHEMA_VERSION: usize = 4;
+const PROFILE_ID: &str = "nebula-f-prime-streaming-pi-rlc-family-public-v4";
 const FAMILY_STATE_FIELDS: usize = 1_045;
 const SHARED_PUBLIC_WORDS: usize = 10;
 const PUBLIC_BITS_PER_WORD: usize = 64;
@@ -705,6 +706,16 @@ fn render_artifact() -> String {
         assert_eq!(arm.before_x_out_digest_columns.len(), 4);
     }
 
+    let compiler = production_pi_rlc_family_body_compiler_audit().expect("production PiRLC family compiler audit");
+    let public_layout = compiler.layout();
+    assert_eq!(public_layout.logical_public_input_len(), even.public_column_count);
+    assert_eq!(public_layout.logical_public_input_len(), odd.public_column_count);
+    assert_eq!(public_layout.public_input_len(), LOW_NORM_PUBLIC_COLUMNS);
+    assert_eq!(
+        public_layout.public_padding_columns(),
+        (public_layout.logical_public_input_len()..public_layout.public_input_len()).collect::<Vec<_>>(),
+    );
+
     let first_family_program_cursor =
         NebulaFPrimeStreamingProgramAudit::production().first_pi_rlc_family_program_cursor();
     let mut payload = String::new();
@@ -719,7 +730,11 @@ fn render_artifact() -> String {
             firstFamilyProgramCursor := {first_family_program_cursor},\n    \
             lowNormRows := {LOW_NORM_ROWS}, lowNormColumns := {LOW_NORM_COLUMNS},\n    \
             lowNormPublicColumns := {LOW_NORM_PUBLIC_COLUMNS},\n    \
+            publicDecoder := {{ constantOneColumn := 0, sourceFieldStart := 1, sourceFieldEnd := {}, paddingStart := {}, paddingEnd := {} }},\n    \
             even := evenArm, odd := oddArm }}",
+        public_layout.logical_public_input_len(),
+        public_layout.logical_public_input_len(),
+        public_layout.public_input_len(),
     )
     .unwrap();
 

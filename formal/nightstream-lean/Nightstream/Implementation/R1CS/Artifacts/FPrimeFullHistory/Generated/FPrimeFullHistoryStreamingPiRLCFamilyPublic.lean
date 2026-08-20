@@ -21,7 +21,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact
 
-def artifactSha256 : String := "587b7ec7386f24254ad916ecc88c21efa3853504100306dcd59dc307f5bc161e"
+def artifactSha256 : String := "ffaeb01588c28d12a90b1adce8e4b4430c5f742a3214d727bd20545bfa7b13df"
 
 def evenArm : RawArm :=
   { sourceRowCount := 310646, rowCount := 1300897, columnCount := 1301126, publicColumnCount := 641,
@@ -1128,12 +1128,13 @@ def oddArm : RawArm :=
   ] }
 
 def rawArtifact : RawArtifact :=
-  { schemaVersion := 3, profileId := "nebula-f-prime-streaming-pi-rlc-family-public-v3",
+  { schemaVersion := 4, profileId := "nebula-f-prime-streaming-pi-rlc-family-public-v4",
     familyStateFields := 1045, sharedPublicWords := 10,
     publicBitsPerWord := 64,
     firstFamilyProgramCursor := 223,
     lowNormRows := 491046, lowNormColumns := 8858862,
     lowNormPublicColumns := 648,
+    publicDecoder := { constantOneColumn := 0, sourceFieldStart := 1, sourceFieldEnd := 641, paddingStart := 641, paddingEnd := 648 },
     even := evenArm, odd := oddArm }
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyPublic

@@ -15,7 +15,7 @@ Assurance tier: Rust-conformant for property
 `FPRIME-STREAMING-PROGRAM`.
 
 Owns exact phase codes, phase order, repeated-phase indices, chunk geometry,
-and the 400-step production count.
+and the 436-step production count.
 
 Does not own phase-local constraints, relation rows or columns, recursive
 proof integration, same-assignment conformance, or security reduction.
@@ -44,35 +44,35 @@ theorem profile_exact :
 
 theorem artifact_geometry_exact :
     rawProgram.stateChunkFields = 1024 /\
-      rawProgram.priorStateFrameFields = 83874 /\
-      rawProgram.priorStateChunks = 82 /\
-      rawProgram.claimFrameFields = 88023 /\
+      rawProgram.priorStateFrameFields = 95754 /\
+      rawProgram.priorStateChunks = 94 /\
+      rawProgram.claimFrameFields = 99903 /\
       rawProgram.claimChunkFields = 1024 /\
-      rawProgram.claimChunks = 86 /\
+      rawProgram.claimChunks = 98 /\
       rawProgram.piCcsRounds = 26 /\
       rawProgram.piRlcFamilies = 110 /\
-      rawProgram.firstPiRlcFamilyProgramCursor = 199 /\
-      rawProgram.successorPrefixFrameFields = 83756 /\
-      rawProgram.successorPrefixChunks = 82 /\
-      rawProgram.workItemCount = 400 /\
+      rawProgram.firstPiRlcFamilyProgramCursor = 223 /\
+      rawProgram.successorPrefixFrameFields = 95636 /\
+      rawProgram.successorPrefixChunks = 94 /\
+      rawProgram.workItemCount = 436 /\
       rawProgram.lifecycleGroupCount = 2 /\
       rawProgram.circuitKindCount = 23 /\
-      rawProgram.claimCoordinateOverlayKindCount = 87 /\
-      rawProgram.combinedOverlayKindCount = 197 /\
-      rawProgram.piRlcFamilyFirstOverlayKind = 87 /\
+      rawProgram.claimCoordinateOverlayKindCount = 99 /\
+      rawProgram.combinedOverlayKindCount = 209 /\
+      rawProgram.piRlcFamilyFirstOverlayKind = 99 /\
       rawProgram.piRlcFamilyEvenPhaseKind = 10 /\
       rawProgram.piRlcFamilyOddPhaseKind = 11 /\
-      rawProgram.piRlcFamilyBodySourceRows = 146006 /\
-      rawProgram.piRlcFamilyBodyEvenSourceRows = 275006 /\
-      rawProgram.piRlcFamilyBodyOddSourceRows = 276206 /\
-      rawProgram.piRlcFamilyBodyEvenRows = 1232857 /\
-      rawProgram.piRlcFamilyBodyOddRows = 1234057 /\
-      rawProgram.piRlcFamilyBodyEvenColumns = 1233086 /\
-      rawProgram.piRlcFamilyBodyOddColumns = 1234286 /\
+      rawProgram.piRlcFamilyBodySourceRows = 165446 /\
+      rawProgram.piRlcFamilyBodyEvenSourceRows = 310646 /\
+      rawProgram.piRlcFamilyBodyOddSourceRows = 311846 /\
+      rawProgram.piRlcFamilyBodyEvenRows = 1300897 /\
+      rawProgram.piRlcFamilyBodyOddRows = 1302097 /\
+      rawProgram.piRlcFamilyBodyEvenColumns = 1301126 /\
+      rawProgram.piRlcFamilyBodyOddColumns = 1302326 /\
       rawProgram.piRlcFamilyOverlayRows = 108 /\
-      rawProgram.piRlcFamilyOverlayColumns = 33360 /\
-      rawProgram.piRlcFamilyLinkFieldCount = 33359 /\
-      rawProgram.piRlcFamilyTotalLinkFieldCount = 3669490 /\
+      rawProgram.piRlcFamilyOverlayColumns = 37788 /\
+      rawProgram.piRlcFamilyLinkFieldCount = 37787 /\
+      rawProgram.piRlcFamilyTotalLinkFieldCount = 4156570 /\
       rawProgram.phasePublicLogicalColumns = 641 /\
       rawProgram.phasePublicColumns = 648 := by
   decide
@@ -87,13 +87,13 @@ theorem rust_program_exact :
   exact Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingProgramScheduleCertificate.rust_program_exact
 
 theorem rust_program_length_exact :
-    rawProgram.expanded.length = 400 := by
+    rawProgram.expanded.length = 436 := by
   calc
     rawProgram.expanded.length = expectedWorkItems.length :=
       congrArg List.length rust_program_exact
     _ = (program productionConfig).length := by
       simp [expectedWorkItems]
-    _ = 400 := production_program_length
+    _ = 436 := production_program_length
 
 /-- Rust and Lean select the same shared lifecycle circuit for every arm. -/
 theorem rust_lifecycle_group_map_exact :
@@ -101,13 +101,13 @@ theorem rust_lifecycle_group_map_exact :
   exact Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingProgramScheduleCertificate.lifecycle_group_map_exact
 
 /-- Rust and Lean select the same one of 23 stored phase circuits for every
-one of the 400 schedule arms. -/
+one of the 436 schedule arms. -/
 theorem rust_circuit_kind_map_exact :
     rawProgram.circuitKindMap = circuitKindMap productionConfig := by
   exact Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingProgramScheduleCertificate.circuit_kind_map_exact
 
 /-- Rust and Lean select the same coordinate overlay for every production
-arm, including the no-op arms and all 86 claim chunks. -/
+arm, including the no-op arms and all 98 claim chunks. -/
 theorem rust_claim_coordinate_overlay_kind_map_exact :
     rawProgram.claimCoordinateOverlayKindMap = productionOverlayKindMap := by
   exact Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingProgramScheduleCertificate.claim_coordinate_overlay_kind_map_exact
@@ -126,9 +126,9 @@ theorem rust_claim_coordinate_overlay_link_runs_exact :
 
 theorem rust_claim_coordinate_overlay_link_census_exact :
     (rustClaimCoordinateOverlayLinkRuns.map fun run => run.2.2.2.2).sum =
-        87_640 /\
+        99_520 /\
       (rustClaimCoordinateOverlayLinkRuns.map fun run =>
-        432 + run.2.2.2.2).sum = 124_792 := by
+        432 + run.2.2.2.2).sum = 141_856 := by
   rw [rust_claim_coordinate_overlay_link_runs_exact]
   exact productionOverlayLinkRuns_census
 
@@ -139,7 +139,7 @@ def expectedPiRlcFamilyOverlayKindMap : List Nat :=
     else
       0
 
-/-- Rust selects family overlay kinds 87 through 196 on exactly the 110
+/-- Rust selects family overlay kinds 99 through 208 on exactly the 110
 PiRLC-family work items. Every other work item selects the no-op kind. -/
 theorem rust_pi_rlc_family_overlay_kind_map_exact :
     rawProgram.piRlcFamilyOverlayKindMap =
@@ -159,7 +159,7 @@ def expectedCombinedOverlayKindMap : List Nat :=
       item).val
 
 theorem rustCombinedOverlayKindMap_chunked :
-    Chunked400Eq rustCombinedOverlayKindMap
+    Chunked436Eq rustCombinedOverlayKindMap
       expectedCombinedOverlayKindMap := by
   exact
     { leftLength := rfl
@@ -174,8 +174,8 @@ theorem rustCombinedOverlayKindMap_chunked :
       leftRemainderLength := rfl
       rightRemainderLength := rfl }
 
-/-- The two Rust overlay maps merge to the exact 197-kind map used by the
-Lean semantic relation on all 400 work items. -/
+/-- The two Rust overlay maps merge to the exact 209-kind map used by the
+Lean semantic relation on all 436 work items. -/
 theorem rust_combined_overlay_kind_map_exact :
     rustCombinedOverlayKindMap = expectedCombinedOverlayKindMap := by
   exact rustCombinedOverlayKindMap_chunked.sound
@@ -199,7 +199,7 @@ def expectedPiRlcFamilyOverlayLinkRuns : List RawFieldLinkRun :=
           publicOutputCount
       overlayFieldStart :=
         overlayLayout.digitStart ⟨0, by decide⟩ ⟨0, by decide⟩
-      outerCount := 810
+      outerCount := 918
       phaseStride := 122
       overlayStride := 41
       fieldCount := 41 },
@@ -221,7 +221,7 @@ theorem rust_pi_rlc_family_overlay_link_runs_exact :
 
 theorem expected_pi_rlc_family_overlay_link_counts_exact :
     expectedPiRlcFamilyOverlayLinkRuns.map RawFieldLinkRun.linkCount =
-      [41, 33_210, 108] := by
+      [41, 37_638, 108] := by
   rfl
 
 theorem rust_pi_rlc_family_count_exact :
@@ -230,10 +230,10 @@ theorem rust_pi_rlc_family_count_exact :
 
 theorem rust_pi_rlc_family_overlay_link_census_exact :
     (rawProgram.piRlcFamilyOverlayLinkRuns.map
-        RawFieldLinkRun.linkCount).sum = 33359 /\
+        RawFieldLinkRun.linkCount).sum = 37787 /\
       rawProgram.piRlcFamilies *
         (rawProgram.piRlcFamilyOverlayLinkRuns.map
-          RawFieldLinkRun.linkCount).sum = 3669490 := by
+          RawFieldLinkRun.linkCount).sum = 4156570 := by
   rw [rust_pi_rlc_family_overlay_link_runs_exact,
     expected_pi_rlc_family_overlay_link_counts_exact,
     rust_pi_rlc_family_count_exact]

@@ -307,6 +307,24 @@ structure Honest (layout : Layout) (assignment : Nat → Nat)
     assignment (layout.accumulatorDigestColumn lane) =
       payloadValue.accumulatorDigest lane
 
+/-- Exact honest field placement decodes to the same typed payload. -/
+theorem payload_eq_of_honest
+    {layout : Layout} {assignment : Nat → Nat} {payloadValue : Payload}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (honest : Honest layout assignment payloadValue) :
+    payload layout assignment = payloadValue := by
+  rw [Payload.mk.injEq]
+  exact ⟨
+    funext honest.vkFsDigestPlaced,
+    funext honest.piCcsHeaderPlaced,
+    U64HalvesRows.value_eq_of_honest canonical one honest.chunkCount,
+    U64HalvesRows.value_eq_of_honest canonical one honest.stepCount,
+    U64HalvesRows.value_eq_of_honest canonical one honest.pc,
+    funext honest.currentBoundaryPlaced,
+    funext honest.semanticStatePlaced,
+    funext honest.accumulatorDigestPlaced⟩
+
 theorem rows_complete
     {layout : Layout} {assignment : Nat → Nat} {payloadValue : Payload}
     (one : assignment 0 = 1)

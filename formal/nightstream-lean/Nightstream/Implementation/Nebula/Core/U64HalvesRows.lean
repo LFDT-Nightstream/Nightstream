@@ -179,11 +179,52 @@ theorem u64Halves_injective : Function.Injective u64Halves := by
       rw [lowEqual, highEqual]
     _ = right := Nat.mod_add_div right limbBase
 
+/-- A bounded unsigned word produces two canonical Goldilocks limbs. -/
+theorem u64Halves_canonical
+    {word : Nat} (wordBound : word < 2 ^ 64) :
+    ∀ value ∈ u64Halves word, value < goldilocksP := by
+  intro value member
+  change value ∈ [word % limbBase, word / limbBase] at member
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
+  · exact (Nat.mod_lt word (by norm_num [limbBase])).trans_le
+      limbBase_le_goldilocksP
+  · have highBound : word / limbBase < limbBase := by
+      apply Nat.div_lt_of_lt_mul
+      simpa [limbBase] using wordBound
+    exact highBound.trans_le limbBase_le_goldilocksP
+
 structure Honest (layout : Layout) (assignment : Nat → Nat)
     (word : Nat) : Prop where
   wordBound : word < 2 ^ 64
   low : BoundedWordRows.Honest layout.lowWord assignment (word % limbBase)
   high : BoundedWordRows.Honest layout.highWord assignment (word / limbBase)
+
+/-- Exact honest limb placement decodes to the same unsigned 64-bit word. -/
+theorem value_eq_of_honest
+    {layout : Layout} {assignment : Nat → Nat} {word : Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (honest : Honest layout assignment word) :
+    value layout assignment = word := by
+  have lowRows := BoundedWordRows.rows_complete (lowWord_fits layout) one
+    honest.low
+  have highRows := BoundedWordRows.rows_complete (highWord_fits layout) one
+    honest.high
+  have lowExact : lowValue layout assignment = word % limbBase := by
+    calc
+      lowValue layout assignment = assignment layout.lowColumn :=
+        (BoundedWordRows.recomposition_sound (lowWord_fits layout)
+          canonical one lowRows).symm
+      _ = word % limbBase := honest.low.valuePlaced
+  have highExact : highValue layout assignment = word / limbBase := by
+    calc
+      highValue layout assignment = assignment layout.highColumn :=
+        (BoundedWordRows.recomposition_sound (highWord_fits layout)
+          canonical one highRows).symm
+      _ = word / limbBase := honest.high.valuePlaced
+  rw [value, lowExact, highExact]
+  exact Nat.mod_add_div word limbBase
 
 theorem rows_complete
     {layout : Layout} {assignment : Nat → Nat} {word : Nat}

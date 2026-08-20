@@ -586,6 +586,9 @@ pub fn lower_field_r1cs(
             |decomposition| crate::engine::r1cs_circuit::builder::CanonicalU64Decomposition {
                 field_col: old_to_new[decomposition.field_col],
                 bit_cols: decomposition.bit_cols.map(|col| old_to_new[col]),
+                high_is_max_col: old_to_new[decomposition.high_is_max_col],
+                inverse_col: old_to_new[decomposition.inverse_col],
+                source_rows: decomposition.source_rows.clone(),
             },
         )
         .collect();

@@ -100,6 +100,29 @@ theorem authorityLayout_valid (kind : ArmKind) (side : StateSide) :
     exactSemanticStateColumns := rfl
     exactAccumulatorDigestColumns := rfl }
 
+/-- The exact Rust hash input is the same ordered 32-column message as the
+shared state-output frame layout. The hash-layout leaf certificates own the
+generated-list equality; this adapter owns only the fixed field roles. -/
+theorem hash_input_columns_exact (kind : ArmKind) (side : StateSide) :
+    (xOutHashFor kind side).inputColumns =
+      StateOutputFrameRows.inputColumns (frameLayout kind side) := by
+  have generatedExact :
+      (xOutHashFor kind side).inputColumns =
+        match side with
+        | .after => (armFor kind).afterXOutPreimageColumns
+        | .before => (armFor kind).beforeXOutPreimageColumns := by
+    cases kind <;> cases side
+    · exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenHashLayoutCertificate.evenArm_hashLayout_valid.1.2.2.2.1
+    · exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenHashLayoutCertificate.evenArm_hashLayout_valid.2.2.2.2.1
+    · exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddHashLayoutCertificate.oddArm_hashLayout_valid.1.2.2.2.1
+    · exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddHashLayoutCertificate.oddArm_hashLayout_valid.2.2.2.2.1
+  rw [generatedExact]
+  cases kind <;> cases side <;> rfl
+
 private theorem halves_rows_satisfied
     (assignment : Nat → Nat)
     (call : CanonicalCall)

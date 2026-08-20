@@ -238,6 +238,76 @@ private theorem trace_terminalPad (recipe : VariableHashRecipe) :
   simp [VariableHashRecipe.trace, VariableHashRecipe.rounds,
     VariableHashRecipe.padRound]
 
+private theorem chunkColumns_length_eq_rate
+    (recipe : VariableHashRecipe) {index : Nat}
+    (indexLt : index < recipe.absorbRounds)
+    (full :
+      recipe.inputColumns.length = rate * recipe.absorbRounds) :
+    (recipe.chunkColumns index).length = rate := by
+  simp only [VariableHashRecipe.chunkColumns, List.length_take,
+    List.length_drop]
+  rw [full]
+  unfold rate
+  omega
+
+private theorem definitionCount_eq_rate
+    (recipe : VariableHashRecipe) {index : Nat}
+    (indexLt : index < recipe.absorbRounds)
+    (full :
+      recipe.inputColumns.length = rate * recipe.absorbRounds) :
+    recipe.definitionCount index = rate := by
+  simp [VariableHashRecipe.definitionCount, indexLt,
+    chunkColumns_length_eq_rate recipe indexLt full]
+
+private theorem allocatedBefore_eq_of_fullAbsorbRounds
+    (recipe : VariableHashRecipe)
+    (full :
+      recipe.inputColumns.length = rate * recipe.absorbRounds)
+    {count : Nat} (countLe : count ≤ recipe.absorbRounds) :
+    recipe.allocatedBefore count =
+      count * (rate + permutationRows) := by
+  induction count with
+  | zero => simp [VariableHashRecipe.allocatedBefore]
+  | succ count inductionHypothesis =>
+      have countLt : count < recipe.absorbRounds := by omega
+      rw [VariableHashRecipe.allocatedBefore, List.range_succ,
+        List.map_append, List.sum_append]
+      simp only [List.map_singleton, List.sum_singleton]
+      change recipe.allocatedBefore count +
+        (recipe.definitionCount count + permutationRows) = _
+      have prior :
+          recipe.allocatedBefore count =
+            count * (rate + permutationRows) :=
+        inductionHypothesis (by omega)
+      have current : recipe.definitionCount count = rate :=
+        definitionCount_eq_rate recipe countLt full
+      calc
+        _ = count * (rate + permutationRows) +
+            (recipe.definitionCount count + permutationRows) := by
+          rw [prior]
+        _ = count * (rate + permutationRows) +
+            (rate + permutationRows) := by
+          rw [current]
+        _ = (count + 1) * (rate + permutationRows) := by
+          simpa only [Nat.succ_eq_add_one] using
+            (Nat.succ_mul count (rate + permutationRows)).symm
+
+/-- For a whole number of rate-sized chunks, compute the final pad-call
+output columns without reducing the complete round list. -/
+theorem finalCallOutputColumns_eq_of_fullAbsorbRounds
+    (recipe : VariableHashRecipe)
+    (full :
+      recipe.inputColumns.length = rate * recipe.absorbRounds) :
+    recipe.callOutputColumns recipe.absorbRounds =
+      List.range'
+        (recipe.zeroColumn + 1 +
+          recipe.absorbRounds * (rate + permutationRows) + 1 + 592) 8 := by
+  rw [VariableHashRecipe.callOutputColumns,
+    VariableHashRecipe.callFirstAllocatedColumn,
+    VariableHashRecipe.roundColumnStart,
+    allocatedBefore_eq_of_fullAbsorbRounds recipe full (Nat.le_refl _)]
+  simp [VariableHashRecipe.definitionCount]
+
 /-- One variable recipe is structurally complete when its absorb rounds cover
 the full input and its declared outputs are the final four sponge lanes. -/
 theorem ownedValid

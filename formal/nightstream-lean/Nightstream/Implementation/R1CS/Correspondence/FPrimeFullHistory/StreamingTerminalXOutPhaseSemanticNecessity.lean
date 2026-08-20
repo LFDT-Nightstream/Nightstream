@@ -5,7 +5,7 @@ Contract: exact omission counterexample for the terminal phase-semantic family.
 
 Rust exports the baseline values on the violated equality-row support and
 replays the complete assignment against every retained row. This leaf proves
-that the same support values violate source row 3656 when the selected family
+that the same support values violate source row 330421 when the selected family
 is absent.
 
 Assurance tier: artifact-checked.
@@ -89,7 +89,7 @@ private theorem violatedRow_member_program :
     violatedRow_member_equality]
 
 theorem violated_source_row :
-    rawArtifact.sourceRowStart + rawArtifact.equalityRowStart = 3656 := by
+    rawArtifact.sourceRowStart + rawArtifact.equalityRowStart = 330421 := by
   norm_num [rawArtifact]
 
 theorem phaseSemanticRows_fail :
@@ -110,7 +110,7 @@ theorem exact_removal_counterexample :
       (∀ column, omissionAssignment column < goldilocksP) ∧
       omissionAssignment changedColumn = rawArtifact.baselineDigestValue + 1 ∧
       omissionAssignment digestColumn = rawArtifact.baselineDigestValue ∧
-      rawArtifact.sourceRowStart + rawArtifact.equalityRowStart = 3656 ∧
+      rawArtifact.sourceRowStart + rawArtifact.equalityRowStart = 330421 ∧
       ¬ rawArtifact.Satisfied omissionAssignment :=
   ⟨omissionAssignment_one, omissionAssignment_canonical,
     replay_support_exact.1, replay_support_exact.2,

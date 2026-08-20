@@ -77,21 +77,50 @@ def phaseEnvelopeDigest
       lane)
 
 /-- Witness for a collision in the exact fixed-width phase-envelope domain.
-The two messages share the same delayed payload and differ in their local
-family digest. -/
+The complete typed inputs differ in the local family digest, the delayed
+payload, or both. -/
 structure Poseidon2PhaseEnvelopeCollisionWitness where
   leftLocal : FamilyDigest
   rightLocal : FamilyDigest
-  payload : PhasePayload
-  localDifferent : leftLocal ≠ rightLocal
+  leftPayload : PhasePayload
+  rightPayload : PhasePayload
+  inputDifferent : leftLocal ≠ rightLocal ∨ leftPayload ≠ rightPayload
   digestEqual :
-    phaseEnvelopeDigest leftLocal payload =
-      phaseEnvelopeDigest rightLocal payload
+    phaseEnvelopeDigest leftLocal leftPayload =
+      phaseEnvelopeDigest rightLocal rightPayload
 
 /-- Named security-reduction event for the exact phase-envelope Poseidon2
 application domain. -/
 def Poseidon2PhaseEnvelopeCollision : Prop :=
   Nonempty Poseidon2PhaseEnvelopeCollisionWitness
+
+/-- Equal phase-envelope digests recover both complete typed inputs, or
+exhibit a collision in that exact application domain. -/
+theorem phase_preimage_eq_or_collision
+    (leftLocal rightLocal : FamilyDigest)
+    (leftPayload rightPayload : PhasePayload)
+    (digestEqual :
+      phaseEnvelopeDigest leftLocal leftPayload =
+        phaseEnvelopeDigest rightLocal rightPayload) :
+    (leftLocal = rightLocal ∧ leftPayload = rightPayload) ∨
+      Poseidon2PhaseEnvelopeCollision := by
+  by_cases localEqual : leftLocal = rightLocal
+  · by_cases payloadEqual : leftPayload = rightPayload
+    · exact Or.inl ⟨localEqual, payloadEqual⟩
+    · exact Or.inr ⟨{
+        leftLocal := leftLocal
+        rightLocal := rightLocal
+        leftPayload := leftPayload
+        rightPayload := rightPayload
+        inputDifferent := Or.inr payloadEqual
+        digestEqual := digestEqual }⟩
+  · exact Or.inr ⟨{
+      leftLocal := leftLocal
+      rightLocal := rightLocal
+      leftPayload := leftPayload
+      rightPayload := rightPayload
+      inputDifferent := Or.inl localEqual
+      digestEqual := digestEqual }⟩
 
 /-- Equal phase-envelope digests over one common payload recover equal local
 digests, or exhibit a collision in that exact application domain. -/
@@ -100,14 +129,10 @@ theorem local_digest_eq_or_phase_envelope_collision
     (digestEqual :
       phaseEnvelopeDigest left payload = phaseEnvelopeDigest right payload) :
     left = right ∨ Poseidon2PhaseEnvelopeCollision := by
-  by_cases localEqual : left = right
-  · exact Or.inl localEqual
-  · exact Or.inr ⟨{
-      leftLocal := left
-      rightLocal := right
-      payload := payload
-      localDifferent := localEqual
-      digestEqual := digestEqual }⟩
+  rcases phase_preimage_eq_or_collision left right payload payload digestEqual with
+    preimageExact | collision
+  · exact Or.inl preimageExact.1
+  · exact Or.inr collision
 
 /-- A complete-output ambiguity can occur at the outer `x_out` layer, at the
 phase-envelope layer, or at the framed family-state digest layer. -/
@@ -157,6 +182,62 @@ theorem semantic_digest_eq_or_xOut_failure
     exact congrArg (fun authority => authority.semanticState) authorityEqual
   · exact Or.inr failure
 
+/-- Complete three-layer reduction for two independently supplied phase
+preimages. Equal complete outputs recover the full family state and delayed
+payload, or expose one named compression failure. -/
+theorem familyState_payload_eq_or_continuity_failure
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    (semantics :
+      XOut.Semantics Params StructureDigest Header FamilyDigest Nebula
+        NebulaDigest)
+    (leftMode rightMode : XOut.Mode)
+    (leftContext rightContext :
+      XOut.Context Params StructureDigest Header FamilyDigest)
+    (leftState rightState : State FamilyDigest Running Fresh Nebula)
+    (leftFamily rightFamily : FamilyState)
+    (leftPayload rightPayload : PhasePayload)
+    (leftPinned :
+      XOut.StatePinned semantics leftMode leftContext leftState)
+    (rightPinned :
+      XOut.StatePinned semantics rightMode rightContext rightState)
+    (leftSemantic :
+      leftState.semanticState =
+        phaseEnvelopeDigest (familyStateDigest leftFamily) leftPayload)
+    (rightSemantic :
+      rightState.semanticState =
+        phaseEnvelopeDigest (familyStateDigest rightFamily) rightPayload)
+    (leftCanonical :
+      ∀ value, value ∈ familyStateFields leftFamily -> value < goldilocksP)
+    (rightCanonical :
+      ∀ value, value ∈ familyStateFields rightFamily -> value < goldilocksP)
+    (sameOutput :
+      XOut.compute semantics leftMode leftContext leftState =
+        XOut.compute semantics rightMode rightContext rightState) :
+    (leftFamily = rightFamily ∧ leftPayload = rightPayload) ∨
+      ContinuityFailure semantics := by
+  rcases semantic_digest_eq_or_xOut_failure semantics leftMode rightMode
+      leftContext rightContext leftState rightState leftPinned rightPinned
+      sameOutput with semanticEqual | failure
+  · have envelopeEqual :
+        phaseEnvelopeDigest (familyStateDigest leftFamily) leftPayload =
+          phaseEnvelopeDigest (familyStateDigest rightFamily) rightPayload :=
+      leftSemantic.symm.trans (semanticEqual.trans rightSemantic)
+    rcases phase_preimage_eq_or_collision
+        (familyStateDigest leftFamily) (familyStateDigest rightFamily)
+        leftPayload rightPayload envelopeEqual with preimageExact | collision
+    · rcases familyState_eq_or_poseidon2_collision leftFamily rightFamily
+          leftCanonical rightCanonical preimageExact.1 with familyEqual | collision
+      · exact Or.inl ⟨familyEqual, preimageExact.2⟩
+      · exact Or.inr (.familyState collision)
+    · exact Or.inr (.phaseEnvelope collision)
+  · exact Or.inr (.xOut failure)
+
 /-- Complete three-layer reduction. The local family digest is absorbed with
 the common delayed payload before it reaches the semantic lane of `x_out`; it
 is not itself the public recursive-state digest. -/
@@ -195,21 +276,11 @@ theorem familyState_eq_or_continuity_failure
       XOut.compute semantics leftMode leftContext leftState =
         XOut.compute semantics rightMode rightContext rightState) :
     leftFamily = rightFamily ∨ ContinuityFailure semantics := by
-  rcases semantic_digest_eq_or_xOut_failure semantics leftMode rightMode
-      leftContext rightContext leftState rightState leftPinned rightPinned
-      sameOutput with semanticEqual | failure
-  · have envelopeEqual :
-        phaseEnvelopeDigest (familyStateDigest leftFamily) payload =
-          phaseEnvelopeDigest (familyStateDigest rightFamily) payload :=
-      leftSemantic.symm.trans (semanticEqual.trans rightSemantic)
-    rcases local_digest_eq_or_phase_envelope_collision
-        (familyStateDigest leftFamily) (familyStateDigest rightFamily) payload
-        envelopeEqual with localEqual | collision
-    · rcases familyState_eq_or_poseidon2_collision leftFamily rightFamily
-          leftCanonical rightCanonical localEqual with familyEqual | collision
-      · exact Or.inl familyEqual
-      · exact Or.inr (.familyState collision)
-    · exact Or.inr (.phaseEnvelope collision)
-  · exact Or.inr (.xOut failure)
+  rcases familyState_payload_eq_or_continuity_failure semantics leftMode
+      rightMode leftContext rightContext leftState rightState leftFamily
+      rightFamily payload payload leftPinned rightPinned leftSemantic
+      rightSemantic leftCanonical rightCanonical sameOutput with stateExact | failure
+  · exact Or.inl stateExact.1
+  · exact Or.inr failure
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity

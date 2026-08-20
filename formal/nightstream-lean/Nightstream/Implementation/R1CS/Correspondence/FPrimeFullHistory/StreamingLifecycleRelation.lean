@@ -64,9 +64,24 @@ theorem digestValues_injective : Function.Injective digestValues := by
   apply Fin.ext
   exact congrFun equal lane
 
+theorem digestValues_list_canonical (digest : Digest) :
+    ∀ value ∈ List.ofFn (digestValues digest), value < goldilocksP := by
+  rw [List.forall_mem_ofFn_iff]
+  exact digestValues_canonical digest
+
 abbrev OuterState
     (Running : Type uRunning) (Fresh : Type uFresh) (Nebula : Type) :=
   State Digest Running Fresh Nebula
+
+/-- The three natural state words have the exact range of their Rust `u64`
+representation. This is a trust-boundary encoding condition, not payload
+authority. -/
+structure StateWordsBounded
+    {Running : Type uRunning} {Fresh : Type uFresh} {Nebula : Type}
+    (state : OuterState Running Fresh Nebula) : Prop where
+  chunkCount : state.chunkCount < 2 ^ 64
+  stepCount : state.stepCount < 2 ^ 64
+  pc : state.pc < 2 ^ 64
 
 /-- Exact row-level encoding of one typed field preimage. -/
 def encodePreimage
@@ -132,6 +147,9 @@ structure PublicEnvelope where
   afterXOut : Digest
   beforeCursor : Nat
   afterCursor : Nat
+  /-- Recomputed from the complete active running instance. It is absent only
+  for the initial base state, which has no prior running instance. -/
+  beforePriorStateDigest : Option Digest
 deriving DecidableEq
 
 /-- Selected phase semantics on the same semantic digests and fresh batches
@@ -161,6 +179,11 @@ structure Configuration
   stepSemantics : Step.Semantics Digest Running Fresh NifsProof Nebula
     NebulaOpen
   context : XOut.Context Params StructureDigest Digest Digest
+  /-- Verifier-owned recomputation of the prior-state digest from the complete
+  running instance. Concrete artifact bindings must prove that this function
+  is the same Poseidon2 computation as the manifest's mandatory prior-state
+  boundary rows. -/
+  runningPriorStateDigest : Running -> Digest
   phaseEnvelopeDigest : Digest -> List Fresh -> Digest
   initialPhaseState : Digest
   initialPhaseEnvelope : context.initialSemanticState =
@@ -169,6 +192,9 @@ structure Configuration
   initialNebulaExact : stepSemantics.initialNebula = some initialNebula
   nifsAuthority : NifsAuthority Running Fresh NifsProof Nebula
   phaseAuthority : PhaseAuthority Fresh armCount
+  /-- Verifier-owned global cursor for each local physical arm. -/
+  armCursor : Fin armCount -> Nat
+  armCursorInjective : Function.Injective armCursor
   nifsExact : forall call,
     stepSemantics.nifsVerify call.context call.running call.latest call.proof =
         some call.output <->
@@ -197,6 +223,17 @@ def toTrace
   context := configuration.context
 
 end Configuration
+
+/-- The prior-state digest visible to a selected phase. The initial state has
+no running instance. Every recursive state recomputes the value from its
+complete active running instance. -/
+def beforePriorStateDigest
+    {Running : Type uRunning} {Fresh : Type uFresh} {Nebula : Type}
+    (recompute : Running -> Digest)
+    (state : OuterState Running Fresh Nebula) : Option Digest :=
+  match state.proof with
+  | .initial => none
+  | .active running _ => some (recompute running)
 
 /-- The exact 26 non-Nebula fields of the fixed 32-field preimage, derived
 only from verifier context and the typed Construction-2 state. -/
@@ -256,6 +293,53 @@ theorem frame_length
     (frame configuration state nebula).length = 32 :=
   StateOutputAuthorityRows.fullFrame_length _ _
 
+/-- Every verifier-derived lifecycle frame is a canonical 32-field
+Goldilocks message when its three Rust words are in range. -/
+theorem frame_canonical
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    (configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount)
+    (state : OuterState Running Fresh Nebula)
+    (nebula : Nebula)
+    (bounded : StateWordsBounded state) :
+    ∀ value ∈ frame configuration state nebula, value < goldilocksP := by
+  intro value member
+  simp only [frame, StateOutputAuthorityRows.fullFrame,
+    StateOutputAuthorityRows.payloadFields, payload, List.mem_append,
+    List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with framePrefix | nebulaDigest
+  · rcases framePrefix with payloadPrefix | marker
+    · rcases payloadPrefix with domain | payloadMember
+      · subst value
+        norm_num [StateOutputFrameRows.domainTag, goldilocksP]
+      rcases payloadMember with payloadPrefix | accumulator
+      · rcases payloadPrefix with payloadPrefix | semantic
+        · rcases payloadPrefix with payloadPrefix | boundary
+          · rcases payloadPrefix with payloadPrefix | pc
+            · rcases payloadPrefix with payloadPrefix | step
+              · rcases payloadPrefix with payloadPrefix | chunk
+                · rcases payloadPrefix with vk | header
+                  · exact digestValues_list_canonical _ value vk
+                  · exact digestValues_list_canonical _ value header
+                · exact U64HalvesRows.u64Halves_canonical
+                    bounded.chunkCount value chunk
+              · exact U64HalvesRows.u64Halves_canonical
+                  bounded.stepCount value step
+            · exact U64HalvesRows.u64Halves_canonical bounded.pc value pc
+          · exact digestValues_list_canonical _ value boundary
+        · exact digestValues_list_canonical _ value semantic
+      · exact digestValues_list_canonical _ value accumulator
+    · subst value
+      norm_num [StateOutputFrameRows.nebulaMarker, goldilocksP]
+  · exact digestValues_list_canonical _ value nebulaDigest
+
 /-- The independent 32-field frame owner and the protocol XOut preimage are
 the same typed message when the Nebula lane is present. -/
 theorem payload_preimage_exact
@@ -298,19 +382,25 @@ def expectedPublic
     configuration.context next
   beforeCursor := prior.stepCount
   afterCursor := next.stepCount
+  beforePriorStateDigest :=
+    beforePriorStateDigest configuration.runningPriorStateDigest prior
 
-/-- Exact one-hot Boolean switchboard at the verifier-owned program cursor. -/
-structure ActiveArm (armCount cursor : Nat) where
+/-- Exact one-hot Boolean switchboard at the verifier-owned global phase
+cursor. The selected arm is local to this phase; `armCursor` maps it into the
+complete physical schedule. -/
+structure ActiveArm
+    (armCount : Nat) (armCursor : Fin armCount -> Nat) (cursor : Nat) where
   selectors : Fin armCount -> Bool
   selected : Fin armCount
-  selectedCursor : selected.val = cursor
+  selectedCursor : armCursor selected = cursor
   selectedActive : selectors selected = true
   inactive : forall arm, arm ≠ selected -> selectors arm = false
 
 namespace ActiveArm
 
 theorem selector_eq_true_iff
-    {armCount cursor : Nat} (selection : ActiveArm armCount cursor)
+    {armCount cursor : Nat} {armCursor : Fin armCount -> Nat}
+    (selection : ActiveArm armCount armCursor cursor)
     (arm : Fin armCount) :
     selection.selectors arm = true <-> arm = selection.selected := by
   constructor
@@ -324,11 +414,13 @@ theorem selector_eq_true_iff
     subst arm
     exact selection.selectedActive
 
-theorem cursor_in_range
-    {armCount cursor : Nat} (selection : ActiveArm armCount cursor) :
-    cursor < armCount := by
-  rw [← selection.selectedCursor]
-  exact selection.selected.isLt
+theorem selected_eq_of_cursor
+    {armCount cursor : Nat} {armCursor : Fin armCount -> Nat}
+    (injective : Function.Injective armCursor)
+    (selection : ActiveArm armCount armCursor cursor)
+    (arm : Fin armCount) (cursorExact : armCursor arm = cursor) :
+    arm = selection.selected :=
+  injective (cursorExact.trans selection.selectedCursor.symm)
 
 end ActiveArm
 
@@ -354,13 +446,15 @@ structure Invocation
       input proof
   oneFresh : input.nextLatest.length = 1
   countersAligned : prior.chunkCount = prior.stepCount
+  priorWordsBounded : StateWordsBounded prior
+  nextWordsBounded : StateWordsBounded next
   priorNebula : Nebula
   priorNebulaExact : prior.nebula = some priorNebula
   nextNebula : Nebula
   nextNebulaExact : next.nebula = some nextNebula
   commonPublic : PublicEnvelope
   commonPublicExact : commonPublic = expectedPublic configuration prior next
-  activeArm : ActiveArm armCount prior.stepCount
+  activeArm : ActiveArm armCount configuration.armCursor prior.stepCount
   phaseInput : List Fresh
   priorPhaseState : Digest
   nextPhaseState : Digest
@@ -368,8 +462,6 @@ structure Invocation
     configuration.phaseEnvelopeDigest priorPhaseState phaseInput
   nextSemanticExact : next.semanticState =
     configuration.phaseEnvelopeDigest nextPhaseState input.nextLatest
-  selectedPhase : configuration.phaseAuthority.step commonPublic
-    activeArm.selected priorPhaseState phaseInput nextPhaseState input.nextLatest
 
 namespace Invocation
 
@@ -426,6 +518,87 @@ theorem public_cursors_exact
   rw [invocation.commonPublicExact]
   exact ⟨rfl, rfl⟩
 
+/-- The common phase envelope does not accept an independent prior-state
+digest. It computes the optional value from the complete prior lifecycle
+state. -/
+theorem before_prior_state_digest_exact
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (invocation : Invocation configuration) :
+    invocation.commonPublic.beforePriorStateDigest =
+      beforePriorStateDigest configuration.runningPriorStateDigest
+        invocation.prior := by
+  rw [invocation.commonPublicExact]
+  rfl
+
+/-- The checked local transition and the one-fresh profile advance the global
+step counter by exactly one in either valid lifecycle branch. -/
+theorem step_count_succ
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (invocation : Invocation configuration) :
+    invocation.next.stepCount = invocation.prior.stepCount + 1 := by
+  have fromAdvanced (nextRunning : Running)
+      (nextExact : invocation.next =
+        Step.advancedState configuration.stepSemantics invocation.prior
+          nextRunning invocation.input invocation.proof) :
+      invocation.next.stepCount = invocation.prior.stepCount + 1 := by
+    calc
+      invocation.next.stepCount =
+          (Step.advancedState configuration.stepSemantics invocation.prior
+            nextRunning invocation.input invocation.proof).stepCount :=
+        congrArg (fun state => state.stepCount) nextExact
+      _ = invocation.prior.stepCount + invocation.input.nextLatest.length := rfl
+      _ = invocation.prior.stepCount + 1 := by rw [invocation.oneFresh]
+  have localProof := invocation.localHolds
+  cases priorProof : invocation.prior.proof with
+  | initial =>
+      cases foldProof : invocation.proof.fold with
+      | noFold =>
+          have base : Step.BaseLocalHolds configuration.hashSemantics
+              configuration.stepSemantics .stateful configuration.context
+              invocation.prior invocation.next invocation.input
+              invocation.proof := by
+            simpa [Step.LocalHolds, priorProof, foldProof] using localProof
+          exact fromAdvanced configuration.stepSemantics.emptyRunning
+            base.2.2.2.2.2.1
+      | recursive nifsProof =>
+          simp [Step.LocalHolds, priorProof, foldProof] at localProof
+  | active running latest =>
+      cases foldProof : invocation.proof.fold with
+      | noFold =>
+          simp [Step.LocalHolds, priorProof, foldProof] at localProof
+      | recursive nifsProof =>
+          have recursive : Step.RecursiveLocalHolds
+              configuration.hashSemantics configuration.stepSemantics
+              .stateful configuration.context invocation.prior invocation.next
+              invocation.input invocation.proof running latest nifsProof := by
+            simpa [Step.LocalHolds, priorProof, foldProof] using localProof
+          rcases recursive with ⟨_, _, _, _, verified⟩
+          cases verifierExact : configuration.stepSemantics.nifsVerify
+              (Step.nifsContext configuration.stepSemantics invocation.prior
+                invocation.input) running latest nifsProof with
+          | none => simp [verifierExact] at verified
+          | some nextRunning =>
+              simp only [verifierExact] at verified
+              exact fromAdvanced nextRunning verified.2.2.2.1
+
 theorem prior_frame_exact
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
@@ -468,7 +641,7 @@ theorem next_frame_exact
   payload_preimage_exact configuration invocation.next invocation.nextNebula
     invocation.nextNebulaExact
 
-theorem selected_cursor_in_range
+theorem prior_frame_canonical
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
     {Running : Type uRunning}
@@ -480,13 +653,49 @@ theorem selected_cursor_in_range
     {configuration : Configuration Params StructureDigest Running Fresh
       NifsProof Nebula NebulaOpen armCount}
     (invocation : Invocation configuration) :
-    invocation.prior.stepCount < armCount :=
-  invocation.activeArm.cursor_in_range
+    ∀ value ∈ frame configuration invocation.prior invocation.priorNebula,
+      value < goldilocksP :=
+  frame_canonical configuration invocation.prior invocation.priorNebula
+    invocation.priorWordsBounded
+
+theorem next_frame_canonical
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (invocation : Invocation configuration) :
+    ∀ value ∈ frame configuration invocation.next invocation.nextNebula,
+      value < goldilocksP :=
+  frame_canonical configuration invocation.next invocation.nextNebula
+    invocation.nextWordsBounded
+
+theorem selected_cursor_exact
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (invocation : Invocation configuration) :
+    configuration.armCursor invocation.activeArm.selected =
+      invocation.prior.stepCount :=
+  invocation.activeArm.selectedCursor
 
 end Invocation
 
-/-- First physical invocation. The no-fold tag is derived from `localHolds`. -/
-structure Base
+/-- Common lifecycle part of the first physical invocation. The selected phase
+relation is separate because its rows have a different owner. -/
+structure BaseCommon
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
     {Running : Type uRunning}
@@ -501,6 +710,47 @@ structure Base
   priorInitial : prior.proof = .initial
   phaseInputEmpty : phaseInput = []
   priorPhaseStateInitial : priorPhaseState = configuration.initialPhaseState
+
+/-- Complete first physical invocation. The no-fold tag is derived from
+`localHolds`; the selected phase relation comes from the phase rows. -/
+structure Base
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    (configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount)
+    extends BaseCommon configuration where
+  selectedPhase : configuration.phaseAuthority.step commonPublic
+    activeArm.selected priorPhaseState phaseInput nextPhaseState input.nextLatest
+
+namespace BaseCommon
+
+/-- Add the phase-row fact to the common base relation. -/
+def complete
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (common : BaseCommon configuration)
+    (selectedPhase : configuration.phaseAuthority.step common.commonPublic
+      common.activeArm.selected common.priorPhaseState common.phaseInput
+      common.nextPhaseState common.input.nextLatest) :
+    Base configuration where
+  toBaseCommon := common
+  selectedPhase := selectedPhase
+
+end BaseCommon
 
 namespace Base
 
@@ -556,6 +806,54 @@ theorem prior_counters_zero
   have initial := base.baseLocalHolds.1
   exact ⟨initial.2.1, initial.2.2.1⟩
 
+/-- The verifier-owned base envelope starts at step zero and advances by the
+single fresh instance required by the lifecycle relation. -/
+theorem public_cursors_zero_one
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (base : Base configuration) :
+    base.commonPublic.beforeCursor = 0 /\
+      base.commonPublic.afterCursor = 1 := by
+  have cursors := Invocation.public_cursors_exact base.toInvocation
+  have nextExact := base.baseLocalHolds.2.2.2.2.2.1
+  constructor
+  · exact cursors.1.trans base.prior_counters_zero.2
+  · calc
+      base.commonPublic.afterCursor = base.next.stepCount := cursors.2
+      _ = (Step.advancedState configuration.stepSemantics base.prior
+          configuration.stepSemantics.emptyRunning base.input
+          base.proof).stepCount :=
+        congrArg (fun state => state.stepCount) nextExact
+      _ = base.prior.stepCount + base.input.nextLatest.length := rfl
+      _ = 1 := by
+        rw [base.prior_counters_zero.2, base.oneFresh]
+
+/-- The base invocation has no prior running instance and therefore no
+prior-state digest authority. -/
+theorem before_prior_state_digest_none
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (base : Base configuration) :
+    base.commonPublic.beforePriorStateDigest = none := by
+  rw [Invocation.before_prior_state_digest_exact base.toInvocation]
+  simp [beforePriorStateDigest, base.priorInitial]
+
 /-- The base phase starts with no delayed fresh claim and produces the exact
 batch installed by the base lifecycle transition. -/
 theorem selected_phase_starts_empty
@@ -578,9 +876,9 @@ theorem selected_phase_starts_empty
 
 end Base
 
-/-- Every post-base physical invocation. The active running state and exact
-NIFS proof are explicit because they are the authoritative fold inputs. -/
-structure Recursive
+/-- Common lifecycle part of every post-base physical invocation. The active
+running state and exact NIFS proof are explicit authoritative fold inputs. -/
+structure RecursiveCommon
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
     {Running : Type uRunning}
@@ -600,7 +898,67 @@ structure Recursive
   phaseInputExact : phaseInput = latest
   oneLatest : latest.length = 1
 
+/-- Complete post-base physical invocation. The selected phase relation comes
+from the phase rows on the same common public input. -/
+structure Recursive
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    (configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount)
+    extends RecursiveCommon configuration where
+  selectedPhase : configuration.phaseAuthority.step commonPublic
+    activeArm.selected priorPhaseState phaseInput nextPhaseState input.nextLatest
+
+namespace RecursiveCommon
+
+/-- Add the phase-row fact to the common recursive relation. -/
+def complete
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (common : RecursiveCommon configuration)
+    (selectedPhase : configuration.phaseAuthority.step common.commonPublic
+      common.activeArm.selected common.priorPhaseState common.phaseInput
+      common.nextPhaseState common.input.nextLatest) :
+    Recursive configuration where
+  toRecursiveCommon := common
+  selectedPhase := selectedPhase
+
+end RecursiveCommon
+
 namespace Recursive
+
+/-- The recursive common envelope carries the digest recomputed from the
+exact active running instance consumed by NIFS. -/
+theorem before_prior_state_digest_exact
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    (recursive : Recursive configuration) :
+    recursive.commonPublic.beforePriorStateDigest =
+      some (configuration.runningPriorStateDigest recursive.running) := by
+  rw [Invocation.before_prior_state_digest_exact recursive.toInvocation]
+  simp [beforePriorStateDigest, recursive.priorActive]
 
 theorem recursiveLocalHolds
     {Params : Type uParams}
@@ -813,6 +1171,7 @@ structure Terminal
     configuration.stepSemantics .stateful configuration.context state running
       latest
   oneFresh : latest.length = 1
+  wordsBounded : StateWordsBounded state
   phaseState : Digest
   semanticEnvelopeExact : state.semanticState =
     configuration.phaseEnvelopeDigest phaseState latest
@@ -979,6 +1338,27 @@ theorem frame_exact
           configuration.context terminal.state) :=
   payload_preimage_exact configuration terminal.state terminal.nebula
     terminal.nebulaExact
+
+theorem frame_canonical
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaOpen : Type uNebulaOpen}
+    {RunningWitness : Type uRunningWitness}
+    {FreshWitness : Type uFreshWitness}
+    {armCount : Nat}
+    {configuration : Configuration Params StructureDigest Running Fresh
+      NifsProof Nebula NebulaOpen armCount}
+    {authority : TerminalAuthority Running Fresh RunningWitness FreshWitness
+      Nebula}
+    (terminal : Terminal configuration authority) :
+    ∀ value ∈ frame configuration terminal.state terminal.nebula,
+      value < goldilocksP :=
+  FPrimeFullHistoryStreamingLifecycleRelation.frame_canonical configuration
+    terminal.state terminal.nebula terminal.wordsBounded
 
 end Terminal
 

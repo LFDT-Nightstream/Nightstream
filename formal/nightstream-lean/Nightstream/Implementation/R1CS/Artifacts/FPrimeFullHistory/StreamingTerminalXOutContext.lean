@@ -25,7 +25,7 @@ theorem contextRows_length : rawArtifact.contextRows.length = 24 := by
 theorem changedColumn_exact : rawArtifact.xOutColumns.getD 1 0 = 2 := by
   rfl
 
-theorem changedSource_exact : rawArtifact.vkFsSourceColumns.getD 0 0 = 91 := by
+theorem changedSource_exact : rawArtifact.vkFsSourceColumns.getD 0 0 = 2256 := by
   rfl
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingTerminalXOutContext

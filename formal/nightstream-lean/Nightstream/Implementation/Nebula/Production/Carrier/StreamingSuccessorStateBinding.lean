@@ -100,6 +100,24 @@ noncomputable def ReplayState.advance
     runtime.transcript
   cursor := runtime.cursor + chunk.length
 
+/-- Two field equalities reconstruct one exact replay-state advance without
+inspecting the chunk. -/
+theorem ReplayState.eq_advance_of_transcript_cursor
+    (before after : ReplayState) (chunk : List Nat)
+    (transcript : after.transcript =
+      Poseidon2Duplex.absorbSlice ProductPoseidon2.constants chunk
+        before.transcript)
+    (cursor : after.cursor = before.cursor + chunk.length) :
+    after = before.advance chunk := by
+  cases before with
+  | mk beforeTranscript beforeCursor =>
+      cases after with
+      | mk afterTranscript afterCursor =>
+          simp only [ReplayState.advance] at transcript cursor ⊢
+          cases transcript
+          cases cursor
+          rfl
+
 noncomputable def replayChunks :
     List (List Nat) -> ReplayState -> ReplayState
   | [], runtime => runtime

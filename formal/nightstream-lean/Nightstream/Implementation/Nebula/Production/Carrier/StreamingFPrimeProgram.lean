@@ -10,7 +10,7 @@ Assurance tier: model-level lifecycle authority.
 
 Owns the exact phase order, bounded phase indices, cursor advance, exclusion
 of skipped or repeated work, and the production step count for the current
-94-state-chunk, 86-claim-chunk, 26-round, 110-family, and
+94-state-chunk, 98-claim-chunk, 26-round, 110-family, and
 94-successor-prefix-chunk schedule.
 
 Does not own generated rows, a Rust relation, phase-local constraint
@@ -193,21 +193,21 @@ def workItemCount (config : Config) : Nat :=
   omega
 
 /-- Current production schedule: both 95-thousand-field state messages and
-the 88,023-field claim use 1,024-field chunks. PiCCS uses 26 SumCheck rounds,
+the 99,903-field claim use 1,024-field chunks. PiCCS uses 26 SumCheck rounds,
 and PiRLC uses 110 narrow output-family phases. -/
 def productionConfig : Config where
   priorStateChunks := 94
-  claimChunks := 86
+  claimChunks := 98
   piCcsRounds := 26
   piRlcFamilies := 110
   successorPrefixChunks := 94
 
 theorem production_work_item_count :
-    workItemCount productionConfig = 424 := by
+    workItemCount productionConfig = 436 := by
   decide
 
 theorem production_program_length :
-    (program productionConfig).length = 424 := by
+    (program productionConfig).length = 436 := by
   rw [program_length, production_work_item_count]
 
 /-- Shared public columns used by the two physical lifecycle circuits and all
@@ -408,7 +408,7 @@ theorem production_complete_run_steps_exact {State : Type}
     {steps : Nat} {startValue : State} {after : Runtime State}
     (run : Runs semantics productionConfig steps (initial startValue) after)
     (complete : Complete productionConfig after) :
-    steps = 424 := by
+    steps = 436 := by
   rw [complete_run_steps_exact run complete, production_program_length]
 
 end Nightstream.Implementation.Nebula.ProductionStreamingFPrimeProgram

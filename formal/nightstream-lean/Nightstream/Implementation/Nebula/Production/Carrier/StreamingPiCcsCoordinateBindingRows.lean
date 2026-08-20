@@ -148,10 +148,10 @@ theorem coordinateBlock_exact_geometry
       (coordinateBlock production layout).wordStarts.length = fieldCount /\
       (coordinateBlock production layout).wordWidth = 41 /\
       (coordinateBlock production layout).kappa = 2 /\
-      (coordinateBlock production layout).messageCols = 16112 /\
+      (coordinateBlock production layout).messageCols = 18408 /\
       (coordinateBlock production layout).outputColumns.length = 108 /\
       (coordinateBlock production layout).superneoTransformedColumns = false /\
-      (coordinateBlock production layout).schedule.chunkSize = 16112 := by
+      (coordinateBlock production layout).schedule.chunkSize = 18408 := by
   constructor
   · exact coordinateBlock_rowStart production layout
   constructor

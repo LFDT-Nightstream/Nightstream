@@ -72,7 +72,8 @@ def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
     artifact.profileId =
       "nightstream/goldilocks/streaming-terminal-x-out-context/v1" ∧
     artifact.sourceIdentity = "rust:streaming-terminal-x-out-context/v1" ∧
-    artifact.sourceRowsSha256.length = 64 ∧
+    artifact.sourceRowsSha256 =
+      "89aae9a5eb9aa1f455cb97d60b648c7fdd03d729935d6d6cc87fe5419773173d" ∧
     artifact.rowCount = 24 ∧
     artifact.xOutColumns.length = 32 ∧
     artifact.vkFsSourceColumns.length = 4 ∧

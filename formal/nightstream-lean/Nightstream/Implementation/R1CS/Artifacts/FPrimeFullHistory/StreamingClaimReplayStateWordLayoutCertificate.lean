@@ -6,7 +6,7 @@ streaming claim-replay arms.
 
 Assurance tier: Rust-to-Lean artifact layout certificate.
 
-Owns the exact 472-column layout, its duplicate-free structure, and its
+Owns the exact 688-column layout, its duplicate-free structure, and its
 column bounds. The proof uses two reusable rotated-range theorems.
 
 Does not own state-word semantics, leaf rows, or lifecycle integration.
@@ -68,18 +68,18 @@ theorem rotatedRange_member_bounds
       omega
 
 def transitionStateWordColumns : List Nat :=
-  rotatedRange 1 19 216 ++ rotatedRange 303 19 216
+  rotatedRange 1 19 324 ++ rotatedRange 411 19 324
 
 theorem transitionStateWordColumns_length :
-    transitionStateWordColumns.length = 472 := by
+    transitionStateWordColumns.length = 688 := by
   simp [transitionStateWordColumns, rotatedRange_length]
 
 theorem transitionStateWordColumns_nodup :
     transitionStateWordColumns.Nodup := by
   unfold transitionStateWordColumns
   apply List.Nodup.append
-  · exact rotatedRange_nodup 1 19 216
-  · exact rotatedRange_nodup 303 19 216
+  · exact rotatedRange_nodup 1 19 324
+  · exact rotatedRange_nodup 411 19 324
   · rw [List.disjoint_iff_ne]
     intro left leftMember right rightMember equal
     have leftBounds := rotatedRange_member_bounds leftMember
@@ -88,7 +88,7 @@ theorem transitionStateWordColumns_nodup :
 
 theorem transitionStateWordColumns_bound
     {column : Nat} (member : column ∈ transitionStateWordColumns) :
-    column ≤ 538 := by
+    column ≤ 754 := by
   unfold transitionStateWordColumns at member
   rw [List.mem_append] at member
   rcases member with member | member
@@ -106,13 +106,13 @@ theorem finalArm_stateWordColumns_exact :
   rfl
 
 theorem arms_stateWordLayout_exact :
-    fullArm.stateWordColumns.length = 472 ∧
+    fullArm.stateWordColumns.length = 688 ∧
       fullArm.stateWordColumns.take 19 = List.range' 1 19 ∧
-      fullArm.stateWordColumns[19]? = some 236 ∧
-      (fullArm.stateWordColumns.drop 20).take 216 = List.range' 20 216 ∧
-      (fullArm.stateWordColumns.drop 236).take 19 = List.range' 303 19 ∧
-      fullArm.stateWordColumns[255]? = some 538 ∧
-      fullArm.stateWordColumns.drop 256 = List.range' 322 216 ∧
+      fullArm.stateWordColumns[19]? = some 344 ∧
+      (fullArm.stateWordColumns.drop 20).take 324 = List.range' 20 324 ∧
+      (fullArm.stateWordColumns.drop 344).take 19 = List.range' 411 19 ∧
+      fullArm.stateWordColumns[363]? = some 754 ∧
+      fullArm.stateWordColumns.drop 364 = List.range' 430 324 ∧
       finalArm.stateWordColumns = fullArm.stateWordColumns := by
   rw [fullArm_stateWordColumns_exact, finalArm_stateWordColumns_exact]
   norm_num [transitionStateWordColumns, rotatedRange, List.drop_append,
@@ -124,7 +124,7 @@ theorem fullArm_stateWordLayout_valid : fullArm.StateWordLayoutValid := by
   exact ⟨transitionStateWordColumns_length,
     transitionStateWordColumns_nodup, by
       intro column member
-      change column < 307491
+      change column < 340107
       have bound := transitionStateWordColumns_bound member
       omega⟩
 
@@ -134,7 +134,7 @@ theorem finalArm_stateWordLayout_valid : finalArm.StateWordLayoutValid := by
   exact ⟨transitionStateWordColumns_length,
     transitionStateWordColumns_nodup, by
       intro column member
-      change column < 342464
+      change column < 264104
       have bound := transitionStateWordColumns_bound member
       omega⟩
 

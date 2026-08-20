@@ -42,9 +42,9 @@ private abbrev physicalLayout :=
 private abbrev Setup :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcAuthority.InputBindingSetup
 
-def sourceColumns : Nat := 33360
+def sourceColumns : Nat := 37788
 
-def finalColumns : Nat := 35856
+def finalColumns : Nat := 42228
 
 theorem sourceColumns_positive : 0 < sourceColumns := by
   decide
@@ -65,12 +65,12 @@ def selectorColumn (family : Family) : Fin finalColumns :=
   rfl
 
 /-- Exact normalized slot of every nonconstant physical source column.
-Digits use one direct centered coordinate. Outputs use 23 radix-seven
+Digits use one direct centered coordinate. Outputs use 41 radix-three
 coordinates. -/
 def sourceSlot
     (column : Fin sourceColumns) (_nonzero : column.val ≠ 0) :
     DecodedSourceSlot sourceColumns finalColumns :=
-  if direct : column.val < 33252 then
+  if direct : column.val < 37680 then
     { column := column
       start := column.val + 110
       width := 1
@@ -80,8 +80,8 @@ def sourceSlot
         omega }
   else
     { column := column
-      start := 33362 + (column.val - 33252) * 23
-      width := 23
+      start := 37790 + (column.val - 37680) * 41
+      width := 41
       widthPositive := by decide
       columnsFit := by
         have upper := column.isLt
@@ -123,12 +123,12 @@ def outputSourceColumn
       simpa only [
         Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBindingSetup.exact_output_width]
         using output.isLt
-    change 33252 + output.val < 33360
+    change 37680 + output.val < 37788
     omega⟩
 
 @[simp] theorem outputSourceColumn_val
     (output : Fin (shape.rows * shape.degree)) :
-    (outputSourceColumn output).val = 33252 + output.val := by
+    (outputSourceColumn output).val = 37680 + output.val := by
   rfl
 
 def outputValue
@@ -138,7 +138,7 @@ def outputValue
 
 /-- Exact thirteen-port point scanned by Rust for one retained overlay row.
 The compact A value uses the verifier-owned seeded block, B reads constant
-one, and C reads the normalized radix-seven output slot. -/
+one, and C reads the normalized radix-three output slot. -/
 def coordinatePoint
     (setup : Setup) (family : Family)
     (assignment : Fin finalColumns → F)
@@ -260,14 +260,20 @@ theorem receipt_geometry_exact :
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.selectorStart = 1 /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.selectorCount = 110 /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.sourceStarts =
-        [1, 42, 33252] /\
+        [1, 42, 37680] /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.finalStarts =
-        [111, 152, 33362] /\
+        [111, 152, 37790] /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.widths =
-        [1, 23] /\
+        [1, 41] /\
       Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit.radices =
-        [2, 7] := by
-  native_decide
+        [2, 3] := by
+  rcases
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained.audit_valid.1 with
+    ⟨_schema, familyCount, _sourceRows, sourceColumnCount, _finalRows,
+      finalColumnCount, selectorStart, selectorCount, _retainedStart,
+      _retainedStride, sourceStarts, finalStarts, widths, radices⟩
+  exact ⟨sourceColumnCount.symm, finalColumnCount.symm, selectorStart,
+    selectorCount.trans familyCount, sourceStarts, finalStarts, widths, radices⟩
 
 /-- The production specialization uses the exact seed schedule and port
 censuses checked by the Rust-conformant receipt. -/

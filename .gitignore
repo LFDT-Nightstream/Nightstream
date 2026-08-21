@@ -11,8 +11,10 @@ dist
 demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace
 formal/*-lean/.lake
+/formal/nightstream-fprime/.lake/
 formal/external
 formal/nightstream-lean/.tmp_tv_test*
+/formal/nightstream-lean/
 .bundle_tmp/
 .tmp/
 tmp/
@@ -43,6 +45,8 @@ crates/neo-prover-cuda/*.ptx
 crates/neo-prover-cuda/.oxide-artifacts/
 METAL_IMPLEMENTATION_BEST_PRACTICES.md
 profile-xctrace.txt
+/TEMPORAL_EXTERNAL_PROGRESS_REVIEW.md
+/FABLE_TEMPORAL_EXTERNAL_PROGRESS_REVIEW.md
 
 # Lean proof artifacts under formal/ are source, not build output. These
 # negations guard against user-global ignore patterns (e.g. Hardhat's

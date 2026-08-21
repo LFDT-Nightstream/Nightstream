@@ -123,7 +123,8 @@ State the authority or derivation whenever proposing or applying a limit. If no 
 
 ## Formal Lean Subprojects
 - Lean-specific instructions live in subdirectory `AGENTS.md` files so they apply only to the matching formal project.
-- For the active Nightstream Lean project, read `formal/nightstream-lean/AGENTS.md`.
+- **Frozen and deprecated Nightstream Lean project (hard rule).** `formal/nightstream-lean` is a read-only reference corpus. Do not edit, add, delete, generate, format, repair, or otherwise maintain files in this project. Do not add new production dependencies on it or use it as the production proof authority. Read its files only for reference. Resume work in it only when the user explicitly unfreezes it in the current task.
+- Before a permitted inspection of the frozen Nightstream Lean project, read `formal/nightstream-lean/AGENTS.md`.
 - For the SuperNeo Lean project, read `formal/superneo-lean/AGENTS.md`.
 
 

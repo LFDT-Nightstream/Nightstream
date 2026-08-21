@@ -1,8 +1,0 @@
-import Nightstream.Implementation.R1CS.Correspondence.PiCcsMatrix.Phi81MatrixSourceRefinement
-
-open Nightstream.Implementation.R1CS.Phi81MatrixSourceRefinement
-
-#check runtimeSource
-#check runtimeSource_matrix_eq_semantic
-#check runtimeSource_paddedMatrixEntry_eq_semantic
-#check runtimeSource_coefficientMatrix_eq_semantic

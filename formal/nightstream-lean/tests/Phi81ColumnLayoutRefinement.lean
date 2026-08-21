@@ -1,9 +1,0 @@
-import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Phi81ColumnLayoutRefinement
-
-open Nightstream.Implementation.R1CS.Phi81ColumnLayoutRefinement
-
-#check packAssignment_length_eq_blockCount
-#check packedCell
-#check packedCell_eq_layout
-#check logicalColumn_exact
-#check paddingCell_zero

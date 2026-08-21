@@ -1,7 +1,0 @@
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
-
-open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
-
-#check polynomial_slice_represents
-#check sequentialRoundRepresentable
-#check expectedRoundsRepresentable

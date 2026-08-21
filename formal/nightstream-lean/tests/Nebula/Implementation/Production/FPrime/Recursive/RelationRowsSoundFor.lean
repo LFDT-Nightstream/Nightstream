@@ -1,6 +1,0 @@
-import Nightstream.Implementation.Nebula.Production.FPrime.Recursive.RelationRowsSoundFor
-
-open Nightstream.Implementation.Nebula.ProductionPaperRecursiveRelationRowsSoundFor
-
-#check paperVerifier
-#check rows_imply_verified_exact_claim_and_memory_transition

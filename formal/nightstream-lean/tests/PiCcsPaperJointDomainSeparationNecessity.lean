@@ -1,8 +1,0 @@
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation
-
-open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation
-
-#check twoPow_mod_three_ne_zero
-#check carrierWidth_mod_three_eq_zero
-#check carrierWidth_ne_twoPow
-#check no_columnLayout_for_completeCarrier

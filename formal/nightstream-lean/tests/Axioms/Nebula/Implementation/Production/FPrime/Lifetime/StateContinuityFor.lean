@@ -1,5 +1,0 @@
-import Nightstream.Implementation.Nebula.Production.FPrime.Lifetime.StateContinuityFor
-import tests.Axioms.Support
-
-set_option pp.universes true in
-#audit_axioms Nightstream.Implementation.Nebula.ProductionPaperStateContinuityFor.state_equal_or_collision

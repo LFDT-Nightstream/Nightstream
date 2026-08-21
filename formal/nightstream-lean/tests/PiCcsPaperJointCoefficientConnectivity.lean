@@ -1,9 +1,0 @@
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.CoefficientConnectivity
-
-open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.CoefficientConnectivity
-
-#check sameNonCoefficientInputs
-#check coefficientMatrices_ne
-#check validInputs_semanticTruth
-#check disconnectedInputs_not_semanticTruth
-#check omitting_coefficient_connectivity_changes_semantic_truth

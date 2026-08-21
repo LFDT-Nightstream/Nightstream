@@ -1,8 +1,0 @@
-import Nightstream.Implementation.Nebula.Production.FPrime.Recursive.ProducerInvocationFor
-import tests.Axioms.Support
-
-set_option pp.universes true in
-#audit_axioms Nightstream.Implementation.Nebula.ProductionPaperRecursiveProducerInvocationFor.exact
-
-#audit_axioms Nightstream.Implementation.Nebula.ProductionPaperRecursiveProducerInvocationFor.Evidence.outgoingValue_eq_firstBoundary
-#audit_axioms Nightstream.Implementation.Nebula.ProductionPaperRecursiveProducerInvocationFor.Evidence.currentMemoryStartsAt

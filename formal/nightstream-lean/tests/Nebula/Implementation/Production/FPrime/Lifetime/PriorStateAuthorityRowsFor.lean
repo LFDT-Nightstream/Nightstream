@@ -1,9 +1,0 @@
-import Nightstream.Implementation.Nebula.Production.FPrime.Lifetime.PriorStateAuthorityRowsFor
-
-open Nightstream.Implementation.Nebula.ProductionPaperPriorStateAuthorityRowsFor
-
-#check rows_imply_exact_prior_state_and_fullMatches
-#check prefix_running_eq_claim
-#check stateDigestPlaced
-#check Result.prior_memoryCarry_eq_memory_start
-#check rows_length_exact

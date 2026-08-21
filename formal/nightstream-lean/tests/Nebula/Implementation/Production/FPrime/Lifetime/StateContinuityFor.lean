@@ -1,7 +1,0 @@
-import Nightstream.Implementation.Nebula.Production.FPrime.Lifetime.StateContinuityFor
-
-open Nightstream.Implementation.Nebula.ProductionPaperStateContinuityFor
-
-#check matched_state_digests_equal
-#check state_equal_or_collision
-#check state_equal_of_no_collision

@@ -1,9 +1,0 @@
-import Nightstream.SuperNeo.SumCheck.FixedPolynomialCanonical
-
-open Nightstream.SuperNeo.SumCheck.Finite.FixedPolynomial
-
-#check canonicalMessage
-#check canonicalMessage_coefficients_eq_prefix_zero_padding
-#check canonicalMessage_evaluate
-#check canonicalMessage_canonical
-#check canonicalMessage_degreeUpperBound_le

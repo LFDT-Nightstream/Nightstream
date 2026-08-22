@@ -87,6 +87,8 @@ structure Subcircuit where
   localLength : Nat
   witnesses : List WitnessBatch
   constraints : List Expr
+  rowCount : Nat
+  rowCount_eq : constraints.length = rowCount
   spec : Env → Prop
   soundness : ∀ env, ConstraintsHold env constraints → spec env
 
@@ -123,6 +125,53 @@ def Op.flatConstraints : Op → List Expr
   | .subcircuit child => child.constraints
 
 def flatConstraints (ops : List Op) : List Expr := ops.flatMap Op.flatConstraints
+
+/-- Exact logical-row count carried by an operation. Opaque children expose a
+certified count, so a parent never evaluates their constraint lists to count
+rows. -/
+def Op.rowCount : Op → Nat
+  | .witness batch => batch.recipes.length
+  | .assertZero _ => 1
+  | .subcircuit child => child.rowCount
+
+def rowCount (ops : List Op) : Nat := (ops.map Op.rowCount).sum
+
+theorem Op.flatConstraints_length_eq_rowCount (operation : Op) :
+    operation.flatConstraints.length = operation.rowCount := by
+  cases operation with
+  | witness batch =>
+      exact recipeConstraints_length batch.start batch.recipes
+  | assertZero _ =>
+      rfl
+  | subcircuit child =>
+      exact child.rowCount_eq
+
+/-- Flattened logical rows have exactly the sum of their certified operation
+counts. This proof is structural in the operation list and does not inspect an
+opaque child's constraints. -/
+theorem flatConstraints_length_eq_rowCount (ops : List Op) :
+    (flatConstraints ops).length = rowCount ops := by
+  induction ops with
+  | nil =>
+      rfl
+  | cons operation rest inductionHypothesis =>
+      change (operation.flatConstraints ++ flatConstraints rest).length =
+        operation.rowCount + rowCount rest
+      rw [List.length_append, operation.flatConstraints_length_eq_rowCount,
+        inductionHypothesis]
+
+@[simp] theorem rowCount_append (left right : List Op) :
+    rowCount (left ++ right) = rowCount left + rowCount right := by
+  simp [rowCount, List.sum_append]
+
+@[simp] theorem flatConstraints_append (left right : List Op) :
+    flatConstraints (left ++ right) =
+      flatConstraints left ++ flatConstraints right := by
+  simp [flatConstraints]
+
+@[simp] theorem flatConstraints_singleton (operation : Op) :
+    flatConstraints [operation] = operation.flatConstraints := by
+  simp [flatConstraints]
 
 def Op.witnesses : Op → List WitnessBatch
   | .witness batch => [batch]
@@ -243,13 +292,38 @@ theorem AgreesOutside.append {before middle after : Env}
       after index = middle index := second index (Or.inr (by omega))
       _ = before index := first index (Or.inr (by omega))
 
+/-- Flattened physical completeness implies opaque logical completeness.
+Parents use only the logical result; Layout retains the flattened premise. -/
+theorem logicalCompleteness_of_flat
+    {env : Env} {offset : Nat} {ops : List Op}
+    (flat : ∃ completed,
+      AgreesOutside env completed offset (localLength ops) ∧
+      holdsFlat completed ops) :
+    ∃ completed,
+      AgreesOutside env completed offset (localLength ops) ∧
+      holds completed ops := by
+  rcases flat with ⟨completed, agrees, rows⟩
+  exact ⟨completed, agrees, holdsFlat_implies_holds completed ops rows⟩
+
 /-- The one proved-circuit object. Soundness quantifies over arbitrary witness
-values. Completeness supplies an environment for the circuit's local witness
-range while preserving every external variable. -/
+values. Completeness supplies an environment that satisfies the actual
+flattened rows while preserving every external variable. -/
 structure FormalCircuit where
   main : Circuit Unit
   assumptions : Nat → Env → Prop := fun _ _ => True
   spec : Nat → Env → Prop
+  privateCount : Nat → Nat := fun offset =>
+    localLength (Circuit.ops main offset)
+  rowCount : Nat → Nat := fun offset =>
+    (flatConstraints (Circuit.ops main offset)).length
+  privateCount_eq : ∀ offset,
+    localLength (Circuit.ops main offset) = privateCount offset := by
+      intro _
+      rfl
+  rowCount_eq : ∀ offset,
+    (flatConstraints (Circuit.ops main offset)).length = rowCount offset := by
+      intro _
+      rfl
   soundness : ∀ env offset, assumptions offset env →
     holds env (Circuit.ops main offset) → spec offset env
   completeness : ∀ env offset, assumptions offset env → spec offset env →
@@ -259,18 +333,90 @@ structure FormalCircuit where
 
 namespace FormalCircuit
 
+/-- Replace only the footprint metadata of a proved circuit. The supplied
+equalities certify the metadata against the unchanged authoritative operations. -/
+def withConstantFootprint (circuit : FormalCircuit)
+    (privateCount rowCount : Nat)
+    (privateCount_eq : ∀ offset,
+      localLength (Circuit.ops circuit.main offset) = privateCount)
+    (rowCount_eq : ∀ offset,
+      (flatConstraints (Circuit.ops circuit.main offset)).length = rowCount) :
+    FormalCircuit :=
+  { circuit with
+    privateCount := fun _ => privateCount
+    rowCount := fun _ => rowCount
+    privateCount_eq := privateCount_eq
+    rowCount_eq := rowCount_eq }
+
+@[simp] theorem withConstantFootprint_main (circuit : FormalCircuit)
+    (privateCount rowCount : Nat)
+    (privateCount_eq : ∀ offset,
+      localLength (Circuit.ops circuit.main offset) = privateCount)
+    (rowCount_eq : ∀ offset,
+      (flatConstraints (Circuit.ops circuit.main offset)).length = rowCount) :
+    (circuit.withConstantFootprint privateCount rowCount privateCount_eq
+      rowCount_eq).main = circuit.main := by
+  rfl
+
+@[simp] theorem withConstantFootprint_privateCount (circuit : FormalCircuit)
+    (privateCount rowCount : Nat)
+    (privateCount_eq : ∀ offset,
+      localLength (Circuit.ops circuit.main offset) = privateCount)
+    (rowCount_eq : ∀ offset,
+      (flatConstraints (Circuit.ops circuit.main offset)).length = rowCount)
+    (offset : Nat) :
+    (circuit.withConstantFootprint privateCount rowCount privateCount_eq
+      rowCount_eq).privateCount offset = privateCount := by
+  rfl
+
+@[simp] theorem withConstantFootprint_rowCount (circuit : FormalCircuit)
+    (privateCount rowCount : Nat)
+    (privateCount_eq : ∀ offset,
+      localLength (Circuit.ops circuit.main offset) = privateCount)
+    (rowCount_eq : ∀ offset,
+      (flatConstraints (Circuit.ops circuit.main offset)).length = rowCount)
+    (offset : Nat) :
+    (circuit.withConstantFootprint privateCount rowCount privateCount_eq
+      rowCount_eq).rowCount offset = rowCount := by
+  rfl
+
 /-- Package a proved circuit as one opaque operation. Its visible meaning is
 `assumptions → spec`; its physical constraints are the flattened child rows. -/
 def asSubcircuit (circuit : FormalCircuit) (name : String) (offset : Nat) : Subcircuit where
   name := name
-  localLength := localLength (Circuit.ops circuit.main offset)
+  localLength := circuit.privateCount offset
   witnesses := witnesses (Circuit.ops circuit.main offset)
   constraints := flatConstraints (Circuit.ops circuit.main offset)
+  rowCount := circuit.rowCount offset
+  rowCount_eq := circuit.rowCount_eq offset
   spec := fun env => circuit.assumptions offset env → circuit.spec offset env
   soundness := by
     intro env hflat hassumptions
     apply circuit.soundness env offset hassumptions
     exact holdsFlat_implies_holds env _ hflat
+
+@[simp] theorem asSubcircuit_constraints (circuit : FormalCircuit)
+    (name : String) (offset : Nat) :
+    (circuit.asSubcircuit name offset).constraints =
+      flatConstraints (Circuit.ops circuit.main offset) := by
+  rfl
+
+@[simp] theorem asSubcircuit_localLength (circuit : FormalCircuit)
+    (name : String) (offset : Nat) :
+    (circuit.asSubcircuit name offset).localLength =
+      localLength (Circuit.ops circuit.main offset) := by
+  exact (circuit.privateCount_eq offset).symm
+
+@[simp] theorem asSubcircuit_rowCount (circuit : FormalCircuit)
+    (name : String) (offset : Nat) :
+    (circuit.asSubcircuit name offset).rowCount = circuit.rowCount offset := by
+  rfl
+
+theorem asSubcircuit_constraints_length (circuit : FormalCircuit)
+    (name : String) (offset : Nat) :
+    (circuit.asSubcircuit name offset).constraints.length =
+      circuit.rowCount offset := by
+  exact circuit.rowCount_eq offset
 
 end FormalCircuit
 

@@ -1,13 +1,14 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/UnifiedSources.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/UnifiedSources.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
+SuperNeo v1.1 Pad and 14-matrix evaluation families. -/
 
 /-!
-One authoritative assignment family for every paper joint `Pi_CCS`
+One authoritative assignment family for every SuperNeo v1.1 `Pi_CCS`
 obligation.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: source ownership before CCS, norm, and carried-evaluation residuals.
 Constraint family: semantic witness connectivity only; this file emits no
 rows.
@@ -15,18 +16,19 @@ rows.
 Owns: the paper's zero-padding injection from assignment columns into its
 Boolean row cube, including the exact consequence `columns <= 2^variables`;
 one typed family of the exact `K+k` source assignments; canonical
-fresh/running source injections; and derived CCS, norm, and carried-evaluation
-views that provably read the same `z_i` values.
+fresh/running source injections; and derived CCS, norm, Pad-evaluation, and
+matrix-evaluation views that provably read the same `z_i` values.
 
 Does not own: commitment/public-input binding, proof that coefficient-expanded
-carried matrices come from the structure matrices, extension-field lifting,
+matrix coefficient expansions come from Pad and the structure matrices,
+extension-field lifting,
 the nonlinear protocol polynomial, Fiat--Shamir, Rust, R1CS, or constraint
 counts.
 
 Emits constraints: no.
 
 Authority boundary: callers provide assignments once. They cannot separately
-choose the norm values or the carried-evaluation assignments. `ColumnLayout`
+choose the norm values or either evaluation assignment family. `ColumnLayout`
 is injective from columns to rows and identifies padding rows explicitly, so
 a norm check over Boolean vertices covers every authoritative assignment
 column and checks zero on every padding row. The older
@@ -39,7 +41,8 @@ for reusing already-proved family lemmas.
 | `Pi_CCS` | source ownership | all `K+k` vectors | `UnifiedInputs.assignments` is authoritative |
 | `Pi_CCS` | CCS | first `K` sources | `freshBatch` reads `freshSourceIndex i` |
 | `Pi_CCS` | norm | all `K+k` sources | `normBatch` reads the same assignment through `ColumnLayout` |
-| `Pi_CCS` | carried evaluation | final `k` sources | `carriedData` reads `runningSourceIndex i` |
+| `Pi_CCS` | Pad evaluation | final `k` sources | `padData` reads `runningSourceIndex i` |
+| `Pi_CCS` | matrix evaluation | final `k` sources | `matrixData` reads the same `runningSourceIndex i` |
 | assurance | connectivity | norm coverage | `normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded` |
 | assurance | semantic closure | all three families | `toIndependentInputs_semanticTruth_iff` |
 -/
@@ -221,11 +224,14 @@ structure UnifiedInputs
   layout : ColumnLayout shape.cubeVariables columns
   system : CCSResidualTable.Structure F shape columns
   assignments : Fin shape.sourceCount -> Assignment F columns
-  coefficientMatrices :
+  padCoefficientMatrices : Fin shape.coefficientCount ->
+    BooleanMatrix F shape.cubeVariables columns
+  matrixCoefficientMatrices :
     Fin shape.matrixCount -> Fin shape.coefficientCount ->
       BooleanMatrix F shape.cubeVariables columns
   priorPoint : CubePoint Extension shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Extension
+  claimedPadCoefficient : PadCoordinate shape -> Extension
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
 namespace UnifiedInputs
 
@@ -250,18 +256,32 @@ def normBatch
   assignments := fun source vertex =>
     data.layout.paddedValue 0 (data.assignments source) vertex
 
-/-- Carried-evaluation view of the final `k` authoritative assignments. -/
-def carriedData
+/-- Pad-evaluation view of the final `k` authoritative assignments. -/
+def padData
     {Extension : Type uExtension}
     {shape : Shape}
     {columns : Nat}
     (data : UnifiedInputs Extension shape columns) :
-    CarriedEvaluationResidual.EvaluationData F Extension shape columns where
+    PadEvaluationResidual.EvaluationData F Extension shape columns where
   priorPoint := data.priorPoint
   assignments := fun source =>
     data.assignments (runningSourceIndex source)
-  coefficientMatrices := data.coefficientMatrices
-  claimedCoefficient := data.claimedCoefficient
+  coefficientMatrices := data.padCoefficientMatrices
+  claimedCoefficient := data.claimedPadCoefficient
+
+/-- CCS-matrix evaluation view of the same final `k` assignments and prior
+point. -/
+def matrixData
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns : Nat}
+    (data : UnifiedInputs Extension shape columns) :
+    MatrixEvaluationResidual.EvaluationData F Extension shape columns where
+  priorPoint := data.priorPoint
+  assignments := fun source =>
+    data.assignments (runningSourceIndex source)
+  coefficientMatrices := data.matrixCoefficientMatrices
+  claimedCoefficient := data.claimedMatrixCoefficient
 
 /-- Internal projection used only to reuse the independently proved residual
 family theorems. No caller can construct its three assignment views
@@ -274,7 +294,13 @@ def toIndependentInputs
     ConcreteJointData.IndependentInputs Extension shape columns where
   ccs := data.freshBatch
   norm := data.normBatch
-  carried := data.carriedData
+  priorPoint := data.priorPoint
+  runningAssignments := fun source =>
+    data.assignments (runningSourceIndex source)
+  padCoefficientMatrices := data.padCoefficientMatrices
+  matrixCoefficientMatrices := data.matrixCoefficientMatrices
+  claimedPadCoefficient := data.claimedPadCoefficient
+  claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
 /-- The CCS view reads the authoritative fresh assignment verbatim. -/
 theorem freshBatch_assignment_eq
@@ -301,15 +327,28 @@ theorem normBatch_assignment_eq
       data.layout.paddedValue 0 (data.assignments source) vertex := by
   rfl
 
-/-- The carried view reads the authoritative running assignment verbatim. -/
-theorem carriedData_assignment_eq
+/-- The Pad view reads the authoritative running assignment verbatim. -/
+theorem padData_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
     {columns : Nat}
     (data : UnifiedInputs Extension shape columns)
     (source : Fin shape.runningCount)
     (column : Fin columns) :
-    data.carriedData.assignments source column =
+    data.padData.assignments source column =
+      data.assignments (runningSourceIndex source) column := by
+  rfl
+
+/-- The matrix view reads the same authoritative running assignment
+verbatim. -/
+theorem matrixData_assignment_eq
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns : Nat}
+    (data : UnifiedInputs Extension shape columns)
+    (source : Fin shape.runningCount)
+    (column : Fin columns) :
+    data.matrixData.assignments source column =
       data.assignments (runningSourceIndex source) column := by
   rfl
 
@@ -369,8 +408,9 @@ def SemanticTruth
     (lift : F -> Extension) : Prop :=
   data.freshBatch.AllConstraintsSatisfied baseOps ∧
     data.AllAssignmentsStrictNormBounded ∧
-    CarriedEvaluationResidual.AllClaimsHold baseOps extensionOps lift
-      data.carriedData
+    PadEvaluationResidual.AllClaimsHold baseOps extensionOps lift data.padData ∧
+    MatrixEvaluationResidual.AllClaimsHold baseOps extensionOps lift
+      data.matrixData
 
 /-- Projecting to the old independent residual-family bundle preserves
 exactly the stronger unified semantic truth; this theorem is the only intended
@@ -389,12 +429,16 @@ theorem toIndependentInputs_semanticTruth_iff
   change
     data.freshBatch.AllConstraintsSatisfied baseOps ∧
         data.normBatch.AllStrictNormBounded ∧
-          CarriedEvaluationResidual.AllClaimsHold baseOps extensionOps lift
-            data.carriedData ↔
+          PadEvaluationResidual.AllClaimsHold baseOps extensionOps lift
+            data.padData ∧
+          MatrixEvaluationResidual.AllClaimsHold baseOps extensionOps lift
+            data.matrixData ↔
       data.freshBatch.AllConstraintsSatisfied baseOps ∧
         data.AllAssignmentsStrictNormBounded ∧
-          CarriedEvaluationResidual.AllClaimsHold baseOps extensionOps lift
-            data.carriedData
+          PadEvaluationResidual.AllClaimsHold baseOps extensionOps lift
+            data.padData ∧
+          MatrixEvaluationResidual.AllClaimsHold baseOps extensionOps lift
+            data.matrixData
   rw [normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded]
 
 end UnifiedInputs

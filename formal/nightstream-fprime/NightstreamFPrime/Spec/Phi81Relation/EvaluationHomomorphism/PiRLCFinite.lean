@@ -2,8 +2,10 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
 import NightstreamFPrime.Spec.Folding.PiRLC
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLCFinite.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLCFinite.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
+finite explicit-matrix theorem added for the separate SuperNeo v1.1 Pad
+evaluation family. -/
 
 /-!
 Finite-batch evaluation homomorphism for the typed Phi81 `Pi_RLC` action.
@@ -47,6 +49,7 @@ namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinit
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 namespace Raw
 
@@ -176,6 +179,34 @@ theorem matrixEvaluation_combine
               (fun index => challenges index.succ)
               (fun index => assignments index.succ)]
           rfl
+
+/-- One explicit completed-matrix evaluation commutes with the finite
+`RingF` challenge combination. This is the v1.1 Pad counterpart of
+`matrixEvaluation_combine`; it does not select a CCS matrix index. -/
+theorem explicitMatrixEvaluation_combine
+    {shape : Shape} {count : Nat}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (challenges : Fin count -> RingF)
+    (assignments : Fin count -> Assignment shape)
+    (point : Point shape) :
+    PiRLC.ExplicitMatrix.evaluate system matrix
+        (combineAssignments challenges assignments) point =
+      combineEvaluation challenges fun index =>
+        PiRLC.ExplicitMatrix.evaluate system matrix
+          (assignments index) point := by
+  induction count with
+  | zero => exact PiRLC.ExplicitMatrix.evaluate_zero system matrix point
+  | succ count inductionHypothesis =>
+      rw [combineAssignments, combineEvaluation,
+        PiRLC.ExplicitMatrix.evaluate_add,
+        PiRLC.ExplicitMatrix.evaluate_act system matrix (challenges 0)
+          (PiRLC.productOrderLaw (challenges 0)),
+        inductionHypothesis
+          (fun index => challenges index.succ)
+          (fun index => assignments index.succ)]
+      rfl
 
 /-- Array-level finite evaluation law: every canonical matrix and all 54
 lanes use the same challenge sequence as the complete assignment. -/

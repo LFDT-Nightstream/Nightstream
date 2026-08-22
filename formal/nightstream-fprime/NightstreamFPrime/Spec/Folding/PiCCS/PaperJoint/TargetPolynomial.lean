@@ -5,31 +5,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Finite carried-target polynomials for the paper-level `Pi_CCS` exponent audit.
-
-Owns: typed carried coefficients, a fixed finite coordinate enumeration, local
-and selected `2K+k`-shifted target evaluation, the exact shift identity, and a
-support witness that separates the local and shifted conventions.
-
-Does not own: `Q`, carried-evaluation residual formulas, the signed joint
-identity, SumCheck, transcript semantics, Rust, R1CS, constraint removal, or
-production approval.
-
-Emits constraints: no.
-
-Authority boundary: coefficient values are explicit typed data indexed by all
-carried coordinates. Exponents and the finite traversal are derived from
-`Shape`. The shifted convention is the corrected paper selection. This file
-proves its finite algebraic relation to the local helper target and does not
-identify either target with `Q`.
-
-| Mathematical object | Definition | Proven property |
-|---|---|---|
-| carried coefficients | `CarriedTargetCoefficients` | one value per typed `(running, matrix, coefficient)` coordinate |
-| local helper target | `evaluateLocal` | uses exponent `I(i,j,l)` |
-| selected absolute target | `evaluateShifted` | uses exponent `2K+k+I(i,j,l)` |
-| shift relation | `evaluateShifted_eq_shift_mul_evaluateLocal` | `T_abs(gamma) = gamma^(2K+k) * T_local(gamma)` |
-| layout support | `ExponentLayoutSupport` | exponent `0` witnesses literal/shifted support mismatch for positive paper dimensions |
+Finite SuperNeo v1.1 target polynomial. The target is exactly
+`T_K + gamma^(k*d) * T_A`; Pad and matrix coefficients have separate typed
+owners and canonical traversals.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
@@ -79,26 +57,48 @@ theorem power_add
       exact (laws.mul_assoc value (power ops value left)
         (power ops value right)).symm
 
-/-- One target coefficient for every typed carried coordinate. No flat list or
-caller-selected exponent accompanies the values. -/
-structure CarriedTargetCoefficients
+/-- One target coefficient for every v1.1 Pad and matrix coordinate. -/
+structure TargetCoefficients
     (Field : Type uField)
     (shape : Shape) where
-  coefficient : CarriedCoordinate shape -> Field
+  pad : PadCoordinate shape -> Field
+  matrix : MatrixCoordinate shape -> Field
 
-/-- One finite target term under an explicit exponent convention. Powers are
-placed on the left so the shift theorem needs no commutativity assumption. -/
-def term
+/-- One `T_K` term. -/
+def padTerm
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
-    (coefficients : CarriedTargetCoefficients Field shape)
-    (convention : CarriedTargetConvention)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field)
-    (coordinate : CarriedCoordinate shape) : Field :=
+    (coordinate : PadCoordinate shape) : Field :=
   ops.mul
-    (power ops gamma (convention.exponent coordinate))
-    (coefficients.coefficient coordinate)
+    (power ops gamma coordinate.localGammaExponent)
+    (coefficients.pad coordinate)
+
+/-- One local `T_A` term before its `k*d` shift. -/
+def matrixLocalTerm
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field)
+    (coordinate : MatrixCoordinate shape) : Field :=
+  ops.mul
+    (power ops gamma coordinate.localGammaExponent)
+    (coefficients.matrix coordinate)
+
+/-- One absolute matrix target term at `k*d + I_A`. -/
+def matrixTerm
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field)
+    (coordinate : MatrixCoordinate shape) : Field :=
+  ops.mul
+    (power ops gamma coordinate.gammaExponent)
+    (coefficients.matrix coordinate)
 
 private def sumTerms
     {Field : Type uField}
@@ -106,73 +106,95 @@ private def sumTerms
     (values : List Field) : Field :=
   values.foldr ops.add ops.zero
 
-/-- Finite target evaluation over every typed carried coordinate. -/
+/-- The unshifted Pad target `T_K`. -/
+def evaluatePad
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field) : Field :=
+  sumTerms ops <|
+    (canonicalPadCoordinates shape).map fun coordinate =>
+      padTerm ops coefficients gamma coordinate
+
+/-- The local matrix target `T_A` before the `k*d` shift. -/
+def evaluateMatrixLocal
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field) : Field :=
+  sumTerms ops <|
+    (canonicalMatrixCoordinates shape).map fun coordinate =>
+      matrixLocalTerm ops coefficients gamma coordinate
+
+/-- The shifted matrix target `gamma^(k*d) * T_A`. -/
+def evaluateMatrix
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field) : Field :=
+  sumTerms ops <|
+    (canonicalMatrixCoordinates shape).map fun coordinate =>
+      matrixTerm ops coefficients gamma coordinate
+
+/-- Exact v1.1 claimed sum `T_K + gamma^(k*d) * T_A`. -/
 def evaluate
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
-    (coefficients : CarriedTargetCoefficients Field shape)
-    (convention : CarriedTargetConvention)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field) : Field :=
-  sumTerms ops <|
-    (canonicalCarriedCoordinates shape).map fun coordinate =>
-      term ops coefficients convention gamma coordinate
+  ops.add (evaluatePad ops coefficients gamma)
+    (evaluateMatrix ops coefficients gamma)
 
-/-- Paper helper target evaluation using the local exponent `I`. -/
-def evaluateLocal
+theorem evaluatePad_eq_foldr
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
-    (coefficients : CarriedTargetCoefficients Field shape)
-    (gamma : Field) : Field :=
-  evaluate ops coefficients .literalLocal gamma
-
-/-- Reviewable finite expansion of the local helper target. The traversal and
-exponents are derived from the shared typed carried-coordinate owner. -/
-theorem evaluateLocal_eq_foldr
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : SumCheck.Finite.Ops Field)
-    (coefficients : CarriedTargetCoefficients Field shape)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field) :
-    evaluateLocal ops coefficients gamma =
-      ((canonicalCarriedCoordinates shape).map fun coordinate =>
-        term ops coefficients .literalLocal gamma coordinate).foldr
+    evaluatePad ops coefficients gamma =
+      ((canonicalPadCoordinates shape).map fun coordinate =>
+        padTerm ops coefficients gamma coordinate).foldr ops.add ops.zero := by
+  rfl
+
+theorem evaluateMatrixLocal_eq_foldr
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : SumCheck.Finite.Ops Field)
+    (coefficients : TargetCoefficients Field shape)
+    (gamma : Field) :
+    evaluateMatrixLocal ops coefficients gamma =
+      ((canonicalMatrixCoordinates shape).map fun coordinate =>
+        matrixLocalTerm ops coefficients gamma coordinate).foldr
           ops.add ops.zero := by
   rfl
 
-/-- Selected absolute target evaluation using exponent `2K+k+I`. -/
-def evaluateShifted
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : SumCheck.Finite.Ops Field)
-    (coefficients : CarriedTargetCoefficients Field shape)
-    (gamma : Field) : Field :=
-  evaluate ops coefficients .coherentAbsolute gamma
-
-private theorem term_shifted_eq_shift_mul_local
+private theorem matrixTerm_eq_shift_mul_local
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
     (laws : ShiftLaws ops)
-    (coefficients : CarriedTargetCoefficients Field shape)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field)
-    (coordinate : CarriedCoordinate shape) :
-    term ops coefficients .coherentAbsolute gamma coordinate =
+    (coordinate : MatrixCoordinate shape) :
+    matrixTerm ops coefficients gamma coordinate =
       ops.mul
-        (power ops gamma shape.carriedEvaluationOffset)
-        (term ops coefficients .literalLocal gamma coordinate) := by
-  unfold term
+        (power ops gamma shape.padEvaluationCount)
+        (matrixLocalTerm ops coefficients gamma coordinate) := by
+  unfold matrixTerm matrixLocalTerm MatrixCoordinate.gammaExponent
   change ops.mul
       (power ops gamma
-        (shape.carriedEvaluationOffset + coordinate.localGammaExponent))
-      (coefficients.coefficient coordinate) = _
-  rw [power_add ops laws gamma shape.carriedEvaluationOffset
+        (shape.padEvaluationCount + coordinate.localGammaExponent))
+      (coefficients.matrix coordinate) = _
+  rw [power_add ops laws gamma shape.padEvaluationCount
     coordinate.localGammaExponent]
   exact laws.mul_assoc
-    (power ops gamma shape.carriedEvaluationOffset)
+    (power ops gamma shape.padEvaluationCount)
     (power ops gamma coordinate.localGammaExponent)
-    (coefficients.coefficient coordinate)
+    (coefficients.matrix coordinate)
 
 private theorem sumTerms_map_mul_left
     {Field : Type uField}
@@ -191,104 +213,40 @@ private theorem sumTerms_map_mul_left
       rw [sumTerms_map_mul_left ops laws factor values]
       exact (laws.mul_add factor value (sumTerms ops values)).symm
 
-private theorem shiftedTerms_eq_map_shiftedLocal
+private theorem matrixTerms_eq_map_shiftedLocal
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
     (laws : ShiftLaws ops)
-    (coefficients : CarriedTargetCoefficients Field shape)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field) :
-    (canonicalCarriedCoordinates shape).map
-        (term ops coefficients .coherentAbsolute gamma) =
-      ((canonicalCarriedCoordinates shape).map
-        (term ops coefficients .literalLocal gamma)).map
-          (ops.mul (power ops gamma shape.carriedEvaluationOffset)) := by
+    (canonicalMatrixCoordinates shape).map
+        (matrixTerm ops coefficients gamma) =
+      ((canonicalMatrixCoordinates shape).map
+        (matrixLocalTerm ops coefficients gamma)).map
+          (ops.mul (power ops gamma shape.padEvaluationCount)) := by
   rw [List.map_map]
   apply List.map_congr_left
   intro coordinate _
-  exact term_shifted_eq_shift_mul_local ops laws coefficients gamma coordinate
+  exact matrixTerm_eq_shift_mul_local ops laws coefficients gamma coordinate
 
-/-- Exact finite target-shift theorem:
-`T_abs(gamma) = gamma^(2K+k) * T_local(gamma)`.
-
-This theorem does not mention or identify the target with `Q`. -/
-theorem evaluateShifted_eq_shift_mul_evaluateLocal
+/-- Exact v1.1 matrix-target shift theorem. -/
+theorem evaluateMatrix_eq_shift_mul_evaluateMatrixLocal
     {Field : Type uField}
     {shape : Shape}
     (ops : SumCheck.Finite.Ops Field)
     (laws : ShiftLaws ops)
-    (coefficients : CarriedTargetCoefficients Field shape)
+    (coefficients : TargetCoefficients Field shape)
     (gamma : Field) :
-    evaluateShifted ops coefficients gamma =
+    evaluateMatrix ops coefficients gamma =
       ops.mul
-        (power ops gamma shape.carriedEvaluationOffset)
-        (evaluateLocal ops coefficients gamma) := by
-  unfold evaluateShifted evaluateLocal evaluate
-  rw [shiftedTerms_eq_map_shiftedLocal ops laws coefficients gamma]
+        (power ops gamma shape.padEvaluationCount)
+        (evaluateMatrixLocal ops coefficients gamma) := by
+  unfold evaluateMatrix evaluateMatrixLocal
+  rw [matrixTerms_eq_map_shiftedLocal ops laws coefficients gamma]
   exact sumTerms_map_mul_left ops laws
-    (power ops gamma shape.carriedEvaluationOffset)
-    ((canonicalCarriedCoordinates shape).map
-      (term ops coefficients .literalLocal gamma))
-
-/-- Explicit positivity assumptions inherited from the paper dimensions
-`K`, `k`, `t`, and `d`. All four are needed to construct the zero coordinate
-and separate it from the positive shifted range. -/
-structure PaperPositiveDimensions (shape : Shape) : Prop where
-  fresh : 0 < shape.freshCount
-  running : 0 < shape.runningCount
-  matrix : 0 < shape.matrixCount
-  coefficient : 0 < shape.coefficientCount
-
-/-- Exponent-layout support independent of coefficient values. It records the
-positions owned by a target convention, not the nonzero support of one sampled
-coefficient assignment. -/
-def ExponentLayoutSupport
-    (shape : Shape)
-    (convention : CarriedTargetConvention)
-    (exponent : Nat) : Prop :=
-  exists coordinate : CarriedCoordinate shape,
-    convention.exponent coordinate = exponent
-
-private def zeroCoordinate
-    {shape : Shape}
-    (positive : PaperPositiveDimensions shape) : CarriedCoordinate shape where
-  running := ⟨0, positive.running⟩
-  matrix := ⟨0, positive.matrix⟩
-  coefficient := ⟨0, positive.coefficient⟩
-
-/-- The literal-local layout contains exponent zero for paper-valid positive
-dimensions. -/
-theorem zero_mem_literalLocalSupport
-    {shape : Shape}
-    (positive : PaperPositiveDimensions shape) :
-    ExponentLayoutSupport shape .literalLocal 0 := by
-  refine ⟨zeroCoordinate positive, ?_⟩
-  simp [CarriedTargetConvention.exponent,
-    CarriedCoordinate.localGammaExponent, zeroCoordinate]
-
-/-- The shifted layout cannot contain exponent zero because its `2K+k` offset
-is strictly positive for paper-valid dimensions. -/
-theorem zero_not_mem_shiftedSupport
-    {shape : Shape}
-    (positive : PaperPositiveDimensions shape) :
-    Not (ExponentLayoutSupport shape .coherentAbsolute 0) := by
-  rintro ⟨coordinate, exponentZero⟩
-  change coordinate.gammaExponent = 0 at exponentZero
-  unfold CarriedCoordinate.gammaExponent at exponentZero
-  rw [Shape.carriedEvaluationOffset_eq] at exponentZero
-  have freshPositive := positive.fresh
-  omega
-
-/-- A real support-set mismatch witness: exponent zero belongs to the literal
-layout and not to the shifted layout. This is stronger than comparing the two
-exponents attached to one caller-supplied coordinate. -/
-theorem literalLocal_shifted_support_mismatch_witness
-    {shape : Shape}
-    (positive : PaperPositiveDimensions shape) :
-    exists exponent,
-      ExponentLayoutSupport shape .literalLocal exponent ∧
-      Not (ExponentLayoutSupport shape .coherentAbsolute exponent) := by
-  exact ⟨0, zero_mem_literalLocalSupport positive,
-    zero_not_mem_shiftedSupport positive⟩
+    (power ops gamma shape.padEvaluationCount)
+    ((canonicalMatrixCoordinates shape).map
+      (matrixLocalTerm ops coefficients gamma))
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial

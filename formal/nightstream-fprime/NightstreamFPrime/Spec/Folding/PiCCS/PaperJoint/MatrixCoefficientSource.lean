@@ -1,21 +1,22 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/MatrixCoefficientSource.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/MatrixCoefficientSource.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
+SuperNeo v1.1 canonical Pad and 14-matrix coefficient sources. -/
 
 /-!
-One authoritative paper matrix for both CCS rows and carried ring
-coefficients.
+One authoritative source for the canonical Pad and every CCS ring-matrix
+coefficient family.
 
-Protocol: SuperNeo coefficient embedding (Section 5) and `Pi_CCS`
-(Section 7.3 / Appendix D.4).
-Phase: structure ownership before CCS and carried-evaluation residuals.
+Protocol: SuperNeo v1.1 coefficient embedding (Section 5) and `Pi_CCS`
+(Section 7.3 / Appendix B.2).
+Phase: structure ownership before CCS, Pad, and matrix-evaluation residuals.
 Constraint family: field-matrix to coefficient-expanded matrix images.
 
 Owns: an exact injection of logical field columns into padded
 block/coefficient positions; explicit zero semantics for padding positions; a
-finite bilinear coefficient kernel; derivation of every carried coefficient
-matrix from the sole paper field matrix `M`; connected joint inputs that
+finite bilinear coefficient kernel; derivation of every Pad/matrix coefficient
+matrix from its verifier-owned field matrix; connected joint inputs that
 contain no separately settable coefficient-matrix field; and the constant-term
 connection to the original CCS matrix under the paper
 inner-product-transform law.
@@ -40,9 +41,10 @@ assurance theorem must instantiate that law with the exact Phi81 transform.
 | coefficient embedding | ring action | output / row / assignment coefficient | `CoefficientKernel.weight` owns the bilinear map |
 | coefficient embedding | constant term | transformed ring product | `ConstantTermLaw` is the Kronecker inner-product law |
 | `Pi_CCS` | CCS source | structure matrix | `MatrixSource.matrices` is the sole stored `M` |
-| `Pi_CCS` | carried source | coefficient matrices | `coefficientMatrix` is derived from `M` and the kernel |
+| `Pi_CCS` | Pad source | coefficient matrices | expansion is derived from the canonical padded identity and the kernel |
+| `Pi_CCS` | matrix source | coefficient matrices | expansion is derived from each stored `M_j` and the kernel |
 | `Pi_CCS` | semantic input | all residual families | `ConnectedInputs.toUnifiedInputs` has no independent coefficient view |
-| assurance | cross-view connection | coefficient zero / CCS image | `carriedImageConstantAt_eq_ccsImageAt` |
+| assurance | cross-view connection | coefficient zero / CCS image | `matrixImageConstantAt_eq_ccsImageAt` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
@@ -186,8 +188,23 @@ def system
   matrices := source.matrices
   constraintPolynomial := source.constraintPolynomial
 
-/-- One original matrix entry at a padded block/coefficient position. A
-position beyond the logical column count is canonically zero. -/
+/-- One explicit field-matrix entry at a padded block/coefficient position.
+A position beyond the logical column count is canonically zero. -/
+def paddedEntry
+    {Base : Type uBase}
+    (ops : InterpolationOps Base)
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (source : MatrixSource Base shape columns blockCount)
+    (matrix : BooleanMatrix Base shape.cubeVariables columns)
+    (vertex : BooleanVertex shape.cubeVariables)
+    (block : Fin blockCount)
+    (coefficient : Fin shape.coefficientCount) : Base :=
+  match source.columnLayout.encode? block coefficient with
+  | some column => matrix vertex column
+  | none => ops.zero
+
+/-- One stored CCS matrix entry at a padded block/coefficient position. -/
 def paddedMatrixEntry
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -198,9 +215,29 @@ def paddedMatrixEntry
     (vertex : BooleanVertex shape.cubeVariables)
     (block : Fin blockCount)
     (coefficient : Fin shape.coefficientCount) : Base :=
-  match source.columnLayout.encode? block coefficient with
-  | some column => source.matrices matrix vertex column
-  | none => ops.zero
+  source.paddedEntry ops (source.matrices matrix) vertex block coefficient
+
+/-- One coefficient-expanded matrix derived from an explicit field matrix. -/
+def coefficientMatrixOf
+    {Base : Type uBase}
+    (ops : InterpolationOps Base)
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (source : MatrixSource Base shape columns blockCount)
+    (matrix : BooleanMatrix Base shape.cubeVariables columns)
+    (output : Fin shape.coefficientCount) :
+    BooleanMatrix Base shape.cubeVariables columns :=
+  fun vertex column =>
+    let packed := source.columnLayout.decode column
+    sumRange ops shape.coefficientCount fun rowIndex =>
+      if rowLt : rowIndex < shape.coefficientCount then
+        let row : Fin shape.coefficientCount :=
+          ⟨rowIndex, rowLt⟩
+        ops.mul
+          (source.paddedEntry ops matrix vertex packed.1 row)
+          (source.kernel.weight output row packed.2)
+      else
+        ops.zero
 
 /-- One coefficient-expanded matrix derived from the sole stored `M`.
 The finite sum linearizes one blockwise transformed ring product against an
@@ -214,17 +251,7 @@ def coefficientMatrix
     (matrix : Fin shape.matrixCount)
     (output : Fin shape.coefficientCount) :
     BooleanMatrix Base shape.cubeVariables columns :=
-  fun vertex column =>
-    let packed := source.columnLayout.decode column
-    sumRange ops shape.coefficientCount fun rowIndex =>
-      if rowLt : rowIndex < shape.coefficientCount then
-        let row : Fin shape.coefficientCount :=
-          ⟨rowIndex, rowLt⟩
-        ops.mul
-          (source.paddedMatrixEntry ops matrix vertex packed.1 row)
-          (source.kernel.weight output row packed.2)
-      else
-        ops.zero
+  source.coefficientMatrixOf ops (source.matrices matrix) output
 
 /-- Complete coefficient family, derived rather than stored. -/
 def coefficientMatrices
@@ -237,7 +264,83 @@ def coefficientMatrices
       BooleanMatrix Base shape.cubeVariables columns :=
   fun matrix coefficient => source.coefficientMatrix ops matrix coefficient
 
-/-- The constant derived coefficient at one leaf is exactly the original
+/-- The constant derived coefficient of any explicit field matrix is exactly
+its original entry. -/
+theorem coefficientMatrixOf_constant_apply
+    {Base : Type uBase}
+    (ops : InterpolationOps Base)
+    (laws : InterpolationEvaluationLaws ops)
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (source : MatrixSource Base shape columns blockCount)
+    (constantLaw : ConstantTermLaw ops source.kernel)
+    (matrix : BooleanMatrix Base shape.cubeVariables columns)
+    (vertex : BooleanVertex shape.cubeVariables)
+    (column : Fin columns) :
+    source.coefficientMatrixOf ops matrix source.kernel.constant vertex column =
+      matrix vertex column := by
+  let packed := source.columnLayout.decode column
+  let block := packed.1
+  let selected := packed.2
+  change
+    sumRange ops shape.coefficientCount (fun rowIndex =>
+      if rowLt : rowIndex < shape.coefficientCount then
+        let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
+        ops.mul
+          (source.paddedEntry ops matrix vertex block row)
+          (source.kernel.weight source.kernel.constant row selected)
+      else
+        ops.zero) =
+      matrix vertex column
+  calc
+    sumRange ops shape.coefficientCount (fun rowIndex =>
+        if rowLt : rowIndex < shape.coefficientCount then
+          let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
+          ops.mul
+            (source.paddedEntry ops matrix vertex block row)
+            (source.kernel.weight source.kernel.constant row selected)
+        else
+          ops.zero) =
+        sumRange ops shape.coefficientCount (fun rowIndex =>
+          if rowIndex = selected.val then
+            source.paddedEntry ops matrix vertex block selected
+          else
+            ops.zero) := by
+      apply sumRange_congr
+      intro rowIndex rowLt
+      rw [dif_pos rowLt]
+      let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
+      change
+        ops.mul
+            (source.paddedEntry ops matrix vertex block row)
+            (source.kernel.weight source.kernel.constant row selected) =
+          if rowIndex = selected.val then
+            source.paddedEntry ops matrix vertex block selected
+          else
+            ops.zero
+      rw [constantLaw.weight]
+      by_cases equal : row = selected
+      · have valueEqual : rowIndex = selected.val :=
+          congrArg Fin.val equal
+        rw [if_pos equal, if_pos valueEqual, laws.mul_one]
+        exact congrArg
+          (fun coefficient =>
+            source.paddedEntry ops matrix vertex block coefficient)
+          equal
+      · have valueDifferent : rowIndex ≠ selected.val := by
+          intro valueEqual
+          apply equal
+          exact Fin.eq_of_val_eq valueEqual
+        rw [if_neg equal, if_neg valueDifferent, laws.mul_zero]
+    _ = source.paddedEntry ops matrix vertex block selected := by
+      exact sumRange_select ops laws shape.coefficientCount selected.val
+        (fun _ => source.paddedEntry ops matrix vertex block selected)
+        selected.isLt
+    _ = matrix vertex column := by
+      simp only [paddedEntry]
+      rw [source.columnLayout.encode_decode column]
+
+/-- The constant derived coefficient of one stored CCS matrix is its original
 field-matrix entry. -/
 theorem coefficientMatrix_constant_apply
     {Base : Type uBase}
@@ -252,66 +355,23 @@ theorem coefficientMatrix_constant_apply
     (column : Fin columns) :
     source.coefficientMatrix ops matrix source.kernel.constant vertex column =
       source.matrices matrix vertex column := by
-  let packed := source.columnLayout.decode column
-  let block := packed.1
-  let selected := packed.2
-  change
-    sumRange ops shape.coefficientCount (fun rowIndex =>
-      if rowLt : rowIndex < shape.coefficientCount then
-        let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
-        ops.mul
-          (source.paddedMatrixEntry ops matrix vertex block row)
-          (source.kernel.weight source.kernel.constant row selected)
-      else
-        ops.zero) =
-      source.matrices matrix vertex column
-  calc
-    sumRange ops shape.coefficientCount (fun rowIndex =>
-        if rowLt : rowIndex < shape.coefficientCount then
-          let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
-          ops.mul
-            (source.paddedMatrixEntry ops matrix vertex block row)
-            (source.kernel.weight source.kernel.constant row selected)
-        else
-          ops.zero) =
-        sumRange ops shape.coefficientCount (fun rowIndex =>
-          if rowIndex = selected.val then
-            source.paddedMatrixEntry ops matrix vertex block selected
-          else
-            ops.zero) := by
-      apply sumRange_congr
-      intro rowIndex rowLt
-      rw [dif_pos rowLt]
-      let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
-      change
-        ops.mul
-            (source.paddedMatrixEntry ops matrix vertex block row)
-            (source.kernel.weight source.kernel.constant row selected) =
-          if rowIndex = selected.val then
-            source.paddedMatrixEntry ops matrix vertex block selected
-          else
-            ops.zero
-      rw [constantLaw.weight]
-      by_cases equal : row = selected
-      · have valueEqual : rowIndex = selected.val :=
-          congrArg Fin.val equal
-        rw [if_pos equal, if_pos valueEqual, laws.mul_one]
-        exact congrArg
-          (fun coefficient =>
-            source.paddedMatrixEntry ops matrix vertex block coefficient)
-          equal
-      · have valueDifferent : rowIndex ≠ selected.val := by
-          intro valueEqual
-          apply equal
-          exact Fin.eq_of_val_eq valueEqual
-        rw [if_neg equal, if_neg valueDifferent, laws.mul_zero]
-    _ = source.paddedMatrixEntry ops matrix vertex block selected := by
-      exact sumRange_select ops laws shape.coefficientCount selected.val
-        (fun _ => source.paddedMatrixEntry ops matrix vertex block selected)
-        selected.isLt
-    _ = source.matrices matrix vertex column := by
-      simp only [paddedMatrixEntry]
-      rw [source.columnLayout.encode_decode column]
+  exact coefficientMatrixOf_constant_apply ops laws source constantLaw
+    (source.matrices matrix) vertex column
+
+/-- Functional constant-term connection for any explicit field matrix. -/
+theorem coefficientMatrixOf_constant_eq
+    {Base : Type uBase}
+    (ops : InterpolationOps Base)
+    (laws : InterpolationEvaluationLaws ops)
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (source : MatrixSource Base shape columns blockCount)
+    (constantLaw : ConstantTermLaw ops source.kernel)
+    (matrix : BooleanMatrix Base shape.cubeVariables columns) :
+    source.coefficientMatrixOf ops matrix source.kernel.constant = matrix := by
+  funext vertex column
+  exact coefficientMatrixOf_constant_apply ops laws source constantLaw
+    matrix vertex column
 
 /-- Functional form of the constant-term connection for a whole matrix. -/
 theorem coefficientMatrix_constant_eq
@@ -326,8 +386,8 @@ theorem coefficientMatrix_constant_eq
     source.coefficientMatrix ops matrix source.kernel.constant =
       source.matrices matrix := by
   funext vertex column
-  exact coefficientMatrix_constant_apply ops laws source constantLaw
-    matrix vertex column
+  exact coefficientMatrixOf_constant_apply ops laws source constantLaw
+    (source.matrices matrix) vertex column
 
 end MatrixSource
 
@@ -341,9 +401,36 @@ structure ConnectedInputs
   matrixSource : MatrixSource F shape columns blockCount
   assignments : Fin shape.sourceCount -> Assignment F columns
   priorPoint : CubePoint Extension shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Extension
+  claimedPadCoefficient : PadCoordinate shape -> Extension
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
 namespace ConnectedInputs
+
+/-- The paper's canonical `Pad = [I; 0]`, derived from the exact cube layout
+rather than stored as CCS matrix zero. -/
+def padMatrix
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (baseOps : InterpolationOps F)
+    (data : ConnectedInputs Extension shape columns blockCount) :
+    BooleanMatrix F shape.cubeVariables columns :=
+  fun vertex column =>
+    data.cubeLayout.paddedIdentityEntry
+      baseOps.zero baseOps.one vertex column
+
+/-- All `Eval_K` coefficient matrices, derived from canonical Pad through the
+same coefficient kernel as the CCS matrices. -/
+def padCoefficientMatrices
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (baseOps : InterpolationOps F)
+    (data : ConnectedInputs Extension shape columns blockCount) :
+    Fin shape.coefficientCount ->
+      BooleanMatrix F shape.cubeVariables columns :=
+  fun coefficient => data.matrixSource.coefficientMatrixOf baseOps
+    (data.padMatrix baseOps) coefficient
 
 /-- Internal projection into the already-proved joint residual stack. Every
 coefficient matrix is derived from `matrixSource`; no field is copied from the
@@ -358,9 +445,12 @@ def toUnifiedInputs
   layout := data.cubeLayout
   system := data.matrixSource.system
   assignments := data.assignments
-  coefficientMatrices := data.matrixSource.coefficientMatrices baseOps
+  padCoefficientMatrices := data.padCoefficientMatrices baseOps
+  matrixCoefficientMatrices :=
+    data.matrixSource.coefficientMatrices baseOps
   priorPoint := data.priorPoint
-  claimedCoefficient := data.claimedCoefficient
+  claimedPadCoefficient := data.claimedPadCoefficient
+  claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
 /-- The CCS structure is exactly the sole stored matrix source. -/
 theorem toUnifiedInputs_system_eq
@@ -372,17 +462,43 @@ theorem toUnifiedInputs_system_eq
     (data.toUnifiedInputs baseOps).system = data.matrixSource.system := by
   rfl
 
-/-- Every carried coefficient matrix is definitionally the source-derived
-kernel expansion. -/
-theorem toUnifiedInputs_coefficientMatrices_eq
+/-- Every Pad coefficient matrix is definitionally derived from canonical
+Pad and the source kernel. -/
+theorem toUnifiedInputs_padCoefficientMatrices_eq
     {Extension : Type uExtension}
     {shape : Shape}
     {columns blockCount : Nat}
     (baseOps : InterpolationOps F)
     (data : ConnectedInputs Extension shape columns blockCount) :
-    (data.toUnifiedInputs baseOps).coefficientMatrices =
+    (data.toUnifiedInputs baseOps).padCoefficientMatrices =
+      data.padCoefficientMatrices baseOps := by
+  rfl
+
+/-- Every CCS-matrix coefficient family is definitionally the source-derived
+kernel expansion of all stored matrices. -/
+theorem toUnifiedInputs_matrixCoefficientMatrices_eq
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (baseOps : InterpolationOps F)
+    (data : ConnectedInputs Extension shape columns blockCount) :
+    (data.toUnifiedInputs baseOps).matrixCoefficientMatrices =
       data.matrixSource.coefficientMatrices baseOps := by
   rfl
+
+/-- The constant Pad coefficient matrix is exactly canonical Pad. -/
+theorem padCoefficientMatrix_constant_eq
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (baseOps : InterpolationOps F)
+    (baseLaws : InterpolationEvaluationLaws baseOps)
+    (data : ConnectedInputs Extension shape columns blockCount)
+    (constantLaw : ConstantTermLaw baseOps data.matrixSource.kernel) :
+    data.padCoefficientMatrices baseOps data.matrixSource.kernel.constant =
+      data.padMatrix baseOps := by
+  exact data.matrixSource.coefficientMatrixOf_constant_eq
+    baseOps baseLaws constantLaw (data.padMatrix baseOps)
 
 /-- Semantic truth exposed only through the connected projection. -/
 def SemanticTruth
@@ -395,9 +511,9 @@ def SemanticTruth
     (lift : F -> Extension) : Prop :=
   (data.toUnifiedInputs baseOps).SemanticTruth baseOps extensionOps lift
 
-/-- The constant coefficient of a carried matrix image is exactly the CCS
+/-- The constant coefficient of a matrix image is exactly the CCS
 matrix image at the same Boolean row and authoritative running assignment. -/
-theorem carriedImageConstantAt_eq_ccsImageAt
+theorem matrixImageConstantAt_eq_ccsImageAt
     {Extension : Type uExtension}
     {shape : Shape}
     {columns blockCount : Nat}
@@ -409,16 +525,16 @@ theorem carriedImageConstantAt_eq_ccsImageAt
     (running : Fin shape.runningCount)
     (matrix : Fin shape.matrixCount)
     (vertex : BooleanVertex shape.cubeVariables) :
-    let coordinate : CarriedCoordinate shape :=
+    let coordinate : MatrixCoordinate shape :=
       { running := running
         matrix := matrix
         coefficient := data.matrixSource.kernel.constant }
-    CarriedEvaluationResidual.imageCoefficientAt baseOps lift
-        (data.toUnifiedInputs baseOps).carriedData coordinate vertex =
+    MatrixEvaluationResidual.imageCoefficientAt baseOps lift
+        (data.toUnifiedInputs baseOps).matrixData coordinate vertex =
       lift (matrixVectorAt baseOps (data.matrixSource.matrices matrix)
         (data.assignments (runningSourceIndex running)) vertex) := by
   dsimp only
-  unfold CarriedEvaluationResidual.imageCoefficientAt
+  unfold MatrixEvaluationResidual.imageCoefficientAt
   change
     lift (matrixVectorAt baseOps
         (data.matrixSource.coefficientMatrix baseOps matrix
@@ -428,6 +544,37 @@ theorem carriedImageConstantAt_eq_ccsImageAt
         (data.assignments (runningSourceIndex running)) vertex)
   rw [data.matrixSource.coefficientMatrix_constant_eq baseOps baseLaws
     constantLaw matrix]
+
+/-- The constant coefficient of a Pad image is exactly the image of canonical
+Pad at the same Boolean row and authoritative running assignment. -/
+theorem padImageConstantAt_eq_padMatrixImageAt
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (baseOps : InterpolationOps F)
+    (baseLaws : InterpolationEvaluationLaws baseOps)
+    (lift : F -> Extension)
+    (data : ConnectedInputs Extension shape columns blockCount)
+    (constantLaw : ConstantTermLaw baseOps data.matrixSource.kernel)
+    (running : Fin shape.runningCount)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    let coordinate : PadCoordinate shape :=
+      { running := running
+        coefficient := data.matrixSource.kernel.constant }
+    PadEvaluationResidual.imageCoefficientAt baseOps lift
+        (data.toUnifiedInputs baseOps).padData coordinate vertex =
+      lift (matrixVectorAt baseOps (data.padMatrix baseOps)
+        (data.assignments (runningSourceIndex running)) vertex) := by
+  dsimp only
+  unfold PadEvaluationResidual.imageCoefficientAt
+  change
+    lift (matrixVectorAt baseOps
+        (data.padCoefficientMatrices baseOps
+          data.matrixSource.kernel.constant)
+        (data.assignments (runningSourceIndex running)) vertex) =
+      lift (matrixVectorAt baseOps (data.padMatrix baseOps)
+        (data.assignments (runningSourceIndex running)) vertex)
+  rw [data.padCoefficientMatrix_constant_eq baseOps baseLaws constantLaw]
 
 end ConnectedInputs
 

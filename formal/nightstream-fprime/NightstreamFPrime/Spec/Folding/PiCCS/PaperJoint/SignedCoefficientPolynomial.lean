@@ -1,18 +1,20 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedCoefficientPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedCoefficientPolynomial.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
+generic canonical-position Horner theorem exported for the v1.1 initial-claim
+circuit. -/
 
 /-!
 Finite signed gamma-coefficient polynomial for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: pre-SumCheck alpha specialization and gamma mixing.
-Constraint family: exact constant-first serialization of the signed CCS, norm,
-and carried-evaluation residual blocks.
+Constraint family: exact constant-first serialization of Pad, matrix, CCS,
+and norm residual blocks.
 
-Owns: the three explicit coefficient lists, their exact block lengths, the
+Owns: the four explicit coefficient lists, their exact block lengths, the
 constant-first finite polynomial, and the theorem that executable Horner
 evaluation equals the independently derived signed joint identity.
 
@@ -29,9 +31,10 @@ Rust trace, or existing circuit enters the theorem.
 
 | Protocol | Phase | Coefficient family | Exact positions / meaning |
 |---|---|---|---|
-| `Pi_CCS` | gamma serialization | CCS | `0 .. K-1`, negative alpha-specialized CCS residuals |
-| `Pi_CCS` | gamma serialization | norm | `K .. 2K+k-1`, negative alpha-specialized norm residuals |
-| `Pi_CCS` | gamma serialization | carried | `2K+k .. 2K+k+ktd-1`, claimed minus derived evaluations |
+| `Pi_CCS` | gamma serialization | Pad | `0 .. kd-1`, claimed minus derived `Eval_K` |
+| `Pi_CCS` | gamma serialization | matrix | `kd .. kd(t+1)-1`, claimed minus derived `Eval_A` |
+| `Pi_CCS` | gamma serialization | CCS | starts at `kd(t+1)`, negative CCS residuals |
+| `Pi_CCS` | gamma serialization | norm | starts at `kd(t+1)+K`, negative norm residuals |
 | `Pi_CCS` | executable evaluation | all blocks | Horner evaluation equals `T_abs - sum_x Q` for every `alpha,gamma` |
 | shared | canonical indexed evaluation | canonical `Fin n` coefficients evaluate as `sum_i gamma^i c_i` | `evaluate_canonicalFinMap_eq_gammaSum` |
 -/
@@ -63,16 +66,28 @@ def normValues
   (canonicalFinIndices shape.sourceCount).map fun source =>
     (data.norm source).equalityWeightedSum ops alpha
 
-/-- Claimed-minus-derived carried values before the `2K+k` position shift. -/
-def carriedValues
+/-- Claimed-minus-derived Pad values in `I_K` order. -/
+def padValues
+    {Field : Type uField}
+    {shape : Shape}
+  (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape) : List Field :=
+  (canonicalPadCoordinates shape).map fun coordinate =>
+    ops.sub
+      (data.claimedPadCoefficient coordinate)
+      ((data.padImage coordinate).equalityWeightedSum
+        ops data.priorPoint)
+
+/-- Claimed-minus-derived matrix values in `I_A` order. -/
+def matrixValues
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape) : List Field :=
-  (canonicalCarriedCoordinates shape).map fun coordinate =>
+  (canonicalMatrixCoordinates shape).map fun coordinate =>
     ops.sub
-      (data.claimedCoefficient coordinate)
-      ((data.carriedImage coordinate).equalityWeightedSum
+      (data.claimedMatrixCoefficient coordinate)
+      ((data.matrixImage coordinate).equalityWeightedSum
         ops data.priorPoint)
 
 /-- Negative CCS coefficient block. -/
@@ -94,14 +109,22 @@ def normCoefficients
     (alpha : CubePoint Field shape.cubeVariables) : List Field :=
   (normValues ops data alpha).map ops.neg
 
-/-- Positive claimed-minus-derived carried coefficient block. Its list
-position supplies the `2K+k` shift. -/
-def carriedCoefficients
+/-- Positive Pad residual block. -/
+def padCoefficients
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape) : List Field :=
-  carriedValues ops data
+  padValues ops data
+
+/-- Positive matrix residual block. Its list position supplies the `k*d`
+shift. -/
+def matrixCoefficients
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape) : List Field :=
+  matrixValues ops data
 
 /-- Exact constant-first signed gamma coefficients. -/
 def coefficients
@@ -110,9 +133,10 @@ def coefficients
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape)
     (alpha : CubePoint Field shape.cubeVariables) : List Field :=
-  ccsCoefficients ops data alpha ++
-    normCoefficients ops data alpha ++
-    carriedCoefficients ops data
+  padCoefficients ops data ++
+    (matrixCoefficients ops data ++
+      (ccsCoefficients ops data alpha ++
+        normCoefficients ops data alpha))
 
 /-- Finite executable polynomial with degree metadata derived from its list. -/
 def polynomial
@@ -142,15 +166,21 @@ theorem normCoefficients_length
     (normCoefficients ops data alpha).length = shape.sourceCount := by
   simp [normCoefficients, normValues, canonicalFinIndices_length]
 
-theorem carriedCoefficients_length
+theorem padCoefficients_length
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape) :
-    (carriedCoefficients ops data).length =
-      shape.carriedEvaluationCount := by
-  simp [carriedCoefficients, carriedValues,
-    canonicalCarriedCoordinates_length]
+    (padCoefficients ops data).length = shape.padEvaluationCount := by
+  simp [padCoefficients, padValues, canonicalPadCoordinates_length]
+
+theorem matrixCoefficients_length
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape) :
+    (matrixCoefficients ops data).length = shape.matrixEvaluationCount := by
+  simp [matrixCoefficients, matrixValues, canonicalMatrixCoordinates_length]
 
 /-- The list contains exactly the three declared blocks and no hidden
 coefficient family. -/
@@ -163,8 +193,10 @@ theorem coefficients_length
     (coefficients ops data alpha).length =
       shape.jointCoefficientCount := by
   simp only [coefficients, List.length_append,
+    padCoefficients_length, matrixCoefficients_length,
     ccsCoefficients_length, normCoefficients_length,
-    carriedCoefficients_length, Shape.jointCoefficientCount]
+    Shape.jointCoefficientCount, Shape.constraintOffset]
+  omega
 
 /-- Degree is derived from the exact signed coefficient-list length. This is
 not a claim that the last coefficient is nonzero. -/
@@ -277,7 +309,9 @@ private theorem positionalSumFrom_map_eq_indexed
       congr 1
       exact inductionHypothesis (offset + 1) tailPositions
 
-private theorem evaluate_map_eq_indexed
+/-- Horner evaluation of values in any proved consecutive position order is
+the corresponding finite gamma-weighted sum. -/
+theorem evaluate_map_eq_indexed
     {Field : Type uField}
     {Index : Type uIndex}
     (ops : InterpolationOps Field)
@@ -370,44 +404,18 @@ theorem evaluate_canonicalFinMap_eq_gammaSum
     (canonicalFinIndices count) (fun index => index.val) value
     (canonicalFinPositions count)
 
-private theorem canonicalCarriedPositions (shape : Shape) :
-    (canonicalCarriedCoordinates shape).map
-        CarriedCoordinate.localGammaExponent =
-      List.range' 0 (canonicalCarriedCoordinates shape).length := by
-  simpa [List.range_eq_range', canonicalCarriedCoordinates_length] using
-    canonicalCarriedCoordinates_localGammaExponents shape
+private theorem canonicalPadPositions (shape : Shape) :
+    (canonicalPadCoordinates shape).map PadCoordinate.localGammaExponent =
+      List.range' 0 (canonicalPadCoordinates shape).length := by
+  simpa [List.range_eq_range', canonicalPadCoordinates_length] using
+    canonicalPadCoordinates_localGammaExponents shape
 
-private theorem finiteSum_eq_foldr
-    {Field : Type uField}
-    (ops : InterpolationOps Field) :
-    ∀ values : List Field,
-      BooleanTable.finiteSum ops values = values.foldr ops.add ops.zero
-  | [] => rfl
-  | _ :: values => by
-      simp only [BooleanTable.finiteSum, List.foldr]
-      rw [finiteSum_eq_foldr ops values]
-
-/-- A carried-coordinate list in the canonical paper order evaluates exactly
-as the local carried-target polynomial.  This is the list-level bridge used by
-the Lean-owned verifier encoding: no caller supplies exponents or a reordered
-coefficient vector. -/
-theorem evaluate_canonicalCarriedMap_eq_targetLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (gamma : Field)
-    (coefficients : TargetPolynomial.CarriedTargetCoefficients Field shape) :
-    SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
-        ((canonicalCarriedCoordinates shape).map coefficients.coefficient) =
-      TargetPolynomial.evaluateLocal ops.toOps coefficients gamma := by
-  rw [TargetPolynomial.evaluateLocal_eq_foldr]
-  rw [evaluate_map_eq_indexed ops laws gamma
-    (canonicalCarriedCoordinates shape)
-    CarriedCoordinate.localGammaExponent coefficients.coefficient
-    (canonicalCarriedPositions shape)]
-  rw [finiteSum_eq_foldr]
-  rfl
+private theorem canonicalMatrixPositions (shape : Shape) :
+    (canonicalMatrixCoordinates shape).map
+        MatrixCoordinate.localGammaExponent =
+      List.range' 0 (canonicalMatrixCoordinates shape).length := by
+  simpa [List.range_eq_range', canonicalMatrixCoordinates_length] using
+    canonicalMatrixCoordinates_localGammaExponents shape
 
 private theorem ccsValues_evaluate
     {Field : Type uField}
@@ -459,7 +467,7 @@ private theorem normValues_evaluate
     (fun source => (data.norm source).equalityWeightedSum ops alpha)
     (canonicalFinPositions shape.sourceCount)
 
-private theorem carriedValues_evaluate
+private theorem padValues_evaluate
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -467,32 +475,67 @@ private theorem carriedValues_evaluate
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field) :
     SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
-        (carriedValues ops data) =
-      SignedJointIdentity.carriedResidualLocal ops data gamma := by
-  unfold carriedValues
+        (padValues ops data) =
+      SignedJointIdentity.padResidualLocal ops data gamma := by
+  unfold padValues
   change SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
-      ((canonicalCarriedCoordinates shape).map fun coordinate =>
+      ((canonicalPadCoordinates shape).map fun coordinate =>
         ops.sub
-          (data.claimedCoefficient coordinate)
-            ((data.carriedImage coordinate).equalityWeightedSum
+          (data.claimedPadCoefficient coordinate)
+            ((data.padImage coordinate).equalityWeightedSum
               ops data.priorPoint)) =
     BooleanTable.finiteSum ops
-      ((canonicalCarriedCoordinates shape).map fun coordinate =>
+      ((canonicalPadCoordinates shape).map fun coordinate =>
         SignedJointIdentity.gammaTerm ops gamma
           coordinate.localGammaExponent
           (ops.sub
-            (data.claimedCoefficient coordinate)
-            ((data.carriedImage coordinate).equalityWeightedSum
+            (data.claimedPadCoefficient coordinate)
+            ((data.padImage coordinate).equalityWeightedSum
               ops data.priorPoint)))
   exact evaluate_map_eq_indexed ops laws gamma
-    (canonicalCarriedCoordinates shape)
-    CarriedCoordinate.localGammaExponent
+    (canonicalPadCoordinates shape)
+    PadCoordinate.localGammaExponent
     (fun coordinate =>
       ops.sub
-        (data.claimedCoefficient coordinate)
-        ((data.carriedImage coordinate).equalityWeightedSum
+        (data.claimedPadCoefficient coordinate)
+        ((data.padImage coordinate).equalityWeightedSum
           ops data.priorPoint))
-    (canonicalCarriedPositions shape)
+    (canonicalPadPositions shape)
+
+private theorem matrixValues_evaluate
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field) :
+    SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
+        (matrixValues ops data) =
+      SignedJointIdentity.matrixResidualLocal ops data gamma := by
+  unfold matrixValues
+  change SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
+      ((canonicalMatrixCoordinates shape).map fun coordinate =>
+        ops.sub
+          (data.claimedMatrixCoefficient coordinate)
+            ((data.matrixImage coordinate).equalityWeightedSum
+              ops data.priorPoint)) =
+    BooleanTable.finiteSum ops
+      ((canonicalMatrixCoordinates shape).map fun coordinate =>
+        SignedJointIdentity.gammaTerm ops gamma
+          coordinate.localGammaExponent
+          (ops.sub
+            (data.claimedMatrixCoefficient coordinate)
+            ((data.matrixImage coordinate).equalityWeightedSum
+              ops data.priorPoint)))
+  exact evaluate_map_eq_indexed ops laws gamma
+    (canonicalMatrixCoordinates shape)
+    MatrixCoordinate.localGammaExponent
+    (fun coordinate =>
+      ops.sub
+        (data.claimedMatrixCoefficient coordinate)
+        ((data.matrixImage coordinate).equalityWeightedSum
+          ops data.priorPoint))
+    (canonicalMatrixPositions shape)
 
 private theorem ccsCoefficients_evaluate
     {Field : Type uField}
@@ -526,7 +569,7 @@ private theorem normCoefficients_evaluate
   rw [evaluate_map_neg ops laws]
   rw [normValues_evaluate ops laws]
 
-private theorem carriedCoefficients_evaluate
+private theorem padCoefficients_evaluate
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -534,10 +577,23 @@ private theorem carriedCoefficients_evaluate
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field) :
     SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
-        (carriedCoefficients ops data) =
-      SignedJointIdentity.carriedResidualLocal ops data gamma := by
-  unfold carriedCoefficients
-  exact carriedValues_evaluate ops laws data gamma
+        (padCoefficients ops data) =
+      SignedJointIdentity.padResidualLocal ops data gamma := by
+  unfold padCoefficients
+  exact padValues_evaluate ops laws data gamma
+
+private theorem matrixCoefficients_evaluate
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field) :
+    SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
+        (matrixCoefficients ops data) =
+      SignedJointIdentity.matrixResidualLocal ops data gamma := by
+  unfold matrixCoefficients
+  exact matrixValues_evaluate ops laws data gamma
 
 /-- Executable Horner evaluation of the exact signed coefficient list equals
 the independently derived signed residual blocks. -/
@@ -555,18 +611,61 @@ theorem evaluateCoefficients_eq_signedResidualBlocks
   unfold coefficients
   rw [evaluate_append ops laws]
   rw [evaluate_append ops laws]
-  rw [List.length_append]
-  rw [ccsCoefficients_length, normCoefficients_length]
+  rw [evaluate_append ops laws]
+  rw [padCoefficients_length, matrixCoefficients_length,
+    ccsCoefficients_length]
+  rw [padCoefficients_evaluate ops laws]
+  rw [matrixCoefficients_evaluate ops laws]
   rw [ccsCoefficients_evaluate ops laws]
   rw [normCoefficients_evaluate ops laws]
-  rw [carriedCoefficients_evaluate ops laws]
+  let powerLaws : TargetPolynomial.ShiftLaws ops.toOps :=
+    { one_mul := laws.one_mul
+      mul_assoc := laws.mul_assoc
+      mul_zero := laws.mul_zero
+      mul_add := laws.left_distrib }
+  have blockPower :
+      TargetPolynomial.power ops.toOps gamma shape.constraintOffset =
+        ops.mul
+          (TargetPolynomial.power ops.toOps gamma shape.padEvaluationCount)
+          (TargetPolynomial.power ops.toOps gamma
+            shape.matrixEvaluationCount) := by
+    simpa [Shape.constraintOffset] using
+      TargetPolynomial.power_add ops.toOps powerLaws gamma
+        shape.padEvaluationCount shape.matrixEvaluationCount
+  have negConstraint :
+      ops.mul
+          (TargetPolynomial.power ops.toOps gamma shape.constraintOffset)
+          (ops.add
+            (ops.neg (SignedJointIdentity.ccsResidualBlock
+              ops data alpha gamma))
+            (ops.mul
+              (TargetPolynomial.power ops.toOps gamma shape.freshCount)
+              (ops.neg (SignedJointIdentity.normResidualLocal
+                ops data alpha gamma)))) =
+        ops.neg
+          (ops.mul
+            (TargetPolynomial.power ops.toOps gamma shape.constraintOffset)
+            (ops.add
+              (SignedJointIdentity.ccsResidualBlock ops data alpha gamma)
+              (ops.mul
+                (TargetPolynomial.power ops.toOps gamma shape.freshCount)
+                (SignedJointIdentity.normResidualLocal
+                  ops data alpha gamma)))) := by
+    rw [mul_neg ops laws
+      (TargetPolynomial.power ops.toOps gamma shape.freshCount)]
+    rw [← laws.neg_add]
+    rw [mul_neg ops laws]
   unfold SignedJointIdentity.signedResidualBlocks
-  unfold SignedJointIdentity.normResidualBlock
-  unfold SignedJointIdentity.carriedResidualBlock
-  unfold SignedJointIdentity.gammaTerm
-  rw [mul_neg ops laws]
-  unfold Shape.carriedEvaluationOffset
-  exact laws.add_assoc _ _ _
+    SignedJointIdentity.matrixResidualBlock
+    SignedJointIdentity.constraintResidualBlock
+    SignedJointIdentity.normResidualBlock
+    SignedJointIdentity.gammaTerm
+  rw [laws.left_distrib]
+  rw [← laws.mul_assoc]
+  rw [← blockPower]
+  rw [negConstraint]
+  unfold Shape.matrixEvaluationOffset
+  rfl
 
 /-- The finite message wrapper has exactly the same evaluation. -/
 theorem evaluate_eq_signedResidualBlocks

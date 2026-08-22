@@ -86,7 +86,10 @@ def runningStatement (relation : LogicalRelation logicalWidth publicFits)
     CE.Instance (PaperAlgebra.Structure logicalWidth)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
-  constraintSystem := matrixSource relation.system
+  constraintSystem := PaperAlgebra.relationSource
+    (PrefixLayout.layout cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+    relation.system
   commitment := running.commitments i
   publicInput := running.publicInputs i
   point := running.point
@@ -99,7 +102,10 @@ def freshStatement (relation : LogicalRelation logicalWidth publicFits)
     CCS.Instance (PaperAlgebra.Structure logicalWidth)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       PaperAlgebra.Commitment where
-  constraintSystem := matrixSource relation.system
+  constraintSystem := PaperAlgebra.relationSource
+    (PrefixLayout.layout cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+    relation.system
   commitment := fresh.commitments ⟨0, by decide⟩
   publicInput := fresh.publicInputs ⟨0, by decide⟩
   stage := .fresh

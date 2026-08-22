@@ -1,8 +1,10 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/BaseLinear.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/BaseLinear.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
+generic matrix-vector zero/add/scale lemmas exported for the separate v1.1
+Pad evaluation family. -/
 
 /-!
 Base-field linearity of the typed Phi81 carried-evaluation map.
@@ -249,7 +251,8 @@ private theorem sumTerms_scale
   | cons index indices inductionHypothesis =>
       simp only [sumTerms, inductionHypothesis, scaleAdd]
 
-private theorem matrixVectorAt_zero
+/-- A matrix-vector product at the zero assignment is zero. -/
+theorem matrixVectorAt_zero
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
     (vertex : BooleanVertex variables) :
@@ -279,7 +282,8 @@ private theorem matrixVectorAt_zero
     _ = sumTerms 0 add indices (fun _ => 0) := by rw [termsZero]
     _ = 0 := sumTerms_zero 0 add ConcreteCarrier.baseLaws.zero_add indices
 
-private theorem matrixVectorAt_add
+/-- A matrix-vector product is additive in its assignment. -/
+theorem matrixVectorAt_add
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
     (left right : PaperLinearAlgebra.Assignment F columns)
@@ -353,7 +357,8 @@ private theorem matrixVectorAt_add
           (fun accumulated column => accumulated + rightTerm column) 0 := by
       rw [leftFold, rightFold]
 
-private theorem matrixVectorAt_scale
+/-- A matrix-vector product commutes with a base-field scalar. -/
+theorem matrixVectorAt_scale
     {variables columns : Nat}
     (matrix : BooleanMatrix F variables columns)
     (scalar : F) (assignment : PaperLinearAlgebra.Assignment F columns)

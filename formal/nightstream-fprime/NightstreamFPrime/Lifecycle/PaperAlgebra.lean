@@ -12,7 +12,8 @@ Provenance: adapted from
 `formal/nightstream-lean/Nightstream/Implementation/Nebula/NIFS/Core/PaperAlgebra.lean`
 at commit `f277c1d5e16b9f0d096d9b9da30baeb932af9be8`: the four-lane product commitment is replaced by the Ajtai
 commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
-the Stage 1 `cubeVariables`, and the public block is one ring column.
+the Stage 1 `cubeVariables`, the public block is one ring column, and the
+SuperNeo v1.1 Pad evaluation family is separate from all CCS matrices.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
@@ -26,6 +27,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 open NightstreamFPrime.Lifecycle
 
 /-- Public block: one ring column of 54 lanes holds `encHash` (5 words). -/
@@ -48,8 +50,14 @@ abbrev FullShape (logicalWidth : Nat)
       Phi81CarrierLayout.carrierWidth logicalWidth) :=
   fullShape logicalWidth publicFits
 
-abbrev Structure (logicalWidth : Nat) :=
+abbrev MatrixStructure (logicalWidth : Nat) :=
   MatrixSource F productionShape
+    (Phi81CarrierLayout.carrierWidth logicalWidth)
+    (Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
+
+abbrev Structure (logicalWidth : Nat) :=
+  RelationSource productionShape
     (Phi81CarrierLayout.carrierWidth logicalWidth)
     (Phi81ColumnLayout.blockCount
       (Phi81CarrierLayout.carrierWidth logicalWidth))
@@ -68,25 +76,46 @@ abbrev AjtaiKey := PiRLCAlgebra.Commitment.Key (FullShape logicalWidth publicFit
   productionProfile.commitmentWidth
 abbrev Commitment := PiRLCAlgebra.Commitment.Value productionProfile.commitmentWidth
 
+private theorem evaluation_ext
+    (left right : Evaluation)
+    (pad : left.pad = right.pad)
+    (matrix : left.matrix = right.matrix) : left = right := by
+  cases left
+  cases right
+  simp_all
+
 /-- The paper source derived from the logical matrix family. -/
 def matrixSource
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
-    Structure logicalWidth :=
+    MatrixStructure logicalWidth :=
   Phi81MatrixSource.source cubeVariables productionProfile.freshSources
     productionProfile.runningSources productionProfile.ccsMatrices logicalWidth
     system.matrices system.constraintPolynomial
+
+/-- Complete v1.1 source: canonical Pad layout plus all 14 CCS matrices. -/
+def relationSource
+    (layout : ColumnLayout productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
+    Structure logicalWidth where
+  cubeLayout := layout
+  matrixSource := matrixSource system
 
 /-- Recover the logical family from a complete paper source; total on every
 source, exact at the selected one. -/
 def canonicalStructure (source : Structure logicalWidth) :
     Phi81Relation.Structure (FullShape logicalWidth publicFits) where
   matrices := fun matrix vertex column =>
-    source.matrices matrix vertex (Phi81CarrierLayout.embedLogical column)
-  constraintPolynomial := source.constraintPolynomial
+    source.matrixSource.matrices matrix vertex
+      (Phi81CarrierLayout.embedLogical column)
+  constraintPolynomial := source.matrixSource.constraintPolynomial
 
-theorem canonicalStructure_matrixSource
+theorem canonicalStructure_relationSource
+    (layout : ColumnLayout productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
-    canonicalStructure (publicFits := publicFits) (matrixSource system) = system := by
+    canonicalStructure (publicFits := publicFits)
+      (relationSource layout system) = system := by
   cases system with
   | mk matrices polynomial =>
       apply congrArg₂ (@Phi81Relation.Structure.mk (FullShape logicalWidth publicFits))
@@ -95,6 +124,25 @@ theorem canonicalStructure_matrixSource
           cubeVariables productionProfile.freshSources productionProfile.runningSources
           productionProfile.ccsMatrices logicalWidth matrices polynomial matrix vertex column
       · rfl
+
+/-- The completed Pad matrix owned by the v1.1 relation source. Pad is not a
+member of the CCS matrix family. -/
+def padMatrix (source : Structure logicalWidth) :
+    BooleanMatrix F productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+  fun vertex column =>
+    source.cubeLayout.paddedIdentityEntry
+      baseOps.zero baseOps.one vertex column
+
+/-- The independent v1.1 `Eval_K` family for Pad. -/
+def padEvaluation
+    (source : Structure logicalWidth)
+    (assignment : Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (point : Point) : Phi81Relation.Evaluation :=
+  EvaluationHomomorphism.PiRLC.ExplicitMatrix.evaluate
+    (canonicalStructure (publicFits := publicFits) source)
+    (padMatrix source) assignment point
 
 /-- Ajtai opening maps: one assignment opens one commitment. -/
 def openingMaps (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -106,9 +154,11 @@ def openingMaps (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := pu
 /-- One packed matrix/coefficient family through the normalized relation. -/
 def evaluationFamily (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (point : Point) : Evaluation :=
-  fun matrix =>
-    Phi81Relation.matrixEvaluation (canonicalStructure (publicFits := publicFits) source)
+    (point : Point) : Evaluation where
+  pad := padEvaluation (publicFits := publicFits) source assignment point
+  matrix := fun matrix =>
+    Phi81Relation.matrixEvaluation
+      (canonicalStructure (publicFits := publicFits) source)
       assignment point matrix
 
 /-- Exact paper-carrier semantics used by Π_RLC and Π_DEC. -/
@@ -121,7 +171,8 @@ def semantics (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publ
   projectPublicInput := Phi81Relation.projectPublicInput
   normBounded := Phi81Relation.assignmentNormBounded
   ccsSatisfied := fun source assignment =>
-    CCSResidualTable.ConstraintSatisfied baseOps source.system assignment
+    CCSResidualTable.ConstraintSatisfied baseOps
+      source.matrixSource.system assignment
   evaluationPointValid := fun _ _ => True
   evaluations := fun source assignment point =>
     #[evaluationFamily (publicFits := publicFits) source assignment point]
@@ -134,42 +185,65 @@ def semantics (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publ
     ((semantics key).evaluations source assignment point).size = 1 := rfl
 
 theorem evaluationFamily_eq_paper
+    (layout : ColumnLayout productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) :
-    evaluationFamily (publicFits := publicFits) (matrixSource system) assignment point =
-      fun matrix coefficient =>
+    evaluationFamily (publicFits := publicFits)
+        (relationSource layout system) assignment point = {
+      pad := fun coefficient =>
+        (BooleanTable.tabulate fun vertex =>
+          K.embed (matrixVectorAt baseOps
+            ((matrixSource system).coefficientMatrixOf baseOps
+              (fun row column =>
+                layout.paddedIdentityEntry
+                  baseOps.zero baseOps.one row column)
+              coefficient)
+            assignment vertex)).evaluate extensionOps point
+      matrix := fun matrix coefficient =>
         (BooleanTable.tabulate fun vertex =>
           K.embed (matrixVectorAt baseOps
             ((matrixSource system).coefficientMatrix baseOps matrix coefficient)
-            assignment vertex)).evaluate extensionOps point := by
-  unfold evaluationFamily
-  rw [canonicalStructure_matrixSource]
-  funext matrix coefficient
-  rfl
+            assignment vertex)).evaluate extensionOps point
+    } := by
+  apply evaluation_ext
+  · funext coefficient
+    unfold evaluationFamily padEvaluation padMatrix
+    rw [canonicalStructure_relationSource]
+    rfl
+  · funext matrix coefficient
+    unfold evaluationFamily
+    rw [canonicalStructure_relationSource]
+    rfl
 
 theorem evaluations_eq_paper
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (layout : ColumnLayout productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) :
-    (semantics key).evaluations (matrixSource system) assignment point =
+    (semantics key).evaluations (relationSource layout system) assignment point =
       (paperRelationSemantics baseOps extensionOps K.embed
         (shape := productionShape)
         (blockCount := Phi81ColumnLayout.blockCount
           (Phi81CarrierLayout.carrierWidth logicalWidth))
-        (openingMaps key)).evaluations (matrixSource system) assignment point := by
+        (openingMaps key)).evaluations
+          (relationSource layout system) assignment point := by
   apply congrArg (fun family => #[family])
-  exact evaluationFamily_eq_paper system assignment point
+  exact evaluationFamily_eq_paper layout system assignment point
 
 theorem ambientAgreement
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (layout : ColumnLayout productionShape.cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth))
     (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
     (statement : CE.Instance (Structure logicalWidth)
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       Point Evaluation Commitment)
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (sourceEq : statement.constraintSystem = matrixSource system) :
+    (sourceEq : statement.constraintSystem = relationSource layout system) :
     PiRLC.PaperCorrections.CorrectedAmbientHolds
         (paperRelationSemantics (shape := productionShape)
           (blockCount := Phi81ColumnLayout.blockCount
@@ -191,16 +265,18 @@ theorem ambientAgreement
         (blockCount := Phi81ColumnLayout.blockCount
           (Phi81CarrierLayout.carrierWidth logicalWidth))
         baseOps extensionOps K.embed (openingMaps key)).evaluations
-          (matrixSource system) assignment statement.point = statement.evaluations <->
+          (relationSource layout system) assignment statement.point =
+            statement.evaluations <->
     (PiRLCAlgebra.Commitment.commit key assignment = statement.commitment /\
       Phi81Relation.projectPublicInput assignment = statement.publicInput /\
       Phi81Relation.assignmentNormBounded
         (PiRLC.PaperCorrections.correctedAmbientBoundFor productionGlobalParams)
         assignment) /\
       True /\
-      (semantics key).evaluations (matrixSource system) assignment statement.point =
+      (semantics key).evaluations (relationSource layout system)
+        assignment statement.point =
         statement.evaluations
-  rw [evaluations_eq_paper]
+  rw [evaluations_eq_paper key layout system]
 
 theorem openingAgreement
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -225,11 +301,18 @@ theorem openingAgreement
 
 /-! ## One-entry Π_RLC evaluation algebra -/
 
-def evaluationZero : Evaluation := fun _ => BaseLinear.evaluationZero
+def evaluationZero : Evaluation where
+  pad := BaseLinear.evaluationZero
+  matrix := fun _ => BaseLinear.evaluationZero
 
 def combineEvaluationFamily {count : Nat}
     (challenges : Fin count -> RingF) (families : Fin count -> Evaluation) : Evaluation :=
-  fun matrix => PiRLCFinite.combineEvaluation challenges (fun source => families source matrix)
+  {
+    pad := PiRLCFinite.combineEvaluation challenges
+      (fun source => (families source).pad)
+    matrix := fun matrix => PiRLCFinite.combineEvaluation challenges
+      (fun source => (families source).matrix matrix)
+  }
 
 def combineEvaluations : {count : Nat} ->
     (Fin count -> RingF) -> (Fin count -> Array Evaluation) -> Array Evaluation
@@ -259,9 +342,13 @@ theorem evaluations_combine
         subst index
         change evaluationFamily (publicFits := publicFits) source
             (PiRLCFinite.combineAssignments challenges assignments) point = evaluationZero
-        funext matrix
-        exact BaseLinear.matrixEvaluation_zero
-          (canonicalStructure (publicFits := publicFits) source) point matrix
+        apply evaluation_ext
+        · exact EvaluationHomomorphism.PiRLC.ExplicitMatrix.evaluate_zero
+            (canonicalStructure (publicFits := publicFits) source)
+            (padMatrix source) point
+        · funext matrix
+          exact BaseLinear.matrixEvaluation_zero
+            (canonicalStructure (publicFits := publicFits) source) point matrix
   | succ count =>
       apply Array.ext
       · simp [combineEvaluations, semantics]
@@ -275,9 +362,14 @@ theorem evaluations_combine
               (PiRLCFinite.combineAssignments challenges assignments) point =
             combineEvaluationFamily challenges fun index =>
               evaluationFamily (publicFits := publicFits) source (assignments index) point
-        funext matrix
-        exact PiRLCFinite.matrixEvaluation_combine
-          (canonicalStructure (publicFits := publicFits) source) challenges assignments point matrix
+        apply evaluation_ext
+        · exact PiRLCFinite.explicitMatrixEvaluation_combine
+            (canonicalStructure (publicFits := publicFits) source)
+            (padMatrix source) challenges assignments point
+        · funext matrix
+          exact PiRLCFinite.matrixEvaluation_combine
+            (canonicalStructure (publicFits := publicFits) source)
+            challenges assignments point matrix
 
 /-- Complete Stage 1 Π_RLC algebra over the Ajtai commitment. -/
 def piRlcAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -307,8 +399,14 @@ def piRlcAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := p
 
 def recomposeEvaluationFamily
     (families : Fin productionGlobalParams.k -> Evaluation) : Evaluation :=
-  fun matrix => BaseLinear.combineEvaluations
-    EvaluationHomomorphism.PiDEC.radixWeight (fun child => families child matrix)
+  {
+    pad := BaseLinear.combineEvaluations
+      EvaluationHomomorphism.PiDEC.radixWeight
+      (fun child => (families child).pad)
+    matrix := fun matrix => BaseLinear.combineEvaluations
+      EvaluationHomomorphism.PiDEC.radixWeight
+      (fun child => (families child).matrix matrix)
+  }
 
 def recomposeEvaluations
     (items : Fin productionGlobalParams.k -> Array Evaluation) : Array Evaluation :=
@@ -335,10 +433,15 @@ theorem evaluations_recompose
           (PiDECAlgebra.Radix.recomposeAssignment assignments) point =
         recomposeEvaluationFamily fun child =>
           evaluationFamily (publicFits := publicFits) source (assignments child) point
-    funext matrix
-    exact BaseLinear.matrixEvaluation_combine
-      (canonicalStructure (publicFits := publicFits) source)
-      EvaluationHomomorphism.PiDEC.radixWeight assignments point matrix
+    apply evaluation_ext
+    · exact EvaluationHomomorphism.PiRLC.ExplicitMatrix.evaluate_baseCombine
+        (canonicalStructure (publicFits := publicFits) source)
+        (padMatrix source) EvaluationHomomorphism.PiDEC.radixWeight
+        assignments point
+    · funext matrix
+      exact BaseLinear.matrixEvaluation_combine
+        (canonicalStructure (publicFits := publicFits) source)
+        EvaluationHomomorphism.PiDEC.radixWeight assignments point matrix
 
 /-- Complete Stage 1 Π_DEC algebra over the Ajtai commitment. -/
 def piDecAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :

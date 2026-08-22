@@ -11,9 +11,10 @@ Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
 Phase: one-joint SumCheck truth path and post-SumCheck output evaluation check.
 Constraint family: semantic polynomial ownership only; this file emits no rows.
 
-Owns: explicit matrix-image, assignment, and carried-image multilinear tables;
-the nonlinear paper expressions `F`, `NC`, `Eval`, and `Q` evaluated after
-those multilinear images; projection to the minimal verifier-visible input;
+Owns: explicit fresh-matrix, assignment, Pad-image, and matrix-image
+multilinear tables; the nonlinear paper expressions `F`, `NC`, `Eval_K`,
+`Eval_A`, and `Q` evaluated after those multilinear images; projection to the
+minimal verifier-visible input;
 the verifier terminal derived from that input and the typed output message;
 Boolean-cube agreement with the independent signed residual object; and a
 deterministic checker theorem that exposes output-message mismatch instead of
@@ -35,9 +36,9 @@ derived point, the main theorem returns `OutputMismatch` as a named event.
 
 | Protocol | Phase | Family | Mathematical owner |
 |---|---|---|---|
-| `Pi_CCS` | source images | matrix / assignment / carried tables | `Data` |
+| `Pi_CCS` | source images | fresh-matrix / assignment / Pad / matrix tables | `Data` |
 | `Pi_CCS` | verifier input | polynomial / prior point / public claims | `Data.toVerifierInput` |
-| `Pi_CCS` | nonlinear point evaluation | `F`, `NC`, `Eval`, `Q` | `ccsAtMessage`, `normAtMessage`, `carriedAtMessage`, `terminalFromMessage` |
+| `Pi_CCS` | nonlinear point evaluation | `F`, `NC`, `Eval_K`, `Eval_A`, `Q` | `ccsAtMessage`, `normAtMessage`, `padAtMessage`, `matrixAtMessage`, `terminalFromMessage` |
 | `Pi_CCS` | prover output | values at `r'` only | `OutputMessage` |
 | `Pi_CCS` | honest output | evaluate every source table at `r'` | `messageAt` |
 | `Pi_CCS` | Boolean restriction | actual `Q` equals signed residual `Q` on the cube | `qAtPoint_toCubePoint_eq_tableQ` |
@@ -75,9 +76,12 @@ structure Data (Field : Type uField) (shape : Shape) where
   sourceAssignments : Fin shape.sourceCount ->
     BooleanTable Field shape.cubeVariables
   priorPoint : CubePoint Field shape.cubeVariables
-  carriedImages : CarriedCoordinate shape ->
+  padImages : PadCoordinate shape ->
     BooleanTable Field shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Field
+  matrixImages : MatrixCoordinate shape ->
+    BooleanTable Field shape.cubeVariables
+  claimedPadCoefficient : PadCoordinate shape -> Field
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Field
 
 namespace Data
 
@@ -96,8 +100,10 @@ def toJointData
   norm := fun source => BooleanTable.tabulate fun vertex =>
     strictNormResidual ops ((data.sourceAssignments source).valueAt vertex)
   priorPoint := data.priorPoint
-  carriedImage := data.carriedImages
-  claimedCoefficient := data.claimedCoefficient
+  padImage := data.padImages
+  matrixImage := data.matrixImages
+  claimedPadCoefficient := data.claimedPadCoefficient
+  claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
 /-- Erase every hidden semantic table from the executable verifier surface.
 All retained fields are verifier-owned structure or public claim data. -/
@@ -107,7 +113,8 @@ def toVerifierInput
     (data : Data Field shape) : VerifierInput Field shape where
   constraintPolynomial := data.constraintPolynomial
   priorPoint := data.priorPoint
-  claimedCoefficient := data.claimedCoefficient
+  claimedPadCoefficient := data.claimedPadCoefficient
+  claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
 /-- Rich semantic sources with the same three authoritative fields project to
 the same executable input, regardless of every hidden assignment/image table. -/
@@ -118,13 +125,16 @@ theorem toVerifierInput_eq
     (constraintPolynomial :
       left.constraintPolynomial = right.constraintPolynomial)
     (priorPoint : left.priorPoint = right.priorPoint)
-    (claimedCoefficient :
-      left.claimedCoefficient = right.claimedCoefficient) :
+    (claimedPadCoefficient :
+      left.claimedPadCoefficient = right.claimedPadCoefficient)
+    (claimedMatrixCoefficient :
+      left.claimedMatrixCoefficient = right.claimedMatrixCoefficient) :
     left.toVerifierInput = right.toVerifierInput := by
   apply VerifierInput.ext
   · exact constraintPolynomial
   · exact priorPoint
-  · exact claimedCoefficient
+  · exact claimedPadCoefficient
+  · exact claimedMatrixCoefficient
 
 end Data
 
@@ -141,8 +151,10 @@ def messageAt
     (data.freshMatrixImages source matrix).evaluate ops point
   sourceAssignment := fun source =>
     (data.sourceAssignments source).evaluate ops point
-  carriedImage := fun coordinate =>
-    (data.carriedImages coordinate).evaluate ops point
+  padImage := fun coordinate =>
+    (data.padImages coordinate).evaluate ops point
+  matrixImage := fun coordinate =>
+    (data.matrixImages coordinate).evaluate ops point
 
 /-- The exact output-message values at a Boolean vertex. -/
 def vertexMessage
@@ -155,29 +167,32 @@ def vertexMessage
     (data.freshMatrixImages source matrix).valueAt vertex
   sourceAssignment := fun source =>
     (data.sourceAssignments source).valueAt vertex
-  carriedImage := fun coordinate =>
-    (data.carriedImages coordinate).valueAt vertex
+  padImage := fun coordinate =>
+    (data.padImages coordinate).valueAt vertex
+  matrixImage := fun coordinate =>
+    (data.matrixImages coordinate).valueAt vertex
 
 namespace VerifierInput
 
-/-- The carried target polynomial is constructed solely from public claimed
-coefficients. -/
+/-- The v1.1 target polynomial is constructed solely from the separate public
+Pad and matrix coefficients. -/
 def targetCoefficients
     {Field : Type uField}
     {shape : Shape}
     (input : VerifierInput Field shape) :
-    TargetPolynomial.CarriedTargetCoefficients Field shape where
-  coefficient := input.claimedCoefficient
+    TargetPolynomial.TargetCoefficients Field shape where
+  pad := input.claimedPadCoefficient
+  matrix := input.claimedMatrixCoefficient
 
-/-- Verifier-owned initial claim under the corrected absolute exponent
-convention. Hidden semantic tables cannot affect this value. -/
+/-- Verifier-owned v1.1 initial claim `T_K + gamma^(k*d) * T_A`.
+Hidden semantic tables cannot affect this value. -/
 def initial
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
     (input : VerifierInput Field shape)
     (gamma : Field) : Field :=
-  TargetPolynomial.evaluateShifted ops.toOps input.targetCoefficients gamma
+  TargetPolynomial.evaluate ops.toOps input.targetCoefficients gamma
 
 end VerifierInput
 
@@ -219,8 +234,8 @@ def normAtMessage
       SignedJointIdentity.gammaTerm ops gamma source.val <|
         strictNormResidual ops (message.sourceAssignment source)
 
-/-- Paper `Eval(r', gamma)` derived from the running output evaluations. -/
-def carriedAtMessage
+/-- Paper `Eval_K(r', gamma)` derived from the Pad output evaluations. -/
+def padAtMessage
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -230,9 +245,25 @@ def carriedAtMessage
     (message : OutputMessage Field shape) : Field :=
   ops.mul (SumCheckTruthPath.pointEquality ops point input.priorPoint) <|
     SignedJointIdentity.sumMap ops
-      (canonicalCarriedCoordinates shape) fun coordinate =>
+      (canonicalPadCoordinates shape) fun coordinate =>
         SignedJointIdentity.gammaTerm ops gamma
-          coordinate.localGammaExponent (message.carriedImage coordinate)
+          coordinate.localGammaExponent (message.padImage coordinate)
+
+/-- Paper `Eval_A(r', gamma)` derived from the CCS-matrix output
+evaluations. Its `k*d` shift is applied by `terminalFromMessage`. -/
+def matrixAtMessage
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (input : VerifierInput Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables)
+    (message : OutputMessage Field shape) : Field :=
+  ops.mul (SumCheckTruthPath.pointEquality ops point input.priorPoint) <|
+    SignedJointIdentity.sumMap ops
+      (canonicalMatrixCoordinates shape) fun coordinate =>
+        SignedJointIdentity.gammaTerm ops gamma
+          coordinate.localGammaExponent (message.matrixImage coordinate)
 
 /-- Step 4's paper terminal formula, using only verifier context, derived
 coins, the derived point, and the prover's output-evaluation message. -/
@@ -245,14 +276,16 @@ def terminalFromMessage
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape) : Field :=
-  ops.add
-    (ops.mul (SumCheckTruthPath.pointEquality ops point alpha)
-      (ops.add
-        (ccsAtMessage ops input gamma message)
-        (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
-          (normAtMessage ops gamma message))))
-    (SignedJointIdentity.gammaTerm ops gamma shape.carriedEvaluationOffset
-      (carriedAtMessage ops input gamma point message))
+  ops.add (padAtMessage ops input gamma point message) <|
+    ops.add
+      (SignedJointIdentity.gammaTerm ops gamma shape.matrixEvaluationOffset
+        (matrixAtMessage ops input gamma point message))
+      (SignedJointIdentity.gammaTerm ops gamma shape.constraintOffset <|
+        ops.mul (SumCheckTruthPath.pointEquality ops point alpha)
+          (ops.add
+            (ccsAtMessage ops input gamma message)
+            (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
+              (normAtMessage ops gamma message))))
 
 /-- The actual paper polynomial at an arbitrary field point. Underlying image
 tables are evaluated first and nonlinear formulas are applied second. -/
@@ -302,7 +335,10 @@ theorem messageAt_toCubePoint_eq_vertexMessage
       ops laws (data.sourceAssignments source) vertex
   · funext coordinate
     exact SumCheckTruthPath.evaluate_toCubePoint_eq_valueAt
-      ops laws (data.carriedImages coordinate) vertex
+      ops laws (data.padImages coordinate) vertex
+  · funext coordinate
+    exact SumCheckTruthPath.evaluate_toCubePoint_eq_valueAt
+      ops laws (data.matrixImages coordinate) vertex
 
 /-- At a Boolean vertex, the message-derived paper formula is exactly the
 independently constructed signed residual `Q`. -/
@@ -320,9 +356,11 @@ theorem terminalFromVertexMessage_eq_tableQ
         (vertexMessage data vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   simp only [terminalFromMessage, ccsAtMessage, normAtMessage,
-    carriedAtMessage, vertexMessage, Data.toVerifierInput, Data.toJointData,
+    padAtMessage, matrixAtMessage, vertexMessage, Data.toVerifierInput,
+    Data.toJointData,
     SignedJointIdentity.qAt, SignedJointIdentity.ccsAt,
-    SignedJointIdentity.normAt, SignedJointIdentity.carriedAt,
+    SignedJointIdentity.normAt, SignedJointIdentity.padAt,
+    SignedJointIdentity.matrixAt, SignedJointIdentity.constraintAt,
     BooleanTable.valueAt_tabulate,
     SumCheckTruthPath.pointEquality_toCubePoint_eq_equalityWeight ops laws]
 
@@ -452,7 +490,8 @@ def OutputMismatch
     qAtPoint ops data alpha gamma point
 
 /-- Executable finite verifier with the initial target derived from public
-carried claims and the terminal derived from the prover's output message. -/
+Pad and matrix claims and the terminal derived from the prover's output
+message. -/
 def check
     {Field : Type uField}
     [DecidableEq Field]

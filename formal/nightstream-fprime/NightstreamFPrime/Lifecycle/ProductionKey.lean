@@ -11,8 +11,8 @@ field is discharged by a concrete theorem (Goldilocks primality, the Φ₈₁
 carrier laws, the Ajtai commitment algebra); the transcript fields are the
 Poseidon2 sponge of `Lifecycle.Transcript`. The only inputs are the F′ logical
 relation itself (matrices, constraint polynomial, its cube capacity and its
-identity-first matrix proof) and the verifier-owned Ajtai key. Nothing is a
-caller-supplied `Prop`.
+canonical Pad layout) and the verifier-owned Ajtai key. Nothing is a
+caller-supplied verifier predicate.
 -/
 
 namespace NightstreamFPrime.Lifecycle.ProductionKey
@@ -26,20 +26,14 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 /-- The F′ logical relation as the key consumes it: the Φ₈₁ structure at the
-Stage 1 shape, the proof that its carrier fits the `2^24` cube, and the
-paper's `M₁ = [I; 0]` requirement. These are produced by the circuit builder
-(Lifecycle composition) once the fixed point closes. -/
+Stage 1 shape and the proof that its carrier fits the selected cube. The
+v1.1 Pad matrix comes from the verifier-owned `cubeLayout`; it is not a CCS
+matrix supplied by this record. -/
 structure LogicalRelation (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth) where
   system : Phi81Relation.Structure (FullShape logicalWidth publicFits)
   cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth <= 2 ^ cubeVariables
-  identityFirstEntry : ∀ (vertex : BooleanVertex cubeVariables)
-      (column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth)),
-    (matrixSource system).matrices ⟨0, by decide⟩ vertex column =
-      (PrefixLayout.layout cubeVariables
-        (Phi81CarrierLayout.carrierWidth logicalWidth) cubeFits).paddedIdentityEntry
-        baseOps.zero baseOps.one vertex column
 
 section
 
@@ -62,33 +56,39 @@ abbrev KeyType (relation : LogicalRelation logicalWidth publicFits) :=
     (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
     (degreeBound relation)
 
-/-- Absorb the complete public NIFS statement: the running claims, then the
-fresh claims, each as self-delimiting blocks. -/
-def absorbPublicInput (s : Transcript.State)
+/-- The complete public NIFS statement in canonical block order: shared
+point, 16 running commitment/public/evaluation groups, then the one fresh
+commitment/public group. -/
+def publicInputBlocks
+    (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
+    (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
+    List (List F) :=
+  [serializePoint running.point] ++
+    ((List.finRange productionShape.runningCount).flatMap fun index =>
+      [serializeCommitment (running.commitments index),
+        serializePublicInput (running.publicInputs index),
+        serializeEvaluations (running.evaluations index)]) ++
+    ((List.finRange productionShape.freshCount).flatMap fun index =>
+      [serializeCommitment (fresh.commitments index),
+        serializePublicInput (fresh.publicInputs index)])
+
+/-- Absorb the complete public NIFS statement from its one canonical block
+list. -/
+def absorbPublicInput (state : Transcript.State)
     (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     Transcript.State :=
-  let s := Transcript.absorbBlock s (serializePoint running.point)
-  let s := (List.finRange productionShape.runningCount).foldl (fun s i =>
-    let s := Transcript.absorbBlock s (running.commitments i |> fun c =>
-      (List.finRange productionProfile.commitmentWidth).flatMap fun r => serializeRingF (c r))
-    let s := Transcript.absorbBlock s ((List.finRange (FullShape logicalWidth publicFits).publicWidth).map
-      fun j => running.publicInputs i j)
-    Transcript.absorbBlock s (serializeEvaluations (running.evaluations i))) s
-  (List.finRange productionShape.freshCount).foldl (fun s i =>
-    let s := Transcript.absorbBlock s
-      ((List.finRange productionProfile.commitmentWidth).flatMap fun r =>
-        serializeRingF (fresh.commitments i r))
-    Transcript.absorbBlock s ((List.finRange (FullShape logicalWidth publicFits).publicWidth).map
-      fun j => fresh.publicInputs i j)) s
+  Transcript.absorbBlocks state (publicInputBlocks running fresh)
 
 /-- Absorb the complete paper `y′` family after the sum-check. -/
 def absorbFullOutput (s : Transcript.State)
     (out : FullOutputCoordinates.FullOutput K productionShape) : Transcript.State :=
   Transcript.absorbBlock s ((List.finRange productionShape.sourceCount).flatMap fun i =>
-    (List.finRange productionShape.matrixCount).flatMap fun j =>
+    ((List.finRange productionShape.coefficientCount).flatMap fun l =>
+      serializeK (out.padCoordinate i l)) ++
+    ((List.finRange productionShape.matrixCount).flatMap fun j =>
       (List.finRange productionShape.coefficientCount).flatMap fun l =>
-        serializeK (out.coordinate i j l))
+        serializeK (out.matrixCoordinate i j l)))
 
 /-- `ρ_i` for source `i`, squeezed from the post-output state. -/
 def piRlcResponse (s : Transcript.State) (index : Fin (Nifs.PaperProfile.arity).total) : RingF :=
@@ -128,16 +128,20 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
     (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits
   matrixSource := matrixSource relation.system
   degreeBoundExact := rfl
-  matrixCountPositive := by decide
-  identityFirstEntry := relation.identityFirstEntry
   constantLaw := Phi81CoefficientKernel.phi81ConstantTermLaw
   challengeSetSize := 5 ^ ringDegree
   piRlcSemantics := semantics ajtai
   openingAgreement := openingAgreement ajtai
-  ambientAgreement := ambientAgreement ajtai relation.system
+  ambientAgreement := ambientAgreement ajtai
+    (PrefixLayout.layout cubeVariables
+      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+    relation.system
   evaluationAgreement := by
     intro assignment point
-    exact ⟨True.intro, evaluations_eq_paper ajtai relation.system assignment point⟩
+    exact ⟨True.intro, evaluations_eq_paper ajtai
+      (PrefixLayout.layout cubeVariables
+        (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+      relation.system assignment point⟩
   piRlcEvaluationsSize := semantics_evaluations_size ajtai
   piRlcAlgebra := piRlcAlgebra ajtai
   piDecAlgebra := piDecAlgebra ajtai
@@ -151,6 +155,59 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   absorbPiCcsOutput := absorbFullOutput
   piRlcResponse := piRlcResponse
   piRlcResponseValid := piRlcResponse_valid
+
+/-- The production key uses the canonical complete `y′` absorber. This
+projection theorem lets circuit coverage proofs keep the rest of the key
+opaque. -/
+theorem key_absorbPiCcsOutput
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (state : Transcript.State)
+    (output : FullOutputCoordinates.FullOutput K productionShape) :
+    (key relation ajtai).absorbPiCcsOutput state output =
+      absorbFullOutput state output := by
+  rfl
+
+/-- The key-owned public-input state is the domain tag followed by the one
+canonical public block list. -/
+theorem key_publicInputState_eq
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput
+        (logicalWidth := logicalWidth) (publicFits := publicFits))
+      productionShape)
+    (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput
+        (logicalWidth := logicalWidth) (publicFits := publicFits))
+      productionShape) :
+    (key relation ajtai).publicInputState running fresh =
+      Transcript.absorbBlocks
+        (Transcript.absorb Transcript.initialState Transcript.domainTag)
+        (publicInputBlocks running fresh) := by
+  rfl
+
+/-- The production oracle initializes PiCCS from the two canonical verifier
+input blocks. -/
+theorem key_oracle_initialState_eq
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (context : ProtocolVerifier.Statement K Transcript.State productionShape) :
+    (key relation ajtai).oracle.transcript.initialState context =
+      Transcript.absorbBlocks context.priorState
+        (Transcript.verifierInputBlocks context.input) := by
+  rfl
+
+/-- The production key uses the one additive Poseidon2 PiCCS oracle. -/
+theorem key_oracle_eq
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (key relation ajtai).oracle = Transcript.piCcsOracle := by
+  rfl
 
 end
 

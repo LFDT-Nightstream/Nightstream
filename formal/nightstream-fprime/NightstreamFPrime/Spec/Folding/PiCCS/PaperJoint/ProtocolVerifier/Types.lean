@@ -6,7 +6,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Verifier-visible carriers for the paper-joint `Pi_CCS` checker.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: public verifier input and raw post-SumCheck output message.
 Constraint family: typed authority boundaries only; this file emits no rows.
 
@@ -20,9 +20,9 @@ Poseidon2, Rust/R1CS, row removal, or constraint counts.
 Emits constraints: no.
 
 Authority boundary: `VerifierInput` contains only the verifier-owned sparse
-constraint polynomial, the public prior point, and the public carried
-coefficients. `OutputMessage` contains values but no point, challenge,
-terminal, degree, or transcript state.
+constraint polynomial, the public prior point, and the separate public Pad
+and matrix coefficients. `OutputMessage` contains values but no point,
+challenge, terminal, degree, or transcript state.
 
 | Stage path | Carrier | Authority class | Excluded semantic data |
 |---|---|---|---|
@@ -40,7 +40,8 @@ structure VerifierInput (Field : Type uField) (shape : Shape) where
   constraintPolynomial :
     CCSResidualTable.ConstraintPolynomial Field shape.matrixCount
   priorPoint : CubePoint Field shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Field
+  claimedPadCoefficient : PadCoordinate shape -> Field
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Field
 
 namespace VerifierInput
 
@@ -98,7 +99,7 @@ theorem sumcheckDegreeBound_eq_of_terms_eq
     (CCSResidualTable.ConstraintPolynomial.canonicalEqualityGatedDegreeBound_eq_of_terms_eq
         left.constraintPolynomial right.constraintPolynomial terms)
 
-/-- Equality of the three authoritative fields is equality of the complete
+/-- Equality of the four authoritative fields is equality of the complete
 executable verifier input. -/
 @[ext] theorem ext
     {Field : Type uField}
@@ -107,8 +108,10 @@ executable verifier input. -/
     (constraintPolynomial :
       left.constraintPolynomial = right.constraintPolynomial)
     (priorPoint : left.priorPoint = right.priorPoint)
-    (claimedCoefficient :
-      left.claimedCoefficient = right.claimedCoefficient) :
+    (claimedPadCoefficient :
+      left.claimedPadCoefficient = right.claimedPadCoefficient)
+    (claimedMatrixCoefficient :
+      left.claimedMatrixCoefficient = right.claimedMatrixCoefficient) :
     left = right := by
   cases left
   cases right
@@ -121,11 +124,12 @@ There is no point, terminal, alpha, gamma, challenge, or state field. -/
 structure OutputMessage (Field : Type uField) (shape : Shape) where
   freshMatrixImage : Fin shape.freshCount -> Fin shape.matrixCount -> Field
   sourceAssignment : Fin shape.sourceCount -> Field
-  carriedImage : CarriedCoordinate shape -> Field
+  padImage : PadCoordinate shape -> Field
+  matrixImage : MatrixCoordinate shape -> Field
 
 namespace OutputMessage
 
-/-- Pointwise equality of all three typed value families is equality of the
+/-- Pointwise equality of all four typed value families is equality of the
 complete output message. -/
 @[ext] theorem ext
     {Field : Type uField}
@@ -133,7 +137,8 @@ complete output message. -/
     (left right : OutputMessage Field shape)
     (freshMatrixImage : left.freshMatrixImage = right.freshMatrixImage)
     (sourceAssignment : left.sourceAssignment = right.sourceAssignment)
-    (carriedImage : left.carriedImage = right.carriedImage) :
+    (padImage : left.padImage = right.padImage)
+    (matrixImage : left.matrixImage = right.matrixImage) :
     left = right := by
   cases left
   cases right

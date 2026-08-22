@@ -1,12 +1,13 @@
 import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
+import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.R1CS
 
 /-!
-Owns the executable data of the canonical Stage 1 pilot package. This module
-has no lifecycle or production-key import, so the emitter initializes only
-the compiler and layout data it emits. `Export.Pilot` owns the proofs that
-connect this data to the full production lifecycle layout.
+Owns the executable data of the canonical Stage 1 pilot package. Physical
+positions and counts come only from `Layout.PilotProduction` and
+`Layout.PilotSpartan`; this module serializes them. `Export.Pilot` owns the
+proofs that connect the data to the production lifecycle layout.
 -/
 
 namespace NightstreamFPrime.Export.PilotData
@@ -65,36 +66,36 @@ def permutationTemplate (_unit : Unit) : PermutationTemplate where
   outputLocalStart := 584
   rows := templateRows ()
 
-def priorHashRowStart : Nat := 0
-def priorHashRowCount : Nat := 6031300
-def priorBindingRowStart : Nat := 6031300
-def outputHashRowStart : Nat := 6031350
+def priorHashRowStart : Nat := PilotValues.priorHashRowStart
+def priorHashRowCount : Nat := PilotValues.hashRowCount
+def priorBindingRowStart : Nat := PilotValues.priorBindingRowStart
+def outputHashRowStart : Nat := PilotValues.outputHashRowStart
 
-def witnessPrivateLength : Nat := 12062592
-def priorWitnessStart : Nat := 81490
-def outputWitnessStart : Nat := 6112786
+def witnessPrivateLength : Nat := PilotValues.witnessPrivateLength
+def priorWitnessStart : Nat := PilotValues.priorWitnessStart
+def outputWitnessStart : Nat := PilotValues.outputWitnessStart
 
 def priorChain : HashChain where
   phase := 1
   rowStart := priorHashRowStart
   rowCount := priorHashRowCount
-  inputStart := 0
-  inputLength := 40745
+  inputStart := PilotValues.priorPreimageStart
+  inputLength := PilotValues.stateHashWords
   witnessStart := priorWitnessStart
-  witnessLength := 6031296
-  absorbCount := 10187
-  digestStart := 12144084
+  witnessLength := PilotValues.hashWitnessCount
+  absorbCount := PilotValues.absorbCount
+  digestStart := PilotValues.firstPublicStart + 1
 
 def outputChain : HashChain where
   phase := 2
   rowStart := outputHashRowStart
-  rowCount := 6031300
-  inputStart := 40745
-  inputLength := 40745
+  rowCount := PilotValues.hashRowCount
+  inputStart := PilotValues.secondPrivateStart
+  inputLength := PilotValues.stateHashWords
   witnessStart := outputWitnessStart
-  witnessLength := 6031296
-  absorbCount := 10187
-  digestStart := 12144137
+  witnessLength := PilotValues.hashWitnessCount
+  absorbCount := PilotValues.absorbCount
+  digestStart := PilotValues.secondPublicStart
 
 def zeroCombination : SparseCombination := ⟨0, []⟩
 def oneCombination : SparseCombination := ⟨1, []⟩
@@ -112,13 +113,13 @@ def digestRows (chain : HashChain) : List SparseRow :=
 
 def markerBindingRow : SparseRow :=
   ⟨priorBindingRowStart,
-    ⟨(-1 : F).val, [⟨12144083, 1⟩]⟩,
+    ⟨(-1 : F).val, [⟨PilotValues.firstPublicStart, 1⟩]⟩,
     oneCombination, zeroCombination⟩
 
 def tailBindingRows : List SparseRow :=
   List.ofFn fun lane : Fin 49 =>
     ⟨priorBindingRowStart + 1 + lane.val,
-      ⟨0, [⟨12144088 + lane.val, 1⟩]⟩,
+      ⟨0, [⟨PilotValues.firstPublicStart + 5 + lane.val, 1⟩]⟩,
       oneCombination, zeroCombination⟩
 
 def bindingRows (_unit : Unit) : List SparseRow :=
@@ -150,20 +151,24 @@ def poseidonSchedule : PoseidonSchedule where
   outputLocalStart := 584
 
 def privateSegments : List Segment :=
-  [⟨Role.priorPreimage, 0, 40745⟩,
-   ⟨Role.outputPreimage, 40745, 40745⟩,
+  [⟨Role.priorPreimage, PilotValues.priorPreimageStart,
+      PilotValues.stateHashWords⟩,
+   ⟨Role.outputPreimage, PilotValues.secondPrivateStart,
+      PilotValues.stateHashWords⟩,
    ⟨Role.witness, priorWitnessStart, witnessPrivateLength⟩]
 
 def publicSegments : List Segment :=
-  [⟨Role.priorPublicInput, 12144083, 54⟩,
-   ⟨Role.outputDigest, 12144137, 4⟩]
+  [⟨Role.priorPublicInput, PilotValues.firstPublicStart,
+      PilotValues.priorPublicInputWords⟩,
+   ⟨Role.outputDigest, PilotValues.secondPublicStart,
+      PilotValues.digestWords⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 12062650
-  privateColumnCount := 12144082
-  constantColumn := 12144082
-  publicColumnCount := 58
-  totalColumnCount := 12144141
+  rowCount := PilotValues.physicalRowCount
+  privateColumnCount := PilotValues.privateColumnCount
+  constantColumn := PilotValues.constantColumn
+  publicColumnCount := PilotValues.publicColumnCount
+  totalColumnCount := PilotValues.spartanColumnCount
   privateSegments := privateSegments
   publicSegments := publicSegments
 

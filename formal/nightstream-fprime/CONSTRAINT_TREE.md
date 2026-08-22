@@ -293,8 +293,71 @@ over 24 indices. Its physical row count is
 boundary. Its 12,959 extension multiplications retain 25,918 logical recipe
 variables. The current R1CS lowering adds 90,713 intermediate columns and
 uses 116,631 physical rows. `physicalPrivateColumnCount_eq` proves 116,631
-total private columns for this leaf. The remaining 7 physical leaf packets
-are open.
+total private columns for this leaf. The fixed SumCheck chain is complete
+under its production
+wire-shape boundary. Its 48 logical equality rows contain no logical witness
+variables. Structural lowering of one generic degree-4 round, composed over
+24 indices, proves 11,053 intermediate columns and 11,101 physical rows.
+The separate `Eval_K` terminal is also complete. Its reusable physical tree is:
+
+```text
+Eval_K terminal
+├── point equality over 24 coordinates
+│   └── 94 logical + 569 lowering columns = 663 rows
+├── Horner over 864 Pad-family coefficients
+│   └── 1,726 logical + 6,041 lowering columns = 7,767 rows
+└── parent wiring
+    └── 0 copy columns and 0 copy rows
+```
+
+`Leaves.EvalKTerminal.freshColumnCount_eq` proves 6,610 lowering
+columns. `physicalPrivateColumnCount_eq` and `physicalRowCount_eq` each prove
+8,430. The Pad-family value stays separate from every `Eval_A` matrix value.
+The separate `Eval_A` terminal reuses the same point-equality child, then
+evaluates only the 12,096 CCS-matrix-family coefficients:
+
+```text
+Eval_A terminal
+├── point equality over 24 coordinates
+│   └── 94 logical + 569 lowering columns = 663 rows
+├── Horner over 12,096 matrix-family coefficients
+│   └── 24,190 logical + 84,665 lowering columns = 108,855 rows
+└── parent wiring
+    └── 0 copy columns and 0 copy rows
+```
+
+`Leaves.EvalATerminal.freshColumnCount_eq` proves 85,234 lowering
+columns. `physicalPrivateColumnCount_eq` and `physicalRowCount_eq` each prove
+109,518. The final-identity leaf, not this leaf, owns the `gamma^(k*d)` shift.
+The CCS terminal is a shared symbolic-expression leaf:
+
+```text
+CCS terminal F
+├── relation-owned sparse constraint polynomial
+├── 14 fresh-source matrix inputs
+└── symbolic output consumed by final identity
+    └── 0 logical columns, 0 lowering columns, 0 rows
+```
+
+`Leaves.CcsTerminal.physicalPrivateColumnCount_eq` and
+`physicalRowCount_eq` prove zero. This is not an omitted check: the later
+final-identity rows constrain the returned sparse-polynomial expression.
+The strict base-2 norm terminal has this physical tree:
+
+```text
+Norm terminal N
+├── 17 cubic residual expressions: (x_i + 1) x_i (x_i - 1)
+├── 16 indexed gamma-Horner transitions
+│   └── each: 2 logical columns + 45 lowering columns = 47 rows
+└── parent output sharing
+    └── 0 copy columns and 0 copy rows
+```
+
+`Leaves.NormTerminal.compile_totalFreshCount` and
+`compile_totalRowCount` prove the indexed composition without expanding the
+17-source schedule in the kernel. The fixed leaf has 32 logical columns, 720
+lowering columns, 752 total private columns, and 752 rows. The remaining 2
+physical leaf packets are open.
 
 The current pilot preservation and package proofs are
 [`Layout.Pilot.physical_implies_spec`](NightstreamFPrime/Layout/Pilot.lean#L173)

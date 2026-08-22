@@ -490,7 +490,7 @@ def main (interface : Interface) : Circuit Unit := fun offset =>
     Circuit.ops (main interface) offset = opsAt interface offset := by
   rfl
 
-private theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
+theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
       recipeConstraints offset (program interface offset).recipes := by
   simp [flatConstraints, opsAt, Op.flatConstraints]
@@ -536,6 +536,10 @@ def circuit (interface : Interface) : FormalCircuit where
   soundness := soundness interface
   completeness := fun env offset assumptions _specification =>
     completeness interface env offset assumptions
+
+@[simp] theorem circuit_ops (interface : Interface) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset = opsAt interface offset := by
+  rfl
 
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :

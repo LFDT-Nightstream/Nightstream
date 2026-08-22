@@ -7,5 +7,18 @@ import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.PriorStateHash
 import NightstreamFPrime.Lifecycle.OutputHash
 import NightstreamFPrime.Lifecycle.Pilot
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

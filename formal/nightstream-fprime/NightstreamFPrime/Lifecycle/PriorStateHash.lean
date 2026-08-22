@@ -259,7 +259,8 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (main interface) offset) := by
   have hashAssumptions := childAssumptions interface offset env assumptions
   have hashSpec := childSpec_of_spec interface offset env specification
-  rcases (childCircuit interface).completeness env offset hashAssumptions hashSpec with
+  rcases Formal.completeness (hashInterface interface) env offset
+      hashAssumptions hashSpec with
     ⟨completed, outside, childRows⟩
   have agreesBelow : ∀ index, index < offset → completed index = env index := by
     intro index indexLt

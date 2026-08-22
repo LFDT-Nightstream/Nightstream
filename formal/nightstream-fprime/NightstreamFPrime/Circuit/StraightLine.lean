@@ -19,6 +19,29 @@ def VarsBelow (bound : Nat) : Expr → Prop
   | .add left right => left.VarsBelow bound ∧ right.VarsBelow bound
   | .mul left right => left.VarsBelow bound ∧ right.VarsBelow bound
 
+theorem VarsBelow.add (left right : Expr) (bound : Nat)
+    (leftBelow : left.VarsBelow bound)
+    (rightBelow : right.VarsBelow bound) :
+    (left + right).VarsBelow bound :=
+  ⟨leftBelow, rightBelow⟩
+
+theorem VarsBelow.mul (left right : Expr) (bound : Nat)
+    (leftBelow : left.VarsBelow bound)
+    (rightBelow : right.VarsBelow bound) :
+    (left * right).VarsBelow bound :=
+  ⟨leftBelow, rightBelow⟩
+
+theorem VarsBelow.neg (expression : Expr) (bound : Nat)
+    (below : expression.VarsBelow bound) :
+    (-expression).VarsBelow bound :=
+  ⟨trivial, below⟩
+
+theorem VarsBelow.sub (left right : Expr) (bound : Nat)
+    (leftBelow : left.VarsBelow bound)
+    (rightBelow : right.VarsBelow bound) :
+    (left - right).VarsBelow bound :=
+  ⟨leftBelow, ⟨trivial, rightBelow⟩⟩
+
 theorem eval_eq_of_agree_below (expression : Expr) (bound : Nat) (left right : Env)
     (hvars : expression.VarsBelow bound)
     (hagrees : ∀ index, index < bound → left index = right index) :
@@ -88,6 +111,42 @@ theorem recipesCausal_of_all_below (start : Nat) (recipes : List Expr)
         exact Expr.VarsBelow.mono expression
           (hbelow expression (by simp [hmem])) (by omega)
 
+/-- Every authoritative recipe row reads only the complete batch prefix. -/
+theorem recipeConstraints_varsBelow_of_causal (start : Nat)
+    (recipes : List Expr) (causal : RecipesCausal start recipes) :
+    ∀ expression ∈ recipeConstraints start recipes,
+      expression.VarsBelow (start + recipes.length) := by
+  induction recipes generalizing start with
+  | nil =>
+      intro expression member
+      simp [recipeConstraints] at member
+  | cons recipe rest inductionHypothesis =>
+      intro expression member
+      simp only [recipeConstraints, List.mem_cons] at member
+      rcases member with rfl | member
+      · apply Expr.VarsBelow.sub
+        · unfold Expr.VarsBelow
+          simp only [List.length_cons]
+          omega
+        · exact Expr.VarsBelow.mono recipe causal.1 (by
+            simp only [List.length_cons]
+            omega)
+      · have below := inductionHypothesis (start := start + 1)
+          causal.2 expression member
+        convert below using 1 <;> simp only [List.length_cons] <;> omega
+
+/-- Satisfaction is stable when every referenced variable is unchanged. -/
+theorem constraintsHold_of_agree_below
+    (before after : Env) (constraints : List Expr) (bound : Nat)
+    (scope : ∀ expression ∈ constraints, expression.VarsBelow bound)
+    (agrees : ∀ index, index < bound → after index = before index)
+    (holdsBefore : ConstraintsHold before constraints) :
+    ConstraintsHold after constraints := by
+  intro expression member
+  rw [expression.eval_eq_of_agree_below bound after before
+    (scope expression member) agrees]
+  exact holdsBefore expression member
+
 /-- Appending a batch whose recipes read only the completed prefix preserves
 causality. The proof is structural in the prefix and suffix lists. -/
 theorem recipesCausal_append (start : Nat) (existing added : List Expr)
@@ -105,6 +164,39 @@ theorem recipesCausal_append (start : Nat) (existing added : List Expr)
         intro expression hmem
         have h := hadded expression hmem
         convert h using 1 <;> simp only [List.length_cons] <;> omega
+
+/-- Recipe constraints split at the exact variable offset allocated by the
+first recipe list. -/
+theorem recipeConstraints_append (start : Nat)
+    (first second : List Expr) :
+    recipeConstraints start (first ++ second) =
+      recipeConstraints start first ++
+        recipeConstraints (start + first.length) second := by
+  induction first generalizing start with
+  | nil => simp [recipeConstraints]
+  | cons recipe rest inductionHypothesis =>
+      simp only [List.cons_append, recipeConstraints, List.length_cons,
+        List.cons.injEq, true_and]
+      rw [inductionHypothesis]
+      congr 2
+      omega
+
+/-- Satisfaction of an appended constraint list is exactly satisfaction of
+both parts. -/
+theorem constraintsHold_append (env : Env) (first second : List Expr) :
+    ConstraintsHold env (first ++ second) ↔
+      ConstraintsHold env first ∧ ConstraintsHold env second := by
+  constructor
+  · intro holds
+    exact ⟨
+      fun expression member =>
+        holds expression (List.mem_append_left second member),
+      fun expression member =>
+        holds expression (List.mem_append_right first member)⟩
+  · rintro ⟨firstHolds, secondHolds⟩ expression member
+    rcases List.mem_append.mp member with member | member
+    · exact firstHolds expression member
+    · exact secondHolds expression member
 
 /-- Execute the canonical witness recipes in order. -/
 def executeRecipes : Env → Nat → List Expr → Env

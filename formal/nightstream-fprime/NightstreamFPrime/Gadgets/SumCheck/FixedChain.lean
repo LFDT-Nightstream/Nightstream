@@ -664,6 +664,18 @@ def circuit {degree roundCount : Nat}
       exact (constraintsFrom_hold_iff env interface.initial
         interface.rounds).mpr specification
 
+@[simp] theorem circuit_ops {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset =
+      (constraints interface).map Op.assertZero := by
+  rfl
+
+theorem flatConstraints_eq {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (offset : Nat) :
+    flatConstraints (Circuit.ops (circuit interface).main offset) =
+      constraints interface := by
+  rw [circuit_ops, flatConstraints_assertions_eq]
+
 theorem soundness {degree roundCount : Nat}
     (interface : Interface degree roundCount) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

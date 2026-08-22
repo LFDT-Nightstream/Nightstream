@@ -45,14 +45,14 @@ theorem productAt_linear (start : Nat) :
     simp [NightstreamFPrime.Gadgets.Polynomial.Horner.productAt,
       R1CS.mulCount, Nonconstant]
 
-private theorem lowerAffine_mul_eq_none {left right : Expr}
+theorem lowerAffine_mul_eq_none {left right : Expr}
     (leftNonconstant : Nonconstant left)
     (rightNonconstant : Nonconstant right) :
     R1CS.lowerAffine (left * right) = none := by
   cases left <;> cases right <;>
     simp_all [Nonconstant, R1CS.lowerAffine]
 
-private theorem directConstraint_sub_add_eq_none
+theorem directConstraint_sub_add_eq_none
     (output : Nat) (left right : Expr)
     (leftNone : R1CS.lowerAffine left = none) :
     R1CS.directConstraint (Expr.var output - (left + right)) = none := by
@@ -286,5 +286,37 @@ theorem compile_totalRowCount (start : Nat) (point : KExpr)
               tailOutputLinear]
           simp only [List.length_cons]
           omega
+
+theorem ownedCircuit_totalFreshCount
+    (interface :
+      NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.Interface)
+    (offset : Nat) (pointLinear : KExprLinear (interface.point offset))
+    (coefficientsLinear : ∀ coefficient ∈ interface.coefficients offset,
+      KExprLinear coefficient) :
+    R1CS.totalFreshCount (flatConstraints (Circuit.ops
+      (NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit interface
+        ).main offset)) =
+      7 * ((interface.coefficients offset).length - 1) := by
+  rw [NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_ops,
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.flatConstraints_opsAt]
+  unfold NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
+  exact compile_totalFreshCount offset (interface.point offset)
+    (interface.coefficients offset) pointLinear coefficientsLinear
+
+theorem ownedCircuit_totalRowCount
+    (interface :
+      NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.Interface)
+    (offset : Nat) (pointLinear : KExprLinear (interface.point offset))
+    (coefficientsLinear : ∀ coefficient ∈ interface.coefficients offset,
+      KExprLinear coefficient) :
+    R1CS.totalRowCount (flatConstraints (Circuit.ops
+      (NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit interface
+        ).main offset)) =
+      9 * ((interface.coefficients offset).length - 1) := by
+  rw [NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_ops,
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.flatConstraints_opsAt]
+  unfold NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
+  exact compile_totalRowCount offset (interface.point offset)
+    (interface.coefficients offset) pointLinear coefficientsLinear
 
 end NightstreamFPrime.Layout.Polynomial.Horner

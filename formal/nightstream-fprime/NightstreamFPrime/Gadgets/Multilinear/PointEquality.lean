@@ -789,7 +789,7 @@ def main {variableCount : Nat} (interface : Interface variableCount) :
     Circuit.ops (main interface) offset = opsAt interface offset := by
   rfl
 
-private theorem flatConstraints_opsAt {variableCount : Nat}
+theorem flatConstraints_opsAt {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
       recipeConstraints offset (program interface offset).recipes := by

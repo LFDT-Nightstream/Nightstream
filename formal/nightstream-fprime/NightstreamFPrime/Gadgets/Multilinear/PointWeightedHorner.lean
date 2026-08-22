@@ -704,7 +704,7 @@ theorem soundness {variableCount : Nat} (interface : Interface variableCount)
   exact ⟨pointCall_sound interface offset env rows assumptions,
     hornerCall_sound interface offset env rows assumptions⟩
 
-private theorem flatConstraints_opsAt {variableCount : Nat}
+theorem flatConstraints_opsAt {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
       flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset) ++

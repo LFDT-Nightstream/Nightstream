@@ -726,4 +726,60 @@ theorem lowerConstraints_complete_of_noFresh
         · intro current member
           exact holds current (by simp [member])
 
+/-- Opaque physical-lowering boundary. A phase supplies only its logical
+constraint list and the first fresh column. The generic theorems below keep
+parent proof cost independent of the concrete list length. -/
+structure LoweringPlan where
+  constraints : List Expr
+  firstFresh : Nat
+
+namespace LoweringPlan
+
+def lowering (plan : LoweringPlan) : LoweredConstraints :=
+  lowerConstraints plan.constraints plan.firstFresh
+
+def rows (plan : LoweringPlan) : List Row := plan.lowering.rows
+
+def next (plan : LoweringPlan) : Nat := plan.lowering.next
+
+def freshColumnCount (plan : LoweringPlan) : Nat :=
+  totalFreshCount plan.constraints
+
+def rowCount (plan : LoweringPlan) : Nat := plan.rows.length
+
+theorem rowCount_eq (plan : LoweringPlan) :
+    plan.rowCount = totalRowCount plan.constraints := by
+  exact lowerConstraints_rows_length plan.constraints plan.firstFresh
+
+theorem next_eq (plan : LoweringPlan) :
+    plan.next = plan.firstFresh + plan.freshColumnCount := by
+  exact lowerConstraints_next plan.constraints plan.firstFresh
+
+theorem sound (plan : LoweringPlan) (env : Env)
+    (physical : RowsHold env plan.rows) :
+    ConstraintsHold env plan.constraints := by
+  exact lowerConstraints_sound env plan.constraints plan.firstFresh physical
+
+theorem complete_of_noFresh (plan : LoweringPlan) (env : Env)
+    (noFresh : ∀ expression ∈ plan.constraints,
+      constraintFreshCount expression = 0)
+    (logical : ConstraintsHold env plan.constraints) :
+    RowsHold env plan.rows := by
+  exact lowerConstraints_complete_of_noFresh env plan.constraints
+    plan.firstFresh noFresh logical
+
+end LoweringPlan
+
+/-- Exact physical footprint of one proved logical circuit. A phase parent
+uses these certified numbers and never unfolds the child's operations. -/
+structure CircuitFootprint (circuit : FormalCircuit) where
+  freshColumnCount : Nat → Nat
+  physicalRowCount : Nat → Nat
+  freshColumnCount_eq : ∀ offset,
+    totalFreshCount (flatConstraints (Circuit.ops circuit.main offset)) =
+      freshColumnCount offset
+  physicalRowCount_eq : ∀ offset,
+    totalRowCount (flatConstraints (Circuit.ops circuit.main offset)) =
+      physicalRowCount offset
+
 end NightstreamFPrime.Layout.R1CS

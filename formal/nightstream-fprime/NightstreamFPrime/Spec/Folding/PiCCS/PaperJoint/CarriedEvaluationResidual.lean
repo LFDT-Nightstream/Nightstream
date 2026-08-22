@@ -7,10 +7,10 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Concrete carried-evaluation residuals for the paper-level joint `Pi_CCS` model.
+Concrete v1.1 matrix-evaluation residuals for `Eval_A`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
-Phase: construction of the carried `Eval(X, C)` coefficient family.
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
+Phase: construction of the matrix `Eval_A(X, C)` coefficient family.
 Constraint family: one prior-CE evaluation equation per typed
 `(running source, matrix, ring coefficient)` coordinate.
 
@@ -34,7 +34,7 @@ unproved homomorphism claim here.
 
 | Code owner | Paper object | Derived mathematical value | Proven result |
 |---|---|---|---|
-| `EvaluationData` | running `z_i`, prior `r`, claimed `cf(y_i,j)_l` | typed public/secret data | exact `k*t*d` coordinate family |
+| `EvaluationData` | running `z_i`, prior `r`, claimed `cf(y_i,j)_l` | typed public/secret data | exact `k*t*d` matrix family |
 | `imageCoefficientAt` | `cf((M_j z_i)(x))_l` | shared finite matrix-vector row, then explicit lift | no evaluator supplied |
 | `computedCoefficient` | `sum_x eq(x,r) * cf((M_j z_i)(x))_l` | explicit canonical hypercube sum | equals recursive table MLE |
 | zero assignment | `z_i = 0` | every image-table leaf and its explicit hypercube sum are zero | `imageCoefficientAt_eq_zero_of_assignment_zero`, `computedCoefficient_eq_zero_of_assignment_zero` |
@@ -42,7 +42,7 @@ unproved homomorphism claim here.
 | `allResidualsZero_iff_allClaimsHold` | Lemma 7 Item 3 | every carried coordinate | unconditional relative to explicit algebra/lift data |
 -/
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual
+namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixEvaluationResidual
 
 universe uBase uExtension
 
@@ -62,18 +62,7 @@ structure EvaluationData
   coefficientMatrices :
     Fin shape.matrixCount -> Fin shape.coefficientCount ->
       BooleanMatrix Base shape.cubeVariables columns
-  claimedCoefficient : CarriedCoordinate shape -> Extension
-
-/-- The carried target polynomial consumes exactly the public coefficients in
-`EvaluationData`; there is no second caller-selected target family. -/
-def EvaluationData.targetCoefficients
-    {Base : Type uBase}
-    {Extension : Type uExtension}
-    {shape : Shape}
-    {columns : Nat}
-    (data : EvaluationData Base Extension shape columns) :
-    TargetPolynomial.CarriedTargetCoefficients Extension shape where
-  coefficient := data.claimedCoefficient
+  claimedCoefficient : MatrixCoordinate shape -> Extension
 
 /-- The coefficient of `(M_j z_i)(x)` selected by one typed carried
 coordinate, derived from explicit matrix and assignment data. -/
@@ -85,7 +74,7 @@ def imageCoefficientAt
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape)
+    (coordinate : MatrixCoordinate shape)
     (vertex : BooleanVertex shape.cubeVariables) : Extension :=
   liftCoefficient <|
     matrixVectorAt baseOps
@@ -102,7 +91,7 @@ def imageTable
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) :
+    (coordinate : MatrixCoordinate shape) :
     BooleanTable Extension shape.cubeVariables :=
   BooleanTable.tabulate <|
     imageCoefficientAt baseOps liftCoefficient data coordinate
@@ -118,7 +107,7 @@ def computedCoefficient
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) : Extension :=
+    (coordinate : MatrixCoordinate shape) : Extension :=
   (imageTable baseOps liftCoefficient data coordinate).equalityWeightedSum
     extensionOps data.priorPoint
 
@@ -136,7 +125,7 @@ theorem imageCoefficientAt_eq_zero_of_assignment_zero
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape)
+    (coordinate : MatrixCoordinate shape)
     (assignmentZero :
       data.assignments coordinate.running = fun _ => baseOps.zero)
     (vertex : BooleanVertex shape.cubeVariables) :
@@ -162,7 +151,7 @@ theorem computedCoefficient_eq_zero_of_assignment_zero
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape)
+    (coordinate : MatrixCoordinate shape)
     (assignmentZero :
       data.assignments coordinate.running = fun _ => baseOps.zero) :
     computedCoefficient baseOps extensionOps liftCoefficient data coordinate =
@@ -204,7 +193,7 @@ theorem imageTable_evaluate_eq_computedCoefficient
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) :
+    (coordinate : MatrixCoordinate shape) :
     (imageTable baseOps liftCoefficient data coordinate).evaluate
         extensionOps data.priorPoint =
       computedCoefficient baseOps extensionOps liftCoefficient data coordinate := by
@@ -221,7 +210,7 @@ def EvaluationClaimHolds
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) : Prop :=
+    (coordinate : MatrixCoordinate shape) : Prop :=
   data.claimedCoefficient coordinate =
     computedCoefficient baseOps extensionOps liftCoefficient data coordinate
 
@@ -236,7 +225,7 @@ def residual
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) : Extension :=
+    (coordinate : MatrixCoordinate shape) : Extension :=
   extensionOps.sub
     (data.claimedCoefficient coordinate)
     (computedCoefficient baseOps extensionOps liftCoefficient data coordinate)
@@ -253,7 +242,7 @@ theorem residual_eq_zero_iff_evaluationClaimHolds
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns)
-    (coordinate : CarriedCoordinate shape) :
+    (coordinate : MatrixCoordinate shape) :
     residual baseOps extensionOps liftCoefficient data coordinate =
         extensionOps.zero ↔
       EvaluationClaimHolds baseOps extensionOps liftCoefficient data coordinate := by
@@ -308,7 +297,7 @@ def orderedResiduals
     {shape : Shape}
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns) : List Extension :=
-  (canonicalCarriedCoordinates shape).map <|
+  (canonicalMatrixCoordinates shape).map <|
     residual baseOps extensionOps liftCoefficient data
 
 /-- Canonical serialization cannot omit or insert a carried residual. -/
@@ -322,7 +311,192 @@ theorem orderedResiduals_length
     {columns : Nat}
     (data : EvaluationData Base Extension shape columns) :
     (orderedResiduals baseOps extensionOps liftCoefficient data).length =
-      shape.carriedEvaluationCount := by
-  simp [orderedResiduals, canonicalCarriedCoordinates_length]
+      shape.matrixEvaluationCount := by
+  simp [orderedResiduals, canonicalMatrixCoordinates_length]
 
-end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual
+end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixEvaluationResidual
+
+namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PadEvaluationResidual
+
+universe uBase uExtension
+
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open PaperLinearAlgebra
+
+/-- Explicit Pad-family data. The coefficient matrices are the verifier-owned
+coefficient expansion of `Pad`, separate from the CCS matrix source. -/
+structure EvaluationData
+    (Base : Type uBase)
+    (Extension : Type uExtension)
+    (shape : Shape)
+    (columns : Nat) where
+  priorPoint : CubePoint Extension shape.cubeVariables
+  assignments : Fin shape.runningCount -> Assignment Base columns
+  coefficientMatrices : Fin shape.coefficientCount ->
+    BooleanMatrix Base shape.cubeVariables columns
+  claimedCoefficient : PadCoordinate shape -> Extension
+
+def imageCoefficientAt
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape)
+    (vertex : BooleanVertex shape.cubeVariables) : Extension :=
+  liftCoefficient <|
+    matrixVectorAt baseOps
+      (data.coefficientMatrices coordinate.coefficient)
+      (data.assignments coordinate.running)
+      vertex
+
+def imageTable
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) :
+    BooleanTable Extension shape.cubeVariables :=
+  BooleanTable.tabulate <|
+    imageCoefficientAt baseOps liftCoefficient data coordinate
+
+def computedCoefficient
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) : Extension :=
+  (imageTable baseOps liftCoefficient data coordinate).equalityWeightedSum
+    extensionOps data.priorPoint
+
+theorem imageTable_evaluate_eq_computedCoefficient
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (extensionLaws : InterpolationEvaluationLaws extensionOps)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) :
+    (imageTable baseOps liftCoefficient data coordinate).evaluate
+        extensionOps data.priorPoint =
+      computedCoefficient baseOps extensionOps liftCoefficient data coordinate := by
+  exact BooleanTable.evaluate_eq_equalityWeightedSum
+    extensionOps extensionLaws _ _
+
+def EvaluationClaimHolds
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) : Prop :=
+  data.claimedCoefficient coordinate =
+    computedCoefficient baseOps extensionOps liftCoefficient data coordinate
+
+def residual
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) : Extension :=
+  extensionOps.sub
+    (data.claimedCoefficient coordinate)
+    (computedCoefficient baseOps extensionOps liftCoefficient data coordinate)
+
+theorem residual_eq_zero_iff_evaluationClaimHolds
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (extensionLaws : InterpolationEvaluationLaws extensionOps)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : PadCoordinate shape) :
+    residual baseOps extensionOps liftCoefficient data coordinate =
+        extensionOps.zero ↔
+      EvaluationClaimHolds baseOps extensionOps liftCoefficient data coordinate := by
+  exact FiniteSumAlgebra.sub_eq_zero_iff extensionOps extensionLaws _ _
+
+def AllClaimsHold
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns) : Prop :=
+  ∀ coordinate,
+    EvaluationClaimHolds baseOps extensionOps liftCoefficient data coordinate
+
+theorem allResidualsZero_iff_allClaimsHold
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (extensionLaws : InterpolationEvaluationLaws extensionOps)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns) :
+    (∀ coordinate,
+        residual baseOps extensionOps liftCoefficient data coordinate =
+          extensionOps.zero) ↔
+      AllClaimsHold baseOps extensionOps liftCoefficient data := by
+  constructor
+  · intro allZero coordinate
+    exact (residual_eq_zero_iff_evaluationClaimHolds
+      baseOps extensionOps extensionLaws liftCoefficient data coordinate).mp
+        (allZero coordinate)
+  · intro allHold coordinate
+    exact (residual_eq_zero_iff_evaluationClaimHolds
+      baseOps extensionOps extensionLaws liftCoefficient data coordinate).mpr
+        (allHold coordinate)
+
+def orderedResiduals
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns) : List Extension :=
+  (canonicalPadCoordinates shape).map <|
+    residual baseOps extensionOps liftCoefficient data
+
+theorem orderedResiduals_length
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns) :
+    (orderedResiduals baseOps extensionOps liftCoefficient data).length =
+      shape.padEvaluationCount := by
+  simp [orderedResiduals, canonicalPadCoordinates_length]
+
+end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PadEvaluationResidual

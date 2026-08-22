@@ -3,66 +3,31 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedJointIdentity.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
-Exact signed joint identity for the paper-level one-SumCheck `Pi_CCS` model.
-
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
-Phase: pre-SumCheck construction of `T_abs(C) - sum_x Q(x,A,C)`.
-Constraint family: signed composition of CCS, norm, and carried-evaluation
-residuals before alpha/gamma sampling.
-
-Owns: an explicit pointwise `F`, `NC`, `Eval`, and `Q`; the corrected shifted
-target; the Boolean-hypercube sum of `Q`; three signed residual blocks; and
-the exact identity between the paper difference and those blocks.
-
-Does not own: construction of the input tables from concrete CCS/norm/ring
-data, base-to-extension embeddings, the paper-source target audit,
-SumCheck messages or soundness, Fiat--Shamir, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: `JointData` contains explicit Boolean tables and claimed
-carried coefficients. It contains no evaluator and no proposition asserting
-the desired identity. Every evaluation, finite sum, gamma exponent, sign, and
-block offset is derived here from the shared typed indices. A later refinement
-must prove that the concrete CCS, norm, and coefficient-matrix constructions
-instantiate these tables exactly.
-
-| Protocol object | Phase | Mathematical definition | Proven result |
-|---|---|---|---|
-| `F` | pointwise `Q` construction | `sum_i C^i * ccs_i(x)` | derived from typed fresh tables |
-| `NC` | pointwise `Q` construction | `sum_i C^i * norm_i(x)` | shifted by `C^K` only in `Q` |
-| `Eval` | pointwise `Q` construction | `eq(x,r) * sum_I C^I * image_I(x)` | derived from typed carried tables |
-| `Q` | pointwise joint polynomial | `eq(x,A)*(F+C^K*NC)+C^(2K+k)*Eval` | exact finite definition |
-| `T_abs` | corrected target | `C^(2K+k) * sum_I C^I * claimed_I` | reuses the target-convention owner |
-| signed blocks | pre-SumCheck residual | `-CCS - norm + (claimed-evaluation)` | exact table-derived formula |
-| `paperDifference_eq_signedResidualBlocks` | joint identity | `T_abs - sum_x Q` | equality for every `A,C` |
+Exact finite SuperNeo v1.1 joint identity from Section 7.3 and Appendix B.2.
+`Pad` and the 14 CCS matrices are separate evaluation families. This file
+owns the pointwise four-term `Q`, its claimed target, the four residual
+families, and their signed identity. It emits no constraints.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 
-universe uField uIndex uLeft uRight
+universe uField uIndex
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open FiniteSumAlgebra
 
-/-- Explicit extension-carrier tables entering the paper's one-joint
-polynomial. Family cardinalities are intrinsic to `Shape`. -/
 structure JointData (Field : Type uField) (shape : Shape) where
   ccs : Fin shape.freshCount -> BooleanTable Field shape.cubeVariables
   norm : Fin shape.sourceCount -> BooleanTable Field shape.cubeVariables
   priorPoint : CubePoint Field shape.cubeVariables
-  carriedImage :
-    CarriedCoordinate shape -> BooleanTable Field shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Field
+  padImage : PadCoordinate shape -> BooleanTable Field shape.cubeVariables
+  matrixImage : MatrixCoordinate shape -> BooleanTable Field shape.cubeVariables
+  claimedPadCoefficient : PadCoordinate shape -> Field
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Field
 
 namespace JointData
 
-/-- Equality of all five typed protocol families is equality of the complete
-joint data object. -/
 @[ext] theorem ext
     {Field : Type uField}
     {shape : Shape}
@@ -70,29 +35,27 @@ joint data object. -/
     (ccs : left.ccs = right.ccs)
     (norm : left.norm = right.norm)
     (priorPoint : left.priorPoint = right.priorPoint)
-    (carriedImage : left.carriedImage = right.carriedImage)
-    (claimedCoefficient :
-      left.claimedCoefficient = right.claimedCoefficient) :
+    (padImage : left.padImage = right.padImage)
+    (matrixImage : left.matrixImage = right.matrixImage)
+    (claimedPadCoefficient :
+      left.claimedPadCoefficient = right.claimedPadCoefficient)
+    (claimedMatrixCoefficient :
+      left.claimedMatrixCoefficient = right.claimedMatrixCoefficient) :
     left = right := by
   cases left
   cases right
   simp_all
 
-end JointData
-
-/-- The existing target-polynomial owner consumes exactly this data's claimed
-carried coefficients. -/
-def JointData.targetCoefficients
+def targetCoefficients
     {Field : Type uField}
     {shape : Shape}
     (data : JointData Field shape) :
-    TargetPolynomial.CarriedTargetCoefficients Field shape where
-  coefficient := data.claimedCoefficient
+    TargetPolynomial.TargetCoefficients Field shape where
+  pad := data.claimedPadCoefficient
+  matrix := data.claimedMatrixCoefficient
 
-/-- Compatibility name retained at the signed-identity boundary. The shared
-finite-sum owner proves every rearrangement law used below. Keeping this
-definition local preserves the original reduction behavior of audit lemmas
-which unfold `SignedJointIdentity.sumMap` explicitly. -/
+end JointData
+
 def sumMap
     {Field : Type uField}
     {Index : Type uIndex}
@@ -154,21 +117,6 @@ private theorem sumMap_sub
       ops.sub (sumMap ops indices left) (sumMap ops indices right) :=
   FiniteSumAlgebra.sumMap_sub ops laws indices left right
 
-private theorem sumMap_swap
-    {Field : Type uField}
-    {Left : Type uLeft}
-    {Right : Type uRight}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (leftIndices : List Left)
-    (rightIndices : List Right)
-    (value : Left -> Right -> Field) :
-    sumMap ops leftIndices (fun left => sumMap ops rightIndices (value left)) =
-      sumMap ops rightIndices (fun right =>
-        sumMap ops leftIndices (fun left => value left right)) :=
-  FiniteSumAlgebra.sumMap_swap ops laws leftIndices rightIndices value
-
-/-- Gamma monomial multiplied by one finite value. -/
 def gammaTerm
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -177,95 +125,95 @@ def gammaTerm
     (value : Field) : Field :=
   ops.mul (TargetPolynomial.power ops.toOps gamma exponent) value
 
-/-- Pointwise `F(x,C)` from the `K` typed CCS tables. -/
-def ccsAt
+private theorem sumMap_gammaTerm
     {Field : Type uField}
-    {shape : Shape}
+    {Index : Type uIndex}
     (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+    (laws : InterpolationEvaluationLaws ops)
     (gamma : Field)
-    (vertex : BooleanVertex shape.cubeVariables) : Field :=
+    (exponent : Nat)
+    (indices : List Index)
+    (value : Index -> Field) :
+    sumMap ops indices (fun index => gammaTerm ops gamma exponent (value index)) =
+      gammaTerm ops gamma exponent (sumMap ops indices value) := by
+  unfold gammaTerm
+  exact sumMap_mul_left ops laws _ _ _
+
+def ccsAt
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) (vertex : BooleanVertex shape.cubeVariables) : Field :=
   sumMap ops (canonicalFinIndices shape.freshCount) fun source =>
     gammaTerm ops gamma source.val ((data.ccs source).valueAt vertex)
 
-/-- Pointwise unshifted `NC(x,C)` from the `K+k` typed norm tables. -/
 def normAt
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (gamma : Field)
-    (vertex : BooleanVertex shape.cubeVariables) : Field :=
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) (vertex : BooleanVertex shape.cubeVariables) : Field :=
   sumMap ops (canonicalFinIndices shape.sourceCount) fun source =>
     gammaTerm ops gamma source.val ((data.norm source).valueAt vertex)
 
-/-- Pointwise unshifted `Eval(x,C)`, including the prior-point equality
-factor and every typed carried matrix-image coefficient. -/
-def carriedAt
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (gamma : Field)
-    (vertex : BooleanVertex shape.cubeVariables) : Field :=
+def padAt
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) (vertex : BooleanVertex shape.cubeVariables) : Field :=
   ops.mul (vertex.equalityWeight ops data.priorPoint) <|
-    sumMap ops (canonicalCarriedCoordinates shape) fun coordinate =>
+    sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
       gammaTerm ops gamma coordinate.localGammaExponent
-        ((data.carriedImage coordinate).valueAt vertex)
+        ((data.padImage coordinate).valueAt vertex)
 
-/-- Literal pointwise paper `Q(x,A,C)` under the coherent absolute carried
-offset. -/
-def qAt
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field)
+def matrixAt
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) (vertex : BooleanVertex shape.cubeVariables) : Field :=
+  ops.mul (vertex.equalityWeight ops data.priorPoint) <|
+    sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+      gammaTerm ops gamma coordinate.localGammaExponent
+        ((data.matrixImage coordinate).valueAt vertex)
+
+def constraintAt
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) : Field :=
-  ops.add
-    (ops.mul (vertex.equalityWeight ops alpha)
-      (ops.add
-        (ccsAt ops data gamma vertex)
-        (gammaTerm ops gamma shape.freshCount
-          (normAt ops data gamma vertex))))
-    (gammaTerm ops gamma shape.carriedEvaluationOffset
-      (carriedAt ops data gamma vertex))
+  ops.mul (vertex.equalityWeight ops alpha)
+    (ops.add (ccsAt ops data gamma vertex)
+      (gammaTerm ops gamma shape.freshCount (normAt ops data gamma vertex)))
 
-/-- Explicit Boolean-hypercube sum of the pointwise `Q`. -/
+/-- Exact v1.1 four-term pointwise polynomial. -/
+def qAt
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) : Field :=
+  ops.add (padAt ops data gamma vertex)
+    (ops.add
+      (gammaTerm ops gamma shape.matrixEvaluationOffset
+        (matrixAt ops data gamma vertex))
+      (gammaTerm ops gamma shape.constraintOffset
+        (constraintAt ops data alpha gamma vertex)))
+
 def summedQ
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
   sumMap ops (BooleanVertex.all shape.cubeVariables) fun vertex =>
     qAt ops data alpha gamma vertex
 
-/-- Corrected absolute target. Its exponent convention is owned by
-`TargetPolynomial`, not restated as caller data here. -/
 def targetAbsolute
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) : Field :=
-  TargetPolynomial.evaluateShifted ops.toOps data.targetCoefficients gamma
+  TargetPolynomial.evaluate ops.toOps data.targetCoefficients gamma
 
-/-- The exact pre-SumCheck equality residual. -/
 def paperDifference
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
   ops.sub (targetAbsolute ops data gamma) (summedQ ops data alpha gamma)
 
 private theorem weightedSum_indexedTables
-    {Field : Type uField}
-    {Index : Type uIndex}
+    {Field : Type uField} {Index : Type uIndex}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     {variables : Nat}
@@ -283,135 +231,114 @@ private theorem weightedSum_indexedTables
   exact BooleanReproduction.equalityWeighted_sumMap ops laws indices weights
     (fun index vertex => (tables index).valueAt vertex) point
 
-/-- Alpha-specialized CCS residual block. -/
 def ccsResidualBlock
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
   sumMap ops (canonicalFinIndices shape.freshCount) fun source =>
     gammaTerm ops gamma source.val
       ((data.ccs source).equalityWeightedSum ops alpha)
 
-/-- Alpha-specialized norm residual block before the paper's `C^K` offset. -/
 def normResidualLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
   sumMap ops (canonicalFinIndices shape.sourceCount) fun source =>
     gammaTerm ops gamma source.val
       ((data.norm source).equalityWeightedSum ops alpha)
 
-/-- Alpha-specialized norm residual block, including the paper's `C^K`
-offset. -/
 def normResidualBlock
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
-  gammaTerm ops gamma shape.freshCount <|
-    normResidualLocal ops data alpha gamma
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
+  gammaTerm ops gamma shape.freshCount
+    (normResidualLocal ops data alpha gamma)
 
-/-- Unshifted carried evaluation block after summing over the Boolean cube. -/
-def carriedEvaluationLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+def padEvaluationLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) : Field :=
-  sumMap ops (canonicalCarriedCoordinates shape) fun coordinate =>
+  sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
     gammaTerm ops gamma coordinate.localGammaExponent
-      ((data.carriedImage coordinate).equalityWeightedSum ops data.priorPoint)
+      ((data.padImage coordinate).equalityWeightedSum ops data.priorPoint)
 
-/-- One unshifted carried claimed-minus-derived residual block. -/
-def carriedResidualLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+def matrixEvaluationLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) : Field :=
-  sumMap ops (canonicalCarriedCoordinates shape) fun coordinate =>
+  sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+    gammaTerm ops gamma coordinate.localGammaExponent
+      ((data.matrixImage coordinate).equalityWeightedSum ops data.priorPoint)
+
+def matrixEvaluationBlock
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) : Field :=
+  gammaTerm ops gamma shape.matrixEvaluationOffset
+    (matrixEvaluationLocal ops data gamma)
+
+def constraintResidualBlock
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
+  gammaTerm ops gamma shape.constraintOffset
+    (ops.add (ccsResidualBlock ops data alpha gamma)
+      (normResidualBlock ops data alpha gamma))
+
+def padResidualLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) : Field :=
+  sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
     gammaTerm ops gamma coordinate.localGammaExponent <|
-      ops.sub
-        (data.claimedCoefficient coordinate)
-        ((data.carriedImage coordinate).equalityWeightedSum
-          ops data.priorPoint)
+      ops.sub (data.claimedPadCoefficient coordinate)
+        ((data.padImage coordinate).equalityWeightedSum ops data.priorPoint)
 
-/-- Absolute carried residual block, shifted to `2K+k+I`. -/
-def carriedResidualBlock
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+def matrixResidualLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) : Field :=
-  gammaTerm ops gamma shape.carriedEvaluationOffset
-    (carriedResidualLocal ops data gamma)
+  sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+    gammaTerm ops gamma coordinate.localGammaExponent <|
+      ops.sub (data.claimedMatrixCoefficient coordinate)
+        ((data.matrixImage coordinate).equalityWeightedSum ops data.priorPoint)
 
-/-- The signed block composition forced by `T_abs - sum Q`: CCS and norm are
-negative; claimed-minus-evaluation carried residuals are positive. -/
+def matrixResidualBlock
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) : Field :=
+  gammaTerm ops gamma shape.matrixEvaluationOffset
+    (matrixResidualLocal ops data gamma)
+
 def signedResidualBlocks
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) : Field :=
-  ops.add
-    (ops.neg (ccsResidualBlock ops data alpha gamma))
-    (ops.add
-      (ops.neg (normResidualBlock ops data alpha gamma))
-      (carriedResidualBlock ops data gamma))
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) : Field :=
+  ops.add (padResidualLocal ops data gamma)
+    (ops.add (matrixResidualBlock ops data gamma)
+      (ops.neg (constraintResidualBlock ops data alpha gamma)))
 
-private theorem summedQ_eq_residualBlocks
-    {Field : Type uField}
-    {shape : Shape}
+private theorem summedConstraintAt_eq
+    {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) :
-    summedQ ops data alpha gamma =
-      ops.add
-        (ccsResidualBlock ops data alpha gamma)
-        (ops.add
-          (normResidualBlock ops data alpha gamma)
-          (gammaTerm ops gamma shape.carriedEvaluationOffset
-            (carriedEvaluationLocal ops data gamma))) := by
-  unfold summedQ qAt
-  rw [sumMap_add ops laws]
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) :
+    sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
+      constraintAt ops data alpha gamma vertex) =
+      ops.add (ccsResidualBlock ops data alpha gamma)
+        (normResidualBlock ops data alpha gamma) := by
   have ccsExact := weightedSum_indexedTables ops laws
     (canonicalFinIndices shape.freshCount) data.ccs
     (fun source => TargetPolynomial.power ops.toOps gamma source.val) alpha
   have normExact := weightedSum_indexedTables ops laws
     (canonicalFinIndices shape.sourceCount) data.norm
     (fun source => TargetPolynomial.power ops.toOps gamma source.val) alpha
-  have carriedExact := weightedSum_indexedTables ops laws
-    (canonicalCarriedCoordinates shape) data.carriedImage
-    (fun coordinate =>
-      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
-    data.priorPoint
-  change ops.add
-      (sumMap ops (BooleanVertex.all shape.cubeVariables) fun vertex =>
-        ops.mul (vertex.equalityWeight ops alpha)
-          (ops.add
-            (ccsAt ops data gamma vertex)
-            (gammaTerm ops gamma shape.freshCount
-              (normAt ops data gamma vertex))))
-      (sumMap ops (BooleanVertex.all shape.cubeVariables) fun vertex =>
-        gammaTerm ops gamma shape.carriedEvaluationOffset
-          (carriedAt ops data gamma vertex)) = _
+  unfold constraintAt
   rw [show
     sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
       ops.mul (vertex.equalityWeight ops alpha)
-        (ops.add
-          (ccsAt ops data gamma vertex)
+        (ops.add (ccsAt ops data gamma vertex)
           (gammaTerm ops gamma shape.freshCount
             (normAt ops data gamma vertex)))) =
       ops.add
@@ -430,8 +357,7 @@ private theorem summedQ_eq_residualBlocks
     sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
       ops.mul (vertex.equalityWeight ops alpha)
         (ccsAt ops data gamma vertex)) =
-      ccsResidualBlock ops data alpha gamma by
-      exact ccsExact]
+      ccsResidualBlock ops data alpha gamma by exact ccsExact]
   rw [show
     sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
       ops.mul (vertex.equalityWeight ops alpha)
@@ -440,63 +366,79 @@ private theorem summedQ_eq_residualBlocks
       normResidualBlock ops data alpha gamma by
       unfold normResidualBlock gammaTerm
       calc
-        sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
-            ops.mul (vertex.equalityWeight ops alpha)
-              (ops.mul
-                (TargetPolynomial.power ops.toOps gamma shape.freshCount)
-                (normAt ops data gamma vertex))) =
-          sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
+        _ = sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
             ops.mul
               (TargetPolynomial.power ops.toOps gamma shape.freshCount)
               (ops.mul (vertex.equalityWeight ops alpha)
                 (normAt ops data gamma vertex))) := by
-            apply sumMap_congr
-            intro vertex _
-            calc
-              ops.mul (vertex.equalityWeight ops alpha)
-                  (ops.mul
-                    (TargetPolynomial.power ops.toOps gamma shape.freshCount)
-                    (normAt ops data gamma vertex)) =
-                ops.mul
-                  (ops.mul (vertex.equalityWeight ops alpha)
-                    (TargetPolynomial.power ops.toOps gamma shape.freshCount))
-                  (normAt ops data gamma vertex) :=
-                    (laws.mul_assoc _ _ _).symm
-              _ = ops.mul
-                  (ops.mul
-                    (TargetPolynomial.power ops.toOps gamma shape.freshCount)
-                    (vertex.equalityWeight ops alpha))
-                  (normAt ops data gamma vertex) := by
-                    rw [laws.mul_comm
-                      (vertex.equalityWeight ops alpha)]
-              _ = ops.mul
+          apply sumMap_congr
+          intro vertex _
+          calc
+            _ = ops.mul
+                (ops.mul (vertex.equalityWeight ops alpha)
+                  (TargetPolynomial.power ops.toOps gamma shape.freshCount))
+                (normAt ops data gamma vertex) := (laws.mul_assoc _ _ _).symm
+            _ = ops.mul
+                (ops.mul
                   (TargetPolynomial.power ops.toOps gamma shape.freshCount)
-                  (ops.mul (vertex.equalityWeight ops alpha)
-                    (normAt ops data gamma vertex)) :=
-                      laws.mul_assoc _ _ _
+                  (vertex.equalityWeight ops alpha))
+                (normAt ops data gamma vertex) := by
+                  rw [laws.mul_comm (vertex.equalityWeight ops alpha)
+                    (TargetPolynomial.power ops.toOps gamma shape.freshCount)]
+            _ = _ := laws.mul_assoc _ _ _
         _ = ops.mul
             (TargetPolynomial.power ops.toOps gamma shape.freshCount)
             (sumMap ops (BooleanVertex.all shape.cubeVariables) fun vertex =>
               ops.mul (vertex.equalityWeight ops alpha)
-                (normAt ops data gamma vertex)) :=
-          sumMap_mul_left ops laws _ _ _
+                (normAt ops data gamma vertex)) := sumMap_mul_left ops laws _ _ _
         _ = _ := congrArg
-          (ops.mul
-            (TargetPolynomial.power ops.toOps gamma shape.freshCount))
+          (ops.mul (TargetPolynomial.power ops.toOps gamma shape.freshCount))
           normExact]
+
+private theorem summedQ_eq_blocks
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) :
+    summedQ ops data alpha gamma =
+      ops.add (padEvaluationLocal ops data gamma)
+        (ops.add (matrixEvaluationBlock ops data gamma)
+          (constraintResidualBlock ops data alpha gamma)) := by
+  unfold summedQ qAt
+  rw [sumMap_add ops laws, sumMap_add ops laws]
+  have padExact := weightedSum_indexedTables ops laws
+    (canonicalPadCoordinates shape) data.padImage
+    (fun coordinate =>
+      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+    data.priorPoint
+  have matrixExact := weightedSum_indexedTables ops laws
+    (canonicalMatrixCoordinates shape) data.matrixImage
+    (fun coordinate =>
+      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+    data.priorPoint
+  rw [show
+    sumMap ops (BooleanVertex.all shape.cubeVariables)
+      (padAt ops data gamma) = padEvaluationLocal ops data gamma by
+    exact padExact]
   rw [show
     sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
-      gammaTerm ops gamma shape.carriedEvaluationOffset
-        (carriedAt ops data gamma vertex)) =
-      gammaTerm ops gamma shape.carriedEvaluationOffset
-        (carriedEvaluationLocal ops data gamma) by
-      unfold gammaTerm carriedAt carriedEvaluationLocal
-      rw [sumMap_mul_left ops laws]
-      exact congrArg
-        (ops.mul
-          (TargetPolynomial.power ops.toOps gamma shape.carriedEvaluationOffset))
-        carriedExact]
-  exact laws.add_assoc _ _ _
+      gammaTerm ops gamma shape.matrixEvaluationOffset
+        (matrixAt ops data gamma vertex)) =
+      matrixEvaluationBlock ops data gamma by
+    unfold matrixEvaluationBlock
+    rw [sumMap_gammaTerm ops laws]
+    exact congrArg (gammaTerm ops gamma shape.matrixEvaluationOffset)
+      matrixExact]
+  rw [show
+    sumMap ops (BooleanVertex.all shape.cubeVariables) (fun vertex =>
+      gammaTerm ops gamma shape.constraintOffset
+        (constraintAt ops data alpha gamma vertex)) =
+      constraintResidualBlock ops data alpha gamma by
+    unfold constraintResidualBlock
+    rw [sumMap_gammaTerm ops laws]
+    exact congrArg (gammaTerm ops gamma shape.constraintOffset)
+      (summedConstraintAt_eq ops laws data alpha gamma)]
 
 private def shiftLaws
     {Field : Type uField}
@@ -508,15 +450,21 @@ private def shiftLaws
   mul_zero := laws.mul_zero
   mul_add := laws.left_distrib
 
-private def targetLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+private def padTargetLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) : Field :=
-  sumMap ops (canonicalCarriedCoordinates shape) fun coordinate =>
+  sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
     gammaTerm ops gamma coordinate.localGammaExponent
-      (data.claimedCoefficient coordinate)
+      (data.claimedPadCoefficient coordinate)
+
+private def matrixTargetLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) : Field :=
+  sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+    gammaTerm ops gamma coordinate.localGammaExponent
+      (data.claimedMatrixCoefficient coordinate)
 
 private theorem finiteSum_eq_foldr
     {Field : Type uField}
@@ -527,145 +475,152 @@ private theorem finiteSum_eq_foldr
       simp only [BooleanTable.finiteSum, List.foldr]
       rw [finiteSum_eq_foldr ops values]
 
-private theorem targetLocal_eq_evaluateLocal
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (data : JointData Field shape)
+private theorem padTargetLocal_eq_evaluatePad
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
     (gamma : Field) :
-    targetLocal ops data gamma =
-      TargetPolynomial.evaluateLocal ops.toOps data.targetCoefficients gamma := by
-  rw [TargetPolynomial.evaluateLocal_eq_foldr]
-  unfold targetLocal sumMap gammaTerm JointData.targetCoefficients
+    padTargetLocal ops data gamma =
+      TargetPolynomial.evaluatePad ops.toOps data.targetCoefficients gamma := by
+  rw [TargetPolynomial.evaluatePad_eq_foldr]
+  unfold padTargetLocal sumMap gammaTerm JointData.targetCoefficients
+    TargetPolynomial.padTerm
   rw [finiteSum_eq_foldr]
-  rfl
 
-private theorem targetAbsolute_eq_shift_mul_targetLocal
-    {Field : Type uField}
-    {shape : Shape}
+private theorem matrixTargetLocal_eq_evaluateMatrixLocal
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field) (data : JointData Field shape)
+    (gamma : Field) :
+    matrixTargetLocal ops data gamma =
+      TargetPolynomial.evaluateMatrixLocal ops.toOps data.targetCoefficients gamma := by
+  rw [TargetPolynomial.evaluateMatrixLocal_eq_foldr]
+  unfold matrixTargetLocal sumMap gammaTerm JointData.targetCoefficients
+    TargetPolynomial.matrixLocalTerm
+  rw [finiteSum_eq_foldr]
+
+private theorem padResidualLocal_eq_target_sub_evaluation
+    {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
-    (data : JointData Field shape)
-    (gamma : Field) :
-    targetAbsolute ops data gamma =
-      gammaTerm ops gamma shape.carriedEvaluationOffset
-        (targetLocal ops data gamma) := by
-  unfold targetAbsolute gammaTerm
-  rw [TargetPolynomial.evaluateShifted_eq_shift_mul_evaluateLocal
-    ops.toOps (shiftLaws ops laws) data.targetCoefficients gamma]
-  rw [targetLocal_eq_evaluateLocal]
-
-private theorem carriedResidualLocal_eq_target_sub_evaluation
-    {Field : Type uField}
-    {shape : Shape}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (data : JointData Field shape)
-    (gamma : Field) :
-    carriedResidualLocal ops data gamma =
-      ops.sub (targetLocal ops data gamma)
-        (carriedEvaluationLocal ops data gamma) := by
-  unfold carriedResidualLocal targetLocal carriedEvaluationLocal gammaTerm
+    (data : JointData Field shape) (gamma : Field) :
+    padResidualLocal ops data gamma =
+      ops.sub (TargetPolynomial.evaluatePad ops.toOps data.targetCoefficients gamma)
+        (padEvaluationLocal ops data gamma) := by
+  rw [← padTargetLocal_eq_evaluatePad]
+  unfold padResidualLocal padTargetLocal padEvaluationLocal gammaTerm
   calc
-    sumMap ops (canonicalCarriedCoordinates shape) (fun coordinate =>
-        ops.mul
-          (TargetPolynomial.power ops.toOps gamma
-            coordinate.localGammaExponent)
-          (ops.sub
-            (data.claimedCoefficient coordinate)
-            ((data.carriedImage coordinate).equalityWeightedSum
-              ops data.priorPoint))) =
-      sumMap ops (canonicalCarriedCoordinates shape) (fun coordinate =>
+    _ = sumMap ops (canonicalPadCoordinates shape) (fun coordinate =>
         ops.sub
           (ops.mul
-            (TargetPolynomial.power ops.toOps gamma
-              coordinate.localGammaExponent)
-            (data.claimedCoefficient coordinate))
+            (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+            (data.claimedPadCoefficient coordinate))
           (ops.mul
-            (TargetPolynomial.power ops.toOps gamma
-              coordinate.localGammaExponent)
-            ((data.carriedImage coordinate).equalityWeightedSum
+            (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+            ((data.padImage coordinate).equalityWeightedSum
               ops data.priorPoint))) := by
-        apply sumMap_congr
-        intro coordinate _
-        exact mul_sub ops laws _ _ _
+      apply sumMap_congr
+      intro coordinate _
+      exact mul_sub ops laws _ _ _
     _ = _ := sumMap_sub ops laws _ _ _
 
-/-- The shifted target minus the shifted carried `Eval` block is exactly the
-positive claimed-minus-derived carried residual block. -/
-theorem target_sub_carriedEvaluation_eq_carriedResidualBlock
-    {Field : Type uField}
-    {shape : Shape}
+private theorem matrixResidualLocal_eq_target_sub_evaluation
+    {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
-    (data : JointData Field shape)
-    (gamma : Field) :
-    ops.sub
-        (targetAbsolute ops data gamma)
-        (gammaTerm ops gamma shape.carriedEvaluationOffset
-          (carriedEvaluationLocal ops data gamma)) =
-      carriedResidualBlock ops data gamma := by
-  rw [targetAbsolute_eq_shift_mul_targetLocal ops laws]
-  unfold carriedResidualBlock gammaTerm
-  rw [carriedResidualLocal_eq_target_sub_evaluation ops laws]
-  exact (mul_sub ops laws _ _ _).symm
-
-private theorem sub_three_eq_signed
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (target ccs norm carried : Field) :
-    ops.sub target (ops.add ccs (ops.add norm carried)) =
-      ops.add (ops.neg ccs)
-        (ops.add (ops.neg norm) (ops.sub target carried)) := by
-  unfold InterpolationOps.sub
-  rw [laws.neg_add ccs (ops.add norm carried), laws.neg_add norm carried]
+    (data : JointData Field shape) (gamma : Field) :
+    matrixResidualLocal ops data gamma =
+      ops.sub
+        (TargetPolynomial.evaluateMatrixLocal ops.toOps data.targetCoefficients gamma)
+        (matrixEvaluationLocal ops data gamma) := by
+  rw [← matrixTargetLocal_eq_evaluateMatrixLocal]
+  unfold matrixResidualLocal matrixTargetLocal matrixEvaluationLocal gammaTerm
   calc
-    ops.add target
-        (ops.add (ops.neg ccs)
-          (ops.add (ops.neg norm) (ops.neg carried))) =
-      ops.add (ops.add target (ops.neg ccs))
-        (ops.add (ops.neg norm) (ops.neg carried)) :=
-          (laws.add_assoc _ _ _).symm
-    _ = ops.add (ops.add (ops.neg ccs) target)
-        (ops.add (ops.neg norm) (ops.neg carried)) := by
-          rw [laws.add_comm target (ops.neg ccs)]
-    _ = ops.add (ops.neg ccs)
-        (ops.add target
-          (ops.add (ops.neg norm) (ops.neg carried))) :=
-            laws.add_assoc _ _ _
-    _ = ops.add (ops.neg ccs)
-        (ops.add (ops.add target (ops.neg norm)) (ops.neg carried)) := by
-          congr 1
-          exact (laws.add_assoc _ _ _).symm
-    _ = ops.add (ops.neg ccs)
-        (ops.add (ops.add (ops.neg norm) target) (ops.neg carried)) := by
-          rw [laws.add_comm target (ops.neg norm)]
-    _ = ops.add (ops.neg ccs)
-        (ops.add (ops.neg norm)
-          (ops.add target (ops.neg carried))) := by
-            congr 1
-            exact laws.add_assoc _ _ _
+    _ = sumMap ops (canonicalMatrixCoordinates shape) (fun coordinate =>
+        ops.sub
+          (ops.mul
+            (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+            (data.claimedMatrixCoefficient coordinate))
+          (ops.mul
+            (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+            ((data.matrixImage coordinate).equalityWeightedSum
+              ops data.priorPoint))) := by
+      apply sumMap_congr
+      intro coordinate _
+      exact mul_sub ops laws _ _ _
+    _ = _ := sumMap_sub ops laws _ _ _
 
-/-- Exact finite signed joint identity under the coherent absolute target:
+private theorem matrixResidualBlock_eq_target_sub_evaluation
+    {Field : Type uField} {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : JointData Field shape) (gamma : Field) :
+    matrixResidualBlock ops data gamma =
+      ops.sub
+        (TargetPolynomial.evaluateMatrix ops.toOps data.targetCoefficients gamma)
+        (matrixEvaluationBlock ops data gamma) := by
+  unfold matrixResidualBlock matrixEvaluationBlock gammaTerm
+  rw [matrixResidualLocal_eq_target_sub_evaluation ops laws]
+  rw [TargetPolynomial.evaluateMatrix_eq_shift_mul_evaluateMatrixLocal
+    ops.toOps (shiftLaws ops laws)]
+  exact mul_sub ops laws _ _ _
 
-`T_abs(C) - sum_x Q(x,A,C) = -CCS(A,C) - Norm(A,C) + Carried(C)`.
-
-The theorem holds for every dimension-checked `A` and every `C`. It does not
-assume the identity, a supplied evaluator, or any implementation artifact. -/
-theorem paperDifference_eq_signedResidualBlocks
+private theorem sub_targets_and_three
     {Field : Type uField}
-    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (targetPad targetMatrix evalPad evalMatrix constraint : Field) :
+    ops.sub (ops.add targetPad targetMatrix)
+        (ops.add evalPad (ops.add evalMatrix constraint)) =
+      ops.add (ops.sub targetPad evalPad)
+        (ops.add (ops.sub targetMatrix evalMatrix) (ops.neg constraint)) := by
+  unfold InterpolationOps.sub
+  rw [laws.neg_add evalPad (ops.add evalMatrix constraint),
+    laws.neg_add evalMatrix constraint]
+  calc
+    ops.add (ops.add targetPad targetMatrix)
+        (ops.add (ops.neg evalPad)
+          (ops.add (ops.neg evalMatrix) (ops.neg constraint))) =
+      ops.add targetPad
+        (ops.add targetMatrix
+          (ops.add (ops.neg evalPad)
+            (ops.add (ops.neg evalMatrix) (ops.neg constraint)))) :=
+      laws.add_assoc _ _ _
+    _ = ops.add targetPad
+        (ops.add (ops.neg evalPad)
+          (ops.add targetMatrix
+            (ops.add (ops.neg evalMatrix) (ops.neg constraint)))) := by
+      congr 1
+      calc
+        _ = ops.add (ops.add targetMatrix (ops.neg evalPad))
+            (ops.add (ops.neg evalMatrix) (ops.neg constraint)) :=
+          (laws.add_assoc _ _ _).symm
+        _ = ops.add (ops.add (ops.neg evalPad) targetMatrix)
+            (ops.add (ops.neg evalMatrix) (ops.neg constraint)) := by
+          rw [laws.add_comm targetMatrix (ops.neg evalPad)]
+        _ = _ := laws.add_assoc _ _ _
+    _ = ops.add (ops.add targetPad (ops.neg evalPad))
+        (ops.add targetMatrix
+          (ops.add (ops.neg evalMatrix) (ops.neg constraint))) :=
+      (laws.add_assoc _ _ _).symm
+    _ = ops.add (ops.add targetPad (ops.neg evalPad))
+        (ops.add (ops.add targetMatrix (ops.neg evalMatrix))
+          (ops.neg constraint)) := by
+      congr 1
+      exact (laws.add_assoc _ _ _).symm
+
+/-- Exact v1.1 finite joint identity, for every verifier challenge. -/
+theorem paperDifference_eq_signedResidualBlocks
+    {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (data : JointData Field shape)
-    (alpha : CubePoint Field shape.cubeVariables)
-    (gamma : Field) :
+    (alpha : CubePoint Field shape.cubeVariables) (gamma : Field) :
     paperDifference ops data alpha gamma =
       signedResidualBlocks ops data alpha gamma := by
-  unfold paperDifference signedResidualBlocks
-  rw [summedQ_eq_residualBlocks ops laws]
-  rw [sub_three_eq_signed ops laws]
-  rw [target_sub_carriedEvaluation_eq_carriedResidualBlock ops laws]
+  unfold paperDifference targetAbsolute signedResidualBlocks
+  rw [summedQ_eq_blocks ops laws]
+  unfold TargetPolynomial.evaluate
+  rw [sub_targets_and_three ops laws]
+  rw [← padResidualLocal_eq_target_sub_evaluation ops laws]
+  rw [← matrixResidualBlock_eq_target_sub_evaluation ops laws]
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity

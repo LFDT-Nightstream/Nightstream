@@ -7,14 +7,15 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Exact per-round degree bound for the paper-joint `Pi_CCS` polynomial.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: the single joint SumCheck.
 Constraint family: semantic degree and honest-message representability only;
 this file emits no rows.
 
 Owns: a fixed-polynomial representation of every one-coordinate slice of the
 actual nonlinear `ProtocolPolynomial.polynomial`; the syntax-derived CCS
-ceiling, strict-`b = 2` quartic ceiling, and carried-evaluation quadratic; and
+ceiling, strict-`b = 2` quartic ceiling, and separate Pad/matrix evaluation
+quadratics; and
 representability of every canonical expected SumCheck round at the exact
 verifier-owned bound.
 
@@ -225,7 +226,7 @@ private theorem normGatedSlice_represents
           laws.mul_assoc]
     _ = _ := rfl
 
-private theorem carriedSlice_represents
+private theorem padSlice_represents
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -235,7 +236,7 @@ private theorem carriedSlice_represents
     (before after : List Field)
     (length : before.length + 1 + after.length = shape.cubeVariables) :
     Represents ops 2 fun point =>
-      ProtocolPolynomial.carriedAtMessage ops data.toVerifierInput gamma
+      ProtocolPolynomial.padAtMessage ops data.toVerifierInput gamma
         (cubeSlice before after length point)
         (ProtocolPolynomial.messageAt ops data
           (cubeSlice before after length point)) := by
@@ -244,17 +245,60 @@ private theorem carriedSlice_represents
       (cubeSlice before after length point) data.priorPoint
   have priorSelectorAffine : Represents ops 1 priorSelector :=
     selectorSlice_affine ops laws data.priorPoint before after length
-  let image : CarriedCoordinate shape -> Field -> Field :=
+  let image : PadCoordinate shape -> Field -> Field :=
     fun coordinate point =>
-      (data.carriedImages coordinate).evaluate ops
+      (data.padImages coordinate).evaluate ops
         (cubeSlice before after length point)
   have imageAffine : forall coordinate,
       Represents ops 1 (image coordinate) := by
     intro coordinate
-    exact tableSlice_affine ops laws (data.carriedImages coordinate)
+    exact tableSlice_affine ops laws (data.padImages coordinate)
       before after length
   have imageSum := weightedSum laws
-    (canonicalCarriedCoordinates shape)
+    (canonicalPadCoordinates shape)
+    (fun coordinate => TargetPolynomial.power ops.toOps gamma
+      coordinate.localGammaExponent)
+    image
+    (by
+      intro coordinate _
+      exact imageAffine coordinate)
+  have multiplied := Represents.mul laws priorSelectorAffine imageSum
+  rcases multiplied with ⟨polynomial, represents⟩
+  refine ⟨polynomial, ?_⟩
+  intro point
+  rw [represents]
+  rfl
+
+private theorem matrixSlice_represents
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : ProtocolPolynomial.Data Field shape)
+    (gamma : Field)
+    (before after : List Field)
+    (length : before.length + 1 + after.length = shape.cubeVariables) :
+    Represents ops 2 fun point =>
+      ProtocolPolynomial.matrixAtMessage ops data.toVerifierInput gamma
+        (cubeSlice before after length point)
+        (ProtocolPolynomial.messageAt ops data
+          (cubeSlice before after length point)) := by
+  let priorSelector : Field -> Field := fun point =>
+    SumCheckTruthPath.pointEquality ops
+      (cubeSlice before after length point) data.priorPoint
+  have priorSelectorAffine : Represents ops 1 priorSelector :=
+    selectorSlice_affine ops laws data.priorPoint before after length
+  let image : MatrixCoordinate shape -> Field -> Field :=
+    fun coordinate point =>
+      (data.matrixImages coordinate).evaluate ops
+        (cubeSlice before after length point)
+  have imageAffine : forall coordinate,
+      Represents ops 1 (image coordinate) := by
+    intro coordinate
+    exact tableSlice_affine ops laws (data.matrixImages coordinate)
+      before after length
+  have imageSum := weightedSum laws
+    (canonicalMatrixCoordinates shape)
     (fun coordinate => TargetPolynomial.power ops.toOps gamma
       coordinate.localGammaExponent)
     image
@@ -297,8 +341,10 @@ theorem polynomial_slice_represents
     (ccsGatedSlice_represents ops laws data alpha gamma before after length)
   have norm := Represents.widen laws fourLe
     (normGatedSlice_represents ops laws data alpha gamma before after length)
-  have carried := Represents.widen laws twoLe
-    (carriedSlice_represents ops laws data gamma before after length)
+  have pad := Represents.widen laws twoLe
+    (padSlice_represents ops laws data gamma before after length)
+  have matrix := Represents.widen laws twoLe
+    (matrixSlice_represents ops laws data gamma before after length)
   have normScaled := Represents.scale laws
     (TargetPolynomial.power ops.toOps gamma shape.freshCount) norm
   have normShifted : Represents ops degree fun point =>
@@ -328,8 +374,8 @@ theorem polynomial_slice_represents
             (TargetPolynomial.power ops.toOps gamma shape.freshCount),
             laws.mul_assoc]
       _ = _ := rfl
-  have first := Represents.add laws ccs normShifted
-  have firstExact : Represents ops degree fun point =>
+  have constraint := Represents.add laws ccs normShifted
+  have constraintExact : Represents ops degree fun point =>
       ops.mul
         (SumCheckTruthPath.pointEquality ops
           (cubeSlice before after length point) alpha)
@@ -341,7 +387,7 @@ theorem polynomial_slice_represents
             (ProtocolPolynomial.normAtMessage ops gamma
               (ProtocolPolynomial.messageAt ops data
                 (cubeSlice before after length point))))) := by
-    rcases first with ⟨polynomial, represents⟩
+    rcases constraint with ⟨polynomial, represents⟩
     refine ⟨polynomial, ?_⟩
     intro point
     rw [represents]
@@ -355,34 +401,45 @@ theorem polynomial_slice_represents
         (ProtocolPolynomial.normAtMessage ops gamma
           (ProtocolPolynomial.messageAt ops data
             (cubeSlice before after length point))))).symm
-  have carriedScaled := Represents.scale laws
-    (TargetPolynomial.power ops.toOps gamma shape.carriedEvaluationOffset)
-    carried
-  have total := Represents.add laws firstExact carriedScaled
+  have matrixScaled := Represents.scale laws
+    (TargetPolynomial.power ops.toOps gamma shape.matrixEvaluationOffset)
+    matrix
+  have constraintScaled := Represents.scale laws
+    (TargetPolynomial.power ops.toOps gamma shape.constraintOffset)
+    constraintExact
+  have shiftedTail := Represents.add laws matrixScaled constraintScaled
+  have total := Represents.add laws pad shiftedTail
   rcases total with ⟨polynomial, represents⟩
   refine ⟨polynomial, ?_⟩
   intro point
   rw [represents]
   change
     ops.add
-        (ops.mul
-          (SumCheckTruthPath.pointEquality ops
-            (cubeSlice before after length point) alpha)
-          (ops.add
-            (ProtocolPolynomial.ccsAtMessage ops data.toVerifierInput gamma
-              (ProtocolPolynomial.messageAt ops data
-                (cubeSlice before after length point)))
-            (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
-              (ProtocolPolynomial.normAtMessage ops gamma
-                (ProtocolPolynomial.messageAt ops data
-                  (cubeSlice before after length point))))))
-        (ops.mul
+        (ProtocolPolynomial.padAtMessage ops data.toVerifierInput gamma
+          (cubeSlice before after length point)
+          (ProtocolPolynomial.messageAt ops data
+            (cubeSlice before after length point)))
+        (ops.add
+          (ops.mul
           (TargetPolynomial.power ops.toOps gamma
-            shape.carriedEvaluationOffset)
-          (ProtocolPolynomial.carriedAtMessage ops data.toVerifierInput gamma
-            (cubeSlice before after length point)
-            (ProtocolPolynomial.messageAt ops data
-              (cubeSlice before after length point)))) =
+              shape.matrixEvaluationOffset)
+            (ProtocolPolynomial.matrixAtMessage ops data.toVerifierInput gamma
+              (cubeSlice before after length point)
+              (ProtocolPolynomial.messageAt ops data
+                (cubeSlice before after length point))))
+          (ops.mul
+            (TargetPolynomial.power ops.toOps gamma shape.constraintOffset)
+            (ops.mul
+              (SumCheckTruthPath.pointEquality ops
+                (cubeSlice before after length point) alpha)
+              (ops.add
+                (ProtocolPolynomial.ccsAtMessage ops data.toVerifierInput gamma
+                  (ProtocolPolynomial.messageAt ops data
+                    (cubeSlice before after length point)))
+                (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
+                  (ProtocolPolynomial.normAtMessage ops gamma
+                    (ProtocolPolynomial.messageAt ops data
+                      (cubeSlice before after length point)))))))) =
       ProtocolPolynomial.polynomial ops data alpha gamma
         (before ++ point :: after)
   unfold ProtocolPolynomial.polynomial

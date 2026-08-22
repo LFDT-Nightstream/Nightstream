@@ -7,12 +7,12 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Unsampled signed coefficient object for paper-level joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: alpha/gamma compression boundary before SumCheck.
-Constraint family: finite CCS, norm, and carried residual coefficients before
+Constraint family: finite Pad, matrix, CCS, and norm residuals before
 the verifier samples `alpha` and `gamma`.
 
-Owns: a finite signed coefficient type, its canonical three-block object,
+Owns: a finite signed coefficient type, its canonical four-block object,
 coefficient truth, exact alpha specialization into the executable gamma
 polynomial, table-obligation equivalence, and the deterministic signed
 mixing-root event.
@@ -25,15 +25,15 @@ Emits constraints: no.
 
 Authority boundary: negative alpha coefficients contain the verifier-derived
 finite canonical alpha polynomial, not a function-valued evaluator. Scalars
-are explicit carried claimed-minus-derived residuals. Signs, block order,
+are explicit Pad and matrix claimed-minus-derived residuals. Signs, block order,
 specialization, and the bad-root event are derived here; no prover-supplied
 degree, identity, or implementation artifact is accepted.
 
 | Protocol | Phase | Coefficient owner | Exact guarantee |
 |---|---|---|---|
 | `Pi_CCS` | before alpha | negative CCS / norm alpha polynomials | finite canonical coefficient vectors |
-| `Pi_CCS` | before alpha | carried scalars | claimed minus derived prior-point evaluations |
-| `Pi_CCS` | alpha specialization | all three blocks | exact equality with the executable signed gamma coefficient list |
+| `Pi_CCS` | before alpha | Pad and matrix scalars | claimed minus derived prior-point evaluations |
+| `Pi_CCS` | alpha specialization | all four blocks | exact equality with the executable signed gamma coefficient list |
 | `Pi_CCS` | semantic truth | explicit residual tables | coefficient truth iff every table obligation holds |
 | `Pi_CCS` | gamma sampling | nonzero signed object | sampled zero is the named `MixingRoot` event |
 -/
@@ -46,7 +46,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.SumCheck
 
 /-- One unsampled signed gamma coefficient. CCS and norm entries retain their
-finite alpha coefficient vectors; carried entries are alpha-free scalars. -/
+finite alpha coefficient vectors; evaluation entries are alpha-free scalars. -/
 inductive Coefficient
     (Field : Type uField)
     (shape : Shape) where
@@ -87,10 +87,15 @@ def toTableResidualData
     TableResidualData Field shape where
   ccs := data.ccs
   norm := data.norm
-  carriedEvaluation := fun coordinate =>
+  padEvaluation := fun coordinate =>
     ops.sub
-      (data.claimedCoefficient coordinate)
-      ((data.carriedImage coordinate).equalityWeightedSum
+      (data.claimedPadCoefficient coordinate)
+      ((data.padImage coordinate).equalityWeightedSum
+        ops data.priorPoint)
+  matrixEvaluation := fun coordinate =>
+    ops.sub
+      (data.claimedMatrixCoefficient coordinate)
+      ((data.matrixImage coordinate).equalityWeightedSum
         ops data.priorPoint)
 
 /-- Unsigned residual carrier reused only for its finite alpha polynomials and
@@ -110,9 +115,10 @@ def coefficients
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape) :
     List (Coefficient Field shape) :=
-  (residuals ops data).ccs.map Coefficient.negativeAlpha ++
-    (residuals ops data).norm.map Coefficient.negativeAlpha ++
-    (residuals ops data).carriedEvaluation.map Coefficient.scalar
+  (residuals ops data).padEvaluation.map Coefficient.scalar ++
+    ((residuals ops data).matrixEvaluation.map Coefficient.scalar ++
+      ((residuals ops data).ccs.map Coefficient.negativeAlpha ++
+        (residuals ops data).norm.map Coefficient.negativeAlpha))
 
 /-- Every unsampled coefficient is identically zero. -/
 def CoefficientTruth
@@ -139,8 +145,10 @@ theorem coefficients_length
     (data : SignedJointIdentity.JointData Field shape) :
     (coefficients ops data).length = shape.jointCoefficientCount := by
   simp [coefficients, residuals, TableResidualData.toResiduals,
-    Shape.jointCoefficientCount, canonicalFinIndices_length,
-    TableResidualData.orderedCarriedEvaluation_length, Nat.add_assoc]
+    Shape.jointCoefficientCount, Shape.constraintOffset,
+    canonicalFinIndices_length,
+    TableResidualData.orderedPadEvaluation_length,
+    TableResidualData.orderedMatrixEvaluation_length, Nat.add_assoc]
 
 private theorem coefficientTruth_iff_families
     {Field : Type uField}
@@ -148,33 +156,38 @@ private theorem coefficientTruth_iff_families
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape) :
     CoefficientTruth ops data ↔
+      (forall value, value ∈ (residuals ops data).padEvaluation ->
+        value = ops.zero) ∧
+      (forall value, value ∈ (residuals ops data).matrixEvaluation ->
+        value = ops.zero) ∧
       (forall polynomial, polynomial ∈ (residuals ops data).ccs ->
         polynomial.CoefficientZero ops.toOps) ∧
-      (forall polynomial, polynomial ∈ (residuals ops data).norm ->
-        polynomial.CoefficientZero ops.toOps) ∧
-      forall value, value ∈ (residuals ops data).carriedEvaluation ->
-        value = ops.zero := by
+      forall polynomial, polynomial ∈ (residuals ops data).norm ->
+        polynomial.CoefficientZero ops.toOps := by
   constructor
   · intro truth
-    refine ⟨?_, ?_, ?_⟩
-    · intro polynomial member
-      exact truth (.negativeAlpha polynomial) (by
-        simp [coefficients, member])
-    · intro polynomial member
-      exact truth (.negativeAlpha polynomial) (by
-        simp [coefficients, member])
+    refine ⟨?_, ?_, ?_, ?_⟩
     · intro value member
-      exact truth (.scalar value) (by
+      exact truth (.scalar value) (by simp [coefficients, member])
+    · intro value member
+      exact truth (.scalar value) (by simp [coefficients, member])
+    · intro polynomial member
+      exact truth (.negativeAlpha polynomial) (by
         simp [coefficients, member])
-  · rintro ⟨ccsTruth, normTruth, carriedTruth⟩ coefficient member
+    · intro polynomial member
+      exact truth (.negativeAlpha polynomial) (by
+        simp [coefficients, member])
+  · rintro ⟨padTruth, matrixTruth, ccsTruth, normTruth⟩ coefficient member
     simp only [coefficients, List.mem_append, List.mem_map] at member
     rcases member with
-      (⟨polynomial, polynomialMember, rfl⟩ |
-        ⟨polynomial, polynomialMember, rfl⟩) |
-        ⟨value, valueMember, rfl⟩
+      ⟨value, valueMember, rfl⟩ |
+      ⟨value, valueMember, rfl⟩ |
+      ⟨polynomial, polynomialMember, rfl⟩ |
+      ⟨polynomial, polynomialMember, rfl⟩
+    · exact padTruth value valueMember
+    · exact matrixTruth value valueMember
     · exact ccsTruth polynomial polynomialMember
     · exact normTruth polynomial polynomialMember
-    · exact carriedTruth value valueMember
 
 /-- Signed coefficient truth is exactly the pre-existing unsigned family
 truth because signs do not alter zero obligations. -/
@@ -189,8 +202,8 @@ theorem coefficientTruth_iff_residualCoefficientTruth
   exact (Residuals.coefficientTruth_iff_residualFamilies
     ops.toOps (residuals ops data)).symm
 
-/-- The signed object is identically zero exactly when every explicit CCS,
-norm, and carried residual table obligation holds. -/
+/-- The signed object is identically zero exactly when every explicit Pad,
+matrix, CCS, and norm residual table obligation holds. -/
 theorem coefficientTruth_iff_tableObligations
     {Field : Type uField}
     {shape : Shape}
@@ -249,19 +262,34 @@ private theorem specialize_norm_eq
   rw [BooleanTable.toAlphaPolynomial_evaluate_eq_equalityWeightedSum
     ops laws (data.norm source) alpha]
 
-private theorem specialize_carried_eq
+private theorem specialize_pad_eq
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
     (data : SignedJointIdentity.JointData Field shape)
     (alpha : CubePoint Field shape.cubeVariables) :
-    ((residuals ops data).carriedEvaluation.map Coefficient.scalar).map
+    ((residuals ops data).padEvaluation.map Coefficient.scalar).map
         (Coefficient.specialize ops alpha) =
-      SignedCoefficientPolynomial.carriedCoefficients ops data := by
+      SignedCoefficientPolynomial.padCoefficients ops data := by
   unfold residuals toTableResidualData TableResidualData.toResiduals
-  unfold TableResidualData.orderedCarriedEvaluation
-  unfold SignedCoefficientPolynomial.carriedCoefficients
-    SignedCoefficientPolynomial.carriedValues
+  unfold TableResidualData.orderedPadEvaluation
+  unfold SignedCoefficientPolynomial.padCoefficients
+    SignedCoefficientPolynomial.padValues
+  simp [List.map_map, Coefficient.specialize, Function.comp_def]
+
+private theorem specialize_matrix_eq
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables) :
+    ((residuals ops data).matrixEvaluation.map Coefficient.scalar).map
+        (Coefficient.specialize ops alpha) =
+      SignedCoefficientPolynomial.matrixCoefficients ops data := by
+  unfold residuals toTableResidualData TableResidualData.toResiduals
+  unfold TableResidualData.orderedMatrixEvaluation
+  unfold SignedCoefficientPolynomial.matrixCoefficients
+    SignedCoefficientPolynomial.matrixValues
   simp [List.map_map, Coefficient.specialize, Function.comp_def]
 
 /-- Exact alpha-specialization bridge into the executable signed gamma list. -/
@@ -276,8 +304,8 @@ theorem specializedCoefficients_eq
       SignedCoefficientPolynomial.coefficients ops data alpha := by
   unfold specializedCoefficients coefficients
   simp only [List.map_append]
-  rw [specialize_ccs_eq ops laws, specialize_norm_eq ops laws,
-    specialize_carried_eq ops]
+  rw [specialize_pad_eq ops, specialize_matrix_eq ops,
+    specialize_ccs_eq ops laws, specialize_norm_eq ops laws]
   rfl
 
 private theorem neg_zero

@@ -2,8 +2,9 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLC.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLC.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces were renamed and
+the v1.1 explicit-matrix evaluation section was added for canonical Pad. -/
 
 /-!
 Orchestration of the typed Phi81 `Pi_RLC` evaluation map.
@@ -578,7 +579,8 @@ private theorem coefficientMatrix_carrierColumn
       system.matrixSource.columnLayout.decode
           (CarrierAction.carrierColumn block lane) = (block, lane) := by
     exact CarrierAction.decode_carrierColumn block lane
-  unfold MatrixCoefficientSource.MatrixSource.coefficientMatrix sumFinF
+  unfold MatrixCoefficientSource.MatrixSource.coefficientMatrix
+    MatrixCoefficientSource.MatrixSource.coefficientMatrixOf sumFinF
   rw [decoded]
   rfl
 
@@ -958,6 +960,430 @@ theorem matrixEvaluation_act
           (RingKAction.evaluateRows rows point) :=
       RingKAction.evaluateRows_embeddedChallenge_action challenge rows point
     _ = _ := rfl
+
+/-! ## Explicit completed-matrix action
+
+SuperNeo v1.1 owns `Pad` separately from the CCS matrix family. These
+definitions generalize the stored-matrix proof above to one explicit
+completed matrix while retaining the canonical Phi81 source, kernel, and
+carrier layout. -/
+
+namespace ExplicitMatrix
+
+def rowRing
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) : RingF :=
+  fun output =>
+    PaperLinearAlgebra.matrixVectorAt ConcreteCarrier.baseOps
+      (system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+        matrix output)
+      assignment vertex
+
+private def blockRowRing
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) : RingF :=
+  fun output =>
+    sumFinF fun row : Fin ringDegree =>
+      system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix vertex
+          block row *
+        CarrierAction.kernelImage row
+          (CarrierAction.assignmentBlock assignment block) output
+
+private def blockRowSum
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) : RingF :=
+  fun output =>
+    sumFinF fun block :
+        Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
+      blockRowRing system matrix assignment vertex block output
+
+private theorem coefficientMatrix_carrierColumn
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (vertex : BooleanVertex shape.rowVariables)
+    (output : Fin ringDegree)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
+    (lane : Fin ringDegree) :
+    system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps matrix
+        output vertex (CarrierAction.carrierColumn block lane) =
+      sumFinF fun row : Fin ringDegree =>
+        system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix vertex
+            block row *
+          Phi81CoefficientKernel.phi81Kernel.weight output row lane := by
+  have decoded :
+      system.matrixSource.columnLayout.decode
+          (CarrierAction.carrierColumn block lane) = (block, lane) :=
+    CarrierAction.decode_carrierColumn block lane
+  unfold MatrixCoefficientSource.MatrixSource.coefficientMatrixOf sumFinF
+  rw [decoded]
+  rfl
+
+private theorem rowRing_eq_blockSum
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) :
+    rowRing system matrix assignment vertex =
+      blockRowSum system matrix assignment vertex := by
+  funext output
+  unfold rowRing
+  rw [matrixVectorAt_eq_sumFinF, sumFinF_carrier_blocks]
+  unfold blockRowSum blockRowRing
+  apply sumFinF_congr
+  intro block
+  let matrixCoefficient : Fin ringDegree → F := fun row =>
+    system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix vertex
+      block row
+  let assignmentBlock : RingF :=
+    CarrierAction.assignmentBlock assignment block
+  let weight : Fin ringDegree → Fin ringDegree → F := fun row lane =>
+    Phi81CoefficientKernel.phi81Kernel.weight output row lane
+  calc
+    sumFinF (fun lane =>
+        system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+            matrix output vertex (CarrierAction.carrierColumn block lane) *
+          assignment (CarrierAction.carrierColumn block lane)) =
+      sumFinF (fun lane =>
+        sumFinF (fun row => matrixCoefficient row * weight row lane) *
+          assignmentBlock lane) := by
+      apply sumFinF_congr
+      intro lane
+      rw [coefficientMatrix_carrierColumn
+        system matrix vertex output block lane]
+      rfl
+    _ = sumFinF (fun lane =>
+        sumFinF (fun row =>
+          (matrixCoefficient row * weight row lane) *
+            assignmentBlock lane)) := by
+      apply sumFinF_congr
+      intro lane
+      exact sumFinF_mul_right _ _
+    _ = sumFinF (fun row =>
+          sumFinF (fun lane =>
+            (matrixCoefficient row * weight row lane) *
+              assignmentBlock lane)) :=
+      sumFinF_swap _
+    _ = sumFinF (fun row =>
+          matrixCoefficient row *
+            sumFinF (fun lane => assignmentBlock lane * weight row lane)) := by
+      apply sumFinF_congr
+      intro row
+      rw [sumFinF_mul_left]
+      apply sumFinF_congr
+      intro lane
+      calc
+        (matrixCoefficient row * weight row lane) * assignmentBlock lane =
+            matrixCoefficient row *
+              (weight row lane * assignmentBlock lane) :=
+          Lean.Grind.Fin.mul_assoc _ _ _
+        _ = matrixCoefficient row *
+              (assignmentBlock lane * weight row lane) := by
+          rw [Fin.mul_comm (weight row lane) (assignmentBlock lane)]
+    _ = sumFinF (fun row =>
+          matrixCoefficient row *
+            CarrierAction.kernelImage row assignmentBlock output) := by
+      apply sumFinF_congr
+      intro row
+      rw [kernelImage_eq_sumFinF]
+    _ = _ := rfl
+
+private theorem blockRowRing_eq_sumRingF
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+    blockRowRing system matrix assignment vertex block =
+      sumRingF fun row : Fin ringDegree =>
+        CarrierAction.ringFScale
+          (system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix
+            vertex block row)
+          (CarrierAction.kernelImage row
+            (CarrierAction.assignmentBlock assignment block)) := by
+  funext output
+  unfold blockRowRing CarrierAction.ringFScale
+  rw [sumRingF_apply]
+
+private theorem blockRowSum_eq_sumRingF
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) :
+    blockRowSum system matrix assignment vertex =
+      sumRingF fun block :
+          Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
+        blockRowRing system matrix assignment vertex block := by
+  funext output
+  unfold blockRowSum
+  rw [sumRingF_apply]
+
+private theorem blockRowRing_act
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (challenge : RingF)
+    (law : ProductOrderLaw challenge)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+    blockRowRing system matrix (CarrierAction.act challenge assignment)
+        vertex block =
+      ringFMul challenge
+        (blockRowRing system matrix assignment vertex block) := by
+  rw [blockRowRing_eq_sumRingF, blockRowRing_eq_sumRingF,
+    CarrierAction.assignmentBlock_act]
+  calc
+    sumRingF (fun row : Fin ringDegree =>
+        CarrierAction.ringFScale
+          (system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix
+            vertex block row)
+          (CarrierAction.kernelImage row
+            (ringFMul challenge
+              (CarrierAction.assignmentBlock assignment block)))) =
+      sumRingF (fun row : Fin ringDegree =>
+        ringFMul challenge
+          (CarrierAction.ringFScale
+            (system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix
+              vertex block row)
+            (CarrierAction.kernelImage row
+              (CarrierAction.assignmentBlock assignment block)))) := by
+      apply sumRingF_congr
+      intro row
+      exact weightedKernel_act challenge law _ row _
+    _ = ringFMul challenge
+          (sumRingF fun row : Fin ringDegree =>
+            CarrierAction.ringFScale
+              (system.matrixSource.paddedEntry ConcreteCarrier.baseOps matrix
+                vertex block row)
+              (CarrierAction.kernelImage row
+                (CarrierAction.assignmentBlock assignment block))) :=
+      (ringFMul_sumRingF_right challenge _).symm
+
+private theorem blockRowSum_act
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (challenge : RingF)
+    (law : ProductOrderLaw challenge)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) :
+    blockRowSum system matrix (CarrierAction.act challenge assignment) vertex =
+      ringFMul challenge (blockRowSum system matrix assignment vertex) := by
+  rw [blockRowSum_eq_sumRingF, blockRowSum_eq_sumRingF]
+  calc
+    sumRingF (fun block :
+        Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
+      blockRowRing system matrix (CarrierAction.act challenge assignment)
+        vertex block) =
+      sumRingF (fun block :
+          Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
+        ringFMul challenge
+          (blockRowRing system matrix assignment vertex block)) := by
+      apply sumRingF_congr
+      intro block
+      exact blockRowRing_act system matrix challenge law assignment vertex block
+    _ = ringFMul challenge
+          (sumRingF fun block :
+              Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
+            blockRowRing system matrix assignment vertex block) :=
+      (ringFMul_sumRingF_right challenge _).symm
+
+private theorem rowRing_act
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (challenge : RingF)
+    (law : ProductOrderLaw challenge)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables) :
+    rowRing system matrix (CarrierAction.act challenge assignment) vertex =
+      ringFMul challenge (rowRing system matrix assignment vertex) := by
+  rw [rowRing_eq_blockSum, rowRing_eq_blockSum]
+  exact blockRowSum_act system matrix challenge law assignment vertex
+
+/-- Complete 54-lane evaluation of one explicit completed matrix. -/
+def evaluate
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (point : Point shape) : Evaluation :=
+  fun output =>
+    (BooleanTable.tabulate fun vertex =>
+      K.embed (PaperLinearAlgebra.matrixVectorAt ConcreteCarrier.baseOps
+        (system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+          matrix output)
+        assignment vertex)).evaluate ConcreteCarrier.extensionOps point
+
+private theorem evaluate_eq_evaluateRows
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (assignment : Assignment shape)
+    (point : Point shape) :
+    evaluate system matrix assignment point =
+      RingKAction.evaluateRows
+        (fun vertex => RingKAction.embedChallenge
+          (rowRing system matrix assignment vertex)) point := by
+  rfl
+
+theorem evaluate_zero
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (point : Point shape) :
+    evaluate system matrix BaseLinear.assignmentZero point =
+      BaseLinear.evaluationZero := by
+  funext lane
+  unfold evaluate BaseLinear.assignmentZero BaseLinear.Raw.assignmentZero
+    BaseLinear.evaluationZero ringKZero
+  unfold BooleanTable.evaluate
+  simpa only [BaseLinear.matrixVectorAt_zero] using
+    (BaseLinear.evaluateTabulated_zero point)
+
+theorem evaluate_add
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (left right : Assignment shape)
+    (point : Point shape) :
+    evaluate system matrix (BaseLinear.assignmentAdd left right) point =
+      BaseLinear.evaluationAdd
+        (evaluate system matrix left point)
+        (evaluate system matrix right point) := by
+  funext lane
+  unfold evaluate BaseLinear.assignmentAdd BaseLinear.Raw.assignmentAdd
+    BaseLinear.evaluationAdd
+  unfold BooleanTable.evaluate
+  simpa only [BaseLinear.matrixVectorAt_add,
+    ConcreteCarrier.embed_add] using
+    (BaseLinear.evaluateTabulated_add
+      (fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
+        ConcreteCarrier.baseOps
+        (system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+          matrix lane)
+        left vertex))
+      (fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
+        ConcreteCarrier.baseOps
+        (system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+          matrix lane)
+        right vertex))
+      point)
+
+theorem evaluate_scale
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (scalar : F)
+    (assignment : Assignment shape)
+    (point : Point shape) :
+    evaluate system matrix (BaseLinear.assignmentScale scalar assignment) point =
+      BaseLinear.evaluationScale scalar
+        (evaluate system matrix assignment point) := by
+  funext lane
+  unfold evaluate BaseLinear.assignmentScale BaseLinear.Raw.assignmentScale
+    BaseLinear.evaluationScale
+  unfold BooleanTable.evaluate
+  have embedScale (value : F) :
+      K.embed (scalar * value) =
+        K.mul (K.embed scalar) (K.embed value) := by
+    simpa only [ConcreteCarrier.baseOps, ConcreteCarrier.extensionOps] using
+      (ConcreteCarrier.embed_mul scalar value)
+  simpa only [BaseLinear.matrixVectorAt_scale, embedScale] using
+    (BaseLinear.evaluateTabulated_scale (K.embed scalar)
+      (fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
+        ConcreteCarrier.baseOps
+        (system.matrixSource.coefficientMatrixOf ConcreteCarrier.baseOps
+          matrix lane)
+        assignment vertex))
+      point)
+
+theorem evaluate_act
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (challenge : RingF)
+    (law : ProductOrderLaw challenge)
+    (assignment : Assignment shape)
+    (point : Point shape) :
+    evaluate system matrix (CarrierAction.act challenge assignment) point =
+      ringKMul (RingKAction.embedChallenge challenge)
+        (evaluate system matrix assignment point) := by
+  rw [evaluate_eq_evaluateRows, evaluate_eq_evaluateRows]
+  let rows : RingKAction.Rows shape.rowVariables := fun vertex =>
+    RingKAction.embedChallenge (rowRing system matrix assignment vertex)
+  calc
+    RingKAction.evaluateRows
+        (fun vertex => RingKAction.embedChallenge
+          (rowRing system matrix (CarrierAction.act challenge assignment)
+            vertex)) point =
+      RingKAction.evaluateRows
+        (RingKAction.actRows (RingKAction.embedChallenge challenge) rows)
+        point := by
+      apply congrArg (fun rowValues => RingKAction.evaluateRows rowValues point)
+      funext vertex
+      unfold RingKAction.actRows rows
+      rw [rowRing_act system matrix challenge law assignment vertex,
+        Embedding.embedChallenge_ringFMul]
+    _ = ringKMul (RingKAction.embedChallenge challenge)
+          (RingKAction.evaluateRows rows point) :=
+      RingKAction.evaluateRows_embeddedChallenge_action challenge rows point
+    _ = _ := rfl
+
+/-- Evaluation of one explicit completed matrix commutes with the canonical
+finite base-field combination used by PiDEC. -/
+theorem evaluate_baseCombine
+    {shape : Shape} {count : Nat}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F shape.rowVariables
+      shape.carrierWidth)
+    (weights : Fin count -> F)
+    (assignments : Fin count -> Assignment shape)
+    (point : Point shape) :
+    evaluate system matrix
+        (BaseLinear.combineAssignments weights assignments) point =
+      BaseLinear.combineEvaluations weights fun index =>
+        evaluate system matrix (assignments index) point := by
+  induction count with
+  | zero => exact evaluate_zero system matrix point
+  | succ count inductionHypothesis =>
+      rw [BaseLinear.combineAssignments, BaseLinear.combineEvaluations,
+        evaluate_add, evaluate_scale,
+        inductionHypothesis
+          (fun index => weights index.succ)
+          (fun index => assignments index.succ)]
+
+end ExplicitMatrix
 
 /-- Array-level form of `matrixEvaluation_act`: every canonical matrix and
 all 54 evaluation lanes preserve the same RingF action. -/

@@ -2,13 +2,14 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialFixedWidth
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/StrongReduction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/StrongReduction.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
+SuperNeo v1.1 Pad and 14-matrix evaluation families. -/
 
 /-!
 Operational public-coin core of the paper's strong `Pi_CCS` reduction.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 and Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 and Appendix B.2).
 Phase: one explicit public-coin probe and extraction from an ambient output
 witness.
 Constraint family: paper semantics only; this file emits no rows.
@@ -62,10 +63,17 @@ open UnifiedSources
 
 universe uExtension uCommitment uPublicInput
 
-/-- One source's complete CE evaluation family. Keeping matrices and
-coefficients typed avoids introducing an unrelated array-serialization order. -/
-abbrev EvaluationFamily (Extension : Type uExtension) (shape : Shape) :=
-  Fin shape.matrixCount -> Fin shape.coefficientCount -> Extension
+/-- One source's complete v1.1 CE evaluation value: canonical Pad and every
+CCS matrix, with typed coefficient coordinates. -/
+structure EvaluationFamily (Extension : Type uExtension) (shape : Shape) where
+  pad : Fin shape.coefficientCount -> Extension
+  matrix : Fin shape.matrixCount -> Fin shape.coefficientCount -> Extension
+
+/-- Public structure data needed by the v1.1 relation: the canonical Pad
+layout and all CCS matrices have distinct owners. -/
+structure RelationSource (shape : Shape) (columns blockCount : Nat) where
+  cubeLayout : ColumnLayout shape.cubeVariables columns
+  matrixSource : MatrixSource F shape columns blockCount
 
 /-- Public binding maps shared by the source and corrected-ambient target
 relations. Their cryptographic properties are outside this deterministic
@@ -91,7 +99,7 @@ def paperRelationSemantics
     (lift : F -> Extension)
     (openingMaps : OpeningMaps Commitment PublicInput columns) :
     RelationSemantics
-      (MatrixSource F shape columns blockCount)
+      (RelationSource shape columns blockCount)
       (Assignment F columns)
       PublicInput
       (CubePoint Extension shape.cubeVariables)
@@ -102,17 +110,29 @@ def paperRelationSemantics
   normBounded := fun bound assignment =>
     forall column, centeredMagnitude (assignment column) < bound
   ccsSatisfied := fun source assignment =>
-    CCSResidualTable.ConstraintSatisfied baseOps source.system assignment
+    CCSResidualTable.ConstraintSatisfied baseOps
+      source.matrixSource.system assignment
   evaluationPointValid := fun _ _ => True
-  evaluations := fun source assignment point => #[fun matrix coefficient =>
-    (BooleanTable.tabulate fun vertex =>
-      lift (matrixVectorAt baseOps
-        (source.coefficientMatrix baseOps matrix coefficient)
-        assignment vertex)).evaluate extensionOps point]
+  evaluations := fun source assignment point => #[{
+    pad := fun coefficient =>
+      (BooleanTable.tabulate fun vertex =>
+        lift (matrixVectorAt baseOps
+          (source.matrixSource.coefficientMatrixOf baseOps
+            (fun row column =>
+              source.cubeLayout.paddedIdentityEntry
+                baseOps.zero baseOps.one row column)
+            coefficient)
+          assignment vertex)).evaluate extensionOps point
+    matrix := fun matrix coefficient =>
+      (BooleanTable.tabulate fun vertex =>
+        lift (matrixVectorAt baseOps
+          (source.matrixSource.coefficientMatrix baseOps matrix coefficient)
+          assignment vertex)).evaluate extensionOps point
+  }]
 
-/-- The public input to one paper `Pi_CCS` execution. Source assignments are
-deliberately absent. `M_1 = [I; 0]` is entrywise structure data, not an assumed
-matrix-image equality. -/
+/-- The public input to one v1.1 `Pi_CCS` execution. Source assignments are
+deliberately absent. Canonical Pad is derived from `cubeLayout`; all CCS
+matrices remain in `matrixSource`. -/
 structure Statement
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -125,13 +145,8 @@ structure Statement
   commitments : Fin shape.sourceCount -> Commitment
   publicInputs : Fin shape.sourceCount -> PublicInput
   priorPoint : CubePoint Extension shape.cubeVariables
-  claimedCoefficient : CarriedCoordinate shape -> Extension
-  matrixCountPositive : 0 < shape.matrixCount
-  identityFirstEntry : forall
-      (vertex : BooleanVertex shape.cubeVariables)
-      (column : Fin columns),
-    matrixSource.matrices ⟨0, matrixCountPositive⟩ vertex column =
-      cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one vertex column
+  claimedPadCoefficient : PadCoordinate shape -> Extension
+  claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
 /-- An extracted output witness is exactly one assignment for every source in
 the statement's canonical `K+k` order. -/
@@ -157,11 +172,12 @@ def sourceConnectedInputs
   matrixSource := statement.matrixSource
   assignments := witness.assignments
   priorPoint := statement.priorPoint
-  claimedCoefficient := statement.claimedCoefficient
+  claimedPadCoefficient := statement.claimedPadCoefficient
+  claimedMatrixCoefficient := statement.claimedMatrixCoefficient
 
-/-- The public statement fixes the exact first-matrix identity proof for any
-attached witness; the proof does not inspect that witness. -/
-def identityFirstMatrix
+/-- Complete public relation source with separate canonical Pad layout and
+CCS matrix owner. -/
+def relationSource
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -169,11 +185,9 @@ def identityFirstMatrix
     {columns blockCount : Nat}
     {baseOps : InterpolationOps F}
     (statement : Statement Extension Commitment PublicInput shape
-      columns blockCount baseOps)
-    (witness : OutputWitness shape columns) :
-    IdentityFirstMatrix baseOps (statement.sourceConnectedInputs witness) where
-  matrixCountPositive := statement.matrixCountPositive
-  entry := statement.identityFirstEntry
+      columns blockCount baseOps) : RelationSource shape columns blockCount where
+  cubeLayout := statement.cubeLayout
+  matrixSource := statement.matrixSource
 
 /-- Verifier-visible protocol input derived solely from public statement
 fields. No source assignment or semantic table is consulted. -/
@@ -192,7 +206,8 @@ def verifierInput
     ConstraintPolynomialLift.liftConstraintPolynomial lift
       statement.matrixSource.constraintPolynomial
   priorPoint := statement.priorPoint
-  claimedCoefficient := statement.claimedCoefficient
+  claimedPadCoefficient := statement.claimedPadCoefficient
+  claimedMatrixCoefficient := statement.claimedMatrixCoefficient
 
 /-- Rich source protocol data used only in the semantic reduction theorem. -/
 def sourceProtocolData
@@ -227,8 +242,8 @@ theorem sourceProtocolData_toVerifierInput
       statement.verifierInput lift := by
   rfl
 
-/-- Verifier projection of one complete response. Only the first-matrix index
-and constant kernel coordinate are used for assignment/fresh scalar fields. -/
+/-- Verifier projection of one complete v1.1 response. Assignment values use
+the Pad constant coordinate; fresh CCS values use matrix constants. -/
 def projectOutput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -241,13 +256,16 @@ def projectOutput
     (output : FullOutput Extension shape) :
     ProtocolPolynomial.OutputMessage Extension shape where
   freshMatrixImage := fun source matrix =>
-    output.coordinate (freshSourceIndex source) matrix
+    output.matrixCoordinate (freshSourceIndex source) matrix
       statement.matrixSource.kernel.constant
   sourceAssignment := fun source =>
-    output.coordinate source ⟨0, statement.matrixCountPositive⟩
+    output.padCoordinate source
       statement.matrixSource.kernel.constant
-  carriedImage := fun coordinate =>
-    output.coordinate (runningSourceIndex coordinate.running)
+  padImage := fun coordinate =>
+    output.padCoordinate (runningSourceIndex coordinate.running)
+      coordinate.coefficient
+  matrixImage := fun coordinate =>
+    output.matrixCoordinate (runningSourceIndex coordinate.running)
       coordinate.matrix coordinate.coefficient
 
 /-- The verifier projection is exactly the projection from the complete
@@ -264,7 +282,7 @@ theorem projectOutput_eq_toOutputMessage
     (witness : OutputWitness shape columns)
     (output : FullOutput Extension shape) :
     statement.projectOutput output =
-      output.toOutputMessage (statement.identityFirstMatrix witness) := by
+      output.toOutputMessage (statement.sourceConnectedInputs witness) := by
   rfl
 
 end Statement
@@ -369,7 +387,7 @@ abbrev PublicOutput
     (columns blockCount : Nat) :=
   Fin shape.sourceCount ->
     CE.Instance
-      (MatrixSource F shape columns blockCount)
+      (RelationSource shape columns blockCount)
       PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape)
@@ -391,12 +409,14 @@ def publicOutput
     (probe : Probe Extension shape) :
     PublicOutput Extension Commitment PublicInput shape columns blockCount :=
   fun source => {
-    constraintSystem := statement.matrixSource
+    constraintSystem := statement.relationSource
     commitment := statement.commitments source
     publicInput := statement.publicInputs source
     point := probe.coins.roundPoint
-    evaluations := #[fun matrix coefficient =>
-      probe.response.fullOutput.coordinate source matrix coefficient]
+    evaluations := #[{
+      pad := probe.response.fullOutput.padCoordinate source
+      matrix := probe.response.fullOutput.matrixCoordinate source
+    }]
     /- The protocol output is an instance of the honest target `CE(b)`.  The
     strong reduction's relaxed target `CE(⌊q/2⌋+1)` is a second relation over this
     same public instance and is stated by `CorrectedAmbientHolds`, which
@@ -534,8 +554,11 @@ def ambientConnectedInputs
   assignments := fun source =>
     witness.assignments (Fin.cast (ambientShape_sourceCount shape) source)
   priorPoint := probe.coins.roundPoint
-  claimedCoefficient := fun coordinate =>
-    probe.response.fullOutput.coordinate coordinate.running
+  claimedPadCoefficient := fun coordinate =>
+    probe.response.fullOutput.padCoordinate coordinate.running
+      coordinate.coefficient
+  claimedMatrixCoefficient := fun coordinate =>
+    probe.response.fullOutput.matrixCoordinate coordinate.running
       coordinate.matrix coordinate.coefficient
 
 /-- Unified form of the corrected-ambient output adapter. Coefficient
@@ -560,17 +583,22 @@ private theorem fullOutput_ext
     {Extension : Type uExtension}
     {shape : Shape}
     (left right : FullOutput Extension shape)
-    (equal : forall source matrix coefficient,
-      left.coordinate source matrix coefficient =
-        right.coordinate source matrix coefficient) :
+    (padEqual : forall source coefficient,
+      left.padCoordinate source coefficient =
+        right.padCoordinate source coefficient)
+    (matrixEqual : forall source matrix coefficient,
+      left.matrixCoordinate source matrix coefficient =
+        right.matrixCoordinate source matrix coefficient) :
     left = right := by
   cases left with
-  | mk leftCoordinate =>
+  | mk leftPad leftMatrix =>
       cases right with
-      | mk rightCoordinate =>
+      | mk rightPad rightMatrix =>
           congr
-          funext source matrix coefficient
-          exact equal source matrix coefficient
+          · funext source coefficient
+            exact padEqual source coefficient
+          · funext source matrix coefficient
+            exact matrixEqual source matrix coefficient
 
 /-- Corrected-ambient evaluation truth forces every coordinate in the
 response's complete output family to be the honest evaluation of the extracted
@@ -596,33 +624,110 @@ theorem fullOutput_eq_honestAt_of_ambientOutputHolds
       FullOutput.honestAt baseOps extensionOps lift
         (statement.sourceConnectedInputs witness) probe.coins.roundPoint := by
   apply fullOutput_ext
-  intro source matrix coefficient
-  have evaluationsEqual := (ambient source).2.2
-  change
-    #[fun currentMatrix currentCoefficient =>
-      (BooleanTable.tabulate fun vertex =>
-        lift (matrixVectorAt baseOps
-          (statement.matrixSource.coefficientMatrix baseOps
-            currentMatrix currentCoefficient)
-          (witness.assignments source) vertex)).evaluate
-            extensionOps probe.coins.roundPoint] =
-      #[fun currentMatrix currentCoefficient =>
-        probe.response.fullOutput.coordinate source
-          currentMatrix currentCoefficient] at evaluationsEqual
-  have familyEqual :
-      (fun currentMatrix currentCoefficient =>
-        (BooleanTable.tabulate fun vertex =>
-          lift (matrixVectorAt baseOps
-            (statement.matrixSource.coefficientMatrix baseOps
-              currentMatrix currentCoefficient)
-            (witness.assignments source) vertex)).evaluate
-              extensionOps probe.coins.roundPoint) =
-        (fun currentMatrix currentCoefficient =>
-          probe.response.fullOutput.coordinate source
-            currentMatrix currentCoefficient) := by
-    have listEqual := congrArg Array.toList evaluationsEqual
-    simpa using listEqual
-  exact (congrFun (congrFun familyEqual matrix) coefficient).symm
+  · intro source coefficient
+    have evaluationsEqual := (ambient source).2.2
+    change
+      #[({
+        pad := fun currentCoefficient =>
+          (BooleanTable.tabulate fun vertex =>
+            lift (matrixVectorAt baseOps
+              (statement.matrixSource.coefficientMatrixOf baseOps
+                (fun row column =>
+                  statement.cubeLayout.paddedIdentityEntry
+                    baseOps.zero baseOps.one row column)
+                currentCoefficient)
+              (witness.assignments source) vertex)).evaluate
+                extensionOps probe.coins.roundPoint
+        matrix := fun currentMatrix currentCoefficient =>
+          (BooleanTable.tabulate fun vertex =>
+            lift (matrixVectorAt baseOps
+              (statement.matrixSource.coefficientMatrix baseOps
+                currentMatrix currentCoefficient)
+              (witness.assignments source) vertex)).evaluate
+                extensionOps probe.coins.roundPoint
+      } : EvaluationFamily Extension shape)] = #[({
+        pad := probe.response.fullOutput.padCoordinate source
+        matrix := probe.response.fullOutput.matrixCoordinate source
+      } : EvaluationFamily Extension shape)] at evaluationsEqual
+    have familyEqual :
+        ({
+          pad := fun currentCoefficient =>
+            (BooleanTable.tabulate fun vertex =>
+              lift (matrixVectorAt baseOps
+                (statement.matrixSource.coefficientMatrixOf baseOps
+                  (fun row column =>
+                    statement.cubeLayout.paddedIdentityEntry
+                      baseOps.zero baseOps.one row column)
+                  currentCoefficient)
+                (witness.assignments source) vertex)).evaluate
+                  extensionOps probe.coins.roundPoint
+          matrix := fun currentMatrix currentCoefficient =>
+            (BooleanTable.tabulate fun vertex =>
+              lift (matrixVectorAt baseOps
+                (statement.matrixSource.coefficientMatrix baseOps
+                  currentMatrix currentCoefficient)
+                (witness.assignments source) vertex)).evaluate
+                  extensionOps probe.coins.roundPoint
+        } : EvaluationFamily Extension shape) = ({
+          pad := probe.response.fullOutput.padCoordinate source
+          matrix := probe.response.fullOutput.matrixCoordinate source
+        } : EvaluationFamily Extension shape) := by
+      have listEqual := congrArg Array.toList evaluationsEqual
+      simpa using listEqual
+    exact (congrFun (congrArg EvaluationFamily.pad familyEqual)
+      coefficient).symm
+  · intro source matrix coefficient
+    have evaluationsEqual := (ambient source).2.2
+    change
+      #[({
+        pad := fun currentCoefficient =>
+          (BooleanTable.tabulate fun vertex =>
+            lift (matrixVectorAt baseOps
+              (statement.matrixSource.coefficientMatrixOf baseOps
+                (fun row column =>
+                  statement.cubeLayout.paddedIdentityEntry
+                    baseOps.zero baseOps.one row column)
+                currentCoefficient)
+              (witness.assignments source) vertex)).evaluate
+                extensionOps probe.coins.roundPoint
+        matrix := fun currentMatrix currentCoefficient =>
+          (BooleanTable.tabulate fun vertex =>
+            lift (matrixVectorAt baseOps
+              (statement.matrixSource.coefficientMatrix baseOps
+                currentMatrix currentCoefficient)
+              (witness.assignments source) vertex)).evaluate
+                extensionOps probe.coins.roundPoint
+      } : EvaluationFamily Extension shape)] = #[({
+        pad := probe.response.fullOutput.padCoordinate source
+        matrix := probe.response.fullOutput.matrixCoordinate source
+      } : EvaluationFamily Extension shape)] at evaluationsEqual
+    have familyEqual :
+        ({
+          pad := fun currentCoefficient =>
+            (BooleanTable.tabulate fun vertex =>
+              lift (matrixVectorAt baseOps
+                (statement.matrixSource.coefficientMatrixOf baseOps
+                  (fun row column =>
+                    statement.cubeLayout.paddedIdentityEntry
+                      baseOps.zero baseOps.one row column)
+                  currentCoefficient)
+                (witness.assignments source) vertex)).evaluate
+                  extensionOps probe.coins.roundPoint
+          matrix := fun currentMatrix currentCoefficient =>
+            (BooleanTable.tabulate fun vertex =>
+              lift (matrixVectorAt baseOps
+                (statement.matrixSource.coefficientMatrix baseOps
+                  currentMatrix currentCoefficient)
+                (witness.assignments source) vertex)).evaluate
+                  extensionOps probe.coins.roundPoint
+        } : EvaluationFamily Extension shape) = ({
+          pad := probe.response.fullOutput.padCoordinate source
+          matrix := probe.response.fullOutput.matrixCoordinate source
+        } : EvaluationFamily Extension shape) := by
+      have listEqual := congrArg Array.toList evaluationsEqual
+      simpa using listEqual
+    exact (congrFun (congrFun
+      (congrArg EvaluationFamily.matrix familyEqual) matrix) coefficient).symm
 
 /-- Consequently the verifier's projected response is exactly
 `ProtocolPolynomial.messageAt`; the generic `OutputMismatch` event has no
@@ -655,18 +760,18 @@ theorem projectedOutput_eq_messageAt_of_ambientOutputHolds
   calc
     statement.projectOutput probe.response.fullOutput =
         probe.response.fullOutput.toOutputMessage
-          (statement.identityFirstMatrix witness) :=
+          (statement.sourceConnectedInputs witness) :=
       statement.projectOutput_eq_toOutputMessage witness _
     _ = (FullOutput.honestAt baseOps extensionOps lift
           (statement.sourceConnectedInputs witness) probe.coins.roundPoint).toOutputMessage
-        (statement.identityFirstMatrix witness) := by
+        (statement.sourceConnectedInputs witness) := by
       rw [fullOutputEqual]
     _ = ProtocolPolynomial.messageAt extensionOps
         (statement.sourceProtocolData lift witness) probe.coins.roundPoint :=
       FullOutput.honestAt_toOutputMessage_eq_messageAt
         baseOps baseLaws baseZero extensionOps lift
         (statement.sourceConnectedInputs witness) constantLaw
-        (statement.identityFirstMatrix witness) probe.coins.roundPoint
+        probe.coins.roundPoint
 
 /-- One accepted explicit public-coin probe plus a witness for the
 verifier-constructed corrected-ambient output yields source membership, an

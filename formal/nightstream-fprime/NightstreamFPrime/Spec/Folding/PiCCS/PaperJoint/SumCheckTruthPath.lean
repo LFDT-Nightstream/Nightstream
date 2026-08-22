@@ -322,8 +322,8 @@ def normAtPoint
     SignedJointIdentity.gammaTerm ops gamma source.val
       ((data.norm source).evaluate ops point)
 
-/-- Arbitrary-point unshifted carried `Eval(x,C)`. -/
-def carriedAtPoint
+/-- Arbitrary-point unshifted `Eval_K(x,C)`. -/
+def padAtPoint
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -331,9 +331,35 @@ def carriedAtPoint
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables) : Field :=
   ops.mul (pointEquality ops point data.priorPoint) <|
-    SignedJointIdentity.sumMap ops (canonicalCarriedCoordinates shape) fun coordinate =>
+    SignedJointIdentity.sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
       SignedJointIdentity.gammaTerm ops gamma coordinate.localGammaExponent
-        ((data.carriedImage coordinate).evaluate ops point)
+        ((data.padImage coordinate).evaluate ops point)
+
+/-- Arbitrary-point unshifted `Eval_A(x,C)`. -/
+def matrixAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.mul (pointEquality ops point data.priorPoint) <|
+    SignedJointIdentity.sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+      SignedJointIdentity.gammaTerm ops gamma coordinate.localGammaExponent
+        ((data.matrixImage coordinate).evaluate ops point)
+
+def constraintAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.mul (pointEquality ops point alpha)
+    (ops.add (ccsAtPoint ops data gamma point)
+      (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
+        (normAtPoint ops data gamma point)))
 
 /-- Literal joint polynomial at an arbitrary field point. -/
 def qAtPoint
@@ -345,13 +371,12 @@ def qAtPoint
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables) : Field :=
   ops.add
-    (ops.mul (pointEquality ops point alpha)
-      (ops.add
-        (ccsAtPoint ops data gamma point)
-        (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
-          (normAtPoint ops data gamma point))))
-    (SignedJointIdentity.gammaTerm ops gamma shape.carriedEvaluationOffset
-      (carriedAtPoint ops data gamma point))
+    (padAtPoint ops data gamma point)
+    (ops.add
+      (SignedJointIdentity.gammaTerm ops gamma shape.matrixEvaluationOffset
+        (matrixAtPoint ops data gamma point))
+      (SignedJointIdentity.gammaTerm ops gamma shape.constraintOffset
+        (constraintAtPoint ops data alpha gamma point)))
 
 private theorem sumMap_evaluate_toCubePoint_eq_valueAt
     {Field : Type uField}
@@ -403,7 +428,7 @@ theorem normAtPoint_toCubePoint_eq_normAt
   exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.norm
     (fun source => TargetPolynomial.power ops.toOps gamma source.val) vertex
 
-theorem carriedAtPoint_toCubePoint_eq_carriedAt
+theorem padAtPoint_toCubePoint_eq_padAt
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
@@ -411,16 +436,52 @@ theorem carriedAtPoint_toCubePoint_eq_carriedAt
     (data : SignedJointIdentity.JointData Field shape)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    carriedAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
-      SignedJointIdentity.carriedAt ops data gamma vertex := by
-  unfold carriedAtPoint SignedJointIdentity.carriedAt
+    padAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+      SignedJointIdentity.padAt ops data gamma vertex := by
+  unfold padAtPoint SignedJointIdentity.padAt
   rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
   congr 1
   unfold SignedJointIdentity.gammaTerm
-  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.carriedImage
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.padImage
     (fun coordinate =>
       TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
     vertex
+
+theorem matrixAtPoint_toCubePoint_eq_matrixAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    matrixAtPoint ops data gamma (VertexEncoding.toCubePoint ops vertex) =
+      SignedJointIdentity.matrixAt ops data gamma vertex := by
+  unfold matrixAtPoint SignedJointIdentity.matrixAt
+  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
+  congr 1
+  unfold SignedJointIdentity.gammaTerm
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.matrixImage
+    (fun coordinate =>
+      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+    vertex
+
+theorem constraintAtPoint_toCubePoint_eq_constraintAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    constraintAtPoint ops data alpha gamma
+        (VertexEncoding.toCubePoint ops vertex) =
+      SignedJointIdentity.constraintAt ops data alpha gamma vertex := by
+  unfold constraintAtPoint SignedJointIdentity.constraintAt
+  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws,
+    ccsAtPoint_toCubePoint_eq_ccsAt ops laws,
+    normAtPoint_toCubePoint_eq_normAt ops laws]
 
 /-- The arbitrary-point joint polynomial is not an MLE of a sampled truth
 table: it is the literal product expression, and it agrees with the prior
@@ -437,10 +498,9 @@ theorem qAtPoint_toCubePoint_eq_qAt
     qAtPoint ops data alpha gamma (VertexEncoding.toCubePoint ops vertex) =
       SignedJointIdentity.qAt ops data alpha gamma vertex := by
   unfold qAtPoint SignedJointIdentity.qAt
-  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws,
-    ccsAtPoint_toCubePoint_eq_ccsAt ops laws,
-    normAtPoint_toCubePoint_eq_normAt ops laws,
-    carriedAtPoint_toCubePoint_eq_carriedAt ops laws]
+  rw [padAtPoint_toCubePoint_eq_padAt ops laws,
+    matrixAtPoint_toCubePoint_eq_matrixAt ops laws,
+    constraintAtPoint_toCubePoint_eq_constraintAt ops laws]
 
 /-- Total coordinate-list form of the joint polynomial. The dependent branch
 constructs the sole dimension proof; a wrong-length list fails closed. -/

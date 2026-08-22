@@ -2,14 +2,15 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolDataRefinement.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolDataRefinement.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
+SuperNeo v1.1 Pad and 14-matrix evaluation families. -/
 
 /-!
 Refinement from one authoritative `Pi_CCS` source family to the actual
 off-cube protocol polynomial.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: source-image construction before Fiat--Shamir and SumCheck.
 Constraint family: semantic construction and carrier placement only; this
 file emits no rows.
@@ -23,7 +24,7 @@ Boolean restriction with the independently derived joint residual object.
 
 Does not own: the generic sparse-polynomial evaluation proof; an instantiation
 of the lift for the production extension/ring,
-proof that coefficient-expanded carried matrices derive from the CCS
+proof that coefficient-expanded Pad/matrix data derives from verifier-owned
 structure matrices, output-message serialization, Fiat--Shamir, SumCheck
 degree bounds, Rust, R1CS, row removal, or constraint counts.
 
@@ -178,9 +179,12 @@ def toProtocolData
   sourceAssignments := fun source => BooleanTable.tabulate fun vertex =>
     lift (data.layout.paddedValue 0 (data.assignments source) vertex)
   priorPoint := data.priorPoint
-  carriedImages := fun coordinate =>
-    CarriedEvaluationResidual.imageTable baseOps lift data.carriedData coordinate
-  claimedCoefficient := data.claimedCoefficient
+  padImages := fun coordinate =>
+    PadEvaluationResidual.imageTable baseOps lift data.padData coordinate
+  matrixImages := fun coordinate =>
+    MatrixEvaluationResidual.imageTable baseOps lift data.matrixData coordinate
+  claimedPadCoefficient := data.claimedPadCoefficient
+  claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
 /-- The CCS branch of the actual protocol's Boolean restriction is exactly
 the lifted independently constructed CCS residual table. -/
@@ -254,7 +258,7 @@ theorem normTable_eq
 
 /-- Exact closure: restricting the derived actual protocol polynomial to the
 Boolean cube produces the independently derived joint residual object for all
-five typed families. No equality premise is accepted from a caller. -/
+seven typed fields. No equality premise is accepted from a caller. -/
 theorem toProtocolData_toJointData_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -271,6 +275,8 @@ theorem toProtocolData_toJointData_eq
     exact ccsTable_eq baseOps extensionOps lift laws data source
   · funext source
     exact normTable_eq baseOps extensionOps lift laws data source
+  · rfl
+  · rfl
   · rfl
   · rfl
   · rfl

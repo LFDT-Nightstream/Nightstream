@@ -28,6 +28,16 @@ def absorb (s : State) (xs : List F) : State :=
 /-- Absorb a self-delimiting block: length prefix, then the words. -/
 def absorbBlock (s : State) (xs : List F) : State := absorb s (block xs)
 
+/-- Fold a typed list of self-delimiting blocks through the transcript. -/
+def absorbBlocks (state : State) (blocks : List (List F)) : State :=
+  blocks.foldl absorbBlock state
+
+@[simp] theorem absorbBlocks_append (state : State)
+    (left right : List (List F)) :
+    absorbBlocks state (left ++ right) =
+      absorbBlocks (absorbBlocks state left) right := by
+  simp [absorbBlocks, List.foldl_append]
+
 /-- Squeeze one field word (lane 0), then permute. -/
 def squeezeF (s : State) : F × State := (s.getD 0 0, Poseidon2.permute s)
 
@@ -48,23 +58,37 @@ def squeezeKs : Nat → State → List K × State
 
 def initialState : State := Poseidon2.zeroState
 
+/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, materialized so transcript
+and footprint proofs do not reduce a runtime UTF-8 conversion. -/
+def domainTagBytes : List Nat :=
+  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+    83, 117, 112, 101, 114, 78, 101, 111, 47, 78, 73, 70, 83, 47, 118, 49]
+
 /-- Domain tag absorbed before every protocol transcript. -/
-def domainTag : List F :=
-  "Nightstream/SuperNeo/NIFS/v1".toUTF8.toList.map fun b => Poseidon2.ofNat b.toNat
+def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
+
+@[simp] theorem domainTag_length : domainTag.length = 28 := by
+  simp [domainTag, domainTagBytes]
 
 def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
 
-/-- Absorb the verifier input of Π_CCS: prior point and claimed carried
-coefficients (the constraint polynomial is key data, bound through the
-verifier-key digest already absorbed with the statement). -/
-def absorbVerifierInput (s : State)
+/-- The two verifier-input blocks of v1.1 Π_CCS: prior point, then Pad
+claims in `I_K` order followed by matrix claims in `I_A` order. -/
+def verifierInputBlocks
+    (input : ProtocolPolynomial.VerifierInput K productionShape) :
+    List (List F) :=
+  [serializePoint input.priorPoint,
+    (canonicalPadCoordinates productionShape).flatMap
+        (fun coordinate => serializeK (input.claimedPadCoefficient coordinate)) ++
+      (canonicalMatrixCoordinates productionShape).flatMap
+        (fun coordinate => serializeK (input.claimedMatrixCoefficient coordinate))]
+
+/-- Absorb the verifier input from its one canonical block list. The
+constraint polynomial is key data bound through the verifier-key digest. -/
+def absorbVerifierInput (state : State)
     (input : ProtocolPolynomial.VerifierInput K productionShape) : State :=
-  let s := absorbBlock s (serializePoint input.priorPoint)
-  absorbBlock s ((List.finRange productionShape.coefficientCount).flatMap fun l =>
-    (List.finRange productionShape.runningCount).flatMap fun i =>
-      (List.finRange productionShape.matrixCount).flatMap fun j =>
-        serializeK (input.claimedCoefficient ⟨i, j, l⟩))
+  absorbBlocks state (verifierInputBlocks input)
 
 /-- Label words keep `α`, `γ`, and round squeezes in distinct domains. -/
 def labelWord : FiatShamir.ChallengeLabel productionShape → List F
@@ -87,10 +111,10 @@ def piCcsOracle :
           serializeK (out.freshMatrixImage i j)) ++
       ((List.finRange productionShape.sourceCount).flatMap fun i =>
         serializeK (out.sourceAssignment i)) ++
-      ((List.finRange productionShape.coefficientCount).flatMap fun l =>
-        (List.finRange productionShape.runningCount).flatMap fun i =>
-          (List.finRange productionShape.matrixCount).flatMap fun j =>
-            serializeK (out.carriedImage ⟨i, j, l⟩)))
+      ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
+        serializeK (out.padImage coordinate)) ++
+      ((canonicalMatrixCoordinates productionShape).flatMap fun coordinate =>
+        serializeK (out.matrixImage coordinate)))
 
 /-! ## Π_RLC challenge sampler -/
 

@@ -7,10 +7,8 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Table-level residual construction for the paper-level `Pi_CCS` model.
 
-Owns: canonically indexed CCS and norm Boolean tables, canonically indexed
-carried scalar residuals, their serialization into the joint coefficient
-model, independently defined leafwise obligations, and the resulting
-`ResidualizationBoundary`.
+Owns: canonically indexed Pad, matrix, CCS, and norm residuals, their v1.1
+serialization, independent leafwise obligations, and the resulting boundary.
 
 Does not own: concrete CCS formulas, the norm range polynomial or field
 no-wrap proof, carried target/evaluation formulas, the signed joint identity,
@@ -30,7 +28,8 @@ the signed joint identity.
 |---|---|---|---|
 | CCS | `Fin K -> BooleanTable ell` | fresh index increasing | every table leaf is zero |
 | norm | `Fin (K+k) -> BooleanTable ell` | source index increasing | every table leaf is zero |
-| carried evaluation | `CarriedCoordinate -> Field` | coefficient, matrix, running; running fastest | every scalar is zero |
+| Pad evaluation | `PadCoordinate -> Field` | coefficient, running | every scalar is zero |
+| matrix evaluation | `MatrixCoordinate -> Field` | coefficient, matrix, running | every scalar is zero |
 
 For zero-based `(running, matrix, coefficient)`, the carried serialization is
 coordinated with
@@ -62,43 +61,55 @@ structure TableResidualData
     (shape : Shape) where
   ccs : Fin shape.freshCount -> BooleanTable Field shape.cubeVariables
   norm : Fin shape.sourceCount -> BooleanTable Field shape.cubeVariables
-  carriedEvaluation : CarriedCoordinate shape -> Field
+  padEvaluation : PadCoordinate shape -> Field
+  matrixEvaluation : MatrixCoordinate shape -> Field
 
 namespace TableResidualData
 
-/-- Carried scalars serialized in the exact coordinate order above. -/
-def orderedCarriedEvaluation
+/-- Pad scalars serialized in exact `I_K` order. -/
+def orderedPadEvaluation
     {Field : Type uField}
     {shape : Shape}
     (data : TableResidualData Field shape) : List Field :=
-  (canonicalCarriedCoordinates shape).map data.carriedEvaluation
+  (canonicalPadCoordinates shape).map data.padEvaluation
 
-/-- Mechanical expansion of the carried serialization order. Together with
-`CarriedCoordinate.localGammaExponent`, this fixes position order to
-`I = running + k * matrix + k * t * coefficient`; no caller list can choose a
-different permutation. -/
-theorem orderedCarriedEvaluation_eq_formulaOrder
+/-- Matrix scalars serialized in exact `I_A` order. -/
+def orderedMatrixEvaluation
+    {Field : Type uField}
+    {shape : Shape}
+    (data : TableResidualData Field shape) : List Field :=
+  (canonicalMatrixCoordinates shape).map data.matrixEvaluation
+
+theorem orderedPadEvaluation_length
     {Field : Type uField}
     {shape : Shape}
     (data : TableResidualData Field shape) :
-    data.orderedCarriedEvaluation =
+    data.orderedPadEvaluation.length = shape.padEvaluationCount := by
+  simp [orderedPadEvaluation, canonicalPadCoordinates_length]
+
+/-- Mechanical expansion of the matrix serialization order. -/
+theorem orderedMatrixEvaluation_eq_formulaOrder
+    {Field : Type uField}
+    {shape : Shape}
+    (data : TableResidualData Field shape) :
+    data.orderedMatrixEvaluation =
       (canonicalFinIndices shape.coefficientCount).flatMap fun coefficient =>
         (canonicalFinIndices shape.matrixCount).flatMap fun matrix =>
           (canonicalFinIndices shape.runningCount).map fun running =>
-            data.carriedEvaluation
+            data.matrixEvaluation
               { running := running
                 matrix := matrix
                 coefficient := coefficient } := by
-  simp [orderedCarriedEvaluation, canonicalCarriedCoordinates,
+  simp [orderedMatrixEvaluation, canonicalMatrixCoordinates,
     map_flatMap_apply, Function.comp_def]
 
-/-- Serialization cannot omit or insert a carried scalar. -/
-theorem orderedCarriedEvaluation_length
+/-- Matrix serialization cannot omit or insert a scalar. -/
+theorem orderedMatrixEvaluation_length
     {Field : Type uField}
     {shape : Shape}
     (data : TableResidualData Field shape) :
-    data.orderedCarriedEvaluation.length = shape.carriedEvaluationCount := by
-  simp [orderedCarriedEvaluation, canonicalCarriedCoordinates_length]
+    data.orderedMatrixEvaluation.length = shape.matrixEvaluationCount := by
+  simp [orderedMatrixEvaluation, canonicalMatrixCoordinates_length]
 
 /-- Canonical coefficient residuals derived from explicit table data. -/
 def toResiduals
@@ -107,14 +118,16 @@ def toResiduals
     (ops : InterpolationOps Field)
     (data : TableResidualData Field shape) :
     Residuals Field shape (canonicalAlphaBasis shape) where
+  padEvaluation := data.orderedPadEvaluation
+  padEvaluationCount := data.orderedPadEvaluation_length
+  matrixEvaluation := data.orderedMatrixEvaluation
+  matrixEvaluationCount := data.orderedMatrixEvaluation_length
   ccs := (canonicalFinIndices shape.freshCount).map fun index =>
     (data.ccs index).toAlphaPolynomial ops
   ccsCount := by simp [canonicalFinIndices]
   norm := (canonicalFinIndices shape.sourceCount).map fun index =>
     (data.norm index).toAlphaPolynomial ops
   normCount := by simp [canonicalFinIndices]
-  carriedEvaluation := data.orderedCarriedEvaluation
-  carriedEvaluationCount := data.orderedCarriedEvaluation_length
 
 /-- Independently defined table obligations. These propositions inspect only
 the input table leaves/scalars, never the derived polynomial coefficients. -/
@@ -123,16 +136,18 @@ def toTableObligations
     {shape : Shape}
     (ops : InterpolationOps Field)
     (data : TableResidualData Field shape) : Obligations shape where
+  padEvaluation := (canonicalPadCoordinates shape).map fun coordinate =>
+    data.padEvaluation coordinate = ops.zero
+  padEvaluationCount := by simp [canonicalPadCoordinates_length]
+  matrixEvaluation := (canonicalMatrixCoordinates shape).map fun coordinate =>
+    data.matrixEvaluation coordinate = ops.zero
+  matrixEvaluationCount := by simp [canonicalMatrixCoordinates_length]
   ccs := (canonicalFinIndices shape.freshCount).map fun index =>
     (data.ccs index).AllEntriesZero ops
   ccsCount := by simp [canonicalFinIndices]
   norm := (canonicalFinIndices shape.sourceCount).map fun index =>
     (data.norm index).AllEntriesZero ops
   normCount := by simp [canonicalFinIndices]
-  carriedEvaluation := (canonicalCarriedCoordinates shape).map fun coordinate =>
-    data.carriedEvaluation coordinate = ops.zero
-  carriedEvaluationCount := by
-    simp [canonicalCarriedCoordinates_length]
 
 private theorem aligned_map_same_source
     {Index : Type uIndex}
@@ -162,6 +177,18 @@ theorem residualizationBoundary
       (data.toResiduals ops) (data.toTableObligations ops) := by
   constructor
   · exact aligned_map_same_source
+      (fun residual obligation => residual = ops.zero ↔ obligation)
+      data.padEvaluation
+      (fun coordinate => data.padEvaluation coordinate = ops.zero)
+      (fun _ => Iff.rfl)
+      (canonicalPadCoordinates shape)
+  · exact aligned_map_same_source
+      (fun residual obligation => residual = ops.zero ↔ obligation)
+      data.matrixEvaluation
+      (fun coordinate => data.matrixEvaluation coordinate = ops.zero)
+      (fun _ => Iff.rfl)
+      (canonicalMatrixCoordinates shape)
+  · exact aligned_map_same_source
       (fun residual obligation =>
         residual.CoefficientZero ops.toOps ↔ obligation)
       (fun index => (data.ccs index).toAlphaPolynomial ops)
@@ -179,12 +206,6 @@ theorem residualizationBoundary
         BooleanTable.toAlphaPolynomial_coefficientZero_iff_allEntriesZero
           ops laws (data.norm index))
       (canonicalFinIndices shape.sourceCount)
-  · exact aligned_map_same_source
-      (fun residual obligation => residual = ops.zero ↔ obligation)
-      data.carriedEvaluation
-      (fun coordinate => data.carriedEvaluation coordinate = ops.zero)
-      (fun _ => Iff.rfl)
-      (canonicalCarriedCoordinates shape)
 
 /-- Joint coefficient truth is equivalent to the explicit table obligations,
 without any caller-supplied evaluator, basis, degree, or per-leaf iff. This is

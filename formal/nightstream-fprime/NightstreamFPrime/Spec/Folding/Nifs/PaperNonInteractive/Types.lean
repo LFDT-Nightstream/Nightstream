@@ -4,8 +4,9 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperNonInteractive/Types.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperNonInteractive/Types.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
+SuperNeo v1.1 Pad and 14-matrix evaluation families. -/
 
 /-!
 Typed public data and deterministic dataflow for the paper SuperNeo NIFS.
@@ -130,19 +131,13 @@ structure Key
       (ConstraintPolynomialLift.liftConstraintPolynomial lift
         matrixSource.constraintPolynomial).canonicalEqualityGatedDegreeBound 4 =
       degreeBound
-  matrixCountPositive : 0 < shape.matrixCount
-  identityFirstEntry : forall
-      (vertex : BooleanVertex shape.cubeVariables)
-      (column : Fin columns),
-    matrixSource.matrices ⟨0, matrixCountPositive⟩ vertex column =
-      cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one vertex column
   constantLaw : ConstantTermLaw baseOps matrixSource.kernel
   challengeSetSize : Nat
   /-- Canonical semantic view used by `Pi_RLC`, `Pi_DEC`, and the public NIFS
   relation. It may normalize malformed layout fields, but it must agree with
   the paper relation at `matrixSource`. -/
   piRlcSemantics : RelationSemantics
-    (MatrixSource F shape columns blockCount)
+    (RelationSource shape columns blockCount)
     (Assignment F columns)
     PublicInput
     (CubePoint Extension shape.cubeVariables)
@@ -164,13 +159,16 @@ structure Key
       Opening.Holds piRlcSemantics normBound commitment publicInput assignment)
   ambientAgreement : forall
       (statement : CE.Instance
-        (MatrixSource F shape columns blockCount)
+        (RelationSource shape columns blockCount)
         PublicInput
         (CubePoint Extension shape.cubeVariables)
         (EvaluationFamily Extension shape)
         Commitment)
       (assignment : Assignment F columns),
-    statement.constraintSystem = matrixSource ->
+    statement.constraintSystem =
+        ({ cubeLayout := cubeLayout
+           matrixSource := matrixSource } :
+          RelationSource shape columns blockCount) ->
       (PiRLC.PaperCorrections.CorrectedAmbientHolds
           (paperRelationSemantics baseOps extensionOps lift openingMaps)
           params statement assignment <->
@@ -182,14 +180,24 @@ structure Key
   evaluationAgreement : forall
       (assignment : Assignment F columns)
       (point : CubePoint Extension shape.cubeVariables),
-    piRlcSemantics.evaluationPointValid matrixSource point /\
-      piRlcSemantics.evaluations matrixSource assignment point =
+    piRlcSemantics.evaluationPointValid
+        ({ cubeLayout := cubeLayout
+           matrixSource := matrixSource } :
+          RelationSource shape columns blockCount) point /\
+      piRlcSemantics.evaluations
+          ({ cubeLayout := cubeLayout
+             matrixSource := matrixSource } :
+            RelationSource shape columns blockCount)
+          assignment point =
         (paperRelationSemantics baseOps extensionOps lift openingMaps).evaluations
-          matrixSource assignment point
+          ({ cubeLayout := cubeLayout
+             matrixSource := matrixSource } :
+            RelationSource shape columns blockCount)
+          assignment point
   piRlcEvaluationsSize : forall system assignment point,
     (piRlcSemantics.evaluations system assignment point).size = 1
   piRlcAlgebra : PiRLC.Algebra
-    (MatrixSource F shape columns blockCount)
+    (RelationSource shape columns blockCount)
     (Assignment F columns)
     PublicInput
     (CubePoint Extension shape.cubeVariables)
@@ -198,7 +206,7 @@ structure Key
     piRlcSemantics
     params
   piDecAlgebra : PiDEC.Algebra
-    (MatrixSource F shape columns blockCount)
+    (RelationSource shape columns blockCount)
     (Assignment F columns)
     PublicInput
     (CubePoint Extension shape.cubeVariables)
@@ -210,7 +218,10 @@ structure Key
   piDecEvaluationArity : PiDEC.PaperVerifier.EvaluationArity
     piRlcSemantics
   piDecEvaluationCount :
-    piDecEvaluationArity.count matrixSource = 1
+    piDecEvaluationArity.count
+      ({ cubeLayout := cubeLayout
+         matrixSource := matrixSource } :
+        RelationSource shape columns blockCount) = 1
   piDecDecision : forall attempt,
     Decidable (PiDEC.PaperVerifier.Accepted piDecAlgebra
       piDecEvaluationArity attempt)
@@ -229,6 +240,22 @@ structure Key
     piRlcAlgebra.challengeValid (piRlcResponse state index)
 
 namespace Key
+
+/-- The one v1.1 relation source selected by the key. Canonical Pad comes
+from `cubeLayout`; all CCS matrices come from `matrixSource`. -/
+def relationSource
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound) :
+    RelationSource shape columns blockCount where
+  cubeLayout := key.cubeLayout
+  matrixSource := key.matrixSource
 
 /-- Exact equality between the joint paper source count and `K+k`. -/
 theorem total_eq_sourceCount
@@ -293,11 +320,11 @@ def statement
   commitments := Fin.addCases fresh.commitments running.commitments
   publicInputs := Fin.addCases fresh.publicInputs running.publicInputs
   priorPoint := running.point
-  claimedCoefficient := fun coordinate =>
-    running.evaluations coordinate.running coordinate.matrix
+  claimedPadCoefficient := fun coordinate =>
+    (running.evaluations coordinate.running).pad coordinate.coefficient
+  claimedMatrixCoefficient := fun coordinate =>
+    (running.evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
-  matrixCountPositive := key.matrixCountPositive
-  identityFirstEntry := key.identityFirstEntry
 
 /-- The common fixed SumCheck width is exactly the syntactic degree selected
 by this key's paper constraint polynomial. -/
@@ -534,7 +561,7 @@ def piCcsOutputs
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
     Fin key.arity.total -> CE.Instance
-      (MatrixSource F shape columns blockCount) PublicInput
+      (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape) Commitment :=
   fun source =>
@@ -575,7 +602,7 @@ def parent
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :=
-  PiRLC.combinedOutput key.piRlcAlgebra key.matrixSource
+  PiRLC.combinedOutput key.piRlcAlgebra key.relationSource
     (key.piCcsExecution running fresh proof).coins.roundPoint
     (key.piCcsOutputs running fresh proof)
     (key.piRlcChallenges running fresh proof)
@@ -612,7 +639,7 @@ def piDecAttempt
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
     PiDEC.PaperVerifier.Attempt
-      (MatrixSource F shape columns blockCount) PublicInput
+      (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape) Commitment key.params where
   parent := key.parent running fresh proof

@@ -497,7 +497,7 @@ private theorem flatConstraints_assertions (expressions : List Expr) :
       rw [ih]
       rfl
 
-private theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
+theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
       flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset) ++
       flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main

@@ -1,7 +1,9 @@
 import NightstreamFPrime.Layout.R1CS
+import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Layout.Polynomial.Horner
+import NightstreamFPrime.Layout.Polynomial.Power
 import NightstreamFPrime.Layout.Multilinear.PointEquality
 import NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Layout.SumCheck.FixedChain
@@ -18,7 +20,11 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.EvalKTerminal
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.EvalATerminal
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.CcsTerminal
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.NormTerminal
+import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.FinalIdentity
+import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.OutputBinding
 import NightstreamFPrime.Layout.PiCCS.v1_1.Lowering
+import NightstreamFPrime.Layout.PiCCS.v1_1.Composition
+import NightstreamFPrime.Layout.PiCCS.v1_1.Ownership
 import NightstreamFPrime.Layout.PiCCS.v1_1.Preservation
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

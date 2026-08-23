@@ -208,6 +208,35 @@ theorem rowCount_eq_of_degreeBound_eq_four (degreeBound : Nat)
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount]
 
+theorem completePrefix
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Interface logicalWidth
+      (ProductionKey.degreeBound relation) publicFits)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (specification : PhaseHolds relation ajtai interface offset env template) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsAt relation interface offset := by
+  rcases completeTranscriptPrefix relation interface env offset assumptions with
+    ⟨p4, o4, s4, statementSpecP4, challengeSpecP4, roundSpecP4⟩
+  rcases completeEvaluationPrefix relation ajtai interface env offset template
+      assumptions specification.accepted p4 statementSpecP4 challengeSpecP4
+        roundSpecP4 s4 with
+    ⟨p8, o8, s8, _p4to8, evidenceP8⟩
+  rcases completeTerminalPrefix relation ajtai interface env offset template
+      assumptions p8 evidenceP8 s8 with
+    ⟨p12, o12, _s12, _p8to12⟩
+  have operationsEq : p12.operations = opsAt relation interface offset := by
+    rw [o12, o8, o4]
+    simp [transcriptPrefixOps, evaluationPrefixOps, terminalPrefixOps, opsAt]
+  exact ⟨p12, operationsEq⟩
+
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -225,26 +254,16 @@ theorem completeness
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main relation interface) offset)) ∧
       holdsFlat completed (Circuit.ops (main relation interface) offset) := by
-  rcases completeTranscriptPrefix relation interface env offset assumptions with
-    ⟨p4, o4, s4, statementSpecP4, challengeSpecP4, roundSpecP4⟩
-  rcases completeEvaluationPrefix relation ajtai interface env offset template
-      assumptions specification.accepted p4 statementSpecP4 challengeSpecP4
-        roundSpecP4 s4 with
-    ⟨p8, o8, s8, _p4to8, evidenceP8⟩
-  rcases completeTerminalPrefix relation ajtai interface env offset template
-      assumptions p8 evidenceP8 s8 with
-    ⟨p12, o12, _s12, _p8to12⟩
-  have operationsEq : p12.operations = opsAt relation interface offset := by
-    rw [o12, o8, o4]
-    simp [transcriptPrefixOps, evaluationPrefixOps, terminalPrefixOps, opsAt]
-  refine ⟨p12.current, ?_, ?_⟩
-  change AgreesOutside env p12.current offset
-    (localLength (opsAt relation interface offset))
-  · rw [← operationsEq]
-    exact p12.agrees
-  · change holdsFlat p12.current (opsAt relation interface offset)
+  rcases completePrefix relation ajtai interface template env offset assumptions
+      specification with ⟨completed, operationsEq⟩
+  refine ⟨completed.current, ?_, ?_⟩
+  · change AgreesOutside env completed.current offset
+      (localLength (opsAt relation interface offset))
     rw [← operationsEq]
-    exact p12.rows
+    exact completed.agrees
+  · change holdsFlat completed.current (opsAt relation interface offset)
+    rw [← operationsEq]
+    exact completed.rows
 
 def circuit
     {logicalWidth : Nat}

@@ -193,9 +193,9 @@ parameterized values. `Formal.privateCount_eq_of_degreeBound_eq_four` and
 values. The parent sums certified child metadata. It does not evaluate the
 14-million-row list in the kernel.
 
-These are logical counts. They are not a physical layout, a column-reuse
-proof, or a domain theorem. `Layout/PiCCS/v1_1/` must prove those results and
-connect them to the Stage 1 `2^25` ledger.
+These are logical counts. `Layout/PiCCS/v1_1/Composition.lean` now proves the
+physical parent count. Column ownership, reuse, and connection to the Stage 1
+`2^25` ledger remain open.
 
 ## PiRLC logical circuit
 
@@ -247,7 +247,11 @@ Lifecycle/
     └── Soundness.lean           ○ circuit rows imply StepHolds/TerminalHolds
 
 Layout/
-├── PiCCS/v1_1/{Lowering,Preservation}.lean ◐ structural lowering and soundness
+├── PiCCS/v1_1/
+│   ├── Lowering.lean     ● one lowering of the sole logical circuit
+│   ├── Composition.lean  ● exact 12-child order and footprint ledger
+│   ├── Ownership.lean    ● one owner for every row and column
+│   └── Preservation.lean ● physical rows imply exact PhaseHolds
 ├── PiRLC/v1_1/{Lowering,Preservation}.lean ○
 ├── PiDEC/v1_1/{Lowering,Preservation}.lean ○
 └── Stage1/{Lowering,Ownership,Preservation}.lean ○
@@ -266,9 +270,31 @@ must not unfold child operations. File boundaries add no automatic copy rows.
 
 The current PiCCS layout has one `R1CS.LoweringPlan` over the sole logical
 circuit. `physical_implies_phaseHolds` proves that its physical rows imply the
-exact PiCCS `PhaseHolds`. Its row and fresh-column costs remain structural
-functions. Numeric physical costs, leaf row ownership, multiplication-witness
-completeness, reuse, and the cumulative `2^25` ledger are still open.
+exact PiCCS `PhaseHolds`. `Composition.logicalConstraints_eq_ordered` proves
+that its constraints are the twelve children below in production order.
+`physicalFreshDeltas_eq` and `physicalRowDeltas_eq` derive every entry from a
+leaf theorem. At `degreeBound = 4`, the parent totals are:
+
+| Measure | Exact value |
+|---|---:|
+| Lowering columns | `291,653 + terminalFreshCost` |
+| Physical rows | `14,876,089 + terminalRowCost` |
+| Zero-based physical columns | `14,876,041 + terminalFreshCost` |
+| Local joint domain | `max(rows, columns)` |
+
+The two terminal costs are the exact costs of the relation-owned sparse CCS
+expression. A universal numeric value would be false while that application
+relation remains a parameter. `jointDomain_eq_fixed` proves the displayed
+maximum. `Formal.completePrefix` exports the logical builder's row scope.
+Parent `physical_complete` uses that scope to construct every lowering
+intermediate and proves that the final environment differs from the caller
+only in the adjacent logical and R1CS fresh-column intervals.
+`Ownership.rowOwner` names one of the twelve mathematical leaves for every
+physical row. `Ownership.columnOwner` names external, child-private, or R1CS
+intermediate ownership for every physical column. `noBoundaryRows` and
+`noBoundaryColumns` prove that parent assembly adds no copy surface. Broader
+cross-phase reuse, the application-specific terminal corollary, and the
+cumulative Stage 1 `2^25` theorem remain open.
 
 Physical leaf packets close in logical order. Statement binding is complete:
 `Leaves.StatementBinding.freshColumnCount_eq` proves zero fresh columns and
@@ -356,8 +382,50 @@ Norm terminal N
 `Leaves.NormTerminal.compile_totalFreshCount` and
 `compile_totalRowCount` prove the indexed composition without expanding the
 17-source schedule in the kernel. The fixed leaf has 32 logical columns, 720
-lowering columns, 752 total private columns, and 752 rows. The remaining 2
-physical leaf packets are open.
+lowering columns, 752 total private columns, and 752 rows.
+
+The final-identity leaf now has an exact physical footprint certificate:
+
+```text
+Final identity
+├── point equality over 24 coordinates
+│   └── 94 logical + 569 lowering columns = 663 rows
+├── gamma^864
+│   └── 1,728 logical + 6,041 lowering columns = 7,769 rows
+├── gamma^12960
+│   └── 25,920 logical + 90,713 lowering columns = 116,633 rows
+└── two terminal extension-cell assertions
+    └── exact symbolic cost from the relation-owned sparse CCS expression
+```
+
+`Leaves.FinalIdentity.freshColumnCount_eq` proves `97,323` fixed lowering
+columns plus the exact terminal-assertion lowering cost.
+`physicalRowCount_eq` proves `125,065` fixed rows plus the exact terminal-row
+cost. A universal numeric terminal cost is not valid while the production
+sparse CCS expression remains parameterized.
+`Leaves.FinalIdentity.physical_implies_spec` proves physical soundness for the
+exact v1_1 terminal predicate. `physical_complete` composes the logical builder
+with `Layout.R1CS.lowerConstraints_complete` and constructs all logical and
+physical multiplication witnesses without normalizing the 27,744-row list.
+The production numeric terminal-cost corollary remains open until the sparse
+CCS expression is fixed. The output-binding packet has this physical tree:
+
+```text
+Output binding
+├── complete 27,540-word y' family in 17-source K + k order
+├── one 27,541-word length-prefixed additive Poseidon2 absorption
+├── 4,076,512 logical recipe columns
+├── 0 lowering columns and 4,076,512 physical rows
+└── 0 final-state or reduced-claim copy rows
+```
+
+`Leaves.OutputBinding.physical_implies_spec` binds the outgoing state to the
+constrained Duplex trace. `physical_complete` constructs the logical trace and
+its physical rows. The packet keeps `Eval_K` before all 14 separate `Eval_A`
+matrix families for each source. All twelve PiCCS leaf packets are
+structurally present, and their parent physical footprint is composed.
+Ownership, reuse, package emission, and the application-specific Stage 1
+ledger remain open.
 
 The current pilot preservation and package proofs are
 [`Layout.Pilot.physical_implies_spec`](NightstreamFPrime/Layout/Pilot.lean#L173)

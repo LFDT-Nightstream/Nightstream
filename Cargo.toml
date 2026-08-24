@@ -9,6 +9,7 @@ members = [
   "crates/neo-ccs",
   "crates/neo-reductions",
   "crates/neo-fold-clean",
+  "crates/neo-application",
   "crates/neo-wasm",
 ]
 exclude = [

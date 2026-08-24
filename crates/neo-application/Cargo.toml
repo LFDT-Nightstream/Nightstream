@@ -1,0 +1,14 @@
+[package]
+name = "neo-application"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[dependencies]
+neo-ccs = { path = "../neo-ccs" }
+neo-fold-clean = { path = "../neo-fold-clean" }
+neo-math = { path = "../neo-math" }

@@ -1254,6 +1254,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-application"
+version = "0.1.0"
+dependencies = [
+ "neo-ccs",
+ "neo-fold-clean",
+ "neo-math",
+]
+
+[[package]]
 name = "neo-ccs"
 version = "0.1.0"
 dependencies = [

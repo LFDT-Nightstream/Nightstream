@@ -1346,6 +1346,7 @@ dependencies = [
  "neo-params",
  "neo-reductions",
  "neo-transcript",
+ "nightstream-fprime",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
  "rand_chacha 0.10.0",
@@ -1491,6 +1492,20 @@ dependencies = [
  "wasmparser 0.240.0",
  "wasmtime",
  "wat",
+]
+
+[[package]]
+name = "nightstream-fprime"
+version = "0.1.0"
+dependencies = [
+ "neo-ccs",
+ "neo-transcript",
+ "p3-field 0.5.3",
+ "p3-goldilocks 0.5.3",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "wip-spartan",
 ]
 
 [[package]]

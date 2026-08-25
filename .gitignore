@@ -56,3 +56,8 @@ profile-xctrace.txt
 
 # Contract checks import local Python modules. Their bytecode is not source.
 protocol-contract/__pycache__/
+nightstream-fprime-source.zip
+FPRIME_LEAN_ARCHITECTURE_SPEC.md
+FPRIME_STAGE1_EXTERNAL_FABLE_REVIEW.md
+FPRIME_STAGE1_EXTERNAL_REVIEW.md
+FPRIME_STAGE1_GOAL.md

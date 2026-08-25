@@ -106,6 +106,37 @@ def zeroState : State := List.replicate width 0
 def absorbBlock (s : State) (block : List F) : State :=
   permute ((List.range width).map fun i => s.getD i 0 + block.getD i 0)
 
+/-- Tail-recursive absorption of the first `count` rate-sized blocks.
+
+Unlike the indexed reference expression in `hash`, this function drops only
+the next fixed-size block. Its executable cost is linear in the input length.
+-/
+def absorbBlocksFast : Nat → State → List F → State
+  | 0, state, _ => state
+  | count + 1, state, input =>
+      absorbBlocksFast count
+        (absorbBlock state (input.take rate)) (input.drop rate)
+
+theorem absorbBlocksFast_eq_indexed (count : Nat) (state : State)
+    (input : List F) :
+    absorbBlocksFast count state input =
+      ((List.range count).map fun block =>
+        (input.drop (block * rate)).take rate).foldl absorbBlock state := by
+  induction count generalizing state input with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      rw [absorbBlocksFast, inductionHypothesis]
+      rw [List.range_succ_eq_map]
+      simp only [List.map_cons, List.foldl_cons, Nat.zero_mul, List.drop_zero,
+        List.map_map]
+      congr 1
+      apply List.map_congr_left
+      intro block _member
+      congr 1
+      rw [List.drop_drop]
+      congr 1
+      simp [Nat.succ_mul, Nat.add_comm]
+
 /-- Sponge hash: absorb `rate`-sized chunks, add 1 to lane 0, permute, squeeze
 the first `digestLen` lanes. Matches
 `neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash`. -/
@@ -116,6 +147,21 @@ def hash (input : List F) : List F :=
   let padded := permute ((List.range width).map fun i =>
     if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
   padded.take digestLen
+
+/-- Linear executable form of `hash`. The theorem below keeps `hash` as the
+semantic authority and installs this definition only for compiled execution.
+-/
+def hashFast (input : List F) : List F :=
+  let blockCount := (input.length + rate - 1) / rate
+  let absorbed := absorbBlocksFast blockCount zeroState input
+  let padded := permute ((List.range width).map fun i =>
+    if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
+  padded.take digestLen
+
+@[csimp] theorem hash_eq_hashFast : @hash = @hashFast := by
+  funext input
+  dsimp only [hash, hashFast]
+  rw [absorbBlocksFast_eq_indexed]
 
 theorem constant_table_shape :
     initialConstants.length = halfFullRounds ∧

@@ -138,7 +138,7 @@ def profile : Profile where
   piRlcInputs := 17
   piDecChildren := 16
   ccsMatrices := 14
-  cubeVariables := 24
+  cubeVariables := 25
 
 def poseidonSchedule : PoseidonSchedule where
   width := Spec.Poseidon2.width
@@ -173,12 +173,17 @@ def physicalLayout : PhysicalLayout where
   publicSegments := publicSegments
 
 def circuitPackage (_unit : Unit) : CircuitPackage where
-  schemaVersion := 1
+  schemaVersion := 6
   profile := profile
   poseidon := poseidonSchedule
   layout := physicalLayout
+  relation := productionCcsRelation physicalLayout.rowCount
+    physicalLayout.totalColumnCount profile.cubeVariables
   permutation := permutationTemplate ()
   hashChains := [priorChain, outputChain]
+  permutationInvocations := []
+  witnessBatches := []
+  witnessInstructions := []
   assertionRows := assertionRows ()
   terminal := none
 

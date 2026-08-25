@@ -24,6 +24,18 @@ private theorem cubePoint_eq_of_coordinates
   cases right
   simp_all
 
+private theorem proof_ext
+    {degree : Nat}
+    (left right : Proof degree)
+    (rounds : left.piCcsRounds = right.piCcsRounds)
+    (output : left.piCcsOutput = right.piCcsOutput)
+    (commitments : left.piDecCommitments = right.piDecCommitments)
+    (evaluations : left.piDecEvaluations = right.piDecEvaluations) :
+    left = right := by
+  cases left
+  cases right
+  simp_all
+
 theorem evalRunning_eq_of_agree_below
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -118,20 +130,24 @@ theorem evalProof_eq_of_agree_below
     (agrees : ∀ index, index < offset → left index = right index) :
     evalProof relation interface offset left template =
       evalProof relation interface offset right template := by
-  unfold evalProof
-  congr 1
-  · funext roundIndex
+  have roundsEq :
+      (fun roundIndex =>
+        (interface.round offset roundIndex).semanticPolynomial left) =
+      fun roundIndex =>
+        (interface.round offset roundIndex).semanticPolynomial right := by
+    funext roundIndex
     unfold RoundTranscript.Message.semanticPolynomial
-    unfold FixedChain.Round.semanticPolynomial
-    congr 1
-    unfold RoundTranscript.Message.asRound FixedChain.Round.coefficients
-    rw [List.map_ofFn, List.map_ofFn]
-    apply congrArg List.ofFn
-    funext coefficient
-    exact ((interface.round offset roundIndex).coefficient coefficient
-      ).eval_eq_of_agree_below offset left right
-        (below.roundCoefficient roundIndex coefficient) agrees
-  · exact evalOutput_eq_of_agree_below interface offset left right below agrees
+    apply FixedChain.Round.semanticPolynomial_eq_of_agree_below
+    · exact ⟨fun coefficient => below.roundCoefficient roundIndex coefficient,
+        ⟨trivial, trivial⟩⟩
+    · exact agrees
+  have outputEq :=
+    evalOutput_eq_of_agree_below interface offset left right below agrees
+  apply proof_ext
+  · exact roundsEq
+  · exact outputEq
+  · rfl
+  · rfl
 
 theorem accepted_of_agree_below
     {logicalWidth : Nat}
@@ -146,12 +162,12 @@ theorem accepted_of_agree_below
     (template : Proof (ProductionKey.degreeBound relation))
     (below : ExternalInputsBelow interface offset)
     (agrees : ∀ index, index < offset → left index = right index)
-    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted
       (ProductionKey.key relation ajtai)
       (evalRunning interface offset left)
       (evalFresh interface offset left)
       (evalProof relation interface offset left template)) :
-    NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+    NightstreamFPrime.Spec.Folding.PiCCS.Accepted
       (ProductionKey.key relation ajtai)
       (evalRunning interface offset right)
       (evalFresh interface offset right)
@@ -190,6 +206,16 @@ def finalIdentityAssumptionsAt
     assumptions.eval_ABelow, assumptions.ccsBelow, assumptions.normBelow,
     assumptions.terminalBelow⟩
 
+def stateBindingAssumptionsAt
+    {interface : StateBinding.Interface}
+    {offset : Nat} {env : Env}
+    (assumptions : StateBinding.Assumptions interface offset env)
+    (current : Env) :
+    StateBinding.Assumptions interface offset current :=
+  ⟨assumptions.priorFixed, assumptions.outputFixed,
+    assumptions.priorContext, assumptions.outputContext,
+    assumptions.expectedContext⟩
+
 /-- Child assumptions contain only syntactic range facts and do not depend
 on environment values. -/
 def assumptionsAt
@@ -205,7 +231,8 @@ def assumptionsAt
     ⟨external, statementBinding, statementAbsorption, challenge,
       roundTranscript, initialClaim, sumcheck, eval_K, eval_A, ccs, norm,
       finalIdentity, outputBinding⟩
-  exact ⟨external, statementBinding, statementAbsorption, challenge,
+  exact ⟨external, stateBindingAssumptionsAt statementBinding current,
+    statementAbsorption, challenge,
     roundTranscript, initialClaim, sumcheck,
     ownedPointWeightedAssumptionsAt eval_K current,
     ownedPointWeightedAssumptionsAt eval_A current, ccs, norm,

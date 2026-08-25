@@ -454,7 +454,8 @@ def allAssertions {variableCount : Nat} (interface : Interface variableCount)
 
 def opsAt {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩] ++
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)] ++
     (allAssertions interface offset).map Op.assertZero
 
 def main {variableCount : Nat} (interface : Interface variableCount) : Circuit Unit :=
@@ -534,7 +535,8 @@ theorem soundness {variableCount : Nat} (interface : Interface variableCount)
     SpecHolds interface offset env := by
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset (program interface offset).recipes) :=
-    rows (Op.witness ⟨offset, (program interface offset).recipes⟩)
+    rows (Op.witness (WitnessBatch.arithmetic offset
+      (program interface offset).recipes))
       (by simp [main_ops, opsAt])
   have assertionRows : ConstraintsHold env
       (allAssertions interface offset) := by
@@ -777,7 +779,8 @@ def SpecHolds {variableCount : Nat} (interface : Interface variableCount)
 
 def opsAt {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩]
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)]
 
 def main {variableCount : Nat} (interface : Interface variableCount) :
     Circuit Unit := fun offset =>
@@ -822,7 +825,8 @@ theorem soundness {variableCount : Nat} (interface : Interface variableCount)
     SpecHolds interface offset env := by
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset (program interface offset).recipes) :=
-    rows (Op.witness ⟨offset, (program interface offset).recipes⟩)
+    rows (Op.witness (WitnessBatch.arithmetic offset
+      (program interface offset).recipes))
       (by simp [main_ops, opsAt])
   exact (compile_output_sound env offset
     (coordinateExprs interface offset) recipeRows).trans

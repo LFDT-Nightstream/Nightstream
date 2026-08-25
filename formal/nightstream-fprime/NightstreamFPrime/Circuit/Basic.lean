@@ -1,4 +1,4 @@
-import Mathlib.Data.ZMod.Defs
+import Mathlib.Data.ZMod.Basic
 import NightstreamFPrime.Spec.Algebra
 
 /-!
@@ -55,6 +55,39 @@ instance : Sub Expr := ⟨Expr.sub⟩
 
 end Expr
 
+/-- Non-authoritative witness computations that field expressions cannot
+perform. A circuit must bind each output with explicit constraints. -/
+inductive Hint where
+  | bit (source : Expr) (index : Nat)
+  | inverseOrZero (source : Expr)
+  | quotientFive (source : Expr)
+  | remainderFive (source : Expr)
+deriving Repr, DecidableEq
+
+namespace Hint
+
+def ofNat (value : Nat) : F :=
+  ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+
+def inverse (value : F) : F :=
+  ZMod.inv goldilocksModulus value
+
+/-- Executable hint meaning. This computation is not circuit authority. -/
+def eval (env : Env) : Hint → F
+  | .bit source index =>
+      ofNat (((source.eval env).val >>> index) &&& 1)
+  | .inverseOrZero source => inverse (source.eval env)
+  | .quotientFive source => ofNat ((source.eval env).val / 5)
+  | .remainderFive source => ofNat ((source.eval env).val % 5)
+
+def source : Hint → Expr
+  | .bit expression _ => expression
+  | .inverseOrZero expression => expression
+  | .quotientFive expression => expression
+  | .remainderFive expression => expression
+
+end Hint
+
 /-- A flat constraint list is the physical relation that `Layout/` lowers.
 Witness allocation has no constraint row and is tracked separately. -/
 def ConstraintsHold (env : Env) (constraints : List Expr) : Prop :=
@@ -66,6 +99,34 @@ def recipeConstraints (start : Nat) : List Expr → List Expr
   | [] => []
   | recipe :: rest =>
       (Expr.var start - recipe) :: recipeConstraints (start + 1) rest
+
+/-- Tail-recursive executable form of `recipeConstraints`. The kernel keeps
+the structural definition above; compiled emission uses this proved form. -/
+@[inline] def recipeConstraintsTR (start : Nat) (recipes : List Expr) :
+    List Expr :=
+  go start recipes []
+where
+  go : Nat → List Expr → List Expr → List Expr
+    | _, [], constraintsRev => constraintsRev.reverse
+    | output, recipe :: rest, constraintsRev =>
+        go (output + 1) rest
+          ((Expr.var output - recipe) :: constraintsRev)
+
+@[csimp] theorem recipeConstraints_eq_recipeConstraintsTR :
+    @recipeConstraints = @recipeConstraintsTR := by
+  funext start recipes
+  let rec go : ∀ (output : Nat) (remaining : List Expr)
+      (constraintsRev : List Expr),
+      recipeConstraintsTR.go output remaining constraintsRev =
+        constraintsRev.reverse ++ recipeConstraints output remaining
+    | _, [], constraintsRev => by
+        simp [recipeConstraintsTR.go, recipeConstraints]
+    | output, recipe :: rest, constraintsRev => by
+        simp only [recipeConstraintsTR.go, recipeConstraints]
+        rw [go (output + 1) rest
+          ((Expr.var output - recipe) :: constraintsRev)]
+        simp [List.reverse_cons, List.append_assoc]
+  exact (go start recipes []).symm
 
 @[simp] theorem recipeConstraints_length (start : Nat) (recipes : List Expr) :
     (recipeConstraints start recipes).length = recipes.length := by
@@ -79,6 +140,58 @@ corresponding rows pass. -/
 structure WitnessBatch where
   start : Nat
   recipes : List Expr
+  hints : List Hint := []
+deriving Repr
+
+def WitnessBatch.outputLength (batch : WitnessBatch) : Nat :=
+  batch.recipes.length + batch.hints.length
+
+def WitnessBatch.arithmetic (start : Nat) (recipes : List Expr) :
+    WitnessBatch :=
+  { start := start, recipes := recipes, hints := [] }
+
+def WitnessBatch.hinted (start : Nat) (hints : List Hint) : WitnessBatch :=
+  { start := start, recipes := [], hints := hints }
+
+@[simp] theorem WitnessBatch.arithmetic_start
+    (start : Nat) (recipes : List Expr) :
+    (WitnessBatch.arithmetic start recipes).start = start := by
+  rfl
+
+@[simp] theorem WitnessBatch.arithmetic_recipes
+    (start : Nat) (recipes : List Expr) :
+    (WitnessBatch.arithmetic start recipes).recipes = recipes := by
+  rfl
+
+@[simp] theorem WitnessBatch.arithmetic_hints
+    (start : Nat) (recipes : List Expr) :
+    (WitnessBatch.arithmetic start recipes).hints = [] := by
+  rfl
+
+@[simp] theorem WitnessBatch.hinted_start
+    (start : Nat) (hints : List Hint) :
+    (WitnessBatch.hinted start hints).start = start := by
+  rfl
+
+@[simp] theorem WitnessBatch.hinted_recipes
+    (start : Nat) (hints : List Hint) :
+    (WitnessBatch.hinted start hints).recipes = [] := by
+  rfl
+
+@[simp] theorem WitnessBatch.hinted_hints
+    (start : Nat) (hints : List Hint) :
+    (WitnessBatch.hinted start hints).hints = hints := by
+  rfl
+
+@[simp] theorem WitnessBatch.arithmetic_outputLength
+    (start : Nat) (recipes : List Expr) :
+    (WitnessBatch.arithmetic start recipes).outputLength = recipes.length := by
+  simp [WitnessBatch.arithmetic, WitnessBatch.outputLength]
+
+@[simp] theorem WitnessBatch.hinted_outputLength
+    (start : Nat) (hints : List Hint) :
+    (WitnessBatch.hinted start hints).outputLength = hints.length := by
+  simp [WitnessBatch.hinted, WitnessBatch.outputLength]
 
 /-- A proof-carrying opaque child. Parents use only `spec`; `Layout/` uses
 `constraints`. The proof is the only authority that connects the two. -/
@@ -103,7 +216,7 @@ inductive Op where
 
 /-- Number of variables an operation list allocates. -/
 def Op.localLength : Op → Nat
-  | .witness batch => batch.recipes.length
+  | .witness batch => batch.outputLength
   | .assertZero _ => 0
   | .subcircuit child => child.localLength
 
@@ -209,7 +322,14 @@ instance : Monad Circuit where
 
 /-- Allocate one fresh variable with a canonical witness recipe. -/
 def witness (recipe : Expr) : Circuit Expr := fun n =>
-  (Expr.var n, n + 1, [Op.witness ⟨n, [recipe]⟩])
+  (Expr.var n, n + 1,
+    [Op.witness (WitnessBatch.arithmetic n [recipe])])
+
+/-- Allocate one non-authoritative hint output. The caller owns all binding
+constraints for this value. -/
+def hint (instruction : Hint) : Circuit Expr := fun n =>
+  (Expr.var n, n + 1,
+    [Op.witness (WitnessBatch.hinted n [instruction])])
 
 def assertZero (e : Expr) : Circuit Unit := fun n => ((), n, [Op.assertZero e])
 
@@ -225,7 +345,13 @@ def finalOffset (c : Circuit α) (offset : Nat) : Nat := (c offset).2.1
       ((f (c n).1 (c n).2.1).1, (f (c n).1 (c n).2.1).2.1,
         (c n).2.2 ++ (f (c n).1 (c n).2.1).2.2) := rfl
 @[simp] theorem run_witness (recipe : Expr) (n : Nat) :
-    witness recipe n = (Expr.var n, n + 1, [Op.witness ⟨n, [recipe]⟩]) := rfl
+    witness recipe n =
+      (Expr.var n, n + 1,
+        [Op.witness (WitnessBatch.arithmetic n [recipe])]) := rfl
+@[simp] theorem run_hint (instruction : Hint) (n : Nat) :
+    hint instruction n =
+      (Expr.var n, n + 1,
+        [Op.witness (WitnessBatch.hinted n [instruction])]) := rfl
 @[simp] theorem run_assertZero (e : Expr) (n : Nat) : assertZero e n = ((), n, [Op.assertZero e]) := rfl
 
 end Circuit

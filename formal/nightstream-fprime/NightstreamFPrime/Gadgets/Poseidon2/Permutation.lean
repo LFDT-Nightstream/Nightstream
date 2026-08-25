@@ -385,6 +385,15 @@ def compile (start : Nat) (state : EState) : List Step → Program
       let tail := compile (start + stepSize step) nextState rest
       ⟨recipes ++ tail.recipes, tail.output⟩
 
+/-- Executable projection of the fixed production schedule's output lanes.
+The complete compiler still owns and checks all 592 internal recipes. -/
+def scheduleOutput (start : Nat) : EState := freshState (start + 584)
+
+theorem scheduleOutput_eq_compile (start : Nat) (state : EState) :
+    scheduleOutput start = (compile start state schedule).output := by
+  funext lane
+  rfl
+
 def scheduleSize (steps : List Step) : Nat :=
   (steps.map stepSize).sum
 

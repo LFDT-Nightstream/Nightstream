@@ -252,7 +252,8 @@ def allAssertions (interface : Interface) (offset : Nat) : List Expr :=
     (interface.expected offset)
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩] ++
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)] ++
     (allAssertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
@@ -276,7 +277,8 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     SpecHolds interface offset env := by
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset (program interface offset).recipes) :=
-    rows (Op.witness ⟨offset, (program interface offset).recipes⟩)
+    rows (Op.witness (WitnessBatch.arithmetic offset
+      (program interface offset).recipes))
       (by simp [main_ops, opsAt])
   have assertionRows : ConstraintsHold env
       (allAssertions interface offset) := by
@@ -480,7 +482,8 @@ def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
       ((interface.coefficients offset).map (KExpr.eval env))
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩]
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)]
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), offset + (program interface offset).recipes.length,
@@ -501,7 +504,8 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     SpecHolds interface offset env := by
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset (program interface offset).recipes) :=
-    rows (Op.witness ⟨offset, (program interface offset).recipes⟩)
+    rows (Op.witness (WitnessBatch.arithmetic offset
+      (program interface offset).recipes))
       (by simp [main_ops, opsAt])
   exact (compile_output_sound env offset (interface.point offset)
     (interface.coefficients offset) recipeRows).trans

@@ -27,7 +27,7 @@ Emits constraints: no.
 Authority boundary: `Certificate` has no alpha, gamma, round-challenge,
 terminal, degree, or verifier-parameter field. This generic machine initializes
 from an abstract `Context`; it does not prove that the context contains the
-statement. `ProtocolVerifier.Statement` is the narrower protocol surface that
+statement. `TranscriptReplay.Statement` is the narrower protocol surface that
 passes the prior state and complete public polynomial input together. The
 machine squeezes alpha and gamma before any prover message, then absorbs each
 finite round message before squeezing that round's challenge. `Oracle` may

@@ -308,7 +308,7 @@ structure Probe (Extension : Type uExtension) (shape : Shape) where
 namespace Probe
 
 /-- Operational acceptance with explicit public coins. This is intentionally
-the paper-polynomial checker, not Fiat--Shamir or `ProtocolVerifier`. -/
+the paper-polynomial checker, not Fiat--Shamir or `TranscriptReplay`. -/
 def Accepted
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

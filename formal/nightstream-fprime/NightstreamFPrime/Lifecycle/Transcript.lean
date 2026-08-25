@@ -5,10 +5,13 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 Owns the Stage 1 Fiat–Shamir transcript over the Poseidon2 sponge: duplex
 absorb and squeeze, the Π_CCS oracle (statement absorb, one absorb per
 sum-check round, labelled `α`/`γ`/`r′` squeezes), absorption of the complete
-Π_CCS output, and the Π_RLC challenge sampler into the strong set
-`𝓒 = {coefficients in {−2,…,2}}` by first-accepted 3-bit chunks. The absorb
-order is the paper's (SuperNeo B.1): every challenge is squeezed only after
-the data it must depend on has been absorbed. All definitions are computable.
+Π_CCS output, and the fail-closed Π_RLC challenge sampler into the strong
+set `𝓒 = {coefficients in {−2,…,2}}`. The sampler consumes eight complete
+four-lane Poseidon2 digests per scalar, exposes two little-endian 16-bit
+candidates per lane, rejects candidate `65535`, and returns no batch unless
+all 54 coefficients of every scalar exist. The absorb order is the paper's
+(SuperNeo B.1): every challenge is squeezed only after the data it must depend
+on has been absorbed. All parity-surface definitions are computable.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Transcript
@@ -58,8 +61,8 @@ def squeezeKs : Nat → State → List K × State
 
 def initialState : State := Poseidon2.zeroState
 
-/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, materialized so transcript
-and footprint proofs do not reduce a runtime UTF-8 conversion. -/
+/-- ASCII bytes of `Nightstream/SuperNeo/NIFS/v1`, retained for the complete
+NIFS transcript after PiCCS. -/
 def domainTagBytes : List Nat :=
   [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
     83, 117, 112, 101, 114, 78, 101, 111, 47, 78, 73, 70, 83, 47, 118, 49]
@@ -69,6 +72,22 @@ def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
 
 @[simp] theorem domainTag_length : domainTag.length = 28 := by
   simp [domainTag, domainTagBytes]
+
+/-- ASCII bytes of `Nightstream/SuperNeo/PiCCS/digest-only/v1_1`. This tag
+selects the owner-approved committed-statement schedule. -/
+def piCcsDigestDomainTagBytes : List Nat :=
+  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+    83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67, 83, 47,
+    100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49,
+    95, 49]
+
+/-- Domain tag for the sole digest-only PiCCS statement schedule. -/
+def piCcsDigestDomainTag : List F :=
+  piCcsDigestDomainTagBytes.map Poseidon2.ofNat
+
+@[simp] theorem piCcsDigestDomainTag_length :
+    piCcsDigestDomainTag.length = 43 := by
+  simp [piCcsDigestDomainTag, piCcsDigestDomainTagBytes]
 
 def serializeMessage (m : SumCheck.Finite.Message K) : List F :=
   m.coefficients.flatMap serializeK
@@ -97,117 +116,182 @@ def labelWord : FiatShamir.ChallengeLabel productionShape → List F
   | .sumcheck r => [natWord 3, natWord r.val]
 
 def piCcsOracle :
-    ProtocolVerifier.Oracle K State productionShape where
+    NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Oracle
+      K State productionShape where
   transcript :=
-    { initialState := fun statement =>
-        absorbVerifierInput statement.priorState statement.input
+    { initialState := fun statement => statement.priorState
       absorbRound := fun s round m =>
         absorbBlock s (natWord round.val :: serializeMessage m)
       squeeze := fun s label => squeezeK (absorb s (labelWord label)) }
-  absorbOutput := fun s out =>
-    absorbBlock s
-      (((List.finRange productionShape.freshCount).flatMap fun i =>
-        (List.finRange productionShape.matrixCount).flatMap fun j =>
-          serializeK (out.freshMatrixImage i j)) ++
-      ((List.finRange productionShape.sourceCount).flatMap fun i =>
-        serializeK (out.sourceAssignment i)) ++
-      ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
-        serializeK (out.padImage coordinate)) ++
-      ((canonicalMatrixCoordinates productionShape).flatMap fun coordinate =>
-        serializeK (out.matrixImage coordinate)))
 
 /-! ## Π_RLC challenge sampler -/
 
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
-  (Coefficient alphabetSize)
+namespace PiRlcSampler
 
-/-- The 21 three-bit chunks of one squeezed word (63 bits used). -/
-def chunks (w : F) : List Nat :=
-  (List.range 21).map fun i => (w.val >>> (3 * i)) &&& 7
+open NightstreamFPrime.Spec.Sampling
+open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
+open ProductionAlphabet
+open ProductionSchedule
+open ProductionStrongSet
 
-/-- Accepted chunks of one word, in order, as alphabet symbols `{0,…,4}`
-(embedded as `{−2,…,2}` by `Phi81StrongSet.embedScalar`). -/
-def acceptedChunks (w : F) : List Coefficient :=
-  (chunks w).filterMap fun c => if h : c < alphabetSize then some ⟨c, h⟩ else none
+/-- Two little-endian 16-bit candidates from each of the four rate lanes. -/
+def digestChunks (state : State) : Fin chunksPerDigest → Chunk :=
+  fun position =>
+    let lane := position.val / 2
+    let part := position.val % 2
+    ⟨((state.getD lane 0).val / (2 ^ (16 * part))) % chunkModulus,
+      Nat.mod_lt _ (by decide)⟩
 
-/-- Collect `need` accepted symbols from successive squeezes, at most `fuel`
-squeezes; shortfall pads with the zero symbol (explicit sampling event). -/
-def collect : Nat → Nat → State → List Coefficient → List Coefficient × State
-  | 0, _, s, acc => (acc, s)
-  | fuel + 1, need, s, acc =>
-    if acc.length ≥ need then (acc, s) else
-      let (w, s) := squeezeF s
-      collect fuel need s (acc ++ acceptedChunks w)
+/-- One complete digest step. The current four rate lanes are the digest;
+the successor state is the next Poseidon2 permutation. -/
+def digestBlock (state : State) (_counter : Nat) :
+    State × (Fin chunksPerDigest → Chunk) :=
+  (Poseidon2.permute state, digestChunks state)
 
-/-- Maximum squeezes per ring challenge; shortfall below this bound is the
-named sampling failure event. -/
-def samplerFuel : Nat := 64
+/-- Preserve the established scalar domain separator `[4, coordinate]`. -/
+def enterScalar (state : State) (coordinate : Nat) : State :=
+  absorb state [natWord 4, natWord coordinate]
 
-/-- The zero symbol of the alphabet (`0 ∈ {−2,…,2}`). -/
-def zeroSymbol : Coefficient := ⟨2, by decide⟩
+/-- Concrete additive-sponge instantiation of the fixed eight-block schedule. -/
+def machine : ProductionSchedule.Machine State where
+  enterScalar := enterScalar
+  digestBlock := digestBlock
 
-/-- One strong-set scalar: 54 symbols, then its ring embedding. -/
-def sampleScalar (s : State) : NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet.Scalar × State :=
-  let (cs, s) := collect samplerFuel
-    NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.coefficientCount
-    s []
-  (fun i => cs.getD i.val zeroSymbol, s)
+def specification : Specification State Chunk Coefficient Scalar :=
+  ProductionSchedule.specification machine assembleCoefficients
 
-@[irreducible] def sampleRingChallenge (s : State) : RingF × State :=
-  let (scalar, s) := sampleScalar s
-  (Phi81StrongSet.embedScalar scalar, s)
+/-- Convert a successful exact-length coefficient list to its scalar carrier.
+The default branch is unreachable for every successful bounded sample. -/
+def scalarOfList (coefficients : List Coefficient) : Scalar :=
+  fun position => coefficients.getD position.val ⟨2, by decide⟩
 
-/-- Every sampled ring challenge is in the production strong set. -/
-theorem sampleRingChallenge_member (s : State) :
-    Phi81StrongSet.ProductionMember (sampleRingChallenge s).1 := by
-  unfold sampleRingChallenge
-  exact ⟨(sampleScalar s).1, rfl⟩
+/-- One indexed scalar sample from the fixed 64-candidate source. -/
+def sampleScalar (initial : State) (coordinate : Nat) : Option Scalar :=
+  let source := sourceAt specification initial coordinate
+  (FirstAccepted.boundedSample verifier coefficientCount
+    (FirstAccepted.streamPrefix source.stream candidateBound)).map scalarOfList
 
-/-- One sampler step: domain-separate by index, sample, append. -/
-def challengeStep (n : Nat) (acc : List RingF × State) : List RingF × State :=
-  (acc.1 ++ [(sampleRingChallenge (absorb acc.2 [natWord 4, natWord n])).1],
-   (sampleRingChallenge (absorb acc.2 [natWord 4, natWord n])).2)
+/-- One ring challenge, or explicit failure when fewer than 54 candidates
+are accepted. -/
+def sampleRingChallenge (initial : State) (coordinate : Nat) : Option RingF :=
+  (sampleScalar initial coordinate).map Phi81StrongSet.embedScalar
 
-/-- `ρ_1 … ρ_{K+k}` in exact `K + k` order, each squeezed after the previous,
-each domain-separated by its index. -/
-def piRlcChallengesWithState (s : State) : Nat → List RingF × State
-  | 0 => ([], s)
-  | n + 1 => challengeStep n (piRlcChallengesWithState s n)
+/-- A successful scalar sample has exactly 54 accepted coefficients. -/
+theorem sampleScalar_success_length
+    {initial : State} {coordinate : Nat} {coefficients : List Coefficient}
+    (success : FirstAccepted.boundedSample verifier coefficientCount
+      (FirstAccepted.streamPrefix
+        (sourceAt specification initial coordinate).stream candidateBound) =
+        some coefficients) :
+    coefficients.length = coefficientCount :=
+  FirstAccepted.bounded_success_length success
 
-theorem challengeStep_fst (n : Nat) (acc : List RingF × State) :
-    (challengeStep n acc).1 =
-      acc.1 ++ [(sampleRingChallenge (absorb acc.2 [natWord 4, natWord n])).1] := rfl
+/-- Failure is exactly bounded rejection-sampler shortfall. -/
+theorem sampleScalar_eq_none_iff_shortfall
+    (initial : State) (coordinate : Nat) :
+    sampleScalar initial coordinate = none ↔
+      ShortfallAt specification candidateBound initial coordinate := by
+  unfold sampleScalar ShortfallAt
+  change
+    Option.map scalarOfList
+        (FirstAccepted.boundedSample verifier coefficientCount
+          (FirstAccepted.streamPrefix
+            (sourceAt specification initial coordinate).stream
+            candidateBound)) = none ↔
+      FirstAccepted.Shortfall verifier coefficientCount
+        (FirstAccepted.streamPrefix
+          (sourceAt specification initial coordinate).stream candidateBound)
+  rw [Option.map_eq_none_iff]
+  exact FirstAccepted.boundedSample_eq_none_iff_shortfall
 
-def piRlcChallenges (s : State) (count : Nat) : List RingF :=
-  (piRlcChallengesWithState s count).1
+/-- Every successful concrete ring challenge is in the production strong
+set. No membership claim exists on shortfall. -/
+theorem sampleRingChallenge_member
+    {initial : State} {coordinate : Nat} {challenge : RingF}
+    (success : sampleRingChallenge initial coordinate = some challenge) :
+    Phi81StrongSet.ProductionMember challenge := by
+  unfold sampleRingChallenge at success
+  cases sampled : sampleScalar initial coordinate with
+  | none => simp [sampled] at success
+  | some scalar =>
+      simp only [sampled, Option.map_some, Option.some.injEq] at success
+      subst challenge
+      exact ⟨scalar, rfl⟩
 
-theorem piRlcChallengesWithState_length (s : State) (count : Nat) :
-    (piRlcChallengesWithState s count).1.length = count := by
+/-- Successful fixed-size batch. Its `Fin` domain prevents a fallback value
+when the verifier indexes the `K+k` challenge vector. -/
+structure Batch (count : Nat) where
+  challenges : Fin count → RingF
+  finalState : State
+
+/-- Sample `ρ₁,…,ρ_count` in exact order. Any shortfall rejects the
+whole batch. The final state always follows every fixed digest block. -/
+def sampleBatch (initial : State) : (count : Nat) → Option (Batch count)
+  | 0 => some ⟨Fin.elim0, stateAt specification initial 0⟩
+  | count + 1 =>
+      match sampleBatch initial count, sampleRingChallenge initial count with
+      | some priorBatch, some challenge =>
+          some ⟨Fin.lastCases challenge priorBatch.challenges,
+            stateAt specification initial (count + 1)⟩
+      | _, _ => none
+
+/-- Public computable batch entrypoint. -/
+def piRlcChallengesWithState (initial : State) (count : Nat) :
+    Option (Batch count) :=
+  sampleBatch initial count
+
+def piRlcChallenges (initial : State) (count : Nat) :
+    Option (Fin count → RingF) :=
+  (piRlcChallengesWithState initial count).map Batch.challenges
+
+/-- The successful batch state is the state after every fixed block. -/
+theorem piRlcChallengesWithState_finalState
+    {initial : State} {count : Nat} {batch : Batch count}
+    (success : piRlcChallengesWithState initial count = some batch) :
+    batch.finalState = stateAt specification initial count := by
   induction count with
-  | zero => rfl
-  | succ n ih =>
-    rw [piRlcChallengesWithState, challengeStep_fst, List.length_append, ih]
-    rfl
+  | zero =>
+      simp [piRlcChallengesWithState, sampleBatch] at success
+      subst batch
+      rfl
+  | succ count inductionHypothesis =>
+      rw [piRlcChallengesWithState, sampleBatch] at success
+      cases priorEq : sampleBatch initial count with
+      | none => simp [priorEq] at success
+      | some priorBatch =>
+          cases challengeEq : sampleRingChallenge initial count with
+          | none => simp [priorEq, challengeEq] at success
+          | some challenge =>
+              simp [priorEq, challengeEq] at success
+              subst batch
+              rfl
 
-theorem piRlcChallenges_length (s : State) (count : Nat) :
-    (piRlcChallenges s count).length = count :=
-  piRlcChallengesWithState_length s count
-
-theorem piRlcChallengesWithState_member (s : State) (count : Nat) :
-    ∀ r ∈ (piRlcChallengesWithState s count).1, Phi81StrongSet.ProductionMember r := by
+/-- Every indexed value in a successful batch is a strong-set challenge. -/
+theorem piRlcChallenges_member
+    {initial : State} {count : Nat} {batch : Batch count}
+    (success : piRlcChallengesWithState initial count = some batch)
+    (index : Fin count) :
+    Phi81StrongSet.ProductionMember (batch.challenges index) := by
   induction count with
-  | zero => intro r h; exact absurd h List.not_mem_nil
-  | succ n ih =>
-    intro r h
-    rw [piRlcChallengesWithState, challengeStep_fst] at h
-    rcases List.mem_append.mp h with h | h
-    · exact ih r h
-    · rw [List.mem_singleton] at h
-      subst h
-      exact sampleRingChallenge_member _
+  | zero => exact Fin.elim0 index
+  | succ count inductionHypothesis =>
+      rw [piRlcChallengesWithState, sampleBatch] at success
+      cases priorEq : sampleBatch initial count with
+      | none => simp [priorEq] at success
+      | some priorBatch =>
+          cases challengeEq : sampleRingChallenge initial count with
+          | none => simp [priorEq, challengeEq] at success
+          | some challenge =>
+              simp [priorEq, challengeEq] at success
+              subst batch
+              refine Fin.lastCases ?_ (fun prior => ?_) index
+              · simpa using sampleRingChallenge_member challengeEq
+              ·
+                have priorSuccess :
+                    piRlcChallengesWithState initial count = some priorBatch := by
+                  simpa [piRlcChallengesWithState] using priorEq
+                simpa using inductionHypothesis priorSuccess prior
 
-theorem piRlcChallenges_member (s : State) (count : Nat) :
-    ∀ r ∈ piRlcChallenges s count, Phi81StrongSet.ProductionMember r :=
-  piRlcChallengesWithState_member s count
+end PiRlcSampler
 
 end NightstreamFPrime.Lifecycle.Transcript

@@ -3,11 +3,11 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS transcript initialization.
-Obligation: Absorb the exact public statement and verifier-owned v1_1 claims.
+Obligation: Absorb the pilot-bound prior digest and exact fresh claim.
 
 Inputs:
-- the parent PiCCS running and fresh claims;
-- separate `Eval_K` and `Eval_A` evaluation families.
+- the prior digest projected from the fresh public input;
+- the fresh commitment and public input.
 
 Outputs:
 - the child-owned Poseidon2 transcript state;
@@ -40,31 +40,66 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Affine physical-input premise for the seven caller-owned expression
-families read by the Statement-absorption serializer. -/
+/-- Affine physical-input premise for the two fresh expression families read
+by the digest-only statement serializer. -/
 structure InputsAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
         logicalWidth publicFits)
     (offset : Nat) : Prop where
-  runningPoint : ∀ coordinate,
-    KExprAffine ((interface.running offset).point coordinate)
-  runningCommitment : ∀ source row coefficient,
-    R1CS.IsAffine
-      ((interface.running offset).commitment source row coefficient)
-  runningPublicInput : ∀ source column,
-    R1CS.IsAffine ((interface.running offset).publicInput source column)
-  runningEval_K : ∀ source coefficient,
-    KExprAffine
-      (((interface.running offset).evaluation source).eval_K coefficient)
-  runningEval_A : ∀ source matrix coefficient,
-    KExprAffine
-      (((interface.running offset).evaluation source).eval_A matrix coefficient)
   freshCommitment : ∀ source row coefficient,
     R1CS.IsAffine
       ((interface.fresh offset).commitment source row coefficient)
   freshPublicInput : ∀ source column,
     R1CS.IsAffine ((interface.fresh offset).publicInput source column)
+
+/-- Range premise for the same two caller-owned expression families. -/
+structure InputsBelow
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) : Prop where
+  freshCommitment : ∀ source row coefficient,
+    ((interface.fresh offset).commitment source row coefficient).VarsBelow
+      offset
+  freshPublicInput : ∀ source column,
+    ((interface.fresh offset).publicInput source column).VarsBelow offset
+
+/-- The first domain-tag absorb establishes one permutation-owned state block,
+which every later statement absorb preserves. -/
+theorem finalState_fresh
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) :
+    StateFresh
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.finalState
+        interface offset) := by
+  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.finalState
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.program
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.actions
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.publicInputActions
+  change StateFresh
+    (Formal.compile offset Hash.zeroE
+      (.absorb (constantWords
+        NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag) ::
+        (publicInputBlocks interface offset).map absorbBlock)).output
+  apply compile_output_fresh_of_head_absorb
+  intro empty
+  have lengthZero := congrArg List.length empty
+  simp [Hash.inputChunks, constantWords,
+    NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag_length,
+    Spec.Poseidon2.rate] at lengthZero
+
+theorem finalState_affine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) :
+    StateAffine
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.finalState
+        interface offset) :=
+  (finalState_fresh interface offset).affine
 
 private theorem serializeKExpr_affine (value : KExpr)
     (affine : KExprAffine value) :
@@ -160,30 +195,30 @@ private theorem BlocksAffine.flatMap
   rcases member with ⟨index, indexMember, blockMember⟩
   exact affine index indexMember block blockMember
 
+private theorem priorDigestExpr_affine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsAffine interface offset) :
+    ListAffine (priorDigestExpr interface offset) := by
+  intro expression member
+  rw [priorDigestExpr, List.mem_ofFn'] at member
+  rcases member with ⟨lane, rfl⟩
+  exact inputs.freshPublicInput ⟨0, by decide⟩
+    (ProductionKey.priorDigestIndex lane)
+
 private theorem publicInputBlocks_affine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
         logicalWidth publicFits)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     BlocksAffine (publicInputBlocks interface offset) := by
-  let running := interface.running offset
   let fresh := interface.fresh offset
   apply BlocksAffine.append
-  · apply BlocksAffine.append
-    · intro block member
-      simp only [List.mem_singleton] at member
-      subst block
-      exact serializePointExpr_affine running.point inputs.runningPoint
-    · apply BlocksAffine.flatMap
-      intro index _ block member
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-      rcases member with rfl | rfl | rfl
-      · exact serializeCommitmentExpr_affine (running.commitment index)
-          (inputs.runningCommitment index)
-      · exact serializePublicInputExpr_affine (running.publicInput index)
-          (inputs.runningPublicInput index)
-      · exact serializeEvaluationExpr_affine (running.evaluation index)
-          (inputs.runningEval_K index) (inputs.runningEval_A index)
+  · intro block member
+    simp only [List.mem_singleton] at member
+    subst block
+    exact priorDigestExpr_affine interface offset inputs
   · apply BlocksAffine.flatMap
     intro index _ block member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
@@ -192,39 +227,6 @@ private theorem publicInputBlocks_affine
         (inputs.freshCommitment index)
     · exact serializePublicInputExpr_affine (fresh.publicInput index)
         (inputs.freshPublicInput index)
-
-private theorem verifierClaimWords_affine
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
-        logicalWidth publicFits)
-    (offset : Nat) (inputs : InputsAffine interface offset) :
-    ListAffine (verifierClaimWords interface offset) := by
-  intro expression member
-  rw [verifierClaimWords, List.mem_append] at member
-  rcases member with member | member
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨coordinate, _, member⟩
-    exact serializeKExpr_affine _
-      (inputs.runningEval_K coordinate.running coordinate.coefficient)
-      expression member
-  · rw [List.mem_flatMap] at member
-    rcases member with ⟨coordinate, _, member⟩
-    exact serializeKExpr_affine _
-      (inputs.runningEval_A coordinate.running coordinate.matrix
-        coordinate.coefficient) expression member
-
-private theorem verifierInputBlocks_affine
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
-        logicalWidth publicFits)
-    (offset : Nat) (inputs : InputsAffine interface offset) :
-    BlocksAffine (verifierInputBlocks interface offset) := by
-  intro block member
-  simp only [verifierInputBlocks, List.mem_cons, List.not_mem_nil,
-    or_false] at member
-  rcases member with rfl | rfl
-  · exact serializePointExpr_affine _ inputs.runningPoint
-  · exact verifierClaimWords_affine interface offset inputs
 
 private theorem mappedBlocks_affine (blocks : List (List Expr))
     (blocksAffine : BlocksAffine blocks) :
@@ -240,17 +242,196 @@ theorem actions_affine
         logicalWidth publicFits)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     ActionsAffine (actions interface offset) := by
-  unfold actions publicInputActions verifierInputActions
+  unfold actions publicInputActions
   apply ActionsAffine.append
-  · apply ActionsAffine.append
-    · apply ActionsAffine.cons
-      · exact constantWords_affine _
-      · intro action member
-        simp at member
-    · exact mappedBlocks_affine _
-        (publicInputBlocks_affine interface offset inputs)
+  · apply ActionsAffine.cons
+    · exact constantWords_affine _
+    · intro action member
+      simp at member
   · exact mappedBlocks_affine _
-      (verifierInputBlocks_affine interface offset inputs)
+      (publicInputBlocks_affine interface offset inputs)
+
+private def ListBelow (bound : Nat) (values : List Expr) : Prop :=
+  ∀ expression ∈ values, expression.VarsBelow bound
+
+private def BlocksBelow (bound : Nat) (blocks : List (List Expr)) : Prop :=
+  ∀ block ∈ blocks, ListBelow bound block
+
+private theorem serializeKExpr_below (bound : Nat) (value : KExpr)
+    (below : value.VarsBelow bound) : ListBelow bound (serializeKExpr value) := by
+  intro expression member
+  simp only [serializeKExpr, List.mem_cons, List.not_mem_nil,
+    or_false] at member
+  rcases member with rfl | rfl
+  · exact below.1
+  · exact below.2
+
+private theorem serializePointExpr_below (bound : Nat)
+    (point : Fin productionShape.cubeVariables → KExpr)
+    (below : ∀ coordinate, (point coordinate).VarsBelow bound) :
+    ListBelow bound (serializePointExpr point) := by
+  intro expression member
+  rw [serializePointExpr, List.mem_flatMap] at member
+  rcases member with ⟨coordinate, _, expressionMember⟩
+  exact serializeKExpr_below bound (point coordinate) (below coordinate)
+    expression expressionMember
+
+private theorem serializeCommitmentExpr_below (bound : Nat)
+    (commitment : Fin productionProfile.commitmentWidth →
+      Fin ringDegree → Expr)
+    (below : ∀ row coefficient, (commitment row coefficient).VarsBelow bound) :
+    ListBelow bound (serializeCommitmentExpr commitment) := by
+  intro expression member
+  rw [serializeCommitmentExpr, List.mem_flatMap] at member
+  rcases member with ⟨row, _, member⟩
+  rw [List.mem_map] at member
+  rcases member with ⟨coefficient, _, rfl⟩
+  exact below row coefficient
+
+private theorem serializePublicInputExpr_below (bound : Nat)
+    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
+    (below : ∀ column, (input column).VarsBelow bound) :
+    ListBelow bound (serializePublicInputExpr input) := by
+  intro expression member
+  rw [serializePublicInputExpr, List.mem_map] at member
+  rcases member with ⟨column, _, rfl⟩
+  exact below column
+
+private theorem serializeEvaluationExpr_below (bound : Nat)
+    (evaluation : EvaluationExpr)
+    (padBelow : ∀ coefficient,
+      (evaluation.eval_K coefficient).VarsBelow bound)
+    (matrixBelow : ∀ matrix coefficient,
+      (evaluation.eval_A matrix coefficient).VarsBelow bound) :
+    ListBelow bound (serializeEvaluationExpr evaluation) := by
+  intro expression member
+  rw [serializeEvaluationExpr, List.mem_append] at member
+  rcases member with member | member
+  · rw [List.mem_flatMap] at member
+    rcases member with ⟨coefficient, _, expressionMember⟩
+    exact serializeKExpr_below bound _ (padBelow coefficient) expression
+      expressionMember
+  · rw [List.mem_flatMap] at member
+    rcases member with ⟨matrix, _, member⟩
+    rw [List.mem_flatMap] at member
+    rcases member with ⟨coefficient, _, expressionMember⟩
+    exact serializeKExpr_below bound _ (matrixBelow matrix coefficient)
+      expression expressionMember
+
+private theorem constantWords_below (bound : Nat) (words : List F) :
+    ListBelow bound (constantWords words) := by
+  intro expression member
+  rw [constantWords, List.mem_map] at member
+  rcases member with ⟨word, _, rfl⟩
+  trivial
+
+private theorem blockExpr_below (bound : Nat) (words : List Expr)
+    (below : ListBelow bound words) : ListBelow bound (blockExpr words) := by
+  intro expression member
+  simp only [blockExpr, List.mem_cons] at member
+  rcases member with rfl | member
+  · trivial
+  · exact below expression member
+
+private theorem BlocksBelow.append {bound : Nat}
+    {first second : List (List Expr)}
+    (firstBelow : BlocksBelow bound first)
+    (secondBelow : BlocksBelow bound second) :
+    BlocksBelow bound (first ++ second) := by
+  intro block member
+  rcases List.mem_append.mp member with member | member
+  · exact firstBelow block member
+  · exact secondBelow block member
+
+private theorem BlocksBelow.flatMap {bound : Nat}
+    {Index : Type} (indices : List Index)
+    (blocks : Index → List (List Expr))
+    (below : ∀ index ∈ indices, BlocksBelow bound (blocks index)) :
+    BlocksBelow bound (indices.flatMap blocks) := by
+  intro block member
+  rw [List.mem_flatMap] at member
+  rcases member with ⟨index, indexMember, blockMember⟩
+  exact below index indexMember block blockMember
+
+private theorem priorDigestExpr_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsBelow interface offset) :
+    ListBelow offset (priorDigestExpr interface offset) := by
+  intro expression member
+  rw [priorDigestExpr, List.mem_ofFn'] at member
+  rcases member with ⟨lane, rfl⟩
+  exact inputs.freshPublicInput ⟨0, by decide⟩
+    (ProductionKey.priorDigestIndex lane)
+
+private theorem publicInputBlocks_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsBelow interface offset) :
+    BlocksBelow offset (publicInputBlocks interface offset) := by
+  let fresh := interface.fresh offset
+  apply BlocksBelow.append
+  · intro block member
+    simp only [List.mem_singleton] at member
+    subst block
+    exact priorDigestExpr_below interface offset inputs
+  · apply BlocksBelow.flatMap
+    intro index _ block member
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl
+    · exact serializeCommitmentExpr_below offset (fresh.commitment index)
+        (inputs.freshCommitment index)
+    · exact serializePublicInputExpr_below offset (fresh.publicInput index)
+        (inputs.freshPublicInput index)
+
+private theorem mappedBlocks_below (bound : Nat) (blocks : List (List Expr))
+    (blocksBelow : BlocksBelow bound blocks) :
+    Formal.ActionsBelow bound (blocks.map absorbBlock) := by
+  intro action member
+  rw [List.mem_map] at member
+  rcases member with ⟨block, blockMember, rfl⟩
+  exact blockExpr_below bound block (blocksBelow block blockMember)
+
+/-- The fixed statement serializer supplies the exact causal assumption of
+the statement-absorption child. -/
+theorem assumptions_of_inputsBelow
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsBelow interface offset) (env : Env) :
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Assumptions
+      interface offset env := by
+  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Assumptions
+    actions publicInputActions
+  intro action member
+  rw [List.mem_append] at member
+  rcases member with member | member
+  · simp only [List.mem_singleton] at member
+    subst action
+    exact constantWords_below offset _
+  · exact mappedBlocks_below offset _
+      (publicInputBlocks_below interface offset inputs) action member
+
+/-- The compiler-owned statement state lies below the next child boundary. -/
+theorem finalState_varsBelow
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsBelow interface offset) :
+    ∀ lane,
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.finalState
+        interface offset lane).VarsBelow
+        (offset +
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.program
+            interface offset).recipes.length) := by
+  have scope := (Formal.compile_scope offset Hash.zeroE
+    (actions interface offset) (by
+      intro lane
+      simp [Hash.zeroE, Expr.VarsBelow])
+    (assumptions_of_inputsBelow interface offset inputs (fun _ => 0))).1
+  exact scope
 
 /-- Exact parent-facing physical footprint, conditional only on the declared
 affine form of caller-owned symbolic inputs. -/
@@ -260,7 +441,7 @@ def footprint
       InputsAffine (Formal.statementAbsorptionInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.statementAbsorptionCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 10298432
+  physicalRowCount := fun _ => 160432
   freshColumnCount_eq := by
     intro offset
     unfold Formal.statementAbsorptionCircuit
@@ -279,7 +460,7 @@ def footprint
     rw [FormalCircuit.withConstantFootprint_main]
     change R1CS.totalRowCount (flatConstraints
       (opsAt (Formal.statementAbsorptionInterface interface) offset)) =
-        10298432
+        160432
     rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.flatConstraints_opsAt]
     rw [R1CS.recipeConstraints_totalRowCount]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.program_recipes_length
@@ -305,7 +486,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.statementAbsorptionCircuit interface).main offset)) =
-        10298432 :=
+        160432 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption

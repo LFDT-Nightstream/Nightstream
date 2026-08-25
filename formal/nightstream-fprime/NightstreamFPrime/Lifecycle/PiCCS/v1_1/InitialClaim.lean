@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 2, claimed sum `T`.
@@ -171,10 +171,10 @@ theorem spec_implies_keyInitial
     running fresh proof).coins.gamma
   have coefficients_eq :
       (coefficientExprs interface offset).map (KExpr.eval env) =
-        NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.targetCoefficientList
+        NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.targetCoefficientList
           input := by
     unfold coefficientExprs
-      NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.targetCoefficientList
+      NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.targetCoefficientList
     rw [List.map_append, List.map_map, List.map_map]
     apply congrArg₂ List.append
     · apply List.map_congr_left
@@ -189,7 +189,7 @@ theorem spec_implies_keyInitial
       ((coefficientExprs interface offset).map (KExpr.eval env)) at specification
   rw [gamma_eq, coefficients_eq] at specification
   exact specification.trans
-    (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.evaluateTargetCoefficients_eq_initial
+    (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.evaluateTargetCoefficients_eq_initial
       extensionOps extensionLaws input gamma)
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim

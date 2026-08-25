@@ -1,9 +1,9 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolVerifier
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.EvalK
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.EvalA
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
+import NightstreamFPrime.Spec.Folding.PiCCS.Statement
+import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
+import NightstreamFPrime.Spec.Folding.PiCCS.EvalK
+import NightstreamFPrime.Spec.Folding.PiCCS.EvalA
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
-/-! SuperNeo v1.1 Π_CCS verifier semantics and audit facades (paper §7.3). -/
+/-! Canonical SuperNeo v1.1 `Pi_CCS` verifier semantics (paper Section 7.3). -/

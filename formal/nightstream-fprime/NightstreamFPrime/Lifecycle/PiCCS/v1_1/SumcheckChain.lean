@@ -1,18 +1,18 @@
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 2, `SumCheck(T; Q)`.
-Obligation: Enforce all 24 equations
+Obligation: Enforce all 25 equations
 `p_i(0) + p_i(1) = claim_i`, then `claim_(i+1) = p_i(r_i)`, and
-export the final `claim_24` for the separate `Q(r')` check.
+export the final `claim_25` for the separate `Q(r')` check.
 
 Inputs:
 - the initial claim `T`;
-- 24 prover round polynomials of the fixed production degree;
-- 24 challenges that are shared with the transcript leaf;
+- 25 prover round polynomials of the fixed production degree;
+- 25 challenges that are shared with the transcript leaf;
 
 Outputs:
 - the final claimed value `v`;
@@ -127,20 +127,20 @@ theorem localLength_eq {degree : Nat} (interface : Interface degree)
 
 theorem operations_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 48 := by
+    (Circuit.ops (circuit interface).main offset).length = 50 := by
   change (Circuit.ops
     (FixedChain.Owned.main
-      (coreInterface interface offset)) offset).length = 48
+      (coreInterface interface offset)) offset).length = 50
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     FixedChain.Owned.operations_length (coreInterface interface offset) offset
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      48 := by
+      50 := by
   change (flatConstraints (Circuit.ops
     (FixedChain.Owned.main
-      (coreInterface interface offset)) offset)).length = 48
+      (coreInterface interface offset)) offset)).length = 50
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     FixedChain.Owned.flatConstraints_length
       (coreInterface interface offset) offset

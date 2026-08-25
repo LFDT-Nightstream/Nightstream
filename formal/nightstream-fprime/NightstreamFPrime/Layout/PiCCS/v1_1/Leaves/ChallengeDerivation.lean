@@ -3,14 +3,14 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS Fiat–Shamir challenges.
-Obligation: Derive all 24 `α` coordinates and `γ` from the exact labelled
+Obligation: Derive all 25 `α` coordinates and `γ` from the exact labelled
 Poseidon2 transcript schedule.
 
 Inputs:
 - the child-owned state produced by Statement absorption.
 
 Outputs:
-- 24 verifier-derived `α` values;
+- 25 verifier-derived `α` values;
 - one verifier-derived `γ` value;
 - the child-owned outgoing transcript state.
 
@@ -36,6 +36,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 open NightstreamFPrime.Layout.Poseidon2
 open NightstreamFPrime.Layout.Poseidon2.Duplex
+open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
@@ -102,7 +103,7 @@ private theorem replicatedZero_affine (count : Nat) :
 private theorem layoutActions_affine : ActionsAffine layoutActions := by
   unfold layoutActions
   exact labelledActions_affine challengeLabels
-    (List.replicate 25 KExpr.zero) (replicatedZero_affine 25)
+    (List.replicate 26 KExpr.zero) (replicatedZero_affine 26)
 
 private theorem layoutProgram_samples_affine
     (interface :
@@ -112,6 +113,53 @@ private theorem layoutProgram_samples_affine
       KExprAffine sample := by
   exact compile_samples_affine offset (interface.initialState offset)
     layoutActions inputs.initialState layoutActions_affine
+
+private theorem layoutProgram_samples_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.Interface)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    ∀ sample ∈ (layoutProgram interface offset).samples,
+      KExprLinear sample := by
+  exact compile_samples_linear offset (interface.initialState offset)
+    layoutActions initialFresh
+
+theorem alpha_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.Interface)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset))
+    (coordinate : Fin productionShape.cubeVariables) :
+    KExprLinear (alpha interface offset coordinate) := by
+  apply layoutProgram_samples_linear interface offset initialFresh
+  exact List.mem_of_mem_take (List.get_mem _ _)
+
+theorem gamma_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.Interface)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    KExprLinear (gamma interface offset) := by
+  apply layoutProgram_samples_linear interface offset initialFresh
+  exact List.get_mem _ _
+
+theorem finalState_fresh
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.Interface)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    StateFresh (finalState interface offset) := by
+  unfold finalState program
+  exact compile_output_fresh offset (interface.initialState offset)
+    (actions interface offset) initialFresh
+
+theorem finalState_affine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.Interface)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    StateAffine (finalState interface offset) :=
+  (finalState_fresh interface offset initialFresh).affine
 
 theorem actions_affine
     (interface :
@@ -137,7 +185,7 @@ def footprint
     (Formal.atOffset interface parentOffset) parentOffset
   {
     freshColumnCount := fun _ => 0
-    physicalRowCount := fun _ => 44400
+    physicalRowCount := fun _ => 46176
     freshColumnCount_eq := by
       intro offset
       unfold Formal.challengeCircuit
@@ -156,7 +204,7 @@ def footprint
       dsimp only
       rw [FormalCircuit.withConstantFootprint_main]
       change R1CS.totalRowCount (flatConstraints
-        (opsAt child offset)) = 44400
+        (opsAt child offset)) = 46176
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.flatConstraints_opsAt]
       rw [R1CS.recipeConstraints_totalRowCount]
       exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.program_recipes_length
@@ -188,7 +236,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.challengeCircuit interface parentOffset).main offset)) =
-        44400 :=
+        46176 :=
   (footprint interface parentOffset inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation

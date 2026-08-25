@@ -1,5 +1,7 @@
+import NightstreamFPrime.Circuit.Basic
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Spec.Poseidon2
+import NightstreamFPrime.Spec.ProductionRelation
 
 /-!
 Owns the canonical circuit-package schema, its lossless structured codec, and
@@ -11,6 +13,7 @@ may expand them but does not choose rows or circuit structure.
 namespace NightstreamFPrime.Export.Package
 
 open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Codec
 
 /-- The one fixed Nightstream Goldilocks production profile. -/
@@ -139,8 +142,160 @@ def PhysicalLayout.format : Format PhysicalLayout where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode]
-    rfl
+    simp [Format.decode_encode] <;> rfl
+
+/-- The physical R1CS matrix selected for one logical CCS matrix slot. Pad is
+not a source: SuperNeo v1_1 carries its evaluations in `Eval_K`. -/
+inductive CcsMatrixSource where
+  | bit
+  | generalSelector
+  | a
+  | b
+  | c
+  | sboxInput
+  | centeredUnit
+  | evalSelector
+  | class0
+  | class1
+  | class2
+  | class3
+  | class4
+  | zero
+deriving Repr
+
+def CcsMatrixSource.format : Format CcsMatrixSource where
+  encode
+    | .bit => .atom 0
+    | .generalSelector => .atom 1
+    | .a => .atom 2
+    | .b => .atom 3
+    | .c => .atom 4
+    | .sboxInput => .atom 5
+    | .centeredUnit => .atom 6
+    | .evalSelector => .atom 7
+    | .class0 => .atom 8
+    | .class1 => .atom 9
+    | .class2 => .atom 10
+    | .class3 => .atom 11
+    | .class4 => .atom 12
+    | .zero => .atom 13
+  decode
+    | .atom 0 => .ok .bit
+    | .atom 1 => .ok .generalSelector
+    | .atom 2 => .ok .a
+    | .atom 3 => .ok .b
+    | .atom 4 => .ok .c
+    | .atom 5 => .ok .sboxInput
+    | .atom 6 => .ok .centeredUnit
+    | .atom 7 => .ok .evalSelector
+    | .atom 8 => .ok .class0
+    | .atom 9 => .ok .class1
+    | .atom 10 => .ok .class2
+    | .atom 11 => .ok .class3
+    | .atom 12 => .ok .class4
+    | .atom 13 => .ok .zero
+    | _ => .error "invalid CCS matrix source"
+  decode_encode := by
+    intro value
+    cases value <;> rfl
+
+/-- One sparse term of the logical CCS constraint polynomial. Exponents use
+the same canonical matrix-slot order as `matrixSources`. -/
+structure CcsPolynomialTerm where
+  coefficient : Nat
+  exponents : List Nat
+deriving Repr
+
+def CcsPolynomialTerm.format : Format CcsPolynomialTerm where
+  encode := fun value => .array [
+    .atom value.coefficient,
+    (list nat).encode value.exponents]
+  decode
+    | .array [.atom coefficient, exponents] => do
+      pure ⟨coefficient, ← (list nat).decode exponents⟩
+    | _ => .error "invalid CCS polynomial term"
+  decode_encode := by
+    intro value
+    cases value
+    simp [Format.decode_encode] <;> rfl
+
+/-- Logical CCS relation carried by the package beside its physical row
+program. Rust decodes this record; it does not choose matrix slots or the
+constraint polynomial. -/
+structure CcsRelation where
+  rowCount : Nat
+  columnCount : Nat
+  cubeVariables : Nat
+  matrixSources : List CcsMatrixSource
+  degreeBound : Nat
+  terms : List CcsPolynomialTerm
+deriving Repr
+
+def CcsRelation.format : Format CcsRelation where
+  encode := fun value => .array [
+    .atom value.rowCount,
+    .atom value.columnCount,
+    .atom value.cubeVariables,
+    (list CcsMatrixSource.format).encode value.matrixSources,
+    .atom value.degreeBound,
+    (list CcsPolynomialTerm.format).encode value.terms]
+  decode
+    | .array [.atom rowCount, .atom columnCount, .atom cubeVariables,
+        matrixSources, .atom degreeBound, terms] => do
+      pure ⟨rowCount, columnCount, cubeVariables,
+        ← (list CcsMatrixSource.format).decode matrixSources,
+        degreeBound, ← (list CcsPolynomialTerm.format).decode terms⟩
+    | _ => .error "invalid CCS relation"
+  decode_encode := by
+    intro value
+    cases value
+    simp [Format.decode_encode] <;> rfl
+
+/-- Exact selective matrix-slot order. Pad remains outside this list. -/
+def productionMatrixSources : List CcsMatrixSource :=
+  [.bit, .generalSelector, .a, .b, .c, .sboxInput, .centeredUnit,
+    .evalSelector, .class0, .class1, .class2, .class3, .class4, .zero]
+
+def encodeProductionTerm
+    (term : NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.Monomial
+      F Spec.ProductionRelation.matrixCount) : CcsPolynomialTerm where
+  coefficient := term.coefficient.val
+  exponents := List.ofFn term.exponents
+
+def productionTerms : List CcsPolynomialTerm :=
+  Spec.ProductionRelation.polynomial.terms.map encodeProductionTerm
+
+/-- Wire form of the exact production relation from `Spec.ProductionRelation`.
+Only its physical dimensions are supplied by the selected layout. -/
+def productionCcsRelation
+    (rowCount columnCount cubeVariables : Nat) : CcsRelation where
+  rowCount := rowCount
+  columnCount := columnCount
+  cubeVariables := cubeVariables
+  matrixSources := productionMatrixSources
+  degreeBound := Spec.ProductionRelation.polynomial.degreeBound
+  terms := productionTerms
+
+@[simp] theorem productionCcsRelation_matrixSources
+    (rowCount columnCount cubeVariables : Nat) :
+    (productionCcsRelation rowCount columnCount cubeVariables).matrixSources =
+      productionMatrixSources := by
+  rfl
+
+@[simp] theorem productionCcsRelation_terms
+    (rowCount columnCount cubeVariables : Nat) :
+    (productionCcsRelation rowCount columnCount cubeVariables).terms =
+      productionTerms := by
+  rfl
+
+@[simp] theorem productionMatrixSources_length :
+    productionMatrixSources.length = 14 := by
+  rfl
+
+@[simp] theorem productionTerms_length : productionTerms.length = 74 := by
+  unfold productionTerms
+  rw [List.length_map, Spec.ProductionRelation.polynomial_terms]
+  exact Spec.ProductionRelation.SelectivePolynomial.terms_length
 
 /-- A sparse template column is one of eight invocation inputs or one local
 witness column. -/
@@ -176,8 +331,7 @@ def TemplateTerm.format : Format TemplateTerm where
   decode_encode := by
     intro value
     cases value
-    simp [ColumnRef.format.decode_encode]
-    rfl
+    simp [ColumnRef.format.decode_encode] <;> rfl
 
 structure TemplateCombination where
   constant : Nat
@@ -194,8 +348,7 @@ def TemplateCombination.format : Format TemplateCombination where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode]
-    rfl
+    simp [Format.decode_encode] <;> rfl
 
 /-- One sparse template equation. `outputLocal` is the witness instruction:
 the interpreter writes `A · B` there, and the same row checks the result. -/
@@ -222,8 +375,7 @@ def TemplateRow.format : Format TemplateRow where
   decode_encode := by
     intro value
     cases value
-    simp [TemplateCombination.format.decode_encode]
-    rfl
+    simp [TemplateCombination.format.decode_encode] <;> rfl
 
 /-- Sparse matrix data for one Poseidon2 permutation. -/
 structure PermutationTemplate where
@@ -248,8 +400,7 @@ def PermutationTemplate.format : Format PermutationTemplate where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode]
-    rfl
+    simp [Format.decode_encode] <;> rfl
 
 /-- One exact instantiation chain. Absorb permutations precede the one final
 padding permutation; four digest-equality rows follow the chain. -/
@@ -318,8 +469,60 @@ def SparseCombination.format : Format SparseCombination where
   decode_encode := by
     intro value
     cases value
-    simp [Format.decode_encode]
-    rfl
+    simp [Format.decode_encode] <;> rfl
+
+/-- One explicit use of the canonical Poseidon2 permutation template.
+`inputs` contains one absolute sparse combination for each of the eight input
+lanes. The template owns the adjacent witness and row intervals. -/
+structure PermutationInvocation where
+  phase : Nat
+  rowStart : Nat
+  witnessStart : Nat
+  inputs : List SparseCombination
+deriving Repr
+
+def PermutationInvocation.format : Format PermutationInvocation where
+  encode := fun value => .array [
+    .atom value.phase,
+    .atom value.rowStart,
+    .atom value.witnessStart,
+    (list SparseCombination.format).encode value.inputs]
+  decode
+    | .array [.atom phase, .atom rowStart, .atom witnessStart, inputs] => do
+      pure ⟨phase, rowStart, witnessStart,
+        ← (list SparseCombination.format).decode inputs⟩
+    | _ => .error "invalid permutation invocation"
+  decode_encode := by
+    intro value
+    cases value
+    simp [Format.decode_encode] <;> rfl
+
+/-- One generic straight-line witness instruction and its authoritative row.
+The interpreter writes `a * b` to `target`; the same package row checks that
+value. `rowIndex` fixes its position in the physical circuit. -/
+structure WitnessInstruction where
+  rowIndex : Nat
+  target : Nat
+  a : SparseCombination
+  b : SparseCombination
+deriving Repr
+
+def WitnessInstruction.format : Format WitnessInstruction where
+  encode := fun value => .array [
+    .atom value.rowIndex,
+    .atom value.target,
+    SparseCombination.format.encode value.a,
+    SparseCombination.format.encode value.b]
+  decode
+    | .array [.atom rowIndex, .atom target, a, b] => do
+      pure ⟨rowIndex, target,
+        ← SparseCombination.format.decode a,
+        ← SparseCombination.format.decode b⟩
+    | _ => .error "invalid witness instruction"
+  decode_encode := by
+    intro value
+    cases value
+    simp [SparseCombination.format.decode_encode] <;> rfl
 
 /-- An assertion-only absolute sparse row. Witness rows live in the template. -/
 structure SparseRow where
@@ -344,8 +547,7 @@ def SparseRow.format : Format SparseRow where
   decode_encode := by
     intro value
     cases value
-    simp [SparseCombination.format.decode_encode]
-    rfl
+    simp [SparseCombination.format.decode_encode] <;> rfl
 
 /-- Terminal metadata becomes present when the terminal phase is added to the
 same package path. -/
@@ -369,14 +571,100 @@ def TerminalLayout.format : Format TerminalLayout where
     cases value
     rfl
 
+/-- Lossless wire encoding of the existing symbolic witness-expression IR. -/
+def encodeExpr : Expr → Value
+  | .var index => .array [.atom 0, .atom index]
+  | .const value => .array [.atom 1, .atom value.val]
+  | .add left right => .array [.atom 2, encodeExpr left, encodeExpr right]
+  | .mul left right => .array [.atom 3, encodeExpr left, encodeExpr right]
+
+def decodeExpr : Value → Except String Expr
+  | .array [.atom 0, .atom index] => .ok (.var index)
+  | .array [.atom 1, .atom value] =>
+      if bound : value < goldilocksModulus then
+        .ok (.const ⟨value, bound⟩)
+      else
+        .error "noncanonical witness-expression constant"
+  | .array [.atom 2, left, right] => do
+      pure (.add (← decodeExpr left) (← decodeExpr right))
+  | .array [.atom 3, left, right] => do
+      pure (.mul (← decodeExpr left) (← decodeExpr right))
+  | _ => .error "invalid witness expression"
+
+theorem decodeExpr_encode (expression : Expr) :
+    decodeExpr (encodeExpr expression) = .ok expression := by
+  induction expression with
+  | var index => rfl
+  | const value => simp [encodeExpr, decodeExpr, value.isLt]
+  | add left right leftIH rightIH =>
+      simp only [encodeExpr, decodeExpr]
+      rw [leftIH, rightIH]
+      rfl
+  | mul left right leftIH rightIH =>
+      simp only [encodeExpr, decodeExpr]
+      rw [leftIH, rightIH]
+      rfl
+
+def exprFormat : Format Expr where
+  encode := encodeExpr
+  decode := decodeExpr
+  decode_encode := decodeExpr_encode
+
+/-- Lossless wire encoding of non-authoritative witness hints. -/
+def encodeHint : Hint → Value
+  | .bit source index =>
+      .array [.atom 0, encodeExpr source, .atom index]
+  | .inverseOrZero source => .array [.atom 1, encodeExpr source]
+  | .quotientFive source => .array [.atom 2, encodeExpr source]
+  | .remainderFive source => .array [.atom 3, encodeExpr source]
+
+def decodeHint : Value → Except String Hint
+  | .array [.atom 0, source, .atom index] => do
+      pure (.bit (← decodeExpr source) index)
+  | .array [.atom 1, source] => do
+      pure (.inverseOrZero (← decodeExpr source))
+  | .array [.atom 2, source] => do
+      pure (.quotientFive (← decodeExpr source))
+  | .array [.atom 3, source] => do
+      pure (.remainderFive (← decodeExpr source))
+  | _ => .error "invalid witness hint"
+
+theorem decodeHint_encode (hint : Hint) :
+    decodeHint (encodeHint hint) = .ok hint := by
+  cases hint <;> simp [encodeHint, decodeHint, decodeExpr_encode]
+
+def hintFormat : Format Hint where
+  encode := encodeHint
+  decode := decodeHint
+  decode_encode := decodeHint_encode
+
+def WitnessBatch.format : Format WitnessBatch where
+  encode := fun value => .array [
+    .atom value.start, (list exprFormat).encode value.recipes,
+    (list hintFormat).encode value.hints]
+  decode
+    | .array [.atom start, recipes, hints] => do
+      let decodedRecipes ← (list exprFormat).decode recipes
+      let decodedHints ← (list hintFormat).decode hints
+      pure { start := start, recipes := decodedRecipes, hints := decodedHints }
+    | _ => .error "invalid witness batch"
+  decode_encode := by
+    intro value
+    cases value
+    simp [Format.decode_encode] <;> rfl
+
 /-- The only circuit-package type accepted by the Stage 1 Rust loader. -/
 structure CircuitPackage where
   schemaVersion : Nat
   profile : Profile
   poseidon : PoseidonSchedule
   layout : PhysicalLayout
+  relation : CcsRelation
   permutation : PermutationTemplate
   hashChains : List HashChain
+  permutationInvocations : List PermutationInvocation
+  witnessBatches : List WitnessBatch
+  witnessInstructions : List WitnessInstruction
   assertionRows : List SparseRow
   terminal : Option TerminalLayout
 deriving Repr
@@ -387,19 +675,28 @@ def CircuitPackage.format : Format CircuitPackage where
     Profile.format.encode value.profile,
     PoseidonSchedule.format.encode value.poseidon,
     PhysicalLayout.format.encode value.layout,
+    CcsRelation.format.encode value.relation,
     PermutationTemplate.format.encode value.permutation,
     (list HashChain.format).encode value.hashChains,
+    (list PermutationInvocation.format).encode value.permutationInvocations,
+    (list WitnessBatch.format).encode value.witnessBatches,
+    (list WitnessInstruction.format).encode value.witnessInstructions,
     (list SparseRow.format).encode value.assertionRows,
     (option TerminalLayout.format).encode value.terminal]
   decode
-    | .array [.atom schemaVersion, profile, poseidon, layout, permutation,
-        hashChains, assertionRows, terminal] => do
+    | .array [.atom schemaVersion, profile, poseidon, layout, relation,
+        permutation, hashChains, permutationInvocations, witnessBatches,
+        witnessInstructions, assertionRows, terminal] => do
       pure ⟨schemaVersion,
         ← Profile.format.decode profile,
         ← PoseidonSchedule.format.decode poseidon,
         ← PhysicalLayout.format.decode layout,
+        ← CcsRelation.format.decode relation,
         ← PermutationTemplate.format.decode permutation,
         ← (list HashChain.format).decode hashChains,
+        ← (list PermutationInvocation.format).decode permutationInvocations,
+        ← (list WitnessBatch.format).decode witnessBatches,
+        ← (list WitnessInstruction.format).decode witnessInstructions,
         ← (list SparseRow.format).decode assertionRows,
         ← (option TerminalLayout.format).decode terminal⟩
     | _ => .error "invalid circuit package"
@@ -408,9 +705,8 @@ def CircuitPackage.format : Format CircuitPackage where
     cases value
     simp [Profile.format.decode_encode, PoseidonSchedule.format.decode_encode,
       PhysicalLayout.format.decode_encode,
-      PermutationTemplate.format.decode_encode, Format.decode_encode,
-      TerminalLayout.format.decode_encode]
-    rfl
+      CcsRelation.format.decode_encode,
+      PermutationTemplate.format.decode_encode, Format.decode_encode] <;> rfl
 
 theorem decode_encode (value : CircuitPackage) :
     CircuitPackage.format.decode (CircuitPackage.format.encode value) =
@@ -419,64 +715,79 @@ theorem decode_encode (value : CircuitPackage) :
 
 def limbBase : Nat := 4294967296
 
-def atomDigest (value : Nat) : List F :=
-  Poseidon2.hash [Poseidon2.ofNat 0,
-    Poseidon2.ofNat (value % limbBase),
-    Poseidon2.ofNat ((value / limbBase) % limbBase),
-    Poseidon2.ofNat (value / (limbBase * limbBase))]
+def prependIdentityNode (tag value : Nat) (tail : List F) : List F :=
+  Poseidon2.ofNat (value / (limbBase * limbBase)) ::
+    Poseidon2.ofNat ((value / limbBase) % limbBase) ::
+    Poseidon2.ofNat (value % limbBase) :: Poseidon2.ofNat tag :: tail
 
-def foldChildDigest (state child : List F) : List F :=
-  Poseidon2.hash (Poseidon2.ofNat 2 :: state ++ child)
+/-- Reverse-accumulating traversal of the canonical numeric-array codec.
 
-def valueDigest : Value → List F
-  | .atom value => atomDigest value
-  | .array values =>
-      values.foldl (fun state child =>
-        foldChildDigest state (valueDigest child))
-        (Poseidon2.hash [Poseidon2.ofNat 1, Poseidon2.ofNat values.length])
+An atom contributes tag `0` and three base-`2^32` limbs. An array contributes
+tag `1`, three limbs for its length, and then its children in order. The tags
+and array lengths make the token stream prefix-free. `List.foldl` keeps the
+cost linear in the encoded package size and avoids one Poseidon2 call per
+codec node. -/
+def valuePreimageRev : Value → List F → List F
+  | .atom value, tail => prependIdentityNode 0 value tail
+  | .array values, tail =>
+      values.foldl (fun state child => valuePreimageRev child state)
+        (prependIdentityNode 1 values.length tail)
+
+def valuePreimage (value : Value) : List F :=
+  (valuePreimageRev value []).reverse
+
+@[simp] theorem valuePreimage_atom (value : Nat) :
+    valuePreimage (.atom value) =
+      [Poseidon2.ofNat 0,
+       Poseidon2.ofNat (value % limbBase),
+       Poseidon2.ofNat ((value / limbBase) % limbBase),
+       Poseidon2.ofNat (value / (limbBase * limbBase))] := by
+  simp [valuePreimage, valuePreimageRev, prependIdentityNode]
+
+@[simp] theorem valuePreimage_emptyArray :
+    valuePreimage (.array []) =
+      [Poseidon2.ofNat 1, Poseidon2.ofNat 0,
+       Poseidon2.ofNat 0, Poseidon2.ofNat 0] := by
+  simp [valuePreimage, valuePreimageRev, prependIdentityNode]
 
 def identityDomain : List F :=
   [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
     70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97, 103,
-    101, 47, 118, 49]
+    101, 47, 118, 50]
 
-/-- Verifier-bound Poseidon2 identity of every canonical package field. -/
+/-- Verifier-bound Poseidon2 identity of every canonical package field.
+
+Version 2 hashes one prefix-free token stream. It replaces the version-1
+per-node digest tree, whose executable cost was one Poseidon2 hash for every
+codec node. -/
 def relationIdentifier (value : CircuitPackage) : List F :=
   Poseidon2.hash (identityDomain ++
-    valueDigest (CircuitPackage.format.encode value))
+    valuePreimage (CircuitPackage.format.encode value))
 
 def render (value : CircuitPackage) : String :=
   (CircuitPackage.format.encode value).render
 
-/-- Emitted wrapper. The identifier is outside its own Poseidon2 preimage and
-is recomputed by the verifier from `package`. -/
+/-- Emitted package envelope. It carries no prover-claimed digest. The Rust
+verifier recomputes `relationIdentifier` from this package and compares it
+with its verifier-owned expected identity. -/
 structure Artifact where
   package : CircuitPackage
-  claimedIdentifier : List Nat
 deriving Repr
 
 def Artifact.format : Format Artifact where
-  encode := fun value => .array [
-    CircuitPackage.format.encode value.package,
-    (list nat).encode value.claimedIdentifier]
-  decode
-    | .array [package, claimedIdentifier] => do
-      pure ⟨← CircuitPackage.format.decode package,
-        ← (list nat).decode claimedIdentifier⟩
-    | _ => .error "invalid sealed circuit package"
+  encode := fun value => CircuitPackage.format.encode value.package
+  decode := fun value => do
+    pure ⟨← CircuitPackage.format.decode value⟩
   decode_encode := by
     intro value
     cases value
-    simp [CircuitPackage.format.decode_encode, Format.decode_encode]
-    rfl
+    simp [CircuitPackage.format.decode_encode] <;> rfl
 
 def sealPackage (value : CircuitPackage) : Artifact where
   package := value
-  claimedIdentifier := (relationIdentifier value).map (fun word => word.val)
 
-theorem sealPackage_identifier (value : CircuitPackage) :
-    (sealPackage value).claimedIdentifier =
-      (relationIdentifier value).map (fun word => word.val) := by
+theorem sealPackage_package (value : CircuitPackage) :
+    (sealPackage value).package = value := by
   rfl
 
 theorem artifact_decode_encode (value : Artifact) :

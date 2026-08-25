@@ -1,6 +1,7 @@
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding
+import NightstreamFPrime.Spec.Folding.PiCCS.Statement
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, `Pi_CCS` input.
@@ -39,6 +40,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- One shared symbolic carrier for both sides of the statement binding. -/
 structure Interface where
+  state : StateBinding.Interface
   priorPoint : Nat -> Fin productionShape.cubeVariables -> KExpr
   eval_K : Nat -> PadCoordinate productionShape -> KExpr
   eval_A : Nat -> MatrixCoordinate productionShape -> KExpr
@@ -55,6 +57,7 @@ def verifierEval_A (interface : Interface) := interface.eval_A
 
 /-- Symbolic form of the three exact v1.1 statement-binding conjuncts. -/
 structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop where
+  state : StateBinding.SpecHolds interface.state offset env
   priorPoint : forall coordinate,
     ((verifierPriorPoint interface) offset coordinate).eval env =
       (interface.priorPoint offset coordinate).eval env
@@ -65,65 +68,88 @@ structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop wh
     ((verifierEval_A interface) offset coordinate).eval env =
       (interface.eval_A offset coordinate).eval env
 
-/-- The sole logical circuit for this wiring leaf. -/
+/-- Canonical state rows plus the definitionally shared PiCCS statement. -/
 def circuit (interface : Interface) : FormalCircuit where
-  main := pure ()
+  main := (StateBinding.circuit interface.state).main
+  assumptions := StateBinding.Assumptions interface.state
   spec := SpecHolds interface
   soundness := by
-    intro _ _ _ _
-    exact ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
+    intro env offset assumptions rows
+    exact ⟨StateBinding.soundness interface.state env offset rows,
+      fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
   completeness := by
-    intro env _ _ _
-    refine ⟨env, ?_, ?_⟩
-    · intro _ _
-      rfl
-    · exact fun _ member => by cases member
+    intro env offset assumptions specification
+    exact StateBinding.completeness interface.state env offset
+      specification.state
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : StateBinding.Assumptions interface.state offset env)
     (rows : holds env (Circuit.ops (circuit interface).main offset)) :
     SpecHolds interface offset env :=
-  (circuit interface).soundness env offset trivial rows
+  (circuit interface).soundness env offset assumptions rows
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : StateBinding.Assumptions interface.state offset env)
     (specification : SpecHolds interface offset env) :
     exists completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (circuit interface).main offset)) ∧
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
-  (circuit interface).completeness env offset trivial specification
+  (circuit interface).completeness env offset assumptions specification
+
+theorem constraintsHold_of_spec (interface : Interface) (env : Env)
+    (offset : Nat) (specification : SpecHolds interface offset env) :
+    ConstraintsHold env
+      (flatConstraints (Circuit.ops (circuit interface).main offset)) := by
+  exact StateBinding.constraintsHold_of_spec interface.state env offset
+    specification.state
 
 /-- This boundary allocates no private value. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 0 := by
-  rfl
+  exact StateBinding.localLength_eq interface.state offset
 
-/-- This boundary emits no logical operation. -/
+/-- This boundary emits the 160 canonical state and context assertions. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 0 := by
-  rfl
+    (Circuit.ops (circuit interface).main offset).length = 160 := by
+  exact StateBinding.operations_length interface.state offset
 
-/-- This boundary emits no constraint row. -/
+/-- Each state-binding assertion lowers to one direct row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (circuit interface).main offset)).length = 0 := by
-  rfl
+    (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
+      160 := by
+  exact StateBinding.flatConstraints_length interface.state offset
+
+theorem flatConstraints_eq_stateAssertions (interface : Interface)
+    (offset : Nat) :
+    flatConstraints (Circuit.ops (circuit interface).main offset) =
+      StateBinding.assertions interface.state offset := by
+  exact StateBinding.flatConstraints_opsAt interface.state offset
 
 /-- The definitionally shared statement view is stable under every
 environment change. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env)
-    (_agrees : ∀ index, index < offset → after index = before index)
-    (_specification : SpecHolds interface offset before) :
+    (assumptions : StateBinding.Assumptions interface.state offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (specification : SpecHolds interface offset before) :
     SpecHolds interface offset after := by
-  exact ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
+  exact ⟨StateBinding.specHolds_of_agree_below interface.state offset
+      before after assumptions agrees specification.state,
+    fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
 
-/-- The wiring boundary has no flattened row. -/
-theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat) :
+/-- Every state-binding row uses only parent-owned wires. -/
+theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
+    (env : Env) :
+    StateBinding.Assumptions interface.state offset env →
     ∀ expression ∈ flatConstraints
       (Circuit.ops (circuit interface).main offset),
       expression.VarsBelow
         (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
-  intro _ member
-  cases member
+  intro assumptions expression member
+  rw [localLength_eq, Nat.add_zero]
+  exact StateBinding.flatConstraints_varsBelow interface.state offset
+    env assumptions expression member
 
 /-- Exact parent coverage: the production verifier input is constructed from
 the production statement, so it satisfies the canonical v1.1 binding
@@ -141,11 +167,11 @@ theorem spec_implies_keyStatement
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : Interface) (offset : Nat) (env : Env)
     (_specification : SpecHolds interface offset env) :
-    NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement.Holds
+    NightstreamFPrime.Spec.Folding.PiCCS.Statement.Holds
       ((ProductionKey.key relation ajtai).statement running fresh)
       (((ProductionKey.key relation ajtai).statement running fresh).verifierInput
         (ProductionKey.key relation ajtai).lift) :=
-  NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement.verifierInput_holds
+  NightstreamFPrime.Spec.Folding.PiCCS.Statement.verifierInput_holds
     (ProductionKey.key relation ajtai).lift
     ((ProductionKey.key relation ajtai).statement running fresh)
 

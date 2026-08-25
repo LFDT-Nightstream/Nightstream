@@ -2,7 +2,7 @@ import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript
+import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 2; Fiat–Shamir transform.
@@ -11,10 +11,10 @@ before deriving that round's verifier challenge.
 
 Inputs:
 - the state after `α` and `γ` derivation;
-- 24 fixed-width SumCheck polynomial messages.
+- 25 fixed-width SumCheck polynomial messages.
 
 Outputs:
-- 24 verifier-derived challenges, carried in the shared `FixedChain.Round`
+- 25 verifier-derived challenges, carried in the shared `FixedChain.Round`
   interfaces;
 - the post-round transcript state.
 
@@ -44,7 +44,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 abbrev State := NightstreamFPrime.Lifecycle.Transcript.State
 abbrev EState := Layer.EState
-abbrev Context := ProtocolVerifier.Statement K State productionShape
+abbrev Context :=
+  NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement
+    K State productionShape
 
 def oracle : FiatShamir.Oracle Context K State productionShape :=
   NightstreamFPrime.Lifecycle.Transcript.piCcsOracle.transcript
@@ -64,7 +66,7 @@ def Message.semanticPolynomial {degreeBound : Nat} (message : Message degreeBoun
     (env : Env) : NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K degreeBound :=
   (message.asRound KExpr.zero).semanticPolynomial env
 
-/-- External inputs are the prior state and 24 prover messages. Challenges
+/-- External inputs are the prior state and 25 prover messages. Challenges
 and the outgoing state are child-owned outputs. -/
 structure Interface (degreeBound : Nat) where
   initialState : Nat → EState
@@ -108,6 +110,38 @@ def layoutProgram {degreeBound : Nat}
   Formal.compile offset (interface.initialState offset)
     (layoutActions interface offset)
 
+/-- Recipe-free executable projection of the fixed round transcript. -/
+def layoutWiring {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) : Formal.Wiring :=
+  Formal.compileWiringLazy offset (fun _ => interface.initialState offset)
+    (layoutActions interface offset)
+
+theorem layoutWiring_eq_compileWiring {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) :
+    layoutWiring interface offset =
+      Formal.compileWiring offset (interface.initialState offset)
+        (layoutActions interface offset) := by
+  exact Formal.compileWiringLazy_eq offset
+    (fun _ => interface.initialState offset) (interface.initialState offset)
+    (layoutActions interface offset) rfl
+
+theorem layoutWiring_samples_eq {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) :
+    (layoutWiring interface offset).samples =
+      (layoutProgram interface offset).samples := by
+  calc
+    (layoutWiring interface offset).samples =
+        (Formal.compileWiring offset (interface.initialState offset)
+          (layoutActions interface offset)).samples :=
+      congrArg Formal.Wiring.samples
+        (layoutWiring_eq_compileWiring interface offset)
+    _ = (Formal.compile offset (interface.initialState offset)
+          (layoutActions interface offset)).samples :=
+      (Formal.compileWiring_matches offset (interface.initialState offset)
+        (layoutActions interface offset)).1
+    _ = (layoutProgram interface offset).samples := by
+      rfl
+
 private theorem layoutActions_squeezeCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     ((layoutActions interface offset).filterMap fun action => match action with
@@ -126,14 +160,19 @@ private theorem layoutActions_squeezeCount {degreeBound : Nat}
 
 @[simp] theorem layoutProgram_samples_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (layoutProgram interface offset).samples.length = 24 := by
+    (layoutProgram interface offset).samples.length = 25 := by
   change (Formal.compile offset (interface.initialState offset)
-    (layoutActions interface offset)).samples.length = 24
+    (layoutActions interface offset)).samples.length = 25
   rw [Formal.compile_samples_length]
   calc
     _ = (canonicalFinIndices productionShape.cubeVariables).length :=
       layoutActions_squeezeCount interface offset
-    _ = 24 := canonicalFinIndices_length productionShape.cubeVariables
+    _ = 25 := canonicalFinIndices_length productionShape.cubeVariables
+
+@[simp] theorem layoutWiring_samples_length {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) :
+    (layoutWiring interface offset).samples.length = 25 := by
+  rw [layoutWiring_samples_eq, layoutProgram_samples_length]
 
 /-- Verifier-derived challenge for one indexed round. -/
 def challenge {degreeBound : Nat} (interface : Interface degreeBound)
@@ -143,6 +182,40 @@ def challenge {degreeBound : Nat} (interface : Interface degreeBound)
     rw [samplesLength]
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       roundIndex.isLt⟩
+
+/-- Executable verifier-derived round challenge from the recipe-free wiring. -/
+def challengeFast {degreeBound : Nat} (interface : Interface degreeBound)
+    (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) : KExpr :=
+  (layoutWiring interface offset).samples.getD roundIndex.val KExpr.zero
+
+theorem challenge_eq_challengeFast_pointwise {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat)
+    (roundIndex : Fin productionShape.cubeVariables) :
+    challenge interface offset roundIndex =
+      challengeFast interface offset roundIndex := by
+  have roundBound : roundIndex.val <
+      (layoutProgram interface offset).samples.length := by
+    rw [layoutProgram_samples_length]
+    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
+      roundIndex.isLt
+  calc
+    challenge interface offset roundIndex =
+        (layoutProgram interface offset).samples.get
+          ⟨roundIndex.val, roundBound⟩ := by
+      rfl
+    _ = (layoutProgram interface offset).samples.getD
+          roundIndex.val KExpr.zero :=
+      (List.getD_eq_get (layoutProgram interface offset).samples KExpr.zero
+        ⟨roundIndex.val, roundBound⟩).symm
+    _ = (layoutWiring interface offset).samples.getD
+          roundIndex.val KExpr.zero := by
+      rw [layoutWiring_samples_eq]
+    _ = challengeFast interface offset roundIndex := by
+      rfl
+
+@[csimp] theorem challenge_eq_challengeFast : @challenge = @challengeFast := by
+  funext degreeBound interface offset roundIndex
+  exact challenge_eq_challengeFast_pointwise interface offset roundIndex
 
 /-- The one round view consumed by the fixed SumCheck chain. -/
 def round {degreeBound : Nat} (interface : Interface degreeBound)
@@ -203,6 +276,34 @@ theorem program_shape_eq_layout {degreeBound : Nat}
   exact Formal.compile_shape_eq offset (interface.initialState offset)
     (actions interface offset) (layoutActions interface offset)
       (actions_shape_eq_layout interface offset)
+
+/-- Executable final-state projection from the recipe-free round wiring. -/
+def finalStateFast {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) : EState :=
+  (layoutWiring interface offset).output
+
+theorem finalState_eq_finalStateFast_pointwise {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat) :
+    finalState interface offset = finalStateFast interface offset := by
+  calc
+    finalState interface offset = (program interface offset).output := by
+      rfl
+    _ = (layoutProgram interface offset).output :=
+      (program_shape_eq_layout interface offset).2.2
+    _ = (Formal.compileWiring offset (interface.initialState offset)
+          (layoutActions interface offset)).output :=
+      (Formal.compileWiring_matches offset (interface.initialState offset)
+        (layoutActions interface offset)).2.symm
+    _ = (layoutWiring interface offset).output :=
+      congrArg Formal.Wiring.output
+        (layoutWiring_eq_compileWiring interface offset).symm
+    _ = finalStateFast interface offset := by
+      rfl
+
+@[csimp] theorem finalState_eq_finalStateFast :
+    @finalState = @finalStateFast := by
+  funext degreeBound interface offset
+  exact finalState_eq_finalStateFast_pointwise interface offset
 
 theorem layoutSamples_eq_challenges {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
@@ -348,7 +449,7 @@ theorem program_causal {degreeBound : Nat}
 
 def SpecHolds {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) (env : Env) : Prop :=
-  NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript.RoundsHolds
+  NightstreamFPrime.Spec.Folding.PiCCS.Transcript.RoundsHolds
     oracle (semanticRounds interface offset env)
     (evalState env (interface.initialState offset))
     (evalRoundPoint interface offset env)
@@ -496,7 +597,8 @@ theorem trace_iff_specHolds {degreeBound : Nat}
 
 def opsAt {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩]
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)]
 
 def main {degreeBound : Nat}
     (interface : Interface degreeBound) : Circuit Unit := fun offset =>
@@ -549,8 +651,9 @@ def circuit {degreeBound : Nat}
     let compiled := program interface offset
     have recipeRows : ConstraintsHold env
         (recipeConstraints offset compiled.recipes) := by
-      exact rows (Op.witness ⟨offset, compiled.recipes⟩) (by
-        change Op.witness ⟨offset, compiled.recipes⟩ ∈ opsAt interface offset
+      exact rows (Op.witness (WitnessBatch.arithmetic offset compiled.recipes)) (by
+        change Op.witness (WitnessBatch.arithmetic offset compiled.recipes) ∈
+          opsAt interface offset
         simp [opsAt, compiled])
     have assertionRows : ConstraintsHold env compiled.assertions := by
       apply (Formal.compile_assertions_hold_iff env offset
@@ -712,6 +815,25 @@ theorem challenge_varsBelow {degreeBound : Nat}
   rw [recipesEq]
   exact below
 
+/-- The compiler-owned outgoing transcript state lies inside this child's
+declared symbolic interval. -/
+theorem finalState_varsBelow {degreeBound : Nat}
+    (interface : Interface degreeBound) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    ∀ lane, (finalState interface offset lane).VarsBelow
+      (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
+  have outputScope := (Formal.compile_scope offset
+    (interface.initialState offset) (layoutActions interface offset)
+      assumptions.1 (layoutActions_below interface offset (by
+        simpa [Assumptions] using assumptions))).1
+  have recipesEq := (program_shape_eq_layout interface offset).1
+  have outputEq := (program_shape_eq_layout interface offset).2.2
+  intro lane
+  change ((program interface offset).output lane).VarsBelow
+    (offset + localLength (opsAt interface offset))
+  rw [opsAt_localLength, recipesEq, outputEq]
+  exact outputScope lane
+
 private theorem actions_length_list {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat)
     (indices : List (Fin productionShape.cubeVariables)) :
@@ -726,7 +848,7 @@ private theorem actions_length_list {degreeBound : Nat}
 
 theorem actions_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (actions interface offset).length = 72 := by
+    (actions interface offset).length = 75 := by
   rw [actions, actions_length_list, canonicalFinIndices_length]
   rfl
 
@@ -813,11 +935,11 @@ def recipeCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact symbolic footprint: 24 indexed round groups, with no copied round
+/-- Exact symbolic footprint: 25 indexed round groups, with no copied round
 implementation. -/
 theorem recipeCount_eq {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    recipeCount interface offset = 24 * perRoundRecipeCount degreeBound := by
+    recipeCount interface offset = 25 * perRoundRecipeCount degreeBound := by
   unfold recipeCount actions
   have each : ∀ roundIndex ∈
       canonicalFinIndices productionShape.cubeVariables,
@@ -832,7 +954,7 @@ theorem recipeCount_eq {degreeBound : Nat}
 theorem localLength_eq {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) =
-      24 * perRoundRecipeCount degreeBound := by
+      25 * perRoundRecipeCount degreeBound := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength]
   unfold program
@@ -842,7 +964,7 @@ theorem localLength_eq {degreeBound : Nat}
 @[simp] theorem program_recipes_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     (program interface offset).recipes.length =
-      24 * perRoundRecipeCount degreeBound := by
+      25 * perRoundRecipeCount degreeBound := by
   unfold program
   rw [Formal.compile_recipes_length]
   simpa [recipeCount] using recipeCount_eq interface offset
@@ -855,7 +977,7 @@ theorem operations_length {degreeBound : Nat}
 theorem flatConstraints_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      24 * perRoundRecipeCount degreeBound := by
+      25 * perRoundRecipeCount degreeBound := by
   change (flatConstraints (opsAt interface offset)).length = _
   rw [flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
@@ -911,7 +1033,7 @@ theorem spec_implies_keyExecution_rounds
   rw [initial_eq, semanticRounds_eq] at roundPointEq finalStateEq
   let derived := FiatShamir.derive oracle context certificate
   have canonicalRounds :=
-    NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript.derive_rounds_holds
+    NightstreamFPrime.Spec.Folding.PiCCS.Transcript.derive_rounds_holds
       oracle context certificate
   have roundPointDerived : evalRoundPoint interface offset env =
       derived.roundPoint := by

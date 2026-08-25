@@ -18,11 +18,11 @@ open NightstreamFPrime.Lifecycle
 
 def digestWords : Nat := PilotValues.digestWords
 
-/-- `42461 + |vk| + |z0| + |zi|` at the fixed four-word production ABI. -/
+/-- `42463 + |vk| + |z0| + |zi|` at the fixed four-word production ABI. -/
 def stateHashWords : Nat :=
   PilotValues.stateHashBaseWords + digestWords + digestWords + digestWords
 
-theorem stateHashWords_eq : stateHashWords = 42473 := by
+theorem stateHashWords_eq : stateHashWords = 42475 := by
   rfl
 
 def priorPreimageStart : Nat := 0
@@ -33,7 +33,7 @@ def outputDigestStart : Nat := outputPreimageStart + stateHashWords
 
 def externalColumnCount : Nat := outputDigestStart + digestWords
 
-theorem externalColumnCount_eq : externalColumnCount = 85004 := by
+theorem externalColumnCount_eq : externalColumnCount = 85008 := by
   rfl
 
 /-- Fixed physical schedule values derived from the v1.1 state-hash width. -/
@@ -461,46 +461,66 @@ theorem outputWitnessCount :
     Hash.compile_recipes_length, outputPreimage_chunkCount]
 
 theorem outputOffset_eq :
-    Pilot.outputOffset interface witnessOffset = 6372044 := by
+    Pilot.outputOffset interface witnessOffset = 6372048 := by
   rw [Pilot.outputOffset_eq_add, priorWitnessCount]
   rfl
 
 def lifecycleOutputOffset : Nat :=
-  Lifecycle.Pilot.outputOffset interface witnessOffset
+  6372048
 
-theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 6372044 := by
-  change Pilot.outputOffset interface witnessOffset = 6372044
-  exact outputOffset_eq
+/-- The materialized executable offset is exactly the logical pilot offset. -/
+theorem lifecycleOutputOffset_matches :
+    lifecycleOutputOffset =
+      Lifecycle.Pilot.outputOffset interface witnessOffset := by
+  change lifecycleOutputOffset = Pilot.outputOffset interface witnessOffset
+  rw [outputOffset_eq]
+  rfl
 
-theorem witnessOffset_eq : witnessOffset = 85004 := by
+theorem lifecycleOutputOffset_matches_layout :
+    lifecycleOutputOffset = Pilot.outputOffset interface witnessOffset := by
+  change lifecycleOutputOffset =
+    Lifecycle.Pilot.outputOffset interface witnessOffset
+  exact lifecycleOutputOffset_matches
+
+theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 6372048 := by
+  rfl
+
+theorem witnessOffset_eq : witnessOffset = 85008 := by
   unfold witnessOffset
   exact externalColumnCount_eq
 
 theorem witnessOffset_le_lifecycleOutputOffset :
     witnessOffset ≤ Lifecycle.Pilot.outputOffset interface witnessOffset := by
-  change witnessOffset ≤ lifecycleOutputOffset
-  rw [witnessOffset_eq, lifecycleOutputOffset_eq]
+  change witnessOffset ≤ Pilot.outputOffset interface witnessOffset
+  rw [outputOffset_eq, witnessOffset_eq]
   norm_num
 
 theorem logicalColumnCount_eq :
-    Pilot.logicalColumnCount interface witnessOffset = 12659084 := by
+    Pilot.logicalColumnCount interface witnessOffset = 12659088 := by
   rw [Pilot.logicalColumnCount_eq_add]
   rw [outputWitnessCount, outputOffset_eq]
 
 theorem physicalColumnCount_eq :
-    Pilot.physicalColumnCount interface witnessOffset = 12659084 := by
+    Pilot.physicalColumnCount interface witnessOffset = 12659088 := by
   rw [Pilot.physicalColumnCount_eq, logicalConstraints_freshCount,
     logicalColumnCount_eq]
 
 def jointDomain : Nat :=
-  max (Pilot.physicalRowCount interface witnessOffset)
-    (Pilot.physicalColumnCount interface witnessOffset)
+  12659088
 
-theorem jointDomain_eq : jointDomain = 12659084 := by
-  simp [jointDomain, physicalRowCount_eq, physicalColumnCount_eq]
+/-- The materialized executable domain is exactly the semantic pilot domain. -/
+theorem jointDomain_matches :
+    jointDomain =
+      max (Pilot.physicalRowCount interface witnessOffset)
+        (Pilot.physicalColumnCount interface witnessOffset) := by
+  rw [physicalRowCount_eq, physicalColumnCount_eq]
+  rfl
 
-/-- The complete pilot layout fits the fixed `2^24` production domain. -/
-theorem jointDomain_le_twoPow24 : jointDomain ≤ 2 ^ 24 := by
+theorem jointDomain_eq : jointDomain = 12659088 := by
+  rfl
+
+/-- The complete pilot layout fits the fixed `2^25` production domain. -/
+theorem jointDomain_le_twoPow25 : jointDomain ≤ 2 ^ 25 := by
   rw [jointDomain_eq]
   norm_num
 
@@ -775,15 +795,19 @@ theorem assumptions (env : Env) :
     constructor
     · intro expression member
       rw [OutputHash.hashInterface_input, interface_output] at member
-      have small := outputPreimage_belowWitness expression (by
-        simpa [lifecycleOutputOffset] using member)
+      rw [← lifecycleOutputOffset_matches] at member
+      have small := outputPreimage_belowWitness expression member
       exact Expr.VarsBelow.mono expression small
         witnessOffset_le_lifecycleOutputOffset
     · intro lane
       rw [OutputHash.hashInterface_expected, interface_output]
       have small := outputDigest_belowWitness lane
-      simpa [lifecycleOutputOffset] using
-        Expr.VarsBelow.mono _ small witnessOffset_le_lifecycleOutputOffset
+      rw [← lifecycleOutputOffset_matches]
+      have materializedBound : witnessOffset ≤ lifecycleOutputOffset := by
+        rw [witnessOffset_eq, lifecycleOutputOffset_eq]
+        norm_num
+      exact Expr.VarsBelow.mono _ small
+        materializedBound
 
 def AgreesBelow (left right : Env) (bound : Nat) : Prop :=
   ∀ index, index < bound → left index = right index
@@ -847,7 +871,8 @@ theorem protocolEnv_represents_of_agreesBelow
           Hash.evalList base (outputInterface.preimage
             (Pilot.outputOffset interface witnessOffset)) :=
         evalList_eq_of_agreesBelow env base witnessOffset _ (by
-          simpa [lifecycleOutputOffset] using outputPreimage_belowWitness) agrees
+          rw [← lifecycleOutputOffset_matches_layout]
+          exact outputPreimage_belowWitness) agrees
       _ = serializePreimage (publicFits := publicFits) output :=
         represented.2.2.1
   · unfold OutputHash.RepresentsDigest at represented ⊢
@@ -864,8 +889,9 @@ theorem protocolEnv_represents_of_agreesBelow
         exact ((outputInterface.digest
           (Pilot.outputOffset interface witnessOffset) lane).eval_eq_of_agree_below
             witnessOffset base env (Expr.VarsBelow.mono _
-              (by simpa [lifecycleOutputOffset] using
-                outputDigest_belowWitness lane) (by omega))
+              (by
+                rw [← lifecycleOutputOffset_matches_layout]
+                exact outputDigest_belowWitness lane) (by omega))
             (fun index lower => (agrees index lower).symm))
 
 /-- Production deterministic bridge for the two pilot slots. The concrete ABI

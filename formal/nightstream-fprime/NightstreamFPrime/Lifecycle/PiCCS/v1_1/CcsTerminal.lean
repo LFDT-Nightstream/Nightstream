@@ -1,7 +1,7 @@
 import NightstreamFPrime.Gadgets.Polynomial.Sparse
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `F`.
@@ -10,19 +10,20 @@ Obligation: Enforce
 
 Inputs:
 - all 14 fresh CCS-matrix evaluations for the sole production fresh source;
-- the relation-owned explicit sparse constraint polynomial;
+- the relation-owned selective sparse constraint polynomial.
 
 Outputs:
-- the child-owned exact fresh CCS residual term.
+- the exact symbolic fresh CCS residual term.
 
 Constraint groups:
-- C1: the opaque reusable `Polynomial.Sparse` circuit.
+- C1: the opaque reusable `Sparse.Owned` polynomial evaluator.
 
 Parent coverage:
 - `ProtocolPolynomial.ccsAtMessage` inside `PiCCS.v1_1.Coverage.chain`.
 
 The fixed production profile has one fresh source, so its source weight is
-`gamma^0 = 1`. This file owns that fixed-profile reduction and no norm term.
+`gamma^0 = 1`. The two checked output wires flow directly to the
+final-identity leaf.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal
@@ -40,8 +41,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 structure Interface where
   freshMatrix : Nat → Fin productionShape.matrixCount → KExpr
 
-/-- Static verifier-key polynomial. No runtime proof value changes the
-circuit structure. -/
+/-- Static verifier-key polynomial. No proof value changes circuit syntax. -/
 def polynomial
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -55,6 +55,7 @@ def sparseInterface (interface : Interface) :
     Sparse.Owned.Interface productionShape.matrixCount where
   point := interface.freshMatrix
 
+/-- Exact symbolic production residual. -/
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -72,6 +73,7 @@ abbrev Assumptions
   Sparse.Owned.Assumptions (polynomial relation) (sparseInterface interface)
     offset env
 
+/-- Named semantic predicate for the exact selective polynomial evaluation. -/
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -81,6 +83,7 @@ abbrev SpecHolds
   Sparse.Owned.SpecHolds (polynomial relation) (sparseInterface interface)
     offset env
 
+/-- Sole logical circuit for the CCS-terminal leaf. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -115,8 +118,8 @@ theorem build
           (Circuit.ops (circuit relation interface).main offset)) ∧
       holdsFlat completed
         (Circuit.ops (circuit relation interface).main offset) :=
-  Sparse.Owned.build (polynomial relation) (sparseInterface interface) env
-    offset assumptions
+  Sparse.Owned.build (polynomial relation) (sparseInterface interface)
+    env offset assumptions
 
 theorem completeness
     {logicalWidth : Nat}
@@ -134,15 +137,19 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   build relation interface env offset assumptions
 
+def privateCount : Nat := 2
+def rowCount : Nat := 2
+
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit relation interface).main offset) = 0 :=
-  Sparse.Owned.localLength_eq (polynomial relation) (sparseInterface interface)
-    offset
+    localLength (Circuit.ops (circuit relation interface).main offset) =
+      privateCount := by
+  exact Sparse.Owned.localLength_eq (polynomial relation)
+    (sparseInterface interface) offset
 
 theorem operations_length
     {logicalWidth : Nat}
@@ -150,9 +157,9 @@ theorem operations_length
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit relation interface).main offset).length = 0 :=
-  Sparse.Owned.operations_length (polynomial relation) (sparseInterface interface)
-    offset
+    (Circuit.ops (circuit relation interface).main offset).length = 1 :=
+  Sparse.Owned.operations_length (polynomial relation)
+    (sparseInterface interface) offset
 
 theorem flatConstraints_length
     {logicalWidth : Nat}
@@ -161,8 +168,9 @@ theorem flatConstraints_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
     (flatConstraints
-      (Circuit.ops (circuit relation interface).main offset)).length = 0 :=
-  Sparse.Owned.flatConstraints_length (polynomial relation)
+      (Circuit.ops (circuit relation interface).main offset)).length =
+      rowCount := by
+  exact Sparse.Owned.flatConstraints_length (polynomial relation)
     (sparseInterface interface) offset
 
 theorem flatConstraints_varsBelow
@@ -171,13 +179,13 @@ theorem flatConstraints_varsBelow
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat)
-    (_assumptions : Sparse.Owned.Assumptions (polynomial relation)
-      (sparseInterface interface) offset (fun _ => 0)) :
+    (_assumptions : Assumptions relation interface offset (fun _ => 0)) :
     ∀ constraint ∈ flatConstraints
       (Circuit.ops (circuit relation interface).main offset),
-      constraint.VarsBelow offset :=
-  Sparse.Owned.flatConstraints_varsBelow (polynomial relation)
-    (sparseInterface interface) offset
+      constraint.VarsBelow (offset + privateCount) := by
+  simpa [privateCount] using
+    Sparse.Owned.flatConstraints_varsBelow (polynomial relation)
+      (sparseInterface interface) offset _assumptions
 
 private def freshIndex : Fin productionShape.freshCount :=
   ⟨0, by
@@ -197,8 +205,7 @@ theorem ccsAtMessage_eq_singleFresh
     productionProfile, Phi81MatrixSource.phi81Shape, freshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
 
-/-- Concrete parent coverage: the relation-owned sparse evaluation is exactly
-production `ProtocolPolynomial.ccsAtMessage`. -/
+/-- The selective evaluation is exactly production `ccsAtMessage`. -/
 theorem spec_implies_keyCcsAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -238,7 +245,10 @@ theorem spec_implies_keyCcsAtMessage
     exact freshMatrixEq matrix
   have polynomialEq : polynomial relation = input.constraintPolynomial := by
     rfl
-  unfold SpecHolds Sparse.Owned.SpecHolds sparseInterface at specification
+  change (output relation interface offset).eval env =
+    CCSResidualTable.evaluatePolynomial extensionOps (polynomial relation)
+      (fun matrix => (interface.freshMatrix offset matrix).eval env)
+    at specification
   rw [polynomialEq, pointEq] at specification
   exact specification.trans
     (ccsAtMessage_eq_singleFresh input gamma message).symm

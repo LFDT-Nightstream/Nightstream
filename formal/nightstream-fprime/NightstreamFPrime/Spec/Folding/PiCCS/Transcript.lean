@@ -15,13 +15,13 @@ Outputs:
 - the state after all 25 labelled squeezes.
 
 Parent coverage:
-- the pre-SumCheck prefix of `v1_1.Coverage.transcript`.
+- the pre-SumCheck prefix of `PiCCS.Coverage.transcript`.
 
 This module is a semantic facade over the canonical Fiat–Shamir machine. It
 defines no second verifier and emits no circuit constraints.
 -/
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript
+namespace NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -154,4 +154,4 @@ theorem derive_rounds_holds
       (FiatShamir.derive oracle context certificate).finalState := by
   exact ⟨rfl, rfl⟩
 
-end NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Transcript
+end NightstreamFPrime.Spec.Folding.PiCCS.Transcript

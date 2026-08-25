@@ -7,7 +7,7 @@ Obligation: Lower
 `E_A = eq(r', r) * sum_(i,j,l) gamma^I_A(i,j,l) cf(y'_(i,j))_l`.
 
 Inputs:
-- the 24-coordinate verifier-derived point `r'` and prior point `r`;
+- the 25-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
 - 12,096 CCS-matrix-family coefficients, with no Pad coefficient.
 
@@ -15,7 +15,7 @@ Outputs:
 - the child-owned exact unshifted `Eval_A` terminal term.
 
 Constraint groups:
-- point equality: 94 logical columns, 569 fresh columns, 663 rows;
+- point equality: 98 logical columns, 593 fresh columns, 691 rows;
 - 12,096-term Horner: 24,190 logical columns, 84,665 fresh columns,
   108,855 rows;
 - parent wiring: zero columns and zero rows.
@@ -55,6 +55,43 @@ structure InputsLinear
   outputEval_A : ∀ coordinate,
     KExprLinear (interface.outputEval_A offset coordinate)
 
+/-- The owned `Eval_A` result lies below the canonical CCS child start. -/
+theorem output_varsBelow_ccs
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.evalACircuit (Formal.atOffset interface parentOffset)).assumptions
+        (Formal.evalAOffset interface parentOffset) env) :
+    (Formal.evalAOutput (Formal.atOffset interface parentOffset)
+      (Formal.ccsOffset interface parentOffset)).VarsBelow
+        (Formal.ccsOffset interface parentOffset) := by
+  let frozen := Formal.atOffset interface parentOffset
+  have childAssumptions : EvalATerminal.Assumptions
+      (Formal.evalAInterface frozen) (Formal.evalAStart frozen) env := by
+    rw [Formal.evalAStart_atOffset interface parentOffset]
+    exact assumptions
+  have below := EvalATerminal.output_varsBelow
+    (Formal.evalAInterface frozen) (Formal.evalAStart frozen) env
+    childAssumptions
+  have outputEq : Formal.evalAOutput frozen
+      (Formal.ccsOffset interface parentOffset) =
+      EvalATerminal.output (Formal.evalAInterface frozen)
+        (Formal.evalAStart frozen) := by
+    rfl
+  have boundEq : Formal.ccsOffset interface parentOffset =
+      Formal.evalAStart frozen + localLength (Circuit.ops
+        (EvalATerminal.circuit (Formal.evalAInterface frozen)).main
+        (Formal.evalAStart frozen)) := by
+    calc
+      Formal.ccsOffset interface parentOffset = Formal.ccsStart frozen :=
+        (Formal.ccsStart_atOffset interface parentOffset).symm
+      _ = _ := by
+        unfold Formal.ccsStart
+        rw [EvalATerminal.localLength_eq]
+        rfl
+  rw [outputEq, boundEq]
+  exact below
+
 private theorem cubeVariables_positive :
     0 < productionShape.cubeVariables := by
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
@@ -91,7 +128,7 @@ private theorem core_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.circuit interface
-        ).main offset)) = 85234 := by
+        ).main offset)) = 85258 := by
   calc
     _ = (24 * productionShape.cubeVariables - 7) +
         7 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs
@@ -102,7 +139,7 @@ private theorem core_totalFreshCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 85234 := by
+    _ = 85258 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -112,7 +149,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.circuit interface
-        ).main offset)) = 109518 := by
+        ).main offset)) = 109546 := by
   calc
     _ = (28 * productionShape.cubeVariables - 9) +
         9 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs
@@ -123,7 +160,7 @@ private theorem core_totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 109518 := by
+    _ = 109546 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -133,8 +170,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.evalAInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.evalACircuit interface) where
-  freshColumnCount := fun _ => 85234
-  physicalRowCount := fun _ => 109518
+  freshColumnCount := fun _ => 85258
+  physicalRowCount := fun _ => 109546
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalACircuit
@@ -152,7 +189,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.evalAInterface interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.evalACircuit interface).main offset)) = 85234 :=
+      (Formal.evalACircuit interface).main offset)) = 85258 :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -161,7 +198,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.evalAInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.evalACircuit interface).main offset)) = 109518 :=
+      (Formal.evalACircuit interface).main offset)) = 109546 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -171,15 +208,42 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.evalACircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.evalACircuit interface).main offset)) = 109518 := by
+        (Formal.evalACircuit interface).main offset)) = 109546 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.evalACircuit interface).main offset) =
-        24284 := by
+        24288 := by
     unfold Formal.evalACircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.localLength_eq
         (Formal.evalAInterface interface) offset
   rw [logicalColumns, freshColumnCount_eq interface inputs offset]
+
+/-- Exact unmaterialized product shape exported to the final identity. -/
+theorem output_shape
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (offset : Nat)
+    (inputs : InputsLinear (Formal.evalAInterface interface)
+      (Formal.evalAStart interface)) :
+    NightstreamFPrime.Layout.Multilinear.PointWeightedHorner.ProductOutputShape
+      (Formal.evalAOutput interface offset) := by
+  unfold Formal.evalAOutput
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.output
+  apply NightstreamFPrime.Layout.Multilinear.PointWeightedHorner.output_shape
+  · exact cubeVariables_positive
+  · exact coreInputs (Formal.evalAInterface interface)
+      (Formal.evalAStart interface) inputs
+  · intro empty
+    have coefficientExprsEmpty :
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs
+          (Formal.evalAInterface interface) (Formal.evalAStart interface) =
+          [] := by
+      simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coreInterface]
+        using empty
+    have length :=
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalATerminal.coefficientExprs_length
+        (Formal.evalAInterface interface) (Formal.evalAStart interface)
+    rw [coefficientExprsEmpty] at length
+    simp at length
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.EvalATerminal

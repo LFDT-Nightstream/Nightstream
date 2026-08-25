@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Poseidon2
+import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
 /-!
@@ -13,6 +14,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
+open NightstreamFPrime.Layout.Polynomial.Horner
 
 /-- Both base-field coordinates of one symbolic extension-field value are
 affine. -/
@@ -27,6 +29,130 @@ def ActionAffine : Formal.Action → Prop
 /-- Every action input in one Duplex schedule is affine. -/
 def ActionsAffine (actions : List Formal.Action) : Prop :=
   ∀ action ∈ actions, ActionAffine action
+
+/-- A transcript state is one exact permutation-owned block of eight fresh
+variables. -/
+def StateFresh (state : Layer.EState) : Prop :=
+  ∃ start, state = Permutation.freshState start
+
+theorem StateFresh.affine {state : Layer.EState}
+    (fresh : StateFresh state) : StateAffine state := by
+  rcases fresh with ⟨start, rfl⟩
+  exact freshState_affine start
+
+private theorem compileAbsorptions_output_fresh_of_nonempty
+    (start : Nat) (state : Layer.EState) (blocks : List (List Expr))
+    (nonempty : blocks ≠ []) :
+    StateFresh (Hash.compileAbsorptions start state blocks).output := by
+  induction blocks generalizing start state with
+  | nil => exact (nonempty rfl).elim
+  | cons block blocks inductionHypothesis =>
+      cases blocks with
+      | nil =>
+          refine ⟨start + 584, ?_⟩
+          simp [Hash.compileAbsorptions, compile_schedule_output_eq]
+      | cons next rest =>
+          change StateFresh
+            (Hash.compileAbsorptions (start + 592)
+              (Permutation.compile start (Hash.absorbE state block)
+                Permutation.schedule).output (next :: rest)).output
+          exact inductionHypothesis (start + 592)
+            (Permutation.compile start (Hash.absorbE state block)
+              Permutation.schedule).output (by simp)
+
+theorem compileAbsorptions_output_fresh
+    (start : Nat) (state : Layer.EState) (blocks : List (List Expr))
+    (stateFresh : StateFresh state) :
+    StateFresh (Hash.compileAbsorptions start state blocks).output := by
+  cases blocks with
+  | nil => simpa [Hash.compileAbsorptions] using stateFresh
+  | cons block rest =>
+      exact compileAbsorptions_output_fresh_of_nonempty start state
+        (block :: rest) (by simp)
+
+theorem squeeze_output_fresh (start : Nat) (state : Layer.EState) :
+    StateFresh (Squeeze.compile start state).output := by
+  refine ⟨start + 1176, ?_⟩
+  funext lane
+  rw [Squeeze.compile_output_apply]
+  unfold Squeeze.secondPermutation
+  rw [Squeeze.first_recipes_length, compile_schedule_output_eq]
+
+theorem squeeze_sample_linear (start : Nat) (state : Layer.EState)
+    (stateFresh : StateFresh state) :
+    KExprLinear (Squeeze.compile start state).sample := by
+  rcases stateFresh with ⟨stateStart, rfl⟩
+  rw [Squeeze.compile_sample_eq, compile_schedule_output_eq]
+  refine ⟨rfl, rfl, ?_, ?_⟩
+  · simp [Permutation.freshState, Nonconstant]
+  · simp [Permutation.freshState, Nonconstant]
+
+/-- Every action preserves a fresh state once the initial state is fresh. -/
+theorem compile_output_fresh (start : Nat) (state : Layer.EState)
+    (actions : List Formal.Action) (stateFresh : StateFresh state) :
+    StateFresh (Formal.compile start state actions).output := by
+  induction actions generalizing start state with
+  | nil => simpa [Formal.compile] using stateFresh
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let absorbed := Hash.compileAbsorptions start state
+            (Hash.inputChunks input)
+          change StateFresh
+            (Formal.compile (start + absorbed.recipes.length)
+              absorbed.output actions).output
+          exact inductionHypothesis _ _
+            (compileAbsorptions_output_fresh start state
+              (Hash.inputChunks input) stateFresh)
+      | squeezeK expected =>
+          let squeezed := Squeeze.compile start state
+          change StateFresh
+            (Formal.compile (start + squeezed.recipes.length)
+              squeezed.output actions).output
+          exact inductionHypothesis _ _ (squeeze_output_fresh start state)
+
+/-- Every squeeze sample is a nonconstant linear pair once the initial state
+is fresh. -/
+theorem compile_samples_linear (start : Nat) (state : Layer.EState)
+    (actions : List Formal.Action) (stateFresh : StateFresh state) :
+    ∀ sample ∈ (Formal.compile start state actions).samples,
+      KExprLinear sample := by
+  induction actions generalizing start state with
+  | nil => simp [Formal.compile]
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let absorbed := Hash.compileAbsorptions start state
+            (Hash.inputChunks input)
+          exact inductionHypothesis _ _
+            (compileAbsorptions_output_fresh start state
+              (Hash.inputChunks input) stateFresh)
+      | squeezeK expected =>
+          let squeezed := Squeeze.compile start state
+          intro sample member
+          change sample ∈ squeezed.sample ::
+            (Formal.compile (start + squeezed.recipes.length)
+              squeezed.output actions).samples at member
+          rcases List.mem_cons.mp member with rfl | member
+          · exact squeeze_sample_linear start state stateFresh
+          · exact inductionHypothesis _ _ (squeeze_output_fresh start state)
+              sample member
+
+/-- A leading nonempty absorb establishes the fresh-state invariant for the
+remainder of the program. -/
+theorem compile_output_fresh_of_head_absorb
+    (start : Nat) (state : Layer.EState) (input : List Expr)
+    (actions : List Formal.Action)
+    (chunksNonempty : Hash.inputChunks input ≠ []) :
+    StateFresh
+      (Formal.compile start state (.absorb input :: actions)).output := by
+  let absorbed := Hash.compileAbsorptions start state (Hash.inputChunks input)
+  change StateFresh
+    (Formal.compile (start + absorbed.recipes.length)
+      absorbed.output actions).output
+  apply compile_output_fresh
+  exact compileAbsorptions_output_fresh_of_nonempty start state
+    (Hash.inputChunks input) chunksNonempty
 
 theorem ActionsAffine.append {first second : List Formal.Action}
     (firstAffine : ActionsAffine first)

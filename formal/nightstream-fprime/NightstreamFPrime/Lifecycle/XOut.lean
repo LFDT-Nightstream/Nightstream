@@ -124,7 +124,7 @@ theorem stateDomainTag_length : stateDomainTag.length = 23 := by
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 42433 := by
+    (serializeRunning (publicFits := publicFits) value).length = 42435 := by
   simp [serializeRunning, productionShape, productionProfile, fullShape,
     publicRingColumns, ringDegree, cubeVariables,
     Phi81Relation.Shape.publicWidth, Phi81MatrixSource.phi81Shape]
@@ -134,7 +134,7 @@ application-state block lengths remain parameters. -/
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      42461 + (value.verifierKeys functionIndex).length +
+      42463 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
   simp [serializePreimage, stateDomainTag_length, serializeRunning_length]
   omega

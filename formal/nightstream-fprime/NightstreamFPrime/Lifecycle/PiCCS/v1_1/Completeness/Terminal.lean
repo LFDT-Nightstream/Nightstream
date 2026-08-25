@@ -25,6 +25,21 @@ private theorem cubePoint_eq_of_coordinates
   cases right
   simp_all
 
+def preOutputOps
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) : List Op :=
+  let shared := atOffset interface offset
+  [childOp "piccs.v1_1.ccs_terminal" (ccsCircuit relation shared)
+      (ccsOffset interface offset),
+    childOp "piccs.v1_1.norm_terminal" (normCircuit relation shared)
+      (normOffset relation interface offset),
+    childOp "piccs.v1_1.final_identity" (finalIdentityCircuit relation shared)
+      (finalIdentityOffset relation interface offset)]
+
 def terminalPrefixOps
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -43,22 +58,22 @@ def terminalPrefixOps
       (outputBindingOffset relation interface offset)]
 
 private theorem appendCcsTerminal
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       ccsOffset interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.ccs_terminal"
           (ccsCircuit relation (atOffset interface offset))
             (ccsOffset interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         normOffset relation interface offset ∧
       Sequence.PreservesPrefix before after ∧
       CcsTerminal.SpecHolds relation
@@ -94,22 +109,22 @@ private theorem appendCcsTerminal
   · simpa [shared, childStart] using childSpec
 
 private theorem appendNormTerminal
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       normOffset relation interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.norm_terminal"
           (normCircuit relation (atOffset interface offset))
             (normOffset relation interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         finalIdentityOffset relation interface offset ∧
       Sequence.PreservesPrefix before after ∧
       NormTerminal.SpecHolds (normInterface relation
@@ -135,25 +150,25 @@ private theorem appendNormTerminal
   · simpa [shared, childStart] using childSpec
 
 private theorem appendFinalIdentity
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
+    (before : Sequence.Prefix env base)
     (childSpec : FinalIdentity.SpecHolds
       (finalIdentityInterface relation (atOffset interface offset))
         (finalIdentityOffset relation interface offset) before.current)
-    (startEq : offset + localLength before.operations =
+    (startEq : base + localLength before.operations =
       finalIdentityOffset relation interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.final_identity"
           (finalIdentityCircuit relation (atOffset interface offset))
             (finalIdentityOffset relation interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         outputBindingOffset relation interface offset ∧
       Sequence.PreservesPrefix before after := by
   let shared := atOffset interface offset
@@ -173,22 +188,22 @@ private theorem appendFinalIdentity
   · simpa [shared, outputBindingOffset] using nextEq
 
 private theorem appendOutputBinding
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       outputBindingOffset relation interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.output_binding"
           (outputBindingCircuit (atOffset interface offset))
             (outputBindingOffset relation interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         finalOffset relation interface offset ∧
       Sequence.PreservesPrefix before after ∧
       OutputBinding.SpecHolds
@@ -509,12 +524,13 @@ private theorem terminalEq_of_evidence
         (evalRunning interface offset env) (evalFresh interface offset env)
         (evalProof relation interface offset env template)).output := by
   let shared := atOffset interface offset
-  change (SumcheckChain.output (sumcheckInterface shared)
-    (sumcheckStart shared)).eval env = _
   have startEq : sumcheckStart shared = sumcheckOffset interface offset := by
     simpa [shared] using sumcheckStart_atOffset interface offset
-  rw [startEq]
-  exact evidence.sumcheckTerminal
+  have wiring := congrArg (fun expression : KExpr => expression.eval env)
+    (finalIdentityTerminal_eq_sumcheckOutput relation shared
+      (finalIdentityOffset relation interface offset)
+      (sumcheckOffset interface offset) startEq)
+  exact wiring.trans evidence.sumcheckTerminal
 
 /-- The exact transcript, SumCheck, and separate evaluation evidence plus
 the two terminal child predicates imply the v1_1 final-identity predicate. -/
@@ -557,8 +573,8 @@ private theorem finalIdentitySpec_of_evidence
     (terminalEq_of_evidence relation ajtai interface env offset template
       evidence)
 
-theorem completeTerminalPrefix
-    {logicalWidth : Nat}
+theorem completePreOutputPrefix
+    {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -569,16 +585,17 @@ theorem completeTerminalPrefix
     (env : Env) (offset : Nat)
     (template : Proof (ProductionKey.degreeBound relation))
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
+    (before : Sequence.Prefix env base)
+    (offsetLeBase : offset ≤ base)
     (evidence : Evidence relation ajtai interface offset before.current
       template)
-    (startEq : offset + localLength before.operations =
+    (startEq : base + localLength before.operations =
       ccsOffset interface offset) :
-    ∃ completed : Sequence.Prefix env offset,
+    ∃ completed : Sequence.Prefix env base,
       completed.operations =
-        before.operations ++ terminalPrefixOps relation interface offset ∧
-      offset + localLength completed.operations =
-        finalOffset relation interface offset ∧
+        before.operations ++ preOutputOps relation interface offset ∧
+      base + localLength completed.operations =
+        outputBindingOffset relation interface offset ∧
       Sequence.PreservesPrefix before completed := by
   rcases appendCcsTerminal relation interface env offset assumptions
       before startEq with
@@ -588,7 +605,7 @@ theorem completeTerminalPrefix
     ⟨p10, o10, n10, p9to10, normSpecificationP10⟩
   have p8to10 := p8to9.trans p9to10
   have exactEvidenceP10 := evidence_preserved relation ajtai interface env
-    offset template assumptions before p10 startEq p8to10 evidence
+    offset template assumptions before p10 offsetLeBase startEq p8to10 evidence
   have p10Holds := holdsFlat_implies_holds p10.current p10.operations p10.rows
   have ccsSpecificationP10 : CcsTerminal.SpecHolds relation
       (ccsInterface relation (atOffset interface offset))
@@ -610,12 +627,42 @@ theorem completeTerminalPrefix
   rcases appendFinalIdentity relation interface env offset assumptions
       p10 finalSpecificationP10 n10 with
     ⟨p11, o11, n11, p10to11⟩
+  refine ⟨p11, ?_, n11, (p8to9.trans p9to10).trans p10to11⟩
+  rw [o11, o10, o9]
+  simp [preOutputOps, List.append_assoc]
+
+theorem completeTerminalPrefix
+    {logicalWidth base : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Interface logicalWidth
+      (ProductionKey.degreeBound relation) publicFits)
+    (env : Env) (offset : Nat)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (assumptions : Assumptions relation interface offset env)
+    (before : Sequence.Prefix env base)
+    (offsetLeBase : offset ≤ base)
+    (evidence : Evidence relation ajtai interface offset before.current
+      template)
+    (startEq : base + localLength before.operations =
+      ccsOffset interface offset) :
+    ∃ completed : Sequence.Prefix env base,
+      completed.operations =
+        before.operations ++ terminalPrefixOps relation interface offset ∧
+      base + localLength completed.operations =
+        finalOffset relation interface offset ∧
+      Sequence.PreservesPrefix before completed := by
+  rcases completePreOutputPrefix relation ajtai interface env offset template
+      assumptions before offsetLeBase evidence startEq with
+    ⟨p11, o11, n11, p8to11⟩
   rcases appendOutputBinding relation interface env offset assumptions
       p11 n11 with
     ⟨p12, o12, n12, p11to12, _outputSpecification⟩
-  refine ⟨p12, ?_, n12,
-    ((p8to9.trans p9to10).trans p10to11).trans p11to12⟩
-  rw [o12, o11, o10, o9]
-  simp [terminalPrefixOps, List.append_assoc]
+  refine ⟨p12, ?_, n12, p8to11.trans p11to12⟩
+  rw [o12, o11]
+  simp [terminalPrefixOps, preOutputOps, List.append_assoc]
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.CompletenessSupport

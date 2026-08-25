@@ -1,7 +1,7 @@
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `E_K`.
@@ -135,7 +135,7 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     Shape.padEvaluationCount, ringDegree]
 
 theorem pointLength_eq (interface : Interface) (offset : Nat) :
-    pointLength interface offset = 94 := by
+    pointLength interface offset = 98 := by
   unfold pointLength
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     PointWeightedHorner.Owned.pointLength_eq_of_positive
@@ -148,14 +148,14 @@ theorem hornerLength_eq (interface : Interface) (offset : Nat) :
   change 2 * ((coefficientExprs interface offset).length - 1) = 1726
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 1820
+def privateCount : Nat := 1824
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 1820 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 1824 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.localLength_eq]
   change (4 * productionShape.cubeVariables - 2) +
-    2 * ((coefficientExprs interface offset).length - 1) = 1820
+    2 * ((coefficientExprs interface offset).length - 1) = 1824
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -166,11 +166,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      1820 := by
+      1824 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.flatConstraints_length]
   change (4 * productionShape.cubeVariables - 2) +
-    2 * ((coefficientExprs interface offset).length - 1) = 1820
+    2 * ((coefficientExprs interface offset).length - 1) = 1824
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -223,10 +223,10 @@ theorem spec_implies_keyPadAtMessage
     running fresh proof).output
   have coefficientsEq :
       (coefficientExprs interface offset).map (KExpr.eval env) =
-        NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.outputPadCoefficientList
+        NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputPadCoefficientList
           message := by
     unfold coefficientExprs
-      NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.outputPadCoefficientList
+      NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputPadCoefficientList
     rw [List.map_map]
     apply List.map_congr_left
     intro coordinate _
@@ -263,7 +263,7 @@ theorem spec_implies_keyPadAtMessage
         (coreInterface interface) offset).eval env =
       SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
         execution.coins.gamma
-        (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.outputPadCoefficientList
+        (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputPadCoefficientList
           message) := by
     simpa [execution, message] using hornerEq
   calc
@@ -279,13 +279,13 @@ theorem spec_implies_keyPadAtMessage
           execution.coins.roundPoint input.priorPoint)
         (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
           execution.coins.gamma
-          (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.outputPadCoefficientList
+          (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputPadCoefficientList
             message)) := by
       rw [pointValueEq, hornerValueEq]
       rfl
     _ = ProtocolPolynomial.padAtMessage extensionOps input
         execution.coins.gamma execution.coins.roundPoint message :=
-      (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.padAtMessage_eq_pointEquality_mul_horner
+      (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.padAtMessage_eq_pointEquality_mul_horner
         extensionOps extensionLaws input execution.coins.gamma
         execution.coins.roundPoint message).symm
 

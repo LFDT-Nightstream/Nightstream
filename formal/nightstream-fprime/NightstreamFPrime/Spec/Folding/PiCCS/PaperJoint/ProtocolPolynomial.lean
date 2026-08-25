@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolVerifier.Types
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial.Types
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomial.lean`

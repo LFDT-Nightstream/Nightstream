@@ -22,7 +22,7 @@ are computed by `Types.Key` before `Pi_DEC` is checked.
 | Protocol phase | Retained executable obligation | Runtime owner |
 |---|---|---|
 | `Pi_CCS` | fixed-width round equations and verifier-computed terminal identity | `piCcsCheck` |
-| `Pi_RLC` | no independent check; transcript challenges and parent are computed | `Key.piRlcChallenges`, `Key.parent` |
+| `Pi_RLC` | fail-closed bounded sampling; parent exists only on success | `Key.piRlcChallenges`, `Key.parent` |
 | `Pi_DEC` | parent stage/arity and exact commitment/evaluation recomposition | `piDecCheck` |
 | NIFS | accept iff both retained checks pass; return only the computed running output | `verify` |
 -/
@@ -76,10 +76,12 @@ def piDecCheck
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) : Bool :=
-  let attempt := key.piDecAttempt running fresh proof
-  letI := key.piDecDecision attempt
-  decide (PiDEC.PaperVerifier.Accepted key.piDecAlgebra
-    key.piDecEvaluationArity attempt)
+  match key.piDecAttempt running fresh proof with
+  | none => false
+  | some attempt =>
+      letI := key.piDecDecision attempt
+      decide (PiDEC.PaperVerifier.Accepted key.piDecAlgebra
+        key.piDecEvaluationArity attempt)
 
 /-- The one-message deterministic NIFS verifier. -/
 def verify
@@ -98,7 +100,7 @@ def verify
     (proof : Proof Extension Commitment shape degreeBound) :
     Option (Running Extension Commitment PublicInput shape) :=
   if piCcsCheck key running fresh proof && piDecCheck key running fresh proof then
-    some (key.output running fresh proof)
+    key.output running fresh proof
   else
     none
 
@@ -116,10 +118,16 @@ def verify
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
     piDecCheck key running fresh proof = true <->
-      PiDEC.PaperVerifier.Accepted key.piDecAlgebra
-        key.piDecEvaluationArity (key.piDecAttempt running fresh proof) := by
-  letI := key.piDecDecision (key.piDecAttempt running fresh proof)
-  simp [piDecCheck]
+      exists attempt,
+        key.piDecAttempt running fresh proof = some attempt /\
+          PiDEC.PaperVerifier.Accepted key.piDecAlgebra
+            key.piDecEvaluationArity attempt := by
+  unfold piDecCheck
+  split
+  · simp_all
+  · rename_i attempt attemptEq
+    letI := key.piDecDecision attempt
+    simp [attemptEq]
 
 /-- The typed `Pi_CCS` checker contains only the round recurrence and terminal
 equation. Coefficient width is guaranteed by `FixedPolynomial`; no
@@ -164,8 +172,32 @@ canonical-list or degree Boolean is present. -/
     (key.piCcsFixedCertificate running fresh proof).rounds
     (key.piCcsExecution running fresh proof).coins.roundPoint.coordinates
 
-/-- Accepted graph points are exactly the two checks plus the verifier's
-computed output. -/
+/-- Sampler shortfall rejects before a PiDEC attempt or running output can
+be accepted. -/
+theorem verify_eq_none_of_piRlcFailure
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (failure : key.piRlcChallenges running fresh proof = none) :
+    verify key running fresh proof = none := by
+  have parentFailure : key.parent running fresh proof = none := by
+    simp [Key.parent, failure]
+  have attemptFailure : key.piDecAttempt running fresh proof = none := by
+    simp [Key.piDecAttempt, parentFailure]
+  simp [verify, piDecCheck, attemptFailure]
+
+/-- Accepted graph points are exactly the two executable checks plus the
+verifier-computed optional output. -/
 theorem verify_eq_some_iff
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -184,10 +216,10 @@ theorem verify_eq_some_iff
     verify key running fresh proof = some result <->
       piCcsCheck key running fresh proof = true /\
       piDecCheck key running fresh proof = true /\
-      result = key.output running fresh proof := by
+      key.output running fresh proof = some result := by
   simp only [verify]
   by_cases ccs : piCcsCheck key running fresh proof = true <;>
     by_cases dec : piDecCheck key running fresh proof = true <;>
-    simp [ccs, dec, eq_comm]
+    simp [ccs, dec]
 
 end NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive

@@ -38,8 +38,7 @@ pub use crate::engines::optimized_engine::PiCcsProof;
 
 // Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
-    compute_y_from_Z_and_r,
-    ct_from_y_ring,
+    compute_v1_1_evaluations_from_z_and_r,
     format_ext,
     left_mul_acc,
     rot_rhos_from_mats,
@@ -752,7 +751,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     combine_b_pows: Comb,
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -796,7 +795,7 @@ where
             combine_b_pows,
             superneo_cache,
             ring_linear_forms,
-            precomputed_y_ring,
+            precomputed_openings,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -821,7 +820,7 @@ where
                 &combine_b_pows,
                 superneo_cache,
                 ring_linear_forms,
-                precomputed_y_ring,
+                precomputed_openings,
             );
             let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
                 s,
@@ -876,7 +875,7 @@ where
     let d = D;
     let m_in = inputs[0].m_in;
     let d_pad = checked_superneo_d_pad("rlc_public ell_d", ell_d)?;
-    let t = inputs[0].y_ring.len();
+    let matrix_count = inputs[0].eval_a.len();
 
     // X_out := Σ ρ_i · X_i
     let mut X = Mat::zero(d, neo_ccs::superneo_public_x_cols(m_in), F::ZERO);
@@ -900,18 +899,34 @@ where
         })
         .collect();
 
-    // y_out[j] := Σ ρ_i · y_(i,j)  (first D digits, keep padding)
-    let mut y_ring = vec![vec![K::ZERO; d_pad]; t];
+    // Eval_K_out := Σ rho_i · Eval_K_i.
+    let mut eval_k = vec![K::ZERO; d_pad];
+    for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+        for k in 0..d {
+            let value = inst.eval_k[k];
+            if value == K::ZERO {
+                continue;
+            }
+            let column = &rho_k[k * d..(k + 1) * d];
+            for row in 0..d {
+                eval_k[row] += column[row] * value;
+            }
+        }
+    }
+
+    // Eval_A_out[j] := Σ rho_i · Eval_A_(i,j).
+    let mut eval_a = vec![vec![K::ZERO; d_pad]; matrix_count];
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && t >= 128;
+    let allow_parallel =
+        rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && matrix_count >= 128;
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let _allow_parallel = false;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if allow_parallel {
-        y_ring.par_iter_mut().enumerate().for_each(|(j, acc)| {
+        eval_a.par_iter_mut().enumerate().for_each(|(j, acc)| {
             for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-                let src = &inst.y_ring[j];
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -927,8 +942,8 @@ where
         });
     } else {
         for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for (j, acc) in y_ring.iter_mut().enumerate() {
-                let src = &inst.y_ring[j];
+            for (j, acc) in eval_a.iter_mut().enumerate() {
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -946,8 +961,8 @@ where
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
         for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for (j, acc) in y_ring.iter_mut().enumerate() {
-                let src = &inst.y_ring[j];
+            for (j, acc) in eval_a.iter_mut().enumerate() {
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -963,7 +978,6 @@ where
         }
     }
 
-    let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
     let c = mix_rhos_commits(&rho_mats, &inputs.iter().map(|m| m.c.clone()).collect::<Vec<_>>());
 
     Ok(CeClaim {
@@ -971,8 +985,8 @@ where
         c,
         X,
         r: inputs[0].r.clone(),
-        y_ring,
-        ct,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest: inputs[0].fold_digest,
     })
@@ -1064,8 +1078,8 @@ where
     let matches = recomputed.c == expected.c
         && recomputed.X == expected.X
         && recomputed.r == expected.r
-        && recomputed.y_ring == expected.y_ring
-        && recomputed.ct == expected.ct
+        && recomputed.eval_k == expected.eval_k
+        && recomputed.eval_a == expected.eval_a
         && recomputed.m_in == expected.m_in
         && recomputed.fold_digest == expected.fold_digest;
     Ok((

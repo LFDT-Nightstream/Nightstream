@@ -7,7 +7,7 @@ use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, rlc_public, rlc_public_matches_with_perf, rlc_with_commit, verify_dec_public, FoldingMode,
 };
-use neo_reductions::common::{compute_y_from_Z_and_r, sample_rot_rhos_n_typed, RotRing};
+use neo_reductions::common::{compute_v1_1_evaluations_from_z_and_r, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -95,7 +95,7 @@ fn typed_rhos(params: &NeoParams, rhos: &[Mat<F>]) -> Vec<neo_reductions::api::R
 }
 
 fn build_me_from_z(
-    params: &NeoParams,
+    _params: &NeoParams,
     structure: &CcsStructure<F>,
     z: &Mat<F>,
     r: &[K],
@@ -104,14 +104,14 @@ fn build_me_from_z(
     commitment: Commitment,
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
-    let (y_ring, ct) = compute_y_from_Z_and_r(structure, z, r, ell_d, params.b);
+    let evaluations = compute_v1_1_evaluations_from_z_and_r(structure, z, r, ell_d);
     let X = neo_reductions::common::project_x_from_witness_mat(z, structure.m, m_in).expect("project X");
     CeClaim {
         c: commitment,
         X,
         r: r.to_vec(),
-        y_ring,
-        ct,
+        eval_k: evaluations.eval_k,
+        eval_a: evaluations.eval_a,
         m_in,
         fold_digest: [0; 32],
         adv: None,
@@ -366,8 +366,8 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
         c: Commitment::zeros(D, 1),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(D), F::ZERO),
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
-        y_ring: vec![vec![K::ZERO; d_pad]; 2],
-        ct: vec![K::ZERO; 2],
+        eval_k: vec![K::ZERO; d_pad],
+        eval_a: vec![vec![K::ZERO; d_pad]],
         m_in: D,
         fold_digest: [0; 32],
         adv: None,

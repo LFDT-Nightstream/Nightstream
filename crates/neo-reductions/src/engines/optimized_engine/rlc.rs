@@ -405,31 +405,44 @@ where
         .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
 
     let d_pad = 1usize << ell_d;
-    let t_core = me_inputs[0].y_ring.len();
-    assert_eq!(
-        t_core,
-        s.t() + 1,
-        "PiRLC requires the identity-first paper matrix count"
-    );
+    let matrix_count = me_inputs[0].eval_a.len();
+    assert_eq!(matrix_count, s.t(), "PiRLC Eval_A count mismatch");
     let m_in = me_inputs[0].m_in;
     let r = me_inputs[0].r.clone();
     for (idx, inst) in me_inputs.iter().enumerate() {
+        assert_eq!(inst.eval_k.len(), d_pad, "PiRLC: Eval_K width mismatch at input {idx}");
         assert_eq!(
-            inst.y_ring.len(),
-            t_core,
-            "PiRLC: y_ring matrix count mismatch at input {idx}"
+            inst.eval_a.len(),
+            matrix_count,
+            "PiRLC: Eval_A count mismatch at input {idx}"
         );
-        assert_eq!(inst.ct.len(), t_core, "PiRLC: ct matrix count mismatch at input {idx}");
     }
 
     #[cfg(feature = "perf-timers")]
-    let t_y_ring = std::time::Instant::now();
-    let mut y_ring: Vec<Vec<K>> = Vec::with_capacity(t_core);
-    for j in 0..t_core {
+    let t_evaluations = std::time::Instant::now();
+    let combine = |select: &dyn Fn(&CeClaim<Cmt, Ff, K>) -> &[K]| {
+        let mut result = vec![K::ZERO; d_pad];
+        for i in 0..k1 {
+            let input = select(&me_inputs[i]);
+            debug_assert!(input.len() >= D, "PiRLC evaluation must have length >= D");
+            let rho = &rhos[i];
+            for row in 0..D {
+                let mut value = K::ZERO;
+                for column in 0..D {
+                    value += K::from(rho[(row, column)]) * input[column];
+                }
+                result[row] += value;
+            }
+        }
+        result
+    };
+    let eval_k = combine(&|claim| &claim.eval_k);
+    let mut eval_a = Vec::with_capacity(matrix_count);
+    for matrix in 0..matrix_count {
         let mut yj_acc = vec![K::ZERO; d_pad];
         for i in 0..k1 {
-            let yi = &me_inputs[i].y_ring[j];
-            debug_assert!(yi.len() >= D, "ME.y_ring[{j}] must have length >= D");
+            let yi = &me_inputs[i].eval_a[matrix];
+            debug_assert!(yi.len() >= D, "PiRLC Eval_A[{matrix}] must have length >= D");
             let rho = &rhos[i];
             for rr in 0..D {
                 let mut acc_rr = K::ZERO;
@@ -439,16 +452,10 @@ where
                 yj_acc[rr] += acc_rr;
             }
         }
-        y_ring.push(yj_acc);
+        eval_a.push(yj_acc);
     }
     #[cfg(feature = "perf-timers")]
-    let y_ring_s = t_y_ring.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
-    let t_ct = std::time::Instant::now();
-    let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
-    #[cfg(feature = "perf-timers")]
-    let ct_s = t_ct.elapsed().as_secs_f64();
+    let evaluations_s = t_evaluations.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
@@ -460,18 +467,15 @@ where
     let x_s = t_x.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s X_mix {:>7.2}s",
-        y_ring_s, ct_s, x_s,
-    );
+    eprintln!("[pi-rlc] evaluations {:>7.2}s X_mix {:>7.2}s", evaluations_s, x_s,);
 
     CeClaim::<Cmt, Ff, K> {
         adv: None,
         c: me_inputs[0].c.clone(),
         X,
         r,
-        y_ring,
-        ct,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest: me_inputs[0].fold_digest,
     }

@@ -101,15 +101,15 @@ fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProo
 }
 
 #[test]
-fn raw_pi_ccs_rejects_nonzero_fresh_output_y_ring_padding() {
-    let fixture = honest_proof(b"redteam/raw-pi-ccs/y-ring-padding");
+fn raw_pi_ccs_rejects_nonzero_fresh_output_eval_k_padding() {
+    let fixture = honest_proof(b"redteam/raw-pi-ccs/eval-k-padding");
     let mut malformed = fixture.outputs.clone();
-    assert!(D < malformed[0].y_ring[0].len(), "fixture must expose padding");
-    malformed[0].y_ring[0][D] = K::ONE;
+    assert!(D < malformed[0].eval_k.len(), "fixture must expose Eval_K padding");
+    malformed[0].eval_k[D] = K::ONE;
 
     assert!(
         !raw_accepts(&fixture, &malformed, &fixture.proof),
-        "raw Pi_CCS accepted a nonzero fresh-output y_ring padding lane"
+        "raw PiCCS accepted a nonzero fresh-output Eval_K padding lane"
     );
 }
 
@@ -123,17 +123,17 @@ fn raw_pi_ccs_rejects_noncanonical_output_widths() {
 
     let mut extra_matrix = fixture.outputs.clone();
     extra_matrix[0]
-        .y_ring
+        .eval_a
         .push(vec![K::ZERO; D.next_power_of_two()]);
     assert!(
         !raw_accepts(&fixture, &extra_matrix, &fixture.proof),
-        "raw Pi_CCS accepted an extra matrix output"
+        "raw PiCCS accepted an extra Eval_A matrix"
     );
 
-    let mut extra_constant = fixture.outputs.clone();
-    extra_constant[0].ct.push(K::ZERO);
+    let mut extra_pad_coordinate = fixture.outputs.clone();
+    extra_pad_coordinate[0].eval_k.push(K::ZERO);
     assert!(
-        !raw_accepts(&fixture, &extra_constant, &fixture.proof),
-        "raw Pi_CCS accepted an extra constant-term output"
+        !raw_accepts(&fixture, &extra_pad_coordinate, &fixture.proof),
+        "raw PiCCS accepted an extra Eval_K coordinate"
     );
 }

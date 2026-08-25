@@ -119,42 +119,42 @@ where
             return false;
         }
     }
-    let t = parent.y_ring.len();
-    if t != s.t() + 1 {
+    let d_pad = match super::checked_superneo_d_pad("verify_dec_public ell_d", ell_d) {
+        Ok(value) => value,
+        Err(error) => return fail(error),
+    };
+    let matrix_count = parent.eval_a.len();
+    if matrix_count != s.t() {
         eprintln!(
-            "verify_dec_public failed: parent y.len()={} != identity-first count {}",
-            t,
-            s.t() + 1
+            "verify_dec_public failed: parent Eval_A count {} != matrix count {}",
+            matrix_count,
+            s.t()
         );
+        return false;
+    }
+    if parent.eval_k.len() != d_pad {
+        eprintln!("verify_dec_public failed: parent Eval_K width mismatch");
         return false;
     }
     for (idx, ch) in children.iter().enumerate() {
-        if ch.y_ring.len() != t {
+        if ch.eval_k.len() != d_pad {
             eprintln!(
-                "verify_dec_public failed: child y.len mismatch (child {} has {}, expected {})",
+                "verify_dec_public failed: child Eval_K width mismatch (child {} has {}, expected {})",
                 idx,
-                ch.y_ring.len(),
-                t
+                ch.eval_k.len(),
+                d_pad
             );
             return false;
         }
-        if ch.ct.len() != t {
+        if ch.eval_a.len() != matrix_count {
             eprintln!(
-                "verify_dec_public failed: child ct.len mismatch (child {} has {}, expected {})",
+                "verify_dec_public failed: child Eval_A count mismatch (child {} has {}, expected {})",
                 idx,
-                ch.ct.len(),
-                t
+                ch.eval_a.len(),
+                matrix_count
             );
             return false;
         }
-    }
-    if parent.ct.len() != t {
-        eprintln!(
-            "verify_dec_public failed: parent ct.len()={} expected {}",
-            parent.ct.len(),
-            t
-        );
-        return false;
     }
 
     // The verifier determines the public-X split.
@@ -170,10 +170,6 @@ where
         }
     }
 
-    let d_pad = match super::checked_superneo_d_pad("verify_dec_public ell_d", ell_d) {
-        Ok(value) => value,
-        Err(error) => return fail(error),
-    };
     let b_k = K::from(F::from_u64(params.b as u64));
     let mut b_pows_k = Vec::with_capacity(k);
     let mut p_k = K::ONE;
@@ -182,34 +178,27 @@ where
         p_k *= b_k;
     }
 
-    let mut y_lhs = vec![K::ZERO; d_pad];
-    for j in 0..t {
-        y_lhs.fill(K::ZERO);
+    let recombines = |select: &dyn Fn(&CeClaim<Cmt, F, K>) -> &[K], expected: &[K]| {
+        let mut lhs = vec![K::ZERO; d_pad];
         for (idx, (pow, child)) in b_pows_k.iter().zip(children.iter()).enumerate() {
-            if child.y_ring[j].len() != d_pad {
-                eprintln!("verify_dec_public failed: child y[{}] len mismatch at j={}", idx, j);
+            let values = select(child);
+            if values.len() != d_pad {
+                eprintln!("verify_dec_public failed: child {idx} evaluation width mismatch");
                 return false;
             }
-            for t in 0..d_pad {
-                y_lhs[t] += *pow * child.y_ring[j][t];
+            for coordinate in 0..d_pad {
+                lhs[coordinate] += *pow * values[coordinate];
             }
         }
-        if parent.y_ring[j].len() != d_pad {
-            eprintln!("verify_dec_public failed: parent y[j] len mismatch at j={j}");
-            return false;
-        }
-        if parent.ct[j] != crate::common::ct_from_y_digits(&parent.y_ring[j]) {
-            eprintln!("verify_dec_public failed: parent ct mismatch at j={j}");
-            return false;
-        }
-        for (idx, child) in children.iter().enumerate() {
-            if child.ct[j] != crate::common::ct_from_y_digits(&child.y_ring[j]) {
-                eprintln!("verify_dec_public failed: child {idx} ct mismatch at j={j}");
-                return false;
-            }
-        }
-        if y_lhs != parent.y_ring[j] {
-            eprintln!("verify_dec_public failed: y check mismatch at j={}", j);
+        lhs == expected
+    };
+    if !recombines(&|claim| &claim.eval_k, &parent.eval_k) {
+        eprintln!("verify_dec_public failed: Eval_K recomposition mismatch");
+        return false;
+    }
+    for matrix in 0..matrix_count {
+        if !recombines(&|claim| &claim.eval_a[matrix], &parent.eval_a[matrix]) {
+            eprintln!("verify_dec_public failed: Eval_A recomposition mismatch at matrix {matrix}");
             return false;
         }
     }

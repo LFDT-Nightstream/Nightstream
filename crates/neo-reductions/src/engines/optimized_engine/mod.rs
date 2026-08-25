@@ -65,18 +65,16 @@ pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
     rlc_reduction_optimized_with_mixers,
 };
-// The normal optimized interface implements PaddedRowIdentity.
+// The normal optimized interface implements SuperNeo v1.1 PiCCS.
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
-pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf;
-pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf;
-pub use prove::optimized_prove_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_prove_with_cache_and_perf;
+pub use prove::optimized_prove_with_cache_and_precompute_and_backend_and_perf;
+pub use prove::optimized_prove_with_cache_and_precompute_and_perf;
 pub use verify::optimized_verify as pi_ccs_verify;
 pub use verify::optimized_verify_with_cache;
-pub use verify::optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf;
-pub use verify::optimized_verify_with_cache_and_instance_digest_and_perf;
 pub use verify::optimized_verify_with_cache_and_perf;
+pub use verify::optimized_verify_with_trace;
 
 /// Wrapper for simple case (k=1, no ME inputs)
 pub use prove::optimized_prove_simple as pi_ccs_prove_simple;

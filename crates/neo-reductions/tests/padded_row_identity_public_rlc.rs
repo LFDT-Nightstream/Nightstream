@@ -15,15 +15,14 @@ fn selected_claim(structure: &CcsStructure<F>, params: &NeoParams) -> CeClaim<Co
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
-    let matrix_count = structure.t() + 1;
     let padded_coefficients = D.next_power_of_two();
     CeClaim {
         adv: None,
         c: Commitment::zeros(params.d as usize, params.kappa as usize),
         X: Mat::zero(D, 0, F::ZERO),
         r: vec![K::ZERO; variables],
-        y_ring: vec![vec![K::ZERO; padded_coefficients]; matrix_count],
-        ct: vec![K::ZERO; matrix_count],
+        eval_k: vec![K::ZERO; padded_coefficients],
+        eval_a: vec![vec![K::ZERO; padded_coefficients]; structure.t()],
         m_in: 0,
         fold_digest: [0; 32],
     }

@@ -36,7 +36,7 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
         running_claims,
         running_witnesses,
         commitment,
-        PaperTranscriptBinding::claims(),
+        PaperTranscriptBinding::digest_only(),
     )
 }
 
@@ -141,38 +141,6 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         running_claims,
         running_witnesses,
         commitment,
-    )?;
-    Ok((outputs, proof))
-}
-
-/// PaperExact prover entrypoint for the compact NIFS statement binding.
-///
-/// The two digests are recomputed by the paper layer from authoritative
-/// claims. This function only selects the matching independent transcript
-/// encoding; it does not accept them as proof authority.
-#[allow(clippy::too_many_arguments)]
-pub fn paper_exact_prove_with_instance_digest_and_me_input_handle<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    running_accumulator_handle: [F; 4],
-    commitment: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-    let (outputs, proof, _) = paper_exact_prove_with_trace_and_binding(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        PaperTranscriptBinding::digests(public_instance_digest, Some(running_accumulator_handle)),
     )?;
     Ok((outputs, proof))
 }

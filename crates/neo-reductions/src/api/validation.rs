@@ -111,32 +111,33 @@ pub(crate) fn validate_ce_claim_shape(
             ce.r.len()
         )));
     }
-    let paper_count = s.t() + 1;
-    if ce.y_ring.len() != paper_count {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: y_ring.len()={} must equal the identity-first paper count {}",
-            ce.y_ring.len(),
-            paper_count
-        )));
-    }
-    if ce.ct.len() != ce.y_ring.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: ct.len()={} must equal y_ring.len()={}",
-            ce.ct.len(),
-            ce.y_ring.len()
-        )));
-    }
     let d_pad = D.next_power_of_two();
-    for (j, row) in ce.y_ring.iter().enumerate() {
+    if ce.eval_k.len() != d_pad {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: Eval_K length {} must equal the canonical padded length {d_pad}",
+            ce.eval_k.len()
+        )));
+    }
+    if ce.eval_k.iter().skip(D).any(|value| *value != K::ZERO) {
+        return Err(PiCcsError::InvalidInput(format!("{label}: Eval_K has nonzero padding")));
+    }
+    if ce.eval_a.len() != s.t() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: Eval_A count {} must equal CCS matrix count {}",
+            ce.eval_a.len(),
+            s.t()
+        )));
+    }
+    for (j, row) in ce.eval_a.iter().enumerate() {
         if row.len() != d_pad {
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: y_ring[{j}].len()={} must be the canonical padded length {d_pad}",
+                "{label}: Eval_A[{j}].len()={} must be the canonical padded length {d_pad}",
                 row.len()
             )));
         }
         if row.iter().skip(D).any(|value| *value != K::ZERO) {
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: y_ring[{j}] has nonzero padding"
+                "{label}: Eval_A[{j}] has nonzero padding"
             )));
         }
     }
@@ -162,7 +163,7 @@ pub(crate) fn validate_pi_ccs_outputs(
     let d_pad = D.next_power_of_two();
     for (index, output) in outputs.iter().enumerate() {
         let owner = format!("{label}[{index}]");
-        let matrix_count = s.t() + 1;
+        let matrix_count = s.t();
         if output.m_in > s.m || output.m_in % D != 0 {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: m_in={} must not exceed m={} and must contain whole degree-{D} ring elements",
@@ -187,27 +188,24 @@ pub(crate) fn validate_pi_ccs_outputs(
                 output.r.len()
             )));
         }
-        if output.y_ring.len() != matrix_count || output.ct.len() != matrix_count {
+        if output.eval_k.len() != d_pad || output.eval_a.len() != matrix_count {
             return Err(PiCcsError::InvalidInput(format!(
-                "{owner}: y_ring and ct must each have exactly {} entries",
-                matrix_count
+                "{owner}: Eval_K must have {d_pad} coefficients and Eval_A must have {matrix_count} matrices"
             )));
         }
-        for (matrix_index, (row, constant_term)) in output.y_ring.iter().zip(&output.ct).enumerate() {
+        if output.eval_k.iter().skip(D).any(|value| *value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!("{owner}: Eval_K has nonzero padding")));
+        }
+        for (matrix_index, row) in output.eval_a.iter().enumerate() {
             if row.len() != d_pad {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "{owner}: y_ring[{matrix_index}] must have canonical padded length {d_pad}, got {}",
+                    "{owner}: Eval_A[{matrix_index}] must have canonical padded length {d_pad}, got {}",
                     row.len()
-                )));
-            }
-            if row.first() != Some(constant_term) {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "{owner}: ct[{matrix_index}] does not equal the y_ring constant term"
                 )));
             }
             if row.iter().skip(D).any(|value| *value != K::ZERO) {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "{owner}: y_ring[{matrix_index}] has nonzero padding"
+                    "{owner}: Eval_A[{matrix_index}] has nonzero padding"
                 )));
             }
         }

@@ -43,8 +43,8 @@ fn claim(params: &NeoParams, x: F) -> CeClaim<Commitment, F, K> {
         c: Commitment::zeros(params.d as usize, 1),
         X: public_x,
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
-        y_ring: vec![vec![K::ZERO; 1usize << ell_d]; 2],
-        ct: vec![K::ZERO; 2],
+        eval_k: vec![K::ZERO; 1usize << ell_d],
+        eval_a: vec![vec![K::ZERO; 1usize << ell_d]],
         m_in: D,
         fold_digest: [0; 32],
     }

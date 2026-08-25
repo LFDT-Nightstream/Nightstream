@@ -14,7 +14,7 @@ use neo_math::{
     balanced::to_balanced_i128, balanced::within_nc_bound, superneo_bar_block, Fq, KExtensions, Rq, D, F, K,
 };
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -631,62 +631,6 @@ pub fn rot_rhos_to_mats(rhos: &[RotRho]) -> Vec<Mat<F>> {
     rhos.iter().map(|rho| rho.as_mat().clone()).collect()
 }
 
-const DIGEST_LANES: usize = 4;
-const U16_CARDINALITY: u32 = 1 << 16;
-
-/// Draw exact alphabet samples from the two low 16-bit words of each field lane.
-///
-/// Goldilocks has `q = 2^64 - 2^32 + 1`. Across canonical field elements, each
-/// low 32-bit word occurs `2^32 - 1` times, except `(0, 0)`, which occurs once
-/// more. Bitwise complement maps that extra pair to `(65535, 65535)`.
-/// Rejecting the top tail then leaves every accepted 16-bit value with exactly
-/// the same number of preimages.
-fn draw_alphabet_vector(
-    tr: &mut Poseidon2Transcript,
-    need: usize,
-    alphabet: &[i8],
-    seed: u64,
-    fixed_rounds: Option<usize>,
-) -> Result<Vec<i8>, PiCcsError> {
-    let alphabet_len = alphabet.len() as u32;
-    // The exact source range is 0..65535. Keep the largest prefix whose size
-    // is divisible by the alphabet size.
-    let bucket = (U16_CARDINALITY - 1) / alphabet_len * alphabet_len;
-    let mut out = Vec::with_capacity(need);
-    let mut ctr = seed;
-    let mut rounds = 0usize;
-
-    while fixed_rounds.map_or(out.len() < need, |limit| rounds < limit) {
-        tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-        let digest = tr.digest32();
-        debug_assert_eq!(digest.len(), DIGEST_LANES * 8);
-
-        for lane in digest.chunks_exact(8) {
-            let value = u64::from_le_bytes(lane.try_into().expect("digest32 lanes are 8 bytes"));
-            for offset in [0, 16] {
-                let raw = ((value >> offset) & 0xffff) as u16;
-                let candidate = (!raw) as u32;
-                if candidate < bucket && out.len() < need {
-                    out.push(alphabet[(candidate % alphabet_len) as usize]);
-                }
-            }
-        }
-        rounds += 1;
-        ctr = ctr.wrapping_add(1);
-    }
-
-    if out.len() == need {
-        Ok(out)
-    } else {
-        Err(PiCcsError::InvalidInput(format!(
-            "Π_RLC sampler accepted {} of {} required coefficients after {} fixed digest rounds",
-            out.len(),
-            need,
-            rounds
-        )))
-    }
-}
-
 fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
     if alphabet.len() < 2 {
         return Err(PiCcsError::InvalidInput(
@@ -822,13 +766,21 @@ pub fn sample_rot_rhos_n(
     let mut out = Vec::with_capacity(count);
 
     for i in 0..count {
-        // Domain-separate each ρ_i
-        tr.append_fields_raw(&[F::from_u64(0), F::from_u64(i as u64)]);
-
-        // Draw D coefficients from the strong-set alphabet.
-        let production_alphabet = ring.alphabet == goldilocks_paper_b2::CHALLENGE_ALPHABET;
-        let fixed_rounds = production_alphabet.then_some(goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS);
-        let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, i as u64, fixed_rounds)?;
+        tr.absorb_v1_1(&[F::from_u64(4), F::from_u64(i as u64)]);
+        let mut coeffs_i8 = Vec::with_capacity(D);
+        for _ in 0..64 {
+            if coeffs_i8.len() == D {
+                break;
+            }
+            let word = tr.squeeze_field_v1_1().as_canonical_u64();
+            for chunk in 0..21 {
+                let candidate = ((word >> (3 * chunk)) & 7) as usize;
+                if candidate < ring.alphabet.len() && coeffs_i8.len() < D {
+                    coeffs_i8.push(ring.alphabet[candidate]);
+                }
+            }
+        }
+        coeffs_i8.resize(D, ring.alphabet[2]);
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();
@@ -1323,69 +1275,34 @@ where
     Ok(())
 }
 
-/// Compute one scalar opening `ct` from a ring-digit row under SuperNeo semantics.
-///
-/// SuperNeo semantics: `ct` is the constant coefficient.
-#[inline]
-pub fn ct_from_y_digits(y_digits: &[K]) -> K {
-    y_digits.first().copied().unwrap_or(K::ZERO)
-}
-
-/// Compute one scalar opening `ct` from a ring-digit row for a concrete CCS width.
-#[inline]
-pub fn ct_from_y_digits_for_ccs_m(y_digits: &[K], _params: &NeoParams, expected_m: usize) -> K {
-    debug_assert!(expected_m > 0);
-    ct_from_y_digits(y_digits)
-}
-
-#[inline]
-pub fn ct_from_y_ring(y_ring: &[Vec<K>]) -> Vec<K> {
-    y_ring.iter().map(|row| ct_from_y_digits(row)).collect()
-}
-
-/// Compute scalar openings `ct` from all ring-digit rows for a concrete CCS width.
-#[inline]
-pub fn ct_from_y_ring_for_ccs_m(y_ring: &[Vec<K>], params: &NeoParams, expected_m: usize) -> Vec<K> {
-    y_ring
-        .iter()
-        .map(|row| ct_from_y_digits_for_ccs_m(row, params, expected_m))
-        .collect()
-}
-
-/// Compute the selected identity-first CE images from `Z` and `r`.
-///
-/// Returns (y, y_scalars) where:
-/// - y[0] is the padded identity image;
-/// - y[j + 1] is the image of application matrix `M_j`;
-/// - every row is padded to 2^{ell_d} and contains the first D digits;
-/// - y_scalars[j] is the SuperNeo constant term
-pub fn compute_y_from_Z_and_r<Ff>(
+/// Compute the separate SuperNeo v1.1 evaluation families from `Z` and `r`.
+pub fn compute_v1_1_evaluations_from_z_and_r<Ff>(
     s: &CcsStructure<Ff>,
-    Z: &Mat<Ff>,
+    z: &Mat<Ff>,
     r: &[K],
     ell_d: usize,
-    _b: u32,
-) -> (Vec<Vec<K>>, Vec<K>)
+) -> neo_ccs::V1_1Evaluations<K>
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     let rb = neo_ccs::utils::tensor_point_parallel::<K>(r);
     let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s);
-    compute_y_from_Z_and_rb_with_cache(s, Z, &rb, ell_d, superneo_cache.as_ref())
+    compute_v1_1_evaluations_from_z_and_rb_with_cache(s, z, &rb, ell_d, superneo_cache.as_ref())
 }
 
-/// Compute identity-first y from Z and a precomputed row tensor point `r^b`.
+/// Compute separate v1.1 evaluations from `Z` and a precomputed row tensor
+/// point `r^b`.
 ///
 /// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
 /// construction across many ME claims that share `(s, r)`.
-pub fn compute_y_from_Z_and_rb_with_cache<Ff>(
+pub fn compute_v1_1_evaluations_from_z_and_rb_with_cache<Ff>(
     s: &CcsStructure<Ff>,
     Z: &Mat<Ff>,
     rb: &[K],
     ell_d: usize,
     superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
-) -> (Vec<Vec<K>>, Vec<K>)
+) -> neo_ccs::V1_1Evaluations<K>
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
@@ -1395,27 +1312,28 @@ where
         cache
     } else {
         local_cache = crate::superneo_eval::build_superneo_eval_cache(s)
-            .expect("compute_y_from_Z_and_r: SuperNeo evaluator cache must build for valid CCS width");
+            .expect("v1_1 evaluation cache must build for valid CCS width");
         &local_cache
     };
     let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
-        .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: failed to decode packed witness coefficients: {e}"));
+        .unwrap_or_else(|e| panic!("v1_1 evaluation failed to decode packed witness coefficients: {e}"));
     let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
     let d_pad = 1usize << ell_d;
-    let mut y_new = Vec::with_capacity(s.t() + 1);
-    let mut identity = identity_ring_mle(&z_vec, rb).to_vec();
-    identity.resize(d_pad, K::ZERO);
-    y_new.push(identity);
+    let mut eval_k = identity_ring_mle(&z_vec, rb).to_vec();
+    eval_k.resize(d_pad, K::ZERO);
 
     let n_eff = core::cmp::min(s.n, rb.len());
     let application_images = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, rb, n_eff);
-    for coefficients in application_images.into_iter().take(s.t()) {
-        let mut row = coefficients.to_vec();
-        row.resize(d_pad, K::ZERO);
-        y_new.push(row);
-    }
-    let y_scalars = ct_from_y_ring(&y_new);
-    (y_new, y_scalars)
+    let eval_a = application_images
+        .into_iter()
+        .take(s.t())
+        .map(|coefficients| {
+            let mut row = coefficients.to_vec();
+            row.resize(d_pad, K::ZERO);
+            row
+        })
+        .collect();
+    neo_ccs::V1_1Evaluations { eval_k, eval_a }
 }
 
 fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {

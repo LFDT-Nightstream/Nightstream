@@ -409,7 +409,20 @@ impl<F: Copy> CcsWitness<F> {
     }
 }
 
-/// CE claim: (c, X, r, {y_ring_j}, ct, aux_openings).
+/// Separate SuperNeo v1.1 evaluation families.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct V1_1Evaluations<K> {
+    /// Paper `Eval_K`: the Pad evaluation family.
+    pub eval_k: Vec<K>,
+    /// Paper `Eval_A`: one family for each genuine CCS matrix.
+    pub eval_a: Vec<Vec<K>>,
+}
+
+/// SuperNeo v1.1 CE claim: `(c, X, r, Eval_K, Eval_A, aux_openings)`.
+///
+/// `eval_k` is the Pad evaluation family. `eval_a` contains only the genuine
+/// CCS-matrix evaluation families. Pad is never stored as matrix zero.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(bound(
     serialize = "C: serde::Serialize, F: serde::Serialize, K: serde::Serialize",
@@ -424,18 +437,16 @@ pub struct CeClaim<C, F, K> {
     pub X: Mat<F>,
     /// r ∈ K^{log n}
     pub r: Vec<K>,
-    /// Ring-digit rows per CCS matrix output (j=0..t-1).
+    /// Paper `Eval_K`: the coefficient-complete Pad evaluation in `R_K`.
     ///
     /// Callers may store either:
     /// - the unpadded length `d` (= `Z.rows()`), or
     /// - the Ajtai-padded length `2^{ell_d}` (typically `D.next_power_of_two()`),
     ///   in which case the tail must be all zeros.
-    pub y_ring: Vec<Vec<K>>,
-    /// Scalar view of `y_ring`.
-    ///
-    /// In SuperNeo embedding, core entries are constant terms of each `y_ring[j]`.
-    /// Existing pipelines may append additional scalar openings to this vector.
-    pub ct: Vec<K>,
+    pub eval_k: Vec<K>,
+    /// Paper `Eval_A`: one coefficient-complete evaluation for each genuine
+    /// CCS matrix. The outer length is exactly `structure.t()`.
+    pub eval_a: Vec<Vec<K>>,
     /// m_in
     pub m_in: usize,
     /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
@@ -445,6 +456,28 @@ pub struct CeClaim<C, F, K> {
     /// Π_RLC/Π_DEC. The reductions do not inspect its semantics.
     #[serde(default = "Option::default")]
     pub adv: Option<LaneCommitments<C>>,
+}
+
+impl<C, F, K> CeClaim<C, F, K> {
+    /// Iterate the paper output message order: `Eval_K`, then each `Eval_A`.
+    pub fn evaluation_families(&self) -> impl Iterator<Item = &[K]> {
+        std::iter::once(self.eval_k.as_slice()).chain(self.eval_a.iter().map(Vec::as_slice))
+    }
+
+    /// Number of v1_1 evaluation families, including the separate Pad family.
+    pub fn evaluation_family_count(&self) -> usize {
+        1 + self.eval_a.len()
+    }
+}
+
+impl<C, F, K: Copy> CeClaim<C, F, K> {
+    /// Derive constant coefficients for codec and legacy wire adapters. These
+    /// values are never stored as independent claim authority.
+    pub fn evaluation_constant_terms(&self) -> Option<Vec<K>> {
+        self.evaluation_families()
+            .map(|family| family.first().copied())
+            .collect()
+    }
 }
 
 /// CE witness: Z.

@@ -62,11 +62,11 @@ where
     assert_eq!(claim.m_in % D, 0, "PaperExact requires whole-ring public inputs");
     assert_eq!(claim.X.rows(), D);
     assert_eq!(claim.X.cols(), neo_ccs::superneo_public_x_cols(claim.m_in));
-    assert_eq!(claim.y_ring.len(), structure.t() + 1);
-    assert_eq!(claim.ct.len(), structure.t() + 1);
-    for (matrix, image) in claim.y_ring.iter().enumerate() {
+    assert_eq!(claim.eval_k.len(), D.next_power_of_two());
+    assert!(claim.eval_k.iter().skip(D).all(|&value| value == K::ZERO));
+    assert_eq!(claim.eval_a.len(), structure.t());
+    for image in &claim.eval_a {
         assert_eq!(image.len(), D.next_power_of_two());
-        assert_eq!(image[0], claim.ct[matrix]);
         assert!(image.iter().skip(D).all(|&value| value == K::ZERO));
     }
 }
@@ -108,25 +108,29 @@ where
         }
     }
 
-    let matrix_count = structure.t() + 1;
-    let mut y_ring = vec![vec![K::ZERO; D.next_power_of_two()]; matrix_count];
+    let matrix_count = structure.t();
+    let mut eval_k = vec![K::ZERO; D.next_power_of_two()];
+    let mut eval_a = vec![vec![K::ZERO; D.next_power_of_two()]; matrix_count];
     for (rho, input) in coefficients.iter().zip(inputs) {
         let rho_extension = rho.map(K::from);
-        for (matrix, output) in y_ring.iter_mut().enumerate() {
-            let product = ring.multiply_extension(rho_extension, extension_block(&input.y_ring[matrix]));
+        let pad_product = ring.multiply_extension(rho_extension, extension_block(&input.eval_k));
+        for coefficient in 0..D {
+            eval_k[coefficient] += pad_product[coefficient];
+        }
+        for (matrix, output) in eval_a.iter_mut().enumerate() {
+            let product = ring.multiply_extension(rho_extension, extension_block(&input.eval_a[matrix]));
             for coefficient in 0..D {
                 output[coefficient] += product[coefficient];
             }
         }
     }
-    let ct = y_ring.iter().map(|image| image[0]).collect();
     let commitments: Vec<Cmt> = inputs.iter().map(|input| input.c.clone()).collect();
     CeClaim {
         c: combine(rhos, &commitments),
         X,
         r: point,
-        y_ring,
-        ct,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest: inputs[0].fold_digest,
         adv: None,
@@ -267,7 +271,7 @@ where
     assert!(params.b >= 2);
     let split_valid = canonical_split_matches(split_witnesses, params.b);
     let ring = PaperRing::new();
-    let matrix_count = structure.t() + 1;
+    let matrix_count = structure.t();
     let mut children = Vec::with_capacity(split_witnesses.len());
 
     for (witness, commitment) in split_witnesses.iter().zip(child_commitments) {
@@ -276,23 +280,21 @@ where
         let assignment: Vec<K> = (0..witness.cols() * D)
             .map(|column| K::from(witness[(column % D, column / D)]))
             .collect();
-        let mut y_ring = Vec::with_capacity(matrix_count);
-        let mut identity = super::paper_joint::direct_identity_ring_mle(&ring, &assignment, &parent.r).to_vec();
-        identity.resize(D.next_power_of_two(), K::ZERO);
-        y_ring.push(identity);
+        let mut eval_k = super::paper_joint::direct_identity_ring_mle(&ring, &assignment, &parent.r).to_vec();
+        eval_k.resize(D.next_power_of_two(), K::ZERO);
+        let mut eval_a = Vec::with_capacity(matrix_count);
         for matrix in &structure.matrices {
             let mut image = super::paper_joint::direct_ring_mle(&ring, matrix, &assignment, &parent.r).to_vec();
             image.resize(D.next_power_of_two(), K::ZERO);
-            y_ring.push(image);
+            eval_a.push(image);
         }
-        let ct = y_ring.iter().map(|image| image[0]).collect();
         children.push(CeClaim {
             c: commitment.clone(),
             X: super::paper_joint::direct_public_input(witness, structure.m, parent.m_in)
                 .expect("validated PaperExact PiDEC public projection"),
             r: parent.r.clone(),
-            y_ring,
-            ct,
+            eval_k,
+            eval_a,
             m_in: parent.m_in,
             fold_digest: parent.fold_digest,
             adv: None,
@@ -302,15 +304,24 @@ where
     let base_f = Ff::from_u64(params.b as u64);
     let base_k = K::from(base_f);
     let mut y_valid = split_valid;
+    for coefficient in 0..D.next_power_of_two() {
+        let mut reconstructed = K::ZERO;
+        let mut power = K::ONE;
+        for child in &children {
+            reconstructed += power * child.eval_k[coefficient];
+            power *= base_k;
+        }
+        y_valid &= reconstructed == parent.eval_k[coefficient];
+    }
     for matrix in 0..matrix_count {
         for coefficient in 0..D.next_power_of_two() {
             let mut reconstructed = K::ZERO;
             let mut power = K::ONE;
             for child in &children {
-                reconstructed += power * child.y_ring[matrix][coefficient];
+                reconstructed += power * child.eval_a[matrix][coefficient];
                 power *= base_k;
             }
-            y_valid &= reconstructed == parent.y_ring[matrix][coefficient];
+            y_valid &= reconstructed == parent.eval_a[matrix][coefficient];
         }
     }
 
@@ -351,14 +362,14 @@ where
         child.X.rows() != parent.X.rows()
             || child.X.cols() != parent.X.cols()
             || child.r != parent.r
-            || child.y_ring.len() != parent.y_ring.len()
-            || child.ct.len() != parent.ct.len()
+            || child.eval_k.len() != parent.eval_k.len()
+            || child.eval_a.len() != parent.eval_a.len()
             || child.m_in != parent.m_in
             || child.fold_digest != parent.fold_digest
             || child
-                .y_ring
+                .eval_a
                 .iter()
-                .zip(&parent.y_ring)
+                .zip(&parent.eval_a)
                 .any(|(child_row, parent_row)| child_row.len() != parent_row.len())
     }) {
         return false;
@@ -397,28 +408,28 @@ where
             }
         }
     }
-    for matrix in 0..parent.y_ring.len() {
-        for coefficient in 0..parent.y_ring[matrix].len() {
-            let mut value = K::ZERO;
-            let mut power = K::ONE;
-            for child in children {
-                value += power * child.y_ring[matrix][coefficient];
-                power *= base_k;
-            }
-            if value != parent.y_ring[matrix][coefficient] {
-                return false;
-            }
-        }
-    }
-    for coordinate in 0..parent.ct.len() {
+    for coefficient in 0..parent.eval_k.len() {
         let mut value = K::ZERO;
         let mut power = K::ONE;
         for child in children {
-            value += power * child.ct[coordinate];
+            value += power * child.eval_k[coefficient];
             power *= base_k;
         }
-        if value != parent.ct[coordinate] {
+        if value != parent.eval_k[coefficient] {
             return false;
+        }
+    }
+    for matrix in 0..parent.eval_a.len() {
+        for coefficient in 0..parent.eval_a[matrix].len() {
+            let mut value = K::ZERO;
+            let mut power = K::ONE;
+            for child in children {
+                value += power * child.eval_a[matrix][coefficient];
+                power *= base_k;
+            }
+            if value != parent.eval_a[matrix][coefficient] {
+                return false;
+            }
         }
     }
     true

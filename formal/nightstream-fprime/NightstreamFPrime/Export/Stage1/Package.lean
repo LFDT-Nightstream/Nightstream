@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
 Owns structural proofs for the one Stage 1 pilot + PiCCS package.
@@ -532,6 +533,69 @@ theorem circuitPackage_implies_piCcsSpecHolds
   · exact arithmetic.norm_parent
   · exact arithmetic.finalIdentity_parent
   · exact transcripts.outputBinding_parent relation
+
+/-- The production verifier selects the four public context words by
+recomputing them from its static authority. -/
+def SelectedVerifierContext
+    (authority : VerifierContext.Authority) (env : Env) : Prop :=
+  ∀ lane : Fin 4,
+    env (NightstreamFPrime.Layout.Stage1.Spartan.expectedContextPublicStart +
+      lane.val) = (VerifierContext.digest authority).getD lane.val 0
+
+/-- Package satisfaction binds both canonical state preimages to the exact
+verifier-selected context digest. The digest is a public verifier input; the
+prover cannot choose a different state context that still satisfies these
+rows. -/
+theorem circuitPackage_implies_selectedVerifierContext
+    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (authority : VerifierContext.Authority)
+    (env : Env)
+    (selected : SelectedVerifierContext authority env)
+    (holds : (Data.circuitPackage ()).RowsHold env) :
+    (∀ lane : Fin 4,
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+          lane.val)).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+        (VerifierContext.digest authority).getD lane.val 0) ∧
+    (∀ lane : Fin 4,
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+          lane.val)).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+        (VerifierContext.digest authority).getD lane.val 0) := by
+  have specification := circuitPackage_implies_piCcsSpecHolds relation env holds
+  constructor
+  · intro lane
+    have context := specification.statementBinding.state.priorContext lane
+    change
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+          lane.val)).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) at context
+    rw [context]
+    change env (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
+        lane.val)) = _
+    rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
+    exact selected lane
+  · intro lane
+    have context := specification.statementBinding.state.outputContext lane
+    change
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
+        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart +
+          lane.val)).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
+          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) at context
+    rw [context]
+    change env (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
+        lane.val)) = _
+    rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
+    exact selected lane
 
 /-- Authoritative emitted-package soundness edge for the exact SuperNeo v1_1
 PiCCS phase. -/

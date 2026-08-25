@@ -880,6 +880,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Export.Stage1.Invocations.compileActions_state_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Invocations.compileActions_eq_of_shapes
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_before_piCcsPhase
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_before_piCcsLocal
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.pullback_copyMappedInterval_eq
@@ -941,6 +942,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_recursive_hash_slots
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piCcsTranscriptSpecs
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piCcsSpecHolds
+#audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_selectedVerifierContext
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piCcsPhaseHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_row_coverage
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.CompletenessSupport.completeEvaluationPrefix
@@ -984,6 +986,9 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Export.Stage1.PackageCompleteness.preOutputIntervalEnd_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PackageCompleteness.pullback_after_preOutput_agreesBelow
 #audit_axioms NightstreamFPrime.Export.Stage1.PackageCompleteness.complete_piCcsRows
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.contextDigest_identifies_descriptor_or_collision
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.stateHash_identifies_statement_or_collision
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.no_valid_trailing_extension
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.v1_1.InputBinding.Holds.toEquations
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.completeness

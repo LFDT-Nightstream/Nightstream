@@ -209,6 +209,24 @@ def sourceToSpartan (column : Nat) : Nat :=
   else
     piCcsLocalStart + (column - piCcsPhaseOffset)
 
+/-- Each verifier-context source word maps to its matching public lane. -/
+theorem sourceToSpartan_expectedContext (lane : Fin 4) :
+    sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
+          lane.val) =
+      expectedContextPublicStart + lane.val := by
+  have laneBound := lane.isLt
+  unfold sourceToSpartan
+  rw [if_neg (by
+    norm_num [pilotSourceColumnCount,
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart])]
+  rw [if_pos (by
+    norm_num [proofInputSourceStart,
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
+    omega)]
+  norm_num [pilotSourceColumnCount,
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
+
 /-- A source column before the PiCCS phase maps either before every PiCCS
 local witness or into the relocated public suffix after all private columns. -/
 theorem sourceToSpartan_before_piCcsPhase (column : Nat)

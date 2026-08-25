@@ -32,6 +32,7 @@ import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.InputBinding
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Layout.Stage1.StateEncoding
+import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Layout.Stage1.Spartan

@@ -1258,8 +1258,9 @@ name = "neo-application"
 version = "0.1.0"
 dependencies = [
  "neo-ccs",
- "neo-fold-clean",
  "neo-math",
+ "p3-field",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

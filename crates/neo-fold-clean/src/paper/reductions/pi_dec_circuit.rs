@@ -893,8 +893,7 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
     let x_cols = claim.X.cols();
     let x = builder.alloc_vec(claim.X.as_slice());
     let y_ring = claim
-        .y_ring
-        .iter()
+        .evaluation_families()
         .map(|row| {
             let mut lane_vars = Vec::with_capacity(row.len() * K_LIMBS);
             for elem in row {
@@ -905,15 +904,14 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
             lane_vars
         })
         .collect::<Vec<_>>();
-    let y_ring_lanes = claim.y_ring.first().map(|row| row.len()).unwrap_or(0);
-    // `ct[j]` is the SuperNeo scalar/constant-term view of `y_ring[j]`.
-    // Native value (= `ct_from_y_digits(y_ring[j])` = `y_ring[j][0]`)
-    // is filled here; the wire-equality binding `ct[j] == y_ring[j][lane=0]`
-    // is enforced by
+    let y_ring_lanes = claim.eval_k.len();
+    // Constant terms are derived from the separate v1_1 families only for
+    // this internal wire-equality check. They are not claim authority.
     // `paper::decider_ce_relation::evaluation::enforce_ct_from_y_ring`.
     let ct = claim
-        .ct
-        .iter()
+        .evaluation_constant_terms()
+        .expect("v1_1 evaluation families must expose constant coefficients")
+        .into_iter()
         .map(|k| {
             let [c0, c1] = k.as_coeffs();
             KVar::alloc(builder, c0, c1)

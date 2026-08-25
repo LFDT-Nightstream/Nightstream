@@ -33,8 +33,9 @@ pub use grouped_phase::{
 pub use lean_native_ccs_manifest::LeanNativeCcsManifest;
 pub use lean_nebula_combined_manifest::{LeanNebulaCombinedManifest, NebulaCombinedEmission};
 pub use linked_overlay::{
-    build_scheduled_linked_overlay_low_norm_r1cs, build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links,
-    LinkedOverlayError, OverlayFieldLink, OverlayKindLinks, ScheduledLinkedOverlayLayout,
+    build_linked_overlay_low_norm_r1cs, build_scheduled_linked_overlay_low_norm_r1cs,
+    build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links, LinkedOverlayError, LinkedOverlayLayout,
+    LinkedOverlayLowNormR1cs, OverlayBaseFieldPin, OverlayFieldLink, OverlayKindLinks, ScheduledLinkedOverlayLayout,
     ScheduledLinkedOverlayLowNormR1cs,
 };
 pub(crate) use lowering::normalized_field_column;

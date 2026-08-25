@@ -8,6 +8,7 @@
 
 mod chain;
 mod compilation_audit;
+mod package_v1_1;
 mod pi_ccs_output_digest_audit;
 mod relation;
 pub(crate) mod shape;
@@ -15,6 +16,11 @@ pub(crate) mod shape;
 pub use chain::{R1csIvc, R1csIvcConstraintWitnessAudit, R1csIvcPreprocessing};
 pub use compilation_audit::{
     ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit, RelationHeaderAudit,
+};
+pub use package_v1_1::{
+    encode_pi_ccs_v1_1_public_input, load_pi_ccs_v1_1_package, pi_ccs_v1_1_state_hash,
+    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1PackageProof, PiCcsV1_1PackageProver,
+    PiCcsV1_1PackageVerifier, PiCcsV1_1ProofInputs,
 };
 pub use pi_ccs_output_digest_audit::{
     CanonicalOpeningAudit, CanonicalOpeningPlacement, PiCcsOutputDigestAudit, PiCcsOutputDigestProfileAudit,

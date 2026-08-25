@@ -58,10 +58,9 @@
 //!    - `commit(Z) == claim.c` (Ajtai opening),
 //!    - `project_x(Z) == claim.X` (public-input projection),
 //!    - `||Z||_∞ < b` (low-norm),
-//!    - identity-first `claim.y_ring` matches the padded identity and every
-//!      CCS matrix evaluation (CE-relation closure),
-//!    - `claim.ct[j] == constant_term(claim.y_ring[j])` (the SuperNeo
-//!      scalar view of the same ring evaluations).
+//!    - `claim.eval_k` matches the separate Pad evaluation family,
+//!    - each `claim.eval_a[j]` matches the corresponding genuine CCS matrix
+//!      evaluation family (CE-relation closure).
 //!
 //! ## What this is and isn't
 //!
@@ -125,7 +124,9 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::relations::{CeClaim, WitnessMat};
 use neo_ajtai::Commitment;
 
-use super::final_openings::{check_claim_openings, validate_opening_shape, FinalWitnessOpeningBackend};
+use super::final_openings::{
+    check_claim_openings, validate_opening_shape, FinalWitnessOpeningBackend, V1_1WitnessOpenings,
+};
 
 #[cfg(feature = "perf-timers")]
 struct WitnessAuthorityPerf {
@@ -809,28 +810,20 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 /// Step (5) of [`verify_uncompressed`]: every running witness must
 /// satisfy the **SuperNeo terminal CE relation** against its claim.
 ///
-/// Paper-level CE relation (SuperNeo Theorem 5, §5):
+/// Paper-level CE relation (SuperNeo v1_1 Definition 20, §7.1):
 ///
 /// 1. `commit_Ajtai(Z) == claim.c`
 /// 2. `claim.m_in` matches the verifier-owned `public_input_len`, then
 ///    `project_x(Z) == claim.X`
 /// 3. every entry of `Z` is low-norm: `|z| < b`
-/// 4. `claim.y_ring[0]` is the padded identity evaluation, and
-///    `claim.y_ring[j + 1] == multilinear_eval(M_j · Z, claim.r)` for
-///    every CCS matrix `M_j`
-///
-/// Implementation-consistency obligation (the SuperNeo paper's
-/// `ct(y_j) = M̄_j z(r)` identity, made checkable from cached state):
-///
-/// 5. `claim.ct[j] == constant_term(claim.y_ring[j])` — the lane-0
-///    K-element of `y_ring[j]`. `ct` is the scalar/constant-term view
-///    of `y_ring`; if `y_ring` matches `M_j · Z(r)` and `ct` is the
-///    constant term of `y_ring`, then `ct == M_j z(r)` transitively.
+/// 4. `claim.eval_k` is the Pad evaluation family
+/// 5. `claim.eval_a[j] == multilinear_eval(M_j · Z, claim.r)` for every
+///    genuine CCS matrix `M_j`
 ///
 /// (4) and (5) close the selected CE relation against the opened witness.
 /// Without them, the F'-chain `acc_digest` compact handle would bind
 /// only the recorded CE claims, not prove that the opened terminal `Z`
-/// realizes their `y_ring`/`ct` values. The Rust code below faithfully
+/// realizes their separate evaluation families. The Rust code below faithfully
 /// executes the SuperNeo verifier equations; it does not invent a new
 /// check.
 ///
@@ -887,7 +880,7 @@ fn check_running_witnesses_authority(
                     .final_witness_openings(prep.optimized_cache(), &running.witnesses, first_r, prep.structure().m)
                     .map_err(|reason| Error::FinalAccumulatorOpeningBackend { reason })?
                 {
-                    let expected_matrix_count = prep.structure().t() + 1;
+                    let expected_matrix_count = prep.structure().t();
                     validate_opening_shape(&openings, running.claims.len(), expected_matrix_count)?;
                     perf.add_forms(t_forms.elapsed());
                     let results: Vec<Result<(), Error>> = running
@@ -945,7 +938,7 @@ fn check_running_witnesses_authority(
                         ell_d,
                         Some(&forms),
                         None,
-                        forms.len() + 1,
+                        forms.len(),
                         &perf,
                     )
                 })
@@ -981,7 +974,7 @@ fn check_running_witnesses_authority(
             ell_d,
             Some(forms),
             None,
-            forms.len() + 1,
+            forms.len(),
             &perf,
         )?;
     }
@@ -1085,7 +1078,7 @@ fn check_running_claim_authority(
     expected_r_len: usize,
     ell_d: usize,
     ring_linear_forms: Option<&[SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[[K; D]]>,
+    precomputed_openings: Option<&V1_1WitnessOpenings>,
     expected_matrix_count: usize,
     perf: &WitnessAuthorityPerf,
 ) -> Result<(), Error> {
@@ -1209,9 +1202,8 @@ pub fn validate_latest_witness_authority(prep: &Preprocessing, latest: &LatestIn
     check_latest_instances_authority(prep, latest)
 }
 
-/// `ell_d = log2(next_power_of_two(D))`, matching the prover's
-/// `compute_y_from_Z_and_r` padding so the verifier's expected
-/// `y_ring` lengths align with the proof's.
+/// `ell_d = log2(next_power_of_two(D))`, matching the prover's v1_1
+/// evaluation-family padding.
 #[inline]
 fn ell_d_for_ce_check() -> usize {
     neo_math::D.next_power_of_two().trailing_zeros() as usize
@@ -1256,7 +1248,7 @@ fn build_ring_linear_forms_for_r(
     superneo_cache.build_ring_linear_forms(&rb, n_eff)
 }
 
-/// Verify the identity-first selected CE relation against the opened witness.
+/// Verify the separate SuperNeo v1_1 CE evaluations against the opened witness.
 fn check_ce_relation(
     prep: &Preprocessing,
     index: usize,
@@ -1265,44 +1257,29 @@ fn check_ce_relation(
     ell_d: usize,
     ring_linear_forms: &[SuperneoRingLinearForm],
 ) -> Result<(), Error> {
-    let expected_count = ring_linear_forms.len() + 1;
-    if claim.y_ring.len() != expected_count {
+    let expected_count = ring_linear_forms.len();
+    if claim.eval_a.len() != expected_count {
         return Err(Error::FinalAccumulatorCeRelationViolation {
             index,
-            matrix_index: expected_count.min(claim.y_ring.len()),
+            matrix_index: expected_count.min(claim.eval_a.len()) + 1,
         });
     }
 
     let d_pad = 1usize << ell_d;
     let identity = identity_ring_mle(witness, prep.structure().m, &claim.r);
-    if !padded_ring_row_matches(&claim.y_ring[0], &identity, d_pad) {
+    if !padded_ring_row_matches(&claim.eval_k, &identity, d_pad) {
         return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index: 0 });
     }
 
     let z_blocks = SuperneoZBlocks::from_witness_mat(witness, prep.structure().m)
         .expect("check_ce_relation: witness shape was validated before CE closure");
     let evaluated = eval_ring_linear_forms_real_z_blocks(ring_linear_forms, &z_blocks);
-    let mut expected_ct = Vec::with_capacity(expected_count);
-    expected_ct.push(identity[0]);
-    for (application, (coeffs, recorded)) in evaluated.iter().zip(&claim.y_ring[1..]).enumerate() {
+    for (application, (coeffs, recorded)) in evaluated.iter().zip(&claim.eval_a).enumerate() {
         if !padded_ring_row_matches(recorded, coeffs, d_pad) {
             return Err(Error::FinalAccumulatorCeRelationViolation {
                 index,
                 matrix_index: application + 1,
             });
-        }
-        expected_ct.push(coeffs[0]);
-    }
-
-    if expected_ct.len() != claim.ct.len() {
-        return Err(Error::FinalAccumulatorCtMismatch {
-            index,
-            matrix_index: expected_ct.len().min(claim.ct.len()),
-        });
-    }
-    for (matrix_index, (expected, recorded)) in expected_ct.iter().zip(&claim.ct).enumerate() {
-        if expected != recorded {
-            return Err(Error::FinalAccumulatorCtMismatch { index, matrix_index });
         }
     }
     Ok(())
@@ -1367,27 +1344,21 @@ fn check_zero_ce_relation(
     matrix_count: usize,
     expected_y_len: usize,
 ) -> Result<(), Error> {
-    if claim.y_ring.len() != matrix_count {
+    if claim.eval_a.len() != matrix_count {
         return Err(Error::FinalAccumulatorCeRelationViolation {
             index,
-            matrix_index: matrix_count.min(claim.y_ring.len()),
+            matrix_index: matrix_count.min(claim.eval_a.len()) + 1,
         });
     }
-    for (matrix_index, recorded) in claim.y_ring.iter().enumerate() {
+    if claim.eval_k.len() != expected_y_len || claim.eval_k.iter().any(|&value| value != K::ZERO) {
+        return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index: 0 });
+    }
+    for (matrix, recorded) in claim.eval_a.iter().enumerate() {
         if recorded.len() != expected_y_len || recorded.iter().any(|&value| value != K::ZERO) {
-            return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index });
-        }
-    }
-
-    if claim.ct.len() != matrix_count {
-        return Err(Error::FinalAccumulatorCtMismatch {
-            index,
-            matrix_index: matrix_count.min(claim.ct.len()),
-        });
-    }
-    for (matrix_index, &recorded) in claim.ct.iter().enumerate() {
-        if recorded != K::ZERO {
-            return Err(Error::FinalAccumulatorCtMismatch { index, matrix_index });
+            return Err(Error::FinalAccumulatorCeRelationViolation {
+                index,
+                matrix_index: matrix + 1,
+            });
         }
     }
     Ok(())

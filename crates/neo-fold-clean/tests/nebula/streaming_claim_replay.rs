@@ -13,19 +13,23 @@ use std::ops::Range;
 use std::path::Path;
 
 use lean_artifact_support::{lean_nat_list, sha256_hex};
+use neo_ccs::CcsMatrix;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder, Var};
 use neo_fold_clean::frontends::nebula::f_prime::{
     build_production_claim_coordinate_overlay_low_norm_r1cs, build_production_claim_replay_base_low_norm_r1cs,
     claim_replay_shape_audit_for_chunk_fields, production_claim_coordinate_overlay_kind_map,
-    production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_shape_audit,
-    production_claim_replay_base_shape_audit, production_claim_replay_shape_audit,
+    production_claim_coordinate_overlay_link_runs, production_claim_coordinate_overlay_links,
+    production_claim_coordinate_overlay_shape_audit, production_claim_replay_base_shape_audit,
+    production_claim_replay_base_source_arms, production_claim_replay_shape_audit,
     production_claim_running_commitment_field_map, production_claim_running_public_field_map,
     production_claim_statement_fresh_field_map, NebulaFPrimeClaimCoordinateOverlaySynthesis,
     NebulaFPrimeClaimReplayArmKind, NebulaFPrimeClaimReplaySynthesis,
 };
+use neo_fold_clean::frontends::r1cs_f_prime::{SelectiveCompilerAudit, SparseR1cs};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use sha2::{Digest, Sha256};
 
 const SCHEMA_VERSION: usize = 5;
 const PROFILE_ID: &str = "nebula-f-prime-streaming-claim-replay-goldilocks-b2-k16-v6";
@@ -44,6 +48,10 @@ const COORDINATE_DIGITS: usize = 41;
 const COORDINATE_OPENING_COLUMNS: usize = 122;
 const COORDINATE_OPENING_ROWS: usize = 124;
 const COORDINATE_OUTPUTS: usize = 108;
+const SOURCE_HASH_SCHEMA: &str = "nightstream-normalized-sparse-r1cs-csc-v1";
+const BASE_SOURCE_IDENTITY: &str = "rust:nightstream/streaming-claim-replay-base/source-rows/v1";
+const COMPLETE_SOURCE_IDENTITY: &str = "rust:nightstream/streaming-claim-replay-complete/source-rows/v6";
+const FINAL_LINK_IDENTITY: &str = "rust:nightstream/streaming-selective-ccs/claim-replay-base-coordinate-links/v1";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct SparseRow {
@@ -130,6 +138,62 @@ struct ArmArtifact {
     owners: Vec<Owner>,
 }
 
+#[derive(Clone, Debug)]
+struct ReceiptRange {
+    start: usize,
+    stop: usize,
+}
+
+#[derive(Clone, Debug)]
+struct ReceiptStage {
+    path: String,
+    rows: ReceiptRange,
+    columns: ReceiptRange,
+}
+
+#[derive(Clone, Debug)]
+struct ReceiptNamedRange {
+    name: String,
+    range: ReceiptRange,
+}
+
+#[derive(Clone, Debug)]
+struct ReceiptState {
+    before_statement_fresh: usize,
+    after_statement_fresh: usize,
+    before_running_commitments: usize,
+    after_running_commitments: usize,
+    before_running_public: usize,
+    after_running_public: usize,
+}
+
+#[derive(Clone, Debug)]
+struct BaseReceipt {
+    label: &'static str,
+    source_sha256: String,
+    source_rows: usize,
+    source_columns: usize,
+    public_columns: usize,
+    public_word_bindings: Vec<(ReceiptRange, ReceiptRange)>,
+    physical_stages: Vec<ReceiptStage>,
+    complete_stages: Vec<ReceiptStage>,
+    row_families: Vec<ReceiptNamedRange>,
+    column_families: Vec<ReceiptNamedRange>,
+    source_state: ReceiptState,
+    normalized_state: ReceiptState,
+    source_chunk: ReceiptRange,
+    normalized_chunk: ReceiptRange,
+    replay_initial_capacity: (ReceiptRange, ReceiptRange),
+    replay_poseidon2: (ReceiptRange, ReceiptRange),
+    phase_kind: usize,
+    chunk_scope: ReceiptRange,
+    replay_poseidon2_calls: usize,
+    compiler_source_runs: usize,
+    compiler_mapping_sha256: String,
+    final_rows: usize,
+    final_columns: usize,
+}
+
 fn normalize_terms(terms: impl IntoIterator<Item = (usize, F)>) -> Vec<(usize, F)> {
     let mut totals = BTreeMap::<usize, F>::new();
     for (column, coefficient) in terms {
@@ -162,6 +226,188 @@ fn normalized_rows(builder: &R1csBuilder) -> Vec<SparseRow> {
             c: c[row].clone(),
         })
         .collect()
+}
+
+fn source_rows_sha256(source: &SparseR1cs) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(SOURCE_HASH_SCHEMA.as_bytes());
+    hasher.update([0]);
+    hasher.update((source.n as u64).to_le_bytes());
+    hasher.update((source.m as u64).to_le_bytes());
+    hasher.update((source.m_in as u64).to_le_bytes());
+    for (matrix_index, matrix) in [&source.a, &source.b, &source.c].into_iter().enumerate() {
+        assert!(matrix.seeded_phi81_blocks().is_empty());
+        assert!(matrix.geometric_runs().is_empty());
+        let csc = matrix
+            .sparse_component()
+            .expect("claim-replay source uses canonical CSC matrices");
+        assert!(csc.is_canonical());
+        hasher.update([matrix_index as u8]);
+        hasher.update((csc.nrows as u64).to_le_bytes());
+        hasher.update((csc.ncols as u64).to_le_bytes());
+        hasher.update((csc.col_ptr.len() as u64).to_le_bytes());
+        for &pointer in &csc.col_ptr {
+            hasher.update(pointer.to_le_bytes());
+        }
+        hasher.update((csc.row_idx.len() as u64).to_le_bytes());
+        for (&row, coefficient) in csc.row_idx.iter().zip(&csc.vals) {
+            hasher.update(row.to_le_bytes());
+            hasher.update(coefficient.as_canonical_u64().to_le_bytes());
+        }
+    }
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn matrix_stage_terms(matrix: &CcsMatrix<F>, rows: Range<usize>) -> Vec<(usize, usize, u64)> {
+    assert!(matrix
+        .seeded_phi81_blocks()
+        .iter()
+        .all(|block| block.row_end() <= rows.start || rows.end <= block.row_start()));
+    assert!(matrix
+        .geometric_runs()
+        .iter()
+        .all(|run| !rows.contains(&run.row())));
+    let csc = matrix
+        .sparse_component()
+        .expect("claim-replay source uses canonical CSC matrices");
+    let mut terms = Vec::new();
+    for column in 0..csc.ncols {
+        let start = csc.col_ptr[column] as usize;
+        let stop = csc.col_ptr[column + 1] as usize;
+        for index in start..stop {
+            let row = csc.row_idx[index] as usize;
+            if rows.contains(&row) {
+                terms.push((row - rows.start, column, csc.vals[index].as_canonical_u64()));
+            }
+        }
+    }
+    terms.sort_unstable();
+    terms
+}
+
+fn receipt_stage(stage: &neo_fold_clean::engine::r1cs_circuit::PhysicalStageRange) -> ReceiptStage {
+    ReceiptStage {
+        path: stage.path().to_owned(),
+        rows: ReceiptRange {
+            start: stage.row_start(),
+            stop: stage.row_end(),
+        },
+        columns: ReceiptRange {
+            start: stage.column_start(),
+            stop: stage.column_end(),
+        },
+    }
+}
+
+fn assert_stage_partition(source: &SparseR1cs) {
+    let mut row_cursor = 0;
+    let mut column_cursor = source.m_in;
+    for stage in source.physical_stage_ranges() {
+        assert_eq!(
+            stage.row_start(),
+            row_cursor,
+            "physical stages must cover every source row once"
+        );
+        assert_eq!(
+            stage.column_start(),
+            column_cursor,
+            "physical stages must cover every normalized private column once"
+        );
+        assert!(stage.row_start() <= stage.row_end());
+        assert!(stage.column_start() <= stage.column_end());
+        row_cursor = stage.row_end();
+        column_cursor = stage.column_end();
+    }
+    assert_eq!(row_cursor, source.n, "physical stage rows have no remainder");
+    assert_eq!(column_cursor, source.m, "physical stage columns have no remainder");
+}
+
+fn assert_exact_stage_transport(base: &SparseR1cs, complete: &SparseR1cs) -> Vec<ReceiptStage> {
+    assert_stage_partition(base);
+    assert_stage_partition(complete);
+    assert_eq!(base.m_in, complete.m_in);
+    let mut seen = BTreeMap::<&str, usize>::new();
+    let mut matched = Vec::with_capacity(base.physical_stage_ranges().len());
+    for base_stage in base.physical_stage_ranges() {
+        let occurrence = seen.entry(base_stage.path()).or_default();
+        let complete_stage = complete
+            .physical_stage_ranges()
+            .iter()
+            .filter(|stage| stage.path() == base_stage.path())
+            .nth(*occurrence)
+            .unwrap_or_else(|| {
+                panic!(
+                    "complete arm lacks retained stage {} occurrence {}",
+                    base_stage.path(),
+                    occurrence
+                )
+            });
+        *occurrence += 1;
+        assert!(base_stage.rows().len() <= complete_stage.rows().len());
+        assert!(base_stage.columns().len() <= complete_stage.columns().len());
+        let complete_rows = complete_stage.row_start()..complete_stage.row_start() + base_stage.rows().len();
+        let complete_columns =
+            complete_stage.column_start()..complete_stage.column_start() + base_stage.columns().len();
+        for (base_matrix, complete_matrix) in [(&base.a, &complete.a), (&base.b, &complete.b), (&base.c, &complete.c)] {
+            let mut base_terms = matrix_stage_terms(base_matrix, base_stage.rows());
+            for (_, column, _) in &mut base_terms {
+                if base_stage.columns().contains(column) {
+                    *column = complete_stage.column_start() + (*column - base_stage.column_start());
+                }
+            }
+            base_terms.sort_unstable();
+            let complete_terms = matrix_stage_terms(complete_matrix, complete_rows.clone());
+            assert_eq!(
+                base_terms,
+                complete_terms,
+                "retained stage {} must be an exact source-row transport",
+                base_stage.path()
+            );
+        }
+        matched.push(ReceiptStage {
+            path: complete_stage.path().to_owned(),
+            rows: ReceiptRange {
+                start: complete_rows.start,
+                stop: complete_rows.end,
+            },
+            columns: ReceiptRange {
+                start: complete_columns.start,
+                stop: complete_columns.end,
+            },
+        });
+    }
+    matched
+}
+
+fn compiler_mapping_sha256(audit: &SelectiveCompilerAudit) -> (usize, String) {
+    let mut hasher = Sha256::new();
+    hasher.update(b"nightstream-selective-source-row-mapping-v1\0");
+    let mut count = 0;
+    for (arm, mapping) in audit.rows().arms().iter().enumerate() {
+        let mut source_cursor = 0;
+        for run in mapping.source_runs() {
+            let rows = run.source_rows();
+            assert_eq!(rows.start, source_cursor, "source runs must be adjacent");
+            source_cursor = rows.end;
+            count += 1;
+            hasher.update((arm as u64).to_le_bytes());
+            hasher.update((rows.start as u64).to_le_bytes());
+            hasher.update((rows.end as u64).to_le_bytes());
+            hasher.update(format!("{:?}", run.disposition()).as_bytes());
+            hasher.update((run.stage_occurrence().unwrap_or(usize::MAX) as u64).to_le_bytes());
+            hasher.update((run.emitted_start().unwrap_or(usize::MAX) as u64).to_le_bytes());
+        }
+    }
+    let hash = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    (count, hash)
 }
 
 fn rename_terms(terms: &[(usize, F)], column_map: &impl Fn(usize) -> usize) -> Vec<(usize, F)> {
@@ -409,12 +655,12 @@ fn build_arm(
             call
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        coordinate_calls.is_empty(),
-        synthesis.statement_fresh_fields().is_empty()
-            && synthesis.running_commitment_fields().is_empty()
-            && synthesis.running_public_fields().is_empty()
-    );
+    let has_coordinate_outputs = synthesis
+        .partial_statement_fresh_commitment_column(0)
+        .or_else(|| synthesis.partial_running_commitments_binding_column(0))
+        .or_else(|| synthesis.partial_running_public_binding_column(0))
+        .is_some();
+    assert_eq!(!coordinate_calls.is_empty(), has_coordinate_outputs);
 
     let state_word_columns = (0..TRANSITION_STATE_WORDS)
         .map(|index| {
@@ -791,6 +1037,700 @@ fn generated_artifact_path() -> std::path::PathBuf {
     )
 }
 
+fn public_word_bindings(synthesis: &NebulaFPrimeClaimReplaySynthesis) -> Vec<(ReceiptRange, ReceiptRange)> {
+    (0..SHARED_PUBLIC_WORDS)
+        .map(|word| {
+            let source = (0..PUBLIC_BITS_PER_WORD)
+                .map(|bit| {
+                    synthesis
+                        .public_output_column(word * PUBLIC_BITS_PER_WORD + bit)
+                        .expect("complete public bit layout")
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                source,
+                (source[0]..source[0] + PUBLIC_BITS_PER_WORD).collect::<Vec<_>>(),
+                "each public word must occupy one exact source range"
+            );
+            for (bit, &source_column) in source.iter().enumerate() {
+                assert_eq!(
+                    synthesis.normalized_field_column_for_artifact(source_column),
+                    Some(1 + word * PUBLIC_BITS_PER_WORD + bit),
+                    "public word normalization must match the canonical public order"
+                );
+            }
+            (
+                ReceiptRange {
+                    start: source[0],
+                    stop: source[0] + PUBLIC_BITS_PER_WORD,
+                },
+                ReceiptRange {
+                    start: 1 + word * PUBLIC_BITS_PER_WORD,
+                    stop: 1 + (word + 1) * PUBLIC_BITS_PER_WORD,
+                },
+            )
+        })
+        .collect()
+}
+
+fn receipt_normalized_column(source: usize, public_columns: usize, bindings: &[(ReceiptRange, ReceiptRange)]) -> usize {
+    if source == 0 {
+        return 0;
+    }
+    if let Some((source_range, normalized_range)) = bindings
+        .iter()
+        .find(|(source_range, _)| source_range.start <= source && source < source_range.stop)
+    {
+        return normalized_range.start + source - source_range.start;
+    }
+    let moved_before = bindings
+        .iter()
+        .map(|(source_range, _)| {
+            (source.saturating_sub(source_range.start)).min(source_range.stop - source_range.start)
+        })
+        .sum::<usize>();
+    public_columns + source - 1 - moved_before
+}
+
+fn assert_receipt_normalization(
+    synthesis: &NebulaFPrimeClaimReplaySynthesis,
+    bindings: &[(ReceiptRange, ReceiptRange)],
+) {
+    for source in 0..synthesis.columns() {
+        assert_eq!(
+            synthesis.normalized_field_column_for_artifact(source),
+            Some(receipt_normalized_column(source, synthesis.public_columns(), bindings,)),
+            "compact receipt must map source column {source} exactly",
+        );
+    }
+}
+
+fn source_column_for_normalized(synthesis: &NebulaFPrimeClaimReplaySynthesis, normalized: usize) -> usize {
+    let mut sources = (0..synthesis.columns())
+        .filter(|&source| synthesis.normalized_field_column_for_artifact(source) == Some(normalized));
+    let source = sources
+        .next()
+        .expect("normalized column must have one source column");
+    assert!(
+        sources.next().is_none(),
+        "normalized column must have exactly one source column"
+    );
+    source
+}
+
+fn contiguous_receipt_range(columns: &[usize], label: &str) -> ReceiptRange {
+    let start = *columns.first().expect("receipt range must not be empty");
+    assert_eq!(
+        columns,
+        (start..start + columns.len()).collect::<Vec<_>>(),
+        "{label} must occupy one exact contiguous range"
+    );
+    ReceiptRange {
+        start,
+        stop: start + columns.len(),
+    }
+}
+
+fn replay_initial_capacity_binding(synthesis: &NebulaFPrimeClaimReplaySynthesis) -> (ReceiptRange, ReceiptRange) {
+    let normalized_columns = (4..8)
+        .map(|lane| {
+            synthesis
+                .normalized_before_runtime_column(lane)
+                .expect("initial replay capacity column")
+        })
+        .collect::<Vec<_>>();
+    let source_columns = normalized_columns
+        .iter()
+        .map(|&normalized| source_column_for_normalized(synthesis, normalized))
+        .collect::<Vec<_>>();
+    let source = contiguous_receipt_range(&source_columns, "initial replay capacity source columns");
+    let normalized = contiguous_receipt_range(&normalized_columns, "initial replay capacity normalized columns");
+    for offset in 0..source_columns.len() {
+        assert_eq!(
+            synthesis.normalized_field_column_for_artifact(source.start + offset),
+            Some(normalized.start + offset),
+            "initial replay capacity binding must be exact"
+        );
+    }
+    (source, normalized)
+}
+
+fn replay_poseidon2_binding(
+    synthesis: &NebulaFPrimeClaimReplaySynthesis,
+    source: &SparseR1cs,
+) -> (ReceiptRange, ReceiptRange) {
+    let mut stages = source
+        .physical_stage_ranges()
+        .iter()
+        .filter(|stage| stage.path() == "nebula.streaming.claim_replay.poseidon2");
+    let stage = stages
+        .next()
+        .expect("production base must have one claim-replay Poseidon2 stage");
+    assert!(
+        stages.next().is_none(),
+        "production base must have exactly one claim-replay Poseidon2 stage"
+    );
+    let normalized = ReceiptRange {
+        start: stage.column_start(),
+        stop: stage.column_end(),
+    };
+    assert!(
+        normalized.start < normalized.stop,
+        "claim-replay Poseidon2 stage must allocate columns"
+    );
+    let source_start = source_column_for_normalized(synthesis, normalized.start);
+    let source = ReceiptRange {
+        start: source_start,
+        stop: source_start + normalized.stop - normalized.start,
+    };
+    assert!(
+        source.stop <= synthesis.columns(),
+        "claim-replay Poseidon2 source range must be in bounds"
+    );
+    for offset in 0..source.stop - source.start {
+        assert_eq!(
+            synthesis.normalized_field_column_for_artifact(source.start + offset),
+            Some(normalized.start + offset),
+            "claim-replay Poseidon2 binding must be exact"
+        );
+    }
+    (source, normalized)
+}
+
+fn receipt_selected_column(
+    source: usize,
+    public_columns: usize,
+    bindings: &[(ReceiptRange, ReceiptRange)],
+    source_state: &ReceiptState,
+    normalized_state: &ReceiptState,
+    source_chunk: &ReceiptRange,
+    normalized_chunk: &ReceiptRange,
+    replay_initial_capacity: &(ReceiptRange, ReceiptRange),
+    replay_poseidon2: &(ReceiptRange, ReceiptRange),
+) -> usize {
+    for (source_start, normalized_start) in [
+        (
+            source_state.before_statement_fresh,
+            normalized_state.before_statement_fresh,
+        ),
+        (
+            source_state.after_statement_fresh,
+            normalized_state.after_statement_fresh,
+        ),
+        (
+            source_state.before_running_commitments,
+            normalized_state.before_running_commitments,
+        ),
+        (
+            source_state.after_running_commitments,
+            normalized_state.after_running_commitments,
+        ),
+        (
+            source_state.before_running_public,
+            normalized_state.before_running_public,
+        ),
+        (source_state.after_running_public, normalized_state.after_running_public),
+    ] {
+        if source_start <= source && source < source_start + COORDINATE_OUTPUTS {
+            return normalized_start + source - source_start;
+        }
+    }
+    if source_chunk.start <= source && source < source_chunk.stop {
+        return normalized_chunk.start + source - source_chunk.start;
+    }
+    for (source_range, normalized_range) in [replay_initial_capacity, replay_poseidon2] {
+        if source_range.start <= source && source < source_range.stop {
+            return normalized_range.start + source - source_range.start;
+        }
+    }
+    receipt_normalized_column(source, public_columns, bindings)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assert_receipt_selected_normalization(
+    synthesis: &NebulaFPrimeClaimReplaySynthesis,
+    bindings: &[(ReceiptRange, ReceiptRange)],
+    source_state: &ReceiptState,
+    normalized_state: &ReceiptState,
+    source_chunk: &ReceiptRange,
+    normalized_chunk: &ReceiptRange,
+    replay_initial_capacity: &(ReceiptRange, ReceiptRange),
+    replay_poseidon2: &(ReceiptRange, ReceiptRange),
+) {
+    for source in 0..synthesis.columns() {
+        assert_eq!(
+            synthesis.normalized_field_column_for_artifact(source),
+            Some(receipt_selected_column(
+                source,
+                synthesis.public_columns(),
+                bindings,
+                source_state,
+                normalized_state,
+                source_chunk,
+                normalized_chunk,
+                replay_initial_capacity,
+                replay_poseidon2,
+            )),
+            "selected receipt must map source column {source} exactly",
+        );
+    }
+}
+
+fn source_state(synthesis: &NebulaFPrimeClaimReplaySynthesis) -> ReceiptState {
+    ReceiptState {
+        before_statement_fresh: synthesis
+            .before_statement_fresh_commitment_column(0)
+            .expect("before statement-and-fresh state base"),
+        after_statement_fresh: synthesis
+            .after_statement_fresh_commitment_column(0)
+            .expect("after statement-and-fresh state base"),
+        before_running_commitments: synthesis
+            .before_running_commitments_binding_column(0)
+            .expect("before running-commitments state base"),
+        after_running_commitments: synthesis
+            .after_running_commitments_binding_column(0)
+            .expect("after running-commitments state base"),
+        before_running_public: synthesis
+            .before_running_public_binding_column(0)
+            .expect("before running-public state base"),
+        after_running_public: synthesis
+            .after_running_public_binding_column(0)
+            .expect("after running-public state base"),
+    }
+}
+
+fn normalized_state(synthesis: &NebulaFPrimeClaimReplaySynthesis) -> ReceiptState {
+    ReceiptState {
+        before_statement_fresh: synthesis
+            .normalized_before_statement_fresh_commitment_column(0)
+            .expect("normalized before statement-and-fresh state base"),
+        after_statement_fresh: synthesis
+            .normalized_after_statement_fresh_commitment_column(0)
+            .expect("normalized after statement-and-fresh state base"),
+        before_running_commitments: synthesis
+            .normalized_before_running_commitments_binding_column(0)
+            .expect("normalized before running-commitments state base"),
+        after_running_commitments: synthesis
+            .normalized_after_running_commitments_binding_column(0)
+            .expect("normalized after running-commitments state base"),
+        before_running_public: synthesis
+            .normalized_before_running_public_binding_column(0)
+            .expect("normalized before running-public state base"),
+        after_running_public: synthesis
+            .normalized_after_running_public_binding_column(0)
+            .expect("normalized after running-public state base"),
+    }
+}
+
+fn named_row_ranges(source: &SparseR1cs) -> Vec<ReceiptNamedRange> {
+    source
+        .row_family_ranges()
+        .iter()
+        .map(|family| ReceiptNamedRange {
+            name: family.name.to_owned(),
+            range: ReceiptRange {
+                start: family.row_start,
+                stop: family.row_end,
+            },
+        })
+        .collect()
+}
+
+fn named_column_ranges(source: &SparseR1cs) -> Vec<ReceiptNamedRange> {
+    source
+        .column_family_ranges()
+        .iter()
+        .map(|family| ReceiptNamedRange {
+            name: family.name.to_owned(),
+            range: ReceiptRange {
+                start: family.column_start,
+                stop: family.column_end,
+            },
+        })
+        .collect()
+}
+
+fn build_base_receipts() -> (BaseReceipt, BaseReceipt, Vec<ReceiptRange>, Vec<usize>) {
+    let full_synthesis =
+        NebulaFPrimeClaimReplaySynthesis::production_base_full(0).expect("canonical base full claim chunk");
+    let final_synthesis = NebulaFPrimeClaimReplaySynthesis::production_base_final();
+    let full_assignment = full_synthesis
+        .normalized_field_assignment_for_artifact()
+        .expect("normalize full base assignment");
+    let final_assignment = final_synthesis
+        .normalized_field_assignment_for_artifact()
+        .expect("normalize final base assignment");
+    let full_public_words = public_word_bindings(&full_synthesis);
+    let final_public_words = public_word_bindings(&final_synthesis);
+    assert_receipt_normalization(&full_synthesis, &full_public_words);
+    assert_receipt_normalization(&final_synthesis, &final_public_words);
+    let full_source_chunk = ReceiptRange {
+        start: full_synthesis.chunk_column(0).expect("full chunk start"),
+        stop: full_synthesis
+            .chunk_column(CHUNK_FIELDS - 1)
+            .expect("full chunk end")
+            + 1,
+    };
+    let final_source_chunk = ReceiptRange {
+        start: final_synthesis.chunk_column(0).expect("final chunk start"),
+        stop: final_synthesis
+            .chunk_column(FINAL_CHUNK_FIELDS - 1)
+            .expect("final chunk end")
+            + 1,
+    };
+    let full_normalized_chunk = ReceiptRange {
+        start: full_synthesis
+            .normalized_chunk_column(0)
+            .expect("normalized full chunk start"),
+        stop: full_synthesis
+            .normalized_chunk_column(CHUNK_FIELDS - 1)
+            .expect("normalized full chunk end")
+            + 1,
+    };
+    let final_normalized_chunk = ReceiptRange {
+        start: final_synthesis
+            .normalized_chunk_column(0)
+            .expect("normalized final chunk start"),
+        stop: final_synthesis
+            .normalized_chunk_column(FINAL_CHUNK_FIELDS - 1)
+            .expect("normalized final chunk end")
+            + 1,
+    };
+    let full_source_state = source_state(&full_synthesis);
+    let full_normalized_state = normalized_state(&full_synthesis);
+    let final_source_state = source_state(&final_synthesis);
+    let final_normalized_state = normalized_state(&final_synthesis);
+    let (sources, shared) = production_claim_replay_base_source_arms().expect("exact base source arms");
+    assert_eq!(sources.len(), 2);
+    assert_eq!(shared, 692);
+    sources[0]
+        .is_satisfied_by(&full_assignment)
+        .expect("full normalized assignment satisfies the exact source");
+    sources[1]
+        .is_satisfied_by(&final_assignment)
+        .expect("final normalized assignment satisfies the exact source");
+    let full_replay_initial_capacity = replay_initial_capacity_binding(&full_synthesis);
+    let final_replay_initial_capacity = replay_initial_capacity_binding(&final_synthesis);
+    let full_replay_poseidon2 = replay_poseidon2_binding(&full_synthesis, &sources[0]);
+    let final_replay_poseidon2 = replay_poseidon2_binding(&final_synthesis, &sources[1]);
+    assert_receipt_selected_normalization(
+        &full_synthesis,
+        &full_public_words,
+        &full_source_state,
+        &full_normalized_state,
+        &full_source_chunk,
+        &full_normalized_chunk,
+        &full_replay_initial_capacity,
+        &full_replay_poseidon2,
+    );
+    assert_receipt_selected_normalization(
+        &final_synthesis,
+        &final_public_words,
+        &final_source_state,
+        &final_normalized_state,
+        &final_source_chunk,
+        &final_normalized_chunk,
+        &final_replay_initial_capacity,
+        &final_replay_poseidon2,
+    );
+
+    let complete_full = NebulaFPrimeClaimReplaySynthesis::production_full(0)
+        .expect("complete full claim chunk")
+        .into_lowered_for_artifact()
+        .expect("lower complete full claim chunk")
+        .into_parts()
+        .0;
+    let complete_final = NebulaFPrimeClaimReplaySynthesis::production_final()
+        .into_lowered_for_artifact()
+        .expect("lower complete final claim chunk")
+        .into_parts()
+        .0;
+    let full_complete_stages = assert_exact_stage_transport(&sources[0], &complete_full);
+    let final_complete_stages = assert_exact_stage_transport(&sources[1], &complete_final);
+
+    let relation = build_production_claim_replay_base_low_norm_r1cs().expect("compile exact base source arms");
+    let audit = relation
+        .selective_compiler_audit()
+        .expect("base selective compiler keeps its exact source-row audit");
+    let (compiler_source_runs, compiler_mapping_sha256) = compiler_mapping_sha256(audit);
+    assert_eq!(
+        audit.source_arm_physical_stages()[0],
+        sources[0].physical_stage_ranges()
+    );
+    assert_eq!(
+        audit.source_arm_physical_stages()[1],
+        sources[1].physical_stage_ranges()
+    );
+
+    let receipt = |label,
+                   source: &SparseR1cs,
+                   public_word_bindings,
+                   complete_stages,
+                   source_state,
+                   normalized_state,
+                   source_chunk,
+                   normalized_chunk,
+                   replay_initial_capacity,
+                   replay_poseidon2,
+                   phase_kind,
+                   chunk_scope,
+                   replay_poseidon2_calls| BaseReceipt {
+        label,
+        source_sha256: source_rows_sha256(source),
+        source_rows: source.n,
+        source_columns: source.m,
+        public_columns: source.m_in,
+        public_word_bindings,
+        physical_stages: source
+            .physical_stage_ranges()
+            .iter()
+            .map(receipt_stage)
+            .collect(),
+        complete_stages,
+        row_families: named_row_ranges(source),
+        column_families: named_column_ranges(source),
+        source_state,
+        normalized_state,
+        source_chunk,
+        normalized_chunk,
+        replay_initial_capacity,
+        replay_poseidon2,
+        phase_kind,
+        chunk_scope,
+        replay_poseidon2_calls,
+        compiler_source_runs,
+        compiler_mapping_sha256: compiler_mapping_sha256.clone(),
+        final_rows: relation.structure().n,
+        final_columns: relation.structure().m,
+    };
+    let full = receipt(
+        "full",
+        &sources[0],
+        full_public_words,
+        full_complete_stages,
+        full_source_state,
+        full_normalized_state,
+        full_source_chunk,
+        full_normalized_chunk,
+        full_replay_initial_capacity,
+        full_replay_poseidon2,
+        3,
+        ReceiptRange {
+            start: 0,
+            stop: FULL_CHUNKS,
+        },
+        CHUNK_FIELDS / 4,
+    );
+    let final_chunk = receipt(
+        "final",
+        &sources[1],
+        final_public_words,
+        final_complete_stages,
+        final_source_state,
+        final_normalized_state,
+        final_source_chunk,
+        final_normalized_chunk,
+        final_replay_initial_capacity,
+        final_replay_poseidon2,
+        4,
+        ReceiptRange {
+            start: FULL_CHUNKS,
+            stop: FULL_CHUNKS + 1,
+        },
+        FINAL_CHUNK_FIELDS / 4,
+    );
+
+    let links = production_claim_coordinate_overlay_links();
+    let mut cursor = 0;
+    let mut link_rows = Vec::with_capacity(links.len());
+    let mut link_counts = Vec::with_capacity(links.len());
+    for contract in &links {
+        let start = cursor;
+        cursor += contract.fields.len();
+        link_rows.push(ReceiptRange { start, stop: cursor });
+        link_counts.push(contract.fields.len());
+    }
+    assert_eq!(links.len(), 98);
+    assert_eq!(link_rows.first().map(|range| range.start), Some(0));
+    assert!(link_rows
+        .windows(2)
+        .all(|pair| pair[0].stop == pair[1].start));
+    assert_eq!(link_rows.last().map(|range| range.stop), Some(cursor));
+    (full, final_chunk, link_rows, link_counts)
+}
+
+fn lean_receipt_range(range: &ReceiptRange) -> String {
+    format!("{{ start := {}, stop := {} }}", range.start, range.stop)
+}
+
+fn lean_receipt_stages(stages: &[ReceiptStage]) -> String {
+    format!(
+        "[{}]",
+        stages
+            .iter()
+            .map(|stage| format!(
+                "{{ path := {:?}, sourceRows := {}, normalizedPrivateColumns := {} }}",
+                stage.path,
+                lean_receipt_range(&stage.rows),
+                lean_receipt_range(&stage.columns)
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn lean_receipt_named_ranges(ranges: &[ReceiptNamedRange]) -> String {
+    format!(
+        "[{}]",
+        ranges
+            .iter()
+            .map(|range| format!(
+                "{{ name := {:?}, range := {} }}",
+                range.name,
+                lean_receipt_range(&range.range)
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn lean_public_word_binding(binding: &(ReceiptRange, ReceiptRange)) -> String {
+    format!(
+        "{{ source := {}, normalized := {} }}",
+        lean_receipt_range(&binding.0),
+        lean_receipt_range(&binding.1)
+    )
+}
+
+fn lean_public_word_bindings(bindings: &[(ReceiptRange, ReceiptRange)]) -> String {
+    format!(
+        "[{}]",
+        bindings
+            .iter()
+            .map(lean_public_word_binding)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn lean_receipt_state(state: &ReceiptState) -> String {
+    format!(
+        "{{ beforeStatementFresh := {}, afterStatementFresh := {}, beforeRunningCommitments := {}, \
+         afterRunningCommitments := {}, beforeRunningPublic := {}, afterRunningPublic := {} }}",
+        state.before_statement_fresh,
+        state.after_statement_fresh,
+        state.before_running_commitments,
+        state.after_running_commitments,
+        state.before_running_public,
+        state.after_running_public,
+    )
+}
+
+fn render_base_receipt(receipt: &BaseReceipt) -> String {
+    format!(
+        "{{ armScope := {:?}, sourceSha256 := {:?}, sourceRows := {}, sourceColumns := {}, publicColumns := {},\n    \
+         publicWordBindings := {}, normalizedPrivateStart := 641,\n    \
+         physicalStages := {}, completePhysicalStages := {},\n    \
+         rowFamilies := {}, columnFamilies := {},\n    \
+         sourceState := {}, normalizedState := {},\n    \
+         sourceChunk := {}, normalizedChunk := {},\n    \
+         replayInitialCapacity := {}, replayPoseidon2 := {},\n    \
+         phaseKind := {}, chunkScope := {},\n    \
+         replayPoseidon2Calls := {}, compilerSourceRuns := {}, compilerMappingSha256 := {:?},\n    \
+         finalRows := {}, finalColumns := {} }}",
+        receipt.label,
+        receipt.source_sha256,
+        receipt.source_rows,
+        receipt.source_columns,
+        receipt.public_columns,
+        lean_public_word_bindings(&receipt.public_word_bindings),
+        lean_receipt_stages(&receipt.physical_stages),
+        lean_receipt_stages(&receipt.complete_stages),
+        lean_receipt_named_ranges(&receipt.row_families),
+        lean_receipt_named_ranges(&receipt.column_families),
+        lean_receipt_state(&receipt.source_state),
+        lean_receipt_state(&receipt.normalized_state),
+        lean_receipt_range(&receipt.source_chunk),
+        lean_receipt_range(&receipt.normalized_chunk),
+        lean_public_word_binding(&receipt.replay_initial_capacity),
+        lean_public_word_binding(&receipt.replay_poseidon2),
+        receipt.phase_kind,
+        lean_receipt_range(&receipt.chunk_scope),
+        receipt.replay_poseidon2_calls,
+        receipt.compiler_source_runs,
+        receipt.compiler_mapping_sha256,
+        receipt.final_rows,
+        receipt.final_columns,
+    )
+}
+
+fn render_base_artifact() -> String {
+    let (full, final_chunk, link_rows, link_counts) = build_base_receipts();
+    let mut payload = String::new();
+    writeln!(payload, "def full : RawArm :=\n  {}", render_base_receipt(&full)).unwrap();
+    writeln!(
+        payload,
+        "\ndef finalChunk : RawArm :=\n  {}",
+        render_base_receipt(&final_chunk)
+    )
+    .unwrap();
+    writeln!(
+        payload,
+        "\ndef linkRowRanges : List Range :=\n  [{}]",
+        link_rows
+            .iter()
+            .map(lean_receipt_range)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+    .unwrap();
+    writeln!(
+        payload,
+        "\ndef linkFieldCounts : List Nat :=\n  {}",
+        lean_nat_list(link_counts)
+    )
+    .unwrap();
+    let hash = sha256_hex(&payload);
+    let rendered = format!(
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPriorStateReplaySourceSchema\n\
+         import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayCoordinateOverlaySchema\n\n\
+         /-! GENERATED FILE. DO NOT EDIT. Compact Rust-checked transport receipt\n\
+         for the deferred-overlay production claim-replay base arms. -/\n\n\
+         set_option autoImplicit false\n\n\
+         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplayBase\n\n\
+         open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplaySource.Artifact\n\
+         open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateOverlay.Artifact\n\n\
+         abbrev Range := Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplaySource.Artifact.Range\n\
+         abbrev PhysicalStage := Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplaySource.Artifact.PhysicalStage\n\
+         abbrev NamedRange := Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPriorStateReplaySource.Artifact.NamedRange\n\n\
+         structure PublicWordBinding where\n  source : Range\n  normalized : Range\n\
+         deriving DecidableEq, Repr\n\n\
+         structure RawArm where\n  armScope : String\n  sourceSha256 : String\n  sourceRows : Nat\n  sourceColumns : Nat\n  publicColumns : Nat\n  publicWordBindings : List PublicWordBinding\n  normalizedPrivateStart : Nat\n  physicalStages : List PhysicalStage\n  completePhysicalStages : List PhysicalStage\n  rowFamilies : List NamedRange\n  columnFamilies : List NamedRange\n  sourceState : StateBases\n  normalizedState : StateBases\n  sourceChunk : Range\n  normalizedChunk : Range\n  replayInitialCapacity : PublicWordBinding\n  replayPoseidon2 : PublicWordBinding\n  phaseKind : Nat\n  chunkScope : Range\n  replayPoseidon2Calls : Nat\n  compilerSourceRuns : Nat\n  compilerMappingSha256 : String\n  finalRows : Nat\n  finalColumns : Nat\n\
+         deriving DecidableEq, Repr\n\n\
+         def artifactSha256 : String := \"{hash}\"\n\
+         def schemaVersion : Nat := 2\n\
+         def profileId : String := \"{PROFILE_ID}\"\n\
+         def sourceHashSchema : String := \"{SOURCE_HASH_SCHEMA}\"\n\
+         def sourceArtifactIdentity : String := \"{BASE_SOURCE_IDENTITY}\"\n\
+         def completeSourceArtifactIdentity : String := \"{COMPLETE_SOURCE_IDENTITY}\"\n\
+         def finalLinkArtifactIdentity : String := \"{FINAL_LINK_IDENTITY}\"\n\n\
+         {payload}\n\n\
+         end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplayBase\n"
+    );
+    assert!(
+        rendered.lines().count() < 1_500,
+        "generated Lean base receipt must stay below 1,500 lines"
+    );
+    rendered
+}
+
+fn generated_base_artifact_path() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
+         FPrimeFullHistory/Generated/FPrimeFullHistoryStreamingClaimReplayBase.lean",
+    )
+}
+
 #[test]
 fn production_claim_replay_lean_artifact_is_current() {
     let path = generated_artifact_path();
@@ -806,6 +1746,27 @@ fn production_claim_replay_lean_artifact_is_current() {
 #[ignore = "deliberately writes the reviewed generated Lean artifact"]
 fn regenerate_production_claim_replay_lean_artifact() {
     std::fs::write(generated_artifact_path(), render_artifact()).expect("write generated claim-replay artifact");
+}
+
+#[test]
+fn production_claim_replay_base_lean_artifact_is_current() {
+    let path = generated_base_artifact_path();
+    let rendered = render_base_artifact();
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
+        let expected = path.with_extension("lean.expected");
+        std::fs::write(&expected, rendered).expect("write expected claim-replay base artifact");
+        panic!(
+            "claim-replay base Lean artifact drifted; inspect {}",
+            expected.display()
+        );
+    }
+}
+
+#[test]
+#[ignore = "deliberately writes the reviewed generated Lean artifact"]
+fn regenerate_production_claim_replay_base_lean_artifact() {
+    std::fs::write(generated_base_artifact_path(), render_base_artifact())
+        .expect("write generated claim-replay base artifact");
 }
 
 #[test]
@@ -1248,6 +2209,135 @@ fn claim_coordinate_overlay_selective_union_is_bounded() {
     assert_eq!(relation.public_input_len(), 1);
     assert_eq!(relation.structure().n, audit.low_norm_rows);
     assert_eq!(relation.structure().m, audit.low_norm_columns);
+}
+
+#[test]
+fn production_claim_replay_base_sources_assignments_and_links_are_exact() {
+    let (sources, shared) = production_claim_replay_base_source_arms().expect("canonical base source arms");
+    assert_eq!(sources.len(), 2);
+    assert_eq!(shared, 692);
+
+    for chunk in 0..FULL_CHUNKS {
+        let lowered = NebulaFPrimeClaimReplaySynthesis::production_base_full(chunk)
+            .expect("production base full chunk")
+            .into_lowered_for_artifact()
+            .expect("lower production base full chunk");
+        let (shape, assignment) = lowered.into_parts();
+        assert_eq!(
+            shape, sources[0],
+            "full chunk {chunk} must use the canonical source matrix"
+        );
+        sources[0]
+            .is_satisfied_by(&assignment)
+            .unwrap_or_else(|error| panic!("full chunk {chunk} assignment must satisfy the canonical source: {error}"));
+    }
+    let final_lowered = NebulaFPrimeClaimReplaySynthesis::production_base_final()
+        .into_lowered_for_artifact()
+        .expect("lower production base final chunk");
+    let (final_shape, final_assignment) = final_lowered.into_parts();
+    assert_eq!(final_shape, sources[1]);
+    sources[1]
+        .is_satisfied_by(&final_assignment)
+        .expect("final assignment must satisfy the canonical final source");
+
+    let links = production_claim_coordinate_overlay_links();
+    let runs = production_claim_coordinate_overlay_link_runs();
+    assert_eq!(links.len(), runs.len());
+    for (chunk, (contract, run)) in links.iter().zip(&runs).enumerate() {
+        let base = if chunk + 1 == FULL_CHUNKS + 1 {
+            NebulaFPrimeClaimReplaySynthesis::production_base_final()
+        } else {
+            NebulaFPrimeClaimReplaySynthesis::production_base_full(chunk).expect("linked base full chunk")
+        };
+        let overlay =
+            NebulaFPrimeClaimCoordinateOverlaySynthesis::production_kind(chunk + 1).expect("linked coordinate overlay");
+        assert_eq!(contract.overlay_kind, chunk + 1);
+        assert_eq!(contract.phase_kind, if chunk == FULL_CHUNKS { 4 } else { 3 });
+        assert_eq!(run.overlay_kind(), contract.overlay_kind);
+        assert_eq!(run.phase_kind(), contract.phase_kind);
+        assert_eq!(run.chunk_index(), chunk);
+        assert_eq!(contract.fields.len(), 6 * COORDINATE_OUTPUTS + run.active_field_count());
+
+        for coordinate in 0..COORDINATE_OUTPUTS {
+            let links = &contract.fields[6 * coordinate..6 * coordinate + 6];
+            assert_eq!(
+                links[0].phase_field,
+                base.normalized_before_statement_fresh_commitment_column(coordinate)
+                    .expect("base before statement-and-fresh field")
+            );
+            assert_eq!(
+                links[0].overlay_field,
+                overlay
+                    .before_statement_fresh_column(coordinate)
+                    .expect("overlay before statement-and-fresh field")
+            );
+            assert_eq!(
+                links[1].phase_field,
+                base.normalized_after_statement_fresh_commitment_column(coordinate)
+                    .expect("base after statement-and-fresh field")
+            );
+            assert_eq!(
+                links[1].overlay_field,
+                overlay
+                    .after_statement_fresh_column(coordinate)
+                    .expect("overlay after statement-and-fresh field")
+            );
+            assert_eq!(
+                links[2].phase_field,
+                base.normalized_before_running_commitments_binding_column(coordinate)
+                    .expect("base before running-commitments field")
+            );
+            assert_eq!(
+                links[2].overlay_field,
+                overlay
+                    .before_running_commitments_column(coordinate)
+                    .expect("overlay before running-commitments field")
+            );
+            assert_eq!(
+                links[3].phase_field,
+                base.normalized_after_running_commitments_binding_column(coordinate)
+                    .expect("base after running-commitments field")
+            );
+            assert_eq!(
+                links[3].overlay_field,
+                overlay
+                    .after_running_commitments_column(coordinate)
+                    .expect("overlay after running-commitments field")
+            );
+            assert_eq!(
+                links[4].phase_field,
+                base.normalized_before_running_public_binding_column(coordinate)
+                    .expect("base before running-public field")
+            );
+            assert_eq!(
+                links[4].overlay_field,
+                overlay
+                    .before_running_public_column(coordinate)
+                    .expect("overlay before running-public field")
+            );
+            assert_eq!(
+                links[5].phase_field,
+                base.normalized_after_running_public_binding_column(coordinate)
+                    .expect("base after running-public field")
+            );
+            assert_eq!(
+                links[5].overlay_field,
+                overlay
+                    .after_running_public_column(coordinate)
+                    .expect("overlay after running-public field")
+            );
+        }
+        let active_links = &contract.fields[6 * COORDINATE_OUTPUTS..];
+        assert_eq!(active_links.len(), overlay.chunk_columns().len());
+        for (link, &(offset, overlay_field)) in active_links.iter().zip(overlay.chunk_columns()) {
+            assert_eq!(
+                link.phase_field,
+                base.normalized_chunk_column(offset)
+                    .expect("base active chunk field")
+            );
+            assert_eq!(link.overlay_field, overlay_field);
+        }
+    }
 }
 
 #[test]

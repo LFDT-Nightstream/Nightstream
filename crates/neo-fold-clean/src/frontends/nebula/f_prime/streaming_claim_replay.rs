@@ -15,12 +15,22 @@ mod coordinate_overlay;
 pub(crate) use coordinate_overlay::production_claim_coordinate_overlay_sparse_arms;
 
 pub use coordinate_overlay::{
+    build_production_claim_active_coordinate_overlay_low_norm_r1cs,
     build_production_claim_coordinate_overlay_low_norm_r1cs, build_production_claim_replay_base_low_norm_r1cs,
-    production_claim_coordinate_overlay_kind_count, production_claim_coordinate_overlay_kind_map,
-    production_claim_coordinate_overlay_link_runs, production_claim_coordinate_overlay_links,
-    production_claim_coordinate_overlay_shape_audit, production_claim_replay_base_shape_audit,
-    NebulaFPrimeClaimCoordinateOverlayLinkRun, NebulaFPrimeClaimCoordinateOverlayShapeAudit,
-    NebulaFPrimeClaimCoordinateOverlaySynthesis, NebulaFPrimeClaimReplayBaseShapeAudit,
+    build_production_claim_replay_linked_overlay_low_norm_r1cs,
+    production_claim_active_coordinate_overlay_base_kind_map,
+    production_claim_active_coordinate_overlay_compact_layout_and_decoder_runs_for_ranges,
+    production_claim_active_coordinate_overlay_links,
+    production_claim_active_coordinate_overlay_nonseeded_row_projection,
+    production_claim_active_coordinate_overlay_seeded_placements, production_claim_coordinate_overlay_kind_count,
+    production_claim_coordinate_overlay_kind_map, production_claim_coordinate_overlay_link_runs,
+    production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_shape_audit,
+    production_claim_replay_base_compact_layout_and_decoder_runs_for_ranges, production_claim_replay_base_phase_kinds,
+    production_claim_replay_base_retained_row_projection, production_claim_replay_base_semantic_row_projection,
+    production_claim_replay_base_shape_audit, production_claim_replay_base_source_arms,
+    NebulaFPrimeClaimCoordinateOverlayLinkRun, NebulaFPrimeClaimCoordinateOverlaySeededPlacement,
+    NebulaFPrimeClaimCoordinateOverlayShapeAudit, NebulaFPrimeClaimCoordinateOverlaySynthesis,
+    NebulaFPrimeClaimCoordinateOverlayWordStartRun, NebulaFPrimeClaimReplayBaseShapeAudit,
 };
 
 use neo_ajtai::Commitment;
@@ -35,7 +45,11 @@ use super::streaming_program::{
 use super::streaming_public::NebulaFPrimeStreamingPublicLayout;
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
-use crate::frontends::r1cs_f_prime::{lower_field_r1cs, FieldR1csLoweringError, LowNormR1csError, LoweredFieldR1cs};
+use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
+use crate::frontends::r1cs_f_prime::{
+    lower_field_r1cs, normalized_field_column, FieldR1csLoweringError, LinkedOverlayError, LowNormR1csError,
+    LoweredFieldR1cs,
+};
 use crate::paper::reductions::accumulator_sis_circuit::{
     commit_coordinate_fields, enforce_commit_coordinate_fields, SisAccumulatorConfig,
     PI_CCS_RUNNING_COMMITMENTS_COORDINATE_SIS_CONFIG, PI_CCS_RUNNING_PUBLIC_COORDINATE_SIS_CONFIG,
@@ -220,6 +234,8 @@ pub enum NebulaFPrimeClaimReplayError {
     FieldR1cs(#[from] FieldR1csLoweringError),
     #[error(transparent)]
     LowNorm(#[from] LowNormR1csError),
+    #[error(transparent)]
+    LinkedOverlay(#[from] LinkedOverlayError),
 }
 
 /// One synthesized field-native claim-replay arm and its exact public layout.
@@ -440,6 +456,22 @@ impl NebulaFPrimeClaimReplaySynthesis {
     }
 
     #[doc(hidden)]
+    pub fn normalized_before_program_cursor_column(&self) -> Option<usize> {
+        let before_program_cursor = 2 * (SPONGE_WIDTH + 1) + 1;
+        self.state_word_column(before_program_cursor)
+            .and_then(|column| self.normalized_field_column(column))
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_before_runtime_column(&self, lane: usize) -> Option<usize> {
+        if lane >= SPONGE_WIDTH {
+            return None;
+        }
+        self.state_word_column(SPONGE_WIDTH + 1 + lane)
+            .and_then(|column| self.normalized_field_column(column))
+    }
+
+    #[doc(hidden)]
     pub fn normalized_before_statement_fresh_commitment_column(&self, index: usize) -> Option<usize> {
         self.before_statement_fresh_commitment_column(index)
             .and_then(|column| self.normalized_field_column(column))
@@ -500,6 +532,21 @@ impl NebulaFPrimeClaimReplaySynthesis {
     }
 
     #[doc(hidden)]
+    pub fn normalized_field_assignment_for_artifact(&self) -> Result<Vec<F>, NebulaFPrimeClaimReplayError> {
+        Ok(normalized_field_assignment(&self.builder, &self.public_outputs)?)
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_field_column_for_artifact(&self, source: usize) -> Option<usize> {
+        normalized_field_column(self.builder.cols(), &self.public_outputs, source)
+    }
+
+    #[doc(hidden)]
+    pub fn into_lowered_for_artifact(self) -> Result<LoweredFieldR1cs, NebulaFPrimeClaimReplayError> {
+        self.into_lowered().map(|(lowered, _)| lowered)
+    }
+
+    #[doc(hidden)]
     pub fn tamper_witness_for_test(&mut self, column: usize, value: F) {
         self.builder.tamper_witness(column, value);
     }
@@ -522,23 +569,7 @@ impl NebulaFPrimeClaimReplaySynthesis {
     }
 
     fn normalized_field_column(&self, source: usize) -> Option<usize> {
-        if source >= self.builder.cols() {
-            return None;
-        }
-        if source == 0 {
-            return Some(0);
-        }
-        if let Some(index) = self
-            .public_outputs
-            .iter()
-            .position(|wire| wire.col() == source)
-        {
-            return Some(index + 1);
-        }
-        let private_before = (1..source)
-            .filter(|column| !self.public_outputs.iter().any(|wire| wire.col() == *column))
-            .count();
-        Some(1 + self.public_outputs.len() + private_before)
+        normalized_field_column(self.builder.cols(), &self.public_outputs, source)
     }
 }
 
@@ -676,7 +707,11 @@ fn synthesize_fixture_with_coordinate_constraints(
         add_partial(running_commitments_binding, partial_running_commitments.as_ref());
     let next_running_public_binding = add_partial(running_public_binding, partial_running_public.as_ref());
     let runtime = SpongeState {
-        lanes: std::array::from_fn(|lane| F::from_u64(0x1000 + (chunk_index as u64) * 17 + lane as u64)),
+        lanes: if chunk_index == 0 {
+            [F::ZERO; SPONGE_WIDTH]
+        } else {
+            std::array::from_fn(|lane| F::from_u64(0x1000 + (chunk_index as u64) * 17 + lane as u64))
+        },
         absorbed: 0,
     };
     let advanced = absorb(runtime, &chunk[..kind.active_fields(geometry)]);
@@ -920,7 +955,10 @@ fn synthesize(
     let chunk_columns = chunk_vars.iter().map(|var| var.col()).collect::<Vec<_>>();
 
     builder.begin_encoding_stage("nebula.streaming.claim_replay.state");
+    let expected_carry_row_start = builder.rows();
     enforce_persistent_carry(&mut builder, transition.before, transition.after);
+    builder.record_row_family("nebula.streaming.claim_replay.expected_carry", expected_carry_row_start);
+    let state_pin_row_start = builder.rows();
     enforce_constant(
         &mut builder,
         transition.before.expected.absorbed.field,
@@ -937,6 +975,8 @@ fn synthesize(
         transition.after.runtime.absorbed.field,
         (kind.active_fields(geometry) % RATE) as u64,
     );
+    builder.record_row_family("nebula.streaming.claim_replay.state_pins", state_pin_row_start);
+    let cursor_row_start = builder.rows();
     enforce_cursor_alignment(&mut builder, transition.before, geometry.chunk_fields);
     enforce_add_constant(
         &mut builder,
@@ -950,6 +990,7 @@ fn synthesize(
         transition.after.program_cursor.field,
         1,
     );
+    builder.record_row_family("nebula.streaming.claim_replay.cursors", cursor_row_start);
 
     if kind == NebulaFPrimeClaimReplayArmKind::Final {
         enforce_constant(
@@ -985,13 +1026,34 @@ fn synthesize(
     transcript.append_fields_unframed_vars(&mut builder, &chunk_vars[..kind.active_fields(geometry)]);
     let computed = transcript.variable_state();
     debug_assert_eq!(transcript.absorbed(), kind.active_fields(geometry) % RATE);
+    let replay_output_row_start = builder.rows();
     for (declared, computed) in transition.after.runtime.lanes.iter().zip(computed) {
         builder.enforce_eq(&Lc::from_var(declared.field), &Lc::from_var(computed));
     }
+    builder.record_row_family("nebula.streaming.claim_replay.replay_output", replay_output_row_start);
 
     if kind == NebulaFPrimeClaimReplayArmKind::Final {
         builder.begin_encoding_stage("nebula.streaming.claim_replay.ready");
-        enforce_sponge_equal(&mut builder, transition.after.runtime, transition.after.expected);
+        let final_readiness_row_start = builder.rows();
+        for (runtime, expected) in transition
+            .after
+            .runtime
+            .lanes
+            .iter()
+            .zip(transition.after.expected.lanes)
+        {
+            builder.enforce_eq(&Lc::from_var(runtime.field), &Lc::from_var(expected.field));
+        }
+        builder.record_row_family(
+            "nebula.streaming.claim_replay.final_readiness",
+            final_readiness_row_start,
+        );
+        let final_absorbed_row_start = builder.rows();
+        builder.enforce_eq(
+            &Lc::from_var(transition.after.runtime.absorbed.field),
+            &Lc::from_var(transition.after.expected.absorbed.field),
+        );
+        builder.record_row_family("nebula.streaming.claim_replay.final_absorbed", final_absorbed_row_start);
         enforce_constant(
             &mut builder,
             transition.after.frame_cursor.field,

@@ -167,12 +167,7 @@ fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIv
     let fresh = [zero_fresh_claim(context.params, context.folded_public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
     let sumcheck = pi_ccs::SumcheckProof::new(vec![vec![K::ZERO; context.joint_degree + 1]; context.joint_variables]);
-    let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
-    let proof = pi_ccs::Proof {
-        sumcheck,
-        outputs,
-        outputs_digest,
-    };
+    let proof = pi_ccs::Proof { sumcheck, outputs };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
     let nifs_msg = NifsVCircuitMessages {
@@ -285,8 +280,8 @@ fn zero_ce_claim(context: &ShapeContext<'_>) -> CeClaim {
             F::ZERO,
         ),
         r: vec![K::ZERO; context.joint_variables],
-        y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t() + 1],
-        ct: vec![K::ZERO; context.folded.t() + 1],
+        eval_k: vec![K::ZERO; d_pad],
+        eval_a: vec![vec![K::ZERO; d_pad]; context.folded.t()],
         m_in: context.folded_public_input_len,
         fold_digest: [0u8; 32],
         adv: None,

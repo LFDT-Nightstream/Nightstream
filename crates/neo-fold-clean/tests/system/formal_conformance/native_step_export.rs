@@ -459,8 +459,8 @@ struct CeClaimAtom {
     commitment: CommitmentAtom,
     public_input_matrix: MatrixAtom,
     row_point: Vec<Ext>,
-    ring_evaluations: Vec<Vec<Ext>>,
-    constant_terms: Vec<Ext>,
+    eval_k: Vec<Ext>,
+    eval_a: Vec<Vec<Ext>>,
     public_input_len: usize,
     fold_digest: [u8; 32],
     adv: Option<AdvAtom>,
@@ -472,8 +472,8 @@ impl CeClaimAtom {
             commitment: commitment(&value.c),
             public_input_matrix: matrix(&value.X),
             row_point: exts(&value.r),
-            ring_evaluations: value.y_ring.iter().map(|row| exts(row)).collect(),
-            constant_terms: exts(&value.ct),
+            eval_k: exts(&value.eval_k),
+            eval_a: value.eval_a.iter().map(|row| exts(row)).collect(),
             public_input_len: value.m_in,
             fold_digest: value.fold_digest,
             adv: value.adv.as_ref().map(adv),
@@ -503,7 +503,6 @@ struct NifsProofAtom {
 struct PiCcsProofAtom {
     sumcheck_rounds: Vec<Vec<Ext>>,
     ordered_outputs: Vec<u32>,
-    outputs_digest: [Felt; 4],
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -665,7 +664,6 @@ impl<'a> CorpusBuilder<'a> {
                 .map(|round| exts(round))
                 .collect(),
             ordered_outputs,
-            outputs_digest: proof.pi_ccs.outputs_digest.map(felt),
         };
         intern(
             &mut self.atoms.nifs_proofs,

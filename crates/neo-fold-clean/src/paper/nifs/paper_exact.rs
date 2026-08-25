@@ -91,9 +91,6 @@ pub(super) fn encode_proof(proof: &NifsProof) -> Result<Vec<u8>, neo_reductions:
     let pi_ccs = neo_reductions::engines::paper_exact_engine::encode_proof(&proof.pi_ccs.sumcheck)?;
     push_bytes(&mut output, &pi_ccs);
     push_claims(&mut output, &proof.pi_ccs.outputs);
-    for value in proof.pi_ccs.outputs_digest {
-        push_f(&mut output, value);
-    }
     push_claim(&mut output, &proof.pi_rlc.combined);
     push_claims(&mut output, &proof.pi_dec.children);
     Ok(output)
@@ -149,16 +146,16 @@ fn push_claim(output: &mut Vec<u8>, claim: &CeClaim) {
     for &value in &claim.r {
         push_k(output, value);
     }
-    push_u64(output, claim.y_ring.len() as u64);
-    for row in &claim.y_ring {
+    push_u64(output, claim.eval_k.len() as u64);
+    for &value in &claim.eval_k {
+        push_k(output, value);
+    }
+    push_u64(output, claim.eval_a.len() as u64);
+    for row in &claim.eval_a {
         push_u64(output, row.len() as u64);
         for &value in row {
             push_k(output, value);
         }
-    }
-    push_u64(output, claim.ct.len() as u64);
-    for &value in &claim.ct {
-        push_k(output, value);
     }
     push_u64(output, claim.m_in as u64);
     output.extend_from_slice(&claim.fold_digest);

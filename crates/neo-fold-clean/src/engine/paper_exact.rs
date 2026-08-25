@@ -8,8 +8,7 @@ use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::api as reductions;
 use neo_reductions::common::{split_b_matrix_k_with_nonzero_flags, RotRho};
-use neo_transcript::Transcript as _;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
@@ -43,16 +42,7 @@ pub fn prove_pi_ccs_parts<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Commitment>,
 {
-    let public_instance_digest = crate::paper::reductions::paper_exact_protocol::pi_ccs_instance_digest(
-        fresh_claims,
-        running.claims.len(),
-        running.parent_authority.as_ref(),
-    );
-    let running_accumulator_handle = crate::paper::reductions::paper_exact_protocol::accumulator_handle(
-        &running.claims,
-        running.parent_authority.as_ref(),
-    );
-    neo_reductions::engines::paper_exact_engine::paper_exact_prove_with_instance_digest_and_me_input_handle(
+    neo_reductions::engines::paper_exact_engine::paper_exact_prove(
         transcript,
         params.inner(),
         structure,
@@ -60,8 +50,6 @@ where
         fresh_witnesses,
         &running.claims,
         &running.witnesses,
-        public_instance_digest,
-        running_accumulator_handle,
         commitment,
     )
     .map_err(Into::into)
@@ -77,16 +65,7 @@ pub fn verify_pi_ccs(
     outputs: &[CeClaim],
     proof: &reductions::PiCcsProof,
 ) -> Result<bool, Error> {
-    let public_instance_digest = crate::paper::reductions::paper_exact_protocol::pi_ccs_instance_digest(
-        fresh_claims,
-        running.claims.len(),
-        running.parent_authority.as_ref(),
-    );
-    let running_accumulator_handle = crate::paper::reductions::paper_exact_protocol::accumulator_handle(
-        &running.claims,
-        running.parent_authority.as_ref(),
-    );
-    neo_reductions::engines::paper_exact_engine::paper_exact_verify_with_instance_digest_and_me_input_handle(
+    neo_reductions::engines::paper_exact_engine::paper_exact_verify(
         transcript,
         params.inner(),
         structure,
@@ -94,8 +73,6 @@ pub fn verify_pi_ccs(
         &running.claims,
         outputs,
         proof,
-        public_instance_digest,
-        running_accumulator_handle,
     )
     .map_err(Into::into)
 }
@@ -157,77 +134,30 @@ pub fn sample_rho_n(
     }
     let mut output = Vec::with_capacity(count);
     for source in 0..count {
-        transcript.append_fields_raw(&[F::ZERO, F::from_u64(source as u64)]);
-        let coefficients = sample_alphabet_coefficients(transcript, ring.alphabet, source as u64);
+        transcript.absorb_v1_1(&[F::from_u64(4), F::from_u64(source as u64)]);
+        let coefficients = sample_alphabet_coefficients(transcript, ring.alphabet);
         let matrix = rotation_matrix(&coefficients, ring.phi_coeffs);
         output.push(RotRho::new_checked(params.inner(), matrix)?);
     }
     Ok(output)
 }
 
-fn sample_alphabet_coefficients(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<F> {
-    let symbols = if alphabet.len().is_power_of_two() {
-        sample_power_of_two_alphabet(transcript, alphabet, seed)
-    } else {
-        sample_rejection_alphabet(transcript, alphabet, seed)
-    };
+fn sample_alphabet_coefficients(transcript: &mut neo_transcript::Poseidon2Transcript, alphabet: &[i8]) -> Vec<F> {
+    let mut symbols = Vec::with_capacity(neo_math::D);
+    for _ in 0..64 {
+        if symbols.len() == neo_math::D {
+            break;
+        }
+        let word = transcript.squeeze_field_v1_1().as_canonical_u64();
+        for chunk in 0..21 {
+            let candidate = ((word >> (3 * chunk)) & 7) as usize;
+            if candidate < alphabet.len() && symbols.len() < neo_math::D {
+                symbols.push(alphabet[candidate]);
+            }
+        }
+    }
+    symbols.resize(neo_math::D, alphabet[2]);
     symbols.into_iter().map(signed_field).collect()
-}
-
-fn sample_power_of_two_alphabet(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<i8> {
-    let bits = alphabet.len().trailing_zeros() as usize;
-    let mask = (1u64 << bits) - 1;
-    let mut output = Vec::with_capacity(neo_math::D);
-    let mut counter = seed;
-    while output.len() < neo_math::D {
-        transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
-        let digest = transcript.digest32();
-        for chunk in digest.chunks_exact(8) {
-            let word = u64::from_le_bytes(chunk.try_into().expect("digest limb"));
-            for index in 0..64 / bits {
-                output.push(alphabet[((word >> (bits * index)) & mask) as usize]);
-                if output.len() == neo_math::D {
-                    return output;
-                }
-            }
-        }
-        counter = counter.wrapping_add(1);
-    }
-    output
-}
-
-fn sample_rejection_alphabet(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<i8> {
-    let modulus = alphabet.len() as u32;
-    let accepted = (1u32 << 16) / modulus * modulus;
-    let mut output = Vec::with_capacity(neo_math::D);
-    let mut counter = seed;
-    while output.len() < neo_math::D {
-        transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
-        let digest = transcript.digest32();
-        for chunk in digest.chunks_exact(2) {
-            let value = u16::from_le_bytes([chunk[0], chunk[1]]) as u32;
-            if value < accepted {
-                output.push(alphabet[(value % modulus) as usize]);
-                if output.len() == neo_math::D {
-                    return output;
-                }
-            }
-        }
-        counter = counter.wrapping_add(1);
-    }
-    output
 }
 
 fn signed_field(value: i8) -> F {
@@ -292,8 +222,8 @@ where
     direct.c == expected.c
         && direct.X == expected.X
         && direct.r == expected.r
-        && direct.y_ring == expected.y_ring
-        && direct.ct == expected.ct
+        && direct.eval_k == expected.eval_k
+        && direct.eval_a == expected.eval_a
         && direct.m_in == expected.m_in
         && direct.fold_digest == expected.fold_digest
 }

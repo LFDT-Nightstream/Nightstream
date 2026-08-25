@@ -594,6 +594,9 @@ fn alloc_running_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> PiCcsOutpu
             x.push(builder.alloc(claim.X[(r, c)]));
         }
     }
+    let constant_terms = claim
+        .evaluation_constant_terms()
+        .expect("v1_1 evaluation families must expose constant coefficients");
     PiCcsOutputWires {
         c_d: claim.c.d,
         c_d_var: builder.alloc(F::from_u64(claim.c.d as u64)),
@@ -610,11 +613,10 @@ fn alloc_running_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> PiCcsOutpu
         m_in_var: builder.alloc(F::from_u64(claim.m_in as u64)),
         r: alloc_k_vec(builder, &claim.r),
         y_ring: claim
-            .y_ring
-            .iter()
+            .evaluation_families()
             .map(|row| alloc_k_vec(builder, row))
             .collect(),
-        ct: alloc_k_vec(builder, &claim.ct),
+        ct: alloc_k_vec(builder, &constant_terms),
         fold_digest_fields: alloc_digest32(builder, claim.fold_digest),
     }
 }

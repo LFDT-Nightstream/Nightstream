@@ -23,6 +23,7 @@ neo-ccs        = { path = "../neo-ccs" }
 neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
+nightstream-fprime = { path = "../nightstream-fprime" }
 wip-spartan     = { workspace = true }
 bellpepper-core = { workspace = true }
 ff              = { workspace = true, features = ["derive"] }
@@ -66,6 +67,10 @@ path = "tests/gadgets/r1cs_builder.rs"
 [[test]]
 name = "nebula_streaming_claim_replay"
 path = "tests/nebula/streaming_claim_replay.rs"
+
+[[test]]
+name = "nebula_streaming_claim_replay_linked_overlay"
+path = "tests/nebula/streaming_claim_replay_linked_overlay.rs"
 
 [[test]]
 name = "nebula_streaming_pi_rlc_family_replay"
@@ -286,6 +291,14 @@ path = "tests/nifs/round_trip.rs"
 [[test]]
 name = "nifs_engine_crosscheck"
 path = "tests/nifs/engine_crosscheck.rs"
+
+[[test]]
+name = "nifs_pi_ccs_lean_nonzero_parity"
+path = "tests/nifs/pi_ccs_lean_nonzero_parity.rs"
+
+[[test]]
+name = "nifs_package_consumer"
+path = "tests/nifs/package_consumer.rs"
 
 [[test]]
 name = "nifs_fixed"

@@ -45,10 +45,8 @@ pub enum Error {
     FoldDigestCanonicality { owner: &'static str, lane: usize },
     #[error("\u{03A0}_DEC: r length must match the joint row point in {0}")]
     RShape(&'static str),
-    #[error("\u{03A0}_DEC: cached ct must equal the constant term of y_ring in {0}")]
-    CtConsistency(&'static str),
-    #[error("\u{03A0}_DEC: y_ring must contain identity first, then all application matrices in {0}")]
-    YRingShape(&'static str),
+    #[error("\u{03A0}_DEC: v1_1 evaluation shape mismatch in {0}")]
+    EvaluationShape(&'static str),
     #[error(
         "\u{03A0}_DEC: adv presence must be all-or-nothing across parent and children ({present}/{total} present)"
     )]
@@ -59,8 +57,8 @@ pub enum Error {
     AdvLaneSchemeMissing,
     #[error("\u{03A0}_DEC: lane scheme rejected a child witness: {0}")]
     AdvLaneCommit(#[from] crate::paper::relations::LaneSchemeError),
-    #[error("\u{03A0}_DEC: y_ring padding lanes must be zero in {0}")]
-    YRingPadding(&'static str),
+    #[error("\u{03A0}_DEC: evaluation padding lanes must be zero in {0}")]
+    EvaluationPadding(&'static str),
     #[error("\u{03A0}_DEC: unsupported sidecar field {field} in {owner}")]
     UnsupportedSidecar {
         owner: &'static str,
@@ -203,22 +201,30 @@ pub fn prove_from_split_material(
     z_split: Vec<Mat<F>>,
     digit_nonzero: Vec<bool>,
     child_commitments: Vec<neo_ajtai::Commitment>,
-    precomputed_y_ring: Vec<Vec<[K; D]>>,
+    precomputed_openings: Vec<neo_ccs::V1_1Evaluations<K>>,
 ) -> Result<(Children, Proof), Error> {
-    if precomputed_y_ring.len() != z_split.len()
-        || precomputed_y_ring
+    if precomputed_openings.len() != z_split.len()
+        || precomputed_openings
             .iter()
-            .any(|rows| rows.len() != s.t() && rows.len() != s.t() + 1)
+            .any(|opening| opening.eval_k.len() != D || opening.eval_a.len() != s.t())
     {
-        return Err(Error::YRingShape("accelerator output"));
+        return Err(Error::EvaluationShape("accelerator output"));
     }
     if digit_nonzero.len() != z_split.len()
         || digit_nonzero
             .iter()
-            .zip(&precomputed_y_ring)
-            .any(|(&nonzero, rows)| !nonzero && rows.iter().flatten().any(|&value| value != K::ZERO))
+            .zip(&precomputed_openings)
+            .any(|(&nonzero, opening)| {
+                !nonzero
+                    && (opening.eval_k.iter().any(|&value| value != K::ZERO)
+                        || opening
+                            .eval_a
+                            .iter()
+                            .flatten()
+                            .any(|&value| value != K::ZERO))
+            })
     {
-        return Err(Error::YRingPadding("accelerator output"));
+        return Err(Error::EvaluationPadding("accelerator output"));
     }
     let (mut children, witnesses) = engine::prove_pi_dec_from_split(
         pp,
@@ -228,7 +234,7 @@ pub fn prove_from_split_material(
         z_split,
         digit_nonzero,
         child_commitments,
-        &precomputed_y_ring,
+        &precomputed_openings,
         None,
         |commitments, b| combine(commitments, b),
     )?;
@@ -419,11 +425,10 @@ fn validate_verifier_inputs(
         validate_fold_digest_canonical("child", child)?;
     }
     validate_r_shape(s, parent, &proof.children)?;
-    validate_y_ring_shape(s, parent, &proof.children)?;
+    validate_evaluation_shape(s, parent, &proof.children)?;
     validate_canonical_x_shape(parent, &proof.children)?;
     validate_child_x_low_norm(pp, &proof.children)?;
-    validate_ct_consistency(parent, &proof.children)?;
-    validate_y_ring_padding_zero(parent, &proof.children)?;
+    validate_evaluation_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
     validate_adv_recomposition(pp, combine, parent, &proof.children)?;
     Ok(())
@@ -515,54 +520,43 @@ fn validate_fold_digest_canonical(owner: &'static str, claim: &CeClaim) -> Resul
     Ok(())
 }
 
-fn validate_ct_consistency(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_ct_consistency_one("parent", parent)?;
+fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    validate_evaluation_shape_one("parent", s, parent)?;
     for child in children {
-        validate_ct_consistency_one("child", child)?;
+        validate_evaluation_shape_one("child", s, child)?;
     }
     Ok(())
 }
 
-fn validate_y_ring_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_y_ring_shape_one("parent", s, parent)?;
+fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let width = D.next_power_of_two();
+    if claim.eval_k.len() != width || claim.eval_a.len() != s.t() || claim.eval_a.iter().any(|row| row.len() != width) {
+        return Err(Error::EvaluationShape(owner));
+    }
+    Ok(())
+}
+
+fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    validate_evaluation_padding_zero_one("parent", parent)?;
     for child in children {
-        validate_y_ring_shape_one("child", s, child)?;
+        validate_evaluation_padding_zero_one("child", child)?;
     }
     Ok(())
 }
 
-fn validate_y_ring_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    if claim.y_ring.len() != s.t() + 1 {
-        return Err(Error::YRingShape(owner));
+fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
+    if claim
+        .eval_k
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::EvaluationPadding(owner));
     }
-    Ok(())
-}
-
-fn validate_ct_consistency_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if claim.ct.len() != claim.y_ring.len() {
-        return Err(Error::CtConsistency(owner));
-    }
-    for (ct, row) in claim.ct.iter().zip(&claim.y_ring) {
-        if row.first().copied().unwrap_or_default() != *ct {
-            return Err(Error::CtConsistency(owner));
-        }
-    }
-    Ok(())
-}
-
-fn validate_y_ring_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_y_ring_padding_zero_one("parent", parent)?;
-    for child in children {
-        validate_y_ring_padding_zero_one("child", child)?;
-    }
-    Ok(())
-}
-
-fn validate_y_ring_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    for row in &claim.y_ring {
+    for row in &claim.eval_a {
         for &lane in row.iter().skip(D) {
             if lane != K::default() {
-                return Err(Error::YRingPadding(owner));
+                return Err(Error::EvaluationPadding(owner));
             }
         }
     }

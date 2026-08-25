@@ -37,16 +37,26 @@ pub use constraint_witness_audit::NebulaFPrimeConstraintWitnessAudit;
 pub use encoder_artifact::{NebulaFPrimeEncoderArtifactReceipt, VerifiedNebulaFPrimeEncoderArtifact};
 #[doc(hidden)]
 pub use streaming_claim_replay::{
+    build_production_claim_active_coordinate_overlay_low_norm_r1cs,
     build_production_claim_coordinate_overlay_low_norm_r1cs, build_production_claim_replay_base_low_norm_r1cs,
-    claim_replay_shape_audit_for_chunk_fields, production_claim_coordinate_overlay_kind_count,
+    build_production_claim_replay_linked_overlay_low_norm_r1cs, claim_replay_shape_audit_for_chunk_fields,
+    production_claim_active_coordinate_overlay_base_kind_map,
+    production_claim_active_coordinate_overlay_compact_layout_and_decoder_runs_for_ranges,
+    production_claim_active_coordinate_overlay_links,
+    production_claim_active_coordinate_overlay_nonseeded_row_projection,
+    production_claim_active_coordinate_overlay_seeded_placements, production_claim_coordinate_overlay_kind_count,
     production_claim_coordinate_overlay_kind_map, production_claim_coordinate_overlay_link_runs,
     production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_shape_audit,
-    production_claim_replay_base_shape_audit, production_claim_replay_shape_audit,
-    production_claim_running_commitment_field_map, production_claim_running_public_field_map,
-    production_claim_statement_fresh_field_map, NebulaFPrimeClaimCoordinateOverlayLinkRun,
+    production_claim_replay_base_compact_layout_and_decoder_runs_for_ranges, production_claim_replay_base_phase_kinds,
+    production_claim_replay_base_retained_row_projection, production_claim_replay_base_semantic_row_projection,
+    production_claim_replay_base_shape_audit, production_claim_replay_base_source_arms,
+    production_claim_replay_shape_audit, production_claim_running_commitment_field_map,
+    production_claim_running_public_field_map, production_claim_statement_fresh_field_map,
+    NebulaFPrimeClaimCoordinateOverlayLinkRun, NebulaFPrimeClaimCoordinateOverlaySeededPlacement,
     NebulaFPrimeClaimCoordinateOverlayShapeAudit, NebulaFPrimeClaimCoordinateOverlaySynthesis,
-    NebulaFPrimeClaimReplayArmKind, NebulaFPrimeClaimReplayBaseShapeAudit, NebulaFPrimeClaimReplayError,
-    NebulaFPrimeClaimReplayFieldArmAudit, NebulaFPrimeClaimReplayShapeAudit, NebulaFPrimeClaimReplaySynthesis,
+    NebulaFPrimeClaimCoordinateOverlayWordStartRun, NebulaFPrimeClaimReplayArmKind,
+    NebulaFPrimeClaimReplayBaseShapeAudit, NebulaFPrimeClaimReplayError, NebulaFPrimeClaimReplayFieldArmAudit,
+    NebulaFPrimeClaimReplayShapeAudit, NebulaFPrimeClaimReplaySynthesis,
 };
 #[doc(hidden)]
 pub use streaming_lifecycle_fixed_point::{

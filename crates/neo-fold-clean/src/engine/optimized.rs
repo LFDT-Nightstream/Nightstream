@@ -15,10 +15,8 @@ use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
 use neo_reductions::optimized_engine::{
-    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf,
-    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
-    PaperJointOracleBackend, PiDecProverPrecompute,
+    optimized_prove_with_cache_and_precompute_and_backend_and_perf, optimized_prove_with_cache_and_precompute_and_perf,
+    optimized_verify_with_cache_and_perf, OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute,
 };
 use thiserror::Error;
 
@@ -122,23 +120,8 @@ fn prove_pi_ccs_parts_inner<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
-    let instance_digest = crate::paper::digest::pi_ccs_instance_digest_parent_authority(
-        fresh_claims,
-        running.claims.len(),
-        running.parent_authority.as_ref(),
-    );
-    let accumulator_handle = if running.claims.is_empty() {
-        crate::paper::digest::AccumulatorHandle::empty().digest_fields()
-    } else {
-        crate::paper::digest::AccumulatorHandle::from_running_parts(
-            pp.b(),
-            &running.claims,
-            running.parent_authority.as_ref(),
-        )
-        .digest_fields()
-    };
     let (outputs, proof, perf, pi_dec_precompute) = match backend {
-        Some(backend) => optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf(
+        Some(backend) => optimized_prove_with_cache_and_precompute_and_backend_and_perf(
             tr,
             pp.inner(),
             s,
@@ -146,13 +129,11 @@ where
             fresh_witnesses,
             &running.claims,
             &running.witnesses,
-            instance_digest,
-            accumulator_handle,
             log,
             cache,
             backend,
         )?,
-        None => optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+        None => optimized_prove_with_cache_and_precompute_and_perf(
             tr,
             pp.inner(),
             s,
@@ -160,8 +141,6 @@ where
             fresh_witnesses,
             &running.claims,
             &running.witnesses,
-            instance_digest,
-            accumulator_handle,
             log,
             cache,
         )?,
@@ -200,22 +179,7 @@ pub fn verify_pi_ccs(
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
-    let instance_digest = crate::paper::digest::pi_ccs_instance_digest_parent_authority(
-        fresh_claims,
-        running.claims.len(),
-        running.parent_authority.as_ref(),
-    );
-    let accumulator_handle = if running.claims.is_empty() {
-        crate::paper::digest::AccumulatorHandle::empty().digest_fields()
-    } else {
-        crate::paper::digest::AccumulatorHandle::from_running_parts(
-            pp.b(),
-            &running.claims,
-            running.parent_authority.as_ref(),
-        )
-        .digest_fields()
-    };
-    let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    let (ok, perf) = optimized_verify_with_cache_and_perf(
         tr,
         pp.inner(),
         s,
@@ -224,8 +188,6 @@ pub fn verify_pi_ccs(
         fold_outputs,
         proof,
         cache,
-        instance_digest,
-        accumulator_handle,
     )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -605,7 +567,7 @@ pub fn prove_pi_dec_from_split<MB>(
     z_split: Vec<Mat<F>>,
     digit_nonzero: Vec<bool>,
     child_commitments: Vec<Commitment>,
-    precomputed_y_ring: &[Vec<[K; neo_math::D]>],
+    precomputed_openings: &[neo_ccs::V1_1Evaluations<K>],
     precompute: Option<&PiDecProverPrecompute>,
     combine_b_pows: MB,
 ) -> Result<(Vec<CeClaim>, Vec<Mat<F>>), Error>
@@ -630,7 +592,7 @@ where
         combine_b_pows,
         cache.superneo(),
         None,
-        Some(precomputed_y_ring),
+        Some(precomputed_openings),
     );
     if children.is_empty() {
         return Err(Error::PiDecFailed);

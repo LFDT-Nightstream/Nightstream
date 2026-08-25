@@ -7,7 +7,7 @@ use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
 use neo_fold_clean::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment, build_scheduled_linked_overlay_low_norm_r1cs,
-    lower_field_r1cs, OverlayFieldLink, OverlayKindLinks, ScheduledCursorBits, SparseR1cs,
+    lower_field_r1cs, OverlayBaseFieldPin, OverlayFieldLink, OverlayKindLinks, ScheduledCursorBits, SparseR1cs,
 };
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -18,6 +18,9 @@ const B: usize = 3;
 const C: usize = 4;
 const PORT_COUNT: usize = 13;
 const SCHEMA_VERSION: usize = 1;
+const PIN_KIND: usize = 1;
+const PIN_PHASE_FIELD: usize = 5;
+const PIN_VALUE: usize = 13;
 const ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryScheduledLinkedOverlayFixture.lean";
 
 fn scheduled_arm(before: usize, after: usize, value: u64) -> (SparseR1cs, Vec<F>) {
@@ -94,6 +97,7 @@ fn fixture() -> Fixture {
                     phase_field: 5,
                     overlay_field: 1,
                 }],
+                base_pins: Vec::new(),
             },
             OverlayKindLinks {
                 overlay_kind: 1,
@@ -101,6 +105,10 @@ fn fixture() -> Fixture {
                 fields: vec![OverlayFieldLink {
                     phase_field: 5,
                     overlay_field: 1,
+                }],
+                base_pins: vec![OverlayBaseFieldPin {
+                    phase_field: PIN_PHASE_FIELD,
+                    value: F::from_usize(PIN_VALUE),
                 }],
             },
         ],
@@ -119,6 +127,23 @@ fn row_terms(structure: &CcsStructure<F>, row: usize, port: usize) -> Vec<(usize
     structure.matrices[port]
         .materialize_row(row)
         .expect("row in bounds")
+}
+
+fn row_residual(structure: &CcsStructure<F>, row: usize, assignment: &[F]) -> F {
+    let point = structure
+        .matrices
+        .iter()
+        .map(|matrix| {
+            matrix
+                .materialize_row(row)
+                .expect("row in bounds")
+                .into_iter()
+                .fold(F::ZERO, |sum, (column, coefficient)| {
+                    sum + coefficient * assignment[column]
+                })
+        })
+        .collect::<Vec<_>>();
+    structure.f.eval(&point)
 }
 
 fn assert_terms(structure: &CcsStructure<F>, row: usize, port: usize, mut expected: Vec<(usize, F)>) {
@@ -236,6 +261,7 @@ def rawArtifact : RawArtifact where\n",
     )
     .unwrap();
     writeln!(rendered, "  fieldLinkRowEnd := {}", layout.field_link_rows().end).unwrap();
+    writeln!(rendered, "  baseFieldPinRowEnd := {}", layout.base_field_pin_rows().end).unwrap();
     writeln!(rendered, "  ringPaddingRowEnd := {}", layout.ring_padding_rows().end).unwrap();
     writeln!(
         rendered,
@@ -277,6 +303,9 @@ def rawArtifact : RawArtifact where\n",
     writeln!(rendered, "  overlayFieldStarts := {}", lean_list(&overlay_starts)).unwrap();
     writeln!(rendered, "  fieldWidths := {}", lean_list(&widths)).unwrap();
     writeln!(rendered, "  fieldRadices := {}", lean_list(&radices)).unwrap();
+    writeln!(rendered, "  basePinKinds := {}", lean_list(&[PIN_KIND])).unwrap();
+    writeln!(rendered, "  basePinPhaseFields := {}", lean_list(&[PIN_PHASE_FIELD])).unwrap();
+    writeln!(rendered, "  basePinValues := {}", lean_list(&[PIN_VALUE])).unwrap();
     rendered.push_str(
         "\nend Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryScheduledLinkedOverlayFixture\n",
     );
@@ -292,7 +321,7 @@ fn linked_overlay_stores_components_once_and_accepts_each_exact_arm() {
     let fixture = fixture();
     let relation = &fixture.relation;
     let layout = relation.layout();
-    assert_eq!(relation.structure().n, 384);
+    assert_eq!(relation.structure().n, 385);
     assert_eq!(relation.structure().m, 540);
     assert_eq!(relation.public_input_len(), 54);
     assert_eq!(layout.overlay_kinds(), &[0, 1, 0]);
@@ -304,6 +333,7 @@ fn linked_overlay_stores_components_once_and_accepts_each_exact_arm() {
     assert_eq!(layout.overlay_kind_equality_rows().len(), 2);
     assert_eq!(layout.overlay_activation_rows().len(), 3);
     assert_eq!(layout.field_link_rows().len(), 2);
+    assert_eq!(layout.base_field_pin_rows().len(), 1);
     assert_eq!(
         layout
             .field_link_rows_for_kind(0)
@@ -315,6 +345,20 @@ fn linked_overlay_stores_components_once_and_accepts_each_exact_arm() {
         layout
             .field_link_rows_for_kind(1)
             .expect("kind one links")
+            .len(),
+        1
+    );
+    assert_eq!(
+        layout
+            .base_field_pin_rows_for_kind(0)
+            .expect("kind zero pins")
+            .len(),
+        0
+    );
+    assert_eq!(
+        layout
+            .base_field_pin_rows_for_kind(1)
+            .expect("kind one pins")
             .len(),
         1
     );
@@ -407,12 +451,55 @@ fn linked_overlay_rows_bind_selector_and_exact_private_field() {
         }
     }
 
+    let pin_row = layout
+        .base_field_pin_rows_for_kind(PIN_KIND)
+        .expect("pinned kind")
+        .start;
+    let mut expected_b = vec![(0, -F::from_usize(PIN_VALUE))];
+    let mut coefficient = F::ONE;
+    for offset in 0..widths[PIN_KIND] {
+        expected_b.push((phase_starts[PIN_KIND] + offset, coefficient));
+        coefficient *= F::from_usize(radices[PIN_KIND]);
+    }
+    for port in 0..PORT_COUNT {
+        let expected = match port {
+            GENERAL_SELECTOR => vec![(0, F::ONE)],
+            A => vec![(layout.overlay_selector_columns()[PIN_KIND], F::ONE)],
+            B => expected_b.clone(),
+            _ => Vec::new(),
+        };
+        assert_terms(structure, pin_row, port, expected);
+    }
+
     for (row, column) in layout
         .ring_padding_rows()
         .zip(layout.ring_padding_columns())
     {
         assert_linear_zero_row(structure, row, vec![(column, F::ONE)]);
     }
+}
+
+#[test]
+fn linked_overlay_base_pin_rejects_a_phase_digit_tamper() {
+    let fixture = fixture();
+    let relation = &fixture.relation;
+    let layout = relation.layout();
+    let (phase_starts, _, _, _) = embedded_field_geometry(&fixture);
+    let pin_row = layout
+        .base_field_pin_rows_for_kind(PIN_KIND)
+        .expect("pinned kind")
+        .start;
+    let mut assignment = relation
+        .encode(
+            PIN_KIND,
+            &fixture.common[PIN_KIND],
+            &fixture.phases[PIN_KIND],
+            &fixture.overlays[PIN_KIND],
+        )
+        .expect("encode pinned arm");
+    assert_eq!(row_residual(relation.structure(), pin_row, &assignment), F::ZERO);
+    assignment[phase_starts[PIN_KIND]] += F::ONE;
+    assert_ne!(row_residual(relation.structure(), pin_row, &assignment), F::ZERO);
 }
 
 #[test]

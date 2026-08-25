@@ -170,18 +170,18 @@ fn terminal_ce_native_success_and_each_authority_rejection_are_live() {
         Err(Error::FinalAccumulatorEvaluationPointShapeMismatch { index: 0, .. })
     ));
 
-    let mut bad_evaluation = running.clone();
-    bad_evaluation.claims[0].y_ring[0][0] += K::ONE;
+    let mut bad_eval_k = running.clone();
+    bad_eval_k.claims[0].eval_k[0] += K::ONE;
     assert!(matches!(
-        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_evaluation),
+        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_eval_k),
         Err(Error::FinalAccumulatorCeRelationViolation { index: 0, .. })
     ));
 
-    let mut bad_constant_term = running.clone();
-    bad_constant_term.claims[0].ct[0] += K::ONE;
+    let mut bad_eval_a = running.clone();
+    bad_eval_a.claims[0].eval_a[0][0] += K::ONE;
     assert!(matches!(
-        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_constant_term),
-        Err(Error::FinalAccumulatorCtMismatch { index: 0, .. })
+        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_eval_a),
+        Err(Error::FinalAccumulatorCeRelationViolation { index: 0, .. })
     ));
 
     let mut disconnected_child = finished.clone();

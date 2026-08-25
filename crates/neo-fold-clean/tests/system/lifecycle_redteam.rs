@@ -7,7 +7,7 @@ use neo_fold_clean::paper::construction2::ProofState;
 use neo_math::ring::Rq as RqEl;
 use neo_math::KExtensions;
 use neo_math::{D, F};
-use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
+use neo_reductions::common::{compute_v1_1_evaluations_from_z_and_r, project_x_from_witness_mat};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: neo_math::F) -> neo_fold_clean::CcsInstance {
@@ -233,15 +233,15 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
     );
 }
 
-/// Self-consistent final-running relabel attack on `ct`.
+/// Self-consistent final-running relabel attack on `Eval_A`.
 ///
-/// Hacker model: mutate a non-commitment CE field (`ct`) in the recorded
+/// Hacker model: mutate one genuine-matrix evaluation in the recorded
 /// terminal running claim, then recompute `proof.state.acc_digest` from the
 /// mutated running so a shallow "digest matches state" check passes. This
 /// targets the HyperNova boundary where `U_i` must be bound as a full CE
 /// claim, not merely through commitment data.
 #[test]
-fn verify_uncompressed_rejects_recorded_ct_tamper_even_after_redigest() {
+fn verify_uncompressed_rejects_recorded_eval_a_tamper_even_after_redigest() {
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 81)]])
         .expect("one-batch uncompressed proof");
@@ -249,18 +249,22 @@ fn verify_uncompressed_rejects_recorded_ct_tamper_even_after_redigest() {
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
     let running = final_running_mut(&mut finished);
-    assert!(!running.claims[0].ct.is_empty(), "test setup requires ct");
-    running.claims[0].ct[0] += neo_math::K::ONE;
+    assert!(
+        !running.claims[0].eval_a.is_empty() && !running.claims[0].eval_a[0].is_empty(),
+        "test setup requires Eval_A"
+    );
+    running.claims[0].eval_a[0][0] += neo_math::K::ONE;
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted a recorded ct tamper after attacker re-digested state");
+        .expect_err("verify_uncompressed accepted a recorded Eval_A tamper after attacker re-digested state");
     assert!(
         matches!(
             err,
-            neo_fold_clean::Error::PostStateMismatch | neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }
+            neo_fold_clean::Error::PostStateMismatch
+                | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
         ),
-        "recorded ct relabel must be caught by verifier-derived state binding or final CE authority, got {err:?}"
+        "recorded Eval_A relabel must be caught by verifier-derived state binding or final CE authority, got {err:?}"
     );
 }
 
@@ -300,7 +304,7 @@ fn verify_uncompressed_rejects_recorded_r_value_tamper_even_after_redigest() {
 ///
 /// This bypasses the normal proof entrypoint and mutates `claim.r[0]` in
 /// place while keeping the vector length, commitment, X projection, witness,
-/// y_ring shape, and ct shape unchanged. The witness is intentionally
+/// and evaluation-family shapes unchanged. The witness is intentionally
 /// non-zero so `M·Z(r)` depends on the point; a zero witness would make this
 /// a vacuous test. Mutating only c1 catches verifiers that accidentally treat
 /// the extension-field point as a base-field scalar.
@@ -334,7 +338,7 @@ fn final_witness_authority_rejects_same_shape_r_c1_limb_relabel() {
     );
 
     let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
-        .expect_err("same-shape c1-only r relabel must violate y_ring = M·Z(r)");
+        .expect_err("same-shape c1-only r relabel must violate the v1_1 evaluation relation");
     assert!(
         matches!(err, neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }),
         "expected FinalAccumulatorCeRelationViolation for same-shape r relabel, got {err:?}"
@@ -345,7 +349,7 @@ fn final_witness_authority_rejects_same_shape_r_c1_limb_relabel() {
 ///
 /// Hacker model: mutate the opened terminal witness `Z`, then recompute the
 /// recorded CE claim from that new `Z` (`commit`, public projection,
-/// `y_ring`, and `ct`) and re-digest the running accumulator. The final
+/// `Eval_K`, and `Eval_A`) and re-digest the running accumulator. The final
 /// accumulator is now locally valid under the SuperNeo CE relation, so a
 /// verifier that only checks the terminal witness authority would accept it.
 ///
@@ -373,9 +377,9 @@ fn verify_uncompressed_rejects_locally_valid_final_accumulator_substitution() {
     claim.X = project_x_from_witness_mat(witness, prep.structure().m, claim.m_in)
         .expect("mutated witness still has valid public projection shape");
     let ell_d = neo_math::D.next_power_of_two().trailing_zeros() as usize;
-    let (y_ring, ct) = compute_y_from_Z_and_r(prep.structure(), witness, &claim.r, ell_d, prep.params.b());
-    claim.y_ring = y_ring;
-    claim.ct = ct;
+    let evaluations = compute_v1_1_evaluations_from_z_and_r(prep.structure(), witness, &claim.r, ell_d);
+    claim.eval_k = evaluations.eval_k;
+    claim.eval_a = evaluations.eval_a;
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
@@ -425,7 +429,6 @@ fn verify_uncompressed_rejects_terminal_latest_claim_relabel_even_though_final_a
             neo_fold_clean::Error::FinalAccumulatorWitnessCommitmentMismatch { .. }
                 | neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }
                 | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }
         ),
         "attack must be stopped by terminal NIFS replay, not by final CE authority; got {err:?}"
     );
@@ -470,7 +473,6 @@ fn verify_uncompressed_rejects_second_terminal_latest_claim_relabel_even_though_
             neo_fold_clean::Error::FinalAccumulatorWitnessCommitmentMismatch { .. }
                 | neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }
                 | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }
         ),
         "attack must be stopped by terminal latest/NIFS replay, not by final CE authority; got {err:?}"
     );

@@ -25,6 +25,61 @@ pub struct Poseidon2Transcript {
 }
 
 impl Poseidon2Transcript {
+    /// Construct the zero-state transcript used by the Lean v1_1 relation.
+    pub fn new_v1_1() -> Self {
+        Self::empty()
+    }
+
+    /// Reset to the Lean-defined SuperNeo v1.1 transcript state.
+    pub fn reset_v1_1(&mut self) {
+        self.st = [Goldilocks::ZERO; p2::WIDTH];
+        self.absorbed = 0;
+    }
+
+    /// Add each word into the rate lanes and permute after every complete or
+    /// partial chunk. This is the exact Lean v1.1 absorb operation.
+    pub fn absorb_v1_1(&mut self, fields: &[F]) {
+        assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
+        for chunk in fields.chunks(p2::RATE) {
+            for (lane, &value) in chunk.iter().enumerate() {
+                self.st[lane] += value;
+            }
+            self.permute();
+        }
+    }
+
+    /// Absorb one self-delimiting v1.1 block: its field-word length followed
+    /// by its words.
+    pub fn absorb_block_v1_1(&mut self, fields: &[F]) {
+        let mut framed = Vec::with_capacity(fields.len() + 1);
+        framed.push(F::from_u64(fields.len() as u64));
+        framed.extend_from_slice(fields);
+        self.absorb_v1_1(&framed);
+    }
+
+    /// Squeeze one Lean v1.1 field word from lane zero, then permute.
+    pub fn squeeze_field_v1_1(&mut self) -> F {
+        assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
+        let value = F::from_u64(self.st[0].as_canonical_u64());
+        self.permute();
+        value
+    }
+
+    /// Squeeze one quadratic-extension value as two successive field words.
+    pub fn squeeze_extension_v1_1(&mut self) -> [F; 2] {
+        [self.squeeze_field_v1_1(), self.squeeze_field_v1_1()]
+    }
+
+    /// Non-mutating four-lane compression for legacy receipt fields. The
+    /// authoritative v1.1 handoff remains the complete eight-lane state.
+    pub fn state_prefix_v1_1(&self) -> [u8; 32] {
+        let mut output = [0u8; 32];
+        for lane in 0..4 {
+            output[lane * 8..(lane + 1) * 8].copy_from_slice(&self.st[lane].as_canonical_u64().to_le_bytes());
+        }
+        output
+    }
+
     #[inline]
     fn empty() -> Self {
         Self {

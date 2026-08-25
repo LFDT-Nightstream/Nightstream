@@ -1,7 +1,7 @@
-//! Optimized one-joint PiCCS evaluator for the padded-row paper protocol.
+//! Optimized SuperNeo v1.1 PiCCS evaluator.
 //!
-//! Application matrices use the production cache. The virtual padded
-//! identity and the joint polynomial remain explicit protocol data.
+//! Application matrices use the production cache. Pad remains the separate
+//! `Eval_K` family; genuine matrices remain the `Eval_A` family.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
@@ -10,9 +10,10 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::engines::pi_ccs_joint::{
-    carried_gamma_exponent, equality, gamma_power, range_product, JointDims, ProtocolTrace,
+    equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
+    TerminalComponents,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding};
+use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_1OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::superneo_eval::SuperneoZBlocks;
@@ -73,38 +74,123 @@ pub(crate) fn initial_claim<Ff>(
 where
     Ff: Field,
 {
-    let matrix_count = structure.t() + 1;
+    let matrix_count = structure.t();
     let running_count = running.len();
-    let mut target = K::ZERO;
+    let mut eval_k = K::ZERO;
+    let mut eval_a = K::ZERO;
     for (running_index, claim) in running.iter().enumerate() {
-        if claim.y_ring.len() != matrix_count {
+        if claim.eval_k.len() < D || claim.eval_a.len() != matrix_count {
             return Err(PiCcsError::InvalidInput(format!(
-                "optimized running claim {running_index} has {} matrix images, expected {matrix_count}",
-                claim.y_ring.len()
+                "optimized running claim {running_index} does not have separate Eval_K and Eval_A"
             )));
         }
-        for (matrix, coefficients) in claim.y_ring.iter().enumerate() {
+        for (coefficient, &value) in claim.eval_k.iter().take(D).enumerate() {
+            eval_k += gamma_power(
+                challenges.gamma,
+                eval_k_gamma_exponent(running_count, running_index, coefficient),
+            ) * value;
+        }
+        for (matrix, coefficients) in claim.eval_a.iter().enumerate() {
             if coefficients.len() < D {
                 return Err(PiCcsError::InvalidInput(
-                    "optimized running matrix image is too short".into(),
+                    "optimized running Eval_A image is too short".into(),
                 ));
             }
             for (coefficient, &value) in coefficients.iter().take(D).enumerate() {
-                target += gamma_power(
+                eval_a += gamma_power(
                     challenges.gamma,
-                    carried_gamma_exponent(
-                        fresh_count,
-                        running_count,
-                        matrix_count,
-                        running_index,
-                        matrix,
-                        coefficient,
-                    ),
+                    eval_a_gamma_exponent(running_count, matrix_count, running_index, matrix, coefficient),
                 ) * value;
             }
         }
     }
-    Ok(target)
+    let _ = fresh_count;
+    Ok(eval_k + gamma_power(challenges.gamma, running_count * D) * eval_a)
+}
+
+pub(crate) fn terminal_components<Ff>(
+    structure: &CcsStructure<Ff>,
+    params: &neo_params::NeoParams,
+    challenges: &Challenges,
+    fresh_count: usize,
+    prior_point: Option<&[K]>,
+    point: &[K],
+    outputs: &[CeClaim<Cmt, Ff, K>],
+) -> Result<TerminalComponents, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    if outputs.len() < fresh_count {
+        return Err(PiCcsError::InvalidInput(
+            "optimized output source count is too small".into(),
+        ));
+    }
+    let matrix_count = structure.t();
+    let mut fresh_residual = K::ZERO;
+    for (source, output) in outputs.iter().take(fresh_count).enumerate() {
+        if output.eval_a.len() != matrix_count {
+            return Err(PiCcsError::InvalidInput(
+                "optimized fresh output matrix count mismatch".into(),
+            ));
+        }
+        let matrix_evaluations = output
+            .eval_a
+            .iter()
+            .map(|evaluation| evaluation.first().copied())
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_A output is empty".into()))?;
+        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&matrix_evaluations);
+    }
+    let mut norm = K::ZERO;
+    for (source, output) in outputs.iter().enumerate() {
+        let assignment = *output
+            .eval_k
+            .first()
+            .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_K output is missing".into()))?;
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment, params.b);
+    }
+    let running_count = outputs.len() - fresh_count;
+    let mut eval_k = K::ZERO;
+    let mut eval_a = K::ZERO;
+    for (running, output) in outputs.iter().skip(fresh_count).enumerate() {
+        if output.eval_k.len() < D || output.eval_a.len() != matrix_count {
+            return Err(PiCcsError::InvalidInput(
+                "optimized carried output Eval_K/Eval_A shape mismatch".into(),
+            ));
+        }
+        for (coefficient, &value) in output.eval_k.iter().take(D).enumerate() {
+            eval_k += gamma_power(
+                challenges.gamma,
+                eval_k_gamma_exponent(running_count, running, coefficient),
+            ) * value;
+        }
+        for (matrix, coefficients) in output.eval_a.iter().enumerate() {
+            for (coefficient, &value) in coefficients.iter().take(D).enumerate() {
+                eval_a += gamma_power(
+                    challenges.gamma,
+                    eval_a_gamma_exponent(running_count, matrix_count, running, matrix, coefficient),
+                ) * value;
+            }
+        }
+    }
+    let prior_equality = prior_point.map_or(K::ZERO, |prior| equality(point, prior));
+    let eval_a_shift = gamma_power(challenges.gamma, running_count * D);
+    let constraint_shift = gamma_power(challenges.gamma, running_count * D * (matrix_count + 1));
+    let eval_k = prior_equality * eval_k;
+    let eval_a = prior_equality * eval_a;
+    let terminal = eval_k
+        + eval_a_shift * eval_a
+        + constraint_shift
+            * equality(point, &challenges.alpha)
+            * (fresh_residual + gamma_power(challenges.gamma, fresh_count) * norm);
+    Ok(TerminalComponents {
+        eval_k,
+        eval_a,
+        ccs: fresh_residual,
+        norm,
+        terminal,
+    })
 }
 
 pub(crate) fn terminal<Ff>(
@@ -120,48 +206,7 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    if outputs.len() < fresh_count {
-        return Err(PiCcsError::InvalidInput(
-            "optimized output source count is too small".into(),
-        ));
-    }
-    let matrix_count = structure.t() + 1;
-    let mut fresh_residual = K::ZERO;
-    for (source, output) in outputs.iter().take(fresh_count).enumerate() {
-        if output.ct.len() != matrix_count {
-            return Err(PiCcsError::InvalidInput(
-                "optimized fresh output matrix count mismatch".into(),
-            ));
-        }
-        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&output.ct[1..]);
-    }
-    let mut norm = K::ZERO;
-    for (source, output) in outputs.iter().enumerate() {
-        let assignment = *output
-            .ct
-            .first()
-            .ok_or_else(|| PiCcsError::InvalidInput("optimized identity output is missing".into()))?;
-        norm += gamma_power(challenges.gamma, fresh_count + source) * range_product::<Ff>(assignment, params.b);
-    }
-    let running_count = outputs.len() - fresh_count;
-    let mut carried = K::ZERO;
-    for (running, output) in outputs.iter().skip(fresh_count).enumerate() {
-        if output.y_ring.len() != matrix_count {
-            return Err(PiCcsError::InvalidInput(
-                "optimized carried output matrix count mismatch".into(),
-            ));
-        }
-        for (matrix, coefficients) in output.y_ring.iter().enumerate() {
-            for (coefficient, &value) in coefficients.iter().take(D).enumerate() {
-                carried += gamma_power(
-                    challenges.gamma,
-                    carried_gamma_exponent(fresh_count, running_count, matrix_count, running, matrix, coefficient),
-                ) * value;
-            }
-        }
-    }
-    Ok(equality(point, &challenges.alpha) * (fresh_residual + norm)
-        + prior_point.map_or(K::ZERO, |prior| equality(point, prior) * carried))
+    Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
 }
 
 pub struct OptimizedPaperJointOracle<'a> {
@@ -175,7 +220,8 @@ pub struct OptimizedPaperJointOracle<'a> {
     fresh_application_tables: Vec<Vec<Vec<K>>>,
     assignment_tables: Vec<Vec<K>>,
     norm_weights: Vec<K>,
-    carried_table: Vec<K>,
+    evaluation_table: Vec<K>,
+    constraint_shift: K,
 }
 
 /// Canonical inputs available to an implementation of the one-joint oracle.
@@ -200,7 +246,7 @@ pub trait PaperJointOracleBackend {
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
 
-    /// Evaluate identity-first PiDEC child openings with the same static
+    /// Evaluate separate v1_1 PiDEC child openings with the same static
     /// matrix plan. The canonical PiDEC prover checks their radix
     /// recomposition before it returns a proof.
     fn dec_openings(
@@ -209,7 +255,7 @@ pub trait PaperJointOracleBackend {
         _witnesses: &[Mat<F>],
         _point: &[K],
         _assignment_width: usize,
-    ) -> Result<Option<Vec<Vec<[K; D]>>>, PiCcsError> {
+    ) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
         Ok(None)
     }
 }
@@ -267,40 +313,42 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             assignments.push(table);
         }
         let norm_weights = (0..assignments.len())
-            .map(|source| gamma_power(challenges.gamma, fresh.len() + source))
+            .map(|source| gamma_power(challenges.gamma, source))
             .collect();
 
-        let matrix_count = structure.t() + 1;
-        let mut carried_table = vec![K::ZERO; dims.row_count];
+        let matrix_count = structure.t();
+        let eval_a_shift = gamma_power(challenges.gamma, running.len() * D);
+        let mut evaluation_table = vec![K::ZERO; dims.row_count];
         for (running_index, witness) in running.iter().enumerate() {
             let assignment = decode(witness)?;
             let blocks = SuperneoZBlocks::from_z(&assignment);
             for row in 0..dims.assignment_width {
                 for (coefficient, value) in identity_ring_row(row, &assignment).into_iter().enumerate() {
-                    carried_table[row] += gamma_power(
+                    evaluation_table[row] += gamma_power(
                         challenges.gamma,
-                        carried_gamma_exponent(fresh.len(), running.len(), matrix_count, running_index, 0, coefficient),
+                        eval_k_gamma_exponent(running.len(), running_index, coefficient),
                     ) * value;
                 }
             }
             for (application, matrix) in matrices.iter().enumerate() {
-                for (row, slot) in carried_table.iter_mut().take(structure.n).enumerate() {
+                for (row, slot) in evaluation_table.iter_mut().take(structure.n).enumerate() {
                     for (coefficient, value) in matrix
                         .row_dot_ring_with_blocks(row, &blocks)
                         .into_iter()
                         .enumerate()
                     {
-                        *slot += gamma_power(
-                            challenges.gamma,
-                            carried_gamma_exponent(
-                                fresh.len(),
-                                running.len(),
-                                matrix_count,
-                                running_index,
-                                application + 1,
-                                coefficient,
-                            ),
-                        ) * value;
+                        *slot += eval_a_shift
+                            * gamma_power(
+                                challenges.gamma,
+                                eval_a_gamma_exponent(
+                                    running.len(),
+                                    matrix_count,
+                                    running_index,
+                                    application,
+                                    coefficient,
+                                ),
+                            )
+                            * value;
                     }
                 }
             }
@@ -317,7 +365,8 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             fresh_application_tables,
             assignment_tables: assignments,
             norm_weights,
-            carried_table,
+            evaluation_table,
+            constraint_shift: gamma_power(challenges.gamma, running.len() * D * (matrix_count + 1)),
         })
     }
 
@@ -343,8 +392,11 @@ impl<'a> OptimizedPaperJointOracle<'a> {
                     .equality_prior
                     .as_ref()
                     .map_or(K::ZERO, |table| at(table, pair, point));
-                output[point_index] += at(&self.equality_alpha, pair, point) * (fresh_residual + norm)
-                    + carried_gate * at(&self.carried_table, pair, point);
+                output[point_index] += carried_gate * at(&self.evaluation_table, pair, point)
+                    + self.constraint_shift
+                        * at(&self.equality_alpha, pair, point)
+                        * (fresh_residual
+                            + gamma_power(self.challenges.gamma, self.fresh_application_tables.len()) * norm);
             }
         }
         output
@@ -377,7 +429,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         for table in &mut self.assignment_tables {
             fold_table(table, challenge);
         }
-        fold_table(&mut self.carried_table, challenge);
+        fold_table(&mut self.evaluation_table, challenge);
         self.round += 1;
         Ok(())
     }
@@ -394,7 +446,7 @@ fn build_outputs<L>(
     dims: JointDims,
     _commitment: &L,
     cache: &OptimizedStructureCache,
-    precomputed_openings: Option<&[Vec<Vec<K>>]>,
+    precomputed_openings: Option<&[V1_1OutputOpening]>,
 ) -> Result<Vec<CeClaim<Cmt, F, K>>, PiCcsError>
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
@@ -409,17 +461,23 @@ where
             "optimized opening backend returned the wrong source count".into(),
         ));
     }
-    let openings = |source: usize, witness: &Mat<F>| -> Result<(Vec<Vec<K>>, Vec<K>), PiCcsError> {
+    let openings = |source: usize, witness: &Mat<F>| -> Result<V1_1OutputOpening, PiCcsError> {
         if let Some(precomputed) = precomputed_openings {
-            let rows = precomputed
+            let opening = precomputed
                 .get(source)
                 .ok_or_else(|| PiCcsError::ProtocolError("optimized opening source is missing".into()))?;
-            if rows.len() != dims.matrix_count || rows.iter().any(|row| row.len() != D) {
+            if opening.eval_k.len() != D
+                || opening.eval_a.len() != dims.matrix_count
+                || opening.eval_a.iter().any(|row| row.len() != D)
+            {
                 return Err(PiCcsError::ProtocolError(
-                    "optimized opening backend returned a non-canonical matrix image".into(),
+                    "optimized opening backend returned a non-canonical v1_1 evaluation".into(),
                 ));
             }
-            let y_ring = rows
+            let mut eval_k = opening.eval_k.clone();
+            eval_k.resize(d_pad, K::ZERO);
+            let eval_a = opening
+                .eval_a
                 .iter()
                 .map(|row| {
                     let mut padded = row.clone();
@@ -427,52 +485,48 @@ where
                     padded
                 })
                 .collect::<Vec<_>>();
-            let ct = y_ring.iter().map(|row| row[0]).collect();
-            return Ok((y_ring, ct));
+            return Ok(V1_1OutputOpening { eval_k, eval_a });
         }
         let weights = weights
             .as_deref()
             .expect("host openings require the equality tensor");
         let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
-        let mut y_ring = Vec::with_capacity(dims.matrix_count);
-        let mut identity = identity_ring_mle(&assignment, &weights).to_vec();
-        identity.resize(d_pad, K::ZERO);
-        y_ring.push(identity);
-        y_ring.extend(
+        let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
+        eval_k.resize(d_pad, K::ZERO);
+        let eval_a =
             crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
                 .into_iter()
                 .map(|coefficients| {
                     let mut row = coefficients.to_vec();
                     row.resize(d_pad, K::ZERO);
                     row
-                }),
-        );
-        let ct = y_ring.iter().map(|row| row[0]).collect();
-        Ok((y_ring, ct))
+                })
+                .collect();
+        Ok(V1_1OutputOpening { eval_k, eval_a })
     };
 
     let mut outputs = Vec::with_capacity(fresh_claims.len() + running_claims.len());
     for (source, (claim, witness)) in fresh_claims.iter().zip(fresh_witnesses).enumerate() {
-        let (y_ring, ct) = openings(source, &witness.Z)?;
+        let opening = openings(source, &witness.Z)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
             X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m, claim.m_in)?,
             r: point.to_vec(),
-            y_ring,
-            ct,
+            eval_k: opening.eval_k,
+            eval_a: opening.eval_a,
             m_in: claim.m_in,
             fold_digest: [0u8; 32],
             adv: claim.adv.clone(),
         });
     }
     for (running, (claim, witness)) in running_claims.iter().zip(running_witnesses).enumerate() {
-        let (y_ring, ct) = openings(fresh_claims.len() + running, witness)?;
+        let opening = openings(fresh_claims.len() + running, witness)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
             X: claim.X.clone(),
             r: point.to_vec(),
-            y_ring,
-            ct,
+            eval_k: opening.eval_k,
+            eval_a: opening.eval_a,
             m_in: claim.m_in,
             fold_digest: [0u8; 32],
             adv: claim.adv.clone(),
@@ -677,7 +731,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         running_witnesses,
         commitment,
         cache,
-        TranscriptBinding::claims(),
+        TranscriptBinding::digest_only(),
     )?;
     Ok((outputs, proof, perf))
 }

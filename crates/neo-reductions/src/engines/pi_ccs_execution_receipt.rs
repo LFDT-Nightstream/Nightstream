@@ -43,16 +43,17 @@ pub struct PiCcsCanonicalStatement {
     /// Exact width-8 transcript state before the PiCCS public input.
     pub transcript_state: [u64; 8],
     pub transcript_absorbed: usize,
-    /// First production PiCCS absorption, including profile and compact
-    /// public-instance binding fields.
-    pub public_fields: Vec<u64>,
-    /// Second production PiCCS absorption, including the sparse polynomial.
-    pub pi_ccs_statement_fields: Vec<u64>,
+    /// Every v1_1 transcript absorption in exact execution order. Framed
+    /// blocks include their length word.
+    pub transcript_absorptions: Vec<Vec<u64>>,
     /// Shared running-claim point in coordinate order.
     pub prior_point: Vec<PiCcsReceiptK>,
-    /// Running coefficients in coefficient-major, matrix-major,
-    /// running-major gamma order.
-    pub claimed_coefficients: Vec<PiCcsReceiptK>,
+    /// Running `Eval_K` coefficients in coefficient-major, running-major
+    /// `I_K` order.
+    pub claimed_eval_k: Vec<PiCcsReceiptK>,
+    /// Running `Eval_A` coefficients in coefficient-major, matrix-major,
+    /// running-major `I_A` order.
+    pub claimed_eval_a: Vec<PiCcsReceiptK>,
 }
 
 /// Prover messages checked against one canonical statement.
@@ -60,9 +61,11 @@ pub struct PiCcsCanonicalStatement {
 pub struct PiCcsExecutionProof {
     /// Exact versioned bytes returned by `PiCcsProof::canonical_bytes`.
     pub proof_bytes: Vec<u8>,
-    /// Complete paper `y'` output in source-major, matrix-major,
+    /// Complete paper `Eval_K` output in source-major, coefficient-major order.
+    pub output_eval_k: Vec<PiCcsReceiptK>,
+    /// Complete paper `Eval_A` output in source-major, matrix-major,
     /// coefficient-major order.
-    pub full_output: Vec<PiCcsReceiptK>,
+    pub output_eval_a: Vec<PiCcsReceiptK>,
 }
 
 /// A statement and proof captured from one accepting production verifier
@@ -77,28 +80,46 @@ fn canonical_fields(fields: &[F]) -> Vec<u64> {
     fields.iter().map(PrimeField64::as_canonical_u64).collect()
 }
 
-fn statement_absorptions(trace: &[TraceEvent]) -> Result<(&[F], &[F]), PiCcsError> {
-    let mut events = trace.iter();
-    let Some(TraceEvent::Absorb(public_fields)) = events.next() else {
+fn transcript_absorptions(trace: &[TraceEvent]) -> Result<Vec<Vec<u64>>, PiCcsError> {
+    let absorptions: Vec<_> = trace
+        .iter()
+        .filter_map(|event| match event {
+            TraceEvent::Absorb(fields) => Some(canonical_fields(fields)),
+            TraceEvent::Challenge { .. } => None,
+        })
+        .collect();
+    if absorptions.is_empty() {
         return Err(PiCcsError::ProtocolError(
-            "Pi_CCS receipt trace is missing the public-input absorption".into(),
+            "Pi_CCS receipt trace has no v1_1 absorptions".into(),
         ));
-    };
-    let Some(TraceEvent::Absorb(statement_fields)) = events.next() else {
-        return Err(PiCcsError::ProtocolError(
-            "Pi_CCS receipt trace is missing the statement absorption".into(),
-        ));
-    };
-    Ok((public_fields, statement_fields))
+    }
+    Ok(absorptions)
 }
 
-fn claimed_coefficients(running: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
+fn claimed_eval_k(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
+    let mut values = Vec::with_capacity(running.len() * D);
+    for coefficient in 0..D {
+        for claim in running {
+            values.push(
+                claim
+                    .eval_k
+                    .get(coefficient)
+                    .copied()
+                    .ok_or_else(|| PiCcsError::InvalidInput("Pi_CCS receipt Eval_K is incomplete".into()))?
+                    .into(),
+            );
+        }
+    }
+    Ok(values)
+}
+
+fn claimed_eval_a(running: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
     let mut values = Vec::with_capacity(running.len() * matrix_count * D);
     for coefficient in 0..D {
         for matrix in 0..matrix_count {
             for claim in running {
                 let value = claim
-                    .y_ring
+                    .eval_a
                     .get(matrix)
                     .and_then(|row| row.get(coefficient))
                     .copied()
@@ -112,13 +133,30 @@ fn claimed_coefficients(running: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> 
     Ok(values)
 }
 
-fn full_output(outputs: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
+fn output_eval_k(outputs: &[CeClaim<Cmt, F, K>]) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
+    let mut values = Vec::with_capacity(outputs.len() * D);
+    for output in outputs {
+        for coefficient in 0..D {
+            values.push(
+                output
+                    .eval_k
+                    .get(coefficient)
+                    .copied()
+                    .ok_or_else(|| PiCcsError::InvalidInput("Pi_CCS receipt output Eval_K is incomplete".into()))?
+                    .into(),
+            );
+        }
+    }
+    Ok(values)
+}
+
+fn output_eval_a(outputs: &[CeClaim<Cmt, F, K>], matrix_count: usize) -> Result<Vec<PiCcsReceiptK>, PiCcsError> {
     let mut values = Vec::with_capacity(outputs.len() * matrix_count * D);
     for output in outputs {
         for matrix in 0..matrix_count {
             for coefficient in 0..D {
                 let value = output
-                    .y_ring
+                    .eval_a
                     .get(matrix)
                     .and_then(|row| row.get(coefficient))
                     .copied()
@@ -144,14 +182,12 @@ pub fn verify_and_export_pi_ccs_receipt(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
     cache: &OptimizedStructureCache,
-    public_instance_digest: [F; 4],
-    running_accumulator_handle: [F; 4],
 ) -> Result<PiCcsExecutionReceipt, PiCcsError> {
     cache.validate_structure(structure)?;
     let transcript_state = transcript.state().map(|value| value.as_canonical_u64());
     let transcript_absorbed = transcript.absorbed();
     let relation_id = (*cache.matrix_digest()).map(|value| value.as_canonical_u64());
-    let binding = TranscriptBinding::digest_and_handle(public_instance_digest, running_accumulator_handle);
+    let binding = TranscriptBinding::digest_only();
     let (accepted, trace) = crate::engines::pi_ccs_joint_protocol::verify_with_trace(
         transcript,
         params,
@@ -170,7 +206,7 @@ pub fn verify_and_export_pi_ccs_receipt(
     }
 
     let dims = build_joint_dims(params, structure, fresh_claims.len(), running_claims.len())?;
-    let (public_fields, statement_fields) = statement_absorptions(&trace.events)?;
+    let transcript_absorptions = transcript_absorptions(&trace.events)?;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?
         .unwrap_or(&[])
         .iter()
@@ -183,14 +219,15 @@ pub fn verify_and_export_pi_ccs_receipt(
             relation_id,
             transcript_state,
             transcript_absorbed,
-            public_fields: canonical_fields(public_fields),
-            pi_ccs_statement_fields: canonical_fields(statement_fields),
+            transcript_absorptions,
             prior_point,
-            claimed_coefficients: claimed_coefficients(running_claims, dims.matrix_count)?,
+            claimed_eval_k: claimed_eval_k(running_claims)?,
+            claimed_eval_a: claimed_eval_a(running_claims, dims.matrix_count)?,
         },
         proof: PiCcsExecutionProof {
             proof_bytes: proof.canonical_bytes(),
-            full_output: full_output(outputs, dims.matrix_count)?,
+            output_eval_k: output_eval_k(outputs)?,
+            output_eval_a: output_eval_a(outputs, dims.matrix_count)?,
         },
     })
 }

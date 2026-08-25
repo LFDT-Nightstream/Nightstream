@@ -13,7 +13,9 @@ use neo_params::NeoParams;
 use neo_reductions::api::{dec_children_with_commit, prove, rlc_with_commit, verify, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove_with_binding, crosscheck_verify_with_binding};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
-use neo_reductions::engines::pi_ccs_joint::{build_joint_dims, carried_gamma_exponent, gamma_power};
+use neo_reductions::engines::pi_ccs_joint::{
+    build_joint_dims, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power,
+};
 use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
@@ -95,21 +97,28 @@ fn combine_commitments_b_pows(commitments: &[neo_ajtai::Commitment], base: u32) 
 }
 
 fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness<F>) {
-    let values: Vec<F> = (0..columns)
+    let mut values: Vec<F> = (0..columns)
         .map(|column| match (seed + 5 * column) % 3 {
             0 => -F::ONE,
             1 => F::ZERO,
             _ => F::ONE,
         })
         .collect();
+    let m_in = if columns >= D { D } else { 0 };
+    if m_in == D {
+        values[..D].fill(F::ZERO);
+        values[0] = F::ONE;
+        for lane in 0..4 {
+            values[lane + 1] = F::from_u64(((seed + lane) & 1) as u64);
+        }
+    }
     let mut Z = Mat::zero(D, columns.div_ceil(D), F::ZERO);
     for (column, &value) in values.iter().enumerate() {
         Z[(column % D, column / D)] = value;
     }
-    // The paper public-input projection is a ring-module projection. This
-    // small fixture has no complete public ring, so it uses an empty public
-    // prefix instead of exposing a partial ring.
-    let m_in = 0;
+    // The digest-only transcript takes the four prior-digest slots from the
+    // first complete public ring. Smaller oracle-only fixtures keep an empty
+    // public prefix.
     (
         CcsClaim {
             adv: None,
@@ -136,9 +145,9 @@ fn prove_mode(
     running_witnesses: &[Mat<F>],
     log: &AjtaiSModule,
 ) -> Result<(Vec<Output>, PiCcsProof), PiCcsError> {
-    prove(
+    prove_mode_and_state(
         mode,
-        &mut Poseidon2Transcript::new(label),
+        label,
         params,
         structure,
         claims,
@@ -147,6 +156,34 @@ fn prove_mode(
         running_witnesses,
         log,
     )
+    .map(|(outputs, proof, _)| (outputs, proof))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_mode_and_state(
+    mode: FoldingMode,
+    label: &'static [u8],
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[Claim],
+    witnesses: &[CcsWitness<F>],
+    running: &[Output],
+    running_witnesses: &[Mat<F>],
+    log: &AjtaiSModule,
+) -> Result<(Vec<Output>, PiCcsProof, [F; 8]), PiCcsError> {
+    let mut transcript = Poseidon2Transcript::new(label);
+    let (outputs, proof) = prove(
+        mode,
+        &mut transcript,
+        params,
+        structure,
+        claims,
+        witnesses,
+        running,
+        running_witnesses,
+        log,
+    )?;
+    Ok((outputs, proof, transcript.state()))
 }
 
 fn seed_running(
@@ -185,7 +222,7 @@ fn assert_parity(rows: usize, columns: usize) {
     let witnesses = vec![first_witness, second_witness];
     let label = b"padded-row/parity";
 
-    let (paper_outputs, paper_proof) = prove_mode(
+    let (paper_outputs, paper_proof, paper_state) = prove_mode_and_state(
         FoldingMode::PaperExact,
         label,
         &params,
@@ -197,7 +234,7 @@ fn assert_parity(rows: usize, columns: usize) {
         &log,
     )
     .expect("PaperExact proof");
-    let (optimized_outputs, optimized_proof) = prove_mode(
+    let (optimized_outputs, optimized_proof, optimized_state) = prove_mode_and_state(
         FoldingMode::Optimized,
         label,
         &params,
@@ -212,9 +249,10 @@ fn assert_parity(rows: usize, columns: usize) {
 
     assert_eq!(paper_proof, optimized_proof);
     assert_eq!(paper_outputs, optimized_outputs);
+    assert_eq!(paper_state, optimized_state);
     assert!(paper_outputs
         .iter()
-        .all(|output| output.y_ring.len() == structure.t() + 1));
+        .all(|output| { output.eval_k.len() == D.next_power_of_two() && output.eval_a.len() == structure.t() }));
     assert_eq!(paper_proof.canonical_bytes(), optimized_proof.canonical_bytes());
 
     for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
@@ -334,15 +372,13 @@ fn public_crosscheck_compares_the_complete_execution() {
 }
 
 #[test]
-fn compact_recursive_transcript_matches_the_independent_reference() {
+fn v1_1_transcript_matches_the_independent_reference() {
     let structure = rectangular_ccs(D / 2, D + 1);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(D + 1).expect("parameters");
     let log = committer(&params, D + 1);
     let (claim, witness) = source(&log, D + 1, 6);
-    let label = b"padded-row/compact-crosscheck";
-    let public_instance_digest = [F::from_u64(11), F::from_u64(12), F::from_u64(13), F::from_u64(14)];
-    let running_handle = [F::from_u64(21), F::from_u64(22), F::from_u64(23), F::from_u64(24)];
-    let binding = TranscriptBinding::digest_and_handle(public_instance_digest, running_handle);
+    let label = b"pi-ccs/v1_1/crosscheck";
+    let binding = TranscriptBinding::digest_only();
     let (outputs, proof) = crosscheck_prove_with_binding(
         &(),
         &(),
@@ -356,7 +392,7 @@ fn compact_recursive_transcript_matches_the_independent_reference() {
         &log,
         binding,
     )
-    .expect("compact transcript crosscheck proof");
+    .expect("v1_1 transcript crosscheck proof");
     assert!(crosscheck_verify_with_binding(
         &(),
         &(),
@@ -369,11 +405,11 @@ fn compact_recursive_transcript_matches_the_independent_reference() {
         &proof,
         binding,
     )
-    .expect("compact transcript crosscheck verify"));
+    .expect("v1_1 transcript crosscheck verify"));
 }
 
 #[test]
-fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
+fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
     let columns = D + 1;
     let structure = rectangular_ccs(D / 2, columns);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
@@ -381,23 +417,18 @@ fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
     let cache = OptimizedStructureCache::build(&structure).expect("structure cache");
     let (claim, witness) = source(&log, columns, 12);
     let label = b"padded-row/execution-receipt";
-    let public_instance_digest = [F::from_u64(31), F::from_u64(32), F::from_u64(33), F::from_u64(34)];
-    let running_handle = [F::from_u64(41), F::from_u64(42), F::from_u64(43), F::from_u64(44)];
-    let (outputs, proof, _, _) =
-        neo_reductions::optimized_engine::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-            &mut Poseidon2Transcript::new(label),
-            &params,
-            &structure,
-            std::slice::from_ref(&claim),
-            std::slice::from_ref(&witness),
-            &[],
-            &[],
-            public_instance_digest,
-            running_handle,
-            &log,
-            &cache,
-        )
-        .expect("compact production proof");
+    let (outputs, proof, _, _) = neo_reductions::optimized_engine::optimized_prove_with_cache_and_precompute_and_perf(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        std::slice::from_ref(&witness),
+        &[],
+        &[],
+        &log,
+        &cache,
+    )
+    .expect("v1_1 production proof");
 
     let receipt = verify_and_export_pi_ccs_receipt(
         &mut Poseidon2Transcript::new(label),
@@ -408,15 +439,19 @@ fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
         &outputs,
         &proof,
         &cache,
-        public_instance_digest,
-        running_handle,
     )
-    .expect("accepted execution receipt");
+    .expect("accepted v1_1 execution receipt");
     assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes());
-    assert_eq!(receipt.proof.full_output.len(), outputs.len() * (structure.t() + 1) * D);
+    assert_eq!(receipt.proof.output_eval_k.len(), outputs.len() * D);
+    assert_eq!(receipt.proof.output_eval_a.len(), outputs.len() * structure.t() * D);
     assert_eq!(receipt.statement.relation_id.len(), 4);
-    assert_eq!(receipt.statement.public_fields[0], 40);
-    assert_eq!(receipt.statement.pi_ccs_statement_fields[0], 41);
+    assert_eq!(
+        receipt.statement.transcript_absorptions[0],
+        vec![
+            78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105,
+            67, 67, 83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
+        ]
+    );
 
     let mut changed_proof = proof.clone();
     changed_proof.sumcheck_rounds[0][0] += K::ONE;
@@ -429,14 +464,11 @@ fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
         &outputs,
         &changed_proof,
         &cache,
-        public_instance_digest,
-        running_handle,
     )
     .is_err());
 
     let mut changed_output = outputs.clone();
-    changed_output[0].y_ring[0][0] += K::ONE;
-    changed_output[0].ct[0] += K::ONE;
+    changed_output[0].eval_k[0] += K::ONE;
     assert!(verify_and_export_pi_ccs_receipt(
         &mut Poseidon2Transcript::new(label),
         &params,
@@ -446,37 +478,20 @@ fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
         &changed_output,
         &proof,
         &cache,
-        public_instance_digest,
-        running_handle,
     )
     .is_err());
 
-    let changed_digest = [F::from_u64(30), F::from_u64(32), F::from_u64(33), F::from_u64(34)];
+    let mut changed_claim = claim.clone();
+    changed_claim.c.data[0] += F::ONE;
     assert!(verify_and_export_pi_ccs_receipt(
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,
-        std::slice::from_ref(&claim),
+        std::slice::from_ref(&changed_claim),
         &[],
         &outputs,
         &proof,
         &cache,
-        changed_digest,
-        running_handle,
-    )
-    .is_err());
-
-    assert!(verify_and_export_pi_ccs_receipt(
-        &mut Poseidon2Transcript::new(b"padded-row/execution-receipt-drift"),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        &[],
-        &outputs,
-        &proof,
-        &cache,
-        public_instance_digest,
-        running_handle,
     )
     .is_err());
 }
@@ -542,7 +557,7 @@ fn selected_engines_reject_pretransformed_seeded_matrix_descriptors() {
 }
 
 #[test]
-fn public_crosscheck_covers_identity_first_rlc_and_dec() {
+fn public_crosscheck_covers_v1_1_rlc_and_dec() {
     let columns = D + 1;
     let structure = rectangular_ccs(D / 2, columns);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
@@ -577,7 +592,8 @@ fn public_crosscheck_covers_identity_first_rlc_and_dec() {
         |_, commitments| commitments[0].clone(),
     )
     .expect("PiRLC crosscheck");
-    assert_eq!(parent.y_ring.len(), structure.t() + 1);
+    assert_eq!(parent.eval_k.len(), D.next_power_of_two());
+    assert_eq!(parent.eval_a.len(), structure.t());
 
     let split_witnesses =
         split_b_matrix_k(&mixed_witness, params.k_rho as usize, params.b).expect("canonical PiDEC split");
@@ -596,7 +612,8 @@ fn public_crosscheck_covers_identity_first_rlc_and_dec() {
         combine_commitments_b_pows,
     );
     assert!(y_valid && x_valid && commitment_valid);
-    assert_eq!(children[0].y_ring.len(), structure.t() + 1);
+    assert_eq!(children[0].eval_k.len(), D.next_power_of_two());
+    assert_eq!(children[0].eval_a.len(), structure.t());
 }
 
 #[test]
@@ -642,18 +659,17 @@ fn verifier_matches_the_paper_mutation_boundary() {
     assert!(rejects(&claims, &outputs, &changed_round));
 
     let mut changed_output = outputs.clone();
-    changed_output[0].y_ring[0][0] += K::ONE;
-    changed_output[0].ct[0] += K::ONE;
+    changed_output[0].eval_k[0] += K::ONE;
     assert!(rejects(&claims, &changed_output, &proof));
 
     // Section 7.3 does not use a fresh source's nonconstant output
-    // coefficients in the PiCCS terminal equation. PiCCS therefore accepts
-    // this mutation. PiRLC binds the complete output message before it samples
-    // rho, and the next PiCCS invocation checks the coefficient as carried
-    // evaluation data. Rejecting it here would add a non-paper equation.
+    // coefficients in the PiCCS terminal equation. The production transcript
+    // still absorbs the complete output message before PiRLC samples rho.
+    // This mutation keeps the old transcript digest, so verification must
+    // reject the stale binding without adding a terminal equation.
     let mut changed_fresh_ring_coefficient = outputs.clone();
-    changed_fresh_ring_coefficient[0].y_ring[0][1] += K::ONE;
-    assert!(!rejects(&claims, &changed_fresh_ring_coefficient, &proof));
+    changed_fresh_ring_coefficient[0].eval_k[1] += K::ONE;
+    assert!(rejects(&claims, &changed_fresh_ring_coefficient, &proof));
 
     let mut changed_order = claims.clone();
     changed_order.reverse();
@@ -751,11 +767,15 @@ fn full_carrier_tail_is_part_of_the_padded_identity_relation() {
 }
 
 #[test]
-fn carried_gamma_slots_include_the_identity_matrix() {
-    assert_eq!(carried_gamma_exponent(2, 2, 3, 0, 0, 0), 6);
-    assert_eq!(carried_gamma_exponent(2, 2, 3, 1, 0, 0), 7);
-    assert_eq!(carried_gamma_exponent(2, 2, 3, 0, 1, 0), 8);
-    assert_eq!(carried_gamma_exponent(2, 2, 3, 0, 0, 1), 12);
+fn v1_1_eval_k_and_eval_a_gamma_slots_are_separate() {
+    assert_eq!(eval_k_gamma_exponent(2, 0, 0), 0);
+    assert_eq!(eval_k_gamma_exponent(2, 1, 0), 1);
+    assert_eq!(eval_k_gamma_exponent(2, 0, 1), 2);
+
+    assert_eq!(eval_a_gamma_exponent(2, 3, 0, 0, 0), 0);
+    assert_eq!(eval_a_gamma_exponent(2, 3, 1, 0, 0), 1);
+    assert_eq!(eval_a_gamma_exponent(2, 3, 0, 1, 0), 2);
+    assert_eq!(eval_a_gamma_exponent(2, 3, 0, 0, 1), 6);
 }
 
 #[test]

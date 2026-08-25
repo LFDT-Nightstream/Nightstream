@@ -84,18 +84,13 @@ where
         running_claims,
         running_witnesses,
         commitment,
-        TranscriptBinding::claims(),
+        TranscriptBinding::digest_only(),
     )
 }
 
 fn reference_binding(binding: TranscriptBinding) -> PaperTranscriptBinding {
-    match binding {
-        TranscriptBinding::Claims => PaperTranscriptBinding::Claims,
-        TranscriptBinding::Digests {
-            public_instance_digest,
-            running_accumulator_handle,
-        } => PaperTranscriptBinding::digests(public_instance_digest, running_accumulator_handle),
-    }
+    let _ = binding;
+    PaperTranscriptBinding::digest_only()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -215,7 +210,7 @@ pub fn crosscheck_verify<I, R>(
         running_claims,
         outputs,
         proof,
-        TranscriptBinding::claims(),
+        TranscriptBinding::digest_only(),
     )
 }
 

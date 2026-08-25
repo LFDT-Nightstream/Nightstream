@@ -19,7 +19,7 @@ pub use rlc_dec::{
     rlc_reduction_paper_exact_with_commit_mix, verify_dec_public_paper_exact,
 };
 
-pub use prove::{paper_exact_prove, paper_exact_prove_with_instance_digest_and_me_input_handle};
+pub use prove::paper_exact_prove;
 pub use transcript::encode_proof;
 pub(crate) use transcript::PaperTranscriptBinding;
-pub use verify::{paper_exact_verify, paper_exact_verify_with_instance_digest_and_me_input_handle};
+pub use verify::{paper_exact_verify, paper_exact_verify_with_trace};

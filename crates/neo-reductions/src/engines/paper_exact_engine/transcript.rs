@@ -1,14 +1,14 @@
 //! Independent PaperExact Fiat--Shamir and SumCheck schedule.
 //!
-//! This is a direct Rust transcription of the Lean-owned tags 40--47. It
+//! This is a direct Rust transcription of the Lean-owned v1_1 schedule. It
 //! does not call the optimized transcript or proof-assembly implementation.
 //! The canonical statement serializer is shared because it is protocol input,
 //! not an alternative prover computation.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
-use neo_math::{KExtensions, F, K};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_math::{KExtensions, D, F, K};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
@@ -16,41 +16,21 @@ use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::sumcheck::RoundOracle;
 
-// These constants intentionally duplicate the selected codec profile. A
-// protocol-tag change on only one side must fail the crosscheck.
-const PUBLIC_INPUT_TAG: u64 = 40;
-const PROTOCOL_VERSION: u64 = 2;
-const STATEMENT_TAG: u64 = 41;
-const COMPACT_BINDING_TAG: u64 = 47;
-const ALPHA_TAG: u64 = 42;
-const GAMMA_TAG: u64 = 43;
-const ROUND_TAG: u64 = 45;
-const ROUND_CHALLENGE_TAG: u64 = 46;
+const ALPHA_TAG: u64 = 1;
+const GAMMA_TAG: u64 = 2;
+const ROUND_CHALLENGE_TAG: u64 = 3;
+const DOMAIN_TAG: &[u64] = &[
+    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
+    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
+];
 
-/// Public-statement transport used by the independent reference transcript.
-///
-/// This type is deliberately separate from the optimized transcript type.
-/// The compact values are caller-supplied compression values; the recursive
-/// verifier must recompute them from authoritative claim wires.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PaperTranscriptBinding {
-    Claims,
-    Digests {
-        public_instance_digest: [F; 4],
-        running_accumulator_handle: Option<[F; 4]>,
-    },
-}
+/// The one Lean-owned PaperExact statement binding.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PaperTranscriptBinding;
 
 impl PaperTranscriptBinding {
-    pub(crate) const fn claims() -> Self {
-        Self::Claims
-    }
-
-    pub(crate) const fn digests(public_instance_digest: [F; 4], running_accumulator_handle: Option<[F; 4]>) -> Self {
-        Self::Digests {
-            public_instance_digest,
-            running_accumulator_handle,
-        }
+    pub(crate) const fn digest_only() -> Self {
+        Self
     }
 }
 
@@ -59,8 +39,16 @@ fn k_fields(output: &mut Vec<F>, value: K) {
 }
 
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.append_fields_unframed(&fields);
+    transcript.absorb_v1_1(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
+}
+
+fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
+    transcript.absorb_block_v1_1(&fields);
+    let mut framed = Vec::with_capacity(fields.len() + 1);
+    framed.push(F::from_u64(fields.len() as u64));
+    framed.extend(fields);
+    trace.events.push(TraceEvent::Absorb(framed));
 }
 
 fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
@@ -69,7 +57,7 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
         None => vec![F::from_u64(label)],
     };
     append(transcript, trace, fields);
-    let sampled = transcript.challenge_fields_raw(2);
+    let sampled = transcript.squeeze_extension_v1_1();
     let value = neo_math::from_complex(sampled[0], sampled[1]);
     trace
         .events
@@ -77,40 +65,14 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
     value
 }
 
-fn append_commitment(fields: &mut Vec<F>, commitment: &Cmt) {
-    fields.push(F::from_u64(commitment.d as u64));
-    fields.push(F::from_u64(commitment.kappa as u64));
-    fields.extend_from_slice(&commitment.data);
-}
-
-fn append_running_claim(fields: &mut Vec<F>, claim: &CeClaim<Cmt, F, K>, matrix_count: usize) {
-    append_commitment(fields, &claim.c);
-    fields.push(F::from_u64(claim.m_in as u64));
-    fields.push(F::from_u64(claim.X.rows() as u64));
-    fields.push(F::from_u64(claim.X.cols() as u64));
-    for row in 0..claim.X.rows() {
-        for column in 0..claim.X.cols() {
-            fields.push(claim.X[(row, column)]);
-        }
+fn commitment_fields(commitment: &Cmt) -> Result<Vec<F>, PiCcsError> {
+    let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
+    if commitment.d != D || commitment.kappa != kappa || commitment.data.len() != D * kappa {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact v1_1 commitment does not have the fixed Ajtai shape".into(),
+        ));
     }
-    for value in &claim.r {
-        k_fields(fields, *value);
-    }
-    for matrix in 0..matrix_count {
-        for &value in claim
-            .y_ring
-            .get(matrix)
-            .into_iter()
-            .flatten()
-            .take(neo_math::D)
-        {
-            k_fields(fields, value);
-        }
-    }
-}
-
-fn paper_matrix_digest(structure: &CcsStructure<F>) -> Vec<F> {
-    crate::engines::utils::digest_ccs_matrices(structure)
+    Ok(commitment.data.clone())
 }
 
 fn paper_poly_eval(coefficients: &[K], point: K) -> K {
@@ -162,109 +124,46 @@ fn paper_interpolate(points: &[K], evaluations: &[K]) -> Vec<K> {
 pub(super) fn bind_and_sample(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
-    structure: &CcsStructure<F>,
+    _structure: &CcsStructure<F>,
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
     dims: JointDims,
-    binding: PaperTranscriptBinding,
+    _binding: PaperTranscriptBinding,
 ) -> Result<Challenges, PiCcsError> {
-    let matrix_digest = paper_matrix_digest(structure);
-    let mut public = vec![
-        F::from_u64(PUBLIC_INPUT_TAG),
-        F::from_u64(PROTOCOL_VERSION),
-        F::from_u64(dims.variables as u64),
-        F::from_u64(fresh.len() as u64),
-        F::from_u64(running.len() as u64),
-        F::from_u64(dims.matrix_count as u64),
-        F::from_u64(neo_math::D as u64),
-        F::from_u64(dims.assignment_width as u64),
-        F::from_u64(dims.row_count as u64),
-        F::from_u64(dims.degree as u64),
-        F::from_u64(structure.n as u64),
-        F::from_u64(structure.m as u64),
-    ];
-    public.extend(matrix_digest);
-    match binding {
-        PaperTranscriptBinding::Claims => {
-            public.push(F::ZERO);
-            for claim in running {
-                append_running_claim(&mut public, claim, dims.matrix_count);
-            }
-            for claim in fresh {
-                append_commitment(&mut public, &claim.c);
-                public.push(F::from_u64(claim.m_in as u64));
-                public.push(F::from_u64(claim.x.len() as u64));
-                public.extend_from_slice(&claim.x);
-            }
-        }
-        PaperTranscriptBinding::Digests {
-            public_instance_digest,
-            running_accumulator_handle,
-        } => {
-            public.push(F::from_u64(COMPACT_BINDING_TAG));
-            public.extend_from_slice(&public_instance_digest);
-            public.push(F::from_u64(running.len() as u64));
-            match running_accumulator_handle {
-                Some(handle) => {
-                    public.push(F::ONE);
-                    public.extend_from_slice(&handle);
-                }
-                None => public.push(F::ZERO),
-            }
-        }
+    if fresh.is_empty() || fresh[0].x.len() < 5 {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact v1_1 digest-only statement requires prior-digest slots in the first fresh claim".into(),
+        ));
     }
-    append(transcript, trace, public);
+    let prior_point = running
+        .first()
+        .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
+    if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact v1_1 running claims must share the complete prior point".into(),
+        ));
+    }
 
-    let prior_point = running.first().map(|claim| claim.r.as_slice());
-    let mut statement = vec![
-        F::from_u64(STATEMENT_TAG),
-        F::from_u64(dims.variables as u64),
-        F::from_u64(fresh.len() as u64),
-        F::from_u64(running.len() as u64),
-        F::from_u64(dims.matrix_count as u64),
-        F::from_u64(neo_math::D as u64),
-        F::from_u64(structure.max_degree() as u64),
-        F::from_u64(structure.f.terms().len() as u64),
-    ];
-    for term in structure.f.terms() {
-        statement.push(term.coeff);
-        statement.push(F::ZERO);
-        statement.push(F::ZERO);
-        statement.extend(term.exps.iter().map(|&value| F::from_u64(value as u64)));
-    }
-    match binding {
-        PaperTranscriptBinding::Claims => {
-            statement.push(F::ZERO);
-            statement.push(F::from_u64(dims.variables as u64));
-            for coordinate in 0..dims.variables {
-                k_fields(&mut statement, prior_point.map_or(K::ZERO, |point| point[coordinate]));
-            }
-            let carried_count = running.len() * dims.matrix_count * neo_math::D;
-            statement.push(F::from_u64(carried_count as u64));
-            for coefficient in 0..neo_math::D {
-                for matrix in 0..dims.matrix_count {
-                    for claim in running {
-                        let value = claim
-                            .y_ring
-                            .get(matrix)
-                            .and_then(|row| row.get(coefficient))
-                            .copied()
-                            .ok_or_else(|| {
-                                PiCcsError::InvalidInput("PaperExact carried statement is incomplete".into())
-                            })?;
-                        k_fields(&mut statement, value);
-                    }
-                }
-            }
-        }
-        PaperTranscriptBinding::Digests { .. } => statement.push(F::from_u64(COMPACT_BINDING_TAG)),
-    }
-    append(transcript, trace, statement);
+    transcript.reset_v1_1();
+    append(
+        transcript,
+        trace,
+        DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
+    );
 
-    let alpha = (0..dims.variables)
+    append_block(transcript, trace, fresh[0].x[1..5].to_vec());
+    for claim in fresh {
+        append_block(transcript, trace, commitment_fields(&claim.c)?);
+        append_block(transcript, trace, claim.x.clone());
+    }
+
+    let alpha: Vec<K> = (0..dims.variables)
         .map(|index| squeeze(transcript, trace, ALPHA_TAG, Some(index)))
         .collect();
     let gamma = squeeze(transcript, trace, GAMMA_TAG, None);
+    trace.alpha = alpha.clone();
+    trace.gamma = gamma;
+    trace.pre_sumcheck_state = transcript.state();
     Ok(Challenges::new(alpha, gamma))
 }
 
@@ -290,20 +189,18 @@ pub(super) fn prove_sumcheck<O: RoundOracle>(
             )));
         }
         let coefficients = paper_interpolate(&points, &evaluations);
-        let mut fields = vec![
-            F::from_u64(ROUND_TAG),
-            F::from_u64(round as u64),
-            F::from_u64(coefficients.len() as u64),
-        ];
+        let mut fields = vec![F::from_u64(round as u64)];
         for &coefficient in &coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append(transcript, trace, fields);
+        append_block(transcript, trace, fields);
         let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         running_claim = paper_poly_eval(&coefficients, challenge);
         oracle.fold(challenge);
         rounds.push(coefficients);
         challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(running_claim);
     }
     trace.rounds = rounds.clone();
     trace.round_challenges = challenges.clone();
@@ -332,18 +229,16 @@ pub(super) fn verify_sumcheck(
                 "PaperExact verifier rejected SumCheck round {round_index}"
             )));
         }
-        let mut fields = vec![
-            F::from_u64(ROUND_TAG),
-            F::from_u64(round_index as u64),
-            F::from_u64(coefficients.len() as u64),
-        ];
+        let mut fields = vec![F::from_u64(round_index as u64)];
         for &coefficient in coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append(transcript, trace, fields);
+        append_block(transcript, trace, fields);
         let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
         claim = paper_poly_eval(coefficients, challenge);
         challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(claim);
     }
     trace.rounds = rounds.to_vec();
     trace.round_challenges = challenges.clone();
@@ -369,24 +264,28 @@ pub(super) fn absorb_outputs(
     // message shape here. PiRLC binds its canonical digest before sampling
     // rho; PiCCS adds no extra non-paper output equation.
     for output in outputs {
-        if output.y_ring.len() != dims.matrix_count {
+        if output.eval_k.len() < neo_math::D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(
-                "PaperExact output matrix family is incomplete".into(),
+                "PaperExact output v1_1 families are incomplete".into(),
             ));
+        }
+        for coefficient in 0..neo_math::D {
+            k_fields(&mut fields, output.eval_k[coefficient]);
         }
         for matrix in 0..dims.matrix_count {
             for coefficient in 0..neo_math::D {
                 k_fields(
                     &mut fields,
-                    *output.y_ring[matrix]
+                    *output.eval_a[matrix]
                         .get(coefficient)
                         .ok_or_else(|| PiCcsError::InvalidInput("PaperExact ring output is incomplete".into()))?,
                 );
             }
         }
     }
-    let _ = fields;
-    let digest = transcript.digest32();
+    append_block(transcript, trace, fields);
+    trace.outgoing_state = transcript.state();
+    let digest = transcript.state_prefix_v1_1();
     trace.final_digest = digest;
     Ok(digest)
 }

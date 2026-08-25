@@ -2,10 +2,10 @@
 
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::utils::tensor_point;
-use neo_ccs::{CcsStructure, Mat};
+use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
-    compute_y_from_Z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
+    compute_v1_1_evaluations_from_z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use p3_field::PrimeCharacteristicRing;
@@ -41,14 +41,12 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
     Mat::from_row_major(D, cols, data)
 }
 
-fn manual_compute_y(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize, b: u32) -> (Vec<Vec<K>>, Vec<K>) {
+fn manual_compute_v1_1_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize) -> V1_1Evaluations<K> {
     let d_pad = 1usize << ell_d;
     let rb = tensor_point::<K>(r);
     let n_eff = core::cmp::min(s.n, rb.len());
     let cache = build_superneo_eval_cache(s).expect("expected SuperNeo cache");
     let z = decode_superneo_coeffs_from_witness_mat(Z, s.m).expect("decode packed coefficients");
-    let mut y_ring: Vec<Vec<K>> = Vec::with_capacity(s.t() + 1);
-
     let mut identity = [K::ZERO; D];
     for (row, &weight) in rb.iter().take(z.len()).enumerate() {
         let block = row / D;
@@ -69,28 +67,23 @@ fn manual_compute_y(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize, b: u
                 weight * K::from_coeffs([real_product.0[coefficient], imaginary_product.0[coefficient]]);
         }
     }
-    let mut identity = identity.to_vec();
-    identity.resize(d_pad, K::ZERO);
-    y_ring.push(identity);
+    let mut eval_k = identity.to_vec();
+    eval_k.resize(d_pad, K::ZERO);
 
     let y_raw = neo_reductions::superneo_eval::eval_all_mats_ring_cached(&cache, &z, &rb, n_eff);
+    let mut eval_a = Vec::with_capacity(s.t());
     for coeffs in y_raw.into_iter().take(s.t()) {
         let mut row = coeffs.to_vec();
         if d_pad > row.len() {
             row.resize(d_pad, K::ZERO);
         }
-        y_ring.push(row);
+        eval_a.push(row);
     }
-
-    let params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs(s.n).expect("params");
-    let mut params = params;
-    params.b = b;
-    let ct = neo_reductions::common::ct_from_y_ring_for_ccs_m(&y_ring, &params, s.m);
-    (y_ring, ct)
+    V1_1Evaluations { eval_k, eval_a }
 }
 
 #[test]
-fn compute_y_from_Z_and_r_superneo_compatible_matches_manual() {
+fn compute_v1_1_evaluations_superneo_compatible_match_manual() {
     let n = 16usize;
     let m = D; // SuperNeo-compatible width
     let s = CcsStructure::new(
@@ -119,13 +112,13 @@ fn compute_y_from_Z_and_r_superneo_compatible_matches_manual() {
     ]; // n_pad = 16
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
-    let got = compute_y_from_Z_and_r(&s, &Z, &r, ell_d, 2);
-    let want = manual_compute_y(&s, &Z, &r, ell_d, 2);
+    let got = compute_v1_1_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
+    let want = manual_compute_v1_1_evaluations(&s, &Z, &r, ell_d);
     assert_eq!(got, want);
 }
 
 #[test]
-fn compute_y_from_Z_and_r_nondiv_width_uses_packed_layout_without_cache() {
+fn compute_v1_1_evaluations_nondiv_width_use_packed_layout() {
     let n = 8usize;
     let m = D + 1; // non-divisible width uses packed ceil(m/D) layout.
     let s = CcsStructure::new(
@@ -154,9 +147,16 @@ fn compute_y_from_Z_and_r_nondiv_width_uses_packed_layout_without_cache() {
         K::from(F::from_u64(17)),
     ]; // n_pad = 8
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let (y_ring, ct) = compute_y_from_Z_and_r(&s, &Z, &r, ell_d, 2);
-    assert_eq!(y_ring.len(), ct.len());
-    for j in 0..y_ring.len() {
-        assert_eq!(ct[j], y_ring[j][0], "ct must be constant term for j={j}");
+    let evaluations = compute_v1_1_evaluations_from_z_and_r(&s, &Z, &r, ell_d);
+    let d_pad = D.next_power_of_two();
+    assert_eq!(evaluations.eval_k.len(), d_pad);
+    assert_eq!(evaluations.eval_a.len(), s.t());
+    for family in std::iter::once(&evaluations.eval_k).chain(&evaluations.eval_a) {
+        assert_eq!(
+            family.len(),
+            d_pad,
+            "each v1_1 evaluation family must use the padded ring width"
+        );
+        assert!(family[D..].iter().all(|value| *value == K::ZERO));
     }
 }

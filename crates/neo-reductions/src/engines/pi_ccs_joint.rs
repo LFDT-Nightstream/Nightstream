@@ -1,4 +1,4 @@
-//! Neutral contract data for the one-joint padded-row PiCCS protocol.
+//! Neutral contract data for the SuperNeo v1.1 PiCCS protocol.
 //!
 //! This module owns dimensions, tags, and audit-trace types. It does not own
 //! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
@@ -10,14 +10,9 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 use crate::error::PiCcsError;
 
-pub const PUBLIC_INPUT_TAG: u64 = 40;
-pub const PROTOCOL_VERSION: u64 = 2;
-pub const STATEMENT_TAG: u64 = 41;
-pub const ALPHA_TAG: u64 = 42;
-pub const GAMMA_TAG: u64 = 43;
-pub const ROUND_TAG: u64 = 45;
-pub const ROUND_CHALLENGE_TAG: u64 = 46;
-pub const COMPACT_BINDING_TAG: u64 = 47;
+pub const ALPHA_TAG: u64 = 1;
+pub const GAMMA_TAG: u64 = 2;
+pub const ROUND_CHALLENGE_TAG: u64 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JointDims {
@@ -122,9 +117,7 @@ pub fn build_joint_dims_for_shape(
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity row domain overflows usize".into()))?
         .max(2);
     let variables = row_count.trailing_zeros() as usize;
-    let matrix_count = matrix_count_without_identity
-        .checked_add(1)
-        .ok_or_else(|| PiCcsError::InvalidInput("matrix count overflow".into()))?;
+    let matrix_count = matrix_count_without_identity;
     let ccs_degree = (max_degree as usize)
         .checked_add(1)
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity degree overflows usize".into()))?;
@@ -162,13 +155,30 @@ pub enum TraceEvent {
     },
 }
 
+/// Complete verifier-computed SuperNeo v1.1 terminal components.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TerminalComponents {
+    pub eval_k: K,
+    pub eval_a: K,
+    pub ccs: K,
+    pub norm: K,
+    pub terminal: K,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProtocolTrace {
     pub events: Vec<TraceEvent>,
+    pub alpha: Vec<K>,
+    pub gamma: K,
+    pub pre_sumcheck_state: [F; 8],
     pub initial_claim: K,
     pub rounds: Vec<Vec<K>>,
     pub round_challenges: Vec<K>,
+    pub round_states: Vec<[F; 8]>,
+    pub round_claims: Vec<K>,
     pub terminal_claim: K,
+    pub terminal_components: TerminalComponents,
+    pub outgoing_state: [F; 8],
     pub final_digest: [u8; 32],
 }
 
@@ -198,16 +208,20 @@ pub fn equality(point: &[K], target: &[K]) -> K {
         })
 }
 
-/// Zero-based form of `2K+k+I(i,j,l)`.
-pub fn carried_gamma_exponent(
-    fresh_count: usize,
+/// Zero-based SuperNeo v1.1 `I_K(i, l) = i + k*l`.
+pub fn eval_k_gamma_exponent(running_count: usize, running: usize, coefficient: usize) -> usize {
+    running + running_count * coefficient
+}
+
+/// Zero-based SuperNeo v1.1 `I_A(i, j, l) = i + k*j + k*t*l`.
+pub fn eval_a_gamma_exponent(
     running_count: usize,
     matrix_count: usize,
     running: usize,
     matrix: usize,
     coefficient: usize,
 ) -> usize {
-    2 * fresh_count + running_count + running + running_count * matrix + running_count * matrix_count * coefficient
+    running + running_count * matrix + running_count * matrix_count * coefficient
 }
 
 pub fn range_product<Ff>(value: K, base: u32) -> K

@@ -138,8 +138,8 @@ fn padded_row_identity_uses_one_joint_row_cube() {
 }
 
 #[test]
-fn padded_row_identity_verify_rejects_stale_ct_shell() {
-    let label = b"test/padded_row_identity/stale_ct";
+fn padded_row_identity_verify_rejects_eval_k_mutation() {
+    let label = b"test/padded_row_identity/eval_k_mutation";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
     let (mut out_me, proof) = neo_reductions::api::prove(
@@ -156,7 +156,7 @@ fn padded_row_identity_verify_rejects_stale_ct_shell() {
     .expect("prove");
 
     assert!(!out_me.is_empty());
-    out_me[0].ct[0] += K::ONE;
+    out_me[0].eval_k[0] += K::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
     let result = neo_reductions::api::verify(
@@ -169,12 +169,12 @@ fn padded_row_identity_verify_rejects_stale_ct_shell() {
         &out_me,
         &proof,
     );
-    assert!(!matches!(result, Ok(true)), "stale ct shell was accepted");
+    assert!(!matches!(result, Ok(true)), "mutated Eval_K was accepted");
 }
 
 #[test]
-fn padded_row_identity_raw_verify_rejects_unbound_output_ct() {
-    let label = b"test/padded_row_identity/redteam/unbound_output_ct";
+fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
+    let label = b"test/padded_row_identity/redteam/eval_a_mutation";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
     let (mut outputs, proof) = neo_reductions::api::prove(
@@ -190,9 +190,8 @@ fn padded_row_identity_raw_verify_rejects_unbound_output_ct() {
     )
     .expect("prove");
 
-    assert_eq!(outputs[0].ct[0], outputs[0].y_ring[0][0]);
-    outputs[0].ct[0] += K::ONE;
-    assert_ne!(outputs[0].ct[0], outputs[0].y_ring[0][0]);
+    assert!(!outputs[0].eval_a.is_empty() && !outputs[0].eval_a[0].is_empty());
+    outputs[0].eval_a[0][0] += K::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
     let result = neo_reductions::api::verify(
@@ -208,7 +207,7 @@ fn padded_row_identity_raw_verify_rejects_unbound_output_ct() {
 
     assert!(
         !matches!(result, Ok(true)),
-        "raw Pi_CCS accepted an output CE claim whose ct disagrees with y_ring"
+        "raw PiCCS accepted a mutated Eval_A output"
     );
 }
 

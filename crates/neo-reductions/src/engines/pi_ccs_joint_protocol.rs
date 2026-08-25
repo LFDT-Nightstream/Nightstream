@@ -1,4 +1,4 @@
-//! Optimized-side protocol flow for one-joint padded-row PiCCS.
+//! Optimized-side protocol flow for SuperNeo v1.1 PiCCS.
 //!
 //! This file independently implements the Lean-owned transcript schedule. It
 //! does not call the PaperExact transcript, SumCheck driver, or proof assembly.
@@ -7,15 +7,18 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{
-    build_joint_dims, JointDims, ProtocolTrace, TraceEvent, ALPHA_TAG, COMPACT_BINDING_TAG, GAMMA_TAG,
-    PROTOCOL_VERSION, PUBLIC_INPUT_TAG, ROUND_CHALLENGE_TAG, ROUND_TAG, STATEMENT_TAG,
+    build_joint_dims, JointDims, ProtocolTrace, TraceEvent, ALPHA_TAG, GAMMA_TAG, ROUND_CHALLENGE_TAG,
 };
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
+
+/// One SuperNeo v1.1 output opening. Pad (`Eval_K`) is separate from the
+/// genuine CCS-matrix family (`Eval_A`).
+pub type V1_1OutputOpening = neo_ccs::V1_1Evaluations<K>;
 
 /// Fallible evaluator boundary for the selected one-joint SumCheck.
 ///
@@ -32,59 +35,41 @@ pub trait PaperJointRoundOracle {
     /// the evaluator can produce them without rebuilding its private state.
     /// The outer prover still validates the terminal claim and owns every
     /// transcript action. `None` selects the canonical host computation.
-    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<Vec<Vec<K>>>>, PiCcsError> {
+    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
         Ok(None)
     }
 }
 
-/// Fiat--Shamir binding profile for the interactive public statement.
-///
-/// `Claims` is the independent-reference profile. `Digests` is the recursive
-/// profile: the circuit recomputes both values from authoritative claim wires
-/// before it absorbs them. The digest form changes transport cost only; the
-/// joint polynomial and all prover messages stay unchanged.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TranscriptBinding {
-    Claims,
-    Digests {
-        public_instance_digest: [F; 4],
-        running_accumulator_handle: Option<[F; 4]>,
-    },
-}
-
-impl Default for TranscriptBinding {
-    fn default() -> Self {
-        Self::Claims
-    }
-}
+/// The one Lean-owned Fiat--Shamir binding profile.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TranscriptBinding;
 
 impl TranscriptBinding {
-    pub const fn claims() -> Self {
-        Self::Claims
-    }
-
-    pub const fn digest(public_instance_digest: [F; 4]) -> Self {
-        Self::Digests {
-            public_instance_digest,
-            running_accumulator_handle: None,
-        }
-    }
-
-    pub const fn digest_and_handle(public_instance_digest: [F; 4], running_accumulator_handle: [F; 4]) -> Self {
-        Self::Digests {
-            public_instance_digest,
-            running_accumulator_handle: Some(running_accumulator_handle),
-        }
+    pub const fn digest_only() -> Self {
+        Self
     }
 }
+
+const DOMAIN_TAG: &[u64] = &[
+    78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
+    83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
+];
 
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
 }
 
 fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
-    transcript.append_fields_unframed(&fields);
+    transcript.absorb_v1_1(&fields);
     trace.events.push(TraceEvent::Absorb(fields));
+}
+
+fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
+    transcript.absorb_block_v1_1(&fields);
+    let mut framed = Vec::with_capacity(fields.len() + 1);
+    framed.push(F::from_u64(fields.len() as u64));
+    framed.extend(fields);
+    trace.events.push(TraceEvent::Absorb(framed));
 }
 
 fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
@@ -93,7 +78,7 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
         None => vec![F::from_u64(label)],
     };
     append(transcript, trace, fields);
-    let sampled = transcript.challenge_fields_raw(2);
+    let sampled = transcript.squeeze_extension_v1_1();
     let value = neo_math::from_complex(sampled[0], sampled[1]);
     trace
         .events
@@ -101,30 +86,16 @@ fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, labe
     value
 }
 
-fn append_commitment(fields: &mut Vec<F>, commitment: &Cmt) {
-    fields.push(F::from_u64(commitment.d as u64));
-    fields.push(F::from_u64(commitment.kappa as u64));
-    fields.extend_from_slice(&commitment.data);
-}
-
-fn append_running_claim(fields: &mut Vec<F>, claim: &CeClaim<Cmt, F, K>, matrix_count: usize) {
-    append_commitment(fields, &claim.c);
-    fields.push(F::from_u64(claim.m_in as u64));
-    fields.push(F::from_u64(claim.X.rows() as u64));
-    fields.push(F::from_u64(claim.X.cols() as u64));
-    for row in 0..claim.X.rows() {
-        for column in 0..claim.X.cols() {
-            fields.push(claim.X[(row, column)]);
-        }
+fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiCcsError> {
+    if commitment.d != D
+        || commitment.kappa != params.kappa as usize
+        || commitment.data.len() != D * params.kappa as usize
+    {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_1 commitment does not have the fixed Ajtai shape".into(),
+        ));
     }
-    for &value in &claim.r {
-        k_fields(fields, value);
-    }
-    for matrix in 0..matrix_count {
-        for &value in claim.y_ring.get(matrix).into_iter().flatten().take(D) {
-            k_fields(fields, value);
-        }
-    }
+    Ok(commitment.data.clone())
 }
 
 fn validate_selected_inputs(
@@ -145,20 +116,23 @@ fn validate_selected_inputs(
             || claim.m_in % D != 0
             || claim.X.rows() != D
             || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
-            || claim.y_ring.len() != dims.matrix_count
-            || claim.ct.len() != dims.matrix_count
+            || claim.eval_k.len() != D.next_power_of_two()
+            || claim.eval_a.len() != dims.matrix_count
         {
             return Err(PiCcsError::InvalidInput(format!(
                 "optimized running claim {index} does not have the selected paper shape"
             )));
         }
-        for (matrix, coefficients) in claim.y_ring.iter().enumerate() {
-            if coefficients.len() != D.next_power_of_two()
-                || coefficients[0] != claim.ct[matrix]
-                || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
+        if claim.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "optimized running claim {index} Eval_K is not canonical"
+            )));
+        }
+        for (matrix, coefficients) in claim.eval_a.iter().enumerate() {
+            if coefficients.len() != D.next_power_of_two() || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
             {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "optimized running claim {index} matrix image {matrix} is not canonical"
+                    "optimized running claim {index} Eval_A matrix {matrix} is not canonical"
                 )));
             }
         }
@@ -174,117 +148,45 @@ pub(crate) fn bind_and_sample_with_trace(
     structure: &CcsStructure<F>,
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
-    binding: TranscriptBinding,
-    expected_matrix_digest: Option<&[F; 4]>,
+    _binding: TranscriptBinding,
+    _expected_matrix_digest: Option<&[F; 4]>,
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
-    let matrix_digest: [F; 4] = match expected_matrix_digest {
-        Some(matrix_digest) => *matrix_digest,
-        None => crate::engines::utils::digest_ccs_matrices(structure)
-            .try_into()
-            .map_err(|digest: Vec<F>| {
-                PiCcsError::ProtocolError(format!(
-                    "Pi_CCS expected four matrix-digest fields, got {}",
-                    digest.len()
-                ))
-            })?,
-    };
-    let mut public = vec![
-        F::from_u64(PUBLIC_INPUT_TAG),
-        F::from_u64(PROTOCOL_VERSION),
-        F::from_u64(dims.variables as u64),
-        F::from_u64(fresh.len() as u64),
-        F::from_u64(running.len() as u64),
-        F::from_u64(dims.matrix_count as u64),
-        F::from_u64(D as u64),
-        F::from_u64(dims.assignment_width as u64),
-        F::from_u64(dims.row_count as u64),
-        F::from_u64(dims.degree as u64),
-        F::from_u64(structure.n as u64),
-        F::from_u64(structure.m as u64),
-    ];
-    public.extend(matrix_digest);
-    match binding {
-        TranscriptBinding::Claims => {
-            public.push(F::ZERO);
-            for claim in running {
-                append_running_claim(&mut public, claim, dims.matrix_count);
-            }
-            for claim in fresh {
-                append_commitment(&mut public, &claim.c);
-                public.push(F::from_u64(claim.m_in as u64));
-                public.push(F::from_u64(claim.x.len() as u64));
-                public.extend_from_slice(&claim.x);
-            }
-        }
-        TranscriptBinding::Digests {
-            public_instance_digest,
-            running_accumulator_handle,
-        } => {
-            public.push(F::from_u64(COMPACT_BINDING_TAG));
-            public.extend_from_slice(&public_instance_digest);
-            public.push(F::from_u64(running.len() as u64));
-            match running_accumulator_handle {
-                Some(handle) => {
-                    public.push(F::ONE);
-                    public.extend_from_slice(&handle);
-                }
-                None => public.push(F::ZERO),
-            }
-        }
+    if fresh.is_empty() || fresh[0].x.len() < 5 {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_1 digest-only statement requires prior-digest slots in the first fresh claim".into(),
+        ));
     }
-    append(transcript, trace, public);
+    let prior_point = running
+        .first()
+        .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
+    if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_1 running claims must share the complete prior point".into(),
+        ));
+    }
 
-    let prior_point = running.first().map(|claim| claim.r.as_slice());
-    let mut statement = vec![
-        F::from_u64(STATEMENT_TAG),
-        F::from_u64(dims.variables as u64),
-        F::from_u64(fresh.len() as u64),
-        F::from_u64(running.len() as u64),
-        F::from_u64(dims.matrix_count as u64),
-        F::from_u64(D as u64),
-        F::from_u64(structure.max_degree() as u64),
-        F::from_u64(structure.f.terms().len() as u64),
-    ];
-    for term in structure.f.terms() {
-        statement.push(term.coeff);
-        statement.push(F::ZERO);
-        statement.push(F::ZERO);
-        statement.extend(term.exps.iter().map(|&value| F::from_u64(value as u64)));
-    }
-    match binding {
-        TranscriptBinding::Claims => {
-            statement.push(F::ZERO);
-            statement.push(F::from_u64(dims.variables as u64));
-            for coordinate in 0..dims.variables {
-                k_fields(&mut statement, prior_point.map_or(K::ZERO, |point| point[coordinate]));
-            }
-            statement.push(F::from_u64((running.len() * dims.matrix_count * D) as u64));
-            for coefficient in 0..D {
-                for matrix in 0..dims.matrix_count {
-                    for claim in running {
-                        let value = claim
-                            .y_ring
-                            .get(matrix)
-                            .and_then(|row| row.get(coefficient))
-                            .copied()
-                            .ok_or_else(|| {
-                                PiCcsError::InvalidInput("optimized carried statement is incomplete".into())
-                            })?;
-                        k_fields(&mut statement, value);
-                    }
-                }
-            }
-        }
-        TranscriptBinding::Digests { .. } => statement.push(F::from_u64(COMPACT_BINDING_TAG)),
-    }
-    append(transcript, trace, statement);
+    transcript.reset_v1_1();
+    append(
+        transcript,
+        trace,
+        DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
+    );
 
-    let alpha = (0..dims.variables)
+    append_block(transcript, trace, fresh[0].x[1..5].to_vec());
+    for claim in fresh {
+        append_block(transcript, trace, commitment_fields(&claim.c, params)?);
+        append_block(transcript, trace, claim.x.clone());
+    }
+
+    let alpha: Vec<K> = (0..dims.variables)
         .map(|index| squeeze(transcript, trace, ALPHA_TAG, Some(index)))
         .collect();
     let gamma = squeeze(transcript, trace, GAMMA_TAG, None);
+    trace.alpha = alpha.clone();
+    trace.gamma = gamma;
+    trace.pre_sumcheck_state = transcript.state();
     Ok((dims, Challenges::new(alpha, gamma)))
 }
 
@@ -311,20 +213,18 @@ pub fn prove_phase<O: PaperJointRoundOracle + ?Sized>(
             )));
         }
         let coefficients = crate::sumcheck::interpolate_from_evals(&points, &evaluations);
-        let mut fields = vec![
-            F::from_u64(ROUND_TAG),
-            F::from_u64(round as u64),
-            F::from_u64(coefficients.len() as u64),
-        ];
+        let mut fields = vec![F::from_u64(round as u64)];
         for &coefficient in &coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append(transcript, trace, fields);
+        append_block(transcript, trace, fields);
         let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         claim = crate::sumcheck::poly_eval_k(&coefficients, challenge);
         oracle.fold(challenge)?;
         rounds.push(coefficients);
         challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(claim);
     }
     trace.rounds = rounds.clone();
     trace.round_challenges = challenges.clone();
@@ -353,18 +253,16 @@ fn verify_phase(
                 "optimized verifier rejected SumCheck round {round_index}"
             )));
         }
-        let mut fields = vec![
-            F::from_u64(ROUND_TAG),
-            F::from_u64(round_index as u64),
-            F::from_u64(coefficients.len() as u64),
-        ];
+        let mut fields = vec![F::from_u64(round_index as u64)];
         for &coefficient in coefficients {
             k_fields(&mut fields, coefficient);
         }
-        append(transcript, trace, fields);
+        append_block(transcript, trace, fields);
         let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
         claim = crate::sumcheck::poly_eval_k(coefficients, challenge);
         challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(claim);
     }
     trace.rounds = rounds.to_vec();
     trace.round_challenges = challenges.clone();
@@ -373,21 +271,24 @@ fn verify_phase(
 }
 
 /// Encode the complete Section 7.3 output message in
-/// source/matrix/coefficient order. Each quadratic-extension value is low
-/// limb first.
+/// source/`Eval_K`/`Eval_A` order. Each quadratic-extension value is low limb
+/// first.
 pub fn output_message_fields(outputs: &[CeClaim<Cmt, F, K>], dims: JointDims) -> Result<Vec<F>, PiCcsError> {
-    let mut fields = vec![F::from_u64(COMPACT_BINDING_TAG)];
+    let mut fields = Vec::with_capacity(outputs.len() * (dims.matrix_count + 1) * D * 2);
     for output in outputs {
-        if output.y_ring.len() != dims.matrix_count {
+        if output.eval_k.len() < D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(
-                "optimized output matrix family is incomplete".into(),
+                "optimized output v1_1 families are incomplete".into(),
             ));
+        }
+        for coefficient in 0..D {
+            k_fields(&mut fields, output.eval_k[coefficient]);
         }
         for matrix in 0..dims.matrix_count {
             for coefficient in 0..D {
                 k_fields(
                     &mut fields,
-                    *output.y_ring[matrix]
+                    *output.eval_a[matrix]
                         .get(coefficient)
                         .ok_or_else(|| PiCcsError::InvalidInput("optimized ring output is incomplete".into()))?,
                 );
@@ -405,12 +306,10 @@ pub fn absorb_outputs(
     dims: JointDims,
 ) -> Result<[u8; 32], PiCcsError> {
     let _ = fresh_count;
-    // The output message is the input to Pi_RLC. Pi_RLC recomputes and
-    // absorbs its canonical output digest before it samples rho. Pi_CCS must
-    // therefore finish here, after it checks the output values but before the
-    // next reduction binds them. This is the paper's interactive order.
-    let _ = output_message_fields(outputs, dims)?;
-    let digest = transcript.digest32();
+    let fields = output_message_fields(outputs, dims)?;
+    append_block(transcript, trace, fields);
+    trace.outgoing_state = transcript.state();
+    let digest = transcript.state_prefix_v1_1();
     trace.final_digest = digest;
     Ok(digest)
 }
@@ -438,18 +337,20 @@ fn validate_outputs(
         if output.r != point
             || output.X.rows() != D
             || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
-            || output.y_ring.len() != dims.matrix_count
-            || output.ct.len() != dims.matrix_count
+            || output.eval_k.len() != D.next_power_of_two()
+            || output.eval_a.len() != dims.matrix_count
         {
             return Err(PiCcsError::InvalidInput(
                 "optimized output does not have the one-joint shape".into(),
             ));
         }
-        for (matrix, row) in output.y_ring.iter().enumerate() {
-            if row.len() != D.next_power_of_two()
-                || row[0] != output.ct[matrix]
-                || row.iter().skip(D).any(|&value| value != K::ZERO)
-            {
+        if output.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(
+                "optimized Eval_K output is not canonical".into(),
+            ));
+        }
+        for row in &output.eval_a {
+            if row.len() != D.next_power_of_two() || row.iter().skip(D).any(|&value| value != K::ZERO) {
                 return Err(PiCcsError::InvalidInput("optimized output is not canonical".into()));
             }
         }
@@ -512,7 +413,7 @@ pub(crate) fn verify_with_trace(
         crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, fresh.len(), running)?;
     let (point, final_claim) = verify_phase(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
     validate_outputs(structure, fresh, running, outputs, &point, dims)?;
-    let expected = crate::engines::optimized_engine::paper_joint::terminal::<F>(
+    let terminal = crate::engines::optimized_engine::paper_joint::terminal_components::<F>(
         structure,
         params,
         &challenges,
@@ -521,6 +422,8 @@ pub(crate) fn verify_with_trace(
         &point,
         outputs,
     )?;
+    let expected = terminal.terminal;
+    trace.terminal_components = terminal;
     let digest = absorb_outputs(transcript, &mut trace, outputs, fresh.len(), dims)?;
     if outputs.iter().any(|output| output.fold_digest != digest) {
         return Err(PiCcsError::ProtocolError(
@@ -590,6 +493,6 @@ pub fn verify(
         running,
         outputs,
         proof,
-        TranscriptBinding::claims(),
+        TranscriptBinding::digest_only(),
     )
 }

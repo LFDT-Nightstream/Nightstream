@@ -1,10 +1,11 @@
-//! Optimized PiDEC claim construction for the selected identity-first relation.
+//! Optimized PiDEC claim construction for the SuperNeo v1.1 relation.
 //!
 //! This file owns child evaluation and radix recomposition. It does not own
 //! commitments, transcript messages, or PaperExact computations.
 
 #![allow(non_snake_case)]
 
+use crate::engines::pi_ccs_joint_protocol::V1_1OutputOpening;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, K};
@@ -12,6 +13,11 @@ use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
+
+fn extension_block(values: &[K]) -> [K; D] {
+    assert_eq!(values.len(), D, "v1_1 opening must contain exactly D coefficients");
+    core::array::from_fn(|coefficient| values[coefficient])
+}
 
 pub fn dec_reduction_optimized<Ff>(
     s: &CcsStructure<Ff>,
@@ -51,7 +57,7 @@ pub fn dec_reduction_optimized_with_digit_flags<Ff>(
     ell_d: usize,
     cache: &crate::superneo_eval::SuperneoEvalCache,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_openings: Option<&[V1_1OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -71,7 +77,7 @@ where
         Some(cache),
         Some(digit_nonzero),
         ring_linear_forms,
-        precomputed_y_ring,
+        precomputed_openings,
     )
 }
 
@@ -84,7 +90,7 @@ fn dec_reduction_optimized_inner<Ff>(
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_openings: Option<&[V1_1OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -93,32 +99,27 @@ where
     assert!(!Z_split.is_empty(), "PiDEC needs at least one digit witness");
     let d_pad = 1usize << ell_d;
     assert_eq!(d_pad, D.next_power_of_two(), "PiDEC ell_d is not canonical");
-    let matrix_count = s.t() + 1;
-    assert_eq!(
-        parent.y_ring.len(),
-        matrix_count,
-        "PiDEC requires the identity-first paper matrix count"
-    );
-    assert_eq!(parent.ct.len(), matrix_count, "PiDEC ct count mismatch");
+    let matrix_count = s.t();
+    assert_eq!(parent.eval_k.len(), d_pad, "PiDEC Eval_K width mismatch");
+    assert_eq!(parent.eval_a.len(), matrix_count, "PiDEC Eval_A count mismatch");
     if let Some(forms) = ring_linear_forms {
         assert_eq!(forms.len(), s.t(), "PiDEC ring-form count mismatch");
     }
-    if let Some(rows) = precomputed_y_ring {
-        assert_eq!(rows.len(), Z_split.len(), "PiDEC precomputed child count mismatch");
+    if let Some(openings) = precomputed_openings {
+        assert_eq!(openings.len(), Z_split.len(), "PiDEC precomputed child count mismatch");
         assert!(
-            rows.iter()
-                .all(|child| child.len() == s.t() || child.len() == matrix_count),
-            "PiDEC precomputed matrix count mismatch"
+            openings
+                .iter()
+                .all(|child| child.eval_k.len() == D && child.eval_a.len() == matrix_count),
+            "PiDEC precomputed v1_1 shape mismatch"
         );
     }
     assert!(
-        precomputed_y_ring.is_none() || ring_linear_forms.is_none(),
+        precomputed_openings.is_none() || ring_linear_forms.is_none(),
         "PiDEC accepts precomputed rows or ring forms, not both"
     );
 
-    let full_precomputed_rows =
-        precomputed_y_ring.is_some_and(|rows| rows.iter().all(|child| child.len() == matrix_count));
-    let row_weights = if full_precomputed_rows {
+    let row_weights = if precomputed_openings.is_some() {
         Vec::new()
     } else {
         neo_ccs::utils::tensor_point_parallel::<K>(&parent.r)
@@ -130,7 +131,7 @@ where
         cache,
         digit_nonzero,
         ring_linear_forms,
-        precomputed_y_ring,
+        precomputed_openings,
     );
     let m_in = parent.m_in;
     let build_child = |index: usize| {
@@ -140,8 +141,8 @@ where
                 c: parent.c.clone(),
                 X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), Ff::ZERO),
                 r: parent.r.clone(),
-                y_ring: vec![vec![K::ZERO; d_pad]; matrix_count],
-                ct: vec![K::ZERO; matrix_count],
+                eval_k: vec![K::ZERO; d_pad],
+                eval_a: vec![vec![K::ZERO; d_pad]; matrix_count],
                 m_in,
                 fold_digest: parent.fold_digest,
             };
@@ -150,30 +151,30 @@ where
         let witness = &Z_split[index];
         let X = crate::common::project_x_from_witness_mat(witness, s.m, m_in)
             .unwrap_or_else(|error| panic!("PiDEC X projection failed: {error}"));
-        let identity = precomputed_y_ring
-            .and_then(|rows| (rows[index].len() == matrix_count).then_some(rows[index][0]))
+        let identity = precomputed_openings
+            .map(|openings| extension_block(&openings[index].eval_k))
             .unwrap_or_else(|| {
                 let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, s.m)
                     .unwrap_or_else(|error| panic!("PiDEC identity assignment decode failed: {error}"));
                 super::paper_joint::identity_ring_mle(&assignment, &row_weights)
             });
-        let mut identity = identity.to_vec();
-        identity.resize(d_pad, K::ZERO);
-        let mut y_ring = Vec::with_capacity(matrix_count);
-        y_ring.push(identity);
-        y_ring.extend(streamed[index].iter().map(|coefficients| {
-            let mut row = coefficients.to_vec();
-            row.resize(d_pad, K::ZERO);
-            row
-        }));
-        let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
+        let mut eval_k = identity.to_vec();
+        eval_k.resize(d_pad, K::ZERO);
+        let eval_a = streamed[index]
+            .iter()
+            .map(|coefficients| {
+                let mut row = coefficients.to_vec();
+                row.resize(d_pad, K::ZERO);
+                row
+            })
+            .collect();
         CeClaim {
             adv: None,
             c: parent.c.clone(),
             X,
             r: parent.r.clone(),
-            y_ring,
-            ct,
+            eval_k,
+            eval_a,
             m_in,
             fold_digest: parent.fold_digest,
         }
@@ -189,16 +190,27 @@ where
 
     let base_f = Ff::from_u64(params.b as u64);
     let base_k = K::from(base_f);
-    let y_ok = (0..matrix_count).all(|matrix| {
+    let eval_k_ok = {
         let mut sum = vec![K::ZERO; d_pad];
         let mut power = K::ONE;
         for child in &children {
-            for (left, right) in sum.iter_mut().zip(&child.y_ring[matrix]) {
+            for (left, right) in sum.iter_mut().zip(&child.eval_k) {
                 *left += power * *right;
             }
             power *= base_k;
         }
-        sum == parent.y_ring[matrix]
+        sum == parent.eval_k
+    };
+    let eval_a_ok = (0..matrix_count).all(|matrix| {
+        let mut sum = vec![K::ZERO; d_pad];
+        let mut power = K::ONE;
+        for child in &children {
+            for (left, right) in sum.iter_mut().zip(&child.eval_a[matrix]) {
+                *left += power * *right;
+            }
+            power *= base_k;
+        }
+        sum == parent.eval_a[matrix]
     });
     let x_ok = (0..D).all(|row| {
         (0..parent.X.cols()).all(|column| {
@@ -211,7 +223,7 @@ where
             sum == parent.X[(row, column)]
         })
     });
-    (children, y_ok, x_ok)
+    (children, eval_k_ok && eval_a_ok, x_ok)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -222,21 +234,21 @@ fn streamed_application_rows<Ff>(
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_openings: Option<&[V1_1OutputOpening]>,
 ) -> Vec<Vec<[K; D]>>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    if let Some(rows) = precomputed_y_ring {
-        return rows
+    if let Some(openings) = precomputed_openings {
+        return openings
             .iter()
             .map(|child| {
-                if child.len() == s.t() + 1 {
-                    child[1..].to_vec()
-                } else {
-                    child.clone()
-                }
+                child
+                    .eval_a
+                    .iter()
+                    .map(|row| extension_block(row))
+                    .collect()
             })
             .collect();
     }

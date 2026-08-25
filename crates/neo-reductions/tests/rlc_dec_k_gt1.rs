@@ -11,11 +11,12 @@ use neo_reductions::api::{
     rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
 };
 use neo_reductions::common::{
-    compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats, sample_rot_rhos_n,
-    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range, RotRing,
+    compute_v1_1_evaluations_from_z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats,
+    sample_rot_rhos_n, sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range,
+    RotRing,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 fn k(v: u64) -> K {
@@ -168,13 +169,23 @@ fn typed_rhos(params: &NeoParams, rhos: &[Mat<F>]) -> Vec<neo_reductions::api::R
     neo_reductions::api::rot_rhos_from_mats(params, rhos, "rlc_dec_k_gt1:test rhos").expect("typed rhos")
 }
 
+fn v1_1_test_transcript(domain: &[u8]) -> Poseidon2Transcript {
+    let mut transcript = Poseidon2Transcript::new_v1_1();
+    let domain_fields = domain
+        .iter()
+        .map(|byte| F::from_u64(u64::from(*byte)))
+        .collect::<Vec<_>>();
+    transcript.absorb_block_v1_1(&domain_fields);
+    transcript
+}
+
 fn sampled_rhos(params: &NeoParams, count: usize, alternate: bool) -> (Vec<neo_reductions::api::RotRho>, Vec<Mat<F>>) {
     let domain: &'static [u8] = if alternate {
         b"rlc_dec_k_gt1/alternate"
     } else {
         b"rlc_dec_k_gt1/primary"
     };
-    let mut transcript = Poseidon2Transcript::new(domain);
+    let mut transcript = v1_1_test_transcript(domain);
     let typed = sample_rot_rhos_n_typed(&mut transcript, params, &RotRing::goldilocks(), count)
         .expect("sample selected strong-set rhos");
     let matrices = rot_rhos_to_mats(&typed);
@@ -196,7 +207,7 @@ fn combine_z_with_rhos(rhos: &[Mat<F>], Zs: &[Mat<F>]) -> Mat<F> {
 }
 
 fn build_me_from_z(
-    params: &NeoParams,
+    _params: &NeoParams,
     s: &CcsStructure<F>,
     Z: &Mat<F>,
     r: &[K],
@@ -205,15 +216,15 @@ fn build_me_from_z(
     c: Commitment,
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
-    let (y_ring, ct) = compute_y_from_Z_and_r(s, Z, r, ell_d, params.b);
+    let evaluations = compute_v1_1_evaluations_from_z_and_r(s, Z, r, ell_d);
     let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
     CeClaim {
         adv: None,
         c,
         X,
         r: r.to_vec(),
-        y_ring,
-        ct,
+        eval_k: evaluations.eval_k,
+        eval_a: evaluations.eval_a,
         m_in,
         fold_digest: [0u8; 32],
     }
@@ -279,21 +290,6 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     assert_eq!(resident_parent, parent);
     assert_eq!(resident_shape, (rhos.len(), Zs.len(), Zs[0].cols()));
 
-    let mut me_inputs_stale = me_inputs.clone();
-    me_inputs_stale[1].ct[0] += K::ONE;
-    let stale_result = rlc_public(
-        &s,
-        &params,
-        &rhos_typed,
-        &me_inputs_stale,
-        mix_commitments_from_rhos,
-        ell_d,
-    );
-    assert!(
-        stale_result.is_err(),
-        "selected public RLC must reject a stale ct shell"
-    );
-
     let want_Z_mix = combine_z_with_rhos(&rhos, &Zs);
     assert_eq!(Z_mix, want_Z_mix, "Z_mix must equal Σ ρ_i · Z_i");
 
@@ -336,7 +332,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         Zs.push(Z);
     }
 
-    let mut transcript = Poseidon2Transcript::new(b"rlc sampled rotation rho test");
+    let mut transcript = v1_1_test_transcript(b"rlc sampled rotation rho test");
     let rhos_typed =
         sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
@@ -390,7 +386,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         Zs.push(Z);
     }
 
-    let mut transcript = Poseidon2Transcript::new(b"rlc sparse rotation rhs test");
+    let mut transcript = v1_1_test_transcript(b"rlc sparse rotation rhs test");
     let rhos_typed =
         sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
@@ -444,7 +440,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
         Zs.push(Z);
     }
 
-    let mut transcript = Poseidon2Transcript::new(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
+    let mut transcript = v1_1_test_transcript(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
     let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos");
     assert!(
         rhos.iter()
@@ -533,39 +529,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     .expect("verified-inputs rlc_public_matches_with_perf");
     assert_eq!(verified_ok, full_ok, "fast path must agree on valid verified inputs");
     assert!(verified_ok, "valid verified inputs must satisfy the public RLC check");
-
-    let mut me_inputs_stale = me_inputs.clone();
-    me_inputs_stale[2].ct[0] += K::ONE;
-    let mut parent_stale = parent.clone();
-    parent_stale.ct[0] += K::ONE;
-    let (full_ok_stale, _) = rlc_public_matches_with_perf(
-        &s,
-        &params,
-        &rhos_typed,
-        &me_inputs_stale,
-        &parent_stale,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("full stale-ct rlc_public_matches_with_perf");
-    let (verified_ok_stale, _) = rlc_public_matches_verified_inputs_with_perf(
-        &s,
-        &params,
-        &rhos_typed,
-        &me_inputs_stale,
-        &parent_stale,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("verified-inputs stale-ct rlc_public_matches_with_perf");
-    assert_eq!(
-        verified_ok_stale, full_ok_stale,
-        "fast path must agree on stale-ct shell inputs"
-    );
-    assert!(
-        !verified_ok_stale,
-        "same-shape stale combined.ct must fail the public RLC check"
-    );
 
     let (rhos_tampered, _) = sampled_rhos(&params, Zs.len(), true);
     let (full_bad, _) = rlc_public_matches_with_perf(
@@ -698,7 +661,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     ));
 
     let mut tampered_child = children.clone();
-    tampered_child[2].ct[0] += K::ONE;
+    tampered_child[2].eval_a[0][0] += K::ONE;
     assert!(!verify_dec_public(
         &s,
         &params,
@@ -882,5 +845,6 @@ fn rlc_with_commit_k61_boundary_smoke() {
     let parent_public =
         rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("k=61 rlc_public");
     assert_eq!(parent, parent_public, "k=61: public recompute mismatch");
-    assert_eq!(parent.y_ring.len(), s.t() + 1);
+    assert_eq!(parent.eval_a.len(), s.t());
+    assert_eq!(parent.eval_k.len(), D.next_power_of_two());
 }

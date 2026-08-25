@@ -24,8 +24,8 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; ell_n],
-        y_ring: Vec::new(),
-        ct: Vec::new(),
+        eval_k: Vec::new(),
+        eval_a: Vec::new(),
         m_in: 1,
         fold_digest: [0; 32],
         adv: None,
@@ -50,7 +50,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
 }
 
 #[test]
-fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
+fn public_pi_ccs_verifier_handles_documented_unpadded_v1_1_evaluations() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("params");
@@ -66,8 +66,8 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; ell_n],
-        y_ring: vec![vec![K::ZERO; D]],
-        ct: vec![K::ZERO],
+        eval_k: vec![K::ZERO; D],
+        eval_a: vec![vec![K::ZERO; D]],
         m_in: 1,
         fold_digest: [0; 32],
         adv: None,
@@ -75,7 +75,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded_y_ring");
+        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_1-evaluations");
         neo_reductions::api::verify(
             neo_reductions::api::FoldingMode::Optimized,
             &mut transcript,

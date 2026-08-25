@@ -11,7 +11,9 @@ use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace};
 use crate::engines::pi_ccs_protocol::PiCcsProof;
 use crate::error::PiCcsError;
 
-use super::paper_joint::{dimensions, initial_claim, paper_prior_point, terminal, validate_public_instances};
+use super::paper_joint::{
+    dimensions, initial_claim, paper_prior_point, terminal_components, validate_public_instances,
+};
 use super::transcript::{absorb_outputs, bind_and_sample, verify_sumcheck, PaperTranscriptBinding};
 
 fn validate_outputs(
@@ -30,20 +32,23 @@ fn validate_outputs(
         if output.r != point
             || output.X.rows() != D
             || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
-            || output.y_ring.len() != dims.matrix_count
-            || output.ct.len() != dims.matrix_count
+            || output.eval_k.len() != D.next_power_of_two()
+            || output.eval_a.len() != dims.matrix_count
         {
             return Err(PiCcsError::InvalidInput(format!(
-                "PaperExact output {index} does not have the canonical one-joint shape"
+                "PaperExact output {index} does not have the canonical v1_1 shape"
             )));
         }
-        for (matrix, coefficients) in output.y_ring.iter().enumerate() {
-            if coefficients.len() != D.next_power_of_two()
-                || coefficients[0] != output.ct[matrix]
-                || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
+        if output.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact output {index} Eval_K is not canonical"
+            )));
+        }
+        for (matrix, coefficients) in output.eval_a.iter().enumerate() {
+            if coefficients.len() != D.next_power_of_two() || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
             {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "PaperExact output {index} matrix {matrix} is not canonical"
+                    "PaperExact output {index} Eval_A matrix {matrix} is not canonical"
                 )));
             }
         }
@@ -77,7 +82,7 @@ fn validate_outputs(
     Ok(())
 }
 
-pub(crate) fn paper_exact_verify_with_trace(
+pub fn paper_exact_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -94,7 +99,7 @@ pub(crate) fn paper_exact_verify_with_trace(
         running_claims,
         outputs,
         proof,
-        PaperTranscriptBinding::claims(),
+        PaperTranscriptBinding::digest_only(),
     )
 }
 
@@ -125,7 +130,7 @@ pub(crate) fn paper_exact_verify_with_trace_and_binding(
     let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
     let (point, final_claim) = verify_sumcheck(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
     validate_outputs(fresh_claims, running_claims, outputs, &point, dims)?;
-    let expected = terminal::<F>(
+    let terminal = terminal_components::<F>(
         structure,
         params,
         &challenges,
@@ -134,6 +139,8 @@ pub(crate) fn paper_exact_verify_with_trace_and_binding(
         &point,
         outputs,
     )?;
+    let expected = terminal.terminal;
+    trace.terminal_components = terminal;
     let digest = absorb_outputs(transcript, &mut trace, outputs, fresh_claims.len(), dims)?;
     if outputs.iter().any(|output| output.fold_digest != digest) {
         return Err(PiCcsError::ProtocolError(
@@ -160,32 +167,6 @@ pub fn paper_exact_verify(
         running_claims,
         outputs,
         proof,
-    )?
-    .0)
-}
-
-/// PaperExact verifier entrypoint for the compact NIFS statement binding.
-#[allow(clippy::too_many_arguments)]
-pub fn paper_exact_verify_with_instance_digest_and_me_input_handle(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-    public_instance_digest: [F; 4],
-    running_accumulator_handle: [F; 4],
-) -> Result<bool, PiCcsError> {
-    Ok(paper_exact_verify_with_trace_and_binding(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        running_claims,
-        outputs,
-        proof,
-        PaperTranscriptBinding::digests(public_instance_digest, Some(running_accumulator_handle)),
     )?
     .0)
 }

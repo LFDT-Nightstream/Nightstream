@@ -21,7 +21,7 @@ use crate::{
   },
 };
 use neo_params::{
-  goldilocks_paper_b2::{EXTENSION_DEGREE, KAPPA, LAMBDA},
+  goldilocks_paper_b2::{KAPPA, LAMBDA},
   poseidon2_goldilocks::{DIGEST_LEN, RATE, SEED, WIDTH},
 };
 use p3_challenger_whir::{CanObserve, DuplexChallenger, FieldChallenger};
@@ -48,7 +48,7 @@ use std::{
   sync::{Arc, Mutex},
 };
 
-type WhirExtension = p3_field_whir::extension::BinomialExtensionField<WhirBase, 2>;
+type WhirExtension = p3_field_whir::extension::CubicTrinomialExtensionField<WhirBase>;
 type WhirPermutation = Poseidon2Goldilocks<WIDTH>;
 type WhirHash = PaddingFreeSponge<WhirPermutation, WIDTH, RATE, DIGEST_LEN>;
 type WhirCompress = TruncatedPermutation<WhirPermutation, 2, DIGEST_LEN, WIDTH>;
@@ -58,6 +58,7 @@ type WhirMmcs =
   MerkleTreeMmcs<PackedWhirBase, PackedWhirBase, WhirHash, WhirCompress, 2, DIGEST_LEN>;
 type WhirDft = Radix2DFTSmallBatch<WhirBase>;
 type WhirLayout = SuffixProver<WhirBase, WhirExtension>;
+type WhirConfiguration = WhirConfig<WhirExtension, WhirBase, WhirChallenger>;
 type WhirRuntime =
   WhirProver<WhirExtension, WhirBase, WhirDft, WhirMmcs, WhirChallenger, WhirLayout>;
 type RawCommitment = MerkleCap<WhirBase, [WhirBase; DIGEST_LEN]>;
@@ -67,7 +68,6 @@ type RawProof = p3_whir::PcsProof<WhirBase, WhirExtension, WhirMmcs>;
 const OUTER_DOMAIN: &[u8] = b"wip-spartan/whir-pcs/v1";
 const INTERNAL_DOMAIN: &[u8] = b"wip-spartan/whir-pcs/internal/v1";
 
-const _: () = assert!(EXTENSION_DEGREE == 2);
 const _: () = assert!(WIDTH == RATE + neo_params::poseidon2_goldilocks::CAPACITY);
 
 /// Target soundness of the standalone WHIR PCS, inherited from SuperNeo's profile.
@@ -76,8 +76,11 @@ pub const WHIR_SECURITY_LEVEL: usize = LAMBDA as usize;
 /// Maximum grinding budget of the standalone WHIR PCS, inherited from SuperNeo's profile.
 pub const WHIR_POW_BITS: usize = KAPPA as usize;
 
-/// Extension degree used for WHIR challenges and sum-checks.
-pub const WHIR_EXTENSION_DEGREE: usize = EXTENSION_DEGREE as usize;
+/// Extension degree used only for WHIR challenges and sum-checks.
+pub const WHIR_EXTENSION_DEGREE: usize = 3;
+
+/// Initial WHIR code rate is `1/2`.
+pub const WHIR_STARTING_LOG_INV_RATE: usize = 1;
 
 /// Serializable setup material for WHIR commitments.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,23 +250,35 @@ fn folding_factor(num_variables: usize) -> usize {
   num_variables.saturating_sub(1).clamp(1, 5)
 }
 
-fn build_runtime(num_variables: usize) -> Result<WhirRuntime, SpartanError> {
+fn protocol_parameters(num_variables: usize) -> ProtocolParameters {
+  ProtocolParameters {
+    starting_log_inv_rate: WHIR_STARTING_LOG_INV_RATE,
+    round_log_inv_rates: Vec::new(),
+    folding_factor: FoldingFactor::Constant(folding_factor(num_variables)),
+    soundness_type: SecurityAssumption::UniqueDecoding,
+    security_level: WHIR_SECURITY_LEVEL,
+    pow_bits: WHIR_POW_BITS,
+  }
+}
+
+fn build_config(num_variables: usize) -> Result<WhirConfiguration, SpartanError> {
   if num_variables == 0 {
     return Err(invalid_input(
       "WHIR requires at least one multilinear variable",
     ));
   }
 
-  let params = ProtocolParameters {
-    starting_log_inv_rate: 1,
-    round_log_inv_rates: Vec::new(),
-    folding_factor: FoldingFactor::Constant(folding_factor(num_variables)),
-    soundness_type: SecurityAssumption::UniqueDecoding,
-    security_level: WHIR_SECURITY_LEVEL,
-    pow_bits: WHIR_POW_BITS,
-  };
-  let config = WhirConfig::<WhirExtension, WhirBase, WhirChallenger>::new(num_variables, params)
-    .map_err(|err| internal_error(format!("invalid WHIR configuration: {err}")))?;
+  WhirConfiguration::new(num_variables, protocol_parameters(num_variables))
+    .map_err(|err| internal_error(format!("invalid WHIR configuration: {err}")))
+}
+
+/// Check that a polynomial size has a valid production WHIR configuration.
+pub fn validate_whir_configuration(num_variables: usize) -> Result<(), SpartanError> {
+  build_config(num_variables).map(|_| ())
+}
+
+fn build_runtime(num_variables: usize) -> Result<WhirRuntime, SpartanError> {
+  let config = build_config(num_variables)?;
   let max_fft_size = 1usize
     .checked_shl(config.max_fft_size() as u32)
     .ok_or_else(|| internal_error("WHIR FFT size does not fit usize"))?;

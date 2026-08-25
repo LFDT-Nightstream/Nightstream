@@ -8,6 +8,7 @@ use wip_spartan::{
     pcs::whir_pc::{
       WHIR_EXTENSION_DEGREE, WHIR_POW_BITS, WHIR_SECURITY_LEVEL, WhirBlind, WhirCommitment,
       WhirCommitmentKey, WhirEvaluationArgument, WhirPcsP3, WhirVerifierKey,
+      validate_whir_configuration,
     },
   },
   traits::{Engine, pcs::PCSEngineTrait, transcript::TranscriptEngineTrait},
@@ -82,7 +83,7 @@ fn whir_field_and_poseidon2_match_superneo_across_p3_versions() {
 fn whir_roundtrip_uses_superneo_profile_and_survives_serialization() {
   assert_eq!(WHIR_SECURITY_LEVEL, 125);
   assert_eq!(WHIR_POW_BITS, 18);
-  assert_eq!(WHIR_EXTENSION_DEGREE, 2);
+  assert_eq!(WHIR_EXTENSION_DEGREE, 3);
 
   let num_variables = 4;
   let poly = polynomial(num_variables);
@@ -124,6 +125,11 @@ fn whir_roundtrip_uses_superneo_profile_and_survives_serialization() {
     &argument,
   )
   .unwrap();
+}
+
+#[test]
+fn whir_configures_the_stage1_pilot_within_the_profile_budget() {
+  validate_whir_configuration(24).unwrap();
 }
 
 #[test]

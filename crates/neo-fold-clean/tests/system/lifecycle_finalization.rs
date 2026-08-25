@@ -971,21 +971,21 @@ fn verify_uncompressed_audit_rejects_tampered_stateless_step_proof_semantic_stat
 }
 
 // `verify_uncompressed`'s witness-authority block (step 5) must enforce
-// all five terminal obligations against each `(claim, witness Z)`:
+// all four terminal obligations against each `(claim, witness Z)`:
 //
-//   commit(Z) == claim.c          | Ajtai opening
-//   project_x(Z) == claim.X       | public-input projection
-//   ||Z||_∞ < b                   | low-norm digit-range
-//   y_ring[j] == M_j · Z(r)       | CE-relation closure (this test)
-//   ct[j] == const-term(y_ring[j]) | scalar-view closure
+//   commit(Z) == claim.c           | Ajtai opening
+//   project_x(Z) == claim.X        | public-input projection
+//   ||Z||_∞ < b                    | low-norm digit-range
+//   Eval_K == Pad · Z(r) and
+//   Eval_A[j] == M_j · Z(r)        | CE-relation closure (this test)
 // The `acc_digest` chain hash only carries commitment data, so a
-// malformed `y_ring` slips past the binding pipeline. The CE-relation
+// malformed evaluation family slips past the binding pipeline. The CE-relation
 // row is what catches it. Test exercises `validate_final_witness_authority`
 // directly (the per-claim helper) so the rejection is unambiguously
 // the CE-relation check, not the chain-replay binding step.
 
 #[test]
-fn final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r() {
+fn final_witness_authority_rejects_eval_k_inconsistent_with_pad_z_at_r() {
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 71)]])
         .expect("one-batch uncompressed proof");
@@ -997,28 +997,26 @@ fn final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r() {
     neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &honest_running)
         .expect("honest running passes the full witness-authority gate");
 
-    // Tamper: mutate y_ring[0][0] on the first claim. Witness Z stays
+    // Tamper the separate Pad family on the first claim. Witness Z stays
     // honest, so commit/X/low-norm still pass. Only the CE-relation
     // row can fail.
     let mut tampered_running = honest_running;
     assert!(
-        !tampered_running.claims.is_empty()
-            && !tampered_running.claims[0].y_ring.is_empty()
-            && !tampered_running.claims[0].y_ring[0].is_empty(),
-        "test setup requires a non-empty y_ring"
+        !tampered_running.claims.is_empty() && !tampered_running.claims[0].eval_k.is_empty(),
+        "test setup requires a non-empty Eval_K"
     );
-    let original = tampered_running.claims[0].y_ring[0][0];
-    tampered_running.claims[0].y_ring[0][0] = original + neo_math::K::ONE;
+    let original = tampered_running.claims[0].eval_k[0];
+    tampered_running.claims[0].eval_k[0] = original + neo_math::K::ONE;
     assert_ne!(
-        tampered_running.claims[0].y_ring[0][0], original,
-        "mutation must actually change y_ring[0][0]"
+        tampered_running.claims[0].eval_k[0], original,
+        "mutation must actually change Eval_K[0]"
     );
 
     let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &tampered_running)
-        .expect_err("verify_uncompressed's witness-authority gate must reject y_ring inconsistent with M·Z at r");
+        .expect_err("verify_uncompressed's witness-authority gate must reject Eval_K inconsistent with Pad·Z at r");
     assert!(
         matches!(err, neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }),
-        "expected FinalAccumulatorCeRelationViolation on y_ring tamper, got {err:?}"
+        "expected FinalAccumulatorCeRelationViolation on Eval_K tamper, got {err:?}"
     );
 }
 
@@ -1250,11 +1248,11 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
         "test setup must carry a non-zero terminal witness so this is not a zero-fast-path check"
     );
 
-    // Hacker model: keep c, y_ring, ct, and Z untouched, but relabel the
+    // Hacker model: keep c, Eval_K, Eval_A, and Z untouched, but relabel the
     // terminal CE claim as having no public input and make X empty. If
     // `m_in` were treated as prover-owned, the local CE equations would
     // still be self-consistent: commit(Z) still opens, low-norm still
-    // holds, and y_ring/ct are independent of L_in's projection width.
+    // holds, and the evaluation families are independent of L_in's projection width.
     // The verifier must reject because the program fixed `m_in = D`.
     running.claims[0].m_in = 0;
     running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);
@@ -1270,8 +1268,8 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
     );
 }
 
-/// End-to-end version of the y_ring tamper attack: build a real
-/// finished proof, mutate `proof.state.proof.running.claims[0].y_ring[0][0]`
+/// End-to-end version of the Eval_K tamper attack: build a real
+/// finished proof, mutate `proof.state.proof.running.claims[0].eval_k[0]`
 /// on the recorded final accumulator, leave the NIFS proof outputs and
 /// witness `Z` untouched, then call `verify_uncompressed`.
 ///
@@ -1283,17 +1281,17 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
 /// and catches the mismatch before reaching the witness-authority block.
 ///
 /// The dedicated CE-relation isolation test
-/// [`final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r`]
+/// [`final_witness_authority_rejects_eval_k_inconsistent_with_pad_z_at_r`]
 /// hits the witness-authority block directly via
 /// `validate_final_witness_authority`, so it sees the precise
 /// `FinalAccumulatorCeRelationViolation`. Both tests together prove
-/// y_ring is bound end-to-end:
+/// Eval_K is bound end-to-end:
 ///
 ///   - Helper-direct test: CE-relation rows are load-bearing.
-///   - This end-to-end test: ANY y_ring tamper in the recorded state
+///   - This end-to-end test: any Eval_K tamper in the recorded state
 ///     is rejected by *some* gate in the verifier pipeline.
 #[test]
-fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
+fn verify_uncompressed_rejects_recorded_eval_k_tamper_via_binding_step() {
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 72)]])
         .expect("one-batch uncompressed proof");
@@ -1303,13 +1301,13 @@ fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
 
     let running = final_running_mut(&mut finished);
     assert!(
-        !running.claims.is_empty() && !running.claims[0].y_ring.is_empty() && !running.claims[0].y_ring[0].is_empty(),
-        "test setup requires non-empty y_ring on the recorded running"
+        !running.claims.is_empty() && !running.claims[0].eval_k.is_empty(),
+        "test setup requires non-empty Eval_K on the recorded running"
     );
-    running.claims[0].y_ring[0][0] = running.claims[0].y_ring[0][0] + neo_math::K::ONE;
+    running.claims[0].eval_k[0] = running.claims[0].eval_k[0] + neo_math::K::ONE;
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed must reject a recorded-y_ring tamper");
+        .expect_err("verify_uncompressed must reject a recorded Eval_K tamper");
     assert!(
         matches!(err, neo_fold_clean::Error::PostStateMismatch),
         "expected PostStateMismatch (binding step fires first); see this test's docstring for why \
@@ -1317,52 +1315,24 @@ fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
     );
 }
 
-/// `claim.y_ring.len() != structure.t()` — outer-dimension shape
+/// `claim.eval_a.len() != structure.t()` — outer-dimension shape
 /// mismatch. The CE-relation gadget cannot compute expected values for
 /// the missing matrix and rejects up-front.
 #[test]
-fn final_witness_authority_rejects_y_ring_outer_length_mismatch() {
+fn final_witness_authority_rejects_eval_a_outer_length_mismatch() {
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 73)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     let mut running = final_running(&finished);
 
-    running.claims[0].y_ring.pop();
+    running.claims[0].eval_a.pop();
 
     let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
-        .expect_err("y_ring outer-length mismatch must reject");
+        .expect_err("Eval_A outer-length mismatch must reject");
     assert!(
         matches!(err, neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }),
         "expected FinalAccumulatorCeRelationViolation, got {err:?}"
-    );
-}
-
-/// `claim.ct[j] != constant_term(y_ring[j])` — the scalar view must
-/// agree with the lane it summarises. `ct` enters downstream
-/// consistency checks, so leaving it unbound would let a prover lie
-/// about it independently of `y_ring`.
-#[test]
-fn final_witness_authority_rejects_ct_inconsistent_with_y_ring() {
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 74)]])
-        .expect("one-batch uncompressed proof");
-    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = final_running(&finished);
-
-    assert!(
-        !running.claims[0].ct.is_empty(),
-        "test setup requires a non-empty ct vector"
-    );
-    let original = running.claims[0].ct[0];
-    running.claims[0].ct[0] = original + neo_math::K::ONE;
-    assert_ne!(running.claims[0].ct[0], original, "mutation must change ct[0]");
-
-    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
-        .expect_err("ct inconsistent with y_ring must reject");
-    assert!(
-        matches!(err, neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }),
-        "expected FinalAccumulatorCtMismatch, got {err:?}"
     );
 }
 

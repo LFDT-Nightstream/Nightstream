@@ -147,7 +147,6 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         running: msg.running,
         running_parent_authority: msg.running_parent_authority,
         outputs: &msg.pi_ccs.outputs,
-        outputs_digest: msg.pi_ccs.outputs_digest,
         sumcheck_rounds: &msg.pi_ccs.sumcheck.sumcheck_rounds,
     };
     let ccs = match header_bundle {

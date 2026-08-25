@@ -34,10 +34,6 @@ impl NifsProof {
         let pi_ccs = self.pi_ccs.sumcheck.canonical_bytes();
         push_bytes(&mut output, &pi_ccs);
         push_claims(&mut output, &self.pi_ccs.outputs);
-        for value in self.pi_ccs.outputs_digest {
-            push_f(&mut output, value);
-        }
-
         push_claim(&mut output, &self.pi_rlc.combined);
         push_claims(&mut output, &self.pi_dec.children);
         output
@@ -95,18 +91,18 @@ fn push_claim(output: &mut Vec<u8>, claim: &CeClaim) {
         push_k(output, value);
     }
 
-    push_u64(output, claim.y_ring.len() as u64);
-    for row in &claim.y_ring {
+    push_u64(output, claim.eval_k.len() as u64);
+    for &value in &claim.eval_k {
+        push_k(output, value);
+    }
+    push_u64(output, claim.eval_a.len() as u64);
+    for row in &claim.eval_a {
         push_u64(output, row.len() as u64);
         for &value in row {
             push_k(output, value);
         }
     }
 
-    push_u64(output, claim.ct.len() as u64);
-    for &value in &claim.ct {
-        push_k(output, value);
-    }
     push_u64(output, claim.m_in as u64);
     output.extend_from_slice(&claim.fold_digest);
 

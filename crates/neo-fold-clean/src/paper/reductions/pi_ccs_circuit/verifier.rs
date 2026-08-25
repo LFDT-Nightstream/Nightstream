@@ -23,9 +23,8 @@ use p3_field::PrimeCharacteristicRing;
 use super::stage;
 use super::{
     alloc_constant_var, enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest,
-    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
-    enforce_strict_radix_accumulator_family_digest, AccumulatorCeClaimDigestInputs, Error,
-    PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_strict_radix_accumulator_family_digest,
+    AccumulatorCeClaimDigestInputs, Error,
 };
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
@@ -33,7 +32,6 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
-use crate::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
 use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
 use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 
@@ -124,10 +122,6 @@ pub struct PiCcsVerifierMessages<'a> {
     pub running: &'a [CeClaim],
     pub running_parent_authority: Option<&'a CeClaim>,
     pub outputs: &'a [CeClaim],
-    /// Redundant wire-format digest checked by native `pi_ccs::verify`.
-    /// The circuit recomputes it from `outputs`; this field is never treated
-    /// as authority.
-    pub outputs_digest: [F; 4],
     pub sumcheck_rounds: &'a [Vec<K>],
 }
 
@@ -179,13 +173,6 @@ pub struct PiCcsOutputWires {
 pub struct PiCcsVerifierResult {
     pub r_prime: Vec<KVar>,
     pub outputs: Vec<PiCcsOutputWires>,
-    /// Π_CCS output digest recomputed from the constrained output wires and
-    /// checked against the redundant proof field. NIFS.V appends these same
-    /// wires before sampling Π_RLC challenges.
-    pub output_claims_digest: [Var; 4],
-    /// Exact pre-SIS field-to-column ownership used to compute
-    /// [`Self::output_claims_digest`].
-    pub output_message_preimage: PiCcsOutputsPreimage,
     /// `fresh_x[i]` = the `m_in` public-input `F`-wires of `fresh[i]`.
     pub fresh_x: Vec<Vec<Var>>,
     /// Product-commitment coordinates of those same fresh claims. Each

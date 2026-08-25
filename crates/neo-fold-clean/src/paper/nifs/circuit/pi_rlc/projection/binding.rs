@@ -242,7 +242,7 @@ fn alloc_y_ring_advice(
     append_fields(
         builder,
         preimage,
-        pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+        pi_rlc::PI_RLC_PROJECTION_COMBINED_EVALUATION_LABEL,
         &output_c0,
     );
     builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_Y_RING);
@@ -250,7 +250,7 @@ fn alloc_y_ring_advice(
     append_fields(
         builder,
         preimage,
-        pi_rlc::PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL,
+        pi_rlc::PI_RLC_PROJECTION_EVALUATION_QUOTIENTS_LABEL,
         &quotient_c0,
     );
 
@@ -258,7 +258,7 @@ fn alloc_y_ring_advice(
     append_fields(
         builder,
         preimage,
-        pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+        pi_rlc::PI_RLC_PROJECTION_COMBINED_EVALUATION_LABEL,
         &output_c1,
     );
     builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_Y_RING);
@@ -266,7 +266,7 @@ fn alloc_y_ring_advice(
     append_fields(
         builder,
         preimage,
-        pi_rlc::PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL,
+        pi_rlc::PI_RLC_PROJECTION_EVALUATION_QUOTIENTS_LABEL,
         &quotient_c1,
     );
     Ok([quotient_c0, quotient_c1])

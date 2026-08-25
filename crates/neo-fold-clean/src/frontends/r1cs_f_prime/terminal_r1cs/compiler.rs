@@ -584,7 +584,7 @@ fn compile_running(
     let evaluation_count = structure.t() + 1;
     let mut low_values = Vec::with_capacity(evaluation_count * D);
     let mut high_values = Vec::with_capacity(evaluation_count * D);
-    for evaluation in &claim.y_ring {
+    for evaluation in std::iter::once(&claim.eval_k).chain(&claim.eval_a) {
         for value in &evaluation[..D] {
             let [low, high] = value.as_coeffs();
             low_values.push(low);
@@ -715,8 +715,9 @@ fn validate_running_claim(
             "running X is not a canonical whole-ring coefficient embedding",
         ));
     }
-    require_len("running evaluation count", structure.t() + 1, claim.y_ring.len())?;
-    for values in &claim.y_ring {
+    require_len("running Eval_K lanes", D.next_power_of_two(), claim.eval_k.len())?;
+    require_len("running Eval_A count", structure.t(), claim.eval_a.len())?;
+    for values in std::iter::once(&claim.eval_k).chain(&claim.eval_a) {
         if values.len() != D && values.len() != D.next_power_of_two() {
             return Err(TerminalR1csError::Shape {
                 what: "running evaluation lanes",

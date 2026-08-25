@@ -1087,6 +1087,7 @@ fn production_pi_rlc_family_overlay_links_for_family(
         overlay_kind: first_overlay_kind + family,
         phase_kind: phase_kind.code() as usize,
         fields,
+        base_pins: Vec::new(),
     }
 }
 

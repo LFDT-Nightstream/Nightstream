@@ -22,14 +22,13 @@
 use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
-use neo_math::{D, F, K};
+use neo_math::{D, K};
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
 
 use crate::engine::optimized as engine;
 use crate::engine::paper_exact as reference_engine;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
-use crate::paper::digest;
 use crate::paper::params::Params;
 use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -53,8 +52,6 @@ pub enum Error {
 pub struct Proof {
     pub sumcheck: SumcheckProof,
     pub outputs: Vec<CeClaim>,
-    /// Recomputed compression used by PiRLC before it samples rho.
-    pub outputs_digest: [F; 4],
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -159,16 +156,8 @@ fn prove_from_parts_inner(
         )?,
     };
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
-    validate_clean_padded_row_claims(s, &outputs)?;
-    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
-    Ok((
-        Proof {
-            sumcheck,
-            outputs,
-            outputs_digest,
-        },
-        pi_dec_precompute,
-    ))
+    validate_v1_1_claims(s, &outputs)?;
+    Ok((Proof { sumcheck, outputs }, pi_dec_precompute))
 }
 
 /// Independent PaperExact PiCCS prover used only by the PaperExact NIFS
@@ -187,13 +176,8 @@ pub(crate) fn prove_from_parts_paper_exact(
     let (mut outputs, sumcheck) =
         reference_engine::prove_pi_ccs_parts(tr.inner_mut(), pp, s, fresh_claims, fresh_witnesses, running, log)?;
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
-    validate_clean_padded_row_claims(s, &outputs)?;
-    let outputs_digest = super::paper_exact_protocol::pi_ccs_outputs_digest(&outputs);
-    Ok(Proof {
-        sumcheck,
-        outputs,
-        outputs_digest,
-    })
+    validate_v1_1_claims(s, &outputs)?;
+    Ok(Proof { sumcheck, outputs })
 }
 
 /// the auxiliary-commitment flow (Π_CCS side): the reduction changes evaluation claims, not
@@ -261,9 +245,6 @@ pub fn verify(
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_shape(pp, s, fresh_claims, running, &proof.outputs)?;
     validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
-    if proof.outputs_digest != digest::pi_ccs_outputs_digest(&proof.outputs) {
-        return Err(Error::Shape("Pi_CCS output digest mismatch"));
-    }
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
@@ -291,9 +272,6 @@ pub(crate) fn verify_paper_exact(
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_shape(pp, s, fresh_claims, running, &proof.outputs)?;
     validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
-    if proof.outputs_digest != super::paper_exact_protocol::pi_ccs_outputs_digest(&proof.outputs) {
-        return Err(Error::Shape("PaperExact Pi_CCS output digest mismatch"));
-    }
     let ok = reference_engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
@@ -362,7 +340,7 @@ fn validate_input_shape(
         &running.claims,
         "running X must use the canonical coefficient embedding",
     )?;
-    validate_clean_padded_row_claims(s, &running.claims)?;
+    validate_v1_1_claims(s, &running.claims)?;
     Ok(())
 }
 
@@ -401,8 +379,8 @@ fn validate_verifier_shape(
         fold_outputs,
         "fold output X must use the canonical coefficient embedding",
     )?;
-    validate_clean_padded_row_claims(s, running_claims)?;
-    validate_clean_padded_row_claims(s, fold_outputs)?;
+    validate_v1_1_claims(s, running_claims)?;
+    validate_v1_1_claims(s, fold_outputs)?;
     Ok(())
 }
 
@@ -413,14 +391,14 @@ fn validate_fresh_count_within_rlc_guard(pp: &Params, fresh_len: usize) -> Resul
     Ok(())
 }
 
-fn validate_clean_padded_row_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
+fn validate_v1_1_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
     for claim in claims {
-        validate_clean_padded_row_claim(s, claim)?;
+        validate_v1_1_claim(s, claim)?;
     }
     Ok(())
 }
 
-fn validate_clean_padded_row_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
     let ell_n =
@@ -432,28 +410,26 @@ fn validate_clean_padded_row_claim(s: &Structure, claim: &CeClaim) -> Result<(),
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
-    if claim.y_ring.len() != s.t() + 1 {
-        return Err(Error::Shape(
-            "CE y_ring must contain identity first, then every application matrix",
-        ));
+    if claim.eval_k.len() != d_pad {
+        return Err(Error::Shape("CE Eval_K must use the padded ring degree"));
     }
-    if claim.ct.len() != s.t() + 1 {
-        return Err(Error::Shape(
-            "CE ct must contain identity first, then every application matrix",
-        ));
+    if claim
+        .eval_k
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::Shape("CE Eval_K padding lanes must be zero"));
     }
-    for (ct, row) in claim.ct.iter().zip(&claim.y_ring) {
-        let Some(&constant_term) = row.first() else {
-            return Err(Error::Shape("CE y_ring row must expose a constant term"));
-        };
-        if *ct != constant_term {
-            return Err(Error::Shape("CE ct must equal y_ring constant term"));
-        }
+    if claim.eval_a.len() != s.t() {
+        return Err(Error::Shape("CE Eval_A count must equal the CCS matrix count"));
+    }
+    for row in &claim.eval_a {
         if row.len() != d_pad {
-            return Err(Error::Shape("CE y_ring rows must use padded ring degree"));
+            return Err(Error::Shape("CE Eval_A rows must use the padded ring degree"));
         }
         if row.iter().skip(D).any(|&lane| lane != K::default()) {
-            return Err(Error::Shape("CE y_ring padding lanes must be zero"));
+            return Err(Error::Shape("CE Eval_A padding lanes must be zero"));
         }
     }
     Ok(())

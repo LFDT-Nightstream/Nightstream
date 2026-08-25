@@ -857,14 +857,14 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 combined.X.rows(),
                 combined.X.cols(),
                 combined.r.len(),
-                combined.y_ring.len(),
+                combined.eval_a.len() + 1,
                 child.map(|claim| (
                     claim.adv.is_some(),
                     claim.c.data.len(),
                     claim.X.rows(),
                     claim.X.cols(),
                     claim.r.len(),
-                    claim.y_ring.len(),
+                    claim.eval_a.len() + 1,
                 )),
             );
         }

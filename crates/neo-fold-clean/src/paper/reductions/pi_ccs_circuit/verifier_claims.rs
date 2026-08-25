@@ -63,10 +63,6 @@ pub(super) fn alloc_k_vec(builder: &mut R1csBuilder, values: &[K]) -> Vec<KVar> 
         .collect()
 }
 
-fn alloc_k_rows(builder: &mut R1csBuilder, rows: &[Vec<K>]) -> Vec<Vec<KVar>> {
-    rows.iter().map(|row| alloc_k_vec(builder, row)).collect()
-}
-
 fn digest32_witness_fields(builder: &mut R1csBuilder, bytes: &[u8]) -> Result<[Var; 4], Error> {
     let fields = header_digest_bytes_to_fields(bytes)?;
     Ok(std::array::from_fn(|index| builder.alloc(fields[index])))
@@ -122,6 +118,13 @@ pub(super) fn alloc_ce_wires(builder: &mut R1csBuilder, claim: &CeClaim) -> Resu
             });
         }
     }
+    let y_ring = claim
+        .evaluation_families()
+        .map(|row| alloc_k_vec(builder, row))
+        .collect();
+    let constant_terms = claim
+        .evaluation_constant_terms()
+        .ok_or_else(|| Error::Shape("v1_1 evaluation family has no constant coefficient".to_owned()))?;
     Ok(CeClaimWires {
         c_d: claim.c.d,
         c_d_var: alloc_usize(builder, claim.c.d),
@@ -135,8 +138,8 @@ pub(super) fn alloc_ce_wires(builder: &mut R1csBuilder, claim: &CeClaim) -> Resu
         x_cols: claim.X.cols(),
         x_cols_var: alloc_usize(builder, claim.X.cols()),
         r: alloc_k_vec(builder, &claim.r),
-        y_ring: alloc_k_rows(builder, &claim.y_ring),
-        ct: alloc_k_vec(builder, &claim.ct),
+        y_ring,
+        ct: alloc_k_vec(builder, &constant_terms),
         m_in: claim.m_in,
         m_in_var: alloc_usize(builder, claim.m_in),
         fold_digest_fields: digest32_witness_fields(builder, &claim.fold_digest)?,

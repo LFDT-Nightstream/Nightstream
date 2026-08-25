@@ -204,27 +204,11 @@ pub(super) fn enforce(
 
     builder.begin_encoding_stage(stage::OUTPUT_DIGEST);
     let output_digest_start = builder.rows();
-    let output_digest_inputs = output_wires
-        .iter()
-        .map(|output| PiCcsOutputMessageDigestInputs { y_ring: &output.y_ring })
-        .collect::<Vec<_>>();
-    let output_digest_wires = enforce_pi_ccs_outputs_digest(
-        builder,
-        PiCcsOutputMessageProfile::new(output_wires.len(), dims.matrix_count),
-        &output_digest_inputs,
-    )?;
-    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_CLAIM);
-    for (wire, value) in output_digest_wires.digest.iter().zip(msg.outputs_digest) {
-        let claimed = builder.alloc(value);
-        enforce_var_eq(builder, *wire, claimed);
-    }
     builder.record_row_family(stage::OUTPUT_DIGEST, output_digest_start);
 
     Ok(PiCcsVerifierResult {
         r_prime: point,
         outputs: output_wires.into_iter().map(public_wires).collect(),
-        output_claims_digest: output_digest_wires.digest,
-        output_message_preimage: output_digest_wires.preimage,
         fresh_x: fresh_wires.iter().map(|claim| claim.x.clone()).collect(),
         fresh_adv: fresh_wires.iter().map(|claim| claim.adv.clone()).collect(),
         running_c_data: running_wires
@@ -305,12 +289,12 @@ fn validate_selected_ce(cfg: &PiCcsVerifierConfig<'_>, label: &str, claim: &CeCl
         || claim.X.rows() != D
         || claim.X.cols() != crate::paper::relations::superneo_public_x_cols(claim.m_in)
         || claim.r.len() != dims.variables
-        || claim.y_ring.len() != dims.matrix_count
-        || claim.ct.len() != dims.matrix_count
+        || claim.eval_k.len() != d_pad
+        || claim.eval_a.len() + 1 != dims.matrix_count
     {
         return Err(Error::Shape(format!("{label} does not have the selected CE shape")));
     }
-    if claim.y_ring.iter().any(|row| row.len() != d_pad) {
+    if claim.eval_a.iter().any(|row| row.len() != d_pad) {
         return Err(Error::Shape(format!(
             "{label} has a noncanonical ring-evaluation width"
         )));

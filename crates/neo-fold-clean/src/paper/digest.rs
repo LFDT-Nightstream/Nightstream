@@ -555,9 +555,15 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
             preimage.push(*limb);
         }
     }
-    // y_ring evaluations: shape + flattened.
-    preimage.push(F::from_u64(claim.y_ring.len() as u64));
-    for row in &claim.y_ring {
+    // Separate v1_1 evaluation families: Pad, then genuine matrices.
+    preimage.push(F::from_u64(claim.eval_k.len() as u64));
+    for value in &claim.eval_k {
+        for limb in value.as_basis_coefficients_slice() {
+            preimage.push(*limb);
+        }
+    }
+    preimage.push(F::from_u64(claim.eval_a.len() as u64));
+    for row in &claim.eval_a {
         preimage.push(F::from_u64(row.len() as u64));
         for v in row {
             for limb in v.as_basis_coefficients_slice() {
@@ -655,10 +661,10 @@ fn strict_radix_accumulator_family_preimage(
         || first.c.data.len() != first.c.d * first.c.kappa
         || first.X.rows() != neo_math::D
         || first.X.cols() != active_x_cols
-        || first.y_ring.is_empty()
-        || first.ct.len() != first.y_ring.len()
+        || first.eval_k.len() != neo_math::D.next_power_of_two()
+        || first.eval_a.is_empty()
         || first
-            .y_ring
+            .eval_a
             .iter()
             .any(|row| row.len() != neo_math::D.next_power_of_two())
         || !claim_has_canonical_derived_fields(first)
@@ -685,13 +691,13 @@ fn strict_radix_accumulator_family_preimage(
             || claim.X.cols() != first.X.cols()
             || claim.X != *expected_x
             || claim.r != first.r
-            || claim.y_ring.len() != first.y_ring.len()
+            || claim.eval_k.len() != first.eval_k.len()
+            || claim.eval_a.len() != first.eval_a.len()
             || claim
-                .y_ring
+                .eval_a
                 .iter()
-                .zip(first.y_ring.iter())
+                .zip(first.eval_a.iter())
                 .any(|(row, first_row)| row.len() != first_row.len())
-            || claim.ct.len() != claim.y_ring.len()
             || claim.m_in != first.m_in
             || claim.fold_digest != first.fold_digest
             || claim.adv.is_some() != has_adv
@@ -716,7 +722,7 @@ fn strict_radix_accumulator_family_preimage(
         }
     }
     append_k_slice(&mut preimage, &first.r);
-    preimage.push(F::from_u64(first.y_ring.len() as u64));
+    preimage.push(F::from_u64(first.eval_a.len() as u64));
     preimage.push(F::from_u64(neo_math::D as u64));
     preimage.push(F::from_u64(first.m_in as u64));
     preimage.extend(digest32_as_fields(first.fold_digest));
@@ -725,7 +731,7 @@ fn strict_radix_accumulator_family_preimage(
     for (index, claim) in claims.iter().enumerate() {
         preimage.push(F::from_u64(index as u64));
         preimage.extend_from_slice(&claim.c.data);
-        for row in &claim.y_ring {
+        for row in std::iter::once(&claim.eval_k).chain(&claim.eval_a) {
             for value in row.iter().take(neo_math::D) {
                 preimage.extend_from_slice(value.as_basis_coefficients_slice());
             }
@@ -741,12 +747,12 @@ fn strict_radix_accumulator_family_preimage(
 
 fn claim_has_canonical_derived_fields(claim: &CeClaim<Commitment, F, K>) -> bool {
     claim
-        .ct
+        .eval_k
         .iter()
-        .zip(&claim.y_ring)
-        .all(|(ct, row)| row.first() == Some(ct))
+        .skip(neo_math::D)
+        .all(|value| *value == K::ZERO)
         && claim
-            .y_ring
+            .eval_a
             .iter()
             .all(|row| row.iter().skip(neo_math::D).all(|value| *value == K::ZERO))
 }
@@ -765,10 +771,10 @@ fn adv_has_shape(adv: &Option<LaneCommitments<Commitment>>, d: usize, kappa: usi
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
 /// samples random linear-combination coefficients." In the Fiat-Shamir
 /// transcript, the output message therefore needs an explicit, verifier-
-/// recomputable absorb before `ρ` is derived. Only active `y_ring` and
-/// identity-first `y_ring` lanes are committed here: commitment/X are inherited from the
-/// inputs, `r` is a verifier challenge, `ct` is the `y_ring` constant
-/// term, `fold_digest` is the checked header, and padded lanes/unsupported
+/// recomputable absorb before `ρ` is derived. Only active `Eval_K` and
+/// `Eval_A` lanes are committed here: commitment/X are inherited from the
+/// inputs, `r` is a verifier challenge, `fold_digest` is the checked header,
+/// and padded lanes/unsupported
 /// sidecars are canonical. Native and recursive verifiers enforce those
 /// reconstruction equations before relying on this projection.
 pub fn pi_ccs_outputs_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
@@ -776,7 +782,8 @@ pub fn pi_ccs_outputs_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
         preimage.extend(pack_bytes_as_fields(OUTPUT_MESSAGE_DOMAIN));
-        append_active_k_rows(&mut preimage, &claim.y_ring);
+        append_active_k_slice(&mut preimage, &claim.eval_k);
+        append_active_k_rows(&mut preimage, &claim.eval_a);
     }
     preimage
 }
@@ -815,8 +822,8 @@ fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitme
     }
 
     append_k_slice(preimage, &claim.r);
-    append_k_rows(preimage, &claim.y_ring);
-    append_k_slice(preimage, &claim.ct);
+    append_k_slice(preimage, &claim.eval_k);
+    append_k_rows(preimage, &claim.eval_a);
     preimage.push(F::from_u64(claim.m_in as u64));
     preimage.extend(digest32_as_fields(claim.fold_digest));
     append_adv_leaves(preimage, &claim.adv);

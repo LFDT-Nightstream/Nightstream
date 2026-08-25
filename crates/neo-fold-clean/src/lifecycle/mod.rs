@@ -69,7 +69,7 @@ use crate::paper::decider;
 use crate::paper::params::Params;
 use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMixer, RlcMixer, Structure};
 
-pub use final_openings::FinalWitnessOpeningBackend;
+pub use final_openings::{FinalWitnessOpeningBackend, V1_1WitnessOpenings};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -105,19 +105,13 @@ pub enum Error {
     },
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} CE relation violated — \
-         `y_ring[{matrix_index}]` does not equal multilinear_eval(M_{matrix_index} · Z, r). \
-         The SuperNeo verifier equation on the folded CE relation requires y_ring closure \
+         evaluation family {matrix_index} does not match the opened witness \
+         (0 = Eval_K / Pad, j+1 = Eval_A[j] / M_j). \
+         The SuperNeo verifier equation on the folded CE relation requires evaluation closure \
          against the opened witness; the F'-chain `acc_digest` commits to the public CE claim, \
          but does not by itself prove that the opened witness Z satisfies that claim."
     )]
     FinalAccumulatorCeRelationViolation { index: usize, matrix_index: usize },
-    #[error(
-        "verify_uncompressed: recorded final accumulator claim {index} `ct[{matrix_index}]` \
-         does not equal the SuperNeo scalar view of `multilinear_eval(M_{matrix_index} · Z, r)` \
-         (the constant term of y_ring[{matrix_index}]). Bound here so the prover can't lie about \
-         `ct` independently of `y_ring` — `ct` enters the protocol's consistency checks downstream."
-    )]
-    FinalAccumulatorCtMismatch { index: usize, matrix_index: usize },
     #[error("verify_uncompressed: final accumulator opening backend failed: {reason}")]
     FinalAccumulatorOpeningBackend { reason: String },
     #[error(

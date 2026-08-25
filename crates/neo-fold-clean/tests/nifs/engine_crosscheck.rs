@@ -1,17 +1,43 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+use std::{fs, path::PathBuf};
+
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
+use neo_fold_clean::frontends::r1cs_f_prime::ivc::{
+    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1ProofInputs,
+};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs::{
     self, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsProof, NifsProverAdapter, NifsProverRequest,
     OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
-use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
-use neo_math::{D, F, K};
-use p3_field::PrimeCharacteristicRing;
+use neo_fold_clean::paper::relations::{CeClaim, LaneRanges, LaneScheme};
+use neo_math::{KExtensions, D, F, K};
+use nightstream_fprime::{
+    load, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+const PACKAGE_IDENTITY: [u64; 4] = [
+    4_149_794_454_264_745_319,
+    3_860_295_598_124_073_314,
+    9_185_184_515_076_867_919,
+    6_634_095_431_211_870_257,
+];
+
+fn package_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-v1.json")
+}
+
+fn parity_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-piccs-parity-v1.json")
+}
 
 fn rectangular_relation(rows: usize, columns: usize) -> R1cs {
     let mut a = Mat::zero(rows, columns, F::ZERO);
@@ -113,6 +139,144 @@ fn paper_exact_and_optimized_cpu_nifs_are_byte_exact() {
     assert!(optimized_proof
         .canonical_bytes()
         .starts_with(b"NS-NIFS-PROOF"));
+}
+
+#[test]
+fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
+    let prep = support::toy_preprocessing();
+    let fresh_claim = support::toy_instance(&prep, 127).claim;
+    let extension =
+        |first: usize, second: usize| neo_math::from_complex(F::from_u64(first as u64), F::from_u64(second as u64));
+    let rounds: Vec<Vec<K>> = (0..PI_CCS_V1_1_ROUND_COUNT)
+        .map(|round| {
+            (0..PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT)
+                .map(|coefficient| extension(1 + round * 17 + coefficient, 10_001 + round * 19 + coefficient))
+                .collect()
+        })
+        .collect();
+    let outputs = (0..PI_CCS_V1_1_SOURCE_COUNT)
+        .map(|source| {
+            let mut eval_k = vec![K::ZERO; D.next_power_of_two()];
+            for (coefficient, value) in eval_k[..PI_CCS_V1_1_COEFFICIENT_COUNT]
+                .iter_mut()
+                .enumerate()
+            {
+                *value = extension(20_000 + source * 100 + coefficient, 30_000 + source * 100 + coefficient);
+            }
+            let mut eval_a = vec![vec![K::ZERO; D.next_power_of_two()]; PI_CCS_V1_1_MATRIX_COUNT];
+            for (matrix, family) in eval_a.iter_mut().enumerate() {
+                for (coefficient, value) in family[..PI_CCS_V1_1_COEFFICIENT_COUNT]
+                    .iter_mut()
+                    .enumerate()
+                {
+                    let ordinal = source * PI_CCS_V1_1_MATRIX_COUNT * PI_CCS_V1_1_COEFFICIENT_COUNT
+                        + matrix * PI_CCS_V1_1_COEFFICIENT_COUNT
+                        + coefficient;
+                    *value = extension(40_000 + ordinal, 60_000 + ordinal);
+                }
+            }
+            CeClaim {
+                c: fresh_claim.c.clone(),
+                X: Mat::zero(D, 1, F::ZERO),
+                r: vec![K::ZERO; PI_CCS_V1_1_ROUND_COUNT],
+                eval_k,
+                eval_a,
+                m_in: D,
+                fold_digest: [source as u8; 32],
+                adv: None,
+            }
+        })
+        .collect();
+    let proof = neo_fold_clean::paper::pi_ccs::Proof {
+        sumcheck: neo_fold_clean::paper::pi_ccs::SumcheckProof::new(rounds.clone()),
+        outputs,
+    };
+
+    let bridge = PiCcsV1_1ProofInputs::from_proof(std::slice::from_ref(&fresh_claim), &proof)
+        .expect("exact v1_1 PiCCS proof-message bridge");
+    assert_eq!(bridge.fresh_commitment().len(), fresh_claim.c.data.len());
+    for (actual, expected) in bridge.round_messages().iter().zip(&rounds) {
+        for (actual, expected) in actual.iter().zip(expected) {
+            let (low, high) = expected.to_limbs_u64();
+            assert_eq!(*actual, [low, high]);
+        }
+    }
+
+    let expected_outputs = bridge.output_evaluations().clone();
+    let running = (0..16)
+        .map(|_| CeClaim {
+            c: neo_ajtai::Commitment::zeros(D, 18),
+            X: Mat::zero(D, 1, F::ZERO),
+            r: vec![K::ZERO; PI_CCS_V1_1_ROUND_COUNT],
+            eval_k: vec![K::ZERO; D.next_power_of_two()],
+            eval_a: vec![vec![K::ZERO; D.next_power_of_two()]; PI_CCS_V1_1_MATRIX_COUNT],
+            m_in: D,
+            fold_digest: [0; 32],
+            adv: None,
+        })
+        .collect::<Vec<_>>();
+    let verifier_key_digest = [F::from_u64(101), F::from_u64(102), F::from_u64(103), F::from_u64(104)];
+    let z0 = [F::from_u64(201), F::from_u64(202), F::from_u64(203), F::from_u64(204)];
+    let current = [F::from_u64(301), F::from_u64(302), F::from_u64(303), F::from_u64(304)];
+    let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_key_digest, 7, z0, current, &running, 1)
+        .expect("canonical Lean prior-state preimage");
+    assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_eq!(
+        &prior_preimage[..23],
+        [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49]
+    );
+    assert_eq!(prior_preimage[23], 4);
+    assert_eq!(prior_preimage[28], 7);
+    assert_eq!(prior_preimage[29], 4);
+    assert_eq!(prior_preimage[34], 4);
+    assert_eq!(prior_preimage[39], 50);
+    assert_eq!(prior_preimage[90], 972);
+    assert_eq!(*prior_preimage.last().expect("program counter"), 1);
+    let digest = pi_ccs_v1_1_state_hash(&prior_preimage).expect("Lean stateHash replay");
+    let prior_public_input = encode_pi_ccs_v1_1_public_input(digest).expect("Lean encHash replay");
+    assert_eq!(prior_public_input[0], 1);
+    assert_eq!(&prior_public_input[1..5], digest);
+    assert!(prior_public_input[5..].iter().all(|word| *word == 0));
+
+    let parity: serde_json::Value =
+        serde_json::from_slice(&fs::read(parity_path()).expect("Lean parity bytes")).expect("Lean parity JSON");
+    let parity = parity.as_array().expect("Lean parity tuple");
+    assert_eq!(parity[0].as_u64(), Some(6));
+    let parity_input = parity[1].as_array().expect("Lean parity input tuple");
+    let lean_preimage: Vec<u64> = serde_json::from_value(parity_input[0].clone()).expect("Lean state preimage");
+    let lean_digest: [u64; 4] = serde_json::from_value(parity_input[3].clone()).expect("Lean state digest");
+    let lean_context: [u64; 4] = serde_json::from_value(parity_input[4].clone()).expect("Lean verifier context");
+    let lean_public_input: Vec<u64> = serde_json::from_value(parity_input[2].clone()).expect("Lean state public input");
+    assert_eq!(
+        pi_ccs_v1_1_state_hash(&lean_preimage).expect("Lean preimage replay"),
+        lean_digest
+    );
+    assert_eq!(
+        encode_pi_ccs_v1_1_public_input(lean_digest).expect("Lean public-input replay"),
+        lean_public_input,
+    );
+    assert_eq!(&lean_preimage[24..28], lean_context);
+
+    let verifier_context = verifier_key_digest.map(|value| value.as_canonical_u64());
+    let inputs = bridge
+        .into_package_inputs(
+            prior_preimage.clone(),
+            prior_preimage,
+            prior_public_input,
+            digest,
+            verifier_context,
+        )
+        .expect("complete package input value");
+    let package = load(&fs::read(package_path()).expect("Lean package bytes"), PACKAGE_IDENTITY)
+        .expect("verifier-owned Lean package");
+    let encoded = package
+        .encode_pi_ccs_v1_1_inputs(&inputs)
+        .expect("package-owned physical encoding");
+    assert!(encoded.private_values().iter().any(|value| *value != 0));
+    let decoded = package
+        .pi_ccs_v1_1_output_evaluations(encoded.private_values())
+        .expect("package output decoder");
+    assert_eq!(decoded, expected_outputs);
 }
 
 #[test]
@@ -263,8 +427,7 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
     .expect("optimized NIFS");
 
     let mut rlc_mutation = proof.clone();
-    rlc_mutation.pi_rlc.combined.y_ring[0][0] += K::ONE;
-    rlc_mutation.pi_rlc.combined.ct[0] += K::ONE;
+    rlc_mutation.pi_rlc.combined.eval_k[0] += K::ONE;
     let mut rlc_transcript = Transcript::session();
     assert!(nifs::verify_paper_exact(
         &mut rlc_transcript,
@@ -279,8 +442,7 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
     .is_err());
 
     let mut dec_mutation = proof;
-    dec_mutation.pi_dec.children[0].y_ring[0][0] += K::ONE;
-    dec_mutation.pi_dec.children[0].ct[0] += K::ONE;
+    dec_mutation.pi_dec.children[0].eval_k[0] += K::ONE;
     let mut dec_transcript = Transcript::session();
     assert!(nifs::verify_paper_exact(
         &mut dec_transcript,

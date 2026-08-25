@@ -30,7 +30,6 @@ use crate::paper::reductions::pi_ccs_circuit::{PiCcsOutputWires, PiCcsVerifierCo
 use crate::paper::reductions::pi_dec_circuit::{
     alloc_dec_inputs, enforce_padded_row_identity_d_pad_shape, DecInputWires,
 };
-use crate::paper::reductions::pi_rlc;
 use crate::paper::reductions::pi_rlc_circuit::stage;
 use crate::paper::relations::CeClaim;
 
@@ -77,12 +76,6 @@ pub(super) fn enforce(
     let transcript_start = builder.rows();
     builder.begin_encoding_stage(pi_rlc_challenge_stage::CHALLENGE);
     builder.begin_encoding_stage(pi_rlc_challenge_stage::TRANSCRIPT);
-    builder.begin_encoding_stage(pi_rlc_challenge_stage::BIND_OUTPUTS_DIGEST);
-    transcript.append_fields(
-        builder,
-        pi_rlc::PI_RLC_INPUT_CLAIMS_DIGEST_LABEL,
-        &ccs.output_claims_digest,
-    );
     let rho_wires = enforce_pi_rlc_rhos_from_transcript(builder, transcript, k_total);
     builder.record_row_family("nifs.pi_rlc.transcript_rhos", transcript_start);
 

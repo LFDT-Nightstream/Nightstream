@@ -39,15 +39,14 @@ use crate::paper::relations::{superneo_has_canonical_x_shape, validate_adv_shape
 use crate::paper::sampling::check_rlc_bound;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-pub const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_C_LABEL: &[u8] = b"pi_rlc/projection_combined_c";
 pub(crate) const PI_RLC_PROJECTION_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_quotients";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_ADV_LABEL: &[u8] = b"pi_rlc/projection_combined_adv";
 pub(crate) const PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_adv_quotients";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_X_LABEL: &[u8] = b"pi_rlc/projection_combined_x";
 pub(crate) const PI_RLC_PROJECTION_X_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_x_quotients";
-pub(crate) const PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL: &[u8] = b"pi_rlc/projection_combined_y_ring";
-pub(crate) const PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_y_ring_quotients";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_EVALUATION_LABEL: &[u8] = b"pi_rlc/projection_combined_evaluation";
+pub(crate) const PI_RLC_PROJECTION_EVALUATION_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_evaluation_quotients";
 pub(crate) const PI_RLC_PROJECTION_BINDING_DOMAIN: &[u8] = b"neo.fold.clean/pi_rlc/projection_binding/v1";
 pub(crate) const PI_RLC_PROJECTION_BINDING_DIGEST_LABEL: &[u8] = b"pi_rlc/projection_binding_digest";
 pub(crate) const PI_RLC_PROJECTION_BETA_LABEL: &[u8] = b"pi_rlc/projection_beta";
@@ -76,12 +75,10 @@ pub enum Error {
     AdvConsistency,
     #[error("\u{03A0}_RLC: invalid product-commitment shape: {0}")]
     AdvShape(String),
-    #[error("\u{03A0}_RLC: cached ct must equal the constant term of y_ring in {0}")]
-    CtConsistency(&'static str),
-    #[error("\u{03A0}_RLC: y_ring must contain identity-first padded outputs in {0}")]
-    YRingShape(&'static str),
-    #[error("\u{03A0}_RLC: y_ring padding lanes must be zero in {0}")]
-    YRingPadding(&'static str),
+    #[error("\u{03A0}_RLC: Eval_K or Eval_A has an invalid v1_1 shape in {0}")]
+    EvaluationShape(&'static str),
+    #[error("\u{03A0}_RLC: evaluation padding lanes must be zero in {0}")]
+    EvaluationPadding(&'static str),
     #[error(
         "\u{03A0}_RLC: projection schedule — combined commitment lane {lane} is not the ring-action mix of the inputs"
     )]
@@ -145,8 +142,8 @@ pub struct ProjectionSchedule {
     pub adv_q_lanes: Option<LaneCommitments<Vec<[F; PROJECTION_QUOTIENT_LEN]>>>,
     /// One quotient per active X ring column.
     pub x_q_lanes: Vec<[F; PROJECTION_QUOTIENT_LEN]>,
-    /// Two quotients (c0, c1) per y_ring row.
-    pub y_ring_q_lanes: Vec<[[F; PROJECTION_QUOTIENT_LEN]; 2]>,
+    /// Two quotients (c0, c1) per v1_1 evaluation family.
+    pub evaluation_q_lanes: Vec<[[F; PROJECTION_QUOTIENT_LEN]; 2]>,
     /// The evaluation challenge, squeezed after c* and every `q_lane`
     /// are on the transcript — the order is the soundness (Lemma 5).
     pub beta: K,
@@ -220,7 +217,7 @@ pub(crate) fn prove_refs(
         combined.c.kappa,
         combined.adv.is_some(),
         combined.X.cols(),
-        combined.y_ring.len(),
+        combined.eval_a.len() + 1,
     );
     Ok((
         Output {
@@ -327,7 +324,6 @@ where
         mix,
         claims,
         witnesses,
-        digest::pi_ccs_outputs_digest(claims),
         mix_witnesses,
         |preimage| Ok(sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, preimage)?),
     )
@@ -335,11 +331,8 @@ where
 
 /// Resident-witness prover path with accelerator-owned canonical digests.
 ///
-/// `outputs_digest` must be computed from `claims`; a bad value only produces
-/// a proof the canonical verifier rejects because verification recomputes the
-/// digest from the authoritative claims. The protocol layer still constructs
-/// and validates the projection preimage, whose digest the verifier also
-/// recomputes independently.
+/// The protocol layer constructs and validates the projection preimage. The
+/// verifier recomputes its digest independently.
 #[doc(hidden)]
 pub fn prove_refs_with_resident_witness_and_projection_digest<MW, PD, Resident>(
     tr: &mut Transcript,
@@ -348,7 +341,6 @@ pub fn prove_refs_with_resident_witness_and_projection_digest<MW, PD, Resident>(
     mix: RlcMixer,
     claims: &[CeClaim],
     witnesses: &[&Mat<F>],
-    outputs_digest: [F; 4],
     mix_witnesses: MW,
     compute_projection_digest: PD,
 ) -> Result<(ResidentOutput<Resident>, Proof), Error>
@@ -358,7 +350,7 @@ where
 {
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
-    begin_rho_sampling_from_outputs_digest(tr, pp, claims.len(), outputs_digest)?;
+    begin_rho_sampling(tr, pp, claims)?;
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
     let (mut combined, resident) = engine::prove_pi_rlc_refs_with_resident_witness(
         pp,
@@ -469,7 +461,7 @@ fn derive_rhos_for_inputs_paper_exact(
     pp: &Params,
     claims: &[CeClaim],
 ) -> Result<Vec<neo_reductions::common::RotRho>, Error> {
-    paper_exact_protocol::bind_pi_rlc_inputs(tr, claims)?;
+    begin_rho_sampling(tr, pp, claims)?;
     reference_engine::sample_rho_n(tr.inner_mut(), pp, claims.len()).map_err(Into::into)
 }
 
@@ -502,24 +494,7 @@ pub fn begin_rho_sampling(
     if claims.is_empty() {
         return Err(Error::Shape);
     }
-    begin_rho_sampling_from_outputs_digest(tr, pp, claims.len(), digest::pi_ccs_outputs_digest(claims))
-}
-
-/// Bind an already-computed Π_CCS output digest and return the transcript
-/// snapshot from which Π_RLC rho sampling starts.
-///
-/// This is the compact handoff used by GPU-oriented provers: Π_CCS owns
-/// producing the output surface and its digest; Π_RLC owns sampling `ρ` from
-/// that canonical digest. The digest is never verifier authority — it is
-/// recomputed from `pi_ccs::Proof::outputs` before verification accepts.
-pub fn begin_rho_sampling_from_outputs_digest(
-    tr: &mut Transcript,
-    pp: &Params,
-    claim_count: usize,
-    outputs_digest: [F; 4],
-) -> Result<Poseidon2TranscriptSnapshot, Error> {
-    validate_rho_sampling_count(pp, claim_count)?;
-    bind_outputs_digest_for_rho(tr, outputs_digest);
+    validate_rho_sampling_count(pp, claims.len())?;
     Ok(tr.snapshot())
 }
 
@@ -531,10 +506,6 @@ pub fn validate_rho_sampling_count(pp: &Params, claim_count: usize) -> Result<()
         return Err(Error::Shape);
     }
     enforce_rlc_bound(pp, claim_count)
-}
-
-fn bind_outputs_digest_for_rho(tr: &mut Transcript, outputs_digest: [F; 4]) {
-    tr.append_fields(PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &outputs_digest);
 }
 
 /// Lemma 5 transcript schedule, shared verbatim by `prove` and
@@ -648,26 +619,51 @@ fn projection_schedule_with_digest(
     let x_elapsed = x_started.elapsed();
 
     #[cfg(feature = "perf-timers")]
-    let y_ring_started = std::time::Instant::now();
-    let mut y_ring_lanes = Vec::with_capacity(combined.y_ring.len());
-    for row in 0..combined.y_ring.len() {
+    let evaluations_started = std::time::Instant::now();
+    let mut evaluation_lanes = Vec::with_capacity(combined.eval_a.len() + 1);
+    let input_eval_k: Vec<&[K]> = inputs.iter().map(|claim| claim.eval_k.as_slice()).collect();
+    let eval_k_lanes = checked_k_vector_projection(&rho_coeffs, &input_eval_k, &combined.eval_k, "Eval_K", 0)?;
+    for lane in &eval_k_lanes {
+        append_projection_binding(
+            &mut binding_preimage,
+            PI_RLC_PROJECTION_COMBINED_EVALUATION_LABEL,
+            &lane.out,
+        );
+        append_projection_binding(
+            &mut binding_preimage,
+            PI_RLC_PROJECTION_EVALUATION_QUOTIENTS_LABEL,
+            &lane.q,
+        );
+    }
+    evaluation_lanes.push(eval_k_lanes);
+    for matrix in 0..combined.eval_a.len() {
         let input_rows: Vec<&[K]> = inputs
             .iter()
-            .map(|claim| claim.y_ring[row].as_slice())
+            .map(|claim| claim.eval_a[matrix].as_slice())
             .collect();
-        let lanes = checked_k_vector_projection(&rho_coeffs, &input_rows, &combined.y_ring[row], "y_ring", 2 * row)?;
+        let lanes = checked_k_vector_projection(
+            &rho_coeffs,
+            &input_rows,
+            &combined.eval_a[matrix],
+            "Eval_A",
+            2 * (matrix + 1),
+        )?;
         for lane in &lanes {
             append_projection_binding(
                 &mut binding_preimage,
-                PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+                PI_RLC_PROJECTION_COMBINED_EVALUATION_LABEL,
                 &lane.out,
             );
-            append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL, &lane.q);
+            append_projection_binding(
+                &mut binding_preimage,
+                PI_RLC_PROJECTION_EVALUATION_QUOTIENTS_LABEL,
+                &lane.q,
+            );
         }
-        y_ring_lanes.push(lanes);
+        evaluation_lanes.push(lanes);
     }
     #[cfg(feature = "perf-timers")]
-    let y_ring_elapsed = y_ring_started.elapsed();
+    let evaluations_elapsed = evaluations_started.elapsed();
 
     #[cfg(feature = "perf-timers")]
     let binding_started = std::time::Instant::now();
@@ -680,13 +676,13 @@ fn projection_schedule_with_digest(
         commitment_elapsed.as_secs_f64(),
         adv_elapsed.as_secs_f64(),
         x_elapsed.as_secs_f64(),
-        y_ring_elapsed.as_secs_f64(),
+        evaluations_elapsed.as_secs_f64(),
         binding_started.elapsed().as_secs_f64(),
         total_started.elapsed().as_secs_f64(),
         lanes.len(),
         adv_lanes.as_ref().map_or(0, |adv| adv.ops.len() + adv.is.len() + adv.fs.len()),
         x_lanes.len(),
-        y_ring_lanes.len() * 2,
+        evaluation_lanes.len() * 2,
         binding_preimage.len(),
     );
     Ok(ProjectionSchedule {
@@ -698,7 +694,7 @@ fn projection_schedule_with_digest(
             fs: lanes.fs.into_iter().map(|lane| lane.q).collect(),
         }),
         x_q_lanes: x_lanes.into_iter().map(|lane| lane.q).collect(),
-        y_ring_q_lanes: y_ring_lanes
+        evaluation_q_lanes: evaluation_lanes
             .into_iter()
             .map(|lanes| lanes.map(|lane| lane.q))
             .collect(),
@@ -818,9 +814,8 @@ fn validate_inputs_before_rho(s: &crate::paper::relations::Structure, inputs: &[
         validate_fold_digest_canonical("input", input)?;
         validate_canonical_x_shape_one("input", input)?;
         validate_r_shape_one("input", s, input)?;
-        validate_y_ring_shape_one("input", s, input)?;
-        validate_y_ring_padding_zero_one("input", input)?;
-        validate_ct_consistency_one("input", input)?;
+        validate_evaluation_shape_one("input", s, input)?;
+        validate_evaluation_padding_zero_one("input", input)?;
     }
     Ok(())
 }
@@ -856,9 +851,8 @@ fn validate_combined_claim(
     validate_canonical_x_shape(inputs, combined)?;
     validate_r_shape(s, inputs, combined)?;
     validate_r_consistency(inputs, combined)?;
-    validate_y_ring_shape(s, inputs, combined)?;
-    validate_y_ring_padding_zero(inputs, combined)?;
-    validate_ct_consistency(inputs, combined)?;
+    validate_evaluation_shape(s, inputs, combined)?;
+    validate_evaluation_padding_zero(inputs, combined)?;
     validate_adv_combination(mix, rhos, inputs, combined)?;
     validate_fold_digest_consistency(inputs, combined)?;
     Ok(())
@@ -948,68 +942,53 @@ fn validate_r_consistency(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), 
     Ok(())
 }
 
-fn validate_y_ring_shape(
+fn validate_evaluation_shape(
     s: &crate::paper::relations::Structure,
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<(), Error> {
     for input in inputs {
-        validate_y_ring_shape_one("input", s, input)?;
+        validate_evaluation_shape_one("input", s, input)?;
     }
-    validate_y_ring_shape_one("combined", s, combined)?;
+    validate_evaluation_shape_one("combined", s, combined)?;
     Ok(())
 }
 
-fn validate_y_ring_shape_one(
+fn validate_evaluation_shape_one(
     owner: &'static str,
     s: &crate::paper::relations::Structure,
     claim: &CeClaim,
 ) -> Result<(), Error> {
-    if claim.y_ring.len() != s.t() + 1 {
-        return Err(Error::YRingShape(owner));
-    }
     let expected_lanes = D.next_power_of_two();
-    if claim.y_ring.iter().any(|row| row.len() != expected_lanes) {
-        return Err(Error::YRingShape(owner));
+    if claim.eval_k.len() != expected_lanes
+        || claim.eval_a.len() != s.t()
+        || claim.eval_a.iter().any(|row| row.len() != expected_lanes)
+    {
+        return Err(Error::EvaluationShape(owner));
     }
     Ok(())
 }
 
-fn validate_y_ring_padding_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
+fn validate_evaluation_padding_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
     for input in inputs {
-        validate_y_ring_padding_zero_one("input", input)?;
+        validate_evaluation_padding_zero_one("input", input)?;
     }
-    validate_y_ring_padding_zero_one("combined", combined)?;
+    validate_evaluation_padding_zero_one("combined", combined)?;
     Ok(())
 }
 
-fn validate_y_ring_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    for row in &claim.y_ring {
+fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
+    if claim
+        .eval_k
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::EvaluationPadding(owner));
+    }
+    for row in &claim.eval_a {
         if row.iter().skip(D).any(|&lane| lane != K::default()) {
-            return Err(Error::YRingPadding(owner));
-        }
-    }
-    Ok(())
-}
-
-fn validate_ct_consistency(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
-    for input in inputs {
-        validate_ct_consistency_one("input", input)?;
-    }
-    validate_ct_consistency_one("combined", combined)?;
-    Ok(())
-}
-
-fn validate_ct_consistency_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if claim.ct.len() != claim.y_ring.len() {
-        return Err(Error::CtConsistency(owner));
-    }
-    for (ct, row) in claim.ct.iter().zip(&claim.y_ring) {
-        let Some(&constant_term) = row.first() else {
-            return Err(Error::CtConsistency(owner));
-        };
-        if *ct != constant_term {
-            return Err(Error::CtConsistency(owner));
+            return Err(Error::EvaluationPadding(owner));
         }
     }
     Ok(())

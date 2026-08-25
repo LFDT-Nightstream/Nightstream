@@ -10,5 +10,6 @@ workspace = true
 
 [dependencies]
 neo-ccs = { path = "../neo-ccs" }
-neo-fold-clean = { path = "../neo-fold-clean" }
 neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }
+thiserror = { workspace = true }

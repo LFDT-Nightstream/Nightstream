@@ -5,6 +5,8 @@
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
+#   validate.sh pilot-parity <path>
+#   validate.sh pi-ccs-parity <path>
 #   validate.sh all
 set -euo pipefail
 
@@ -35,6 +37,14 @@ case "$phase" in
   emit)
     if (( $# != 2 )); then echo "usage: validate.sh emit <path>" >&2; exit 2; fi
     capped lake exe emit -- "$2"
+    ;;
+  pilot-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh pilot-parity <path>" >&2; exit 2; fi
+    capped lake exe emit -- --pilot-parity "$2"
+    ;;
+  pi-ccs-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh pi-ccs-parity <path>" >&2; exit 2; fi
+    capped lake exe emit -- --pi-ccs-parity "$2"
     ;;
   all)
     bash scripts/check-boundaries.sh

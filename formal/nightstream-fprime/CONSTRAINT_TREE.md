@@ -1,433 +1,223 @@
 # Nightstream F′ Stage 1 constraint tree
-This file is the audit index for the one production circuit. It maps paper
-formulas to Lean owners and assembly levels. It does not define a relation.
 
-Status: `✓` present and gated; `◐` present but exact phase completion open;
-`○` required and absent; `△` closed pilot code that Stage 1 must subsume.
-Required names change only when the exact v1.1 formula gives a better boundary.
+This file is the concise audit map for the one production circuit. It defines
+no relation. `✓` means present and validated; `○` means required and open.
 
-```text
-leaf FormalCircuits
-  → phase Formal.lean
-    → Lifecycle/Stage1/Formal.lean
-      → Layout/Stage1/Lowering.lean
-        → Export/Stage1/Package.lean
-          → Rust prove → verify
-```
+The audit path is `paper formula → Lean predicate → leaf FormalCircuit →
+phase assembler → Stage 1 assembler → proved layout → Lean package → Rust`.
 
-## Reading a leaf interface
-
-Leaf interfaces use functions such as `Nat → KExpr` because a
-`FormalCircuit` can start at any symbolic offset. The phase assembler uses
-`atOffset` to freeze each semantic input at the phase entry. A child offset
-selects only the child's private variable interval; it must not select a new
-semantic value or give the witness authority over that value.
-
-Use these ownership rules:
-
-| Value | Required circuit boundary |
-|---|---|
-| Internal derived value | The child owns and exports its symbolic output. Do not add an expected-output equality row. |
-| Value passed between children | The parent passes the same symbolic expression. A file boundary does not add a copy row. |
-| Prover claim or public value | Constrain the claimed value against the derived value. This equality is a protocol check. |
-
-A multi-child leaf composes opaque children through `Circuit.Sequence`.
-Its proof must use child contracts, builders, and footprint theorems. It must
-not unfold a child's operations, recipes, or compiler state to preserve rows.
-
-Every parent start offset comes from the preceding child's footprint theorem.
-Fixed exponents such as `864` and `12960` can occur in the paper formula and
-as proved theorem results. A parent allocation definition must not repeat a
-child row-count literal.
-
-## Semantic authority
+## Exact SuperNeo v1_1 authority
 
 ```text
-Spec/Folding/PiCCS/v1_1/
-├── Statement.lean       ✓ prior point, Eval_K, and Eval_A input binding
-├── Transcript.lean      ✓ verifier-owned pre-SumCheck replay semantics
-├── EvalK.lean           ✓ Pad MLE equations; k*d coordinates
-├── EvalA.lean           ✓ CCS-matrix MLE equations; k*t*d coordinates
-├── FinalIdentity.lean   ✓ Eval_K + γ^(k*d) Eval_A + constraint terms
-└── Accepted.lean        ✓ exact production check and conjunct coverage
+Spec/Folding/PiCCS/
+├── Statement.lean       ✓ prior point and separate input Eval_K / Eval_A
+├── Transcript.lean      ✓ verifier-owned Fiat–Shamir schedule
+├── EvalK.lean           ✓ Pad evaluation family
+├── EvalA.lean           ✓ 14 CCS-matrix evaluation families
+├── FinalIdentity.lean   ✓ v1_1 terminal joint identity
+└── Accepted.lean        ✓ sole PiCCS acceptance predicate
 
-Lifecycle/PaperAlgebra.lean
-├── padMatrix            ✓ canonical Pad from ColumnLayout
-├── padEvaluation        ✓ independent Eval_K evaluator
-└── evaluationFamily     ✓ Eval_K plus all 14 Eval_A matrices
+Spec/ProductionRelation/SelectivePolynomial.lean
+└── polynomial           ✓ 13 selective matrices + zero; 74 terms; degree 8
 ```
 
-Evidence: [`Statement.eval_K` and `eval_A`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/Statement.lean#L45),
-[`EvalK.Holds`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/EvalK.lean#L49),
-[`EvalA.Holds`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/EvalA.lean#L50),
-[`FinalIdentity.Holds`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/FinalIdentity.lean#L31),
-[`Accepted`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/Accepted.lean#L46), and
-[`accepted_iff_coverage`](NightstreamFPrime/Spec/Folding/PiCCS/v1_1/Accepted.lean#L120).
-Pad is not a CCS matrix index.
-## Reusable leaf circuits
+`Lifecycle/PaperAlgebra.lean` constructs Pad separately from the 14 CCS
+matrices. No Pad-as-matrix-zero relation and no combined `Eval` value remain.
+Equality gating gives the production PiCCS degree bound 9. Each of the 25
+SumCheck messages therefore has 10 extension-field coefficients.
 
-```text
-Gadgets/
-├── Poseidon2/Duplex/Formal.lean  ✓ ordered absorb/squeeze trace
-├── SumCheck/FixedChain.lean      ✓ generic round recurrence and terminal equality
-├── Polynomial/Horner.lean        ✓ causal polynomial evaluation with owned output
-├── Polynomial/{Power,Sparse}.lean ✓ owned powers and sparse evaluation
-└── Multilinear/{PointEquality,PointWeightedHorner}.lean ✓ owned multilinear outputs
-```
-The Duplex child owns Poseidon2 constraints, soundness, completeness, and
-footprint. The fixed-chain child owns
-`p_i(0) + p_i(1) = claim_i` and `claim_(i+1) = p_i(r_i)` for indexed rounds.
-Neither child owns protocol labels, transcript order, or challenge authority.
-## PiCCS logical circuit
+## Pilot conformance closure
+
+The pilot is **Conformance-closed** on the current source cut. Its semantic
+path is `Lifecycle.Pilot.phase_soundness` and
+`Lifecycle.Pilot.builders_imply_hash_slots`; its emitted-row path reaches
+`Export.Pilot.canonicalPackage_implies_recursive_hash_slots` and
+`Export.Stage1.Package.circuitPackage_implies_pilotSpec`.
+
+The pilot has exactly 12,574,138 rows, 12,659,088 source columns, 58 public
+columns, and joint domain 12,659,088. `PilotProduction.jointDomain_matches`
+connects that domain to the exact row/column maximum, and
+`PilotProduction.jointDomain_le_twoPow25` proves the production bound.
+
+`Export.Stage1.PilotParity` emits schema 1 with two distinct 42,475-word
+preimages, both four-word digests, all 58 public values, and the relative
+public segments `[4, 0, 54]` and `[5, 54, 4]`. The artifact SHA-256 is
+`ba1420c80bacb4ea2e744ebae42fa4aef5ab2effa97e59a01e4b60fac818e905`.
+
+Executed release evidence:
+
+- `pilot_lean_nonzero_parity`: 3/3 passed in 18.59 seconds. Independent Rust
+  Poseidon2 recomputation equaled the complete Lean result. Mutations covered
+  both preimages, every serialization family, all 16 running sources, every
+  source's 14 separate `Eval_A` families, all 58 public values, wrong lengths,
+  trailing-zero extension, and noncanonical field words.
+- `poseidon2_lean_vectors`: 2/2 passed. The Rust permutation and sponge equal
+  the Lean primitive vectors.
+- `package_matrix_conformance`: 1/1 passed in 48.52 seconds. It compared the
+  final padded Rust `A/B/C` matrices with every canonical Lean row and used a
+  separate evaluator for all 27,893,668 current-prefix rows and the padded
+  zero domain. This includes every pilot row.
+
+This status is not Production-closed. The relation-identity gate must rerun
+these applicable checks after the selected digest-only PiCCS rows replace the
+superseded candidate and before the new identity is pinned.
+
+## PiCCS leaf circuits
+
+Logical owners are under `Lifecycle/PiCCS/v1_1/`. Matching physical owners
+are under `Layout/PiCCS/v1_1/Leaves/`.
+
+| Leaf | Mathematical constraint | Rows | R1CS-fresh columns |
+|---|---|---:|---:|
+| `StatementBinding.lean` | Bind the prior point and claims | 0 | 0 |
+| `StatementAbsorption.lean` | Absorb running and fresh statements | 10,298,432 | 0 |
+| `ChallengeDerivation.lean` | Derive 25 `α` coordinates and `γ` | 46,176 | 0 |
+| `RoundTranscript.lean` | Absorb 25 degree-9 messages; derive `r′` | 133,200 | 0 |
+| `InitialClaim.lean` | `T = T_K + γ^864 T_A` | 116,631 | 90,713 |
+| `SumcheckChain.lean` | `pᵢ(0)+pᵢ(1)=cᵢ`; `cᵢ₊₁=pᵢ(rᵢ)` | 378,610 | 378,560 |
+| `EvalKTerminal.lean` | Pad-family terminal evaluation `E_K` | 8,458 | 6,634 |
+| `EvalATerminal.lean` | 14-matrix terminal evaluations `E_A` | 109,546 | 85,258 |
+| `CcsTerminal.lean` | Evaluate the 74-term selective CCS polynomial | 20,794 | 20,792 |
+| `NormTerminal.lean` | Low-norm residual `N` | 752 | 720 |
+| `FinalIdentity.lean` | Final v1_1 identity and terminal equality | 130,419 | 102,671 |
+| `OutputBinding.lean` | Absorb 17 separate `Eval_K` / `Eval_A` outputs | 4,076,512 | 0 |
+
+Reusable operations remain under `Gadgets/Poseidon2/`, `Gadgets/SumCheck/`,
+`Gadgets/Polynomial/`, and `Gadgets/Multilinear/`. Parents use child
+contracts; they do not unfold child operations.
+
+## PiCCS phase assembly
 
 ```text
 Lifecycle/PiCCS/v1_1/
-├── StatementBinding.lean      ✓ zero-row shared statement/input wiring
-├── StatementAbsorption.lean   ✓ ordered public-statement Poseidon2 absorption
-├── ChallengeDerivation.lean   ✓ 24 labelled α squeezes, then labelled γ
-├── RoundTranscript.lean       ✓ indexed message absorb, then derive each r_i
-├── InitialClaim.lean          ✓ T_K + γ^(k*d) T_A via causal Horner
-├── SumcheckChain.lean         ✓ fixed 24-round chain; child-owned final claim
-├── EvalKTerminal.lean         ✓ eq(r′,r) times 864-term Pad Horner sum
-├── EvalATerminal.lean         ✓ eq(r′,r) times 12,096-term matrix Horner sum
-├── CcsTerminal.lean           ✓ one-source relation-owned sparse CCS term
-├── NormTerminal.lean          ✓ 17 strict-b=2 cubic residuals in gamma order
-├── FinalIdentity.lean         ✓ eq(r′,α), gamma shifts, and complete Q(r′)
-├── OutputBinding.lean         ✓ reduced claims and outgoing transcript state
-└── Formal.lean                ✓ exact PhaseHolds soundness and completeness
+├── [twelve leaves]      ✓ local soundness, completeness, and footprint
+├── Formal.lean          ✓ sole phase assembler; theorem `soundness`
+└── Completeness.lean    ✓ theorem `completeness`
+Layout/PiCCS/v1_1/
+├── Lowering.lean        ✓ one logical-to-physical lowering
+├── Composition.lean     ✓ exact child order and footprint sum
+├── Ownership.lean       ✓ row and column ownership
+└── Preservation.lean    ✓ `physical_implies_phaseHolds`, `physical_complete`
 ```
 
-The closed statement leaf exports `circuit`, `soundness`, `completeness`, and
-footprint theorems at
-[`StatementAbsorption.circuit`](NightstreamFPrime/Lifecycle/PiCCS/v1_1/StatementAbsorption.lean#L856).
-Its exact footprint is 54 actions, 17,396 rate-4 chunks, 10,298,432 private
-recipe variables and rows, one witness operation, and no boundary-copy row.
+Exact PiCCS totals are 14,634,130 logical private variables, 14,634,182
+logical rows, 685,348 lowering columns, 15,319,478 source columns, and
+15,319,530 physical rows. `Composition.jointDomain_le_twoPow25` proves the
+phase domain bound.
 
-The challenge leaf has 50 ordered label/squeeze actions, 44,400 private
-recipe variables and rows, one witness operation, and no challenge or state
-copy row. Its builder derives all 24 `α` coordinates, `γ`, and the final state.
-
-The round-transcript leaf accepts only prover message coefficients. It derives
-all 24 `r_i` values and its final state from the constrained Poseidon2 trace.
-Its footprint theorem is `24 * perRoundRecipeCount degreeBound`; it has one
-witness operation and no challenge or state copy row.
-
-The initial-claim leaf owns the Horner output consumed by the SumCheck chain.
-`initialClaimStart_atOffset` proves the exact parent wiring. The leaf has
-25,918 private variables, 25,918 rows, one witness operation, and no result
-copy row. Its unconditional builder is `InitialClaim.build`.
-
-The SumCheck chain owns the 24 equations
-`p_i(0) + p_i(1) = claim_i` and exports the final `p_i(r_i)` expression.
-`sumcheckStart_atOffset` proves the parent wiring. It has zero private
-variables, 48 assertion rows, and no terminal copy row. `FinalIdentity` owns
-the one `v = Q(r′)` obligation.
-
-The Eval_K leaf accepts only `r′`, prior `r`, `γ`, and the 864 v1_1 Pad
-coefficients. Its two opaque children own `eq(r′,r)` and the gamma-weighted
-Horner sum. `EvalKTerminal.output` is their symbolic product, and
-`evalKStart_atOffset` proves the parent wiring. The leaf has 1,820 private
-variables, 1,820 rows, two subcircuit operations, and no intermediate or
-result copy row.
-
-The Eval_A leaf accepts only `r′`, prior `r`, `γ`, and the 12,096 v1_1 CCS
-matrix coefficients. It independently owns its point equality and Horner
-sum; it does not reuse or merge the Eval_K value. `EvalATerminal.output` is
-the product, and `evalAStart_atOffset` proves the parent wiring. The leaf has
-24,284 private variables, 24,284 rows, two subcircuit operations, and no
-intermediate or result copy row.
-
-The CCS terminal leaf accepts only the 14 fresh CCS matrix values. Its sparse
-polynomial comes from the production relation, and `CcsTerminal.output`
-computes the one-source CCS term as a symbolic expression. The parent passes
-that expression to the final identity, and `ccsStart_atOffset` proves the
-handoff location. The leaf has zero private variables, zero operations, zero
-rows, and no result copy row.
-
-The norm terminal leaf accepts `γ` and the 17 output source assignments in
-exact `K + k` order. It computes
-`Σ_i γ^i (x_i + 1) x_i (x_i - 1)` for strict `b = 2` and exposes
-`NormTerminal.output`; no caller supplies `N`. `normStart_atOffset` proves
-the parent handoff. The leaf has 32 private variables, 32 rows, one witness
-operation, and no result copy row.
-
-The final-identity leaf enforces
-`v = E_K + γ^864 E_A + γ^12960 eq(r′,α) (F + γ N)`.
-Its opaque children own `eq(r′,α)`, `γ^864`, and `γ^12960`; the PiCCS
-parent supplies none of those values. The leaf has 27,742 private variables,
-27,744 rows, five parent operations, and only the two required extension-cell
-terminal assertions. `FinalIdentity.spec_implies_keyTerminal` and
-`FinalIdentity.keyTerminal_implies_spec` prove both directions for the exact
-production `terminalFromMessage` predicate.
-
-The output-binding leaf absorbs the complete 27,540-word `y′` family in
-17-source `K + k` order, with `Eval_K` before all 14 `Eval_A` matrices for
-each source. Its owned Duplex child computes the outgoing state; no caller
-supplies that state. The leaf has 4,076,512 private variables and rows, one
-witness operation, and no state-copy row. `OutputBinding.build` constructs
-the trace, and `OutputBinding.spec_implies_keyOutgoingState` covers the
-verifier handoff.
-
-Assembler reading order:
-`Formal.lean` defines the shared carrier, child wiring, offsets, phase
-predicate, and soundness composition; `Completeness/Core.lean` owns opaque
-child append rules; `Completeness/Transcript.lean`,
-`Completeness/Evaluation.lean`, and `Completeness/Terminal.lean` build the
-three ordered child groups; `Completeness.lean` exports the one PiCCS
-`FormalCircuit`. Its specification is exact `PhaseHolds`; soundness maps all
-rows to `PhaseHolds`, and completeness builds all rows from `PhaseHolds`
-without a caller-supplied internal child predicate.
-
-The complete logical assembler has this proved footprint:
-
-| Measure | Exact value |
-|---|---:|
-| Private symbolic variables | `14,499,140 + 24 * perRoundRecipeCount degreeBound` |
-| Flattened logical rows | `14,499,190 + 24 * perRoundRecipeCount degreeBound` |
-| Private variables if `degreeBound = 4` | `14,584,388` |
-| Logical rows if `degreeBound = 4` | `14,584,438` |
-
-`Formal.localLength_eq` and `Formal.flatConstraints_length_eq` prove the
-parameterized values. `Formal.privateCount_eq_of_degreeBound_eq_four` and
-`Formal.rowCount_eq_of_degreeBound_eq_four` prove the conditional numeric
-values. The parent sums certified child metadata. It does not evaluate the
-14-million-row list in the kernel.
-
-These are logical counts. `Layout/PiCCS/v1_1/Composition.lean` now proves the
-physical parent count. Column ownership, reuse, and connection to the Stage 1
-`2^25` ledger remain open.
-
-## PiRLC logical circuit
+## Current Stage 1 package prefix
 
 ```text
-Lifecycle/PiRLC/v1_1/
-├── InputBinding.lean           ○ bind 17 PiCCS output claims
-├── TranscriptAbsorption.lean   ○ absorb the complete y′ family
-├── StrongSetSampling.lean      ○ derive ρ₁…ρ₁₇ from the transcript
-├── ChallengeMembership.lean    ○ prove every ρ_i is in the allowed set
-├── CommitmentCombination.lean ○ Σ_i ρ_i · C_i
-├── PublicInputCombination.lean ○ Σ_i ρ_i · x_i
-├── EvalKCombination.lean       ○ indexed combination of 17 Eval_K values
-├── EvalACombination.lean       ○ indexed combination of 17 Eval_A families
-├── OutputBinding.lean          ○ bind the one combined parent claim
-└── Formal.lean                 ○ only PiRLC FormalCircuit and coverage composition
-```
-
-The assembler uses indexed composition. It does not copy 17 constraint blocks.
-
-## PiDEC logical circuit
-
-```text
-Lifecycle/PiDEC/v1_1/
-├── InputBinding.lean        ○ bind the PiRLC parent
-├── ParentNormCheck.lean     ○ reject a parent public input outside CE(B′)
-├── SplitB.lean              ○ construct 16 signed base-2 components
-├── DigitRange.lean          ○ digit range and low-norm checks
-├── Recombination.lean       ○ parent = Σ_j 2^j child_j
-├── CommitmentRelation.lean ○ commitment recombination
-├── EvalKRelation.lean       ○ separate Eval_K recombination
-├── EvalARelation.lean       ○ separate Eval_A recombination
-├── OutputChildren.lean      ○ indexed construction of 16 children
-├── OutputBinding.lean       ○ bind all child claims
-└── Formal.lean              ○ only PiDEC FormalCircuit and coverage composition
-```
-
-The assembler uses indexed composition. It does not copy 16 constraint blocks.
-
-## Stage 1 assembly, layout, and export
-
-```text
-Lifecycle/
-├── PriorStateHash.lean          △ prior-state and recursive-input binding
-├── OutputHash.lean              △ output-state and public-output binding
-├── Pilot.lean                   △ closed hash-slot composition only
-└── Stage1/
-    ├── Interface.lean           ○ cross-phase symbolic interfaces
-    ├── Formal.lean              ○ the only production logical FormalCircuit
-    └── Soundness.lean           ○ circuit rows imply StepHolds/TerminalHolds
-
-Layout/
-├── PiCCS/v1_1/
-│   ├── Lowering.lean     ● one lowering of the sole logical circuit
-│   ├── Composition.lean  ● exact 12-child order and footprint ledger
-│   ├── Ownership.lean    ● one owner for every row and column
-│   └── Preservation.lean ● physical rows imply exact PhaseHolds
-├── PiRLC/v1_1/{Lowering,Preservation}.lean ○
-├── PiDEC/v1_1/{Lowering,Preservation}.lean ○
-└── Stage1/{Lowering,Ownership,Preservation}.lean ○
-
+Layout/Stage1/
+├── PiCCSInputs.lean       ✓ 972 commitment + 500 rounds + 27,540 outputs
+├── PiCCSProofInputs.lean  ✓ typed 25×10 proof-message decoder
+├── PiCCSStarts.lean       ✓ one set of logical and physical starts
+└── PilotPiCCS.lean        ✓ pilot → PiCCS composition
 Export/Stage1/
-├── WitnessProgram.lean ○ one Rust-interpreted witness IR
-├── Package.lean        ○ one package from the proved Stage 1 lowering
-└── Emit.lean           ○ the sole production emitter
+├── PiCCSInvocations.lean  ✓ 24,585 Poseidon2 invocations
+├── PiCCSArithmetic.lean   ✓ 765,210 non-transcript rows
+├── PiCCSCompleteness.lean ✓ semantic witness → emitted PiCCS rows
+├── PackageCompleteness.lean ✓ `complete_piCcsRows`
+├── WitnessProgram.lean    ✓ Rust-interpreted expression IR
+├── PiCCSNonzero.lean      ✓ complete deterministic nonzero fixture
+├── PiCCSParity.lean       ✓ complete Lean PiCCS result vector
+├── Data.lean              ✓ sole package data assembler
+└── Package.lean           ✓ rows → `PhaseHolds`; exact row coverage
 ```
 
-`Stage1/Formal.lean` owns cross-phase wiring only: transcript states, public
-bindings, PiCCS outputs to 17 PiRLC inputs, the PiRLC parent to PiDEC, 16
-PiDEC children to the next running accumulator, application state, hashes,
-and terminal checks. A parent uses child contracts and footprint theorems; it
-must not unfold child operations. File boundaries add no automatic copy rows.
+The 29,012 proof-input words are 972 commitment words, 500 words for 25×10
+extension coefficients, and 27,540 output words. Each of the 17 outputs has
+108 `Eval_K` / Pad words and 1,512 `Eval_A` / matrix words.
 
-The current PiCCS layout has one `R1CS.LoweringPlan` over the sole logical
-circuit. `physical_implies_phaseHolds` proves that its physical rows imply the
-exact PiCCS `PhaseHolds`. `Composition.logicalConstraints_eq_ordered` proves
-that its constraints are the twelve children below in production order.
-`physicalFreshDeltas_eq` and `physicalRowDeltas_eq` derive every entry from a
-leaf theorem. At `degreeBound = 4`, the parent totals are:
-
-| Measure | Exact value |
+| Emitted package value | Exact value |
 |---|---:|
-| Lowering columns | `291,653 + terminalFreshCost` |
-| Physical rows | `14,876,089 + terminalRowCost` |
-| Zero-based physical columns | `14,876,041 + terminalFreshCost` |
-| Local joint domain | `max(rows, columns)` |
+| Rows | 27,893,668 |
+| Source columns / joint domain | 28,007,578 |
+| Private columns / constant column | 28,007,520 |
+| Public columns | 58 |
+| Total unpadded columns | 28,007,579 |
+| Witness instructions | 685,348 |
+| Assertion rows | 79,920 |
 
-The two terminal costs are the exact costs of the relation-owned sparse CCS
-expression. A universal numeric value would be false while that application
-relation remains a parameter. `jointDomain_eq_fixed` proves the displayed
-maximum. `Formal.completePrefix` exports the logical builder's row scope.
-Parent `physical_complete` uses that scope to construct every lowering
-intermediate and proves that the final environment differs from the caller
-only in the adjacent logical and R1CS fresh-column intervals.
-`Ownership.rowOwner` names one of the twelve mathematical leaves for every
-physical row. `Ownership.columnOwner` names external, child-private, or R1CS
-intermediate ownership for every physical column. `noBoundaryRows` and
-`noBoundaryColumns` prove that parent assembly adds no copy surface. Broader
-cross-phase reuse, the application-specific terminal corollary, and the
-cumulative Stage 1 `2^25` theorem remain open.
+The joint domain is `28,007,578 ≤ 2^25`. The final backend-neutral R1CS
+layout pads the row and private-column domains to `2^25`: 33,554,432 rows,
+constant column 33,554,432, 58 public columns, and 33,554,491 total columns.
+Every padded row is empty and every padded private assignment value is zero.
 
-Physical leaf packets close in logical order. Statement binding is complete:
-`Leaves.StatementBinding.freshColumnCount_eq` proves zero fresh columns and
-`Leaves.StatementBinding.physicalRowCount_eq` proves zero physical rows.
-Statement absorption is also complete under its explicit affine-input
-boundary. `Layout.Poseidon2.Duplex.compile_recipes_direct` proves that each
-Duplex recipe lowers to one direct R1CS row without schedule evaluation.
-`Leaves.StatementAbsorption.freshColumnCount_eq` proves zero fresh columns,
-and `Leaves.StatementAbsorption.physicalRowCount_eq` proves exactly
-10,298,432 physical rows. Challenge derivation is complete under its incoming
-state-affinity boundary. `Layout.Poseidon2.Duplex.compile_samples_affine`
-proves that all 25 expected values are compiler-derived affine samples;
-there are no expected-sample copy rows.
-`Leaves.ChallengeDerivation.freshColumnCount_eq` proves zero fresh columns,
-and `Leaves.ChallengeDerivation.physicalRowCount_eq` proves exactly 44,400
-physical rows. The fixed round transcript is also complete under its incoming
-state and prover-message affinity boundary. One generic round proof composes
-over 24 indices. Its physical row count is
-`24 * perRoundRecipeCount degreeBound`, with zero fresh columns; when
-`degreeBound = 4`, `physicalRowCount_eq_of_degreeBound_eq_four` proves exactly
-85,248 rows. Initial claim is complete under its production wire-shape
-boundary. Its 12,959 extension multiplications retain 25,918 logical recipe
-variables. The current R1CS lowering adds 90,713 intermediate columns and
-uses 116,631 physical rows. `physicalPrivateColumnCount_eq` proves 116,631
-total private columns for this leaf. The fixed SumCheck chain is complete
-under its production
-wire-shape boundary. Its 48 logical equality rows contain no logical witness
-variables. Structural lowering of one generic degree-4 round, composed over
-24 indices, proves 11,053 intermediate columns and 11,101 physical rows.
-The separate `Eval_K` terminal is also complete. Its reusable physical tree is:
+This candidate still uses the full 10,298,432-row statement absorption. The
+owner selected the digest-only replacement in
+`decisions/piccs-prior-state-digest.md`. The values below identify and validate
+the now-superseded full-absorption candidate; they do not give it
+Conformance-closed status.
+
+Schema 6 carries source tags
+`[Bit, GeneralSelector, A, B, C, SboxInput, CenteredUnit, EvalSelector,
+Class0, Class1, Class2, Class3, Class4, Zero]`, degree bound 9, and all 74
+polynomial terms. Its verifier-owned Poseidon2 relation identifier is:
 
 ```text
-Eval_K terminal
-├── point equality over 24 coordinates
-│   └── 94 logical + 569 lowering columns = 663 rows
-├── Horner over 864 Pad-family coefficients
-│   └── 1,726 logical + 6,041 lowering columns = 7,767 rows
-└── parent wiring
-    └── 0 copy columns and 0 copy rows
+[2056683603671309374, 6478784752624371706,
+ 16274825114146670905, 1848990277754397221]
 ```
 
-`Leaves.EvalKTerminal.freshColumnCount_eq` proves 6,610 lowering
-columns. `physicalPrivateColumnCount_eq` and `physicalRowCount_eq` each prove
-8,430. The Pad-family value stays separate from every `Eval_A` matrix value.
-The separate `Eval_A` terminal reuses the same point-equality child, then
-evaluates only the 12,096 CCS-matrix-family coefficients:
+The exact package artifact SHA-256 is
+`f2d49ddfb2c1aa8d673284b7b6df57e0e08c09218aa7ce01c952b997982b5f5e`.
+The complete nonzero PiCCS parity artifact uses schema 4 and has SHA-256
+`51cbbc20bb3b2db58e3523245676da9310879d246a5bcdb020d2fd7b1c9e1ab0`.
+
+## Rust v1_1 path and evidence
 
 ```text
-Eval_A terminal
-├── point equality over 24 coordinates
-│   └── 94 logical + 569 lowering columns = 663 rows
-├── Horner over 12,096 matrix-family coefficients
-│   └── 24,190 logical + 84,665 lowering columns = 108,855 rows
-└── parent wiring
-    └── 0 copy columns and 0 copy rows
+crates/
+├── nightstream-fprime/src/package/{r1cs,relation,v1_1,pi_ccs_v1_1_transcript}.rs
+│   └── exact final matrices, tags, typed inputs, and transcript replay ✓
+├── neo-reductions/src/engines/{paper_exact_engine,optimized_engine}/
+│   └── literal v1_1 formulas / optimized byte-equivalent formulas      ✓
+├── neo-fold-clean/tests/nifs/pi_ccs_lean_nonzero_parity.rs
+│   └── complete Lean / paper_exact / optimized nonzero parity          ✓
+└── neo-fold-clean production lifecycle uses only package rows              ○
 ```
 
-`Leaves.EvalATerminal.freshColumnCount_eq` proves 85,234 lowering
-columns. `physicalPrivateColumnCount_eq` and `physicalRowCount_eq` each prove
-109,518. The final-identity leaf, not this leaf, owns the `gamma^(k*d)` shift.
-The CCS terminal is a shared symbolic-expression leaf:
+Executed release evidence:
+
+- `poseidon2_lean_vectors`: 2/2 passed. Rust permutation and sponge hashing
+  match the Lean reference used by both nonzero pilot hash chains.
+- `package_loader`: 13/13 passed in 20.92 seconds. It checked the schema-6
+  identity, complete nonzero transcript replay, separate `Eval_K` / `Eval_A`,
+  canonical coefficients, and package mutation rejection.
+- `package_matrix_conformance`: 1/1 passed in 49.05 seconds. An independent
+  expander compared every final A/B/C row and term with the Lean-lowered rows.
+  An independent evaluator checked all 27,893,668 unpadded rows, all padded
+  empty rows, the relocated constant, all public values, and zero private pad.
+  Row, column, and coefficient mutations were rejected.
+- `nifs_pi_ccs_lean_nonzero_parity`: 4/4 passed in 7.93 seconds. Lean,
+  `paper_exact`, and `optimized` matched byte-for-byte for acceptance,
+  challenges, every intermediate state and claim, all six terminal components,
+  all 17 output claims and evaluation families, and the outgoing state. The
+  test also rejected mutations across every input, proof, output, and result
+  family.
+- `pi_ccs_v1_1_engine_parity`: 15/15 passed in 40.81 seconds.
+- `nifs_engine_crosscheck`: 10/10 passed in 89.56 seconds, including the
+  nonzero 25×10 proof bridge and package offsets.
+
+These tests prove the matrix, assignment, value, and mutation properties of
+the superseded full-absorption PiCCS candidate. PiCCS Conformance-closed status
+remains open until the selected digest-only relation has the same complete
+evidence. Production package-only `prove → verify` also remains open and is
+not inferred from backend acceptance.
+
+## Open assembly levels
 
 ```text
-CCS terminal F
-├── relation-owned sparse constraint polynomial
-├── 14 fresh-source matrix inputs
-└── symbolic output consumed by final identity
-    └── 0 logical columns, 0 lowering columns, 0 rows
+Lifecycle/PiRLC/v1_1/InputBinding.lean ✓ 17 inputs; 0 rows / 0 columns
+Lifecycle/PiRLC/v1_1/Formal.lean       ○ remaining 17-input phase assembler
+Lifecycle/PiDEC/v1_1/Formal.lean       ○ 16-child phase assembler
+Lifecycle/Stage1/Formal.lean           ○ sole full Stage 1 assembler
+Layout/PiRLC/v1_1/Leaves/InputBinding.lean ✓ proved 0-row footprint
+Layout/PiRLC/v1_1/{Lowering,Preservation}.lean ○ remaining phase layout
+Layout/PiDEC/v1_1/                     ○ lowering and preservation
+Layout/Stage1/                         ○ full ownership and preservation
+Export/Stage1/                         ○ PiRLC, PiDEC, application, terminal
 ```
 
-`Leaves.CcsTerminal.physicalPrivateColumnCount_eq` and
-`physicalRowCount_eq` prove zero. This is not an omitted check: the later
-final-identity rows constrain the returned sparse-polynomial expression.
-The strict base-2 norm terminal has this physical tree:
-
-```text
-Norm terminal N
-├── 17 cubic residual expressions: (x_i + 1) x_i (x_i - 1)
-├── 16 indexed gamma-Horner transitions
-│   └── each: 2 logical columns + 45 lowering columns = 47 rows
-└── parent output sharing
-    └── 0 copy columns and 0 copy rows
-```
-
-`Leaves.NormTerminal.compile_totalFreshCount` and
-`compile_totalRowCount` prove the indexed composition without expanding the
-17-source schedule in the kernel. The fixed leaf has 32 logical columns, 720
-lowering columns, 752 total private columns, and 752 rows.
-
-The final-identity leaf now has an exact physical footprint certificate:
-
-```text
-Final identity
-├── point equality over 24 coordinates
-│   └── 94 logical + 569 lowering columns = 663 rows
-├── gamma^864
-│   └── 1,728 logical + 6,041 lowering columns = 7,769 rows
-├── gamma^12960
-│   └── 25,920 logical + 90,713 lowering columns = 116,633 rows
-└── two terminal extension-cell assertions
-    └── exact symbolic cost from the relation-owned sparse CCS expression
-```
-
-`Leaves.FinalIdentity.freshColumnCount_eq` proves `97,323` fixed lowering
-columns plus the exact terminal-assertion lowering cost.
-`physicalRowCount_eq` proves `125,065` fixed rows plus the exact terminal-row
-cost. A universal numeric terminal cost is not valid while the production
-sparse CCS expression remains parameterized.
-`Leaves.FinalIdentity.physical_implies_spec` proves physical soundness for the
-exact v1_1 terminal predicate. `physical_complete` composes the logical builder
-with `Layout.R1CS.lowerConstraints_complete` and constructs all logical and
-physical multiplication witnesses without normalizing the 27,744-row list.
-The production numeric terminal-cost corollary remains open until the sparse
-CCS expression is fixed. The output-binding packet has this physical tree:
-
-```text
-Output binding
-├── complete 27,540-word y' family in 17-source K + k order
-├── one 27,541-word length-prefixed additive Poseidon2 absorption
-├── 4,076,512 logical recipe columns
-├── 0 lowering columns and 4,076,512 physical rows
-└── 0 final-state or reduced-claim copy rows
-```
-
-`Leaves.OutputBinding.physical_implies_spec` binds the outgoing state to the
-constrained Duplex trace. `physical_complete` constructs the logical trace and
-its physical rows. The packet keeps `Eval_K` before all 14 separate `Eval_A`
-matrix families for each source. All twelve PiCCS leaf packets are
-structurally present, and their parent physical footprint is composed.
-Ownership, reuse, package emission, and the application-specific Stage 1
-ledger remain open.
-
-The current pilot preservation and package proofs are
-[`Layout.Pilot.physical_implies_spec`](NightstreamFPrime/Layout/Pilot.lean#L173)
-and [`Export.Pilot.canonicalPackage_implies_spec`](NightstreamFPrime/Export/Pilot.lean#L797).
-They are evidence for the closed pilot, not the final Stage 1 assembler.
+The final path is `pilot → PiCCS → PiRLC → PiDEC → application → output hash → terminal`; it lowers into one package, with no second production relation.

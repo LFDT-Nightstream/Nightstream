@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 
 /-!
-Owns physical R1CS cost proofs for the reusable degree-4 SumCheck chain.
+Owns physical R1CS cost proofs for the reusable degree-9 SumCheck chain.
 It counts one generic round and composes that result by list induction. It
 does not own transcript challenges, protocol round count, or terminal checks.
 -/
@@ -54,12 +54,12 @@ theorem evaluateCoefficients_mulCounts
       omega
 
 structure RoundLinear
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4) : Prop where
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) : Prop where
   coefficient : ∀ index, KExprLinear (round.coefficient index)
   challenge : KExprLinear round.challenge
 
 private theorem roundCoefficients_noMul
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (linear : RoundLinear round) :
     ∀ coefficient ∈ round.coefficients,
       R1CS.mulCount coefficient.c0 = 0 ∧
@@ -72,17 +72,17 @@ private theorem roundCoefficients_noMul
     (linear.coefficient index).c1_mulCount⟩
 
 theorem evaluateRound_mulCounts
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (point : KExpr)
     (pointNoMul : R1CS.mulCount point.c0 = 0 ∧
       R1CS.mulCount point.c1 = 0)
     (linear : RoundLinear round) :
     R1CS.mulCount
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round point).c0 = 78 ∧
+          round point).c0 = 2558 ∧
       R1CS.mulCount
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round point).c1 = 77 := by
+          round point).c1 = 2557 := by
   unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
   have counts := evaluateCoefficients_mulCounts point round.coefficients
     pointNoMul (roundCoefficients_noMul round linear)
@@ -90,14 +90,46 @@ theorem evaluateRound_mulCounts
     evaluationCounts] using counts
 
 theorem evaluateRound_totalMulCount
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (linear : RoundLinear round) :
     KExprMulCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round round.challenge) = 155 := by
+        round round.challenge) = 5115 := by
   have counts := evaluateRound_mulCounts round round.challenge
     ⟨linear.challenge.c0_mulCount, linear.challenge.c1_mulCount⟩ linear
   simp [KExprMulCount, counts.1, counts.2]
+
+/-- A nonempty fixed degree-9 chain exports the evaluation of its last round,
+so its component multiplication counts do not depend on the initial claim or
+the number of earlier rounds. -/
+theorem outputFrom_mulCounts_of_nonempty
+    (current : KExpr)
+    (rounds : List
+      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
+    (nonempty : rounds ≠ [])
+    (linear : ∀ round ∈ rounds, RoundLinear round) :
+    R1CS.mulCount
+        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom
+          current rounds).c0 = 2558 ∧
+      R1CS.mulCount
+        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom
+          current rounds).c1 = 2557 := by
+  induction rounds generalizing current with
+  | nil => exact (nonempty rfl).elim
+  | cons round rounds inductionHypothesis =>
+      cases rounds with
+      | nil =>
+          simp only [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom]
+          exact evaluateRound_mulCounts round round.challenge
+            ⟨(linear round (by simp)).challenge.c0_mulCount,
+              (linear round (by simp)).challenge.c1_mulCount⟩
+            (linear round (by simp))
+      | cons next rest =>
+          rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom]
+          apply inductionHypothesis
+          · simp
+          · intro later member
+            exact linear later (by simp [member])
 
 private theorem evaluateCoefficients_one_lowerAffine_none_of_three
     (first second third : KExpr) (rest : List KExpr) :
@@ -124,7 +156,7 @@ private theorem evaluateCoefficients_zero_lowerAffine_none_of_three
     KExpr.add, KExpr.mul, KExpr.zero, R1CS.lowerAffine]
 
 private theorem evaluateRound_one_lowerAffine_none
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4) :
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) :
     R1CS.lowerAffine
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
           round KExpr.one).c0 = none ∧
@@ -132,7 +164,7 @@ private theorem evaluateRound_one_lowerAffine_none
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
           round KExpr.one).c1 = none := by
   generalize coefficientsEq : round.coefficients = coefficients
-  have coefficientsLength : coefficients.length = 5 := by
+  have coefficientsLength : coefficients.length = 10 := by
     rw [← coefficientsEq]
     simp [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients]
   cases coefficients with
@@ -150,7 +182,7 @@ private theorem evaluateRound_one_lowerAffine_none
                 first second third rest
 
 private theorem evaluateRound_zero_lowerAffine_none
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4) :
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) :
     R1CS.lowerAffine
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
           round KExpr.zero).c0 = none ∧
@@ -158,7 +190,7 @@ private theorem evaluateRound_zero_lowerAffine_none
         (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
           round KExpr.zero).c1 = none := by
   generalize coefficientsEq : round.coefficients = coefficients
-  have coefficientsLength : coefficients.length = 5 := by
+  have coefficientsLength : coefficients.length = 10 := by
     rw [← coefficientsEq]
     simp [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients]
   cases coefficients with
@@ -223,15 +255,15 @@ private theorem directConstraint_sub_add_right_eq_none
         firstNone
 
 private theorem roundRight_mulCounts
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (linear : RoundLinear round) :
     let right := KExpr.add
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
         round KExpr.zero)
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
         round KExpr.one)
-    R1CS.mulCount right.c0 = 156 ∧
-      R1CS.mulCount right.c1 = 154 := by
+    R1CS.mulCount right.c0 = 5116 ∧
+      R1CS.mulCount right.c1 = 5114 := by
   dsimp only
   have zeroCounts := evaluateRound_mulCounts round KExpr.zero
     ⟨rfl, rfl⟩ linear
@@ -268,7 +300,7 @@ private theorem equalityRowCount
 
 theorem roundEqualities_totalFreshCount
     (current : KExpr)
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (linear : RoundLinear round) :
     let right := KExpr.add
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
@@ -276,7 +308,7 @@ theorem roundEqualities_totalFreshCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
         round KExpr.one)
     R1CS.totalFreshCount (KExpr.equalities current right) =
-      KExprMulCount current + 312 := by
+      KExprMulCount current + 10232 := by
   dsimp only
   have firstNone := evaluateRound_zero_lowerAffine_none round
   have rightCounts := roundRight_mulCounts round linear
@@ -287,7 +319,7 @@ theorem roundEqualities_totalFreshCount
             round KExpr.zero).c0 +
         R1CS.mulCount
           (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c0 = 156 := by
+            round KExpr.one).c0 = 5116 := by
     simpa [KExpr.add, R1CS.mulCount] using rightCounts.1
   have rightC1 :
       R1CS.mulCount
@@ -295,7 +327,7 @@ theorem roundEqualities_totalFreshCount
             round KExpr.zero).c1 +
         R1CS.mulCount
           (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c1 = 154 := by
+            round KExpr.one).c1 = 5114 := by
     simpa [KExpr.add, R1CS.mulCount] using rightCounts.2
   simp only [KExpr.equalities, R1CS.totalFreshCount, List.map_cons,
     List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero, KExpr.add]
@@ -306,7 +338,7 @@ theorem roundEqualities_totalFreshCount
 
 theorem roundEqualities_totalRowCount
     (current : KExpr)
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4)
+    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
     (linear : RoundLinear round) :
     let right := KExpr.add
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
@@ -314,7 +346,7 @@ theorem roundEqualities_totalRowCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
         round KExpr.one)
     R1CS.totalRowCount (KExpr.equalities current right) =
-      KExprMulCount current + 314 := by
+      KExprMulCount current + 10234 := by
   dsimp only
   have firstNone := evaluateRound_zero_lowerAffine_none round
   have rightCounts := roundRight_mulCounts round linear
@@ -325,7 +357,7 @@ theorem roundEqualities_totalRowCount
             round KExpr.zero).c0 +
         R1CS.mulCount
           (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c0 = 156 := by
+            round KExpr.one).c0 = 5116 := by
     simpa [KExpr.add, R1CS.mulCount] using rightCounts.1
   have rightC1 :
       R1CS.mulCount
@@ -333,7 +365,7 @@ theorem roundEqualities_totalRowCount
             round KExpr.zero).c1 +
         R1CS.mulCount
           (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c1 = 154 := by
+            round KExpr.one).c1 = 5114 := by
     simpa [KExpr.add, R1CS.mulCount] using rightCounts.2
   simp only [KExpr.equalities, R1CS.totalRowCount, List.map_cons,
     List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero, KExpr.add]
@@ -345,15 +377,15 @@ theorem roundEqualities_totalRowCount
 theorem constraintsFrom_totalFreshCount
     (current : KExpr)
     (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4))
+      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalFreshCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
         current rounds) =
       match rounds with
       | [] => 0
-      | _ :: _ => KExprMulCount current + 312 +
-          (rounds.length - 1) * 467 := by
+      | _ :: _ => KExprMulCount current + 10232 +
+          (rounds.length - 1) * 15347 := by
   induction rounds generalizing current with
   | nil => rfl
   | cons round rounds inductionHypothesis =>
@@ -377,15 +409,15 @@ theorem constraintsFrom_totalFreshCount
 theorem constraintsFrom_totalRowCount
     (current : KExpr)
     (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4))
+      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalRowCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
         current rounds) =
       match rounds with
       | [] => 0
-      | _ :: _ => KExprMulCount current + 314 +
-          (rounds.length - 1) * 469 := by
+      | _ :: _ => KExprMulCount current + 10234 +
+          (rounds.length - 1) * 15349 := by
   induction rounds generalizing current with
   | nil => rfl
   | cons round rounds inductionHypothesis =>
@@ -409,13 +441,13 @@ theorem constraintsFrom_totalRowCount
 theorem constraintsFrom_totalFreshCount_of_nonempty
     (current : KExpr)
     (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4))
+      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
     (nonempty : rounds ≠ [])
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalFreshCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
         current rounds) =
-      KExprMulCount current + 312 + (rounds.length - 1) * 467 := by
+      KExprMulCount current + 10232 + (rounds.length - 1) * 15347 := by
   rw [constraintsFrom_totalFreshCount current rounds linear]
   cases rounds with
   | nil => exact False.elim (nonempty rfl)
@@ -424,13 +456,13 @@ theorem constraintsFrom_totalFreshCount_of_nonempty
 theorem constraintsFrom_totalRowCount_of_nonempty
     (current : KExpr)
     (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 4))
+      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
     (nonempty : rounds ≠ [])
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalRowCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
         current rounds) =
-      KExprMulCount current + 314 + (rounds.length - 1) * 469 := by
+      KExprMulCount current + 10234 + (rounds.length - 1) * 15349 := by
   rw [constraintsFrom_totalRowCount current rounds linear]
   cases rounds with
   | nil => exact False.elim (nonempty rfl)

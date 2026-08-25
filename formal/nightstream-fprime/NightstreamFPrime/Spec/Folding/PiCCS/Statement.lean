@@ -17,11 +17,11 @@ Parent coverage:
 - `ProtocolPolynomial.VerifierInput.claimedPadCoefficient`;
 - `ProtocolPolynomial.VerifierInput.claimedMatrixCoefficient`.
 
-This module is an audit facade over the canonical v1.1 semantics. It defines
-no alternate verifier relation and emits no circuit constraints.
+This module owns the canonical named statement contract for the production
+v1.1 verifier. It emits no circuit constraints.
 -/
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
+namespace NightstreamFPrime.Spec.Folding.PiCCS.Statement
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
@@ -118,4 +118,4 @@ theorem verifierInput_eval_A
       statement.claimedMatrixCoefficient coordinate := by
   rfl
 
-end NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
+end NightstreamFPrime.Spec.Folding.PiCCS.Statement

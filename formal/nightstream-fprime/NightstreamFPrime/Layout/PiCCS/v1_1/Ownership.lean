@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.PiCCS.v1_1.Composition
+import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Steps 3 and 5; the
@@ -183,6 +183,12 @@ def duplexInterface (interface : Interface) : Formal.Owned.Interface where
 def finalState (interface : Interface) (offset : Nat) : Layer.EState :=
   Formal.Owned.output (duplexInterface interface) offset
 
+theorem finalState_eq_compile (interface : Interface) (offset : Nat) :
+    finalState interface offset =
+      (Formal.compile offset (interface.initialState offset)
+        (actions interface offset)).output := by
+  rfl
+
 abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.Assumptions (duplexInterface interface) offset env
 
@@ -190,6 +196,15 @@ abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
 the declared post-PiCCS state. -/
 abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.SpecHolds (duplexInterface interface) offset env
+
+theorem trace_implies_specHolds (interface : Interface) (offset : Nat)
+    (env : Env)
+    (trace : Formal.TraceHolds
+      (List.ofFn (Layer.evalState env (interface.initialState offset)))
+      ((actions interface offset).map (Formal.Action.eval env))
+      (List.ofFn (Layer.evalState env (finalState interface offset)))) :
+    SpecHolds interface offset env :=
+  trace
 
 /-- The sole logical circuit for this leaf. -/
 def circuit (interface : Interface) : FormalCircuit :=

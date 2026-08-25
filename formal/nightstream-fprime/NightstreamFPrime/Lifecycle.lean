@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Types
+import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
@@ -20,5 +21,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

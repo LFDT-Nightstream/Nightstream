@@ -102,6 +102,42 @@ def compileAbsorptions (start : Nat) (state : EState) :
       let tail := compileAbsorptions (start + 592) permutation.output rest
       ⟨permutation.recipes ++ tail.recipes, tail.output⟩
 
+/-- Tail-recursive executable form of `compileAbsorptions`. The kernel keeps
+the structural definition above; compiled emission uses this proved form. -/
+@[inline] def compileAbsorptionsTR (start : Nat) (state : EState)
+    (blocks : List (List Expr)) : AbsorbProgram :=
+  go start state blocks []
+where
+  go : Nat → EState → List (List Expr) → List Expr → AbsorbProgram
+    | _, current, [], recipesRev => ⟨recipesRev.reverse, current⟩
+    | output, current, block :: rest, recipesRev =>
+        let permutation := Permutation.compile output
+          (absorbE current block) Permutation.schedule
+        go (output + 592) permutation.output rest
+          (permutation.recipes.reverse ++ recipesRev)
+
+private theorem compileAbsorptionsTR_go_eq (start : Nat) (state : EState)
+    (blocks : List (List Expr)) (recipesRev : List Expr) :
+    compileAbsorptionsTR.go start state blocks recipesRev =
+      let program := compileAbsorptions start state blocks
+      ⟨recipesRev.reverse ++ program.recipes, program.output⟩ := by
+  induction blocks generalizing start state recipesRev with
+  | nil => simp [compileAbsorptionsTR.go, compileAbsorptions]
+  | cons block rest inductionHypothesis =>
+      simp only [compileAbsorptionsTR.go, compileAbsorptions]
+      let permutation := Permutation.compile start
+        (absorbE state block) Permutation.schedule
+      rw [inductionHypothesis]
+      apply congrArg₂ AbsorbProgram.mk
+      · simp [List.reverse_append, List.append_assoc, permutation]
+      · rfl
+
+@[csimp] theorem compileAbsorptions_eq_compileAbsorptionsTR :
+    @compileAbsorptions = @compileAbsorptionsTR := by
+  funext start state blocks
+  rw [compileAbsorptionsTR, compileAbsorptionsTR_go_eq]
+  rfl
+
 /-- The complete sponge program, including the final padding permutation. -/
 structure Program where
   recipes : List Expr

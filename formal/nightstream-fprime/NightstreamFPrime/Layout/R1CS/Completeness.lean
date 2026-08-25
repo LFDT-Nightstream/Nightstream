@@ -40,7 +40,118 @@ theorem ofVar (index bound : Nat) (below : index < bound) :
   simp only [LinearCombination.ofVar, List.mem_singleton] at member
   simpa [member] using below
 
+theorem scale (coefficient : F) (combination : LinearCombination)
+    (bound : Nat) (scope : combination.VarsBelow bound) :
+    (LinearCombination.scale coefficient combination).VarsBelow bound := by
+  intro term member
+  simp only [LinearCombination.scale, List.mem_map] at member
+  rcases member with ⟨source, sourceMember, rfl⟩
+  exact scope source sourceMember
+
 end LinearCombination.VarsBelow
+
+private theorem lowerAffineCombination_varsBelow (bound : Nat) :
+    ∀ (expression : Expr), expression.VarsBelow bound →
+      ∀ (combination : LinearCombination),
+        Option.map AffineResult.combination (lowerAffine expression) =
+            some combination →
+          combination.VarsBelow bound
+  | .var index, scope, combination, result => by
+      simp only [lowerAffine, Option.map_some, Option.some.injEq] at result
+      rw [← result]
+      exact LinearCombination.VarsBelow.ofVar index bound scope
+  | .const value, _scope, combination, result => by
+      simp only [lowerAffine, Option.map_some, Option.some.injEq] at result
+      rw [← result]
+      intro term member
+      simp [LinearCombination.const] at member
+  | .add left right, scope, combination, result => by
+      cases leftResult : lowerAffine left with
+      | none => simp [lowerAffine, leftResult] at result
+      | some loweredLeft =>
+          cases rightResult : lowerAffine right with
+          | none => simp [lowerAffine, leftResult, rightResult] at result
+          | some loweredRight =>
+              simp only [lowerAffine, leftResult, rightResult,
+                Option.map_some, Option.some.injEq] at result
+              rw [← result]
+              exact LinearCombination.VarsBelow.add _ _ _
+                (lowerAffineCombination_varsBelow bound left scope.1
+                  loweredLeft.combination (by rw [leftResult]; rfl))
+                (lowerAffineCombination_varsBelow bound right scope.2
+                  loweredRight.combination (by rw [rightResult]; rfl))
+  | .mul (.const coefficient) right, scope, combination, result => by
+      cases rightResult : lowerAffine right with
+      | none => simp [lowerAffine, rightResult] at result
+      | some loweredRight =>
+          simp only [lowerAffine, rightResult, Option.map_some,
+            Option.some.injEq] at result
+          rw [← result]
+          exact LinearCombination.VarsBelow.scale coefficient _ bound
+            (lowerAffineCombination_varsBelow bound right scope.2
+              loweredRight.combination (by rw [rightResult]; rfl))
+  | .mul (.var index) (.const coefficient), scope, combination, result => by
+      simp only [lowerAffine, Option.map_some, Option.some.injEq] at result
+      rw [← result]
+      exact LinearCombination.VarsBelow.scale coefficient _ bound
+        (LinearCombination.VarsBelow.ofVar index bound scope.1)
+  | .mul (.add left right) (.const coefficient), scope, combination,
+      result => by
+      cases leftResult : lowerAffine left with
+      | none => simp [lowerAffine, leftResult] at result
+      | some loweredLeft =>
+          cases rightResult : lowerAffine right with
+          | none => simp [lowerAffine, leftResult, rightResult] at result
+          | some loweredRight =>
+              simp only [lowerAffine, leftResult, rightResult,
+                Option.map_some, Option.some.injEq] at result
+              rw [← result]
+              apply LinearCombination.VarsBelow.scale coefficient _ bound
+              exact LinearCombination.VarsBelow.add _ _ _
+                (lowerAffineCombination_varsBelow bound left scope.1.1
+                  loweredLeft.combination (by rw [leftResult]; rfl))
+                (lowerAffineCombination_varsBelow bound right scope.1.2
+                  loweredRight.combination (by rw [rightResult]; rfl))
+  | .mul (.mul left right) (.const coefficient), scope, combination,
+      result => by
+      cases leftResult : lowerAffine (Expr.mul left right) with
+      | none => simp [lowerAffine, leftResult] at result
+      | some loweredLeft =>
+          simp only [lowerAffine, leftResult, Option.map_some,
+            Option.some.injEq] at result
+          rw [← result]
+          exact LinearCombination.VarsBelow.scale coefficient _ bound
+            (lowerAffineCombination_varsBelow bound (Expr.mul left right)
+              scope.1 loweredLeft.combination (by rw [leftResult]; rfl))
+  | .mul (.var _) (.var _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.var _) (.add _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.var _) (.mul _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.add _ _) (.var _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.add _ _) (.add _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.add _ _) (.mul _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.mul _ _) (.var _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.mul _ _) (.add _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+  | .mul (.mul _ _) (.mul _ _), _scope, _combination, result => by
+      simp [lowerAffine] at result
+
+/-- Affine recognition preserves the variable scope of the source
+expression. -/
+theorem lowerAffine_varsBelow (expression : Expr) (bound : Nat)
+    (scope : expression.VarsBelow bound) (lowered : AffineResult expression)
+    (result : lowerAffine expression = some lowered) :
+    lowered.combination.VarsBelow bound := by
+  apply lowerAffineCombination_varsBelow bound expression scope
+    lowered.combination
+  rw [result]
+  rfl
 
 theorem LinearCombination.eval_eq_of_agree_below
     (combination : LinearCombination) (bound : Nat) (left right : Env)
@@ -394,6 +505,183 @@ theorem lowerGenericConstraint_rows_varsBelow (expression : Expr)
     · intro term termMember
       simp [assertion, LinearCombination.VarsBelow, LinearCombination.zero]
         at termMember
+
+private theorem affineConstraint_row_varsBelow (expression : Expr)
+    (start : Nat) (scope : expression.VarsBelow start)
+    (result : DirectConstraintResult expression)
+    (found : affineConstraint expression = some result) :
+    result.row.VarsBelow start := by
+  unfold affineConstraint at found
+  cases loweredEq : lowerAffine expression with
+  | none => simp [loweredEq] at found
+  | some lowered =>
+      simp only [loweredEq, Option.some.injEq] at found
+      subst result
+      refine ⟨lowerAffine_varsBelow expression start scope lowered loweredEq,
+        ?_, ?_⟩
+      · intro term member
+        change term ∈ ([] : List (Nat × F)) at member
+        simp at member
+      · intro term member
+        change term ∈ ([] : List (Nat × F)) at member
+        simp at member
+
+private theorem directRecipeRow_row_varsBelow (output start : Nat)
+    (recipe : Expr) (outputBelow : output < start)
+    (scope : recipe.VarsBelow start)
+    (result : RecipeRowResult output recipe)
+    (found : directRecipeRow output recipe = some result) :
+    result.row.VarsBelow start := by
+  cases affineEq : lowerAffine recipe with
+  | some lowered =>
+      simp only [directRecipeRow, affineEq, Option.some.injEq] at found
+      subst result
+      refine ⟨lowerAffine_varsBelow recipe start scope lowered affineEq,
+        ?_, LinearCombination.VarsBelow.ofVar output start outputBelow⟩
+      intro term member
+      change term ∈ ([] : List (Nat × F)) at member
+      simp at member
+  | none =>
+      cases recipe with
+      | var index => simp [directRecipeRow, affineEq] at found
+      | const value => simp [directRecipeRow, affineEq] at found
+      | add left right => simp [directRecipeRow, affineEq] at found
+      | mul left right =>
+          cases leftEq : lowerAffine left with
+          | none => simp [directRecipeRow, affineEq, leftEq] at found
+          | some loweredLeft =>
+              cases rightEq : lowerAffine right with
+              | none =>
+                  simp [directRecipeRow, affineEq, leftEq, rightEq] at found
+              | some loweredRight =>
+                  simp only [directRecipeRow, affineEq, leftEq, rightEq,
+                    Option.some.injEq] at found
+                  subst result
+                  exact ⟨lowerAffine_varsBelow left start scope.1
+                      loweredLeft leftEq,
+                    lowerAffine_varsBelow right start scope.2
+                      loweredRight rightEq,
+                    LinearCombination.VarsBelow.ofVar output start outputBelow⟩
+
+private theorem directConstraint_row_varsBelow (expression : Expr)
+    (start : Nat) (scope : expression.VarsBelow start)
+    (result : DirectConstraintResult expression)
+    (found : directConstraint expression = some result) :
+    result.row.VarsBelow start := by
+  cases expression with
+  | var index =>
+      exact affineConstraint_row_varsBelow (.var index) start scope result found
+  | const value =>
+      exact affineConstraint_row_varsBelow (.const value) start scope result found
+  | mul left right =>
+      exact affineConstraint_row_varsBelow (.mul left right) start scope result
+        found
+  | add left right =>
+      cases left with
+      | var output =>
+          cases right with
+          | mul coefficientExpr recipe =>
+              cases coefficientExpr with
+              | const coefficient =>
+                  by_cases coefficientEquals : coefficient = -1
+                  · rw [directConstraint, dif_pos coefficientEquals] at found
+                    cases recipeEq : directRecipeRow output recipe with
+                    | none =>
+                        rw [recipeEq] at found
+                        exact affineConstraint_row_varsBelow
+                          (.add (.var output)
+                            (.mul (.const coefficient) recipe)) start scope
+                          result found
+                    | some recipeResult =>
+                        rw [recipeEq] at found
+                        simp only [Option.some.injEq] at found
+                        subst result
+                        exact directRecipeRow_row_varsBelow output start recipe
+                          scope.1 scope.2.2 recipeResult recipeEq
+                  · rw [directConstraint, dif_neg coefficientEquals] at found
+                    exact affineConstraint_row_varsBelow
+                      (.add (.var output) (.mul (.const coefficient) recipe))
+                      start scope result found
+              | var index =>
+                  exact affineConstraint_row_varsBelow
+                    (.add (.var output) (.mul (.var index) recipe)) start scope
+                    result found
+              | add first second =>
+                  exact affineConstraint_row_varsBelow
+                    (.add (.var output) (.mul (.add first second) recipe)) start
+                    scope result found
+              | mul first second =>
+                  exact affineConstraint_row_varsBelow
+                    (.add (.var output) (.mul (.mul first second) recipe)) start
+                    scope result found
+          | var index =>
+              exact affineConstraint_row_varsBelow
+                (.add (.var output) (.var index)) start scope result found
+          | const value =>
+              exact affineConstraint_row_varsBelow
+                (.add (.var output) (.const value)) start scope result found
+          | add first second =>
+              exact affineConstraint_row_varsBelow
+                (.add (.var output) (.add first second)) start scope result found
+      | const value =>
+          exact affineConstraint_row_varsBelow
+            (.add (.const value) right) start scope result found
+      | add first second =>
+          exact affineConstraint_row_varsBelow
+            (.add (.add first second) right) start scope result found
+      | mul first second =>
+          exact affineConstraint_row_varsBelow
+            (.add (.mul first second) right) start scope result found
+
+theorem lowerConstraint_rows_varsBelow (expression : Expr) (start : Nat)
+    (scope : expression.VarsBelow start) :
+    ∀ row ∈ (lowerConstraint expression start).rows,
+      row.VarsBelow (start + constraintFreshCount expression) := by
+  cases resultEq : directConstraint expression with
+  | none =>
+      simpa [lowerConstraint, constraintFreshCount, resultEq] using
+        lowerGenericConstraint_rows_varsBelow expression start scope
+  | some result =>
+      intro row member
+      simp only [lowerConstraint, constraintFreshCount, resultEq,
+        List.mem_singleton] at member
+      subst row
+      have freshZero : constraintFreshCount expression = 0 := by
+        simp [constraintFreshCount, resultEq]
+      rw [freshZero, Nat.add_zero]
+      exact directConstraint_row_varsBelow expression start scope result resultEq
+
+theorem lowerConstraints_rows_varsBelow (constraints : List Expr)
+    (start : Nat)
+    (scope : ∀ expression ∈ constraints, expression.VarsBelow start) :
+    ∀ row ∈ (lowerConstraints constraints start).rows,
+      row.VarsBelow (start + totalFreshCount constraints) := by
+  induction constraints generalizing start with
+  | nil =>
+      intro row member
+      simp [lowerConstraints] at member
+  | cons expression rest inductionHypothesis =>
+      let next := start + constraintFreshCount expression
+      have expressionScope := scope expression (by simp)
+      have restScope : ∀ current ∈ rest, current.VarsBelow next := by
+        intro current member
+        exact Expr.VarsBelow.mono current (scope current (by simp [member]))
+          (by unfold next; omega)
+      have firstScope := lowerConstraint_rows_varsBelow expression start
+        expressionScope
+      have tailScope := inductionHypothesis next restScope
+      intro row member
+      simp only [lowerConstraints, List.mem_append] at member
+      have nextEq : (lowerConstraint expression start).next = next := by
+        simp [next]
+      rw [nextEq] at member
+      rcases member with firstMember | tailMember
+      · have below := firstScope row firstMember
+        exact below.mono row (by
+          simp only [totalFreshCount, List.map_cons, List.sum_cons]
+          omega)
+      · have below := tailScope row tailMember
+        simpa [next, totalFreshCount, Nat.add_assoc] using below
 
 /-- Execute one optimized logical constraint. Direct rows need no fresh
 value; generic rows execute every multiplication in the expression. -/

@@ -87,7 +87,7 @@ def runningStatement (relation : LogicalRelation logicalWidth publicFits)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
   constraintSystem := PaperAlgebra.relationSource
-    (PrefixLayout.layout cubeVariables
+    (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
   commitment := running.commitments i
@@ -103,7 +103,7 @@ def freshStatement (relation : LogicalRelation logicalWidth publicFits)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       PaperAlgebra.Commitment where
   constraintSystem := PaperAlgebra.relationSource
-    (PrefixLayout.layout cubeVariables
+    (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
       (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
   commitment := fresh.commitments ⟨0, by decide⟩

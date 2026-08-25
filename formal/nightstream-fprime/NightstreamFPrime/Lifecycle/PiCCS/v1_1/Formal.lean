@@ -55,6 +55,9 @@ structure Interface (logicalWidth degreeBound : Nat)
       Phi81CarrierLayout.carrierWidth logicalWidth) where
   /-- Proof-only phase base. `atOffset` overwrites every caller value. -/
   baseOffset : Nat := 0
+  priorState : Nat → Nat → Expr
+  outputState : Nat → Nat → Expr
+  expectedContext : Nat → Fin 4 → Expr
   running : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
   fresh : Nat → StatementAbsorption.FreshExpr logicalWidth publicFits
   round : Nat → Fin productionShape.cubeVariables →
@@ -69,6 +72,9 @@ def atOffset {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) : Interface logicalWidth degreeBound publicFits where
   baseOffset := parentOffset
+  priorState := fun _ => interface.priorState parentOffset
+  outputState := fun _ => interface.outputState parentOffset
+  expectedContext := fun _ => interface.expectedContext parentOffset
   running := fun _ => interface.running parentOffset
   fresh := fun _ => interface.fresh parentOffset
   round := fun _ => interface.round parentOffset
@@ -82,6 +88,18 @@ structure ExternalInputsBelow
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Prop where
+  priorStateFixed : ∀ word ∈ StateBinding.fixedWords,
+    (interface.priorState offset word.index).VarsBelow offset
+  outputStateFixed : ∀ word ∈ StateBinding.fixedWords,
+    (interface.outputState offset word.index).VarsBelow offset
+  priorStateContext : ∀ lane : Fin 4,
+    (interface.priorState offset
+      (StateBinding.contextWordStart + lane.val)).VarsBelow offset
+  outputStateContext : ∀ lane : Fin 4,
+    (interface.outputState offset
+      (StateBinding.contextWordStart + lane.val)).VarsBelow offset
+  expectedContext : ∀ lane : Fin 4,
+    (interface.expectedContext offset lane).VarsBelow offset
   runningPoint : ∀ coordinate,
     ((interface.running offset).point coordinate).VarsBelow offset
   runningCommitment : ∀ source row coefficient,
@@ -159,6 +177,11 @@ def statementBindingInterface {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     StatementBinding.Interface where
+  state := {
+    priorState := interface.priorState
+    outputState := interface.outputState
+    expectedContext := interface.expectedContext
+  }
   priorPoint := fun offset => (interface.running offset).point
   eval_K := fun offset coordinate =>
     ((interface.running offset).evaluation coordinate.running).eval_K
@@ -194,12 +217,23 @@ def challengeInterface {logicalWidth degreeBound : Nat}
     ChallengeDerivation.Interface where
   initialState := fun _ => statementFinalState interface parentOffset
 
+/-- Parent wiring: challenge derivation consumes exactly the statement
+absorption state. The challenge input is not witness-selected. -/
+theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (parentOffset childOffset : Nat) :
+    (challengeInterface interface parentOffset).initialState childOffset =
+      statementFinalState interface parentOffset := by
+  rfl
+
 /-- Fixed start of the owned challenge child in a frozen phase view. -/
 def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 10298432
+  interface.baseOffset + 160432
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -240,7 +274,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 10298432 + 44400
+  interface.baseOffset + 160432 + 46176
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -291,6 +325,28 @@ def initialClaimStart {logicalWidth degreeBound : Nat}
     (RoundTranscript.program (roundTranscriptInterface interface)
       (roundTranscriptStart interface)).recipes.length
 
+/-- Executable projection of the fixed round-transcript footprint. -/
+def initialClaimStartFast {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
+  roundTranscriptStart interface +
+    25 * RoundTranscript.perRoundRecipeCount degreeBound
+
+theorem initialClaimStart_eq_initialClaimStartFast_pointwise
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits) :
+    initialClaimStart interface = initialClaimStartFast interface := by
+  unfold initialClaimStart initialClaimStartFast
+  rw [RoundTranscript.program_recipes_length]
+
+@[csimp] theorem initialClaimStart_eq_initialClaimStartFast :
+    @initialClaimStart = @initialClaimStartFast := by
+  funext logicalWidth degreeBound publicFits interface
+  exact initialClaimStart_eq_initialClaimStartFast_pointwise interface
+
 /-- The initial SumCheck claim is an output of the preceding Horner child. -/
 def initialClaimOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -323,6 +379,20 @@ def sumcheckOutput {logicalWidth degreeBound : Nat}
     (_offset : Nat) : KExpr :=
   SumcheckChain.output (sumcheckInterface interface)
     (sumcheckStart interface)
+
+/-- The parent-facing SumCheck output uses only variables that precede the
+canonical SumCheck child start. -/
+theorem sumcheckOutput_varsBelow_start {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat)
+    (assumptions : SumcheckChain.Assumptions (sumcheckInterface interface)
+      (sumcheckStart interface) (fun _ => 0)) :
+    (sumcheckOutput interface offset).VarsBelow (sumcheckStart interface) := by
+  unfold sumcheckOutput
+  exact SumcheckChain.output_varsBelow (sumcheckInterface interface)
+    (sumcheckStart interface) assumptions
 
 def evalKInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -431,13 +501,13 @@ def normInterface
     (interface.output offset).padCoordinate source
       (constantCoefficient relation)
 
-/-- The norm leaf starts after the zero-private-variable CCS leaf. -/
+/-- The norm leaf starts after the two child-owned CCS residual wires. -/
 def normStart
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  ccsStart interface
+  ccsStart interface + CcsTerminal.privateCount
 
 /-- Child-owned strict-base-2 norm term. -/
 def normOutput
@@ -464,6 +534,22 @@ def finalIdentityInterface {logicalWidth degreeBound : Nat}
   ccs := ccsOutput relation interface
   norm := normOutput relation interface
   terminal := sumcheckOutput interface
+
+/-- The final-identity terminal input is exactly the SumCheck child's output.
+This wiring theorem prevents parent proofs from reducing either child
+expression. -/
+theorem finalIdentityTerminal_eq_sumcheckOutput
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (finalAt sumcheckAt : Nat)
+    (startEq : sumcheckStart interface = sumcheckAt) :
+    (finalIdentityInterface relation interface).terminal finalAt =
+      SumcheckChain.output (sumcheckInterface interface) sumcheckAt := by
+  unfold finalIdentityInterface sumcheckOutput
+  rw [startEq]
 
 /-- The norm and final-identity children share the same verifier-derived
 gamma expression at every child offset. -/
@@ -505,7 +591,7 @@ def statementBindingCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (StatementBinding.circuit (statementBindingInterface interface)) 0 0
+    (StatementBinding.circuit (statementBindingInterface interface)) 0 160
     (StatementBinding.localLength_eq (statementBindingInterface interface))
     (StatementBinding.flatConstraints_length (statementBindingInterface interface))
 
@@ -515,7 +601,7 @@ def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementAbsorption.circuit (statementAbsorptionInterface interface))
-    10298432 10298432
+    160432 160432
     (StatementAbsorption.localLength_eq (statementAbsorptionInterface interface))
     (StatementAbsorption.flatConstraints_length
       (statementAbsorptionInterface interface))
@@ -528,7 +614,7 @@ def challengeCircuit {logicalWidth degreeBound : Nat}
   let childInterface :=
     challengeInterface (atOffset interface parentOffset) parentOffset
   FormalCircuit.withConstantFootprint
-    (ChallengeDerivation.circuit childInterface) 44400 44400
+    (ChallengeDerivation.circuit childInterface) 46176 46176
     (ChallengeDerivation.localLength_eq childInterface)
     (ChallengeDerivation.flatConstraints_length childInterface)
 
@@ -538,8 +624,8 @@ def roundTranscriptCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (RoundTranscript.circuit (roundTranscriptInterface interface))
-    (24 * RoundTranscript.perRoundRecipeCount degreeBound)
-    (24 * RoundTranscript.perRoundRecipeCount degreeBound)
+    (25 * RoundTranscript.perRoundRecipeCount degreeBound)
+    (25 * RoundTranscript.perRoundRecipeCount degreeBound)
     (RoundTranscript.localLength_eq (roundTranscriptInterface interface))
     (RoundTranscript.flatConstraints_length (roundTranscriptInterface interface))
 
@@ -557,7 +643,7 @@ def sumcheckCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (SumcheckChain.circuit (sumcheckInterface interface)) 0 48
+    (SumcheckChain.circuit (sumcheckInterface interface)) 0 50
     (SumcheckChain.localLength_eq (sumcheckInterface interface))
     (SumcheckChain.flatConstraints_length (sumcheckInterface interface))
 
@@ -566,7 +652,7 @@ def evalKCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (EvalKTerminal.circuit (evalKInterface interface)) 1820 1820
+    (EvalKTerminal.circuit (evalKInterface interface)) 1824 1824
     (EvalKTerminal.localLength_eq (evalKInterface interface))
     (EvalKTerminal.flatConstraints_length (evalKInterface interface))
 
@@ -575,7 +661,7 @@ def evalACircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (EvalATerminal.circuit (evalAInterface interface)) 24284 24284
+    (EvalATerminal.circuit (evalAInterface interface)) 24288 24288
     (EvalATerminal.localLength_eq (evalAInterface interface))
     (EvalATerminal.flatConstraints_length (evalAInterface interface))
 
@@ -586,7 +672,8 @@ def ccsCircuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (CcsTerminal.circuit relation (ccsInterface relation interface)) 0 0
+    (CcsTerminal.circuit relation (ccsInterface relation interface))
+      CcsTerminal.privateCount CcsTerminal.rowCount
     (CcsTerminal.localLength_eq relation (ccsInterface relation interface))
     (CcsTerminal.flatConstraints_length relation (ccsInterface relation interface))
 
@@ -607,7 +694,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (FinalIdentity.circuit (finalIdentityInterface relation interface)) 27742 27744
+    (FinalIdentity.circuit (finalIdentityInterface relation interface)) 27746 27748
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -669,7 +756,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : challengeOffset interface offset = offset + 10298432 := by
+    (offset : Nat) : challengeOffset interface offset = offset + 160432 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
   rw [statementAbsorptionOffset_eq, FormalCircuit.withConstantFootprint_main,
     StatementAbsorption.localLength_eq]
@@ -699,7 +786,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptOffset interface offset =
-      challengeOffset interface offset + 44400 := by
+      challengeOffset interface offset + 46176 := by
   unfold roundTranscriptOffset nextOffset childLength challengeCircuit
   rw [FormalCircuit.withConstantFootprint_main,
     ChallengeDerivation.localLength_eq]
@@ -861,7 +948,6 @@ def normOffset
   unfold normStart normOffset nextOffset childLength ccsCircuit
   rw [ccsStart_atOffset, FormalCircuit.withConstantFootprint_main,
     CcsTerminal.localLength_eq]
-  omega
 
 def finalIdentityOffset
     {logicalWidth degreeBound : Nat}
@@ -918,7 +1004,9 @@ structure PhaseHolds
       (ProductionKey.degreeBound relation) publicFits)
     (offset : Nat) (env : Env)
     (template : Proof (ProductionKey.degreeBound relation)) : Prop where
-  accepted : NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+  stateBinding : StateBinding.SpecHolds
+    (statementBindingInterface (atOffset interface offset)).state offset env
+  accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted
     (ProductionKey.key relation ajtai)
     (evalRunning interface offset env)
     (evalFresh interface offset env)
@@ -1340,16 +1428,17 @@ theorem spec_implies_phaseHolds
       (by
         exact sumcheckRoundPointEq.trans roundCoverage.1)
       (by
-        change (SumcheckChain.output (sumcheckInterface shared)
-          (sumcheckStart shared)).eval env = _ at terminalEq
         have startEq : sumcheckStart shared =
             sumcheckOffset interface offset := by
           simpa [shared] using sumcheckStart_atOffset interface offset
-        rw [startEq] at terminalEq
-        exact terminalEq)
+        have wiring := congrArg (fun expression : KExpr => expression.eval env)
+          (finalIdentityTerminal_eq_sumcheckOutput relation shared
+            (finalIdentityOffset relation interface offset)
+            (sumcheckOffset interface offset) startEq)
+        exact wiring.symm.trans terminalEq)
       specification.sumcheck
   have coverage :
-      NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Coverage
+      NightstreamFPrime.Spec.Folding.PiCCS.Coverage
         (ProductionKey.key relation ajtai) running fresh proof := {
     transcript := (ProductionKey.key relation ajtai
       ).piCcsExecution_coins_eq_derive running fresh proof
@@ -1379,7 +1468,8 @@ theorem spec_implies_phaseHolds
         rfl)
       specification.outputBinding
   refine {
-    accepted := (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.accepted_iff_coverage
+    stateBinding := specification.statementBinding.state
+    accepted := (NightstreamFPrime.Spec.Folding.PiCCS.accepted_iff_coverage
       (ProductionKey.key relation ajtai) running fresh proof).mpr coverage
     outgoingState := ?_ }
   simpa [shared, running, fresh, proof, evalProof, evalOutput,

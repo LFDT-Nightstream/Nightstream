@@ -24,11 +24,10 @@ def slotCount : Nat := 1
 /-- The one augmented-function index. -/
 def functionIndex : Fin slotCount := ⟨0, by decide⟩
 
-/-- Paper-joint shape for the production profile: the F′ CCS row domain
-(`2^24` rows, Goal item 6), one fresh source, 16 running sources, 14 matrices,
-54 coefficient lanes. `cubeVariables` is fixed by the domain bound, not by an
-artifact. -/
-def cubeVariables : Nat := 24
+/-- Paper-joint shape for the production profile: the F′ CCS relation has a
+`2^25` row cube, one fresh source, 16 running sources, 14 matrices, and
+54 coefficient lanes. The cube exponent is also the PiCCS round count. -/
+def cubeVariables : Nat := 25
 
 def productionShape : Shape :=
   Phi81MatrixSource.phi81Shape cubeVariables

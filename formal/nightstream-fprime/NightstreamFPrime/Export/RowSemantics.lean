@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Layout.R1CS
+import NightstreamFPrime.Circuit.StraightLine
 
 /-!
 Owns the Lean semantics of the compact circuit-package row program. Template
@@ -139,6 +140,107 @@ def SparseCombination.toR1CS (combination : SparseCombination) :
 def SparseRow.toR1CS (row : SparseRow) : R1CS.Row :=
   ⟨row.a.toR1CS, row.b.toR1CS, row.c.toR1CS⟩
 
+def zeroSparseCombination : SparseCombination := ⟨0, []⟩
+
+def invocationInputCombination (invocation : PermutationInvocation)
+    (lane : Nat) : SparseCombination :=
+  invocation.inputs.getD lane zeroSparseCombination
+
+def instantiateInvocationColumn (invocation : PermutationInvocation) :
+    ColumnRef → R1CS.LinearCombination
+  | .input lane => (invocationInputCombination invocation lane).toR1CS
+  | .local index =>
+      R1CS.LinearCombination.ofVar (invocation.witnessStart + index)
+
+def instantiateInvocationCombination (invocation : PermutationInvocation)
+    (combination : TemplateCombination) : R1CS.LinearCombination :=
+  R1CS.LinearCombination.add
+    (R1CS.LinearCombination.const (fieldValue combination.constant))
+    (sumCombinations (combination.terms.map fun term =>
+      R1CS.LinearCombination.scale (fieldValue term.coefficient)
+        (instantiateInvocationColumn invocation term.column)))
+
+def instantiateInvocationRow (invocation : PermutationInvocation)
+    (row : TemplateRow) : R1CS.Row :=
+  ⟨instantiateInvocationCombination invocation row.a,
+    instantiateInvocationCombination invocation row.b,
+    instantiateInvocationCombination invocation row.c⟩
+
+theorem instantiateInvocationRow_holds
+    (invocation : PermutationInvocation) (row : TemplateRow) (env : Env) :
+    (instantiateInvocationRow invocation row).Holds env ↔
+      row.Holds (fun column =>
+        (instantiateInvocationColumn invocation column).eval env) := by
+  have combinationEval (combination : TemplateCombination) :
+      (instantiateInvocationCombination invocation combination).eval env =
+        combination.eval (fun column =>
+          (instantiateInvocationColumn invocation column).eval env) := by
+    unfold instantiateInvocationCombination TemplateCombination.eval
+    simp [sumCombinations_eval, List.map_map, Function.comp_def,
+      ColumnRef.eval]
+  simp [R1CS.Row.Holds, instantiateInvocationRow, TemplateRow.Holds,
+    combinationEval]
+
+def PermutationInvocationHolds (package : CircuitPackage)
+    (invocation : PermutationInvocation) (env : Env) : Prop :=
+  ∀ row ∈ package.permutation.rows,
+    (instantiateInvocationRow invocation row).Holds env
+
+/-- The authoritative R1CS row checked for one generic witness instruction. -/
+def WitnessInstruction.toR1CS (instruction : WitnessInstruction) : R1CS.Row :=
+  ⟨instruction.a.toR1CS, instruction.b.toR1CS,
+    R1CS.LinearCombination.ofVar instruction.target⟩
+
+def WitnessInstruction.Holds (instruction : WitnessInstruction)
+    (env : Env) : Prop :=
+  instruction.a.eval env * instruction.b.eval env = env instruction.target
+
+theorem witnessInstruction_toR1CS_holds
+    (instruction : WitnessInstruction) (env : Env) :
+    instruction.toR1CS.Holds env ↔ instruction.Holds env := by
+  have combinationEval (combination : SparseCombination) :
+      combination.toR1CS.eval env = combination.eval env := by
+    simp [SparseCombination.toR1CS, SparseCombination.eval,
+      R1CS.LinearCombination.eval, List.map_map, Function.comp_def]
+  simp [R1CS.Row.Holds, WitnessInstruction.toR1CS,
+    WitnessInstruction.Holds, combinationEval]
+
+/-- An instruction input does not read the value that it is about to write. -/
+def SparseCombination.Avoids (combination : SparseCombination)
+    (target : Nat) : Prop :=
+  ∀ term ∈ combination.terms, term.column ≠ target
+
+theorem SparseCombination.eval_set_of_avoids
+    (combination : SparseCombination) (env : Env) (target : Nat) (value : F)
+    (avoids : combination.Avoids target) :
+    combination.eval (Env.set env target value) = combination.eval env := by
+  have termsEqual :
+      (combination.terms.map fun term =>
+        fieldValue term.coefficient * (Env.set env target value) term.column) =
+      (combination.terms.map fun term =>
+        fieldValue term.coefficient * env term.column) := by
+    apply List.map_congr_left
+    intro term member
+    rw [Env.set_of_ne env target term.column value (avoids term member)]
+  unfold SparseCombination.eval
+  rw [termsEqual]
+
+/-- Execute the non-authoritative hint carried by one instruction. -/
+def WitnessInstruction.execute (instruction : WitnessInstruction)
+    (env : Env) : Env :=
+  Env.set env instruction.target
+    (instruction.a.eval env * instruction.b.eval env)
+
+theorem WitnessInstruction.execute_holds
+    (instruction : WitnessInstruction) (env : Env)
+    (aAvoids : instruction.a.Avoids instruction.target)
+    (bAvoids : instruction.b.Avoids instruction.target) :
+    instruction.Holds (instruction.execute env) := by
+  unfold WitnessInstruction.Holds WitnessInstruction.execute
+  rw [instruction.a.eval_set_of_avoids env instruction.target _ aAvoids,
+    instruction.b.eval_set_of_avoids env instruction.target _ bAvoids]
+  simp
+
 theorem sparseRow_holds (row : SparseRow) (env : Env) :
     row.toR1CS.Holds env ↔ row.Holds env := by
   have combinationEval (combination : SparseCombination) :
@@ -154,6 +256,10 @@ def AssertionsHold (package : CircuitPackage) (env : Env) : Prop :=
 /-- Authoritative row semantics of a loaded circuit package. -/
 def CircuitPackage.RowsHold (package : CircuitPackage) (env : Env) : Prop :=
   (∀ chain ∈ package.hashChains, HashChainHolds package chain env) ∧
+    (∀ invocation ∈ package.permutationInvocations,
+      PermutationInvocationHolds package invocation env) ∧
+    (∀ instruction ∈ package.witnessInstructions,
+      instruction.Holds env) ∧
     AssertionsHold package env
 
 end NightstreamFPrime.Export.Package

@@ -26,6 +26,24 @@ structure KExprLinear (value : KExpr) : Prop where
   c0_nonconstant : Nonconstant value.c0
   c1_nonconstant : Nonconstant value.c1
 
+theorem isAffine_of_mulCount_zero (expression : Expr)
+    (count : R1CS.mulCount expression = 0) :
+    R1CS.IsAffine expression := by
+  induction expression with
+  | var index => exact R1CS.isAffine_var index
+  | const value => exact R1CS.isAffine_const value
+  | add left right leftInduction rightInduction =>
+      simp only [R1CS.mulCount, Nat.add_eq_zero_iff] at count
+      exact R1CS.IsAffine.add (leftInduction count.1) (rightInduction count.2)
+  | mul left right leftInduction rightInduction =>
+      simp [R1CS.mulCount] at count
+
+theorem KExprLinear.isAffine {value : KExpr}
+    (linear : KExprLinear value) :
+    R1CS.IsAffine value.c0 ∧ R1CS.IsAffine value.c1 :=
+  ⟨isAffine_of_mulCount_zero value.c0 linear.c0_mulCount,
+    isAffine_of_mulCount_zero value.c1 linear.c1_mulCount⟩
+
 theorem KExprLinear.add {left right : KExpr}
     (leftLinear : KExprLinear left)
     (rightLinear : KExprLinear right) :

@@ -18,11 +18,11 @@ Parent coverage:
 - `ProtocolPolynomial.VerifierInput.initial`;
 - `ProtocolPolynomial.terminalFromMessage`.
 
-This module is an audit facade over the canonical formula. It defines no
-alternate verifier relation and emits no circuit constraints.
+This module owns the canonical named final-identity contract. It emits no
+circuit constraints.
 -/
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+namespace NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -311,4 +311,4 @@ theorem evaluationCoordinateCount_eq_constraintOffset (shape : Shape) :
       shape.constraintOffset := by
   rfl
 
-end NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+end NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity

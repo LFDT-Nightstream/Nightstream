@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Verifier-visible carriers for the paper-joint `Pi_CCS` checker.
+Verifier-visible carriers for canonical SuperNeo v1.1 `Pi_CCS` acceptance.
 
 Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: public verifier input and raw post-SumCheck output message.

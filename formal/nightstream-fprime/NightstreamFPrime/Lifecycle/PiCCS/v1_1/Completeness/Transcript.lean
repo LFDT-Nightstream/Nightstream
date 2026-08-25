@@ -41,6 +41,8 @@ private theorem appendStatementBinding
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
+    (stateSpecification : StateBinding.SpecHolds
+      (statementBindingInterface (atOffset interface offset)).state offset env)
     (before : Sequence.Prefix env offset)
     (startEq : offset + localLength before.operations = offset) :
     ∃ after : Sequence.Prefix env offset,
@@ -54,10 +56,15 @@ private theorem appendStatementBinding
   have childAssumptions :=
     (assumptionsAt assumptions before.current).statementBinding
   have childScope := StatementBinding.flatConstraints_varsBelow
-    (statementBindingInterface shared) offset
+    (statementBindingInterface shared) offset before.current childAssumptions
   have childSpec :
       (statementBindingCircuit shared).spec offset before.current := by
-    exact ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
+    apply StatementBinding.specHolds_of_agree_below
+      (statementBindingInterface shared) offset env before.current
+      assumptions.statementBinding
+    · intro index below
+      exact before.agrees index (Or.inl below)
+    · exact ⟨stateSpecification, fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
   rcases appendAt before "piccs.v1_1.statement_binding"
       (statementBindingCircuit shared) offset startEq childScope childAssumptions
       childSpec with
@@ -226,7 +233,9 @@ theorem completeTranscriptPrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
-    (assumptions : Assumptions relation interface offset env) :
+    (assumptions : Assumptions relation interface offset env)
+    (stateSpecification : StateBinding.SpecHolds
+      (statementBindingInterface (atOffset interface offset)).state offset env) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = transcriptPrefixOps interface offset ∧
       offset + localLength completed.operations =
@@ -243,7 +252,7 @@ theorem completeTranscriptPrefix
   let p0 := Sequence.empty env offset
   have s0 : offset + localLength p0.operations = offset := by rfl
   rcases appendStatementBinding relation interface env offset assumptions
-      p0 s0 with
+      stateSpecification p0 s0 with
     ⟨p1, o1, n1, _p0to1⟩
   rcases appendStatementAbsorption relation interface env offset assumptions
       p1 n1 with

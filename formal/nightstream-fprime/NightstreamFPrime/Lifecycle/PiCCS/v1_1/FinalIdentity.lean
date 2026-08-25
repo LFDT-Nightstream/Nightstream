@@ -2,7 +2,7 @@ import NightstreamFPrime.Gadgets.Multilinear.PointEquality
 import NightstreamFPrime.Gadgets.Polynomial.Power
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `v = Q(r')`.
@@ -267,7 +267,7 @@ theorem specHolds_at_iff_of_fields_eq (interface : Interface)
     terminalEq]
 
 private theorem pointLength_eq (interface : Interface) (offset : Nat) :
-    pointLength interface offset = 94 := by
+    pointLength interface offset = 98 := by
   unfold pointLength pointCircuitAt
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     PointEquality.Owned.localLength_eq_of_positive
@@ -894,10 +894,10 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression terminalMember
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 27742
+def privateCount : Nat := 27746
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 27742 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 27746 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
@@ -908,11 +908,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      27744 := by
+      27748 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
-        offset)).length = 94 := by
+        offset)).length = 98 := by
     unfold pointCircuitAt
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       PointEquality.Owned.flatConstraints_length_of_positive
@@ -1016,7 +1016,7 @@ theorem spec_implies_keyTerminal
   unfold SpecHolds referenceTerminal at specification
   rw [roundPointEq, alphaEq, gammaEq, evalKEq, evalAEq, ccsEq, normEq]
     at specification
-  rw [NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
+  rw [NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
   unfold SignedJointIdentity.gammaTerm
   rw [gammaFreshPower_eq]
   simpa [input, execution, message, matrixExponent, constraintExponent] using
@@ -1104,7 +1104,7 @@ theorem keyTerminal_implies_spec
   unfold SpecHolds referenceTerminal
   rw [roundPointEq, alphaEq, gammaEq, evalKEq, evalAEq, ccsEq, normEq]
   rw [terminalEq]
-  rw [NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
+  rw [NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
   unfold SignedJointIdentity.gammaTerm
   rw [gammaFreshPower_eq]
   simp [extensionOps, matrixExponent, constraintExponent]

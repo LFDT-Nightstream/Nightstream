@@ -672,6 +672,17 @@ theorem totalRowCount_eq_length_of_rowsOne (constraints : List Expr)
       simp [lowerConstraints, totalFreshCount, ih]
       omega
 
+theorem lowerConstraints_append_rows (first second : List Expr) (start : Nat) :
+    (lowerConstraints (first ++ second) start).rows =
+      (lowerConstraints first start).rows ++
+        (lowerConstraints second
+          (start + totalFreshCount first)).rows := by
+  induction first generalizing start with
+  | nil => simp [lowerConstraints, totalFreshCount]
+  | cons expression rest inductionHypothesis =>
+      simp [lowerConstraints, totalFreshCount, inductionHypothesis,
+        List.append_assoc, Nat.add_assoc]
+
 @[simp] theorem lowerConstraints_rows_length (constraints : List Expr)
     (start : Nat) :
     (lowerConstraints constraints start).rows.length =

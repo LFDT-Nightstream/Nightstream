@@ -84,6 +84,60 @@ theorem residualExpr_shape (value : KExpr) (linear : KExprLinear value) :
     change Expr.add _ _ = Expr.const constant at equality
     cases equality
 
+/-- The exact strict-base-2 residual uses no variable outside its source
+assignment's range. -/
+theorem residualExpr_varsBelow (value : KExpr) (bound : Nat)
+    (below : value.VarsBelow bound) :
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.residualExpr
+      value).VarsBelow bound := by
+  have oneBelow : KExpr.one.VarsBelow bound := by
+    simp [KExpr.one, KExpr.VarsBelow, Expr.VarsBelow]
+  have plusBelow := KExpr.add_varsBelow value KExpr.one bound below oneBelow
+  have firstProductBelow := KExpr.mul_varsBelow
+    (KExpr.add value KExpr.one) value bound plusBelow below
+  have minusBelow : (KExpr.sub value KExpr.one).VarsBelow bound := by
+    unfold KExpr.sub KExpr.VarsBelow
+    exact ⟨Expr.VarsBelow.sub _ _ bound below.1 oneBelow.1,
+      Expr.VarsBelow.sub _ _ bound below.2 oneBelow.2⟩
+  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.residualExpr
+  exact KExpr.mul_varsBelow _ _ bound firstProductBelow minusBelow
+
+/-- The owned norm result lies below the canonical final-identity child
+start. -/
+theorem output_varsBelow_finalIdentity
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.normCircuit relation (Formal.atOffset interface parentOffset)
+        ).assumptions (Formal.normOffset relation interface parentOffset) env) :
+    (Formal.normOutput relation (Formal.atOffset interface parentOffset)
+      (Formal.finalIdentityOffset relation interface parentOffset)).VarsBelow
+        (Formal.finalIdentityOffset relation interface parentOffset) := by
+  let frozen := Formal.atOffset interface parentOffset
+  have childAssumptions : NormTerminal.Assumptions
+      (Formal.normInterface relation frozen) (Formal.normStart frozen) env := by
+    rw [Formal.normStart_atOffset relation interface parentOffset]
+    exact assumptions
+  have below := NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output_varsBelow
+    (NormTerminal.ownedInterface (Formal.normInterface relation frozen))
+    (Formal.normStart frozen) env childAssumptions
+  have outputEq : Formal.normOutput relation frozen
+      (Formal.finalIdentityOffset relation interface parentOffset) =
+      NormTerminal.output (Formal.normInterface relation frozen)
+        (Formal.normStart frozen) := by
+    rfl
+  have boundEq : Formal.finalIdentityOffset relation interface parentOffset =
+      Formal.normStart frozen + localLength (Circuit.ops
+        (NormTerminal.circuit (Formal.normInterface relation frozen)).main
+        (Formal.normStart frozen)) := by
+    unfold Formal.finalIdentityOffset Formal.nextOffset Formal.childLength
+    rw [Formal.normStart_atOffset relation interface parentOffset]
+    unfold Formal.normCircuit
+    rw [FormalCircuit.withConstantFootprint_main]
+  rw [outputEq, boundEq]
+  exact below
+
 private theorem c0_directConstraint_eq_none (output : Nat)
     (point right : KExpr) (pointLinear : KExprLinear point)
     (rightShape : ResidualShape right) :
@@ -401,5 +455,33 @@ theorem physicalPrivateColumnCount_eq
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.localLength_eq
         (Formal.normInterface relation interface) offset
   rw [logicalColumns, freshColumnCount_eq relation interface inputs offset]
+
+/-- Exact residual shape exported to the final identity. -/
+theorem output_shape
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (offset : Nat)
+    (inputs : InputsLinear (Formal.normInterface relation interface)
+      (Formal.normStart interface)) :
+    ResidualShape (Formal.normOutput relation interface offset) := by
+  unfold Formal.normOutput
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.output
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
+  apply compile_output_shape_of_nonempty
+  · intro empty
+    have coefficientExprsEmpty :
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.coefficientExprs
+          (Formal.normInterface relation interface) (Formal.normStart interface) =
+          [] := by
+      simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.ownedInterface]
+        using empty
+    have length :=
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.coefficientExprs_length
+        (Formal.normInterface relation interface) (Formal.normStart interface)
+    rw [coefficientExprsEmpty] at length
+    simp at length
+  · exact coefficientExprs_shape (Formal.normInterface relation interface)
+      (Formal.normStart interface) inputs
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.NormTerminal

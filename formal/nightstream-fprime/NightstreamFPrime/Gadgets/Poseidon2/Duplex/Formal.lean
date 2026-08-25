@@ -126,6 +126,212 @@ def compile : Nat → EState → List Action → Program
         KExpr.equalities squeezed.sample expected ++ tail.assertions,
         squeezed.sample :: tail.samples, tail.output⟩
 
+/-- Recipe-free absorb projection used only to recover symbolic wiring. -/
+structure AbsorbWiring where
+  next : Nat
+  output : EState
+
+def compileAbsorbWiring : Nat → EState → List (List Expr) → AbsorbWiring
+  | start, state, [] => ⟨start, state⟩
+  | start, _state, _block :: blocks =>
+      compileAbsorbWiring (start + 592)
+        (Permutation.scheduleOutput start) blocks
+
+theorem compileAbsorbWiring_next (start : Nat) (state : EState)
+    (blocks : List (List Expr)) :
+    (compileAbsorbWiring start state blocks).next =
+      start + blocks.length * 592 := by
+  induction blocks generalizing start state with
+  | nil => rfl
+  | cons block blocks inductionHypothesis =>
+      simp only [compileAbsorbWiring]
+      rw [inductionHypothesis]
+      simp only [List.length_cons]
+      omega
+
+theorem compileAbsorbWiring_output (start : Nat) (state : EState)
+    (blocks : List (List Expr)) :
+    (compileAbsorbWiring start state blocks).output =
+      (Hash.compileAbsorptions start state blocks).output := by
+  induction blocks generalizing start state with
+  | nil => rfl
+  | cons block blocks inductionHypothesis =>
+      simp only [compileAbsorbWiring, Hash.compileAbsorptions]
+      rw [inductionHypothesis, Permutation.scheduleOutput_eq_compile]
+
+/-- Recipe-free projection of the Duplex compiler's wiring outputs. -/
+structure Wiring where
+  next : Nat
+  samples : List KExpr
+  output : EState
+
+def compileWiring : Nat → EState → List Action → Wiring
+  | start, state, [] => ⟨start, [], state⟩
+  | start, state, .absorb input :: actions =>
+      let absorbed := compileAbsorbWiring start state (Hash.inputChunks input)
+      let tail := compileWiring absorbed.next absorbed.output actions
+      ⟨tail.next, tail.samples, tail.output⟩
+  | start, state, .squeezeK _expected :: actions =>
+      let first := Permutation.scheduleOutput start
+      let tail := compileWiring (start + 1184)
+        (Permutation.scheduleOutput (start + 592)) actions
+      ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
+
+theorem compileWiring_next (start : Nat) (state : EState)
+    (actions : List Action) :
+    (compileWiring start state actions).next = start + recipeCount actions := by
+  induction actions generalizing start state with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          simp only [compileWiring]
+          rw [inductionHypothesis, compileAbsorbWiring_next]
+          simp [recipeCount, Action.recipeCount]
+          omega
+      | squeezeK expected =>
+          simp only [compileWiring]
+          rw [inductionHypothesis]
+          simp [recipeCount, Action.recipeCount]
+          omega
+
+theorem wiringSample_eq_squeeze (start : Nat) (state : EState) :
+    (⟨state 0, Permutation.scheduleOutput start 0⟩ : KExpr) =
+      (Squeeze.compile start state).sample := by
+  rw [Squeeze.compile_sample_eq]
+  congr 1
+
+theorem wiringOutput_eq_squeeze (start : Nat) (state : EState) :
+    Permutation.scheduleOutput (start + 592) =
+      (Squeeze.compile start state).output := by
+  funext lane
+  rw [Squeeze.compile_output_apply]
+  unfold Squeeze.secondPermutation
+  rw [Squeeze.first_recipes_length]
+  exact congrFun (Permutation.scheduleOutput_eq_compile (start + 592)
+    (Squeeze.firstPermutation start state).output) lane
+
+/-- Wiring projection agrees with the full compiler on every externally used
+sample and on the final symbolic state. -/
+theorem compileWiring_matches (start : Nat) (state : EState)
+    (actions : List Action) :
+    (compileWiring start state actions).samples =
+        (compile start state actions).samples ∧
+      (compileWiring start state actions).output =
+        (compile start state actions).output := by
+  induction actions generalizing start state with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          let projected := compileAbsorbWiring start state blocks
+          let absorbed := Hash.compileAbsorptions start state blocks
+          change
+            (compileWiring projected.next projected.output actions).samples =
+                (compile (start + absorbed.recipes.length)
+                  absorbed.output actions).samples ∧
+              (compileWiring projected.next projected.output actions).output =
+                (compile (start + absorbed.recipes.length)
+                  absorbed.output actions).output
+          have nextEq : projected.next =
+              start + absorbed.recipes.length := by
+            rw [compileAbsorbWiring_next,
+              Hash.compileAbsorptions_recipes_length]
+          have outputEq : projected.output = absorbed.output :=
+            compileAbsorbWiring_output start state blocks
+          rw [nextEq, outputEq]
+          exact inductionHypothesis _ _
+      | squeezeK expected =>
+          let squeezed := Squeeze.compile start state
+          change
+            (⟨state 0, Permutation.scheduleOutput start 0⟩ : KExpr) ::
+                  (compileWiring (start + 1184)
+                    (Permutation.scheduleOutput (start + 592))
+                    actions).samples =
+                squeezed.sample ::
+                  (compile (start + squeezed.recipes.length)
+                    squeezed.output actions).samples ∧
+              (compileWiring (start + 1184)
+                    (Permutation.scheduleOutput (start + 592))
+                    actions).output =
+                (compile (start + squeezed.recipes.length)
+                  squeezed.output actions).output
+          have tailMatches := inductionHypothesis (start + 1184)
+            squeezed.output
+          constructor
+          · rw [wiringSample_eq_squeeze start state,
+              wiringOutput_eq_squeeze start state,
+              Squeeze.compile_recipes_length start state]
+            exact congrArg (List.cons squeezed.sample) tailMatches.1
+          · rw [wiringOutput_eq_squeeze start state,
+              Squeeze.compile_recipes_length start state]
+            exact tailMatches.2
+
+/-- Lazy-state absorb projection. A nonempty absorb replaces the incoming
+state before it can be forced. -/
+def compileAbsorbWiringLazy : Nat → (Unit → EState) →
+    List (List Expr) → AbsorbWiring
+  | start, delayed, [] => ⟨start, delayed ()⟩
+  | start, _delayed, _block :: blocks =>
+      compileAbsorbWiringLazy (start + 592)
+        (fun _ => Permutation.scheduleOutput start) blocks
+
+theorem compileAbsorbWiringLazy_eq (start : Nat)
+    (delayed : Unit → EState) (state : EState)
+    (blocks : List (List Expr)) (stateEq : delayed () = state) :
+    compileAbsorbWiringLazy start delayed blocks =
+      compileAbsorbWiring start state blocks := by
+  induction blocks generalizing start delayed state with
+  | nil => simp [compileAbsorbWiringLazy, compileAbsorbWiring, stateEq]
+  | cons block blocks inductionHypothesis =>
+      simp only [compileAbsorbWiringLazy, compileAbsorbWiring]
+      exact inductionHypothesis _ _ _ rfl
+
+/-- Lazy-state form of `compileWiring`. It is an execution device only; the
+agreement theorem below keeps `compileWiring` as the proof meaning. -/
+def compileWiringLazy : Nat → (Unit → EState) → List Action → Wiring
+  | start, delayed, [] => ⟨start, [], delayed ()⟩
+  | start, delayed, .absorb input :: actions =>
+      let absorbed := compileAbsorbWiringLazy start delayed
+        (Hash.inputChunks input)
+      let tail := compileWiringLazy absorbed.next
+        (fun _ => absorbed.output) actions
+      ⟨tail.next, tail.samples, tail.output⟩
+  | start, delayed, .squeezeK _expected :: actions =>
+      let state := delayed ()
+      let first := Permutation.scheduleOutput start
+      let tail := compileWiringLazy (start + 1184)
+        (fun _ => Permutation.scheduleOutput (start + 592)) actions
+      ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
+
+theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
+    (state : EState) (actions : List Action) (stateEq : delayed () = state) :
+    compileWiringLazy start delayed actions =
+      compileWiring start state actions := by
+  induction actions generalizing start delayed state with
+  | nil => simp [compileWiringLazy, compileWiring, stateEq]
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          have absorbedEq :
+              compileAbsorbWiringLazy start delayed (Hash.inputChunks input) =
+                compileAbsorbWiring start state (Hash.inputChunks input) :=
+            compileAbsorbWiringLazy_eq start delayed state
+              (Hash.inputChunks input) stateEq
+          simp only [compileWiringLazy, compileWiring]
+          rw [absorbedEq]
+          let absorbed := compileAbsorbWiring start state
+            (Hash.inputChunks input)
+          rw [inductionHypothesis absorbed.next
+            (fun _ => absorbed.output) absorbed.output rfl]
+      | squeezeK expected =>
+          simp only [compileWiringLazy, compileWiring]
+          rw [stateEq]
+          rw [inductionHypothesis (start + 1184)
+            (fun _ => Permutation.scheduleOutput (start + 592))
+            (Permutation.scheduleOutput (start + 592)) rfl]
+
 /-- Samples are exposed in action order. Absorptions add no sample and every
 quadratic squeeze adds exactly one. -/
 @[simp] theorem compile_samples_length (start : Nat) (state : EState)
@@ -536,7 +742,7 @@ theorem allAssertions_length (interface : Interface) (offset : Nat) :
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   let program := compile offset (interface.initial offset)
     (interface.actions offset)
-  Op.witness ⟨offset, program.recipes⟩ ::
+  Op.witness (WitnessBatch.arithmetic offset program.recipes) ::
     (allAssertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
@@ -549,8 +755,9 @@ def main (interface : Interface) : Circuit Unit := fun offset =>
 
 theorem witness_mem (interface : Interface) (offset : Nat) :
     Op.witness
-      ⟨offset, (compile offset (interface.initial offset)
-        (interface.actions offset)).recipes⟩ ∈ opsAt interface offset := by
+      (WitnessBatch.arithmetic offset
+        (compile offset (interface.initial offset)
+          (interface.actions offset)).recipes) ∈ opsAt interface offset := by
   simp [opsAt]
 
 theorem assertion_mem (interface : Interface) (offset : Nat)
@@ -594,6 +801,7 @@ theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
   dsimp only
   simp only [List.flatMap_cons, Op.flatConstraints]
   rw [flatten]
+  simp
 
 /-- Exact number of parent-visible operations without unfolding a schedule. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -619,7 +827,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (interface.actions offset)
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset program.recipes) :=
-    rows (Op.witness ⟨offset, program.recipes⟩) (by
+    rows (Op.witness (WitnessBatch.arithmetic offset program.recipes)) (by
       rw [main_ops]
       simpa [program] using witness_mem interface offset)
   have assertionRows : ConstraintsHold env
@@ -973,7 +1181,8 @@ def allAssertions (interface : Interface) (offset : Nat) : List Expr :=
   (program interface offset).assertions
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
-  Op.witness ⟨offset, (program interface offset).recipes⟩ ::
+  Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes) ::
     (allAssertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
@@ -1005,6 +1214,7 @@ theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
         allAssertions interface offset by
       simpa [flatConstraints] using
         flatConstraints_assertions (allAssertions interface offset)]
+  simp
 
 theorem opsAt_localLength (interface : Interface) (offset : Nat) :
     localLength (opsAt interface offset) =
@@ -1037,7 +1247,8 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     SpecHolds interface offset env := by
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset (program interface offset).recipes) :=
-    rows (Op.witness ⟨offset, (program interface offset).recipes⟩) (by
+    rows (Op.witness (WitnessBatch.arithmetic offset
+      (program interface offset).recipes)) (by
       rw [main_ops]
       simp [opsAt])
   have assertionRows : ConstraintsHold env

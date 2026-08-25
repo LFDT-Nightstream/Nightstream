@@ -1,35 +1,34 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
+import NightstreamFPrime.Spec.Folding.PiCCS.Statement
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, public input and Step 1;
 Fiat–Shamir transform of the public-coin verifier transcript.
-Obligation: Absorb the complete public NIFS statement and verifier input
-before deriving `α`, `γ`, or any SumCheck challenge.
+Obligation: Absorb the pilot-bound prior-state digest and the fresh public
+claim before deriving `α`, `γ`, or any SumCheck challenge.
 
 Inputs:
-- the domain tag;
-- the running point, 16 running commitments, public inputs, `Eval_K`, and
-  `Eval_A` families;
-- one fresh commitment and public input;
-- the verifier-input prior point and separate Pad/matrix claims.
+- the digest-only PiCCS domain tag;
+- the four digest lanes projected from the pilot-bound fresh public input;
+- one fresh commitment and public input.
 
 Outputs:
 - the Poseidon2 state after the complete statement absorption.
 
 Constraint groups:
-- C1: 54 ordered absorb actions through the generic Duplex circuit;
+- C1: four ordered absorb actions through the generic Duplex circuit;
 - C2: eight final-state equality constraints.
 
 Parent coverage:
-- `v1_1.Coverage.transcript` statement prefix;
-- `v1_1.Coverage.input_eval_K`;
-- `v1_1.Coverage.input_eval_A`.
+- `v1_1.Coverage.transcript` committed-statement prefix;
+- pilot-to-PiCCS prior-digest wiring;
+- the fresh statement.
 
-This leaf contains no squeeze and accepts no witness-supplied challenge. Pad
-is never a matrix index. The generic Duplex child owns all Poseidon2
-operations; this leaf owns only typed serialization and wiring.
+This leaf contains no squeeze and accepts no witness-supplied challenge. The
+complete running statement remains available to the other PiCCS leaves, but
+this leaf does not absorb it again. The generic Duplex child owns all
+Poseidon2 operations; this leaf owns only typed serialization and wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
@@ -153,7 +152,7 @@ private theorem serializeKExpr_length (value : KExpr) :
 
 private theorem serializePointExpr_length
     (point : Fin productionShape.cubeVariables → KExpr) :
-    (serializePointExpr point).length = 48 := by
+    (serializePointExpr point).length = 50 := by
   simp [serializePointExpr, serializeKExpr_length, productionShape,
     Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -192,19 +191,25 @@ private theorem blockExpr_length (words : List Expr) :
 def absorbBlock (words : List Expr) : Formal.Action :=
   .absorb (blockExpr words)
 
-/-- Symbolic form of `ProductionKey.publicInputBlocks`. -/
+/-- The four prior-digest lanes are definitionally projected from the fresh
+public input that the pilot binds to `[1, digest, 0…]`. -/
+def priorDigestExpr {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits)
+    (offset : Nat) : List Expr :=
+  List.ofFn fun lane : Fin 4 =>
+    (interface.fresh offset).publicInput ⟨0, by decide⟩
+      (ProductionKey.priorDigestIndex lane)
+
+/-- Symbolic form of the digest-only `ProductionKey.publicInputBlocks`. -/
 def publicInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List (List Expr) :=
-  let running := interface.running offset
   let fresh := interface.fresh offset
-  [serializePointExpr running.point] ++
-  ((List.finRange productionShape.runningCount).flatMap fun index =>
-    [serializeCommitmentExpr (running.commitment index),
-      serializePublicInputExpr (running.publicInput index),
-      serializeEvaluationExpr (running.evaluation index)]) ++
+  [priorDigestExpr interface offset] ++
   (List.finRange productionShape.freshCount).flatMap fun index =>
     [serializeCommitmentExpr (fresh.commitment index),
       serializePublicInputExpr (fresh.publicInput index)]
@@ -215,7 +220,8 @@ def publicInputActions {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Formal.Action :=
-  [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.domainTag)] ++
+  [.absorb (constantWords
+      NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)] ++
     (publicInputBlocks interface offset).map absorbBlock
 
 private theorem publicInputActions_eq {logicalWidth : Nat}
@@ -223,14 +229,10 @@ private theorem publicInputActions_eq {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     publicInputActions interface offset =
-      let running := interface.running offset
       let fresh := interface.fresh offset
-      [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.domainTag),
-        absorbBlock (serializePointExpr running.point)] ++
-      ((List.finRange productionShape.runningCount).flatMap fun index =>
-        [absorbBlock (serializeCommitmentExpr (running.commitment index)),
-          absorbBlock (serializePublicInputExpr (running.publicInput index)),
-          absorbBlock (serializeEvaluationExpr (running.evaluation index))]) ++
+      [.absorb (constantWords
+          NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag),
+        absorbBlock (priorDigestExpr interface offset)] ++
       (List.finRange productionShape.freshCount).flatMap fun index =>
         [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
           absorbBlock (serializePublicInputExpr (fresh.publicInput index))] := by
@@ -439,6 +441,17 @@ private theorem freshGroup_eval {logicalWidth : Nat}
   rw [serializeCommitmentExpr_eval, serializePublicInputExpr_eval]
   rfl
 
+private theorem priorDigestExpr_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
+    Hash.evalList env (priorDigestExpr interface offset) =
+      ProductionKey.priorDigest
+        (evalFresh (interface.fresh offset) env) := by
+  unfold Hash.evalList priorDigestExpr ProductionKey.priorDigest
+  rw [List.map_ofFn]
+  rfl
+
 /-- The symbolic public block list evaluates exactly to the production key's
 canonical semantic block list. -/
 theorem publicInputBlocks_eval {logicalWidth : Nat}
@@ -453,13 +466,8 @@ theorem publicInputBlocks_eval {logicalWidth : Nat}
   dsimp only
   simp only [List.map_append]
   apply congrArg₂ List.append
-  · apply congrArg₂ List.append
-    · simp only [List.map_cons, List.map_nil]
-      rw [serializePointExpr_eval]
-      rfl
-    · apply map_flatMap_congr
-      intro index
-      exact runningGroup_eval (interface.running offset) env index
+  · simp only [List.map_cons, List.map_nil]
+    rw [priorDigestExpr_eval]
   · apply map_flatMap_congr
     intro index
     exact freshGroup_eval (interface.fresh offset) env index
@@ -522,26 +530,19 @@ def absorbedBlocks {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List (List Expr) :=
-  publicInputBlocks interface offset ++ verifierInputBlocks interface offset
+  publicInputBlocks interface offset
 
 theorem absorbedBlocks_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (ajtai : AjtaiKey
-      (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
       let running := evalRunning (interface.running offset) env
       let fresh := evalFresh (interface.fresh offset) env
-      let key := ProductionKey.key relation ajtai
-      ProductionKey.publicInputBlocks running fresh ++
-        NightstreamFPrime.Lifecycle.Transcript.verifierInputBlocks
-          ((key.statement running fresh).verifierInput key.lift) := by
+      ProductionKey.publicInputBlocks running fresh := by
   dsimp only
-  rw [absorbedBlocks, List.map_append,
-    publicInputBlocks_eval, verifierInputBlocks_eval]
+  exact publicInputBlocks_eval interface offset env
 
 private theorem constantWords_eval (env : Env) (words : List F) :
     Hash.evalList env (constantWords words) = words := by
@@ -613,10 +614,21 @@ private theorem absorb_recipeCount (input : List Expr) :
 
 @[simp] private theorem domain_recipeCount :
     Formal.Action.recipeCount
-        (.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.domainTag)) =
-      4144 := by
+        (.absorb (constantWords
+          NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)) =
+      6512 := by
   rw [absorb_recipeCount, constantWords_length]
-  rw [NightstreamFPrime.Lifecycle.Transcript.domainTag_length]
+  rw [NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag_length]
+
+@[simp] private theorem priorDigest_recipeCount {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    Formal.Action.recipeCount
+        (absorbBlock (priorDigestExpr interface offset)) = 1184 := by
+  unfold absorbBlock priorDigestExpr
+  rw [absorb_recipeCount, blockExpr_length]
+  simp
 
 @[simp] private theorem point_recipeCount
     (point : Fin productionShape.cubeVariables → KExpr) :
@@ -685,18 +697,8 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 6453984 := by
-  let running := interface.running offset
+    Formal.recipeCount (publicInputActions interface offset) = 160432 := by
   let fresh := interface.fresh offset
-  have runningCost : Formal.recipeCount
-      ((List.finRange productionShape.runningCount).flatMap fun index =>
-        [absorbBlock (serializeCommitmentExpr (running.commitment index)),
-          absorbBlock (serializePublicInputExpr (running.publicInput index)),
-          absorbBlock (serializeEvaluationExpr (running.evaluation index))]) =
-      productionShape.runningCount * 393088 := by
-    apply Formal.recipeCount_flatMap_constant
-    intro index _
-    exact runningGroup_recipeCount running index
   have freshCost : Formal.recipeCount
       ((List.finRange productionShape.freshCount).flatMap fun index =>
         [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
@@ -708,7 +710,7 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
   rw [publicInputActions_eq]
   dsimp only
   simp only [Formal.recipeCount_append]
-  rw [runningCost, freshCost]
+  rw [freshCost]
   simp [Formal.recipeCount, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape]
 
@@ -725,17 +727,17 @@ def actions {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Formal.Action :=
-  publicInputActions interface offset ++ verifierInputActions interface offset
+  publicInputActions interface offset
 
 private theorem actions_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     actions interface offset =
-      [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.domainTag)] ++
+      [.absorb (constantWords
+        NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)] ++
         (absorbedBlocks interface offset).map absorbBlock := by
-  unfold actions publicInputActions verifierInputActions absorbedBlocks
-  simp [List.map_append]
+  rfl
 
 private theorem absorbBlocks_assertionCount (blocks : List (List Expr)) :
     Formal.assertionCount (blocks.map absorbBlock) = 0 := by
@@ -748,7 +750,7 @@ private theorem absorbBlocks_assertionCount (blocks : List (List Expr)) :
       simpa [Formal.assertionCount, List.map_map, Function.comp_def] using
         inductionHypothesis
 
-private theorem assertionCount_eq {logicalWidth : Nat}
+theorem assertionCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
@@ -809,7 +811,8 @@ def opsAt {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
-  [Op.witness ⟨offset, (program interface offset).recipes⟩]
+  [Op.witness (WitnessBatch.arithmetic offset
+    (program interface offset).recipes)]
 
 def main {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -877,7 +880,8 @@ theorem build {logicalWidth : Nat}
     executeRecipes_holds_recipeConstraints env offset compiled.recipes causal
   refine ⟨completed, ?_, ?_⟩
   · simpa only [main_ops, opsAt, localLength, List.map_singleton,
-      List.sum_singleton, Op.localLength] using
+      List.sum_singleton, Op.localLength,
+      WitnessBatch.arithmetic_outputLength] using
       executeRecipes_agreesOutside env offset compiled.recipes
   · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
     rw [flatConstraints_opsAt]
@@ -896,8 +900,8 @@ def circuit {logicalWidth : Nat}
     let compiled := program interface offset
     have recipeRows : ConstraintsHold env
         (recipeConstraints offset compiled.recipes) := by
-      exact rows (Op.witness ⟨offset, compiled.recipes⟩) (by
-        change Op.witness ⟨offset, compiled.recipes⟩ ∈
+      exact rows (Op.witness (WitnessBatch.arithmetic offset compiled.recipes)) (by
+        change Op.witness (WitnessBatch.arithmetic offset compiled.recipes) ∈
           opsAt interface offset
         simp [opsAt, compiled])
     have assertionRows : ConstraintsHold env compiled.assertions := by
@@ -999,27 +1003,19 @@ private theorem publicInputBlocks_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (publicInputBlocks interface offset).length = 51 := by
+    (publicInputBlocks interface offset).length = 3 := by
   unfold publicInputBlocks
   dsimp only
   simp [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape]
 
-private theorem verifierInputBlocks_length {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (verifierInputBlocks interface offset).length = 2 := by
-  rfl
-
-/-- There are 54 independently auditable statement absorb actions. -/
+/-- There are four independently auditable digest-only absorb actions. -/
 theorem actions_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (actions interface offset).length = 54 := by
-  simp [actions, publicInputActions, verifierInputActions,
-    publicInputBlocks_length, verifierInputBlocks_length]
+    (actions interface offset).length = 4 := by
+  simp [actions, publicInputActions, publicInputBlocks_length]
 
 /-- The exact symbolic private-variable footprint of this leaf. -/
 def recipeCount {logicalWidth : Nat}
@@ -1028,24 +1024,22 @@ def recipeCount {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- The fixed profile compiles the complete statement prefix to exactly
-10,298,432 private recipe variables. -/
+/-- The fixed profile compiles the digest-only statement prefix to exactly
+160,432 private recipe variables. -/
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 10298432 := by
-  unfold recipeCount actions
-  rw [Formal.recipeCount_append, publicInputActions_recipeCount,
-    verifierInputActions_recipeCount]
+    recipeCount interface offset = 160432 := by
+  exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 10298432 := by
+    (program interface offset).recipes.length = 160432 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 10298432
+    (actions interface offset)).recipes.length = 160432
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -1054,7 +1048,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 10298432 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 160432 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -1073,7 +1067,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      10298432 := by
+      160432 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 
@@ -1128,13 +1122,13 @@ theorem spec_implies_keyInitialState
       key.oracle.transcript.initialState
         ({ priorState := key.publicInputState running fresh
            input := (key.statement running fresh).verifierInput key.lift } :
-          ProtocolVerifier.Statement K
+          NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement K
             NightstreamFPrime.Lifecycle.Transcript.State productionShape) := by
   let running := evalRunning (interface.running offset) env
   let fresh := evalFresh (interface.fresh offset) env
   let key := ProductionKey.key relation ajtai
   let input := (key.statement running fresh).verifierInput key.lift
-  let context : ProtocolVerifier.Statement K
+  let context : NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement K
       NightstreamFPrime.Lifecycle.Transcript.State productionShape :=
     { priorState := key.publicInputState running fresh, input := input }
   have trace := specification
@@ -1146,7 +1140,8 @@ theorem spec_implies_keyInitialState
   change Formal.TraceHolds
       (Absorb.reference (evalState env Hash.zeroE)
         (Hash.evalList env
-          (constantWords NightstreamFPrime.Lifecycle.Transcript.domainTag)))
+          (constantWords
+            NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)))
       (((absorbedBlocks interface offset).map absorbBlock).map
         (Formal.Action.eval env))
       (evalState env (finalState interface offset)) at trace
@@ -1166,12 +1161,11 @@ theorem spec_implies_keyInitialState
   have folded := (traceHolds_absorbBlocks_iff
     (NightstreamFPrime.Lifecycle.Transcript.absorb
       NightstreamFPrime.Lifecycle.Transcript.initialState
-      NightstreamFPrime.Lifecycle.Transcript.domainTag)
+      NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)
     (evalState env (finalState interface offset))
     ((absorbedBlocks interface offset).map (Hash.evalList env))).mp trace
-  have blocksEq := absorbedBlocks_eval relation ajtai interface offset env
-  rw [blocksEq,
-    NightstreamFPrime.Lifecycle.Transcript.absorbBlocks_append] at folded
+  have blocksEq := absorbedBlocks_eval interface offset env
+  rw [blocksEq] at folded
   have publicStateEq := ProductionKey.key_publicInputState_eq relation ajtai
     running fresh
   have oracleStateEq := ProductionKey.key_oracle_initialState_eq relation ajtai
@@ -1179,17 +1173,12 @@ theorem spec_implies_keyInitialState
   calc
     evalState env (finalState interface offset) =
         NightstreamFPrime.Lifecycle.Transcript.absorbBlocks
-          (NightstreamFPrime.Lifecycle.Transcript.absorbBlocks
-            (NightstreamFPrime.Lifecycle.Transcript.absorb
-              NightstreamFPrime.Lifecycle.Transcript.initialState
-              NightstreamFPrime.Lifecycle.Transcript.domainTag)
-            (ProductionKey.publicInputBlocks running fresh))
-          (NightstreamFPrime.Lifecycle.Transcript.verifierInputBlocks input) :=
+          (NightstreamFPrime.Lifecycle.Transcript.absorb
+            NightstreamFPrime.Lifecycle.Transcript.initialState
+            NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)
+          (ProductionKey.publicInputBlocks running fresh) :=
       folded.symm
-    _ = NightstreamFPrime.Lifecycle.Transcript.absorbBlocks
-          (key.publicInputState running fresh)
-          (NightstreamFPrime.Lifecycle.Transcript.verifierInputBlocks input) := by
-      rw [publicStateEq]
+    _ = key.publicInputState running fresh := publicStateEq.symm
     _ = key.oracle.transcript.initialState context := oracleStateEq.symm
     _ = _ := by rfl
 

@@ -32,7 +32,8 @@ def assertions (interface : Interface) (offset : Nat) : List Op :=
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   let program := Hash.compile offset (interface.input offset)
-  Op.witness ⟨offset, program.recipes⟩ :: assertions interface offset
+  Op.witness (WitnessBatch.arithmetic offset program.recipes) ::
+    assertions interface offset
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   let program := Hash.compile offset (interface.input offset)
@@ -71,7 +72,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
   have recipeRows : ConstraintsHold env
       (recipeConstraints offset program.recipes) := by
     have witnessHolds := hholds
-      (Op.witness ⟨offset, program.recipes⟩) (by
+      (Op.witness (WitnessBatch.arithmetic offset program.recipes)) (by
         simp [main_ops, opsAt, program])
     exact witnessHolds
   have computed := Hash.compile_sound env offset (interface.input offset)

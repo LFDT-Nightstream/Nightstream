@@ -57,6 +57,24 @@ structure InputsAffine
     KExprAffine
       ((interface.output offset).matrixCoordinate source matrix coefficient)
 
+/-- Causal range premise for the incoming state and the separate v1_1 Pad and
+matrix output families read by the serializer. -/
+structure InputsBelow
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) : Prop where
+  initialState : ∀ lane,
+    (interface.initialState offset lane).VarsBelow offset
+  padCoordinate : ∀ source coefficient,
+    ((interface.output offset).padCoordinate source coefficient).VarsBelow
+      offset
+  matrixCoordinate : ∀ source matrix coefficient,
+    ((interface.output offset).matrixCoordinate source matrix coefficient
+      ).VarsBelow offset
+
+private def ListBelow (bound : Nat) (values : List Expr) : Prop :=
+  ∀ expression ∈ values, expression.VarsBelow bound
+
 private theorem serializeKExpr_affine (value : KExpr)
     (affine : KExprAffine value) :
     ListAffine
@@ -155,6 +173,117 @@ theorem actions_affine
     List.mem_singleton] at member
   subst action
   exact blockExpr_affine _ (outputWords_affine interface offset inputs)
+
+private theorem serializeKExpr_below (bound : Nat) (value : KExpr)
+    (below : value.VarsBelow bound) :
+    ListBelow bound
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.serializeKExpr
+        value) := by
+  intro expression member
+  simp only [
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.serializeKExpr,
+    List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
+  · exact below.1
+  · exact below.2
+
+private theorem padWords_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset)
+    (source : Fin productionShape.sourceCount) :
+    ListBelow offset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.padWords
+        (interface.output offset) source) := by
+  intro expression member
+  rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.padWords,
+    List.mem_flatMap] at member
+  rcases member with ⟨coefficient, _, expressionMember⟩
+  exact serializeKExpr_below offset _
+    (inputs.padCoordinate source coefficient) expression expressionMember
+
+private theorem matrixWords_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset)
+    (source : Fin productionShape.sourceCount) :
+    ListBelow offset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.matrixWords
+        (interface.output offset) source) := by
+  intro expression member
+  rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.matrixWords,
+    List.mem_flatMap] at member
+  rcases member with ⟨matrix, _, member⟩
+  rw [List.mem_flatMap] at member
+  rcases member with ⟨coefficient, _, expressionMember⟩
+  exact serializeKExpr_below offset _
+    (inputs.matrixCoordinate source matrix coefficient) expression
+      expressionMember
+
+private theorem sourceWords_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset)
+    (source : Fin productionShape.sourceCount) :
+    ListBelow offset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.sourceWords
+        (interface.output offset) source) := by
+  intro expression member
+  rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.sourceWords,
+    List.mem_append] at member
+  rcases member with member | member
+  · exact padWords_below interface offset inputs source expression member
+  · exact matrixWords_below interface offset inputs source expression member
+
+private theorem outputWords_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset) :
+    ListBelow offset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.outputWords
+        interface offset) := by
+  intro expression member
+  rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.outputWords,
+    List.mem_flatMap] at member
+  rcases member with ⟨source, _, expressionMember⟩
+  exact sourceWords_below interface offset inputs source expression
+    expressionMember
+
+private theorem blockExpr_below (bound : Nat) (words : List Expr)
+    (below : ListBelow bound words) :
+    ListBelow bound
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr
+        words) := by
+  intro expression member
+  simp only [
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.blockExpr,
+    List.mem_cons] at member
+  rcases member with rfl | member
+  · trivial
+  · exact below expression member
+
+private theorem actions_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset) :
+    Formal.ActionsBelow offset
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.actions
+        interface offset) := by
+  intro action member
+  simp only [NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.actions,
+    List.mem_singleton] at member
+  subst action
+  exact blockExpr_below offset _ (outputWords_below interface offset inputs)
+
+/-- The fixed output serializer supplies the exact causal assumption of the
+owned duplex child. -/
+theorem assumptions_of_inputsBelow
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Interface)
+    (offset : Nat) (inputs : InputsBelow interface offset) (env : Env) :
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.Assumptions
+      interface offset env := by
+  exact ⟨inputs.initialState, actions_below interface offset inputs⟩
 
 private theorem core_totalFreshCount
     (interface :

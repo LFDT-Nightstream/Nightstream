@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolVerifier.HonestCompleteness
+import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
@@ -91,7 +91,7 @@ structure Proof
 /-- Static paper verifier key and permitted primitive contracts.
 
 The transcript oracle is abstract but its typed input/order is fixed by
-`ProtocolVerifier`.  Before that replay starts, `absorbPublicInput` receives
+`TranscriptReplay`. Before that replay starts, `absorbPublicInput` receives
 the complete running/fresh public pair and the key-owned initial state.
 `piRlcResponse` starts only from the state obtained after the complete
 `Pi_CCS` output has been absorbed.  Returning a valid strong-set element is
@@ -225,7 +225,8 @@ structure Key
   piDecDecision : forall attempt,
     Decidable (PiDEC.PaperVerifier.Accepted piDecAlgebra
       piDecEvaluationArity attempt)
-  oracle : ProtocolVerifier.Oracle Extension State shape
+  oracle : NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Oracle
+    Extension State shape
   initialTranscriptState : State
   absorbPublicInput : State ->
     Running Extension Commitment PublicInput shape ->
@@ -235,9 +236,10 @@ structure Key
   paper `y'` family, not the scalar projection used by the terminal check. -/
   absorbPiCcsOutput : State ->
     FullOutputCoordinates.FullOutput Extension shape -> State
-  piRlcResponse : State -> Fin arity.total -> Scalar
-  piRlcResponseValid : forall state index,
-    piRlcAlgebra.challengeValid (piRlcResponse state index)
+  piRlcResponse : State -> Option (Fin arity.total -> Scalar)
+  piRlcResponseValid : forall state response,
+    piRlcResponse state = some response -> forall index,
+      piRlcAlgebra.challengeValid (response index)
 
 namespace Key
 
@@ -392,7 +394,8 @@ def piCcsCertificate
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
-    ProtocolVerifier.Certificate Extension shape where
+    NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Certificate
+      Extension shape where
   rounds := fun round => (proof.piCcsRounds round).toMessage
   output := (key.statement running fresh).projectOutput proof.piCcsOutput
 
@@ -449,7 +452,15 @@ def piCcsFixedCertificate
     SumCheck.Finite.FixedPhase.Certificate Extension degreeBound where
   rounds := List.ofFn proof.piCcsRounds
 
-/-- Exact verifier-derived `Pi_CCS` replay. -/
+/-- Exact verifier-derived `Pi_CCS` replay followed by the key-owned complete
+`y'` absorption. -/
+structure PiCcsExecution
+    (Extension : Type uExtension)
+    (State : Type uState)
+    (shape : Shape) where
+  coins : FiatShamir.DerivedCoins Extension State shape
+  outgoingState : State
+
 def piCcsExecution
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -462,15 +473,17 @@ def piCcsExecution
       columns blockCount degreeBound)
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
-    (proof : Proof Extension Commitment shape degreeBound) :=
-  let execution :=
-    ProtocolVerifier.derive key.oracle (key.publicInputState running fresh)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    PiCcsExecution Extension State shape :=
+  let replay :=
+    NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.derive key.oracle
+      (key.publicInputState running fresh)
       (StrongReduction.Statement.verifierInput key.lift
         (key.statement running fresh))
       (key.piCcsCertificate running fresh proof)
-  { execution with
+  { coins := replay.coins
     outgoingState :=
-      key.absorbPiCcsOutput execution.coins.finalState proof.piCcsOutput }
+      key.absorbPiCcsOutput replay.coins.finalState proof.piCcsOutput }
 
 /-- The PiCCS execution coin record is the transcript derivation from the
 key-owned statement and the proof's round messages. This projection avoids
@@ -492,7 +505,8 @@ theorem piCcsExecution_coins_eq_derive
       FiatShamir.derive key.oracle.transcript
         ({ priorState := key.publicInputState running fresh
            input := (key.statement running fresh).verifierInput key.lift } :
-          ProtocolVerifier.Statement Extension State shape)
+          NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement
+            Extension State shape)
         ({ rounds := fun round => (proof.piCcsRounds round).toMessage } :
           FiatShamir.Certificate Extension shape) := by
   rfl
@@ -584,11 +598,31 @@ def piRlcChallenges
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
-    Fin key.arity.total -> Scalar :=
+    Option (Fin key.arity.total -> Scalar) :=
   key.piRlcResponse
     (key.piCcsExecution running fresh proof).outgoingState
 
-/-- Verifier-computed `CE(B)` parent. -/
+/-- Verifier-computed `CE(B)` parent for one successful challenge batch. -/
+def parentForChallenges
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (challenges : Fin key.arity.total -> Scalar) :=
+  PiRLC.combinedOutput key.piRlcAlgebra key.relationSource
+    (key.piCcsExecution running fresh proof).coins.roundPoint
+    (key.piCcsOutputs running fresh proof)
+    challenges
+
+/-- The parent exists only when the verifier-owned sampler succeeds. -/
 def parent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -602,12 +636,10 @@ def parent
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :=
-  PiRLC.combinedOutput key.piRlcAlgebra key.relationSource
-    (key.piCcsExecution running fresh proof).coins.roundPoint
-    (key.piCcsOutputs running fresh proof)
-    (key.piRlcChallenges running fresh proof)
+  (key.piRlcChallenges running fresh proof).map
+    (key.parentForChallenges running fresh proof)
 
-@[simp] theorem parent_point
+@[simp] theorem parentForChallenges_point
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -619,12 +651,39 @@ def parent
       columns blockCount degreeBound)
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
-    (proof : Proof Extension Commitment shape degreeBound) :
-    (key.parent running fresh proof).point =
+    (proof : Proof Extension Commitment shape degreeBound)
+    (challenges : Fin key.arity.total -> Scalar) :
+    (key.parentForChallenges running fresh proof challenges).point =
       (key.piCcsExecution running fresh proof).coins.roundPoint := by
   rfl
 
 /-- Operational `Pi_DEC` message boundary over the verifier-computed parent. -/
+def piDecAttemptForParent
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (parent : CE.Instance
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment) :
+    PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params where
+  parent := parent
+  messages := fun child => {
+    commitment := proof.piDecCommitments (Fin.cast key.outputCount_eq child)
+    evaluations := #[proof.piDecEvaluations (Fin.cast key.outputCount_eq child)]
+  }
+
+/-- The PiDEC attempt exists only after successful PiRLC sampling. -/
 def piDecAttempt
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -637,18 +696,38 @@ def piDecAttempt
       columns blockCount degreeBound)
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
-    (proof : Proof Extension Commitment shape degreeBound) :
-    PiDEC.PaperVerifier.Attempt
+    (proof : Proof Extension Commitment shape degreeBound) :=
+  (key.parent running fresh proof).map
+    (key.piDecAttemptForParent proof)
+
+/-- Public running product from one successful typed PiDEC attempt. -/
+def outputForAttempt
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
-      (EvaluationFamily Extension shape) Commitment key.params where
-  parent := key.parent running fresh proof
-  messages := fun child => {
-    commitment := proof.piDecCommitments (Fin.cast key.outputCount_eq child)
-    evaluations := #[proof.piDecEvaluations (Fin.cast key.outputCount_eq child)]
+      (EvaluationFamily Extension shape) Commitment key.params) :
+    Running Extension Commitment PublicInput shape :=
+  let children := PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt
+  {
+    point := attempt.parent.point
+    commitments := fun runningIndex =>
+      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment
+    publicInputs := fun runningIndex =>
+      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).publicInput
+    evaluations := proof.piDecEvaluations
   }
 
-/-- Public running product computed from the parent and typed child messages. -/
+/-- The running output exists only after successful PiRLC sampling. -/
 def output
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -662,19 +741,11 @@ def output
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
-    Running Extension Commitment PublicInput shape :=
-  let attempt := key.piDecAttempt running fresh proof
-  let children := PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt
-  {
-    point := attempt.parent.point
-    commitments := fun runningIndex =>
-      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment
-    publicInputs := fun runningIndex =>
-      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).publicInput
-    evaluations := proof.piDecEvaluations
-  }
+    Option (Running Extension Commitment PublicInput shape) :=
+  (key.piDecAttempt running fresh proof).map
+    (key.outputForAttempt proof)
 
-@[simp] theorem output_point
+@[simp] theorem outputForAttempt_point
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -684,14 +755,15 @@ def output
     {columns blockCount degreeBound : Nat}
     (key : Key Extension Commitment PublicInput Scalar State shape
       columns blockCount degreeBound)
-    (running : Running Extension Commitment PublicInput shape)
-    (fresh : Fresh Commitment PublicInput shape)
-    (proof : Proof Extension Commitment shape degreeBound) :
-    (key.output running fresh proof).point =
-      (key.parent running fresh proof).point := by
+    (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params) :
+    (key.outputForAttempt proof attempt).point = attempt.parent.point := by
   rfl
 
-@[simp] theorem output_commitment
+@[simp] theorem outputForAttempt_commitment
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -701,16 +773,18 @@ def output
     {columns blockCount degreeBound : Nat}
     (key : Key Extension Commitment PublicInput Scalar State shape
       columns blockCount degreeBound)
-    (running : Running Extension Commitment PublicInput shape)
-    (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params)
     (runningIndex : Fin shape.runningCount) :
-    (key.output running fresh proof).commitments runningIndex =
-      ((key.piDecAttempt running fresh proof).messages
+    (key.outputForAttempt proof attempt).commitments runningIndex =
+      (attempt.messages
         (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment := by
   rfl
 
-@[simp] theorem output_publicInput
+@[simp] theorem outputForAttempt_publicInput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -720,17 +794,18 @@ def output
     {columns blockCount degreeBound : Nat}
     (key : Key Extension Commitment PublicInput Scalar State shape
       columns blockCount degreeBound)
-    (running : Running Extension Commitment PublicInput shape)
-    (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params)
     (runningIndex : Fin shape.runningCount) :
-    (key.output running fresh proof).publicInputs runningIndex =
-      key.piDecPublicInputSplit.split
-        (key.parent running fresh proof).publicInput
+    (key.outputForAttempt proof attempt).publicInputs runningIndex =
+      key.piDecPublicInputSplit.split attempt.parent.publicInput
         (Fin.cast key.runningCount_eq_outputCount runningIndex) := by
   rfl
 
-@[simp] theorem output_evaluation
+@[simp] theorem outputForAttempt_evaluation
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -740,11 +815,13 @@ def output
     {columns blockCount degreeBound : Nat}
     (key : Key Extension Commitment PublicInput Scalar State shape
       columns blockCount degreeBound)
-    (running : Running Extension Commitment PublicInput shape)
-    (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params)
     (runningIndex : Fin shape.runningCount) :
-    (key.output running fresh proof).evaluations runningIndex =
+    (key.outputForAttempt proof attempt).evaluations runningIndex =
       proof.piDecEvaluations runningIndex := by
   rfl
 

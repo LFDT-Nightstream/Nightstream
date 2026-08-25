@@ -12,9 +12,8 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
-abbrev SourceColumnCount : Nat :=
-  Pilot.physicalColumnCount PilotProduction.interface
-    PilotProduction.witnessOffset
+/-- Materialized source-column count for executable package emission. -/
+def SourceColumnCount : Nat := 12659088
 
 /-- The recursive public input has 54 cells and `XOut` has four cells. -/
 def publicColumnCount : Nat :=
@@ -44,8 +43,15 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 12659084 :=
-  PilotProduction.physicalColumnCount_eq
+theorem sourceColumnCount_eq : SourceColumnCount = 12659088 := by
+  rfl
+
+/-- The materialized count is exactly the proved semantic pilot layout count. -/
+theorem sourceColumnCount_matches :
+    SourceColumnCount =
+      Pilot.physicalColumnCount PilotProduction.interface
+        PilotProduction.witnessOffset := by
+  rw [PilotProduction.physicalColumnCount_eq, sourceColumnCount_eq]
 
 theorem publicColumnCount_eq : publicColumnCount =
     PriorStateHash.publicWidth + PilotProduction.digestWords := by
@@ -266,17 +272,18 @@ inductive PaddedRowRole where
   | zeroPadding (index : Nat)
 deriving Repr, DecidableEq
 
-def sourceRows : List R1CS.Row :=
+def sourceRows (_unit : Unit) : List R1CS.Row :=
   Pilot.physicalRows PilotProduction.interface PilotProduction.witnessOffset
 
 def paddedRowRole (row : Fin domainSize) : PaddedRowRole :=
-  if row.val < sourceRows.length then
+  if row.val < (sourceRows ()).length then
     .source row.val
   else
-    .zeroPadding (row.val - sourceRows.length)
+    .zeroPadding (row.val - (sourceRows ()).length)
 
 theorem sourceRowCount_bounds :
-    2 ^ 23 < sourceRows.length ∧ sourceRows.length ≤ domainSize := by
+    2 ^ 23 < (sourceRows ()).length ∧
+      (sourceRows ()).length ≤ domainSize := by
   change 2 ^ 23 <
       Pilot.physicalRowCount PilotProduction.interface
         PilotProduction.witnessOffset ∧
@@ -352,33 +359,33 @@ private theorem zeroRows_hold (target : Env) (count : Nat) :
 
 /-- Exact matrix rows seen by direct Spartan: remapped source rows followed by
 semantically empty rows up to the fixed production domain. -/
-def paddedRows : List R1CS.Row :=
-  padRows (remapRows sourceRows) ++
-    List.replicate (domainSize - sourceRows.length) zeroRow
+def paddedRows (_unit : Unit) : List R1CS.Row :=
+  padRows (remapRows (sourceRows ())) ++
+    List.replicate (domainSize - (sourceRows ()).length) zeroRow
 
-theorem paddedRows_length : paddedRows.length = domainSize := by
+theorem paddedRows_length : (paddedRows ()).length = domainSize := by
   unfold paddedRows padRows remapRows
   rw [List.length_append, List.length_map, List.length_map,
     List.length_replicate, Nat.add_sub_of_le sourceRowCount_bounds.2]
 
 /-- Generic Spartan padding preserves and reflects every Lean source row. -/
 theorem paddedRows_hold (target : Env) :
-    R1CS.RowsHold target paddedRows ↔
+    R1CS.RowsHold target (paddedRows ()) ↔
       Pilot.PhysicalHolds PilotProduction.interface
         PilotProduction.witnessOffset
         (pullback (paddedPullback target)) := by
-  change R1CS.RowsHold target paddedRows ↔
-    R1CS.RowsHold (pullback (paddedPullback target)) sourceRows
+  change R1CS.RowsHold target (paddedRows ()) ↔
+    R1CS.RowsHold (pullback (paddedPullback target)) (sourceRows ())
   constructor
   · intro holds
     have split := (R1CS.rowsHold_append target _ _).mp holds
-    exact (remapRows_hold (paddedPullback target) sourceRows).mp
-      ((padRows_hold target (remapRows sourceRows)).mp split.1)
+    exact (remapRows_hold (paddedPullback target) (sourceRows ())).mp
+      ((padRows_hold target (remapRows (sourceRows ()))).mp split.1)
   · intro holds
     apply (R1CS.rowsHold_append target _ _).mpr
     exact ⟨
-      (padRows_hold target (remapRows sourceRows)).mpr
-        ((remapRows_hold (paddedPullback target) sourceRows).mpr holds),
+      (padRows_hold target (remapRows (sourceRows ()))).mpr
+        ((remapRows_hold (paddedPullback target) (sourceRows ())).mpr holds),
       zeroRows_hold target _⟩
 
 end NightstreamFPrime.Layout.PilotSpartan

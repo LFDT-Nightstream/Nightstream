@@ -42,22 +42,22 @@ def evaluationPrefixOps
       (evalAOffset interface offset)]
 
 private theorem appendInitialClaim
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       initialClaimOffset interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.initial_claim"
           (initialClaimCircuit (atOffset interface offset))
             (initialClaimOffset interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         sumcheckOffset interface offset ∧
       Sequence.PreservesPrefix before after ∧
       InitialClaim.SpecHolds
@@ -86,7 +86,7 @@ private theorem appendInitialClaim
   · simpa [shared] using childSpec
 
 private theorem sumcheckEvidence_of_accepted
-    {logicalWidth : Nat}
+    {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -97,12 +97,13 @@ private theorem sumcheckEvidence_of_accepted
     (env : Env) (offset : Nat)
     (template : Proof (ProductionKey.degreeBound relation))
     (assumptions : Assumptions relation interface offset env)
-    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted
       (ProductionKey.key relation ajtai)
       (evalRunning interface offset env)
       (evalFresh interface offset env)
       (evalProof relation interface offset env template))
-    (before : Sequence.Prefix env offset)
+    (before : Sequence.Prefix env base)
+    (offsetLeBase : offset ≤ base)
     (statementSpec : StatementAbsorption.SpecHolds
       (statementAbsorptionInterface (atOffset interface offset))
         (statementAbsorptionOffset interface offset) before.current)
@@ -152,9 +153,10 @@ private theorem sumcheckEvidence_of_accepted
     relation ajtai running fresh
   have acceptedCurrent := accepted_of_agree_below relation ajtai interface
     offset env before.current template assumptions.external
-      (fun index below => (before.agrees index (Or.inl below)).symm) accepted
+      (fun index below => (before.agrees index
+        (Or.inl (lt_of_lt_of_le below offsetLeBase))).symm) accepted
   have coverage :=
-    (NightstreamFPrime.Spec.Folding.PiCCS.v1_1.accepted_iff_coverage
+    (NightstreamFPrime.Spec.Folding.PiCCS.accepted_iff_coverage
       (ProductionKey.key relation ajtai) running fresh proof).mp (by
         simpa [running, fresh, proof] using acceptedCurrent)
   have statementState := StatementAbsorption.spec_implies_keyInitialState
@@ -243,25 +245,25 @@ private theorem sumcheckEvidence_of_accepted
   simpa [shared, running, fresh, proof] using evidence
 
 private theorem appendSumcheckChain
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
+    (before : Sequence.Prefix env base)
     (childSpec : SumcheckChain.SpecHolds
       (sumcheckInterface (atOffset interface offset))
         (sumcheckOffset interface offset) before.current)
-    (startEq : offset + localLength before.operations =
+    (startEq : base + localLength before.operations =
       sumcheckOffset interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.sumcheck_chain"
           (sumcheckCircuit (atOffset interface offset))
             (sumcheckOffset interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         evalKOffset interface offset ∧
       Sequence.PreservesPrefix before after := by
   let shared := atOffset interface offset
@@ -290,22 +292,22 @@ private theorem appendSumcheckChain
   · simpa [shared, childStart] using nextEq
 
 private theorem appendEvalKTerminal
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       evalKOffset interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.eval_K_terminal"
           (evalKCircuit (atOffset interface offset))
             (evalKOffset interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         evalAOffset interface offset ∧
       Sequence.PreservesPrefix before after ∧
       EvalKTerminal.SpecHolds
@@ -334,22 +336,22 @@ private theorem appendEvalKTerminal
   · simpa [shared] using childSpec
 
 private theorem appendEvalATerminal
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env offset)
-    (startEq : offset + localLength before.operations =
+    (before : Sequence.Prefix env base)
+    (startEq : base + localLength before.operations =
       evalAOffset interface offset) :
-    ∃ after : Sequence.Prefix env offset,
+    ∃ after : Sequence.Prefix env base,
       after.operations = before.operations ++
         [childOp "piccs.v1_1.eval_A_terminal"
           (evalACircuit (atOffset interface offset))
             (evalAOffset interface offset)] ∧
-      offset + localLength after.operations =
+      base + localLength after.operations =
         ccsOffset interface offset ∧
       Sequence.PreservesPrefix before after ∧
       EvalATerminal.SpecHolds
@@ -378,15 +380,15 @@ private theorem appendEvalATerminal
   · simpa [shared] using childSpec
 
 private theorem transcriptSpecs_preserved
-    {logicalWidth degreeBound : Nat}
+    {logicalWidth degreeBound base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (before after : Sequence.Prefix env offset)
-    (endEq : offset + localLength before.operations =
+    (before after : Sequence.Prefix env base)
+    (endEq : base + localLength before.operations =
       initialClaimOffset interface offset)
     (preserves : Sequence.PreservesPrefix before after)
     (statementSpec : StatementAbsorption.SpecHolds
@@ -665,7 +667,7 @@ private theorem evidence_of_specs
 at or after the CCS boundary. This theorem uses child footprint contracts and
 does not inspect child operations. -/
 theorem evidence_preserved
-    {logicalWidth : Nat}
+    {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -676,8 +678,9 @@ theorem evidence_preserved
     (initial : Env) (offset : Nat)
     (template : Proof (ProductionKey.degreeBound relation))
     (assumptions : Assumptions relation interface offset initial)
-    (before after : Sequence.Prefix initial offset)
-    (endEq : offset + localLength before.operations =
+    (before after : Sequence.Prefix initial base)
+    (offsetLeBase : offset ≤ base)
+    (endEq : base + localLength before.operations =
       ccsOffset interface offset)
     (preserves : Sequence.PreservesPrefix before after)
     (evidence : Evidence relation ajtai interface offset before.current
@@ -863,7 +866,7 @@ theorem evidence_preserved
       rw [runningEq, freshEq, proofEq]) }
 
 theorem completeEvaluationPrefix
-    {logicalWidth : Nat}
+    {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -874,12 +877,13 @@ theorem completeEvaluationPrefix
     (env : Env) (offset : Nat)
     (template : Proof (ProductionKey.degreeBound relation))
     (assumptions : Assumptions relation interface offset env)
-    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Accepted
+    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted
       (ProductionKey.key relation ajtai)
       (evalRunning interface offset env)
       (evalFresh interface offset env)
       (evalProof relation interface offset env template))
-    (before : Sequence.Prefix env offset)
+    (before : Sequence.Prefix env base)
+    (offsetLeBase : offset ≤ base)
     (statementSpec : StatementAbsorption.SpecHolds
       (statementAbsorptionInterface (atOffset interface offset))
         (statementAbsorptionOffset interface offset) before.current)
@@ -889,12 +893,12 @@ theorem completeEvaluationPrefix
     (roundSpec : RoundTranscript.SpecHolds
       (roundTranscriptInterface (atOffset interface offset))
         (roundTranscriptOffset interface offset) before.current)
-    (startEq : offset + localLength before.operations =
+    (startEq : base + localLength before.operations =
       initialClaimOffset interface offset) :
-    ∃ completed : Sequence.Prefix env offset,
+    ∃ completed : Sequence.Prefix env base,
       completed.operations =
         before.operations ++ evaluationPrefixOps interface offset ∧
-      offset + localLength completed.operations =
+      base + localLength completed.operations =
         ccsOffset interface offset ∧
       Sequence.PreservesPrefix before completed ∧
       Evidence relation ajtai interface offset completed.current template := by
@@ -904,7 +908,7 @@ theorem completeEvaluationPrefix
   have transcriptP5 := transcriptSpecs_preserved relation interface env offset
     assumptions before p5 startEq p4to5 statementSpec challengeSpec roundSpec
   have sumcheckEvidenceP5 := sumcheckEvidence_of_accepted relation ajtai
-    interface env offset template assumptions accepted p5 transcriptP5.1
+    interface env offset template assumptions accepted p5 offsetLeBase transcriptP5.1
       transcriptP5.2.1 transcriptP5.2.2 initialSpecP5
   rcases appendSumcheckChain relation interface env offset assumptions
       p5 sumcheckEvidenceP5.1 n5 with

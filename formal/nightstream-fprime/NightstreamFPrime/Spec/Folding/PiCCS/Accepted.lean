@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.Statement
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.EvalK
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.EvalA
-import NightstreamFPrime.Spec.Folding.PiCCS.v1_1.FinalIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.Statement
+import NightstreamFPrime.Spec.Folding.PiCCS.EvalK
+import NightstreamFPrime.Spec.Folding.PiCCS.EvalA
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, complete `Pi_CCS` verifier.
@@ -33,7 +33,7 @@ proof view used to audit that check. It is not a second verifier path and
 emits no circuit constraints.
 -/
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.v1_1
+namespace NightstreamFPrime.Spec.Folding.PiCCS
 
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -80,7 +80,8 @@ structure Coverage
       FiatShamir.derive key.oracle.transcript
         ({ priorState := key.publicInputState running fresh
            input := (key.statement running fresh).verifierInput key.lift } :
-          ProtocolVerifier.Statement Extension State shape)
+          NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement
+            Extension State shape)
         ({ rounds := fun round => (proof.piCcsRounds round).toMessage } :
           FiatShamir.Certificate Extension shape)
   input_eval_K : ∀ coordinate : PadCoordinate shape,
@@ -153,4 +154,4 @@ theorem accepted_iff_coverage
   · intro coverage
     exact (piCcsCheck_eq_true_iff key running fresh proof).mpr coverage.chain
 
-end NightstreamFPrime.Spec.Folding.PiCCS.v1_1
+end NightstreamFPrime.Spec.Folding.PiCCS

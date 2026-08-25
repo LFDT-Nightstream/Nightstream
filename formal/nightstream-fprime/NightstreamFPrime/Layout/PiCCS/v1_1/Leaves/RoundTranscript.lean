@@ -8,16 +8,16 @@ the corresponding verifier challenge in exact round order.
 
 Inputs:
 - the prior child-owned transcript state;
-- 24 prover polynomial messages of degree at most `degreeBound`.
+- 25 prover polynomial messages of degree at most `degreeBound`.
 
 Outputs:
-- 24 verifier-derived round challenges;
+- 25 verifier-derived round challenges;
 - the child-owned outgoing transcript state.
 
 Constraint groups:
 - one generic message-absorption action group;
 - one generic labelled squeeze action group;
-- indexed composition over the fixed 24-round chain.
+- indexed composition over the fixed 25-round chain.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.round_transcript`.
@@ -36,6 +36,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript
 open NightstreamFPrime.Layout.Poseidon2
 open NightstreamFPrime.Layout.Poseidon2.Duplex
+open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
@@ -165,6 +166,158 @@ private theorem layoutProgram_samples_affine
     (layoutActions interface offset) inputs.initialState
     (layoutActions_affine interface offset inputs)
 
+private theorem layoutProgram_samples_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.Interface
+        degreeBound)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    ∀ sample ∈ (layoutProgram interface offset).samples,
+      KExprLinear sample := by
+  exact compile_samples_linear offset (interface.initialState offset)
+    (layoutActions interface offset) initialFresh
+
+theorem challenge_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.Interface
+        degreeBound)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset))
+    (roundIndex : Fin productionShape.cubeVariables) :
+    KExprLinear (challenge interface offset roundIndex) := by
+  exact layoutProgram_samples_linear interface offset initialFresh _
+    (List.get_mem _ _)
+
+/-- Every verifier-derived round challenge lies below the canonical
+initial-claim child start. -/
+theorem challenge_varsBelow_initialClaim
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.roundTranscriptCircuit (Formal.atOffset interface parentOffset)
+        ).assumptions
+        (Formal.roundTranscriptOffset interface parentOffset) env)
+    (roundIndex : Fin productionShape.cubeVariables) :
+    (Formal.roundPoint (Formal.atOffset interface parentOffset)
+      (Formal.initialClaimOffset interface parentOffset) roundIndex).VarsBelow
+        (Formal.initialClaimOffset interface parentOffset) := by
+  let frozen := Formal.atOffset interface parentOffset
+  have childAssumptions : RoundTranscript.Assumptions
+      (Formal.roundTranscriptInterface frozen)
+      (Formal.roundTranscriptStart frozen) env := by
+    rw [Formal.roundTranscriptStart_atOffset interface parentOffset]
+    exact assumptions
+  have below := RoundTranscript.challenge_varsBelow
+    (Formal.roundTranscriptInterface frozen)
+    (Formal.roundTranscriptStart frozen) env childAssumptions roundIndex
+  have challengeEq :
+      Formal.roundPoint frozen
+          (Formal.initialClaimOffset interface parentOffset) roundIndex =
+        RoundTranscript.challenge (Formal.roundTranscriptInterface frozen)
+          (Formal.roundTranscriptStart frozen) roundIndex := by
+    rfl
+  have boundEq : Formal.initialClaimOffset interface parentOffset =
+      Formal.roundTranscriptStart frozen +
+        localLength (Circuit.ops
+          (RoundTranscript.circuit (Formal.roundTranscriptInterface frozen)
+            ).main (Formal.roundTranscriptStart frozen)) := by
+    calc
+      Formal.initialClaimOffset interface parentOffset =
+          Formal.initialClaimStart frozen :=
+        (Formal.initialClaimStart_atOffset interface parentOffset).symm
+      _ = _ := by
+        unfold Formal.initialClaimStart
+        rw [RoundTranscript.localLength_eq,
+          RoundTranscript.program_recipes_length]
+  rw [challengeEq, boundEq]
+  exact below
+
+/-- The outgoing transcript state lies below the immediate parent boundary
+that starts the initial-claim child. -/
+theorem finalState_varsBelow_initialClaim
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.roundTranscriptCircuit (Formal.atOffset interface parentOffset)
+        ).assumptions
+        (Formal.roundTranscriptOffset interface parentOffset) env) :
+    ∀ lane,
+      (Formal.roundTranscriptFinalState
+        (Formal.atOffset interface parentOffset)
+        (Formal.initialClaimOffset interface parentOffset) lane).VarsBelow
+          (Formal.initialClaimOffset interface parentOffset) := by
+  let frozen := Formal.atOffset interface parentOffset
+  have childAssumptions : RoundTranscript.Assumptions
+      (Formal.roundTranscriptInterface frozen)
+      (Formal.roundTranscriptStart frozen) env := by
+    rw [Formal.roundTranscriptStart_atOffset interface parentOffset]
+    exact assumptions
+  have below := RoundTranscript.finalState_varsBelow
+    (Formal.roundTranscriptInterface frozen)
+    (Formal.roundTranscriptStart frozen) env childAssumptions
+  have boundEq : Formal.initialClaimOffset interface parentOffset =
+      Formal.roundTranscriptStart frozen +
+        localLength (Circuit.ops
+          (RoundTranscript.circuit (Formal.roundTranscriptInterface frozen)
+            ).main (Formal.roundTranscriptStart frozen)) := by
+    calc
+      Formal.initialClaimOffset interface parentOffset =
+          Formal.initialClaimStart frozen :=
+        (Formal.initialClaimStart_atOffset interface parentOffset).symm
+      _ = _ := by
+        unfold Formal.initialClaimStart
+        rw [RoundTranscript.localLength_eq,
+          RoundTranscript.program_recipes_length]
+  intro lane
+  change (RoundTranscript.finalState (Formal.roundTranscriptInterface frozen)
+    (Formal.roundTranscriptStart frozen) lane).VarsBelow
+      (Formal.initialClaimOffset interface parentOffset)
+  rw [boundEq]
+  exact below lane
+
+/-- Parent wiring can carry the same outgoing transcript state to any later
+child boundary without changing the state expression. -/
+theorem finalState_varsBelow_of_initialClaim_le
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.roundTranscriptCircuit (Formal.atOffset interface parentOffset)
+        ).assumptions
+        (Formal.roundTranscriptOffset interface parentOffset) env)
+    (upper : Nat)
+    (bound : Formal.initialClaimOffset interface parentOffset ≤ upper) :
+    ∀ lane,
+      (Formal.roundTranscriptFinalState
+        (Formal.atOffset interface parentOffset) upper lane).VarsBelow upper := by
+  have below := finalState_varsBelow_initialClaim interface parentOffset env
+    assumptions
+  intro lane
+  have widened := Expr.VarsBelow.mono _ (below lane) bound
+  let frozen := Formal.atOffset interface parentOffset
+  change (RoundTranscript.finalState (Formal.roundTranscriptInterface frozen)
+    (Formal.roundTranscriptStart frozen) lane).VarsBelow upper
+  exact widened
+
+theorem finalState_fresh
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.Interface
+        degreeBound)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    StateFresh (finalState interface offset) := by
+  unfold finalState program
+  exact compile_output_fresh offset (interface.initialState offset)
+    (actions interface offset) initialFresh
+
+theorem finalState_affine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.Interface
+        degreeBound)
+    (offset : Nat)
+    (initialFresh : StateFresh (interface.initialState offset)) :
+    StateAffine (finalState interface offset) :=
+  (finalState_fresh interface offset initialFresh).affine
+
 private theorem challenge_affine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.Interface
@@ -188,7 +341,7 @@ theorem actions_affine
     (challenge interface offset roundIndex) inputs
     (challenge_affine interface offset inputs roundIndex)
 
-/-- Exact parent-facing physical footprint for the indexed 24-round transcript
+/-- Exact parent-facing physical footprint for the indexed 25-round transcript
 chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -197,7 +350,7 @@ def footprint
     R1CS.CircuitFootprint (Formal.roundTranscriptCircuit interface) where
   freshColumnCount := fun _ => 0
   physicalRowCount := fun _ =>
-    24 *
+    25 *
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.perRoundRecipeCount
         degreeBound
   freshColumnCount_eq := by
@@ -219,7 +372,7 @@ def footprint
     rw [FormalCircuit.withConstantFootprint_main]
     change R1CS.totalRowCount (flatConstraints
       (opsAt (Formal.roundTranscriptInterface interface) offset)) =
-        24 *
+        25 *
           NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.perRoundRecipeCount
             degreeBound
     rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.flatConstraints_opsAt]
@@ -248,18 +401,18 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.roundTranscriptCircuit interface).main offset)) =
-        24 *
+        25 *
           NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.perRoundRecipeCount
             degreeBound :=
   (footprint interface inputs).physicalRowCount_eq offset
 
-theorem physicalRowCount_eq_of_degreeBound_eq_four
+theorem physicalRowCount_eq_of_degreeBound_eq_nine
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,
       InputsAffine (Formal.roundTranscriptInterface interface) offset)
-    (offset : Nat) (degreeBound_eq : degreeBound = 4) :
+    (offset : Nat) (degreeBound_eq : degreeBound = 9) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.roundTranscriptCircuit interface).main offset)) = 85248 := by
+      (Formal.roundTranscriptCircuit interface).main offset)) = 133200 := by
   rw [physicalRowCount_eq interface inputs offset, degreeBound_eq]
   rfl
 

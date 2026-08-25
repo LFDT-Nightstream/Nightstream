@@ -57,11 +57,11 @@ theorem specHolds_implies_holds
 
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
-  14499140 + 24 * RoundTranscript.perRoundRecipeCount degreeBound
+  4362930 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
-  14499190 + 24 * RoundTranscript.perRoundRecipeCount degreeBound
+  4363142 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
 
 private theorem transcriptPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
@@ -70,7 +70,7 @@ private theorem transcriptPrefix_localLength_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
-      10342832 + 24 * RoundTranscript.perRoundRecipeCount degreeBound := by
+      206608 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold statementBindingCircuit statementAbsorptionCircuit
@@ -84,7 +84,7 @@ private theorem evaluationPrefix_localLength_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    localLength (evaluationPrefixOps interface offset) = 52022 := by
+    localLength (evaluationPrefixOps interface offset) = 52030 := by
   simp only [evaluationPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold initialClaimCircuit sumcheckCircuit evalKCircuit
@@ -98,12 +98,13 @@ private theorem terminalPrefix_localLength_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    localLength (terminalPrefixOps relation interface offset) = 4104286 := by
+    localLength (terminalPrefixOps relation interface offset) = 4104292 := by
   simp only [terminalPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold ccsCircuit normCircuit finalIdentityCircuit
     outputBindingCircuit
   simp only [FormalCircuit.withConstantFootprint_privateCount]
+  norm_num [CcsTerminal.privateCount]
 
 private theorem transcriptPrefix_rowCount_eq
     {logicalWidth degreeBound : Nat}
@@ -113,7 +114,7 @@ private theorem transcriptPrefix_rowCount_eq
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
       (transcriptPrefixOps interface offset) =
-      10342832 + 24 * RoundTranscript.perRoundRecipeCount degreeBound := by
+      206768 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
@@ -129,7 +130,7 @@ private theorem evaluationPrefix_rowCount_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
-      (evaluationPrefixOps interface offset) = 52070 := by
+      (evaluationPrefixOps interface offset) = 52080 := by
   simp only [evaluationPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
@@ -144,12 +145,13 @@ private theorem terminalPrefix_rowCount_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
-      (terminalPrefixOps relation interface offset) = 4104288 := by
+      (terminalPrefixOps relation interface offset) = 4104294 := by
   simp only [terminalPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
   unfold ccsCircuit normCircuit finalIdentityCircuit outputBindingCircuit
   simp only [FormalCircuit.withConstantFootprint_rowCount]
+  norm_num [CcsTerminal.rowCount]
 
 private theorem opsAt_eq_prefixes
     {logicalWidth degreeBound : Nat}
@@ -198,13 +200,13 @@ theorem flatConstraints_length_eq
   unfold rowCount
   omega
 
-theorem privateCount_eq_of_degreeBound_eq_four (degreeBound : Nat)
-    (degreeEq : degreeBound = 4) : privateCount degreeBound = 14584388 := by
+theorem privateCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
+    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4496130 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount]
 
-theorem rowCount_eq_of_degreeBound_eq_four (degreeBound : Nat)
-    (degreeEq : degreeBound = 4) : rowCount degreeBound = 14584438 := by
+theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
+    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4496342 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount]
 
@@ -223,14 +225,15 @@ theorem completePrefix
     (specification : PhaseHolds relation ajtai interface offset env template) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = opsAt relation interface offset := by
-  rcases completeTranscriptPrefix relation interface env offset assumptions with
+  rcases completeTranscriptPrefix relation interface env offset assumptions
+      specification.stateBinding with
     ⟨p4, o4, s4, statementSpecP4, challengeSpecP4, roundSpecP4⟩
   rcases completeEvaluationPrefix relation ajtai interface env offset template
-      assumptions specification.accepted p4 statementSpecP4 challengeSpecP4
+      assumptions specification.accepted p4 (by omega) statementSpecP4 challengeSpecP4
         roundSpecP4 s4 with
     ⟨p8, o8, s8, _p4to8, evidenceP8⟩
   rcases completeTerminalPrefix relation ajtai interface env offset template
-      assumptions p8 evidenceP8 s8 with
+      assumptions p8 (by omega) evidenceP8 s8 with
     ⟨p12, o12, _s12, _p8to12⟩
   have operationsEq : p12.operations = opsAt relation interface offset := by
     rw [o12, o8, o4]

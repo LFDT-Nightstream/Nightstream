@@ -66,6 +66,69 @@ theorem coefficientExprs_linear
     rcases member with ⟨coordinate, _, rfl⟩
     exact inputs.eval_A coordinate
 
+/-- The nonempty Horner child exports one materialized linear claim. -/
+theorem output_linear
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.Interface)
+    (offset : Nat) (inputs : InputsLinear interface offset) :
+    KExprLinear
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.output
+        interface offset) := by
+  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.output
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.ownedInterface
+  apply compile_output_linear
+  · intro empty
+    have coefficientExprsEmpty : coefficientExprs interface offset = [] := by
+      simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.ownedInterface]
+        using empty
+    have length := coefficientExprs_length interface offset
+    rw [coefficientExprsEmpty] at length
+    simp at length
+  · exact coefficientExprs_linear interface offset inputs
+
+/-- The owned initial claim lies below the canonical SumCheck child start. -/
+theorem output_varsBelow_sumcheck
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (parentOffset : Nat) (env : Env)
+    (assumptions :
+      (Formal.initialClaimCircuit (Formal.atOffset interface parentOffset)
+        ).assumptions (Formal.initialClaimOffset interface parentOffset) env) :
+    (Formal.initialClaimOutput (Formal.atOffset interface parentOffset)
+      (Formal.sumcheckOffset interface parentOffset)).VarsBelow
+        (Formal.sumcheckOffset interface parentOffset) := by
+  let frozen := Formal.atOffset interface parentOffset
+  have childAssumptions : InitialClaim.Assumptions
+      (Formal.initialClaimInterface frozen) (Formal.initialClaimStart frozen)
+      env := by
+    rw [Formal.initialClaimStart_atOffset interface parentOffset]
+    exact assumptions
+  have below := NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output_varsBelow
+    (InitialClaim.ownedInterface (Formal.initialClaimInterface frozen))
+    (Formal.initialClaimStart frozen) env childAssumptions
+  have outputEq :
+      Formal.initialClaimOutput frozen
+          (Formal.sumcheckOffset interface parentOffset) =
+        InitialClaim.output (Formal.initialClaimInterface frozen)
+          (Formal.initialClaimStart frozen) := by
+    rfl
+  have boundEq : Formal.sumcheckOffset interface parentOffset =
+      Formal.initialClaimStart frozen +
+        localLength (Circuit.ops
+          (InitialClaim.circuit (Formal.initialClaimInterface frozen)).main
+          (Formal.initialClaimStart frozen)) := by
+    calc
+      Formal.sumcheckOffset interface parentOffset =
+          Formal.sumcheckStart frozen :=
+        (Formal.sumcheckStart_atOffset interface parentOffset).symm
+      _ = _ := by
+        unfold Formal.sumcheckStart
+        rw [InitialClaim.localLength_eq]
+        rfl
+  rw [outputEq, boundEq]
+  exact below
+
 private theorem flatConstraints_eq_recipeConstraints
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.Interface)

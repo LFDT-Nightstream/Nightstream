@@ -1,8 +1,11 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/PrefixLayout.lean`
-at commit `f277c1d5e16b9f0d096d9b9da30baeb932af9be8`; namespaces renamed, otherwise unchanged. -/
+/-! Provenance: adapted from
+`formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/PrefixLayout.lean`
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; the namespace and ownership
+text now identify the SuperNeo v1.1 canonical row injection. The proof body is
+unchanged. -/
 
 /-!
 Canonical prefix injection into a Boolean cube.
@@ -34,9 +37,10 @@ order or a different placement map.
 
 set_option autoImplicit false
 
-namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixLayout
+namespace NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 
-open UnifiedSources
+open PaperJoint
+open PaperJoint.UnifiedSources
 
 /-- The canonical zero-based little-endian prefix layout. -/
 def layout
@@ -120,4 +124,4 @@ theorem toColumn?_eq_none_iff
       entries <= NumericBooleanDomain.index vertex := by
   simp [layout, Nat.not_lt]
 
-end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixLayout
+end NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout

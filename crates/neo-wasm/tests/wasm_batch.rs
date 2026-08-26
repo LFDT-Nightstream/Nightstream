@@ -54,12 +54,7 @@ fn batched_shape_grows_with_batch_size() {
     let n_links_per_boundary = {
         let layout = neo_wasm::build_wasm_relation_layout();
         // One link row per state-continuity column pair.
-        layout
-            .auxiliary
-            .ivc_state_links
-            .iter()
-            .map(|l| l.column_pairs.len())
-            .sum::<usize>()
+        layout.auxiliary.continuity.link_count()
     };
     for n in [2usize, 4, 10] {
         let batched = build_batched_wasm_ccs(n).expect("batched");

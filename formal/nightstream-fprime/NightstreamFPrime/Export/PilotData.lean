@@ -173,7 +173,7 @@ def physicalLayout : PhysicalLayout where
   publicSegments := publicSegments
 
 def circuitPackage (_unit : Unit) : CircuitPackage where
-  schemaVersion := 6
+  schemaVersion := 7
   profile := profile
   poseidon := poseidonSchedule
   layout := physicalLayout
@@ -182,6 +182,8 @@ def circuitPackage (_unit : Unit) : CircuitPackage where
   permutation := permutationTemplate ()
   hashChains := [priorChain, outputChain]
   permutationInvocations := []
+  compactRowTemplates := []
+  compactRowInvocations := []
   witnessBatches := []
   witnessInstructions := []
   assertionRows := assertionRows ()

@@ -1368,6 +1368,7 @@ theorem complete_arithmeticRows
         NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [mappedStart, PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    norm_num
   let completed :=
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
       PiCCSArithmetic.initialClaimFreshStart 685348

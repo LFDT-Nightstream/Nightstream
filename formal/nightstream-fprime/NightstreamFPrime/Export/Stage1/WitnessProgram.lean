@@ -1,13 +1,15 @@
-import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 
 /-!
-Owns the canonical logical witness-program IR for the Stage 1 PiCCS prefix.
+Owns the canonical logical witness-program IR through the PiRLC sampler.
 
 The seven arithmetic children already export `WitnessBatch` recipes through
 their opaque `FormalCircuit` interfaces. This module gathers those batches in
 protocol order and remaps only their symbolic variable indices through the
-proved Stage 1 Spartan permutation. Poseidon2 children remain represented by
-their compact permutation invocations and are not duplicated here.
+proved Stage 1 Spartan permutation. PiCCS Poseidon2 children remain represented
+by compact permutation invocations. PiRLC digest lanes keep their opaque child
+batches. PiRLC permutation and `First54` outputs are owned by their package
+invocations and are not written again here.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
@@ -130,7 +132,43 @@ def finalIdentityBatches
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
     PiCCSArithmetic.finalIdentityLogicalStart
 
-/-- Exact arithmetic-child order from the sole PiCCS phase assembler. -/
+def piRlcDigestLaneBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (source round : Nat) (lane : Fin 4) : List WitnessBatch :=
+  childBatches
+    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.circuit
+      (PiRLCSamplerOrdinaryRows.laneInterface
+        (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source round lane)).main
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+      source round lane.val)
+
+def piRlcWindowBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (source round : Nat) : List WitnessBatch :=
+  (List.finRange 4).flatMap
+    (piRlcDigestLaneBatches logicalWidth publicFits source round)
+
+def piRlcSourceBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (source : Nat) : List WitnessBatch :=
+  (List.range 8).flatMap
+    (piRlcWindowBatches logicalWidth publicFits source)
+
+def piRlcSamplerBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  (List.range 17).flatMap
+    (piRlcSourceBatches logicalWidth publicFits)
+
+/-- Exact logical-witness order through the PiRLC sampler prefix. -/
 def batches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -141,6 +179,7 @@ def batches
     evalABatches logicalWidth publicFits ++
     ccsBatches logicalWidth publicFits ++
     normBatches logicalWidth publicFits ++
-    finalIdentityBatches logicalWidth publicFits
+    finalIdentityBatches logicalWidth publicFits ++
+    piRlcSamplerBatches logicalWidth publicFits
 
 end NightstreamFPrime.Export.Stage1.WitnessProgram

@@ -1,16 +1,23 @@
 import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
+import NightstreamFPrime.Export.Stage1.PiRLCFirst54Invocations
+import NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 
 /-!
-Owns the executable data of the one Stage 1 pilot + PiCCS package.
+Owns the executable data of the one Stage 1 pilot + PiCCS + PiRLC package.
 
 The closed pilot is lifted into the combined Spartan column order. The PiCCS
 proof-input segment follows the two pilot preimages. All remaining private
 columns belong to the one package witness program. The PiCCS transcript uses
-compact Poseidon2 invocations, and the seven arithmetic leaves use compact
-witness instructions or sparse assertions.
+compact Poseidon2 invocations. PiRLC reuses that permutation template, uses
+compact `First54` recipes, keeps decoder rows ordinary, and then emits the
+four compact 17-input combination families in parent order.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Data
@@ -169,7 +176,7 @@ def publicSegments : List Segment :=
       NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 17755828
+  rowCount := 25556958
   privateColumnCount :=
     NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
   constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
@@ -181,19 +188,46 @@ def physicalLayout : PhysicalLayout where
   publicSegments := publicSegments
 
 def arithmeticRows (_unit : Unit) : List Rows.CompiledRow :=
-  PiCCSArithmetic.arithmeticRows logicalWidth publicFits
+  PiCCSArithmetic.arithmeticRows logicalWidth publicFits ++
+    PiRLCSamplerOrdinaryRows.rows (logicalWidth := logicalWidth)
+      (publicFits := publicFits)
 
 def permutationInvocations (_unit : Unit) : List PermutationInvocation :=
-  PiCCSInvocations.invocations logicalWidth publicFits
+  PiCCSInvocations.invocations logicalWidth publicFits ++
+    PiRLCSamplerInvocations.invocations
+      (logicalWidth := logicalWidth) (publicFits := publicFits)
+
+def compactRowTemplates (_unit : Unit) : List CompactRowTemplate :=
+  PiRLCCombinationTemplates.templates ++ PiRLCFirst54Templates.templates
+
+def compactRowInvocations (_unit : Unit) : List CompactRowInvocation :=
+  PiRLCFirst54Invocations.invocations ++
+    PiRLCCombinationInvocations.invocations
 
 theorem arithmeticRows_eq :
     arithmeticRows () =
-      PiCCSArithmetic.arithmeticRows logicalWidth publicFits := by
+      PiCCSArithmetic.arithmeticRows logicalWidth publicFits ++
+        PiRLCSamplerOrdinaryRows.rows (logicalWidth := logicalWidth)
+          (publicFits := publicFits) := by
   rfl
 
 theorem permutationInvocations_eq :
     permutationInvocations () =
-      PiCCSInvocations.invocations logicalWidth publicFits := by
+      PiCCSInvocations.invocations logicalWidth publicFits ++
+        PiRLCSamplerInvocations.invocations
+          (logicalWidth := logicalWidth) (publicFits := publicFits) := by
+  rfl
+
+theorem compactRowTemplates_eq :
+    compactRowTemplates () =
+      PiRLCCombinationTemplates.templates ++
+        PiRLCFirst54Templates.templates := by
+  rfl
+
+theorem compactRowInvocations_eq :
+    compactRowInvocations () =
+      PiRLCFirst54Invocations.invocations ++
+        PiRLCCombinationInvocations.invocations := by
   rfl
 
 structure Components where
@@ -232,7 +266,7 @@ def Components.assertionRows (components : Components) : List SparseRow :=
     components.arithmeticAssertionRows
 
 def Components.toCircuitPackage (components : Components) : CircuitPackage where
-  schemaVersion := 6
+  schemaVersion := 7
   profile := PilotData.profile
   poseidon := PilotData.poseidonSchedule
   layout := physicalLayout
@@ -241,6 +275,8 @@ def Components.toCircuitPackage (components : Components) : CircuitPackage where
   permutation := PilotData.permutationTemplate ()
   hashChains := [priorChain, outputChain]
   permutationInvocations := components.permutationInvocations
+  compactRowTemplates := compactRowTemplates ()
+  compactRowInvocations := compactRowInvocations ()
   witnessBatches := WitnessProgram.batches logicalWidth publicFits
   witnessInstructions := components.witnessInstructions
   assertionRows := components.assertionRows
@@ -269,6 +305,18 @@ theorem Components.toCircuitPackage_permutationInvocations
     (components : Components) :
     components.toCircuitPackage.permutationInvocations =
       components.permutationInvocations := by
+  rfl
+
+theorem Components.toCircuitPackage_compactRowTemplates
+    (components : Components) :
+    components.toCircuitPackage.compactRowTemplates =
+      compactRowTemplates () := by
+  rfl
+
+theorem Components.toCircuitPackage_compactRowInvocations
+    (components : Components) :
+    components.toCircuitPackage.compactRowInvocations =
+      compactRowInvocations () := by
   rfl
 
 theorem Components.toCircuitPackage_witnessInstructions
@@ -306,39 +354,42 @@ theorem Components.ordinaryRows_length (components : Components) :
     _ = (liftPilotRows (PilotData.assertionRows ())).length +
         ((Rows.witnessInstructions components.arithmeticRows).length +
           (Rows.assertionRows components.arithmeticRows).length) := by
-      ac_rfl
+      omega
     _ = (liftPilotRows (PilotData.assertionRows ())).length +
         components.arithmeticRows.length := by rw [partition]
 
 /-- Exact total row coverage for any component lists with the production
 counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
-    (arithmeticRows_length : components.arithmeticRows.length = 765370)
+    (arithmeticRows_length : components.arithmeticRows.length = 986251)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 7460)
+      components.permutationInvocations.length = 7613)
     (templateRows_length :
       (PilotData.permutationTemplate ()).rows.length = 592)
     (pilotAssertionRows_length :
       (liftPilotRows (PilotData.assertionRows ())).length = 58)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 12574080) :
+      priorChain.witnessLength + outputChain.witnessLength = 12574080)
+    (compactRows_length :
+      components.toCircuitPackage.compactRowCount = 7489673) :
     (components.toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       components.toCircuitPackage.permutationInvocations.length *
         components.toCircuitPackage.permutation.rows.length +
+      components.toCircuitPackage.compactRowCount +
       components.toCircuitPackage.witnessInstructions.length +
       components.toCircuitPackage.assertionRows.length =
         components.toCircuitPackage.layout.rowCount := by
   have ordinaryFixed :
       components.toCircuitPackage.witnessInstructions.length +
-        components.toCircuitPackage.assertionRows.length = 765428 := by
+        components.toCircuitPackage.assertionRows.length = 986309 := by
     calc
       _ = (liftPilotRows (PilotData.assertionRows ())).length +
           components.arithmeticRows.length :=
         components.ordinaryRows_length
-      _ = 58 + 765370 := by
+      _ = 58 + 986251 := by
         rw [pilotAssertionRows_length, arithmeticRows_length]
-      _ = 765428 := by norm_num
+      _ = 986309 := by norm_num
   rw [components.toCircuitPackage_hashChains,
     components.toCircuitPackage_permutationInvocations,
     components.toCircuitPackage_permutation,
@@ -346,16 +397,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 17755828 from rfl]
+  rw [show physicalLayout.rowCount = 25556958 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          7460 * 592 +
+          7613 * 592 +
+          components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
             components.toCircuitPackage.assertionRows.length) := by
-      ac_rfl
-    _ = 12574080 + 7460 * 592 + 765428 := by
-      rw [hashChainRows, ordinaryFixed]
-    _ = 17755828 := by norm_num
+      omega
+    _ = 12574080 + 7613 * 592 + 7489673 + 986309 := by
+      rw [hashChainRows, compactRows_length, ordinaryFixed]
+    _ = 25556958 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())
@@ -397,6 +449,14 @@ theorem circuitPackage_permutationInvocations :
     (circuitPackage ()).permutationInvocations =
       (components ()).permutationInvocations :=
   Components.toCircuitPackage_permutationInvocations (components ())
+
+theorem circuitPackage_compactRowTemplates :
+    (circuitPackage ()).compactRowTemplates = compactRowTemplates () :=
+  Components.toCircuitPackage_compactRowTemplates (components ())
+
+theorem circuitPackage_compactRowInvocations :
+    (circuitPackage ()).compactRowInvocations = compactRowInvocations () :=
+  Components.toCircuitPackage_compactRowInvocations (components ())
 
 theorem circuitPackage_witnessInstructions :
     (circuitPackage ()).witnessInstructions =

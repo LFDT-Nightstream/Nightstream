@@ -87,4 +87,86 @@ def Value.render : Value → String
   | .array values =>
       "[" ++ String.intercalate "," (values.map Value.render) ++ "]"
 
+/-- Linear accumulator renderer for executable emission. It writes the same
+numeric-array syntax as `Value.render` without retaining one rendered string
+for every sibling value. -/
+def Value.renderInto : Value → ByteArray → ByteArray
+  | .atom value, output => output ++ (toString value).toUTF8
+  | .array values, output =>
+      let renderers := values.map Value.renderInto
+      let output := output.push 91
+      let output := match renderers with
+        | [] => output
+        | first :: rest =>
+            rest.foldl (fun current (renderChild : ByteArray → ByteArray) =>
+              renderChild (current.push 44)) (first output)
+      output.push 93
+
+def Value.renderBytes (value : Value) : ByteArray :=
+  value.renderInto ByteArray.empty
+
+def writeByte (handle : IO.FS.Handle) (byte : UInt8) : IO Unit :=
+  handle.write (ByteArray.empty.push byte)
+
+/-- Write the canonical numeric-array encoding directly to a file handle.
+The traversal uses the same atom, bracket, comma, and child order as
+`renderInto`, but it does not retain the complete artifact in memory. -/
+partial def Value.writeCanonical (handle : IO.FS.Handle) : Value → IO Nat
+  | .atom value => do
+      let bytes := (toString value).toUTF8
+      handle.write bytes
+      pure bytes.size
+  | .array values => do
+      writeByte handle 91
+      let rec writeValues : List Value → IO Nat
+        | [] => pure 0
+        | [value] => value.writeCanonical handle
+        | value :: rest => do
+            let first ← value.writeCanonical handle
+            writeByte handle 44
+            let tail ← writeValues rest
+            pure (first + 1 + tail)
+      let children ← writeValues values
+      writeByte handle 93
+      pure (children + 2)
+
+/-- Write a canonical array with one item action at a time. -/
+partial def writeListWith (handle : IO.FS.Handle)
+    (writeItem : Alpha → IO Unit) : List Alpha → IO Unit
+  | values => do
+      writeByte handle 91
+      let rec writeValues : List Alpha → IO Unit
+        | [] => pure ()
+        | value :: rest => do
+            writeItem value
+            match rest with
+            | [] => pure ()
+            | _ =>
+              writeByte handle 44
+              writeValues rest
+      writeValues values
+      writeByte handle 93
+
+/-- Write a canonical codec list without first constructing its complete
+`Value.array`. Only the current encoded item is retained. -/
+def writeListCanonical (handle : IO.FS.Handle)
+    (item : Format Alpha) (values : List Alpha) : IO Unit :=
+  writeListWith handle
+    (fun value => do
+      let _ ← (item.encode value).writeCanonical handle
+      pure ())
+    values
+
+/-- Append items to an array that a caller opened. `first` records whether
+the array is still empty, so callers can stream several logical list segments
+without constructing their concatenation. -/
+partial def writeArrayItemsWith (handle : IO.FS.Handle)
+    (writeItem : Alpha → IO Unit) : Bool → List Alpha → IO Bool
+  | first, [] => pure first
+  | first, value :: rest => do
+      if !first then
+        writeByte handle 44
+      writeItem value
+      writeArrayItemsWith handle writeItem false rest
+
 end NightstreamFPrime.Export.Codec

@@ -987,7 +987,8 @@ theorem canonicalPackage_hashes (env : Env)
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash
             (chainInputValues PilotData.outputChain env) := by
-  rcases holds with ⟨chains, _invocations, _instructions, assertions⟩
+  rcases holds with
+    ⟨chains, _invocations, _compactInvocations, _instructions, assertions⟩
   have priorHolds : HashChainHolds (PilotData.circuitPackage ())
       PilotData.priorChain env := by
     apply chains _

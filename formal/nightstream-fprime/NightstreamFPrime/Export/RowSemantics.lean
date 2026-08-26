@@ -186,6 +186,69 @@ def PermutationInvocationHolds (package : CircuitPackage)
   ∀ row ∈ package.permutation.rows,
     (instantiateInvocationRow invocation row).Holds env
 
+/-- The final package column bound to one compact-template input. The strict
+loader proves that the ranges form a total, ordered partition of the declared
+input interval. -/
+def compactInputColumn (ranges : List CompactInputRange)
+    (input : Nat) : Nat :=
+  match ranges.find? fun range =>
+      range.inputStart ≤ input ∧ input < range.inputStart + range.inputCount with
+  | some range =>
+      range.columnStart + (input - range.inputStart) * range.columnStride
+  | none => 0
+
+def instantiateCompactColumn (invocation : CompactRowInvocation) :
+    ColumnRef → Nat
+  | .input input => compactInputColumn invocation.inputRanges input
+  | .local localIndex => invocation.localStart + localIndex
+
+def instantiateCompactCombination (invocation : CompactRowInvocation)
+    (combination : TemplateCombination) : R1CS.LinearCombination :=
+  ⟨fieldValue combination.constant,
+    combination.terms.map fun term =>
+      (instantiateCompactColumn invocation term.column,
+        fieldValue term.coefficient)⟩
+
+def instantiateCompactRow (invocation : CompactRowInvocation)
+    (row : CompactTemplateRow) : R1CS.Row :=
+  ⟨instantiateCompactCombination invocation row.a,
+    instantiateCompactCombination invocation row.b,
+    instantiateCompactCombination invocation row.c⟩
+
+/-- One compact invocation is fail-closed on its selected template and then
+checks every exact instantiated `A * B = C` row. -/
+def CompactRowInvocationHolds (package : CircuitPackage)
+    (invocation : CompactRowInvocation) (env : Env) : Prop :=
+  match package.compactRowTemplates[invocation.templateIndex]? with
+  | none => False
+  | some template =>
+      R1CS.RowsHold env
+        (template.rows.map (instantiateCompactRow invocation))
+
+def compactInvocationRowCountFor (templates : List CompactRowTemplate)
+    (invocation : CompactRowInvocation) : Nat :=
+  match templates[invocation.templateIndex]? with
+  | none => 0
+  | some template => template.rows.length
+
+def compactRowCountFor (templates : List CompactRowTemplate)
+    (invocations : List CompactRowInvocation) : Nat :=
+  (invocations.map (compactInvocationRowCountFor templates)).sum
+
+theorem compactRowCountFor_append (templates : List CompactRowTemplate)
+    (first second : List CompactRowInvocation) :
+    compactRowCountFor templates (first ++ second) =
+      compactRowCountFor templates first + compactRowCountFor templates second := by
+  simp [compactRowCountFor, List.map_append]
+
+def compactInvocationRowCount (package : CircuitPackage)
+    (invocation : CompactRowInvocation) : Nat :=
+  compactInvocationRowCountFor package.compactRowTemplates invocation
+
+def CircuitPackage.compactRowCount (package : CircuitPackage) : Nat :=
+  compactRowCountFor package.compactRowTemplates
+    package.compactRowInvocations
+
 /-- The authoritative R1CS row checked for one generic witness instruction. -/
 def WitnessInstruction.toR1CS (instruction : WitnessInstruction) : R1CS.Row :=
   ⟨instruction.a.toR1CS, instruction.b.toR1CS,
@@ -258,6 +321,8 @@ def CircuitPackage.RowsHold (package : CircuitPackage) (env : Env) : Prop :=
   (∀ chain ∈ package.hashChains, HashChainHolds package chain env) ∧
     (∀ invocation ∈ package.permutationInvocations,
       PermutationInvocationHolds package invocation env) ∧
+    (∀ invocation ∈ package.compactRowInvocations,
+      CompactRowInvocationHolds package invocation env) ∧
     (∀ instruction ∈ package.witnessInstructions,
       instruction.Holds env) ∧
     AssertionsHold package env

@@ -497,6 +497,112 @@ def PermutationInvocation.format : Format PermutationInvocation where
     cases value
     simp [Format.decode_encode] <;> rfl
 
+/-- One row in a generic compact template. A witness row names the local
+column that receives `A * B`. An assertion row has no output target and only
+checks its exact `A * B = C` equation. -/
+structure CompactTemplateRow where
+  outputLocal : Option Nat
+  a : TemplateCombination
+  b : TemplateCombination
+  c : TemplateCombination
+deriving Repr
+
+def encodeOptionalNat : Option Nat → Value
+  | none => .array [.atom 0]
+  | some value => .array [.atom 1, .atom value]
+
+def decodeOptionalNat : Value → Except String (Option Nat)
+  | .array [.atom 0] => .ok none
+  | .array [.atom 1, .atom value] => .ok (some value)
+  | _ => .error "invalid optional natural"
+
+@[simp] theorem decodeOptionalNat_encode (value : Option Nat) :
+    decodeOptionalNat (encodeOptionalNat value) = .ok value := by
+  cases value <;> rfl
+
+def CompactTemplateRow.format : Format CompactTemplateRow where
+  encode := fun value => .array [
+    encodeOptionalNat value.outputLocal,
+    TemplateCombination.format.encode value.a,
+    TemplateCombination.format.encode value.b,
+    TemplateCombination.format.encode value.c]
+  decode
+    | .array [outputLocal, a, b, c] => do
+      pure ⟨← decodeOptionalNat outputLocal,
+        ← TemplateCombination.format.decode a,
+        ← TemplateCombination.format.decode b,
+        ← TemplateCombination.format.decode c⟩
+    | _ => .error "invalid compact template row"
+  decode_encode := by
+    intro value
+    cases value
+    simp [decodeOptionalNat_encode,
+      TemplateCombination.format.decode_encode,
+      Format.decode_encode] <;> rfl
+
+/-- One Lean-authored generic row template. `outputRecipe` computes the one
+logical output column selected by `outputInput`. The rows then compute the
+template-local R1CS intermediates and check the final assertion. -/
+structure CompactRowTemplate where
+  inputCount : Nat
+  localColumnCount : Nat
+  outputInput : Nat
+  outputRecipe : Expr
+  rows : List CompactTemplateRow
+deriving Repr
+
+/-- One contiguous affine binding from template input slots to final package
+columns. Slot `inputStart + i` reads `columnStart + i * columnStride`. -/
+structure CompactInputRange where
+  inputStart : Nat
+  inputCount : Nat
+  columnStart : Nat
+  columnStride : Nat
+deriving Repr
+
+def CompactInputRange.format : Format CompactInputRange where
+  encode := fun value => .array [
+    .atom value.inputStart, .atom value.inputCount,
+    .atom value.columnStart, .atom value.columnStride]
+  decode
+    | .array [.atom inputStart, .atom inputCount, .atom columnStart,
+        .atom columnStride] =>
+      .ok ⟨inputStart, inputCount, columnStart, columnStride⟩
+    | _ => .error "invalid compact input range"
+  decode_encode := by
+    intro value
+    cases value
+    rfl
+
+/-- One exact use of a compact row template. The invocation owns one logical
+output column, one contiguous local interval, and one contiguous row interval.
+Its input ranges contain only final package column numbers. -/
+structure CompactRowInvocation where
+  phase : Nat
+  templateIndex : Nat
+  rowStart : Nat
+  localStart : Nat
+  inputRanges : List CompactInputRange
+deriving Repr
+
+def CompactRowInvocation.format : Format CompactRowInvocation where
+  encode := fun value => .array [
+    .atom value.phase,
+    .atom value.templateIndex,
+    .atom value.rowStart,
+    .atom value.localStart,
+    (list CompactInputRange.format).encode value.inputRanges]
+  decode
+    | .array [.atom phase, .atom templateIndex, .atom rowStart,
+        .atom localStart, inputRanges] => do
+      pure ⟨phase, templateIndex, rowStart, localStart,
+        ← (list CompactInputRange.format).decode inputRanges⟩
+    | _ => .error "invalid compact row invocation"
+  decode_encode := by
+    intro value
+    cases value
+    simp [Format.decode_encode] <;> rfl
+
 /-- One generic straight-line witness instruction and its authoritative row.
 The interpreter writes `a * b` to `target`; the same package row checks that
 value. `rowIndex` fixes its position in the physical circuit. -/
@@ -610,6 +716,25 @@ def exprFormat : Format Expr where
   decode := decodeExpr
   decode_encode := decodeExpr_encode
 
+def CompactRowTemplate.format : Format CompactRowTemplate where
+  encode := fun value => .array [
+    .atom value.inputCount,
+    .atom value.localColumnCount,
+    .atom value.outputInput,
+    exprFormat.encode value.outputRecipe,
+    (list CompactTemplateRow.format).encode value.rows]
+  decode
+    | .array [.atom inputCount, .atom localColumnCount, .atom outputInput,
+        outputRecipe, rows] => do
+      pure ⟨inputCount, localColumnCount, outputInput,
+        ← exprFormat.decode outputRecipe,
+        ← (list CompactTemplateRow.format).decode rows⟩
+    | _ => .error "invalid compact row template"
+  decode_encode := by
+    intro value
+    cases value
+    simp [exprFormat.decode_encode, Format.decode_encode] <;> rfl
+
 /-- Lossless wire encoding of non-authoritative witness hints. -/
 def encodeHint : Hint → Value
   | .bit source index =>
@@ -663,6 +788,8 @@ structure CircuitPackage where
   permutation : PermutationTemplate
   hashChains : List HashChain
   permutationInvocations : List PermutationInvocation
+  compactRowTemplates : List CompactRowTemplate
+  compactRowInvocations : List CompactRowInvocation
   witnessBatches : List WitnessBatch
   witnessInstructions : List WitnessInstruction
   assertionRows : List SparseRow
@@ -679,14 +806,17 @@ def CircuitPackage.format : Format CircuitPackage where
     PermutationTemplate.format.encode value.permutation,
     (list HashChain.format).encode value.hashChains,
     (list PermutationInvocation.format).encode value.permutationInvocations,
+    (list CompactRowTemplate.format).encode value.compactRowTemplates,
+    (list CompactRowInvocation.format).encode value.compactRowInvocations,
     (list WitnessBatch.format).encode value.witnessBatches,
     (list WitnessInstruction.format).encode value.witnessInstructions,
     (list SparseRow.format).encode value.assertionRows,
     (option TerminalLayout.format).encode value.terminal]
   decode
     | .array [.atom schemaVersion, profile, poseidon, layout, relation,
-        permutation, hashChains, permutationInvocations, witnessBatches,
-        witnessInstructions, assertionRows, terminal] => do
+        permutation, hashChains, permutationInvocations, compactRowTemplates,
+        compactRowInvocations, witnessBatches, witnessInstructions,
+        assertionRows, terminal] => do
       pure ⟨schemaVersion,
         ← Profile.format.decode profile,
         ← PoseidonSchedule.format.decode poseidon,
@@ -695,6 +825,8 @@ def CircuitPackage.format : Format CircuitPackage where
         ← PermutationTemplate.format.decode permutation,
         ← (list HashChain.format).decode hashChains,
         ← (list PermutationInvocation.format).decode permutationInvocations,
+        ← (list CompactRowTemplate.format).decode compactRowTemplates,
+        ← (list CompactRowInvocation.format).decode compactRowInvocations,
         ← (list WitnessBatch.format).decode witnessBatches,
         ← (list WitnessInstruction.format).decode witnessInstructions,
         ← (list SparseRow.format).decode assertionRows,
@@ -755,14 +887,18 @@ def identityDomain : List F :=
     70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97, 103,
     101, 47, 118, 50]
 
+/-- Verifier-bound Poseidon2 identity of one canonical codec value. -/
+def relationIdentifierValue (value : Value) : List F :=
+  Poseidon2.hash (identityDomain ++
+    valuePreimage value)
+
 /-- Verifier-bound Poseidon2 identity of every canonical package field.
 
 Version 2 hashes one prefix-free token stream. It replaces the version-1
 per-node digest tree, whose executable cost was one Poseidon2 hash for every
 codec node. -/
 def relationIdentifier (value : CircuitPackage) : List F :=
-  Poseidon2.hash (identityDomain ++
-    valuePreimage (CircuitPackage.format.encode value))
+  relationIdentifierValue (CircuitPackage.format.encode value)
 
 def render (value : CircuitPackage) : String :=
   (CircuitPackage.format.encode value).render

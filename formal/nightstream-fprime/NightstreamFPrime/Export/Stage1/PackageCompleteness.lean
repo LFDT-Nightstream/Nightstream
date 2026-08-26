@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 
 /-!
@@ -85,10 +86,67 @@ theorem pullback_after_preOutput_agreesBelow
 
 structure PiCCSRowsHold (env : Env) : Prop where
   invocations : ∀ invocation ∈
-      (Data.circuitPackage ()).permutationInvocations,
+      PiCCSInvocations.invocations Data.logicalWidth Data.publicFits,
     PermutationInvocationHolds (Data.circuitPackage ()) invocation env
   arithmetic : R1CS.RowsHold env
-    ((Data.arithmeticRows ()).map Rows.CompiledRow.toR1CS)
+    ((PiCCSArithmetic.arithmeticRows Data.logicalWidth Data.publicFits).map
+      Rows.CompiledRow.toR1CS)
+
+/-- Exact phase-local row packets assemble into the authoritative Stage 1
+package predicate. Every premise is indexed by a canonical `Data` list. -/
+theorem rowsHold_of_packets
+    (env : Env)
+    (pilotChains : ∀ chain ∈ [Data.priorChain, Data.outputChain],
+      HashChainHolds (Data.circuitPackage ()) chain env)
+    (piCcsInvocations : ∀ invocation ∈
+      PiCCSInvocations.invocations Data.logicalWidth Data.publicFits,
+      PermutationInvocationHolds (Data.circuitPackage ()) invocation env)
+    (piRlcInvocations : ∀ invocation ∈
+      PiRLCSamplerInvocations.invocations
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits),
+      PermutationInvocationHolds (Data.circuitPackage ()) invocation env)
+    (first54Invocations : ∀ invocation ∈
+      PiRLCFirst54Invocations.invocations,
+      CompactRowInvocationHolds (Data.circuitPackage ()) invocation env)
+    (combinationInvocations : ∀ invocation ∈
+      PiRLCCombinationInvocations.invocations,
+      CompactRowInvocationHolds (Data.circuitPackage ()) invocation env)
+    (pilotAssertions : ∀ row ∈
+      Data.liftPilotRows (PilotData.assertionRows ()), row.Holds env)
+    (piCcsArithmetic : R1CS.RowsHold env
+      ((PiCCSArithmetic.arithmeticRows Data.logicalWidth
+        Data.publicFits).map Rows.CompiledRow.toR1CS))
+    (piRlcArithmetic : R1CS.RowsHold env
+      ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := Data.logicalWidth)
+        (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS)) :
+    (Data.circuitPackage ()).RowsHold env := by
+  have ordinary :=
+    NightstreamFPrime.Export.Stage1.Package.phaseArithmeticRows_imply_packageOrdinary
+      env piCcsArithmetic piRlcArithmetic
+  refine ⟨?_, ?_, ?_, ordinary.1, ?_⟩
+  · intro chain member
+    rw [Data.circuitPackage_hashChains] at member
+    exact pilotChains chain member
+  · intro invocation member
+    rw [Data.circuitPackage_permutationInvocations,
+      Data.components_permutationInvocations,
+      Data.permutationInvocations_eq, List.mem_append] at member
+    rcases member with member | member
+    · exact piCcsInvocations invocation member
+    · exact piRlcInvocations invocation member
+  · intro invocation member
+    rw [Data.circuitPackage_compactRowInvocations,
+      Data.compactRowInvocations_eq, List.mem_append] at member
+    rcases member with member | member
+    · exact first54Invocations invocation member
+    · exact combinationInvocations invocation member
+  · intro row member
+    rw [Data.circuitPackage_assertionRows] at member
+    unfold Data.Components.assertionRows at member
+    rw [List.mem_append] at member
+    rcases member with member | member
+    · exact pilotAssertions row member
+    · exact ordinary.2 row member
 
 private theorem agreesOutside_widen
     {before after : Env} {start length innerStart innerLength : Nat}
@@ -303,10 +361,11 @@ theorem complete_piCcsRows
   have stableInputs := schedule_stableInputs
     (PiCCSInvocations.invocations_scheduleWithin Data.logicalWidth
       Data.publicFits relation).1
-  have physicalEnd : PiCCSInvocations.invocationCeiling + 685348 =
+  have physicalEnd : PiCCSInvocations.invocationCeiling + 685348 ≤
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    norm_num
   have allHoldsBefore : ∀ invocation ∈
       PiCCSInvocations.invocations Data.logicalWidth Data.publicFits,
       PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
@@ -332,7 +391,7 @@ theorem complete_piCcsRows
             PiCCSInvocations.invocationCeiling := by
           omega
         exact Or.inl (lt_of_lt_of_le inputBefore startBefore)
-      · exact Or.inr (by rw [physicalEnd]; exact inputPublic)
+      · exact Or.inr (Nat.le_trans physicalEnd inputPublic)
     · intro index below
       exact Or.inl (lt_of_lt_of_le (by omega) (allBefore invocation member))
     · exact physicalAgrees
@@ -417,23 +476,17 @@ theorem complete_piCcsRows
             rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
             norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
               NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq])).le
-    · rw [physicalEnd, piCcsPrivateEnd_eq]
+    · rw [piCcsPrivateEnd_eq]
+      exact physicalEnd
   have totalBroad := agreesOutside_trans
     (agreesOutside_trans (agreesOutside_trans preBroad logicalBroad)
       outputBroad) physicalBroad
   refine ⟨completed, totalBroad, ⟨?_, ?_⟩⟩
   · intro invocation member
-    have sourceMember : invocation ∈
-        PiCCSInvocations.invocations Data.logicalWidth Data.publicFits := by
-      rw [Data.circuitPackage_permutationInvocations,
-        Data.components_permutationInvocations,
-        Data.permutationInvocations_eq] at member
-      exact member
-    have held := allHoldsAfter invocation sourceMember
+    have held := allHoldsAfter invocation member
     unfold PermutationInvocationHolds at held ⊢
     rw [Data.circuitPackage_permutation]
     simpa [PilotData.circuitPackage] using held
-  · rw [Data.arithmeticRows_eq]
-    exact arithmeticHolds
+  · exact arithmeticHolds
 
 end NightstreamFPrime.Export.Stage1.PackageCompleteness

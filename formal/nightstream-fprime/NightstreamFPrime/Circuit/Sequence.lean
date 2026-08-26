@@ -181,4 +181,121 @@ theorem append
   exact appendBuilt completedPrefix child parentOp parentLength
     parentConstraints childScope after childAgrees childRows
 
+/-- The one opaque parent operation for a child at its named allocation
+offset. -/
+def childOp (name : String) (child : FormalCircuit) (offset : Nat) : Op :=
+  .subcircuit (child.asSubcircuit name offset)
+
+theorem childOp_localLength (name : String) (child : FormalCircuit)
+    (offset : Nat) :
+    (childOp name child offset).localLength =
+      localLength (Circuit.ops child.main offset) := by
+  exact FormalCircuit.asSubcircuit_localLength child name offset
+
+/-- Append one opaque child after transporting its contract from the named
+start to the definitionally equal end of the current prefix. -/
+theorem appendAt
+    {initial : Env} {base : Nat}
+    (before : Prefix initial base)
+    (name : String) (child : FormalCircuit) (namedStart : Nat)
+    (startEq : base + localLength before.operations = namedStart)
+    (childScope : ∀ expression ∈ flatConstraints
+      (Circuit.ops child.main namedStart),
+      expression.VarsBelow
+        (namedStart + localLength (Circuit.ops child.main namedStart)))
+    (assumptions : child.assumptions namedStart before.current)
+    (specification : child.spec namedStart before.current) :
+    ∃ after : Prefix initial base,
+      after.operations = before.operations ++ [childOp name child namedStart] ∧
+      base + localLength after.operations =
+        namedStart + localLength (Circuit.ops child.main namedStart) ∧
+      PreservesPrefix before after ∧
+      holdsFlat after.current (Circuit.ops child.main namedStart) := by
+  have assumptionsAtEnd : child.assumptions
+      (base + localLength before.operations) before.current := by
+    simpa only [startEq] using assumptions
+  have specificationAtEnd : child.spec
+      (base + localLength before.operations) before.current := by
+    simpa only [startEq] using specification
+  have childScopeAtEnd : ∀ expression ∈ flatConstraints
+      (Circuit.ops child.main
+        (base + localLength before.operations)),
+      expression.VarsBelow
+        (base + localLength before.operations +
+          localLength (Circuit.ops child.main
+            (base + localLength before.operations))) := by
+    simpa only [startEq] using childScope
+  rcases append before child (childOp name child namedStart)
+      (by
+        rw [childOp_localLength]
+        rw [startEq])
+      (by
+        change flatConstraints (Circuit.ops child.main namedStart) =
+          flatConstraints (Circuit.ops child.main
+            (base + localLength before.operations))
+        rw [startEq])
+      childScopeAtEnd assumptionsAtEnd specificationAtEnd with
+    ⟨after, operationsEq, preserves, childRows⟩
+  refine ⟨after, operationsEq, ?_, preserves, ?_⟩
+  · rw [operationsEq, localLength_append, localLength_singleton,
+      childOp_localLength]
+    rw [← Nat.add_assoc, startEq]
+  · simpa only [startEq] using childRows
+
+/-- Append a child whose canonical builder already produced its satisfying
+assignment. This uses the same opaque parent operation as `appendAt`. -/
+theorem appendBuiltAt
+    {initial : Env} {base : Nat}
+    (before : Prefix initial base)
+    (name : String) (child : FormalCircuit) (namedStart : Nat)
+    (startEq : base + localLength before.operations = namedStart)
+    (childScope : ∀ expression ∈ flatConstraints
+      (Circuit.ops child.main namedStart),
+      expression.VarsBelow
+        (namedStart + localLength (Circuit.ops child.main namedStart)))
+    (after : Env)
+    (childAgrees : AgreesOutside before.current after namedStart
+      (localLength (Circuit.ops child.main namedStart)))
+    (childRows : holdsFlat after (Circuit.ops child.main namedStart)) :
+    ∃ completed : Prefix initial base,
+      completed.operations = before.operations ++
+        [childOp name child namedStart] ∧
+      base + localLength completed.operations =
+        namedStart + localLength (Circuit.ops child.main namedStart) ∧
+      PreservesPrefix before completed ∧
+      holdsFlat completed.current (Circuit.ops child.main namedStart) := by
+  have childAgreesAtEnd : AgreesOutside before.current after
+      (base + localLength before.operations)
+      (localLength (Circuit.ops child.main
+        (base + localLength before.operations))) := by
+    simpa only [startEq] using childAgrees
+  have childRowsAtEnd : holdsFlat after
+      (Circuit.ops child.main
+        (base + localLength before.operations)) := by
+    simpa only [startEq] using childRows
+  have childScopeAtEnd : ∀ expression ∈ flatConstraints
+      (Circuit.ops child.main
+        (base + localLength before.operations)),
+      expression.VarsBelow
+        (base + localLength before.operations +
+          localLength (Circuit.ops child.main
+            (base + localLength before.operations))) := by
+    simpa only [startEq] using childScope
+  rcases appendBuilt before child (childOp name child namedStart)
+      (by
+        rw [childOp_localLength]
+        rw [startEq])
+      (by
+        change flatConstraints (Circuit.ops child.main namedStart) =
+          flatConstraints (Circuit.ops child.main
+            (base + localLength before.operations))
+        rw [startEq])
+      childScopeAtEnd after childAgreesAtEnd childRowsAtEnd with
+    ⟨completed, operationsEq, preserves, rows⟩
+  refine ⟨completed, operationsEq, ?_, preserves, ?_⟩
+  · rw [operationsEq, localLength_append, localLength_singleton,
+      childOp_localLength]
+    rw [← Nat.add_assoc, startEq]
+  · simpa only [startEq] using rows
+
 end NightstreamFPrime.Circuit.Sequence

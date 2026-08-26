@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
@@ -14,6 +15,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -85,6 +87,21 @@ theorem outputBindingWitnessStart_eq :
     normLogicalStart, ccsLogicalStart, evalALogicalStart, evalKLogicalStart,
     sumcheckLogicalStart, initialClaimLogicalStart,
     roundTranscriptWitnessStart_eq]
+
+/-- The materialized output-child start is the exact start selected by the
+canonical PiCCS parent for every production relation. -/
+theorem outputBindingWitnessStart_matches
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    outputBindingWitnessStart =
+      Formal.outputBindingOffset relation
+        (PiCCSInputs.interface logicalWidth publicFits)
+        PiCCSInputs.phaseOffset := by
+  unfold Formal.outputBindingOffset Formal.nextOffset Formal.childLength
+  rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation,
+    Formal.finalIdentityCircuit,
+    NightstreamFPrime.Circuit.FormalCircuit.withConstantFootprint_main,
+    FinalIdentity.localLength_eq]
+  rfl
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/

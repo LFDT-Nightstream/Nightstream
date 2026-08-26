@@ -1,14 +1,14 @@
 import NightstreamFPrime.Layout.PilotSpartan
-import NightstreamFPrime.Layout.Stage1.PilotPiCCS
+import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
 
 /-!
-Obligation: Permute the current pilot + PiCCS source layout into the one
-production Spartan order: all private columns, the constant column, the
+Obligation: Permute the current pilot + PiCCS + PiRLC source layout into the
+one production Spartan order: all private columns, the constant column, the
 pilot's public columns, then the verifier-context public columns.
 
 The first source interval keeps the proved pilot permutation. The four
-verifier-context source words move to the public suffix. The appended
-proof-input and PiCCS-local intervals are private and fill the interval
+verifier-context source words move to the public suffix. The appended proof
+input, PiCCS-local, and PiRLC-local intervals are private and fill the interval
 between the pilot-private columns and the relocated public columns. This
 module changes no row and adds only the generic zero padding required by the
 fixed `2^25` domain.
@@ -48,11 +48,11 @@ def piCcsPhaseOffset : Nat := 12688104
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
 def piCcsLocalStart : Nat := 12688042
 
-/-- Exact private proof-input plus PiCCS-local suffix. -/
-def appendedPrivateColumnCount : Nat := 5210490
+/-- Exact private proof-input plus PiCCS-local and PiRLC-local suffix. -/
+def appendedPrivateColumnCount : Nat := 13009971
 
 /-- All source columns before Spartan inserts its constant column. -/
-def SourceColumnCount : Nat := 17869582
+def SourceColumnCount : Nat := 25669063
 
 /-- Public columns owned by the closed pilot. -/
 def pilotPublicColumnCount : Nat := 58
@@ -61,20 +61,20 @@ def pilotPublicColumnCount : Nat := 58
 def publicColumnCount : Nat := 62
 
 /-- The pilot-private prefix followed by all PiCCS columns. -/
-def privateColumnCount : Nat := 17869520
+def privateColumnCount : Nat := 25669001
 
-def constantColumn : Nat := 17869520
+def constantColumn : Nat := 25669001
 
-def spartanColumnCount : Nat := 17869583
+def spartanColumnCount : Nat := 25669064
 
 /-- First final public column owned by the verifier context. -/
-def expectedContextPublicStart : Nat := 17869579
+def expectedContextPublicStart : Nat := 25669060
 
 theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 5210490 := by
+    appendedPrivateColumnCount = 13009971 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 17869582 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 25669063 := by
   rfl
 
 theorem pilotSourceColumnCount_matches :
@@ -92,17 +92,17 @@ theorem pilotPrivateColumnCount_matches :
 theorem publicColumnCount_eq : publicColumnCount = 62 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 17869520 := by
+theorem privateColumnCount_eq : privateColumnCount = 25669001 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 17869520 := by
+theorem constantColumn_eq : constantColumn = 25669001 := by
   exact privateColumnCount_eq
 
 theorem constantColumn_eq_private :
     constantColumn = privateColumnCount := by
   rfl
 
-theorem spartanColumnCount_eq : spartanColumnCount = 17869583 := by
+theorem spartanColumnCount_eq : spartanColumnCount = 25669064 := by
   rfl
 
 theorem sourceColumnCount_decomposition :
@@ -227,6 +227,96 @@ theorem sourceToSpartan_expectedContext (lane : Fin 4) :
   norm_num [pilotSourceColumnCount,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
 
+/-- The pilot prior-preimage interval remains in the first private Spartan
+interval, so offsets inside that interval are preserved exactly. -/
+theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
+    (upper : start + offset < PilotProduction.priorPublicInputStart) :
+    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+  have startUpper : start < PilotProduction.priorPublicInputStart := by omega
+  have sumPilot : start + offset < pilotSourceColumnCount := by
+    norm_num [PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
+      pilotSourceColumnCount] at upper ⊢
+    omega
+  have startPilot : start < pilotSourceColumnCount := by omega
+  have sumPrior : start + offset < PilotSpartan.priorPublicStart := by
+    simpa [PilotSpartan.priorPublicStart] using upper
+  have startPrior : start < PilotSpartan.priorPublicStart := by
+    simpa [PilotSpartan.priorPublicStart] using startUpper
+  unfold sourceToSpartan
+  rw [if_pos sumPilot, if_pos startPilot]
+  rw [PilotSpartan.sourceToSpartan, if_pos sumPrior,
+    PilotSpartan.sourceToSpartan, if_pos startPrior]
+  exact liftPilotColumn_add_of_input start offset (by
+    norm_num [pilotInputPrivateColumnCount,
+      PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq]
+      at upper ⊢
+    omega)
+
+/-- The 54-word pilot prior-public interval remains one contiguous public
+Spartan interval, including the outer Stage 1 lift. -/
+theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
+    (lower : PilotProduction.priorPublicInputStart ≤ start)
+    (upper : start + offset < PilotProduction.outputPreimageStart) :
+    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+  have startUpper : start < PilotProduction.outputPreimageStart := by omega
+  have sumPilot : start + offset < pilotSourceColumnCount := by
+    norm_num [PilotProduction.outputPreimageStart,
+      PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
+      PriorStateHash.publicWidth_eq, pilotSourceColumnCount] at upper ⊢
+    omega
+  have startPilot : start < pilotSourceColumnCount := by omega
+  have sumNotPrior : ¬ start + offset < PilotSpartan.priorPublicStart := by
+    simpa [PilotSpartan.priorPublicStart] using lower.trans (Nat.le_add_right _ _)
+  have startNotPrior : ¬ start < PilotSpartan.priorPublicStart := by
+    simpa [PilotSpartan.priorPublicStart] using lower
+  have sumBeforeOutput :
+      start + offset < PilotSpartan.outputPreimageStart := by
+    simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
+      using upper
+  have startBeforeOutput : start < PilotSpartan.outputPreimageStart := by
+    simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
+      using startUpper
+  have pilotAffine :
+      PilotSpartan.sourceToSpartan (start + offset) =
+        PilotSpartan.sourceToSpartan start + offset := by
+    unfold PilotSpartan.sourceToSpartan
+    rw [if_neg sumNotPrior, if_pos sumBeforeOutput,
+      if_neg startNotPrior, if_pos startBeforeOutput]
+    omega
+  have mappedLower : pilotPrivateColumnCount ≤
+      PilotSpartan.sourceToSpartan start := by
+    unfold PilotSpartan.sourceToSpartan
+    rw [if_neg startNotPrior, if_pos startBeforeOutput]
+    norm_num [pilotPrivateColumnCount, PilotSpartan.firstPublicStart,
+      PilotSpartan.privateColumnCount, PilotProduction.stateHashWords_eq,
+      PilotProduction.hashWitnessCount_eq]
+    omega
+  unfold sourceToSpartan
+  rw [if_pos sumPilot, if_pos startPilot, pilotAffine]
+  exact liftPilotColumn_add_of_public _ _ mappedLower
+
+/-- PiCCS proof inputs form one contiguous private interval before the
+PiCCS-local witness suffix. -/
+theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
+    (lower : proofInputSourceStart ≤ start)
+    (upper : start + offset < piCcsPhaseOffset) :
+    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+  have startUpper : start < piCcsPhaseOffset := by omega
+  have pilotBeforeProof : pilotSourceColumnCount < proofInputSourceStart := by
+    norm_num [pilotSourceColumnCount, proofInputSourceStart]
+  have sumNotPilot : ¬ start + offset < pilotSourceColumnCount := by
+    omega
+  have startNotPilot : ¬ start < pilotSourceColumnCount := by omega
+  have sumNotContext : ¬ start + offset < proofInputSourceStart := by omega
+  have startNotContext : ¬ start < proofInputSourceStart := by omega
+  unfold sourceToSpartan
+  rw [if_neg sumNotPilot, if_neg sumNotContext, if_pos upper,
+    if_neg startNotPilot, if_neg startNotContext, if_pos startUpper]
+  omega
+
 /-- A source column before the PiCCS phase maps either before every PiCCS
 local witness or into the relocated public suffix after all private columns. -/
 theorem sourceToSpartan_before_piCcsPhase (column : Nat)
@@ -294,6 +384,17 @@ theorem sourceToSpartan_add_of_piCcsLocal (start offset : Nat)
   rw [if_neg sumAfterPilot, if_neg sumAfterContext, if_neg sumAfterPhase,
     if_neg startAfterPilot, if_neg startAfterContext,
     if_neg startAfterPhase]
+  omega
+
+theorem piCcsLocalStart_le_sourceToSpartan (column : Nat)
+    (localBound : piCcsPhaseOffset ≤ column) :
+    piCcsLocalStart ≤ sourceToSpartan column := by
+  unfold sourceToSpartan
+  rw [if_neg (by
+    norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *
+    omega), if_neg (by
+      norm_num [proofInputSourceStart, piCcsPhaseOffset] at *
+      omega), if_neg (by omega)]
   omega
 
 theorem sourceToSpartan_lt_of_piCcsLocal (left right : Nat)
@@ -486,7 +587,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             privateColumnCount +
                 (mapped - pilotPrivateColumnCount) <
               expectedContextPublicStart := by
-          change 17869520 + (mapped - 12659030) < 17869579
+          change 25669001 + (mapped - 12659030) < 25669060
           omega
         unfold spartanToSource
         rw [if_neg notPilotPrivate, if_neg notProofInput,
@@ -757,7 +858,7 @@ variable {logicalWidth : Nat}
 def sourceRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List R1CS.Row :=
-  PilotPiCCS.physicalRows relation
+  PilotPiCCSPiRLC.physicalRows relation
 
 def remappedRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -768,19 +869,19 @@ theorem remappedRows_hold
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env) :
     R1CS.RowsHold target (remappedRows relation) ↔
-      PilotPiCCS.PhysicalHolds relation (pullback target) := by
+      PilotPiCCSPiRLC.PhysicalHolds relation (pullback target) := by
   exact remapRows_hold target (sourceRows relation)
 
 theorem sourceColumnCount_matches
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    PilotPiCCS.physicalColumnCount relation = SourceColumnCount := by
-  rw [PilotPiCCS.physicalColumnCount_eq relation,
+    PilotPiCCSPiRLC.physicalColumnCount relation = SourceColumnCount := by
+  rw [PilotPiCCSPiRLC.physicalColumnCount_eq relation,
     sourceColumnCount_eq]
 
 theorem sourceRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 17755828 := by
-  exact PilotPiCCS.physicalRowCount_eq relation
+    (sourceRows relation).length = 25556958 := by
+  exact PilotPiCCSPiRLC.physicalRowCount_eq relation
 
 /-- The generic Spartan row and private-variable domains use the fixed cube. -/
 def domainSize : Nat := 2 ^ cubeVariables
@@ -878,12 +979,12 @@ theorem paddedRows_length
     Nat.add_sub_of_le (sourceRowCount_bounds relation)]
 
 /-- The padded direct-Spartan rows preserve and reflect the complete current
-Stage 1 prefix. -/
+Stage 1 prefix through PiRLC. -/
 theorem paddedRows_hold
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env) :
     R1CS.RowsHold target (paddedRows relation) ↔
-      PilotPiCCS.PhysicalHolds relation
+      PilotPiCCSPiRLC.PhysicalHolds relation
         (pullback (paddedPullback target)) := by
   change R1CS.RowsHold target (paddedRows relation) ↔
     R1CS.RowsHold (pullback (paddedPullback target))

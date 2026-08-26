@@ -463,6 +463,69 @@ def constraintRowCount (expression : Expr) : Nat :=
   | some _ => 1
   | none => mulCount expression + 1
 
+/-- Every syntactically affine constraint is recognized by the optimized
+direct-row compiler. -/
+theorem directConstraint_ne_none_of_affine (expression : Expr)
+    (affine : IsAffine expression) :
+    directConstraint expression ≠ none := by
+  rcases affine with ⟨lowered, loweredEq⟩
+  cases expression with
+  | var index =>
+      simp [directConstraint, affineConstraint, loweredEq]
+  | const value =>
+      simp [directConstraint, affineConstraint, loweredEq]
+  | mul left right =>
+      simp [directConstraint, affineConstraint, loweredEq]
+  | add left right =>
+      cases left with
+      | var output =>
+          cases right with
+          | mul factor recipe =>
+              cases factor with
+              | const coefficient =>
+                  by_cases coefficientEq : coefficient = -1
+                  · cases recipeEq : directRecipeRow output recipe <;>
+                      simp [directConstraint, coefficientEq, recipeEq,
+                        affineConstraint, loweredEq]
+                  · simp [directConstraint, coefficientEq,
+                      affineConstraint, loweredEq]
+              | var index =>
+                  simp [directConstraint, affineConstraint, loweredEq]
+              | add first second =>
+                  simp [directConstraint, affineConstraint, loweredEq]
+              | mul first second =>
+                  simp [directConstraint, affineConstraint, loweredEq]
+          | var index =>
+              simp [directConstraint, affineConstraint, loweredEq]
+          | const value =>
+              simp [directConstraint, affineConstraint, loweredEq]
+          | add first second =>
+              simp [directConstraint, affineConstraint, loweredEq]
+      | const value =>
+          simp [directConstraint, affineConstraint, loweredEq]
+      | add first second =>
+          simp [directConstraint, affineConstraint, loweredEq]
+      | mul first second =>
+          simp [directConstraint, affineConstraint, loweredEq]
+
+theorem constraintFreshCount_eq_zero_of_affine (expression : Expr)
+    (affine : IsAffine expression) :
+    constraintFreshCount expression = 0 := by
+  have notNone := directConstraint_ne_none_of_affine expression affine
+  unfold constraintFreshCount
+  cases equal : directConstraint expression with
+  | none => exact False.elim (notNone equal)
+  | some direct => rfl
+
+theorem constraintRowCount_eq_one_of_affine (expression : Expr)
+    (affine : IsAffine expression) :
+    constraintRowCount expression = 1 := by
+  have notNone := directConstraint_ne_none_of_affine expression affine
+  unfold constraintRowCount
+  cases equal : directConstraint expression with
+  | none => exact False.elim (notNone equal)
+  | some direct => rfl
+
 theorem directConstraint_recipe_of_direct (output : Nat) (recipe : Expr)
     (direct : IsDirectRecipe output recipe) :
     ∃ lowered,
@@ -572,6 +635,23 @@ def totalFreshCount (constraints : List Expr) : Nat :=
 
 def totalRowCount (constraints : List Expr) : Nat :=
   (constraints.map constraintRowCount).sum
+
+theorem constraintRowCount_eq_fresh_add_one (expression : Expr) :
+    constraintRowCount expression = constraintFreshCount expression + 1 := by
+  unfold constraintRowCount constraintFreshCount
+  cases directConstraint expression <;> rfl
+
+/-- Every logical zero constraint contributes one assertion row in addition
+to the multiplication rows counted as fresh columns. -/
+theorem totalRowCount_eq_fresh_add_length (constraints : List Expr) :
+    totalRowCount constraints = totalFreshCount constraints + constraints.length := by
+  induction constraints with
+  | nil => rfl
+  | cons expression rest inductionHypothesis =>
+      simp only [totalRowCount, totalFreshCount, List.map_cons, List.sum_cons,
+        List.length_cons] at inductionHypothesis ⊢
+      rw [constraintRowCount_eq_fresh_add_one, inductionHypothesis]
+      omega
 
 @[simp] theorem totalFreshCount_append (first second : List Expr) :
     totalFreshCount (first ++ second) =

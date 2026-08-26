@@ -8,7 +8,9 @@
 
 use crate::layout::{ColumnWidth, COL_ONE};
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
-use crate::witness_layout::{declared_witness_column_specs, range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH};
+use crate::witness_layout::{
+    declared_witness_column_families, range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH,
+};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::ops::Range;
@@ -21,14 +23,11 @@ pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
 
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
-pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
-    for spec in declared_witness_column_specs() {
-        for column in spec.start..spec.end() {
-            let tag = WasmConstraintTag {
-                label: spec.name,
-                scope: WasmConstraintScope::Always,
-            };
-            match spec.width {
+pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder<'_>) {
+    for family in declared_witness_column_families() {
+        for column in family.start..family.end() {
+            let tag = WasmConstraintTag::new(family.name, WasmConstraintScope::Always);
+            match family.width {
                 ColumnWidth::Field => {}
                 ColumnWidth::Boolean => {
                     b.with_tag(tag, |b| {
@@ -71,8 +70,8 @@ pub fn write_range_check_bits(witness: &mut Vec<F>) {
         RANGE_CHECKED_WITNESS_WIDTH,
     );
     witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
-    for spec in declared_witness_column_specs() {
-        for column in spec.start..spec.end() {
+    for family in declared_witness_column_families() {
+        for column in family.start..family.end() {
             let Some(region) = range_bit_region(column) else {
                 continue;
             };

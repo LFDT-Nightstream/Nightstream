@@ -360,8 +360,8 @@ fn wasm_nebula_pipeline_profile() {
         "only D-alignment may trail the width audit"
     );
 
-    let core = neo_wasm::WasmVmSpec::default();
-    let core_structure = &core.core_ccs_spec().structure;
+    let core = neo_wasm::build_wasm_relation().expect("valid WASM relation");
+    let core_structure = core.r1cs().structure();
     let core_storage = structure_stats(core_structure);
     let app_nnz = r1cs_nnz(app_shape);
 
@@ -392,7 +392,7 @@ fn wasm_nebula_pipeline_profile() {
         "WASM core               {:>10} {:>14} {:>11} {:>14} {:>6} {:>18}",
         core_structure.n,
         core_structure.m,
-        core.core_ccs_spec().m_in,
+        core.r1cs().public_input_count(),
         core_structure.t(),
         core_structure.max_degree(),
         core_storage.explicit_nnz,

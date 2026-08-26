@@ -10,7 +10,7 @@ use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
 use neo_wasm::preprocess::preprocess_seeded_batched;
-use neo_wasm::{WasmVmSpec, WasmVmStep};
+use neo_wasm::{build_wasm_relation, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const SIMPLE_ADD_WAT: &str = r#"
@@ -35,13 +35,17 @@ fn satisfies_batched_ccs(traces: &[WasmVmStep], batch_size: usize) {
 #[test]
 fn batched_at_one_matches_single_step_shape() {
     let single = build_batched_wasm_ccs(1).expect("single-step shape via batch");
-    let core = WasmVmSpec::default().core_ccs_spec().clone();
-    assert_eq!(single.sparse_r1cs.m, core.structure.m, "m must match single-step");
+    let core = build_wasm_relation()
+        .expect("valid WASM relation")
+        .r1cs()
+        .clone();
+    assert_eq!(single.sparse_r1cs.m, core.structure().m, "m must match single-step");
     assert_eq!(
-        single.sparse_r1cs.n, core.structure.n,
+        single.sparse_r1cs.n,
+        core.structure().n,
         "n must match single-step (no link rows at N=1)"
     );
-    assert_eq!(single.sparse_r1cs.m_in, core.m_in);
+    assert_eq!(single.sparse_r1cs.m_in, core.public_input_count());
 }
 
 #[test]

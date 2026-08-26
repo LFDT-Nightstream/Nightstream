@@ -514,7 +514,7 @@ fn build_memory_backend(
         let component_bits = if memory.id.is_rom() {
             rom_component_bits(
                 memory.id,
-                memory.columns[0].address_columns.len(),
+                memory.ports[0].address_columns.len(),
                 by_memory.get(&memory.id),
             )?
         } else {

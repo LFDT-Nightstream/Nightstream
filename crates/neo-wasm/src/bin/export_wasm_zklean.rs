@@ -2,9 +2,8 @@
 //! source files.
 //!
 //! This binary owns the Rust→Lean code-emission wiring. It does not own the
-//! circuit data — that lives in `WasmTaggedR1csBuilder` / `WasmConstraintCatalog`
-//! (see `crates/neo-wasm/src/`) and in the `define_column_region!` macro
-//! in `wasm/layout.rs`.
+//! circuit data — that lives in `neo-application`'s tagged R1CS builder and
+//! catalog, and in the shared `define_column_region!` macro.
 //!
 //! Outputs:
 //! - `formal/wasm-zklean/WasmCircuit/Columns.lean` — column index definitions
@@ -16,9 +15,9 @@
 //!   `native_decide`-checked cross-check theorem.
 
 use neo_math::F;
-use neo_wasm::layout::{column_specs, COL_ONE, NAMED_COLUMN_COUNT};
+use neo_wasm::layout::{column_families, COL_ONE, NAMED_COLUMN_COUNT};
 use neo_wasm::push_zero_test_gadget;
-use neo_wasm::tagged_r1cs_builder::WasmTaggedR1csBuilder;
+use neo_wasm::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder};
 use p3_field::PrimeField64;
 use std::fs;
 use std::path::PathBuf;
@@ -75,16 +74,16 @@ fn emit_columns() -> String {
     out.push('\n');
     out.push_str("namespace WasmCircuit.Columns\n");
     out.push('\n');
-    for spec in column_specs() {
-        let snake = strip_col_prefix_lower(spec.name);
+    for family in column_families() {
+        let snake = strip_col_prefix_lower(family.name);
         let camel = snake_to_camel(&snake);
-        if !spec.role.is_empty() {
-            out.push_str(&format!("/-- {} -/\n", spec.role));
+        if !family.role.is_empty() {
+            out.push_str(&format!("/-- {} -/\n", family.role));
         }
-        if spec.len == 1 {
-            out.push_str(&format!("def {camel} : Nat := {}\n", spec.start));
+        if family.len == 1 {
+            out.push_str(&format!("def {camel} : Nat := {}\n", family.start));
         } else {
-            let indices = (spec.start..spec.end())
+            let indices = (family.start..family.end())
                 .map(|column| column.to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -115,15 +114,20 @@ fn build_demo_zero_test_circuit() -> DemoCircuit {
     let inv_witness = 2usize;
     let is_zero = 3usize;
     let width = 8;
-    let mut builder = WasmTaggedR1csBuilder::new(width, COL_ONE).expect("builder construction");
+    let public_input_count = 1;
+    let mut builder = WasmR1csBuilder::new(width, public_input_count, COL_ONE).expect("builder construction");
+    let mut tagged = builder.tagged(WasmConstraintTag::new("unlabeled", WasmConstraintScope::Always));
 
-    push_zero_test_gadget(&mut builder, value, inv_witness, is_zero);
-
-    let (_structure, catalog) = builder.build().expect("build");
-    let rows = catalog
-        .rows
-        .into_iter()
-        .map(|r| (r.a_terms, r.b_terms, r.c_terms))
+    push_zero_test_gadget(&mut tagged, value, inv_witness, is_zero);
+    let relation = builder.build().expect("build");
+    let rows = relation
+        .catalog()
+        .rows()
+        .iter()
+        .map(|tagged| {
+            let row = tagged.row();
+            (row.a_terms().to_vec(), row.b_terms().to_vec(), row.c_terms().to_vec())
+        })
         .collect();
     DemoCircuit {
         rows,

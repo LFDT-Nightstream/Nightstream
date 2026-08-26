@@ -4,13 +4,13 @@
 //! interface columns that the base VM constrains or consumes. Poseidon and
 //! gather scratch advice remains private to `ccs::host_event_chain`.
 
-use crate::column_registry::define_column_region;
+use neo_application::define_column_region;
 
 define_column_region! {
     region: "host_event_interface",
     start: crate::layout::WASM_COLUMN_COUNT,
     width: pub HOST_EVENT_COLUMN_COUNT,
-    specs: pub HOST_EVENT_COLUMN_SPECS,
+    families: pub HOST_EVENT_COLUMN_FAMILIES,
     indices: pub,
     columns: [
         COL_HOST_CALLEE_FREF_BEFORE: U32 =>

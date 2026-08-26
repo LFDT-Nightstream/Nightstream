@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Layout.Poseidon2
+import NightstreamFPrime.Layout.Poseidon2.PermutationOwned
 import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Layout.Polynomial.Power
@@ -8,6 +9,8 @@ import NightstreamFPrime.Layout.Polynomial.Sparse
 import NightstreamFPrime.Layout.Multilinear.PointEquality
 import NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Layout.SumCheck.FixedChain
+import NightstreamFPrime.Layout.Sampling.Candidate16Five
+import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Layout.PilotSpartan
@@ -29,12 +32,34 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Ownership
 import NightstreamFPrime.Layout.PiCCS.v1_1.Preservation
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.InputBinding
+import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption
+import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane
+import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestWindow
+import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54
+import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.OutputBinding
+import NightstreamFPrime.Layout.PiRLC.v1_1.Sampler
+import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.Composition
+import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.Lowering
+import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain
+import NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep
+import NightstreamFPrime.Layout.PiRLC.v1_1.CombinationCost
+import NightstreamFPrime.Layout.PiRLC.v1_1.CombinationFamily
+import NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination
+import NightstreamFPrime.Layout.PiRLC.v1_1.PublicInputCombination
+import NightstreamFPrime.Layout.PiRLC.v1_1.RingKCombination
+import NightstreamFPrime.Layout.PiRLC.v1_1.EvalKCombination
+import NightstreamFPrime.Layout.PiRLC.v1_1.EvalACombination
+import NightstreamFPrime.Layout.PiRLC.v1_1.Composition
+import NightstreamFPrime.Layout.PiRLC.v1_1.Lowering
+import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
+import NightstreamFPrime.Layout.PiRLC.v1_1.Ownership
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
+import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

@@ -14,6 +14,7 @@ perf-timers = ["neo-fold-clean/perf-timers"]
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
+neo-application = { path = "../neo-application" }
 neo-ccs = { path = "../neo-ccs" }
 neo-fold-clean = { path = "../neo-fold-clean" }
 neo-math = { path = "../neo-math" }

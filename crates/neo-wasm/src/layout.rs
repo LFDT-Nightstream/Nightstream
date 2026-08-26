@@ -1,9 +1,9 @@
 //! Owns the static WASM row layout.
 
 use super::isa::WasmOpcode;
-use crate::column_registry::define_column_region;
-pub use crate::column_registry::{ColumnWidth, WasmColumnSpec};
 pub use crate::host_event_layout::*;
+use neo_application::define_column_region;
+pub use neo_application::{ColumnFamilySpec, ColumnWidth};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Column(pub usize);
@@ -21,7 +21,7 @@ define_column_region! {
     region: "wasm_named",
     start: 0usize,
     width: pub WASM_COLUMN_COUNT,
-    specs: pub WASM_COLUMN_SPECS,
+    families: pub WASM_COLUMN_FAMILIES,
     indices: pub,
     columns: [
         COL_ONE: Field => "",
@@ -228,7 +228,7 @@ define_column_region! {
         COL_OP_TABLE_VALUE: Field => "lookup payload witness",
         // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
         // emitted by `push_select_constraints`. Declared `Boolean` so the
-        // spec reflects its actual range; whichever path eventually enforces
+        // family declaration reflects its actual range; whichever path eventually enforces
         // `ColumnWidth::Boolean` will overlap with the gadget's constraint and
         // one of the two becomes redundant; an optimization to revisit later.
         // We deliberately do not introduce a dedicated `ImpliedBoolean` width
@@ -419,16 +419,16 @@ define_column_region! {
 
 pub const NAMED_COLUMN_COUNT: usize = WASM_COLUMN_COUNT + HOST_EVENT_COLUMN_COUNT;
 
-pub const NAMED_COLUMN_SPEC_REGIONS: &[&[WasmColumnSpec]] = &[WASM_COLUMN_SPECS, HOST_EVENT_COLUMN_SPECS];
+pub const NAMED_COLUMN_FAMILY_REGIONS: &[&[ColumnFamilySpec]] = &[WASM_COLUMN_FAMILIES, HOST_EVENT_COLUMN_FAMILIES];
 
-pub fn column_specs() -> impl Iterator<Item = &'static WasmColumnSpec> {
-    NAMED_COLUMN_SPEC_REGIONS
+pub fn column_families() -> impl Iterator<Item = &'static ColumnFamilySpec> {
+    NAMED_COLUMN_FAMILY_REGIONS
         .iter()
-        .flat_map(|specs| specs.iter())
+        .flat_map(|families| families.iter())
 }
 
-pub fn column_spec(column: usize) -> Option<&'static WasmColumnSpec> {
-    column_specs().find(|spec| spec.contains(column))
+pub fn named_column_family(column: usize) -> Option<&'static ColumnFamilySpec> {
+    column_families().find(|family| family.contains(column))
 }
 
 mod opcode_selectors;

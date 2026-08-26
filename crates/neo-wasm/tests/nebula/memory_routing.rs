@@ -102,8 +102,8 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
 
     let mut atom_loads = std::collections::BTreeMap::<usize, usize>::new();
     for memory in &relation.auxiliary.memories {
-        for column in &memory.columns {
-            let crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) = column.activation else {
+        for port in &memory.ports {
+            let crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) = port.activation else {
                 continue;
             };
             if let Some(support) = activation_supports.get(&gate.0) {
@@ -118,8 +118,8 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         .auxiliary
         .memories
         .iter()
-        .flat_map(|memory| &memory.columns)
-        .filter(|column| match column.activation {
+        .flat_map(|memory| &memory.ports)
+        .filter(|port| match port.activation {
             crate::relation_layout::WasmMemoryActivation::Always => true,
             crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) => {
                 !activation_supports.contains_key(&gate.0)
@@ -154,13 +154,13 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         .iter()
         .enumerate()
         .flat_map(|(region, memory)| {
-            memory.columns.iter().map(move |column| {
+            memory.ports.iter().map(move |port| {
                 (
                     region,
-                    column.address_columns.clone(),
-                    column.value_column,
-                    column.kind,
-                    column.activation,
+                    port.address_columns.clone(),
+                    port.value_column,
+                    port.kind,
+                    port.activation,
                 )
             })
         })
@@ -220,10 +220,10 @@ fn routing_preserves_observable_declaration_order() {
     // declaration order was execution order. Preserve that order whenever
     // co-active accesses to one region include a mutation.
     for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
-        for (earlier_index, earlier) in memory.columns.iter().enumerate() {
-            for (later_index, later) in memory.columns.iter().enumerate().skip(earlier_index + 1) {
-                if matches!(earlier.kind, crate::WasmMemoryColumnKind::Read)
-                    && matches!(later.kind, crate::WasmMemoryColumnKind::Read)
+        for (earlier_index, earlier) in memory.ports.iter().enumerate() {
+            for (later_index, later) in memory.ports.iter().enumerate().skip(earlier_index + 1) {
+                if matches!(earlier.kind, crate::WasmMemoryPortKind::Read)
+                    && matches!(later.kind, crate::WasmMemoryPortKind::Read)
                 {
                     continue;
                 }
@@ -380,11 +380,11 @@ fn s_mem_structure_census() {
     );
 }
 
-fn memory_kinds_match(declared: crate::WasmMemoryColumnKind, routed: MemoryPortKind) -> bool {
+fn memory_kinds_match(declared: crate::WasmMemoryPortKind, routed: MemoryPortKind) -> bool {
     match (declared, routed) {
-        (crate::WasmMemoryColumnKind::Read, MemoryPortKind::Read) => true,
+        (crate::WasmMemoryPortKind::Read, MemoryPortKind::Read) => true,
         (
-            crate::WasmMemoryColumnKind::Write { value_before_column },
+            crate::WasmMemoryPortKind::Write { value_before_column },
             MemoryPortKind::Write {
                 value_before_column: routed,
             },
@@ -416,11 +416,7 @@ fn declared_activations_are_disjoint(
     }
 }
 
-fn routed_slot(
-    slots: &[MemoryOpSlot],
-    region: usize,
-    declared: &crate::relation_layout::WasmMemoryColumnSpec,
-) -> usize {
+fn routed_slot(slots: &[MemoryOpSlot], region: usize, declared: &crate::relation_layout::WasmMemoryPortSpec) -> usize {
     slots
         .iter()
         .position(|slot| {

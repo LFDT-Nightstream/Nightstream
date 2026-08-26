@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use neo_fold_clean::frontends::nebula::application::{MemoryPort, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::paper::params::Params;
 use neo_wasm::layout::{COL_OP_TABLE_ENABLED, COL_STACK_WRITE0_VALUE_LO};
-use neo_wasm::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemoryColumnSpec, WasmOpTable, WasmOpcode};
+use neo_wasm::{WasmMemoryActivation, WasmMemoryPortKind, WasmMemoryPortSpec, WasmOpTable, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 struct Fixture {
@@ -102,7 +102,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
         .auxiliary
         .memories
         .iter()
-        .map(|memory| memory.columns.len())
+        .map(|memory| memory.ports.len())
         .sum::<usize>();
     let physical_slots_per_step = memory.slot_count() / batch_size;
     assert_eq!(memory.regions().len(), declared.auxiliary.memories.len());
@@ -122,7 +122,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             .memories
             .iter()
             .enumerate()
-            .flat_map(|(region, memory)| memory.columns.iter().map(move |port| (region, port)))
+            .flat_map(|(region, memory)| memory.ports.iter().map(move |port| (region, port)))
             .collect::<Vec<_>>();
 
         for (region_index, declared_memory) in declared.auxiliary.memories.iter().enumerate() {
@@ -156,7 +156,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
     assert_eq!(declared_ports, 76, "Current layout declares 76 ports per step");
 }
 
-fn port_matches(routed: &MemoryPort, region: usize, declared: &WasmMemoryColumnSpec, offset: usize) -> bool {
+fn port_matches(routed: &MemoryPort, region: usize, declared: &WasmMemoryPortSpec, offset: usize) -> bool {
     routed.region() == region
         && routed.address_columns().iter().copied().eq(declared
             .address_columns
@@ -165,8 +165,8 @@ fn port_matches(routed: &MemoryPort, region: usize, declared: &WasmMemoryColumnS
         && routed.value_column() == offset + declared.value_column.0
         && routed.kind()
             == match declared.kind {
-                WasmMemoryColumnKind::Read => MemoryPortKind::Read,
-                WasmMemoryColumnKind::Write { value_before_column } => MemoryPortKind::Write {
+                WasmMemoryPortKind::Read => MemoryPortKind::Read,
+                WasmMemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
                     value_before_column: value_before_column.map(|column| offset + column.0),
                 },
             }

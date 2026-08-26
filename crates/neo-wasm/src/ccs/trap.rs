@@ -13,12 +13,12 @@ use super::super::layout::{
     COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
-use super::{always, idx, shared, R1csBuilder};
+use super::{always, idx, shared, WasmTaggedR1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 /// Emit trap-cause flags and the state transition that carries `trapped`.
-pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmRelationLayout) {
+pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &WasmRelationLayout) {
     b.with_tag(always("div trap"), |b| {
         push_div_trap_constraints(b);
     });
@@ -63,7 +63,7 @@ fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
 /// This is exact because wasm pages are aligned to 4-byte lanes.
 ///
 /// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
-fn push_linear_memory_oob_trap_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     let mut mem_selectors: Vec<usize> = linear_memory_ops()
         .into_iter()
         .map(|op| selector_col(op).expect("linear memory selector"))
@@ -126,7 +126,7 @@ fn signed_div_ops() -> Vec<WasmOpcode> {
         .collect()
 }
 
-fn push_div_trap_constraints(b: &mut R1csBuilder) {
+fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // Div/rem by zero is terminal. Since both divisor limbs are U32,
     // read1_lo + read1_hi is below the field modulus, so the sum is zero
     // exactly when both limbs are zero.
@@ -226,7 +226,7 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
+fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
     let indirect_selectors = [(call_indirect, F::ONE), (return_call_indirect, F::ONE)];
@@ -311,7 +311,7 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_trapped_state_transition_constraints(b: &mut R1csBuilder) {
+fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_linear_zero([
         (COL_TRAPPED_AFTER, F::ONE),
         (COL_TRAPPED_BEFORE, -F::ONE),

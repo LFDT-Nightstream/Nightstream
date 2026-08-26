@@ -734,7 +734,7 @@ impl WasmOpcode {
     /// gate the wide-stack-lane machinery accordingly.
     ///
     /// Single source of truth for the wide-value gating row in
-    /// [`crate::ccs::build_core_ccs_spec`], the `wide_values_enabled`
+    /// [`crate::ccs::build_wasm_relation`], the `wide_values_enabled`
     /// determination in `adapters::wasmtime::normalize`, and the test-row
     /// builders. The constraint `is_program_row · (wide_values_enabled −
     /// Σ uses_wide_values selectors) = 0` forces these flags into agreement.

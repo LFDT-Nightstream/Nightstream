@@ -22,8 +22,6 @@ use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-type R1csBuilder = WasmTaggedR1csBuilder;
-
 fn op_selector(op: WasmOpcode) -> usize {
     selector_col(op).expect("wasm opcode selector")
 }
@@ -66,7 +64,7 @@ fn load_ops_by_result_extension(result_bits: u8, extension: WasmMemoryExtension)
 }
 
 pub(super) fn push_linear_memory_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -99,7 +97,7 @@ pub(super) fn push_linear_memory_constraints(
 /// unused `_before` scratch; loads emit only Read tuples in the memory spec.
 /// To keep the CCS small, cases are inverted by byte slot: each row gates a
 /// byte equality by the sum of all cases that preserve that slot.
-fn push_byte_preservation_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_byte_preservation_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     let lanes = [
         (linear_memory.lane0_bytes, linear_memory.lane0_bytes_before),
         (linear_memory.lane1_bytes, linear_memory.lane1_bytes_before),
@@ -171,7 +169,7 @@ fn push_byte_preservation_constraints(b: &mut R1csBuilder, linear_memory: &Linea
 }
 
 fn push_address_normalization(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     linear_memory_selectors: &[usize],
 ) {
@@ -273,7 +271,7 @@ fn push_address_normalization(
     );
 }
 
-fn push_width_selector_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_width_selector_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     b.with_tag(shared("linear memory width selectors", &linear_memory_ops()), |b| {
         // Under each gate, both offset families are one-hot, so the weighted 1..4
         // fingerprint is injective and can replace four per-case equalities.
@@ -337,7 +335,7 @@ fn push_width_selector_constraints(b: &mut R1csBuilder, linear_memory: &LinearMe
 }
 
 fn push_width_offset_family_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     width_flag: Column,
     width_offset_is: [Column; 4],
     offset_is: [Column; 4],
@@ -364,7 +362,7 @@ fn push_width_offset_family_constraints(
     );
 }
 
-fn push_width_opcode_bindings(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_width_opcode_bindings(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     // Pin each width family to the opcodes that use it. Combined with the
     // unconditional `is_X_width = sum(X_width_offset_is)` above, this forces
     // the correct width-offset family active per opcode. Without it a prover
@@ -398,7 +396,7 @@ fn push_width_opcode_bindings(b: &mut R1csBuilder, linear_memory: &LinearMemoryC
     );
 }
 
-fn push_lane_usage_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_lane_usage_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     b.with_tag(shared("linear memory lane usage", &linear_memory_ops()), |b| {
         // Lane use is an exact projection of the active width/offset case.
         // These unconditional identities also pin both gates to zero off
@@ -421,7 +419,7 @@ fn push_lane_usage_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemory
 }
 
 fn push_subword_byte_routing_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -446,7 +444,7 @@ fn push_subword_byte_routing_constraints(
 /// columns the `linear_memory` `WasmMemorySpec` uses to fire its Read
 /// (load) and Write+RMW (store) entries — keeping load rows from writing
 /// to the cells log.
-fn push_lane_direction_gates(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_lane_direction_gates(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     b.with_tag(
         shared("linear memory lane direction gates", &linear_memory_ops()),
         |b| {
@@ -485,7 +483,7 @@ fn push_lane_direction_gates(b: &mut R1csBuilder, linear_memory: &LinearMemoryCo
     );
 }
 
-fn push_lane_adjacency_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_lane_adjacency_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     b.with_tag(shared("linear memory lane adjacency", &linear_memory_ops()), |b| {
         push_gated_linear_zero(
             b,
@@ -509,7 +507,7 @@ fn push_lane_adjacency_constraints(b: &mut R1csBuilder, linear_memory: &LinearMe
 }
 
 fn push_access_byte_bindings(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -559,7 +557,7 @@ fn push_access_byte_bindings(
 }
 
 fn push_load_routing_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -615,7 +613,7 @@ fn push_load_routing_constraints(
     });
 }
 
-fn push_i64_load_extension_constraints(b: &mut R1csBuilder, sign_extension: &SignExtensionColumns) {
+fn push_i64_load_extension_constraints(b: &mut WasmTaggedR1csBuilder<'_>, sign_extension: &SignExtensionColumns) {
     let i64_unsigned_load_ops = load_ops_by_result_extension(64, WasmMemoryExtension::Zero);
     b.with_tag(
         shared("linear memory i64 unsigned load high zero", &i64_unsigned_load_ops),
@@ -691,7 +689,7 @@ fn push_i64_load_extension_constraints(b: &mut R1csBuilder, sign_extension: &Sig
 }
 
 fn push_store_routing_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -707,7 +705,7 @@ fn push_store_routing_constraints(
 }
 
 fn push_linear_memory_load32_byte_selection(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -746,7 +744,7 @@ fn push_linear_memory_load32_byte_selection(
 }
 
 fn push_linear_memory_store32_byte_selection(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -791,11 +789,11 @@ fn push_linear_memory_store32_byte_selection(
     }
 }
 
-fn push_linear_memory_load8_u_constraints(b: &mut R1csBuilder, sign_extension: &SignExtensionColumns) {
+fn push_linear_memory_load8_u_constraints(b: &mut WasmTaggedR1csBuilder<'_>, sign_extension: &SignExtensionColumns) {
     push_linear_memory_load_subword_constraints(b, selector_col(WasmOpcode::I32Load8U).unwrap(), 1, sign_extension);
 }
 
-fn push_linear_memory_load8_s_constraints(b: &mut R1csBuilder, sign_extension: &SignExtensionColumns) {
+fn push_linear_memory_load8_s_constraints(b: &mut WasmTaggedR1csBuilder<'_>, sign_extension: &SignExtensionColumns) {
     push_linear_memory_load_signed_subword_constraints(
         b,
         selector_col(WasmOpcode::I32Load8S).unwrap(),
@@ -805,7 +803,7 @@ fn push_linear_memory_load8_s_constraints(b: &mut R1csBuilder, sign_extension: &
     );
 }
 
-fn push_linear_memory_load16_s_constraints(b: &mut R1csBuilder, sign_extension: &SignExtensionColumns) {
+fn push_linear_memory_load16_s_constraints(b: &mut WasmTaggedR1csBuilder<'_>, sign_extension: &SignExtensionColumns) {
     push_linear_memory_load_signed_subword_constraints(
         b,
         selector_col(WasmOpcode::I32Load16S).unwrap(),
@@ -815,12 +813,12 @@ fn push_linear_memory_load16_s_constraints(b: &mut R1csBuilder, sign_extension: 
     );
 }
 
-fn push_linear_memory_load16_u_constraints(b: &mut R1csBuilder, sign_extension: &SignExtensionColumns) {
+fn push_linear_memory_load16_u_constraints(b: &mut WasmTaggedR1csBuilder<'_>, sign_extension: &SignExtensionColumns) {
     push_linear_memory_load_subword_constraints(b, selector_col(WasmOpcode::I32Load16U).unwrap(), 2, sign_extension);
 }
 
 fn push_linear_memory_load64_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -904,7 +902,7 @@ fn push_linear_memory_load64_constraints(
 }
 
 fn push_linear_memory_store64_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -977,7 +975,7 @@ fn push_linear_memory_store64_constraints(
 }
 
 fn push_linear_memory_load_subword_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     selector: usize,
     width_bytes: usize,
     sign_extension: &SignExtensionColumns,
@@ -988,7 +986,7 @@ fn push_linear_memory_load_subword_constraints(
 }
 
 fn push_linear_memory_load_signed_subword_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     selector: usize,
     width_bytes: usize,
     sign_source_byte: usize,
@@ -1013,7 +1011,7 @@ fn push_linear_memory_load_signed_subword_constraints(
 }
 
 fn push_linear_memory_subword_byte_routing_constraints(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     width_bytes: usize,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
@@ -1089,7 +1087,12 @@ fn push_linear_memory_subword_byte_routing_constraints(
     }
 }
 
-fn push_matching_byte_constraints(b: &mut R1csBuilder, selector: usize, lhs: [Column; 4], rhs: [Column; 4]) {
+fn push_matching_byte_constraints(
+    b: &mut WasmTaggedR1csBuilder<'_>,
+    selector: usize,
+    lhs: [Column; 4],
+    rhs: [Column; 4],
+) {
     for (lhs_col, rhs_col) in lhs.into_iter().zip(rhs) {
         push_gated_linear_zero(b, selector, [(idx(lhs_col), F::ONE), (idx(rhs_col), -F::ONE)]);
     }

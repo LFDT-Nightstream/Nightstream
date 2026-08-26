@@ -5,7 +5,7 @@ use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
-use neo_wasm::{WasmVmSpec, WasmVmStep};
+use neo_wasm::{build_wasm_relation, WasmVmStep};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
 /// witness-derived sanity checks, and return the trace + ROMs.
@@ -250,8 +250,8 @@ fn i64_load8_u_zero_extension_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8U))
         .expect("i64.load8_u row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.load8_u row should satisfy the CCS");
 
     wit[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
@@ -335,8 +335,8 @@ fn i64_load8_s_sign_extension_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8S))
         .expect("i64.load8_s row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest negative i64.load8_s row should satisfy the CCS");
     assert_eq!(
         wit[COL_STACK_WRITE0_VALUE_HI],
@@ -402,8 +402,8 @@ fn i64_load32_u_unaligned_requires_use_lane1() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load32U))
         .expect("i64.load32_u row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..])
         .expect("honest unaligned i64.load32_u row should satisfy the CCS");
     assert_eq!(
@@ -444,8 +444,8 @@ fn i64_store8_width_family_pin_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Store8))
         .expect("i64.store8 row");
     let mut wit = build_witness_vector(store);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.store8 row should satisfy the CCS");
 
     wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ZERO;

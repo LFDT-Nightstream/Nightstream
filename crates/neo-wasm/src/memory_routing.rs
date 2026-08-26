@@ -16,7 +16,7 @@ use crate::layout::{
     COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE,
     COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
-use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
+use crate::relation_layout::{WasmMemoryActivation, WasmMemoryPortKind, WasmRelationLayout};
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
 /// with every opcode selector under the CCS row-kind and opcode one-hots.
@@ -368,22 +368,22 @@ pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> V
     let mut shared_slots: Vec<Vec<MemoryPort>> = Vec::new();
 
     for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
-        for column in &memory.columns {
+        for declared_port in &memory.ports {
             let port = MemoryPort::new(
                 region,
-                column
+                declared_port
                     .address_columns
                     .iter()
                     .map(|column| column.0)
                     .collect(),
-                column.value_column.0,
-                match column.kind {
-                    WasmMemoryColumnKind::Read => MemoryPortKind::Read,
-                    WasmMemoryColumnKind::Write { value_before_column } => MemoryPortKind::Write {
+                declared_port.value_column.0,
+                match declared_port.kind {
+                    WasmMemoryPortKind::Read => MemoryPortKind::Read,
+                    WasmMemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
                         value_before_column: value_before_column.map(|column| column.0),
                     },
                 },
-                match column.activation {
+                match declared_port.activation {
                     WasmMemoryActivation::Always => MemoryPortActivation::UnlessColumn(COL_PADDING_ACTIVE),
                     WasmMemoryActivation::BooleanGate(column) => MemoryPortActivation::Column(column.0),
                 },

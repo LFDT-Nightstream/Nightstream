@@ -1,77 +1,17 @@
 //! Witness-driven debug memory checker over shared logical memory declarations.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
-use super::layout::named_column_family;
 use super::relation_layout::WasmRelationLayout;
 use super::WasmMemoryId;
-use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemorySpec};
+use neo_application::{check_memory_rows, MemoryCheckPolicy, MemoryKind, MemoryPreload, RamInitialization};
 use neo_math::F;
-use p3_field::PrimeField64;
 use std::collections::BTreeMap;
 
-/// Per-column-limb width for the cells log. Every column the wasm VM
-/// stores or compares through the memory checker carries one Goldilocks
-/// limb that is supposed to be width-pinned to u32 by the bit-decomp /
-/// booleanity rows; narrowing here surfaces any column where that
-/// pinning is missing or broken — the cells log itself would otherwise
-/// happily round-trip a witness value up to `q - 1 ≈ 2^64`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct WasmMemoryPreload {
-    cells: BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
-}
-
-impl WasmMemoryPreload {
-    pub fn insert(&mut self, memory: WasmMemoryId, address: Vec<u32>, value: u32) {
-        self.cells.entry(memory).or_default().insert(address, value);
-    }
-
-    pub fn remove(&mut self, memory: WasmMemoryId, address: &[u32]) -> Option<u32> {
-        self.cells.get_mut(&memory)?.remove(address)
-    }
-
-    fn clone_cells(&self) -> BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>> {
-        self.cells.clone()
-    }
-
-    pub fn entries(&self) -> Vec<(WasmMemoryId, Vec<u32>, u32)> {
-        self.cells
-            .iter()
-            .flat_map(|(&memory, cells)| {
-                cells
-                    .iter()
-                    .map(move |(address, &value)| (memory, address.clone(), value))
-            })
-            .collect()
-    }
-}
-
-/// Read a witness column and narrow to u32, returning a descriptive
-/// error if the field-element representative does not fit. A failure
-/// here means the column carried a value the witness layer was supposed
-/// to pin to 32 bits but did not — i.e., a missing or broken bit-width
-/// constraint upstream. Naming the column and row makes the offender
-/// trivial to find from the test failure message.
-fn read_u32_column(witness: &[F], col: usize, row_index: usize, role: &str) -> Result<u32, String> {
-    let canonical = witness[col].as_canonical_u64();
-    u32::try_from(canonical).map_err(|_| {
-        let name = named_column_family(col)
-            .map(|family| family.name)
-            .unwrap_or("?");
-        format!(
-            "{role} column `{name}` (col {col}) carried value {canonical} that does not fit in u32 on row {row_index} \
-             — missing or broken bit-width constraint upstream",
-        )
-    })
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum DebugInitMode {
-    Strict,
-    ZeroReadDefault,
-}
+/// Initial cells for the WASM application's 32-bit logical memories.
+pub type WasmMemoryPreload = MemoryPreload<WasmMemoryId>;
 
 /// The preload is program-derived only: the locals RAM starts all-zero
-/// (`ZeroReadDefault`), so entry-frame inputs must arrive through the export
+/// ([`RamInitialization::Zero`]), so entry-frame inputs must arrive through the export
 /// template's `InputLocal` bootstrap; callee params are written by
 /// CallParamInit rows before use.
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
@@ -379,183 +319,43 @@ pub fn sanity_check_memory_rows(
     witness_rows: &[Vec<F>],
     preload: &WasmMemoryPreload,
 ) -> Result<(), String> {
-    assert_all_memory_specs_have_init_modes(layout)?;
-    let mut state = preload.clone_cells();
-    for (row_index, witness) in witness_rows.iter().enumerate() {
-        let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
-        if witness.len() != expected {
-            return Err(format!(
-                "memory sanity check expected witness width {}, got {} on row {}",
-                expected,
-                witness.len(),
-                row_index
-            ));
-        }
-        for memory in layout.auxiliary.memory.entries() {
-            apply_memory_row(memory, witness, row_index, &mut state)?;
-        }
-    }
-    Ok(())
+    let columns = crate::witness_layout::range_checked_column_registry();
+    let policy = wasm_memory_check_policy(layout)?;
+    check_memory_rows(&layout.auxiliary.memory, &columns, witness_rows, preload, &policy)
+        .map_err(|error| error.to_string())
 }
 
-fn apply_memory_row(
-    memory: &MemorySpec<WasmMemoryId>,
-    witness: &[F],
-    row_index: usize,
-    state: &mut BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
-) -> Result<(), String> {
-    let cells = state.entry(memory.id).or_default();
-    for port in &memory.ports {
-        let active = activation_active(port.activation, witness, row_index, memory.id)?;
-        if !active {
-            continue;
-        }
-        let address = port
-            .address_columns
-            .iter()
-            .map(|&column| read_u32_column(witness, column, row_index, "address"))
-            .collect::<Result<Vec<_>, _>>()?;
-        let value = read_u32_column(witness, port.value_column, row_index, "value")?;
-        if memory.kind == MemoryKind::Rom {
-            match cells.get(&address).copied() {
-                Some(expected) if expected != value => {
-                    return Err(format!(
-                        "memory `{}` ROM mismatch at {:?} on row {}: expected {}, got {}",
-                        memory.id, address, row_index, expected, value
-                    ));
-                }
-                Some(_) => {}
-                None => {
-                    return Err(format!(
-                        "memory `{}` ROM read before initialization at {:?} on row {}",
-                        memory.id, address, row_index
-                    ));
-                }
-            }
-            continue;
-        }
-        match port.kind {
-            MemoryPortKind::Read => match cells.get(&address).copied() {
-                Some(expected) if expected != value => {
-                    return Err(format!(
-                        "memory `{}` read mismatch at {:?} on row {}: expected {}, got {}",
-                        memory.id, address, row_index, expected, value
-                    ));
-                }
-                Some(_) => {}
-                None => match init_mode(memory.id) {
-                    DebugInitMode::Strict => {
-                        return Err(format!(
-                            "memory `{}` read before initialization at {:?} on row {}",
-                            memory.id, address, row_index
-                        ));
-                    }
-                    DebugInitMode::ZeroReadDefault => {
-                        if value != 0 {
-                            return Err(format!(
-                                "memory `{}` expected zero-default read at {:?} on row {}, got {}",
-                                memory.id, address, row_index, value
-                            ));
-                        }
-                        cells.insert(address, 0);
-                    }
-                },
-            },
-            MemoryPortKind::Write { value_before_column } => {
-                // Nebula-style RMW: if `value_before_column` is named, this
-                // row's read tuple must match the prior write at this address
-                // (or the documented init mode). Catches a malicious prover
-                // who writes a word whose unmodified bytes don't preserve the
-                // prior state — see `i32_store8_row_rejects_tampered_...`.
-                if let Some(before_col) = value_before_column {
-                    let before_value = read_u32_column(witness, before_col, row_index, "value_before")?;
-                    match cells.get(&address).copied() {
-                        Some(expected) if expected != before_value => {
-                            return Err(format!(
-                                "memory `{}` RMW read mismatch at {:?} on row {}: \
-                                 prior write was {}, witness claims {}",
-                                memory.id, address, row_index, expected, before_value
-                            ));
-                        }
-                        Some(_) => {}
-                        None => match init_mode(memory.id) {
-                            DebugInitMode::Strict => {
-                                return Err(format!(
-                                    "memory `{}` RMW read before initialization at {:?} on row {}",
-                                    memory.id, address, row_index
-                                ));
-                            }
-                            DebugInitMode::ZeroReadDefault => {
-                                if before_value != 0 {
-                                    return Err(format!(
-                                        "memory `{}` expected zero-default RMW read at {:?} on row {}, got {}",
-                                        memory.id, address, row_index, before_value
-                                    ));
-                                }
-                                cells.insert(address.clone(), 0);
-                            }
-                        },
-                    }
-                }
-                cells.insert(address, value);
-            }
-        }
-    }
-    Ok(())
+fn wasm_memory_check_policy(layout: &WasmRelationLayout) -> Result<MemoryCheckPolicy<WasmMemoryId>, String> {
+    let ram_initialization = layout
+        .auxiliary
+        .memory
+        .entries()
+        .iter()
+        .filter(|memory| memory.kind == MemoryKind::Ram)
+        .map(|memory| {
+            memory_init_mode(memory.id)
+                .map(|initialization| (memory.id, initialization))
+                .ok_or_else(|| format!("memory semantics missing init-mode coverage for `{}`", memory.id))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    MemoryCheckPolicy::new(&layout.auxiliary.memory, ram_initialization)
+        .map_err(|error| format!("invalid WASM memory check policy: {error}"))
 }
 
-fn activation_active(
-    activation: MemoryPortActivation,
-    witness: &[F],
-    row_index: usize,
-    memory: WasmMemoryId,
-) -> Result<bool, String> {
-    let (gate, negate) = match activation {
-        MemoryPortActivation::Always => return Ok(true),
-        MemoryPortActivation::When(gate) => (gate, false),
-        MemoryPortActivation::Unless(gate) => (gate, true),
-    };
-    let active = match witness[gate].as_canonical_u64() {
-        0 => false,
-        1 => true,
-        other => Err(format!(
-            "memory `{}` has non-boolean gate {} on row {}",
-            memory, other, row_index
-        ))?,
-    };
-    Ok(if negate { !active } else { active })
-}
-
-fn init_mode(memory: WasmMemoryId) -> DebugInitMode {
-    memory_init_mode(memory)
-        .unwrap_or_else(|| panic!("memory semantics missing init-mode coverage for non-ROM memory `{memory}`"))
-}
-
-fn memory_init_mode(memory: WasmMemoryId) -> Option<DebugInitMode> {
+fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
     match memory {
         WasmMemoryId::Stack
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp
         | WasmMemoryId::CallStackCallerSpBase
-        | WasmMemoryId::TableSize => Some(DebugInitMode::Strict),
+        | WasmMemoryId::TableSize => Some(RamInitialization::Explicit),
         WasmMemoryId::LinearMemory
         | WasmMemoryId::LocalLo
         | WasmMemoryId::LocalHi
         | WasmMemoryId::GlobalLo
         | WasmMemoryId::GlobalHi
-        | WasmMemoryId::TableElement => Some(DebugInitMode::ZeroReadDefault),
+        | WasmMemoryId::TableElement => Some(RamInitialization::Zero),
         _ => None,
     }
-}
-
-fn assert_all_memory_specs_have_init_modes(layout: &WasmRelationLayout) -> Result<(), String> {
-    for memory in layout.auxiliary.memory.entries() {
-        if memory.kind == MemoryKind::Ram && memory_init_mode(memory.id).is_none() {
-            return Err(format!(
-                "memory semantics missing init-mode coverage for `{}`",
-                memory.id
-            ));
-        }
-    }
-    Ok(())
 }

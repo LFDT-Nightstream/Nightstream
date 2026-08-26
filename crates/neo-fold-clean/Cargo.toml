@@ -297,6 +297,14 @@ name = "nifs_pi_ccs_lean_nonzero_parity"
 path = "tests/nifs/pi_ccs_lean_nonzero_parity.rs"
 
 [[test]]
+name = "nifs_pi_rlc_sampler_lean_parity"
+path = "tests/nifs/pi_rlc_sampler_lean_parity.rs"
+
+[[test]]
+name = "nifs_pi_rlc_lean_nonzero_parity"
+path = "tests/nifs/pi_rlc_lean_nonzero_parity.rs"
+
+[[test]]
 name = "nifs_package_consumer"
 path = "tests/nifs/package_consumer.rs"
 

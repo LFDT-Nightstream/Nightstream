@@ -4,9 +4,11 @@
 //! reusable range-check bits. Backend-specific advice and batching extend
 //! this base layout separately.
 
-use crate::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
-use crate::column_registry::expanded_f_prime_widths;
-use crate::layout::{ColumnWidth, WasmColumnSpec, HOST_EVENT_COLUMN_SPECS, NAMED_COLUMN_COUNT, WASM_COLUMN_SPECS};
+use crate::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
+use crate::layout::{
+    ColumnFamilySpec, ColumnWidth, HOST_EVENT_COLUMN_FAMILIES, NAMED_COLUMN_COUNT, WASM_COLUMN_FAMILIES,
+};
+use neo_application::ColumnRegistry;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct WitnessRegion {
@@ -40,32 +42,32 @@ pub(crate) const HOST_EVENT_AUX_START: usize = NAMED_COLUMNS.end();
 pub(crate) const HOST_EVENT_AUX: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX_START, AUX_WIDTH);
 
 const DECLARED_WITNESS_COLUMN_COUNT: usize = HOST_EVENT_AUX.end();
-const DECLARED_WITNESS_COLUMN_SPEC_REGIONS: &[&[WasmColumnSpec]] =
-    &[WASM_COLUMN_SPECS, HOST_EVENT_COLUMN_SPECS, AUX_COLUMN_SPECS];
+const DECLARED_WITNESS_COLUMN_FAMILY_REGIONS: &[&[ColumnFamilySpec]] =
+    &[WASM_COLUMN_FAMILIES, HOST_EVENT_COLUMN_FAMILIES, AUX_COLUMN_FAMILIES];
 
-pub(crate) fn declared_witness_column_specs() -> impl Iterator<Item = &'static WasmColumnSpec> {
-    DECLARED_WITNESS_COLUMN_SPEC_REGIONS
+pub(crate) fn declared_witness_column_families() -> impl Iterator<Item = &'static ColumnFamilySpec> {
+    DECLARED_WITNESS_COLUMN_FAMILY_REGIONS
         .iter()
-        .flat_map(|specs| specs.iter())
+        .flat_map(|families| families.iter())
 }
 
 const fn build_range_bit_offsets() -> [usize; DECLARED_WITNESS_COLUMN_COUNT + 1] {
     let mut offsets = [0; DECLARED_WITNESS_COLUMN_COUNT + 1];
     let mut column = 0;
     let mut region_index = 0;
-    while region_index < DECLARED_WITNESS_COLUMN_SPEC_REGIONS.len() {
-        let specs = DECLARED_WITNESS_COLUMN_SPEC_REGIONS[region_index];
-        let mut spec_index = 0;
-        while spec_index < specs.len() {
-            let spec = &specs[spec_index];
-            assert!(spec.start == column);
+    while region_index < DECLARED_WITNESS_COLUMN_FAMILY_REGIONS.len() {
+        let families = DECLARED_WITNESS_COLUMN_FAMILY_REGIONS[region_index];
+        let mut family_index = 0;
+        while family_index < families.len() {
+            let family = &families[family_index];
+            assert!(family.start == column);
             let mut member = 0;
-            while member < spec.len {
-                offsets[column + 1] = offsets[column] + decomposed_bits(spec.width);
+            while member < family.len {
+                offsets[column + 1] = offsets[column] + decomposed_bits(family.width);
                 column += 1;
                 member += 1;
             }
-            spec_index += 1;
+            family_index += 1;
         }
         region_index += 1;
     }
@@ -76,10 +78,27 @@ const fn build_range_bit_offsets() -> [usize; DECLARED_WITNESS_COLUMN_COUNT + 1]
 const RANGE_BIT_OFFSETS: [usize; DECLARED_WITNESS_COLUMN_COUNT + 1] = build_range_bit_offsets();
 const RANGE_BIT_COUNT: usize = RANGE_BIT_OFFSETS[DECLARED_WITNESS_COLUMN_COUNT];
 pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX.end(), RANGE_BIT_COUNT);
+const RANGE_BITS_FAMILY: ColumnFamilySpec = ColumnFamilySpec {
+    region: "range_bits",
+    start: RANGE_BITS.start,
+    len: RANGE_BIT_COUNT,
+    name: "RANGE_BITS",
+    role: "Boolean decomposition bits for declared byte and u32 columns",
+    width: ColumnWidth::Boolean,
+};
 
 /// Width of the WASM witness after named columns, host-event advice, and
 /// explicit range-check bit columns have been allocated.
 pub const RANGE_CHECKED_WITNESS_WIDTH: usize = RANGE_BITS.end();
+
+pub(crate) fn range_checked_column_registry() -> ColumnRegistry {
+    ColumnRegistry::new(
+        declared_witness_column_families()
+            .copied()
+            .chain(core::iter::once(RANGE_BITS_FAMILY)),
+    )
+    .expect("valid WASM witness column registry")
+}
 
 pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
     if column >= DECLARED_WITNESS_COLUMN_COUNT {
@@ -99,14 +118,24 @@ pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
 }
 
 /// Declared F' widths of the variables in the range-checked WASM witness.
-pub(crate) fn range_checked_variable_widths() -> Vec<usize> {
-    let mut widths: Vec<usize> = DECLARED_WITNESS_COLUMN_SPEC_REGIONS
+pub(crate) fn range_checked_variable_widths(columns: &ColumnRegistry) -> Vec<usize> {
+    let widths: Vec<_> = columns
+        .families()
         .iter()
-        .flat_map(|specs| expanded_f_prime_widths(specs))
+        .flat_map(|family| core::iter::repeat_n(to_bit_width(family.width), family.len))
         .collect();
 
-    debug_assert_eq!(widths.len(), HOST_EVENT_AUX.end());
-    widths.resize(RANGE_BITS.end(), 1);
     debug_assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);
     widths
+}
+
+const fn to_bit_width(width: ColumnWidth) -> usize {
+    match width {
+        ColumnWidth::Boolean => 1,
+        ColumnWidth::Byte => 8,
+        ColumnWidth::U32 => 32,
+        // the field doesn't have exactly 64 bits, but we need 64 bits to
+        // represent it
+        ColumnWidth::Field => 64,
+    }
 }

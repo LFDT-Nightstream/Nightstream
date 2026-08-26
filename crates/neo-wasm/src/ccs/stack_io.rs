@@ -27,8 +27,6 @@ use super::{opcode_tag, shared};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-type R1csBuilder = WasmTaggedR1csBuilder;
-
 const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const TABLE_READ_OPS: &[WasmOpcode] = &[
     WasmOpcode::TableGet,
@@ -53,7 +51,7 @@ const TABLE_VALUE_OPS: &[WasmOpcode] = &[
 /// needs. First the gate-column declarations the lookup layer reads
 /// (`locals.write_enabled`, `table.read_enabled`), then the per-family
 /// value bindings.
-pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
+pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(shared("locals write gate", LOCAL_WRITE_OPS), |b| {
         b.push_linear_zero([
             (COL_LOCAL_WRITE_ENABLED, F::ONE),
@@ -97,7 +95,7 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
     });
 }
 
-fn push_local_value_constraints(b: &mut R1csBuilder) {
+fn push_local_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalGet).unwrap(),
@@ -141,7 +139,7 @@ fn push_local_value_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_global_value_constraints(b: &mut R1csBuilder) {
+fn push_global_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::GlobalGet).unwrap(),
@@ -164,7 +162,7 @@ fn push_global_value_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_table_value_constraints(b: &mut R1csBuilder) {
+fn push_table_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableGet).unwrap(),
@@ -187,7 +185,7 @@ fn push_table_value_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_table_size_constraints(b: &mut R1csBuilder) {
+fn push_table_size_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSize).unwrap(),

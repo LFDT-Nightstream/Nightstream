@@ -4,7 +4,6 @@ pub mod adapters;
 mod application;
 pub mod batch;
 pub mod ccs;
-mod column_registry;
 pub mod comm_chain;
 mod gadgets;
 pub mod host_event_bindings;
@@ -24,7 +23,6 @@ pub mod nebula;
 #[doc(hidden)]
 pub mod preprocess;
 mod prover;
-mod r1cs_builder;
 pub mod range_check;
 pub mod relation_layout;
 pub mod tables;
@@ -41,8 +39,8 @@ pub use adapters::wasmtime::{
     WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use application::{WasmApplicationManifestError, WasmApplicationModule};
+pub use ccs::build_wasm_relation;
 pub use ccs::host_event_chain::write_turn_entry_guard_witness;
-pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
@@ -55,7 +53,7 @@ pub use isa::{
     WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
-pub use layout::{column_spec, column_specs, Column, ColumnWidth, WasmColumnSpec, NAMED_COLUMN_COUNT};
+pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec, ColumnWidth, NAMED_COLUMN_COUNT};
 #[doc(hidden)]
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
@@ -73,8 +71,8 @@ pub use prover::{WasmProver, WasmProverBackend};
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
-    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
-    WasmMemoryColumnSpec, WasmMemorySpec, WasmRelationLayout,
+    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryPortKind,
+    WasmMemoryPortSpec, WasmMemorySpec, WasmRelationLayout,
 };
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

@@ -1,8 +1,8 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
-use super::layout::column_spec;
-use super::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec, WasmRelationLayout};
+use super::layout::named_column_family;
+use super::relation_layout::{WasmMemoryActivation, WasmMemoryPortKind, WasmMemorySpec, WasmRelationLayout};
 use super::WasmMemoryId;
 use neo_math::F;
 use p3_field::PrimeField64;
@@ -53,7 +53,9 @@ impl WasmMemoryPreload {
 fn read_u32_column(witness: &[F], col: usize, row_index: usize, role: &str) -> Result<u32, String> {
     let canonical = witness[col].as_canonical_u64();
     u32::try_from(canonical).map_err(|_| {
-        let name = column_spec(col).map(|spec| spec.name).unwrap_or("?");
+        let name = named_column_family(col)
+            .map(|family| family.name)
+            .unwrap_or("?");
         format!(
             "{role} column `{name}` (col {col}) carried value {canonical} that does not fit in u32 on row {row_index} \
              — missing or broken bit-width constraint upstream",
@@ -402,17 +404,17 @@ fn apply_memory_row(
     state: &mut BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
 ) -> Result<(), String> {
     let cells = state.entry(memory.id).or_default();
-    for column in &memory.columns {
-        let active = activation_active(column.activation, witness, row_index, memory.id)?;
+    for port in &memory.ports {
+        let active = activation_active(port.activation, witness, row_index, memory.id)?;
         if !active {
             continue;
         }
-        let address = column
+        let address = port
             .address_columns
             .iter()
             .map(|column| read_u32_column(witness, column.0, row_index, "address"))
             .collect::<Result<Vec<_>, _>>()?;
-        let value = read_u32_column(witness, column.value_column.0, row_index, "value")?;
+        let value = read_u32_column(witness, port.value_column.0, row_index, "value")?;
         if memory.id.is_rom() {
             match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
@@ -431,8 +433,8 @@ fn apply_memory_row(
             }
             continue;
         }
-        match column.kind {
-            WasmMemoryColumnKind::Read => match cells.get(&address).copied() {
+        match port.kind {
+            WasmMemoryPortKind::Read => match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
                     return Err(format!(
                         "memory `{}` read mismatch at {:?} on row {}: expected {}, got {}",
@@ -458,7 +460,7 @@ fn apply_memory_row(
                     }
                 },
             },
-            WasmMemoryColumnKind::Write { value_before_column } => {
+            WasmMemoryPortKind::Write { value_before_column } => {
                 // Nebula-style RMW: if `value_before_column` is named, this
                 // row's read tuple must match the prior write at this address
                 // (or the documented init mode). Catches a malicious prover

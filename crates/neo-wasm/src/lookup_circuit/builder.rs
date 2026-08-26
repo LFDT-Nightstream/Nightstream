@@ -3,9 +3,14 @@
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
-use crate::tagged_r1cs_builder::WasmR1csRow;
-
 pub(super) type Bit = usize;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct LookupR1csRow {
+    pub(super) a_terms: Vec<(usize, F)>,
+    pub(super) b_terms: Vec<(usize, F)>,
+    pub(super) c_terms: Vec<(usize, F)>,
+}
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct Lc {
@@ -66,7 +71,7 @@ impl Lc {
 pub(super) struct LookupR1csBuilder {
     values: Vec<F>,
     aux_start: usize,
-    rows: Vec<WasmR1csRow>,
+    rows: Vec<LookupR1csRow>,
 }
 
 impl LookupR1csBuilder {
@@ -162,12 +167,12 @@ impl LookupR1csBuilder {
         self.push_row(left, right, output);
     }
 
-    pub(super) fn finish(self) -> (Vec<WasmR1csRow>, Vec<F>) {
+    pub(super) fn finish(self) -> (Vec<LookupR1csRow>, Vec<F>) {
         (self.rows, self.values[self.aux_start..].to_vec())
     }
 
     fn push_row(&mut self, left: Lc, right: Lc, output: Lc) {
-        self.rows.push(WasmR1csRow {
+        self.rows.push(LookupR1csRow {
             a_terms: left.terms,
             b_terms: right.terms,
             c_terms: output.terms,

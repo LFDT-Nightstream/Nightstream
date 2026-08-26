@@ -1570,6 +1570,7 @@ dependencies = [
  "ff",
  "futures",
  "neo-ajtai",
+ "neo-application",
  "neo-ccs",
  "neo-fold-clean",
  "neo-math",

@@ -5,10 +5,7 @@ use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
-use wip_spartan::{
-    provider::{goldi::F as SpartanField, GoldilocksWhirEngine},
-    SparseMatrix,
-};
+use wip_spartan::provider::{goldi::F as SpartanField, GoldilocksWhirEngine};
 
 use crate::identity::relation_identifier;
 use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, SparseTerm, WitnessInstruction};
@@ -18,6 +15,10 @@ use crate::witness::{
 };
 use crate::{ProofRun, WitnessAssignment};
 
+mod compact;
+use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
+mod permutation_plan;
+mod plan;
 mod v1_1;
 pub use v1_1::{
     PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT,
@@ -26,6 +27,7 @@ pub use v1_1::{
     PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS,
 };
 mod r1cs;
+use r1cs::expand_matrices;
 pub use r1cs::{PackageR1cs, PackageSparseMatrix};
 mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
@@ -73,11 +75,16 @@ struct RawPackage(
     RawPermutationTemplate,
     Vec<RawHashChain>,
     Vec<RawPermutationInvocation>,
+    Vec<RawCompactRowTemplate>,
+    Vec<RawCompactRowInvocation>,
     Vec<RawWitnessBatch>,
     Vec<RawWitnessInstruction>,
     Vec<RawSparseRow>,
     Vec<Value>,
 );
+
+#[derive(Debug, Deserialize)]
+struct RawPlan(u64, RawPackage, Vec<Value>, Vec<Value>);
 
 #[derive(Debug, Deserialize)]
 struct RawProfile(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
@@ -232,12 +239,14 @@ impl ScheduledInvocation<'_> {
 #[derive(Clone, Copy)]
 enum ScheduledWitness<'a> {
     Permutation(ScheduledInvocation<'a>),
+    Compact(&'a CompactRowInvocation),
     Generic(&'a WitnessInstruction),
 }
 
 #[derive(Clone, Copy)]
 enum ScheduledAssignment<'a> {
     Permutation(ScheduledInvocation<'a>),
+    Compact(&'a CompactRowInvocation),
     Batch(&'a WitnessBatch),
     Generic(&'a WitnessInstruction),
 }
@@ -246,6 +255,7 @@ impl ScheduledAssignment<'_> {
     fn target_start(self) -> usize {
         match self {
             Self::Permutation(invocation) => invocation.witness_start(),
+            Self::Compact(invocation) => invocation.output_column,
             Self::Batch(batch) => batch.start,
             Self::Generic(instruction) => instruction.target,
         }
@@ -256,6 +266,7 @@ impl ScheduledWitness<'_> {
     fn row_start(self) -> usize {
         match self {
             Self::Permutation(invocation) => invocation.row_start(),
+            Self::Compact(invocation) => invocation.row_start,
             Self::Generic(instruction) => instruction.row_index,
         }
     }
@@ -270,6 +281,8 @@ pub struct LoadedPackage {
     permutation: PermutationTemplate,
     hash_chains: Vec<HashChain>,
     permutation_invocations: Vec<PermutationInvocation>,
+    compact_templates: Vec<CompactRowTemplate>,
+    compact_invocations: Vec<CompactRowInvocation>,
     witness_batches: Vec<WitnessBatch>,
     witness_instructions: Vec<WitnessInstruction>,
     assertion_rows: Vec<SparseRow>,
@@ -319,6 +332,14 @@ impl LoadedPackage {
 
     pub fn permutation_invocation_count(&self) -> usize {
         self.permutation_invocations.len()
+    }
+
+    pub fn compact_template_count(&self) -> usize {
+        self.compact_templates.len()
+    }
+
+    pub fn compact_invocation_count(&self) -> usize {
+        self.compact_invocations.len()
     }
 
     pub fn witness_instruction_count(&self) -> usize {
@@ -380,6 +401,9 @@ impl LoadedPackage {
             match witness {
                 ScheduledAssignment::Permutation(invocation) => {
                     self.execute_invocation(invocation, &mut assignment)?;
+                }
+                ScheduledAssignment::Compact(invocation) => {
+                    compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
                 }
                 ScheduledAssignment::Batch(batch) => {
                     execute_witness_batch(batch, &mut assignment);
@@ -527,10 +551,17 @@ fn scheduled_witnesses(package: &LoadedPackage) -> Result<Vec<ScheduledWitness<'
     let invocations = scheduled_invocations(package)?;
     let capacity = invocations
         .len()
-        .checked_add(package.witness_instructions.len())
+        .checked_add(package.compact_invocations.len())
+        .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .ok_or(PackageError::Invalid("witness schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(invocations.into_iter().map(ScheduledWitness::Permutation));
+    scheduled.extend(
+        package
+            .compact_invocations
+            .iter()
+            .map(ScheduledWitness::Compact),
+    );
     scheduled.extend(
         package
             .witness_instructions
@@ -545,7 +576,8 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
     let invocations = scheduled_invocations(package)?;
     let capacity = invocations
         .len()
-        .checked_add(package.witness_batches.len())
+        .checked_add(package.compact_invocations.len())
+        .and_then(|count| count.checked_add(package.witness_batches.len()))
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .ok_or(PackageError::Invalid("assignment schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
@@ -553,6 +585,12 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
         invocations
             .into_iter()
             .map(ScheduledAssignment::Permutation),
+    );
+    scheduled.extend(
+        package
+            .compact_invocations
+            .iter()
+            .map(ScheduledAssignment::Compact),
     );
     scheduled.extend(
         package
@@ -570,321 +608,6 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
     Ok(scheduled)
 }
 
-#[derive(Clone, Copy)]
-enum MatrixSide {
-    A,
-    B,
-    C,
-}
-
-struct CsrBuilder {
-    rows: usize,
-    cols: usize,
-    data: Vec<u64>,
-    indices: Vec<usize>,
-    indptr: Vec<usize>,
-    scratch: Vec<(usize, Goldilocks)>,
-}
-
-impl CsrBuilder {
-    fn new(rows: usize, cols: usize, capacity: usize) -> Result<Self, PackageError> {
-        let mut data = Vec::new();
-        let mut indices = Vec::new();
-        let mut indptr = Vec::new();
-        data.try_reserve_exact(capacity)
-            .map_err(|_| PackageError::Invalid("matrix data allocation"))?;
-        indices
-            .try_reserve_exact(capacity)
-            .map_err(|_| PackageError::Invalid("matrix index allocation"))?;
-        indptr
-            .try_reserve_exact(rows + 1)
-            .map_err(|_| PackageError::Invalid("matrix row allocation"))?;
-        indptr.push(0);
-        Ok(Self {
-            rows,
-            cols,
-            data,
-            indices,
-            indptr,
-            scratch: Vec::with_capacity(32),
-        })
-    }
-
-    fn push_template(
-        &mut self,
-        combination: &TemplateCombination,
-        package: &LoadedPackage,
-        invocation: ScheduledInvocation<'_>,
-    ) {
-        self.scratch.clear();
-        self.push_term(package.layout.constant_column, combination.constant);
-        for term in &combination.terms {
-            match term.column {
-                ColumnRef::Local(index) => {
-                    self.push_term(invocation.witness_start() + index, term.coefficient);
-                }
-                ColumnRef::Input(lane) => match invocation {
-                    ScheduledInvocation::Hash { chain, ordinal, .. } => {
-                        if ordinal > 0 {
-                            let previous = chain.witness_start
-                                + (ordinal - 1) * package.permutation.local_column_count
-                                + package.permutation.output_local_start
-                                + lane;
-                            self.push_term(previous, term.coefficient);
-                        }
-                        if ordinal < chain.absorb_count {
-                            let input_offset = ordinal * 4 + lane;
-                            if lane < 4 && input_offset < chain.input_length {
-                                self.push_term(chain.input_start + input_offset, term.coefficient);
-                            }
-                        } else if lane == 0 {
-                            self.push_term(package.layout.constant_column, term.coefficient);
-                        }
-                    }
-                    ScheduledInvocation::Explicit(explicit) => {
-                        let input = &explicit.inputs[lane];
-                        self.push_term(package.layout.constant_column, term.coefficient * input.constant);
-                        for input_term in &input.terms {
-                            self.push_term(input_term.column, term.coefficient * input_term.coefficient);
-                        }
-                    }
-                },
-            }
-        }
-        self.finish_row();
-    }
-
-    fn push_sparse(&mut self, combination: &SparseCombination, constant_column: usize) {
-        self.scratch.clear();
-        self.push_term(constant_column, combination.constant);
-        for term in &combination.terms {
-            self.push_term(term.column, term.coefficient);
-        }
-        self.finish_row();
-    }
-
-    fn push_term(&mut self, column: usize, coefficient: Goldilocks) {
-        if coefficient != Goldilocks::ZERO {
-            self.scratch.push((column, coefficient));
-        }
-    }
-
-    fn finish_row(&mut self) {
-        self.scratch.sort_unstable_by_key(|term| term.0);
-        let mut cursor = 0usize;
-        while cursor < self.scratch.len() {
-            let column = self.scratch[cursor].0;
-            let mut coefficient = Goldilocks::ZERO;
-            while cursor < self.scratch.len() && self.scratch[cursor].0 == column {
-                coefficient += self.scratch[cursor].1;
-                cursor += 1;
-            }
-            if coefficient != Goldilocks::ZERO {
-                self.indices.push(column);
-                self.data.push(coefficient.as_canonical_u64());
-            }
-        }
-        self.indptr.push(self.data.len());
-    }
-
-    fn finish(self) -> Result<PackageSparseMatrix, PackageError> {
-        if self.indptr.len() != self.rows + 1 {
-            return Err(PackageError::Invalid("expanded matrix row count"));
-        }
-        Ok(PackageSparseMatrix {
-            rows: self.rows,
-            columns: self.cols,
-            values: self.data,
-            column_indices: self.indices,
-            row_offsets: self.indptr,
-        })
-    }
-}
-
-fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
-    let mut a = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::A)?,
-    )?;
-    let mut b = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::B)?,
-    )?;
-    let mut c = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::C)?,
-    )?;
-
-    let mut row_cursor = 0usize;
-    let mut assertion_cursor = 0usize;
-    for witness in scheduled_witnesses(package)? {
-        while assertion_cursor < package.assertion_rows.len()
-            && package.assertion_rows[assertion_cursor].row_index < witness.row_start()
-        {
-            push_assertion(
-                &package.assertion_rows[assertion_cursor],
-                package.layout.constant_column,
-                &mut a,
-                &mut b,
-                &mut c,
-            );
-            assertion_cursor += 1;
-            row_cursor += 1;
-        }
-        if row_cursor != witness.row_start() {
-            return Err(PackageError::Invalid("expanded witness row start"));
-        }
-        match witness {
-            ScheduledWitness::Permutation(invocation) => {
-                for row in &package.permutation.rows {
-                    a.push_template(&row.a, package, invocation);
-                    b.push_template(&row.b, package, invocation);
-                    c.push_template(&row.c, package, invocation);
-                    row_cursor += 1;
-                }
-            }
-            ScheduledWitness::Generic(instruction) => {
-                push_witness_instruction(instruction, package.layout.constant_column, &mut a, &mut b, &mut c);
-                row_cursor += 1;
-            }
-        }
-    }
-    while assertion_cursor < package.assertion_rows.len() {
-        push_assertion(
-            &package.assertion_rows[assertion_cursor],
-            package.layout.constant_column,
-            &mut a,
-            &mut b,
-            &mut c,
-        );
-        assertion_cursor += 1;
-        row_cursor += 1;
-    }
-    if row_cursor != package.layout.row_count {
-        return Err(PackageError::Invalid("expanded physical row count"));
-    }
-    Ok(PackageR1cs {
-        a: a.finish()?,
-        b: b.finish()?,
-        c: c.finish()?,
-    })
-}
-
-fn expand_matrices(
-    package: &LoadedPackage,
-) -> Result<
-    (
-        SparseMatrix<SpartanField>,
-        SparseMatrix<SpartanField>,
-        SparseMatrix<SpartanField>,
-    ),
-    PackageError,
-> {
-    let PackageR1cs { a, b, c } = expand_r1cs(package)?;
-    Ok((a.into_spartan()?, b.into_spartan()?, c.into_spartan()?))
-}
-
-fn push_assertion(row: &SparseRow, constant_column: usize, a: &mut CsrBuilder, b: &mut CsrBuilder, c: &mut CsrBuilder) {
-    a.push_sparse(&row.a, constant_column);
-    b.push_sparse(&row.b, constant_column);
-    c.push_sparse(&row.c, constant_column);
-}
-
-fn push_witness_instruction(
-    instruction: &WitnessInstruction,
-    constant_column: usize,
-    a: &mut CsrBuilder,
-    b: &mut CsrBuilder,
-    c: &mut CsrBuilder,
-) {
-    a.push_sparse(&instruction.a, constant_column);
-    b.push_sparse(&instruction.b, constant_column);
-    c.scratch.clear();
-    c.push_term(instruction.target, Goldilocks::ONE);
-    c.finish_row();
-}
-
-fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, PackageError> {
-    let max_input_entries = package
-        .permutation_invocations
-        .iter()
-        .flat_map(|invocation| &invocation.inputs)
-        .map(sparse_entry_bound)
-        .max()
-        .unwrap_or(0)
-        .max(2);
-    let per_permutation = package
-        .permutation
-        .rows
-        .iter()
-        .map(|row| template_entry_bound(template_side(row, side), max_input_entries))
-        .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("template entry bound overflow"))?;
-    let invocation_count = package
-        .hash_chains
-        .iter()
-        .map(|chain| chain.absorb_count + 1)
-        .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .and_then(|count| count.checked_add(package.permutation_invocations.len()))
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
-    let assertion_entries = package
-        .assertion_rows
-        .iter()
-        .map(|row| sparse_entry_bound(sparse_side(row, side)))
-        .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("assertion entry bound overflow"))?;
-    let witness_entries = package
-        .witness_instructions
-        .iter()
-        .map(|instruction| match side {
-            MatrixSide::A => sparse_entry_bound(&instruction.a),
-            MatrixSide::B => sparse_entry_bound(&instruction.b),
-            MatrixSide::C => 1,
-        })
-        .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("witness entry bound overflow"))?;
-    per_permutation
-        .checked_mul(invocation_count)
-        .and_then(|count| count.checked_add(assertion_entries))
-        .and_then(|count| count.checked_add(witness_entries))
-        .ok_or(PackageError::Invalid("matrix entry capacity overflow"))
-}
-
-fn template_side(row: &TemplateRow, side: MatrixSide) -> &TemplateCombination {
-    match side {
-        MatrixSide::A => &row.a,
-        MatrixSide::B => &row.b,
-        MatrixSide::C => &row.c,
-    }
-}
-
-fn sparse_side(row: &SparseRow, side: MatrixSide) -> &SparseCombination {
-    match side {
-        MatrixSide::A => &row.a,
-        MatrixSide::B => &row.b,
-        MatrixSide::C => &row.c,
-    }
-}
-
-fn template_entry_bound(combination: &TemplateCombination, input_entries: usize) -> usize {
-    usize::from(combination.constant != Goldilocks::ZERO)
-        + combination
-            .terms
-            .iter()
-            .map(|term| match term.column {
-                ColumnRef::Input(_) => input_entries,
-                ColumnRef::Local(_) => 1,
-            })
-            .sum::<usize>()
-}
-
-fn sparse_entry_bound(combination: &SparseCombination) -> usize {
-    usize::from(combination.constant != Goldilocks::ZERO) + combination.terms.len()
-}
-
 pub fn load_file(path: impl AsRef<Path>, expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
     load(&fs::read(path)?, expected_identity)
 }
@@ -897,7 +620,18 @@ pub fn load(bytes: &[u8], expected_identity: [u64; 4]) -> Result<LoadedPackage, 
         return Err(PackageError::NonCanonicalBytes);
     }
 
-    let raw: RawPackage = serde_json::from_value(value.clone())?;
+    let RawPlan(schema, mut raw, permutation_blocks, compact_blocks): RawPlan = serde_json::from_value(value.clone())?;
+    if schema != 8 {
+        return Err(PackageError::Invalid("plan schema version"));
+    }
+    if !raw.7.is_empty() {
+        return Err(PackageError::Invalid("static permutation invocations"));
+    }
+    if !raw.9.is_empty() {
+        return Err(PackageError::Invalid("static compact invocations"));
+    }
+    raw.7 = permutation_plan::expand(permutation_blocks)?;
+    raw.9 = plan::expand(compact_blocks)?;
     let mut package = validate_package(raw, [0; 4])?;
     let computed_identity = relation_identifier(&value)?;
     if computed_identity != expected_identity {
@@ -921,12 +655,14 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         permutation,
         chains,
         invocations,
+        compact_templates,
+        compact_invocations,
         batches,
         instructions,
         assertion_rows,
         terminal,
     ) = raw;
-    if schema != 6 {
+    if schema != 7 {
         return Err(PackageError::Invalid("schema version"));
     }
     validate_profile(profile)?;
@@ -948,11 +684,15 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         .collect::<Result<Vec<_>, _>>()?;
     validate_permutation_invocation_order(&permutation_invocations)?;
 
+    let compact_templates = compact::validate_templates(compact_templates)?;
+
     let witness_segment = layout
         .private_segments
         .iter()
         .find(|segment| segment.role == 3)
         .ok_or(PackageError::Invalid("witness segment"))?;
+    let compact_invocations =
+        compact::validate_invocations(compact_invocations, &compact_templates, &layout, witness_segment.start)?;
     let witness_batches = batches
         .into_iter()
         .map(|batch| {
@@ -983,6 +723,8 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         &permutation,
         &hash_chains,
         &permutation_invocations,
+        &compact_templates,
+        &compact_invocations,
         &witness_instructions,
         &assertion_rows,
     )?;
@@ -995,6 +737,15 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
             invocation.witness_start,
             invocation.witness_start + permutation.local_column_count,
         )
+    }));
+    witness_intervals.extend(
+        compact_invocations
+            .iter()
+            .map(|invocation| (invocation.output_column, invocation.output_column + 1)),
+    );
+    witness_intervals.extend(compact_invocations.iter().filter_map(|invocation| {
+        let local_count = invocation.local_column_count(&compact_templates);
+        (local_count != 0).then_some((invocation.local_start, invocation.local_start + local_count))
     }));
     witness_intervals.extend(
         witness_batches
@@ -1014,6 +765,8 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         permutation,
         hash_chains,
         permutation_invocations,
+        compact_templates,
+        compact_invocations,
         witness_batches,
         witness_instructions,
         assertion_rows,
@@ -1410,6 +1163,8 @@ fn validate_row_coverage(
     template: &PermutationTemplate,
     chains: &[HashChain],
     invocations: &[PermutationInvocation],
+    compact_templates: &[CompactRowTemplate],
+    compact_invocations: &[CompactRowInvocation],
     instructions: &[WitnessInstruction],
     assertions: &[SparseRow],
 ) -> Result<(), PackageError> {
@@ -1422,6 +1177,12 @@ fn validate_row_coverage(
             .iter()
             .map(|invocation| (invocation.row_start, invocation.row_start + template.rows.len())),
     );
+    intervals.extend(compact_invocations.iter().map(|invocation| {
+        (
+            invocation.row_start,
+            invocation.row_start + invocation.row_count(compact_templates),
+        )
+    }));
     intervals.extend(
         instructions
             .iter()

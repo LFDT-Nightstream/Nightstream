@@ -4,6 +4,7 @@
 //! semantics, choose offsets, or merge the Pad and CCS evaluation families.
 
 use super::{canonical_field, LoadedPackage, PackageError, Segment};
+use crate::identity::{pi_ccs_v1_1_verifier_context, PiCcsV1_1VerifierContext};
 
 const PRIOR_PREIMAGE_ROLE: u64 = 1;
 const OUTPUT_PREIMAGE_ROLE: u64 = 2;
@@ -133,7 +134,7 @@ pub struct PiCcsV1_1PackageInputs {
     output_evaluations: PiCcsV1_1OutputEvaluations,
     prior_public_input: Vec<u64>,
     output_digest: [u64; 4],
-    verifier_context: [u64; PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS],
+    verifier_context: PiCcsV1_1VerifierContext,
 }
 
 impl PiCcsV1_1PackageInputs {
@@ -146,7 +147,7 @@ impl PiCcsV1_1PackageInputs {
         output_evaluations: PiCcsV1_1OutputEvaluations,
         prior_public_input: Vec<u64>,
         output_digest: [u64; 4],
-        verifier_context: [u64; PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS],
+        verifier_context: PiCcsV1_1VerifierContext,
     ) -> Result<Self, PackageError> {
         if prior_preimage.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS
             || output_preimage.len() != PI_CCS_V1_1_STATE_PREIMAGE_WORDS
@@ -176,7 +177,7 @@ impl PiCcsV1_1PackageInputs {
         }
         validate_words(&prior_public_input, "PiCCS v1_1 prior public input")?;
         validate_words(&output_digest, "PiCCS v1_1 output digest")?;
-        validate_words(&verifier_context, "PiCCS v1_1 verifier context")?;
+        validate_words(&verifier_context.digest(), "PiCCS v1_1 verifier context")?;
         Ok(Self {
             prior_preimage,
             output_preimage,
@@ -208,12 +209,24 @@ impl PiCcsV1_1EncodedInputs {
 }
 
 impl LoadedPackage {
+    /// Derive the only context value accepted by this loaded package. The
+    /// caller supplies canonical commitment-setup words, never a digest.
+    pub fn derive_pi_ccs_v1_1_verifier_context(
+        &self,
+        commitment_key_words: &[u64],
+    ) -> Result<PiCcsV1_1VerifierContext, PackageError> {
+        pi_ccs_v1_1_verifier_context(self.relation_identifier, commitment_key_words)
+    }
+
     /// Encode typed v1_1 values in the exact segment order owned by this
     /// verifier-checked package.
     pub fn encode_pi_ccs_v1_1_inputs(
         &self,
         inputs: &PiCcsV1_1PackageInputs,
     ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
+        if inputs.verifier_context.package_identity() != self.relation_identifier {
+            return Err(PackageError::Invalid("PiCCS v1_1 verifier-context package identity"));
+        }
         let mut private_values = Vec::with_capacity(self.private_input_count());
         private_values.extend_from_slice(&inputs.prior_preimage);
         private_values.extend_from_slice(&inputs.output_preimage);
@@ -240,7 +253,7 @@ impl LoadedPackage {
         let mut public_values = Vec::with_capacity(self.layout.public_column_count);
         public_values.extend_from_slice(&inputs.prior_public_input);
         public_values.extend_from_slice(&inputs.output_digest);
-        public_values.extend_from_slice(&inputs.verifier_context);
+        public_values.extend_from_slice(&inputs.verifier_context.digest());
         if public_values.len() != self.layout.public_column_count {
             return Err(PackageError::Invalid("PiCCS v1_1 encoded public-input length"));
         }

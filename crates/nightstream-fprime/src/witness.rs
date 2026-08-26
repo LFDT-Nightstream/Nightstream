@@ -11,7 +11,7 @@ use crate::package::{PackageError, GOLDILOCKS_MODULUS};
 pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
 
 #[derive(Clone, Debug)]
-enum WitnessExpr {
+pub(super) enum WitnessExpr {
     Var(usize),
     Const(Goldilocks),
     Add(Box<WitnessExpr>, Box<WitnessExpr>),
@@ -62,13 +62,31 @@ impl WitnessHint {
 
 impl WitnessExpr {
     fn eval(&self, assignment: &[Goldilocks]) -> Goldilocks {
+        self.eval_with(&|column| assignment[column])
+    }
+
+    pub(super) fn eval_with(&self, value: &impl Fn(usize) -> Goldilocks) -> Goldilocks {
         match self {
-            Self::Var(column) => assignment[*column],
+            Self::Var(column) => value(*column),
             Self::Const(value) => *value,
-            Self::Add(left, right) => left.eval(assignment) + right.eval(assignment),
-            Self::Mul(left, right) => left.eval(assignment) * right.eval(assignment),
+            Self::Add(left, right) => left.eval_with(value) + right.eval_with(value),
+            Self::Mul(left, right) => left.eval_with(value) * right.eval_with(value),
         }
     }
+}
+
+pub(super) fn decode_template_expr(
+    value: &Value,
+    input_count: usize,
+    output_input: usize,
+) -> Result<WitnessExpr, PackageError> {
+    decode_expr_with(value, &|column| {
+        if column >= input_count || column == output_input {
+            Err(PackageError::Invalid("compact output recipe input"))
+        } else {
+            Ok(())
+        }
+    })
 }
 
 pub(super) fn validate_witness_batch(
@@ -198,6 +216,19 @@ fn decode_expr(
     constant_column: usize,
     total_column_count: usize,
 ) -> Result<WitnessExpr, PackageError> {
+    decode_expr_with(value, &|column| {
+        if column >= total_column_count || column == constant_column || (column < constant_column && column >= target) {
+            Err(PackageError::Invalid("noncausal witness expression"))
+        } else {
+            Ok(())
+        }
+    })
+}
+
+fn decode_expr_with(
+    value: &Value,
+    validate_column: &impl Fn(usize) -> Result<(), PackageError>,
+) -> Result<WitnessExpr, PackageError> {
     let fields = value
         .as_array()
         .ok_or(PackageError::Invalid("witness expression"))?;
@@ -211,12 +242,7 @@ fn decode_expr(
                 .as_u64()
                 .and_then(|column| usize::try_from(column).ok())
                 .ok_or(PackageError::Invalid("witness expression column"))?;
-            if column >= total_column_count
-                || column == constant_column
-                || (column < constant_column && column >= target)
-            {
-                return Err(PackageError::Invalid("noncausal witness expression"));
-            }
+            validate_column(column)?;
             Ok(WitnessExpr::Var(column))
         }
         (1, [_, constant]) => {
@@ -232,12 +258,12 @@ fn decode_expr(
             Ok(WitnessExpr::Const(Goldilocks::from_u64(constant)))
         }
         (2, [_, left, right]) => Ok(WitnessExpr::Add(
-            Box::new(decode_expr(left, target, constant_column, total_column_count)?),
-            Box::new(decode_expr(right, target, constant_column, total_column_count)?),
+            Box::new(decode_expr_with(left, validate_column)?),
+            Box::new(decode_expr_with(right, validate_column)?),
         )),
         (3, [_, left, right]) => Ok(WitnessExpr::Mul(
-            Box::new(decode_expr(left, target, constant_column, total_column_count)?),
-            Box::new(decode_expr(right, target, constant_column, total_column_count)?),
+            Box::new(decode_expr_with(left, validate_column)?),
+            Box::new(decode_expr_with(right, validate_column)?),
         )),
         _ => Err(PackageError::Invalid("witness expression")),
     }

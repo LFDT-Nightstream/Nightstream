@@ -11,10 +11,10 @@ use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::{KExtensions, F, K};
 use nightstream_fprime::{
     load, LoadedPackage, PackageError, PackageProof, PackageProvingKey, PackageVerifyingKey,
-    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, ProofRun, PI_CCS_V1_1_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
-    PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext, ProofRun,
+    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
+    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
@@ -39,12 +39,14 @@ pub enum PiCcsV1_1PackageBridgeError {
 pub struct PiCcsV1_1PackageProver {
     package: Arc<LoadedPackage>,
     key: PackageProvingKey,
+    verifier_context: PiCcsV1_1VerifierContext,
 }
 
 /// Application-side verifier for the same identity-checked Lean package.
 pub struct PiCcsV1_1PackageVerifier {
     package: Arc<LoadedPackage>,
     key: PackageVerifyingKey,
+    verifier_context: PiCcsV1_1VerifierContext,
 }
 
 /// Direct proof for the loaded v1_1 package.
@@ -57,17 +59,21 @@ pub struct PiCcsV1_1PackageProof {
 pub fn load_pi_ccs_v1_1_package(
     bytes: &[u8],
     expected_identity: [u64; 4],
+    commitment_key_words: &[u64],
 ) -> Result<(PiCcsV1_1PackageProver, PiCcsV1_1PackageVerifier), PiCcsV1_1PackageBridgeError> {
     let package = Arc::new(load(bytes, expected_identity)?);
+    let verifier_context = package.derive_pi_ccs_v1_1_verifier_context(commitment_key_words)?;
     let (proving_key, verifying_key) = package.setup()?;
     Ok((
         PiCcsV1_1PackageProver {
             package: Arc::clone(&package),
             key: proving_key,
+            verifier_context: verifier_context.clone(),
         },
         PiCcsV1_1PackageVerifier {
             package,
             key: verifying_key,
+            verifier_context,
         },
     ))
 }
@@ -88,6 +94,10 @@ impl PiCcsV1_1PackageProver {
         self.package.relation_identifier()
     }
 
+    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
+        &self.verifier_context
+    }
+
     pub fn matrix_stats(&self) -> ProofRun {
         self.key.matrix_stats()
     }
@@ -101,6 +111,9 @@ impl PiCcsV1_1PackageVerifier {
         proof: &PiCcsV1_1PackageProof,
         expected_public: &[u64],
     ) -> Result<(), PiCcsV1_1PackageBridgeError> {
+        if expected_public.len() < 4 || expected_public[expected_public.len() - 4..] != self.verifier_context.digest() {
+            return Err(PiCcsV1_1PackageBridgeError::Shape("verifier context public input"));
+        }
         Ok(self
             .package
             .verify(&self.key, &proof.proof, expected_public)?)
@@ -108,6 +121,10 @@ impl PiCcsV1_1PackageVerifier {
 
     pub fn relation_identifier(&self) -> [u64; 4] {
         self.package.relation_identifier()
+    }
+
+    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
+        &self.verifier_context
     }
 }
 
@@ -211,7 +228,7 @@ impl PiCcsV1_1ProofInputs {
         output_preimage: Vec<u64>,
         prior_public_input: Vec<u64>,
         output_digest: [u64; 4],
-        verifier_context: [u64; 4],
+        verifier_context: PiCcsV1_1VerifierContext,
     ) -> Result<PiCcsV1_1PackageInputs, PiCcsV1_1PackageBridgeError> {
         Ok(PiCcsV1_1PackageInputs::new(
             prior_preimage,

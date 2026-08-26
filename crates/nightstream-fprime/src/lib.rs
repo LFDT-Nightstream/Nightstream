@@ -10,6 +10,7 @@ mod proof;
 mod sparse;
 mod witness;
 
+pub use identity::PiCcsV1_1VerifierContext;
 pub use package::{
     derive_pi_ccs_v1_1_transcript, load, load_file, CcsMatrixSource, LoadedPackage, PackageCcsRelation, PackageError,
     PackagePolynomialTerm, PackageProof, PackageProvingKey, PackageR1cs, PackageSparseMatrix, PackageVerifyingKey,

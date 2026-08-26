@@ -20,8 +20,10 @@ use nightstream_fprime::{
     load, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
+// Last validated PiCCS-only identity. Do not replace it until the final
+// package passes the matrix, assignment, parity, and mutation gates.
 const PACKAGE_IDENTITY: [u64; 4] = [
     4_149_794_454_264_745_319,
     3_860_295_598_124_073_314,
@@ -215,7 +217,23 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
             adv: None,
         })
         .collect::<Vec<_>>();
-    let verifier_key_digest = [F::from_u64(101), F::from_u64(102), F::from_u64(103), F::from_u64(104)];
+    let parity: serde_json::Value =
+        serde_json::from_slice(&fs::read(parity_path()).expect("Lean parity bytes")).expect("Lean parity JSON");
+    let parity = parity.as_array().expect("Lean parity tuple");
+    assert_eq!(parity[0].as_u64(), Some(7));
+    let parity_input = parity[1].as_array().expect("Lean parity input tuple");
+    let authority: Vec<Vec<u64>> =
+        serde_json::from_value(parity_input[11].clone()).expect("Lean verifier-context authority");
+    let package = load(&fs::read(package_path()).expect("Lean package bytes"), PACKAGE_IDENTITY)
+        .expect("verifier-owned Lean package");
+    let verifier_context = package
+        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
+        .expect("package-bound verifier context");
+    assert_eq!(verifier_context.relation_words(), authority[0]);
+    assert_eq!(verifier_context.application_words(), authority[1]);
+    assert_eq!(verifier_context.nifs_key_words(), authority[2]);
+    assert_eq!(verifier_context.commitment_key_words(), authority[3]);
+    let verifier_key_digest = verifier_context.digest().map(F::from_u64);
     let z0 = [F::from_u64(201), F::from_u64(202), F::from_u64(203), F::from_u64(204)];
     let current = [F::from_u64(301), F::from_u64(302), F::from_u64(303), F::from_u64(304)];
     let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_key_digest, 7, z0, current, &running, 1)
@@ -238,11 +256,6 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     assert_eq!(&prior_public_input[1..5], digest);
     assert!(prior_public_input[5..].iter().all(|word| *word == 0));
 
-    let parity: serde_json::Value =
-        serde_json::from_slice(&fs::read(parity_path()).expect("Lean parity bytes")).expect("Lean parity JSON");
-    let parity = parity.as_array().expect("Lean parity tuple");
-    assert_eq!(parity[0].as_u64(), Some(6));
-    let parity_input = parity[1].as_array().expect("Lean parity input tuple");
     let lean_preimage: Vec<u64> = serde_json::from_value(parity_input[0].clone()).expect("Lean state preimage");
     let lean_digest: [u64; 4] = serde_json::from_value(parity_input[3].clone()).expect("Lean state digest");
     let lean_context: [u64; 4] = serde_json::from_value(parity_input[4].clone()).expect("Lean verifier context");
@@ -257,7 +270,6 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     );
     assert_eq!(&lean_preimage[24..28], lean_context);
 
-    let verifier_context = verifier_key_digest.map(|value| value.as_canonical_u64());
     let inputs = bridge
         .into_package_inputs(
             prior_preimage.clone(),
@@ -267,8 +279,6 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
             verifier_context,
         )
         .expect("complete package input value");
-    let package = load(&fs::read(package_path()).expect("Lean package bytes"), PACKAGE_IDENTITY)
-        .expect("verifier-owned Lean package");
     let encoded = package
         .encode_pi_ccs_v1_1_inputs(&inputs)
         .expect("package-owned physical encoding");

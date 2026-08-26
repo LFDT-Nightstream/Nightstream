@@ -1,13 +1,15 @@
 use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    derive_pi_ccs_v1_1_transcript, load, CcsMatrixSource, PackageError, PiCcsV1_1OutputEvaluations,
+    derive_pi_ccs_v1_1_transcript, load, CcsMatrixSource, LoadedPackage, PackageError, PiCcsV1_1OutputEvaluations,
     PiCcsV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS,
     PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
 };
 use serde_json::{json, Value};
 
+// Last validated PiCCS-only identity. Do not replace it until the final
+// schema-7 package passes the matrix, assignment, parity, and mutation gates.
 const EXPECTED_IDENTITY: [u64; 4] = [
     4_149_794_454_264_745_319,
     3_860_295_598_124_073_314,
@@ -69,13 +71,17 @@ fn assert_canonical_package_matrix(matrix: &nightstream_fprime::PackageSparseMat
 }
 
 fn package_inputs(
+    package: &LoadedPackage,
     output_evaluations: PiCcsV1_1OutputEvaluations,
     digest: [u64; 4],
-    verifier_context: [u64; 4],
+    commitment_key_words: &[u64],
 ) -> PiCcsV1_1PackageInputs {
     let mut prior_public_input = vec![0; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
     prior_public_input[1..5].copy_from_slice(&digest);
+    let verifier_context = package
+        .derive_pi_ccs_v1_1_verifier_context(commitment_key_words)
+        .expect("fixed verifier context");
     PiCcsV1_1PackageInputs::new(
         vec![0; PI_CCS_V1_1_STATE_PREIMAGE_WORDS],
         vec![0; PI_CCS_V1_1_STATE_PREIMAGE_WORDS],
@@ -94,17 +100,39 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 17_755_828);
-    assert_eq!(package.private_column_count(), 17_869_520);
+    assert_eq!(package.row_count(), 25_556_958);
+    assert_eq!(package.private_column_count(), 25_669_001);
     assert_eq!(package.private_input_count(), 113_962);
     assert_eq!(package.public_column_count(), 62);
-    assert_eq!(package.total_column_count(), 17_869_583);
+    assert_eq!(package.total_column_count(), 25_669_064);
     assert_eq!(package.template_row_count(), 592);
     assert_eq!(package.permutation_invocation_count(), 7_460);
+    assert_eq!(package.compact_template_count(), 108);
+    assert_eq!(package.compact_invocation_count(), 44_982);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        765_428
+        1_774_276
     );
+}
+
+#[test]
+fn verifier_context_derivation_binds_the_raw_commitment_setup() {
+    let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
+    let original = package
+        .derive_pi_ccs_v1_1_verifier_context(&[1, 2, 3])
+        .expect("canonical verifier context");
+    let changed = package
+        .derive_pi_ccs_v1_1_verifier_context(&[1, 2, 4])
+        .expect("changed verifier context");
+
+    assert_eq!(original.relation_words(), changed.relation_words());
+    assert_eq!(original.application_words(), changed.application_words());
+    assert_ne!(original.nifs_key_words(), changed.nifs_key_words());
+    assert_ne!(original.commitment_key_words(), changed.commitment_key_words());
+    assert_ne!(original.digest(), changed.digest());
+    assert!(package
+        .derive_pi_ccs_v1_1_verifier_context(&[GOLDILOCKS_MODULUS])
+        .is_err());
 }
 
 #[test]
@@ -194,7 +222,7 @@ fn lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
 
     let output = PiCcsV1_1OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("separate v1_1 output families");
-    let inputs = package_inputs(output, [0; 4], [0; 4]);
+    let inputs = package_inputs(&package, output, [0; 4], &[1]);
     let encoded = package
         .encode_pi_ccs_v1_1_inputs(&inputs)
         .expect("package-owned v1_1 input encoding");
@@ -209,7 +237,7 @@ fn lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
 fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     let parity: Value = serde_json::from_slice(&pi_ccs_parity_bytes()).expect("Lean PiCCS parity vector");
     let parity = parity.as_array().expect("PiCCS parity tuple");
-    assert_eq!(parity[0].as_u64(), Some(6));
+    assert_eq!(parity[0].as_u64(), Some(7));
     let input = parity[1].as_array().expect("PiCCS input tuple");
     let result = parity[2].as_array().expect("PiCCS result tuple");
     let state_preimage: Vec<u64> = serde_json::from_value(input[0].clone()).expect("prior preimage");
@@ -223,6 +251,7 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     let expected_eval_a: Vec<Vec<Vec<[u64; 2]>>> = serde_json::from_value(input[8].clone()).expect("output Eval_A");
     let public: Vec<Vec<u64>> = serde_json::from_value(input[9].clone()).expect("public statement blocks");
     let verifier: Vec<Vec<u64>> = serde_json::from_value(input[10].clone()).expect("verifier input blocks");
+    let authority: Vec<Vec<u64>> = serde_json::from_value(input[11].clone()).expect("verifier context authority");
     let alpha: Vec<[u64; 2]> = serde_json::from_value(result[1].clone()).expect("alpha");
     let gamma: [u64; 2] = serde_json::from_value(result[2].clone()).expect("gamma");
     let round_point: Vec<[u64; 2]> = serde_json::from_value(result[6].clone()).expect("round point");
@@ -253,6 +282,15 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     assert_eq!(actual.outgoing_state(), outgoing_state);
 
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
+    assert_eq!(authority.len(), 4);
+    let derived_context = package
+        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
+        .expect("package-bound verifier context");
+    assert_eq!(derived_context.relation_words(), authority[0]);
+    assert_eq!(derived_context.application_words(), authority[1]);
+    assert_eq!(derived_context.nifs_key_words(), authority[2]);
+    assert_eq!(derived_context.commitment_key_words(), authority[3]);
+    assert_eq!(derived_context.digest(), verifier_context);
     let output_evaluations = PiCcsV1_1OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("nonzero output evaluations");
     let inputs = PiCcsV1_1PackageInputs::new(
@@ -263,7 +301,7 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
         output_evaluations,
         state_public_input,
         state_digest,
-        verifier_context,
+        derived_context,
     )
     .expect("nonzero package inputs");
     let encoded = package
@@ -295,7 +333,7 @@ fn loader_rejects_a_different_verifier_owned_identity() {
 #[test]
 fn loader_rejects_a_mutated_package_under_the_expected_identity() {
     let mut value = artifact_value();
-    package_array(&mut value)[10]
+    package_array(&mut value)[12]
         .as_array_mut()
         .expect("assertion rows")[0]
         .as_array_mut()

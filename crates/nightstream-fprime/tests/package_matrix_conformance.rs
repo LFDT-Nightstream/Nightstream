@@ -22,6 +22,8 @@ struct RawPackage(
     RawTemplate,
     Vec<RawChain>,
     Vec<RawInvocation>,
+    Vec<RawCompactTemplate>,
+    Vec<RawCompactInvocation>,
     IgnoredAny,
     Vec<RawInstruction>,
     Vec<RawRow>,
@@ -58,6 +60,23 @@ struct RawChain(u64, u64, u64, u64, u64, u64, u64, u64, u64);
 struct RawInvocation(u64, u64, u64, Vec<RawCombination>);
 
 #[derive(Deserialize)]
+struct RawCompactTemplate(u64, u64, u64, IgnoredAny, Vec<RawCompactRow>);
+
+#[derive(Deserialize)]
+struct RawCompactRow(
+    IgnoredAny,
+    RawTemplateCombination,
+    RawTemplateCombination,
+    RawTemplateCombination,
+);
+
+#[derive(Deserialize)]
+struct RawCompactRange(u64, u64, u64, u64);
+
+#[derive(Deserialize)]
+struct RawCompactInvocation(u64, u64, u64, u64, Vec<RawCompactRange>);
+
+#[derive(Deserialize)]
 struct RawInstruction(u64, u64, RawCombination, RawCombination);
 
 #[derive(Deserialize)]
@@ -88,6 +107,10 @@ enum Event<'a> {
         row_start: usize,
         invocation: Invocation<'a>,
     },
+    Compact {
+        invocation: &'a RawCompactInvocation,
+        template: &'a RawCompactTemplate,
+    },
     Witness(&'a RawInstruction),
     Assertion(&'a RawRow),
 }
@@ -96,6 +119,7 @@ impl Event<'_> {
     fn row_start(self) -> usize {
         match self {
             Self::Permutation { row_start, .. } => row_start,
+            Self::Compact { invocation, .. } => word(invocation.2),
             Self::Witness(row) => word(row.0),
             Self::Assertion(row) => word(row.0),
         }
@@ -242,7 +266,45 @@ fn template_terms(
     canonicalize(terms)
 }
 
+fn compact_input_column(invocation: &RawCompactInvocation, input: usize) -> usize {
+    for range in &invocation.4 {
+        let input_start = word(range.0);
+        let input_count = word(range.1);
+        if input_start <= input && input < input_start + input_count {
+            return word(range.2) + (input - input_start) * word(range.3);
+        }
+    }
+    panic!("reference compact input coverage")
+}
+
+fn compact_terms(
+    combination: &RawTemplateCombination,
+    invocation: &RawCompactInvocation,
+    layout: &ReferenceLayout,
+) -> Vec<(usize, u64)> {
+    let mut terms = Vec::with_capacity(combination.1.len() + 1);
+    add_term(&mut terms, layout.constant_column(), combination.0);
+    for term in &combination.1 {
+        let index = word(term.0 .1);
+        let column = match term.0 .0 {
+            0 => compact_input_column(invocation, index),
+            1 => word(invocation.3) + index,
+            _ => panic!("reference compact column tag"),
+        };
+        add_term(&mut terms, layout.map_column(column), term.1);
+    }
+    canonicalize(terms)
+}
+
 fn template_side(row: &RawTemplateRow, side: MatrixSide) -> &RawTemplateCombination {
+    match side {
+        MatrixSide::A => &row.1,
+        MatrixSide::B => &row.2,
+        MatrixSide::C => &row.3,
+    }
+}
+
+fn compact_side(row: &RawCompactRow, side: MatrixSide) -> &RawTemplateCombination {
     match side {
         MatrixSide::A => &row.1,
         MatrixSide::B => &row.2,
@@ -270,6 +332,9 @@ fn expected_row(
             let row = &template.3[template_ordinal];
             assert_eq!(word(row.0), template_ordinal);
             template_terms(template_side(row, side), invocation, layout)
+        }
+        Event::Compact { invocation, template } => {
+            compact_terms(compact_side(&template.4[template_ordinal], side), invocation, layout)
         }
         Event::Witness(instruction) => match side {
             MatrixSide::A => sparse_terms(&instruction.2, layout),
@@ -351,15 +416,15 @@ fn json_extensions(value: &Value, location: &str) -> Vec<[u64; 2]> {
         .collect()
 }
 
-fn nonzero_inputs() -> PiCcsV1_1PackageInputs {
+fn nonzero_inputs(package: &nightstream_fprime::LoadedPackage) -> PiCcsV1_1PackageInputs {
     let bytes = fs::read(parity_path()).expect("Lean-emitted PiCCS parity bytes");
     let parity: Value = serde_json::from_slice(&bytes).expect("PiCCS parity JSON");
     let parity = parity.as_array().expect("PiCCS parity tuple");
     assert_eq!(parity.len(), 3, "PiCCS parity tuple length");
-    assert_eq!(parity[0].as_u64(), Some(6), "PiCCS parity schema");
+    assert_eq!(parity[0].as_u64(), Some(7), "PiCCS parity schema");
     let input = parity[1].as_array().expect("PiCCS parity input tuple");
     let result = parity[2].as_array().expect("PiCCS parity result tuple");
-    assert_eq!(input.len(), 11, "PiCCS parity input tuple length");
+    assert_eq!(input.len(), 12, "PiCCS parity input tuple length");
     assert_eq!(result.len(), 16, "PiCCS parity result tuple length");
     assert_eq!(result[0].as_u64(), Some(1), "Lean PiCCS acceptance");
     assert!(json_words(&result[15], "PiCCS parity assurance")
@@ -375,6 +440,21 @@ fn nonzero_inputs() -> PiCcsV1_1PackageInputs {
     let verifier_context: [u64; 4] = json_words(&input[4], "PiCCS parity verifier context")
         .try_into()
         .expect("PiCCS parity verifier-context width");
+    let authority = input[11]
+        .as_array()
+        .expect("PiCCS parity verifier-context authority")
+        .iter()
+        .map(|words| json_words(words, "PiCCS parity verifier-context authority words"))
+        .collect::<Vec<_>>();
+    assert_eq!(authority.len(), 4);
+    let derived_context = package
+        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
+        .expect("package-bound verifier context");
+    assert_eq!(derived_context.relation_words(), authority[0]);
+    assert_eq!(derived_context.application_words(), authority[1]);
+    assert_eq!(derived_context.nifs_key_words(), authority[2]);
+    assert_eq!(derived_context.commitment_key_words(), authority[3]);
+    assert_eq!(derived_context.digest(), verifier_context);
     let fresh_commitment = json_words(&input[5], "PiCCS parity fresh commitment");
     assert_eq!(fresh_commitment.len(), PI_CCS_V1_1_FRESH_COMMITMENT_WORDS);
     assert!(fresh_commitment.iter().all(|word| *word != 0));
@@ -431,7 +511,7 @@ fn nonzero_inputs() -> PiCcsV1_1PackageInputs {
         output_evaluations,
         prior_public_input,
         output_digest,
-        verifier_context,
+        derived_context,
     )
     .expect("canonical PiCCS package inputs")
 }
@@ -473,8 +553,23 @@ fn events(raw: &RawPackage) -> Vec<Event<'_>> {
             invocation: Invocation::Explicit(invocation),
         }
     }));
-    events.extend(raw.9.iter().map(Event::Witness));
-    events.extend(raw.10.iter().map(Event::Assertion));
+    events.extend(raw.9.iter().map(|invocation| {
+        assert_ne!(invocation.0, 0, "reference compact phase");
+        let template = &raw.8[word(invocation.1)];
+        assert!(word(template.2) < word(template.0), "reference compact output input");
+        assert_eq!(template.4.len(), word(template.1) + 1, "reference compact rows");
+        let mut input_cursor = 0usize;
+        for range in &invocation.4 {
+            assert_eq!(word(range.0), input_cursor, "reference compact input order");
+            assert_ne!(word(range.1), 0, "reference compact input count");
+            assert_ne!(word(range.3), 0, "reference compact column stride");
+            input_cursor += word(range.1);
+        }
+        assert_eq!(input_cursor, word(template.0), "reference compact input coverage");
+        Event::Compact { invocation, template }
+    }));
+    events.extend(raw.11.iter().map(Event::Witness));
+    events.extend(raw.12.iter().map(Event::Assertion));
     events.sort_unstable_by_key(|event| event.row_start());
     events
 }
@@ -487,7 +582,7 @@ fn final_rust_matrices_equal_the_lean_padded_rows_entry_for_entry() {
     let matrices = package.r1cs_matrices().expect("final package matrices");
     let raw: RawPackage = serde_json::from_slice(&bytes).expect("independent package decode");
 
-    assert_eq!(raw.0, 6);
+    assert_eq!(raw.0, 7);
     let cube_variables = package.ccs_relation().cube_variables();
     let domain_size = 1usize << cube_variables;
     let layout = ReferenceLayout {
@@ -517,6 +612,7 @@ fn final_rust_matrices_equal_the_lean_padded_rows_entry_for_entry() {
         assert_eq!(event.row_start(), row_cursor, "independent row schedule");
         let row_count = match event {
             Event::Permutation { .. } => raw.5 .3.len(),
+            Event::Compact { template, .. } => template.4.len(),
             Event::Witness(_) | Event::Assertion(_) => 1,
         };
         for ordinal in 0..row_count {
@@ -561,7 +657,7 @@ fn final_rust_matrices_equal_the_lean_padded_rows_entry_for_entry() {
     }
     drop(matrices);
 
-    let inputs = nonzero_inputs();
+    let inputs = nonzero_inputs(&package);
     let encoded = package
         .encode_pi_ccs_v1_1_inputs(&inputs)
         .expect("canonical PiCCS input encoding");
@@ -627,6 +723,7 @@ fn final_rust_matrices_equal_the_lean_padded_rows_entry_for_entry() {
         assert_eq!(event.row_start(), checked_rows, "independent assignment row schedule");
         let row_count = match event {
             Event::Permutation { .. } => raw.5 .3.len(),
+            Event::Compact { template, .. } => template.4.len(),
             Event::Witness(_) | Event::Assertion(_) => 1,
         };
         for ordinal in 0..row_count {

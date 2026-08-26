@@ -86,50 +86,6 @@ impl WasmMemoryId {
             Self::TableElement => "table_element",
         }
     }
-
-    pub const fn is_rom(self) -> bool {
-        match self {
-            Self::CallStackCallerFbp
-            | Self::CallStackCallerSpBase
-            | Self::CallStackReturnPc
-            | Self::GlobalLo
-            | Self::GlobalHi
-            | Self::LinearMemory
-            | Self::LocalLo
-            | Self::LocalHi
-            | Self::Stack
-            | Self::TableSize
-            | Self::TableElement => false,
-            Self::CallTarget
-            | Self::FunctionCallMetadata
-            | Self::FunctionEntry
-            | Self::FunctionLocalCount
-            | Self::FunctionType
-            | Self::HostEventExportEntryScheduleCount
-            | Self::HostEventExportExitScheduleCount
-            | Self::HostEventImportScheduleCount
-            | Self::HostEventSlotArg
-            | Self::HostEventSlotImmediate1
-            | Self::HostEventSlotImmediate0
-            | Self::HostEventSlotKind
-            | Self::HostEventSlotVariant
-            | Self::ModuleType
-            | Self::PcEdgeKind
-            | Self::PcFunctionRef
-            | Self::PcRom
-            | Self::ProgramCallIndirectExpectedTypeId
-            | Self::ProgramCallIndirectTypeIndex
-            | Self::ProgramGlobalIndex
-            | Self::ProgramI32ConstValue
-            | Self::ProgramI64ConstValueHi
-            | Self::ProgramI64ConstValueLo
-            | Self::ProgramLocalIndex
-            | Self::ProgramMemoryOffset
-            | Self::ProgramOpcode
-            | Self::ProgramRefFuncRef
-            | Self::ProgramTableId => true,
-        }
-    }
 }
 
 impl std::fmt::Display for WasmMemoryId {

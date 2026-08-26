@@ -1,5 +1,5 @@
 use super::isa::{WasmOpTable, WasmOpcode};
-use super::ivc_state::{build_ivc_state_continuity_links, WasmCrossStepLinkSpec};
+use super::ivc_state::build_ivc_state_continuity_links;
 use super::layout::{
     selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT,
@@ -51,6 +51,9 @@ use super::layout::{
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
 use super::WasmMemoryId;
+use neo_application::{
+    ContinuityCatalog, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
+};
 use std::sync::OnceLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,45 +76,6 @@ pub struct WasmLookupBindingSpec {
     pub columns: Vec<Column>,
     pub gate: Option<Column>,
     pub role: &'static str,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmMemorySpec {
-    pub id: WasmMemoryId,
-    pub ports: Vec<WasmMemoryPortSpec>,
-}
-
-/// Declares one row-local read or write port into a logical WASM memory.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmMemoryPortSpec {
-    pub address_columns: Vec<Column>,
-    pub value_column: Column,
-    pub kind: WasmMemoryPortKind,
-    pub activation: WasmMemoryActivation,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WasmMemoryPortKind {
-    Read,
-    Write {
-        /// The column witnessing the prior memory state at `address_columns`.
-        /// `None` means the wasm CCS does not constrain the prior value beyond what
-        /// the memory argument enforces (the read witness still participates in the
-        /// mcc). `Some(c)` means row-local CCS constraints reference `c` — e.g.,
-        /// subword stores' byte-preservation rows compare bytes of `c` against
-        /// bytes of `value_column`. So the MCC needs to either emit an equality
-        /// constraint to this column, or use it directly.
-        value_before_column: Option<Column>,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WasmMemoryActivation {
-    // TODO: Review removing this variant together with its Nebula
-    // `MemoryPortActivation::UnlessColumn` lowering; the current WASM layout
-    // declares no always-active memory ports.
-    Always,
-    BooleanGate(Column),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,8 +149,8 @@ pub struct SignExtensionColumns {
 pub struct WasmAuxiliaryRelations {
     pub lookup_families: Vec<WasmLookupFamilySpec>,
     pub lookup_bindings: Vec<WasmLookupBindingSpec>,
-    pub memories: Vec<WasmMemorySpec>,
-    pub ivc_state_links: Vec<WasmCrossStepLinkSpec>,
+    pub memory: MemoryCatalog<WasmMemoryId>,
+    pub continuity: ContinuityCatalog,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -200,17 +164,26 @@ fn rom_read_spec(
     id: WasmMemoryId,
     address_columns: Vec<Column>,
     value_column: Column,
-    activation: WasmMemoryActivation,
-) -> WasmMemorySpec {
-    WasmMemorySpec {
+    activation: MemoryPortActivation,
+) -> MemorySpec<WasmMemoryId> {
+    MemorySpec {
         id,
-        ports: vec![WasmMemoryPortSpec {
-            address_columns,
-            value_column,
-            kind: WasmMemoryPortKind::Read,
+        kind: MemoryKind::Rom,
+        ports: vec![MemoryPortSpec {
+            address_columns: address_columns.into_iter().map(|column| column.0).collect(),
+            value_column: value_column.0,
+            kind: MemoryPortKind::Read,
             activation,
         }],
     }
+}
+
+fn memory_columns<const N: usize>(columns: [Column; N]) -> Vec<usize> {
+    columns.into_iter().map(|column| column.0).collect()
+}
+
+const fn active_when(column: Column) -> MemoryPortActivation {
+    MemoryPortActivation::When(column.0)
 }
 
 pub fn build_wasm_relation_layout() -> &'static WasmRelationLayout {
@@ -398,137 +371,142 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         .collect();
 
     let memories = vec![
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::Stack,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_LO[0])],
-                    value_column: Column(COL_STACK_READ_VALUE_LO[0]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[0])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
+                    value_column: COL_STACK_READ_VALUE_LO[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_HI[0])],
-                    value_column: Column(COL_STACK_READ_VALUE_HI[0]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[0])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
+                    value_column: COL_STACK_READ_VALUE_HI[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_LO[0])],
-                    value_column: Column(COL_STACK_READ_VALUE_LO[0]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_OUTPUT_CAPTURED)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
+                    value_column: COL_STACK_READ_VALUE_LO[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_OUTPUT_CAPTURED)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_HI[0])],
-                    value_column: Column(COL_STACK_READ_VALUE_HI[0]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_OUTPUT_CAPTURED)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
+                    value_column: COL_STACK_READ_VALUE_HI[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_OUTPUT_CAPTURED)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_LO[1])],
-                    value_column: Column(COL_STACK_READ_VALUE_LO[1]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[1])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[1])]),
+                    value_column: COL_STACK_READ_VALUE_LO[1],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[1])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_HI[1])],
-                    value_column: Column(COL_STACK_READ_VALUE_HI[1]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[1])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[1])]),
+                    value_column: COL_STACK_READ_VALUE_HI[1],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[1])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_LO[2])],
-                    value_column: Column(COL_STACK_READ_VALUE_LO[2]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[2])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[2])]),
+                    value_column: COL_STACK_READ_VALUE_LO[2],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_READ_ADDR_HI[2])],
-                    value_column: Column(COL_STACK_READ_VALUE_HI[2]),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ_ACTIVE[2])),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[2])]),
+                    value_column: COL_STACK_READ_VALUE_HI[2],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_WRITE0_ADDR_LO)],
-                    value_column: Column(COL_STACK_WRITE0_VALUE_LO),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_WRITE0_ADDR_LO)]),
+                    value_column: COL_STACK_WRITE0_VALUE_LO,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_WRITE0_ACTIVE)),
+                    activation: active_when(Column(COL_STACK_WRITE0_ACTIVE)),
                 },
                 // The hi-word port has its own gate: it fires with the lo
                 // port on ordinary writes, and ALONE on result-hi gather
                 // rows (which write only the pushed cell's hi lane).
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_STACK_WRITE0_ADDR_HI)],
-                    value_column: Column(COL_STACK_WRITE0_VALUE_HI),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_WRITE0_ADDR_HI)]),
+                    value_column: COL_STACK_WRITE0_VALUE_HI,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_WRITE0_HI_ACTIVE)),
+                    activation: active_when(Column(COL_STACK_WRITE0_HI_ACTIVE)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::CallStackReturnPc,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_RETURN_PC_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_RETURN_PC_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                    activation: active_when(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_RETURN_PC_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_RETURN_PC_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::CallStackCallerFbp,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_CALLER_FBP_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_CALLER_FBP_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                    activation: active_when(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_CALLER_FBP_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_CALLER_FBP_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::CallStackCallerSpBase,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_CALLER_SP_BASE_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                    activation: active_when(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
-                    value_column: Column(COL_CALL_STACK_CALLER_SP_BASE_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_STACK_ADDR)]),
+                    value_column: COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::LinearMemory,
+            kind: MemoryKind::Ram,
             ports: vec![
                 // Linear-memory rows are split into pure-Read (loads) and
                 // RMW Write (stores) per the Nebula-style memory argument:
@@ -541,301 +519,287 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 // malicious prover from corrupting memory via a load row.
                 // See `i32_store8_memory_check_rejects_tampered_consistent_prior_state`
                 // for the test guarding the store side.
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane0_addr],
-                    value_column: linear_memory.lane0_value,
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_load_active),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane0_addr]),
+                    value_column: linear_memory.lane0_value.0,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(linear_memory.lane0_load_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane1_addr],
-                    value_column: linear_memory.lane1_value,
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_load_active),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane1_addr]),
+                    value_column: linear_memory.lane1_value.0,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(linear_memory.lane1_load_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane2_addr],
-                    value_column: linear_memory.lane2_value,
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_load_active),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane2_addr]),
+                    value_column: linear_memory.lane2_value.0,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(linear_memory.lane2_load_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane0_addr],
-                    value_column: linear_memory.lane0_value,
-                    kind: WasmMemoryPortKind::Write {
-                        value_before_column: Some(linear_memory.lane0_value_before),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane0_addr]),
+                    value_column: linear_memory.lane0_value.0,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(linear_memory.lane0_value_before.0),
                     },
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_store_active),
+                    activation: active_when(linear_memory.lane0_store_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane1_addr],
-                    value_column: linear_memory.lane1_value,
-                    kind: WasmMemoryPortKind::Write {
-                        value_before_column: Some(linear_memory.lane1_value_before),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane1_addr]),
+                    value_column: linear_memory.lane1_value.0,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(linear_memory.lane1_value_before.0),
                     },
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_store_active),
+                    activation: active_when(linear_memory.lane1_store_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane2_addr],
-                    value_column: linear_memory.lane2_value,
-                    kind: WasmMemoryPortKind::Write {
-                        value_before_column: Some(linear_memory.lane2_value_before),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane2_addr]),
+                    value_column: linear_memory.lane2_value.0,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(linear_memory.lane2_value_before.0),
                     },
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_store_active),
+                    activation: active_when(linear_memory.lane2_store_active),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane0_addr],
-                    value_column: linear_memory.lane0_value,
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        crate::ccs::host_event_chain::gather_memory_read_kind_col(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane0_addr]),
+                    value_column: linear_memory.lane0_value.0,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_read_kind_col())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![linear_memory.lane0_addr],
-                    value_column: linear_memory.lane0_value,
-                    kind: WasmMemoryPortKind::Write {
-                        value_before_column: Some(linear_memory.lane0_value_before),
+                MemoryPortSpec {
+                    address_columns: memory_columns([linear_memory.lane0_addr]),
+                    value_column: linear_memory.lane0_value.0,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(linear_memory.lane0_value_before.0),
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        crate::ccs::host_event_chain::gather_memory_write_kind_col(),
-                    )),
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_write_kind_col())),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::LocalLo,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        crate::ccs::host_event_chain::gather_memory_local_base_col(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_LOCAL_WRITE_ENABLED)),
+                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
+                    activation: active_when(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
                 // Input bootstrap: lo-lane entry gather rows write the
                 // entry-input word into the entry frame's locals.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_WRITE_LO)),
+                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE_LO)),
                 },
             ],
         },
         // Parallel high-limb cells log for locals, keyed like `locals`.
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::LocalHi,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_LOCAL_WRITE_ENABLED)),
+                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
+                    activation: active_when(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
                 // Input bootstrap: every input-local row writes the hi
                 // lane — zero on lo rows (total write), the input word on
                 // hi rows (the CCS pins the value column either way).
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
-                    value_column: Column(COL_LOCAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_WRITE)),
+                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::GlobalLo,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_GLOBAL_INDEX)],
-                    value_column: Column(COL_GLOBAL_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_GLOBAL_INDEX)]),
+                    value_column: COL_GLOBAL_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::GlobalGet).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_GLOBAL_INDEX)],
-                    value_column: Column(COL_GLOBAL_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_GLOBAL_INDEX)]),
+                    value_column: COL_GLOBAL_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
-                    )),
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::GlobalSet).unwrap())),
                 },
             ],
         },
         // Parallel high-limb cells log for globals.
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::GlobalHi,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_GLOBAL_INDEX)],
-                    value_column: Column(COL_GLOBAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_GLOBAL_INDEX)]),
+                    value_column: COL_GLOBAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::GlobalGet).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_GLOBAL_INDEX)],
-                    value_column: Column(COL_GLOBAL_VALUE_HI),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_GLOBAL_INDEX)]),
+                    value_column: COL_GLOBAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
-                    )),
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::GlobalSet).unwrap())),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::TableElement,
+            kind: MemoryKind::Ram,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_TABLE_ID), Column(COL_TABLE_INDEX)],
-                    value_column: Column(COL_TABLE_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_TABLE_READ_ENABLED)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_TABLE_ID), Column(COL_TABLE_INDEX)]),
+                    value_column: COL_TABLE_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_TABLE_READ_ENABLED)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_TABLE_ID), Column(COL_TABLE_INDEX)],
-                    value_column: Column(COL_TABLE_VALUE),
-                    kind: WasmMemoryPortKind::Write {
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_TABLE_ID), Column(COL_TABLE_INDEX)]),
+                    value_column: COL_TABLE_VALUE,
+                    kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::TableSet).unwrap(),
-                    )),
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::TableSet).unwrap())),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::TableSize,
+            kind: MemoryKind::Ram,
             // Read by table.size and by call_indirect: the latter binds the
             // authoritative table size for the OOB comparison, so the gate
             // stays on even on a trapping call_indirect row.
-            ports: vec![WasmMemoryPortSpec {
-                address_columns: vec![Column(COL_TABLE_ID)],
-                value_column: Column(COL_TABLE_SIZE),
-                kind: WasmMemoryPortKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(COL_TABLE_SIZE_READ_ENABLED)),
+            ports: vec![MemoryPortSpec {
+                address_columns: memory_columns([Column(COL_TABLE_ID)]),
+                value_column: COL_TABLE_SIZE,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(COL_TABLE_SIZE_READ_ENABLED)),
             }],
         },
         rom_read_spec(
             WasmMemoryId::ProgramOpcode,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_OPCODE_CODE),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            active_when(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramLocalIndex,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_LOCAL_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_LOCAL_INDEX_ACTIVE)),
+            active_when(Column(COL_PROGRAM_LOCAL_INDEX_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramGlobalIndex,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_GLOBAL_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_GLOBAL_INDEX_ACTIVE)),
+            active_when(Column(COL_PROGRAM_GLOBAL_INDEX_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramTableId,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_TABLE_ID),
-            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_TABLE_ID_ACTIVE)),
+            active_when(Column(COL_PROGRAM_TABLE_ID_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramMemoryOffset,
             vec![Column(COL_PC_BEFORE)],
             linear_memory.imm_offset,
-            WasmMemoryActivation::BooleanGate(linear_memory.use_lane0),
+            active_when(linear_memory.use_lane0),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramCallIndirectTypeIndex,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_CALL_INDIRECT_TYPE_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
+            active_when(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramCallIndirectExpectedTypeId,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_EXPECTED_TYPE_ID),
-            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
+            active_when(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramI32ConstValue,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I32Const).unwrap())),
+            active_when(Column(selector_col(super::isa::WasmOpcode::I32Const).unwrap())),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramI64ConstValueLo,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
+            active_when(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramI64ConstValueHi,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_HI),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
+            active_when(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramRefFuncRef,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::RefFunc).unwrap())),
+            active_when(Column(selector_col(super::isa::WasmOpcode::RefFunc).unwrap())),
         ),
         rom_read_spec(
             WasmMemoryId::FunctionType,
@@ -843,13 +807,13 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             Column(COL_FUNCTION_TYPE_ID),
             // NOTE: we don't read the type on direct `call` opcodes because
             // validated wasm guarantees that.
-            WasmMemoryActivation::BooleanGate(Column(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE)),
+            active_when(Column(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE)),
         ),
         rom_read_spec(
             WasmMemoryId::FunctionLocalCount,
             vec![Column(COL_CURRENT_FUNCTION_REF)],
             Column(COL_CURRENT_FUNCTION_NUM_LOCALS),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            active_when(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             WasmMemoryId::PcFunctionRef,
@@ -858,82 +822,82 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             // Program and frame-transition rows only. Gather rows carry the
             // one-past-the-end pc, while permutation, turn-boundary, and
             // padding rows do not consume frame identity either.
-            WasmMemoryActivation::BooleanGate(Column(COL_PC_FREF_ACTIVE)),
+            active_when(Column(COL_PC_FREF_ACTIVE)),
         ),
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::FunctionCallMetadata,
+            kind: MemoryKind::Rom,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_TARGET_METADATA),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::Call).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: COL_CALL_TARGET_METADATA,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::Call).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_TARGET_METADATA),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
-                    )),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: COL_CALL_TARGET_METADATA,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::ReturnCall).unwrap())),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_TARGET_METADATA),
-                    kind: WasmMemoryPortKind::Read,
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: COL_CALL_TARGET_METADATA,
+                    kind: MemoryPortKind::Read,
                     // De-gated on call_indirect trap rows: no call happens,
                     // so the callee metadata is unread and unconstrained.
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
+                    activation: active_when(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
                 },
             ],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::ModuleType,
+            kind: MemoryKind::Rom,
             ports: [WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]
                 .into_iter()
-                .map(|opcode| WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_CALL_INDIRECT_TYPE_INDEX)],
-                    value_column: Column(COL_EXPECTED_TYPE_ID),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(selector_col(opcode).unwrap())),
+                .map(|opcode| MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_CALL_INDIRECT_TYPE_INDEX)]),
+                    value_column: COL_EXPECTED_TYPE_ID,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(opcode).unwrap())),
                 })
                 .collect(),
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::CallTarget,
+            kind: MemoryKind::Rom,
             ports: [WasmOpcode::Call, WasmOpcode::ReturnCall]
                 .into_iter()
-                .map(|opcode| WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_PC_BEFORE)],
-                    value_column: Column(COL_FUNCTION_REF),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(selector_col(opcode).unwrap())),
+                .map(|opcode| MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_PC_BEFORE)]),
+                    value_column: COL_FUNCTION_REF,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(opcode).unwrap())),
                 })
                 .collect(),
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::FunctionEntry,
+            kind: MemoryKind::Rom,
             ports: vec![
                 // Gated on guest-call rows only: host imports have no entry
                 // pc (host calls fall through to pc+1, pinned by a CCS row),
                 // and a trapping call_indirect row is terminal and never
                 // binds a callee entry pc.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_PC_AFTER),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_ENTRY_ACTIVE)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: COL_PC_AFTER,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_GUEST_ENTRY_ACTIVE)),
                 },
                 // Turn boundary: the next turn's pc jump is bound to the
                 // entered export's entry pc, keyed by the repointed
                 // attribution.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
-                    value_column: Column(COL_PC_AFTER),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_TURN_BOUNDARY)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
+                    value_column: COL_PC_AFTER,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_TURN_BOUNDARY)),
                 },
             ],
         },
@@ -941,7 +905,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryId::PcEdgeKind,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_PC_EDGE_KIND),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            active_when(Column(COL_IS_PROGRAM_ROW)),
         ),
         // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
         // per-slot source descriptors keyed by (fref, event index, slot
@@ -956,7 +920,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
             Column(COL_HOST_EVENT_SLOT_KIND),
-            WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
+            active_when(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::HostEventSlotArg,
@@ -966,7 +930,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
             Column(COL_HOST_EVENT_SLOT_ARG),
-            WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
+            active_when(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::HostEventSlotVariant,
@@ -976,7 +940,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
             Column(COL_HOST_EVENT_SLOT_VARIANT),
-            WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
+            active_when(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::HostEventSlotImmediate0,
@@ -986,7 +950,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
             Column(COL_HOST_EVENT_SLOT_IMMEDIATE0),
-            WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
+            active_when(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::HostEventSlotImmediate1,
@@ -996,7 +960,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
             Column(COL_HOST_EVENT_SLOT_IMMEDIATE1),
-            WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
+            active_when(Column(COL_GATHER_ACTIVE)),
         ),
         // Import schedule counts and export entry-schedule counts are
         // SEPARATE families so an initial-schedule count read can never land
@@ -1017,33 +981,35 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // is unsatisfiable while events_remaining remains nonzero. The trace therefore
         // cannot halt, enforcing template presence in the composed circuit
         // without preprocessing validation.
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::HostEventImportScheduleCount,
-            ports: vec![WasmMemoryPortSpec {
-                address_columns: vec![Column(COL_FUNCTION_REF)],
-                value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
-                kind: WasmMemoryPortKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(COL_HOST_CALL_ACTIVE)),
+            kind: MemoryKind::Rom,
+            ports: vec![MemoryPortSpec {
+                address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(COL_HOST_CALL_ACTIVE)),
             }],
         },
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::HostEventExportEntryScheduleCount,
+            kind: MemoryKind::Rom,
             ports: vec![
                 // Exit latch: re-reads the export's entry count to continue
                 // the event numbering for exit events.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
-                    value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_HOST_EVENT_EXIT_LATCH)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_TURN_EXPORT_FREF_BEFORE)]),
+                    value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
                 },
                 // Turn boundary: loads the entered export's entry-event
                 // count as the next turn's owed schedule.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
-                    value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_TURN_BOUNDARY)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
+                    value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_TURN_BOUNDARY)),
                 },
             ],
         },
@@ -1053,45 +1019,49 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryId::HostEventExportExitScheduleCount,
             vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
             Column(COL_HOST_EVENT_EXIT_SCHEDULE_COUNT),
-            WasmMemoryActivation::BooleanGate(Column(COL_HOST_EVENT_EXIT_LATCH)),
+            active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
         ),
-        WasmMemorySpec {
+        MemorySpec {
             id: WasmMemoryId::PcRom,
+            kind: MemoryKind::Rom,
             ports: vec![
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)],
-                    value_column: Column(COL_PC_AFTER),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PC_ROM_ACTIVE)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)]),
+                    value_column: COL_PC_AFTER,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_PC_ROM_ACTIVE)),
                 },
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)],
-                    value_column: Column(COL_CALL_STACK_RETURN_PC_VALUE),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)]),
+                    value_column: COL_CALL_STACK_RETURN_PC_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 // An indirect host call binds its fall-through pc_after to
                 // the call site's return-pc slot: host imports have no
                 // `function_entries` entry, and the DynamicCallIndirect edge
                 // kind bypasses the static pc ROM read.
-                WasmMemoryPortSpec {
-                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)],
-                    value_column: Column(COL_PC_AFTER),
-                    kind: WasmMemoryPortKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CI_HOST_CALL)),
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)]),
+                    value_column: COL_PC_AFTER,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_CI_HOST_CALL)),
                 },
             ],
         },
     ];
 
-    let ivc_state_links = build_ivc_state_continuity_links();
+    let columns = crate::witness_layout::range_checked_column_registry();
+    let memory = MemoryCatalog::new(memories, &columns).expect("valid WASM memory declarations");
+    let continuity = ContinuityCatalog::new(build_ivc_state_continuity_links(), &columns)
+        .expect("valid WASM continuity declarations");
 
     WasmRelationLayout {
         auxiliary: WasmAuxiliaryRelations {
             lookup_families,
             lookup_bindings,
-            memories,
-            ivc_state_links,
+            memory,
+            continuity,
         },
         linear_memory,
         sign_extension,

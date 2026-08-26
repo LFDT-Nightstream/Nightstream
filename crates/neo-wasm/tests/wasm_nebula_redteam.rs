@@ -5,10 +5,14 @@ mod common;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+use neo_application::{
+    MemoryKind, MemoryPortActivation as DeclaredMemoryPortActivation, MemoryPortKind as DeclaredMemoryPortKind,
+    MemoryPortSpec,
+};
 use neo_fold_clean::frontends::nebula::application::{MemoryPort, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::paper::params::Params;
 use neo_wasm::layout::{COL_OP_TABLE_ENABLED, COL_STACK_WRITE0_VALUE_LO};
-use neo_wasm::{WasmMemoryActivation, WasmMemoryPortKind, WasmMemoryPortSpec, WasmOpTable, WasmOpcode};
+use neo_wasm::{WasmOpTable, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 struct Fixture {
@@ -100,12 +104,13 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
     let single_step_columns = application.shape().m() / batch_size;
     let declared_ports = declared
         .auxiliary
-        .memories
+        .memory
+        .entries()
         .iter()
         .map(|memory| memory.ports.len())
         .sum::<usize>();
     let physical_slots_per_step = memory.slot_count() / batch_size;
-    assert_eq!(memory.regions().len(), declared.auxiliary.memories.len());
+    assert_eq!(memory.regions().len(), declared.auxiliary.memory.entries().len());
     assert_eq!(physical_slots_per_step, 21);
     assert_eq!(memory.slot_count(), physical_slots_per_step * batch_size);
     assert_eq!(memory.logical_port_count(), declared_ports * batch_size);
@@ -119,18 +124,19 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
         let offset = block * single_step_columns;
         let mut expected = declared
             .auxiliary
-            .memories
+            .memory
+            .entries()
             .iter()
             .enumerate()
             .flat_map(|(region, memory)| memory.ports.iter().map(move |port| (region, port)))
             .collect::<Vec<_>>();
 
-        for (region_index, declared_memory) in declared.auxiliary.memories.iter().enumerate() {
+        for (region_index, declared_memory) in declared.auxiliary.memory.entries().iter().enumerate() {
             let region = &memory.regions()[region_index];
             assert_eq!(region.name(), declared_memory.id.name());
             assert_eq!(
                 region.kind(),
-                if declared_memory.id.is_rom() {
+                if declared_memory.kind == MemoryKind::Rom {
                     neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Rom
                 } else {
                     neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Ram
@@ -156,26 +162,25 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
     assert_eq!(declared_ports, 76, "Current layout declares 76 ports per step");
 }
 
-fn port_matches(routed: &MemoryPort, region: usize, declared: &WasmMemoryPortSpec, offset: usize) -> bool {
+fn port_matches(routed: &MemoryPort, region: usize, declared: &MemoryPortSpec, offset: usize) -> bool {
     routed.region() == region
         && routed.address_columns().iter().copied().eq(declared
             .address_columns
             .iter()
-            .map(|column| offset + column.0))
-        && routed.value_column() == offset + declared.value_column.0
+            .map(|&column| offset + column))
+        && routed.value_column() == offset + declared.value_column
         && routed.kind()
             == match declared.kind {
-                WasmMemoryPortKind::Read => MemoryPortKind::Read,
-                WasmMemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
-                    value_before_column: value_before_column.map(|column| offset + column.0),
+                DeclaredMemoryPortKind::Read => MemoryPortKind::Read,
+                DeclaredMemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
+                    value_before_column: value_before_column.map(|column| offset + column),
                 },
             }
         && routed.activation()
             == match declared.activation {
-                WasmMemoryActivation::Always => {
-                    MemoryPortActivation::UnlessColumn(offset + neo_wasm::layout::COL_PADDING_ACTIVE)
-                }
-                WasmMemoryActivation::BooleanGate(column) => MemoryPortActivation::Column(offset + column.0),
+                DeclaredMemoryPortActivation::Always => MemoryPortActivation::Always,
+                DeclaredMemoryPortActivation::When(column) => MemoryPortActivation::Column(offset + column),
+                DeclaredMemoryPortActivation::Unless(column) => MemoryPortActivation::UnlessColumn(offset + column),
             }
 }
 

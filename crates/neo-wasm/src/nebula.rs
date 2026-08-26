@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use neo_application::MemoryKind;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
 use neo_fold_clean::frontends::nebula::application::{
@@ -501,24 +502,22 @@ fn build_memory_backend(
             .push((address.clone(), *value));
     }
 
-    let mut regions = Vec::with_capacity(relation.auxiliary.memories.len());
+    let mut regions = Vec::with_capacity(relation.auxiliary.memory.entries().len());
     let mut region_by_id = BTreeMap::new();
     let mut rom_cursor = 0u64;
     let mut ram_cursor = 0u64;
-    for memory in &relation.auxiliary.memories {
-        let kind = if memory.id.is_rom() {
-            MemoryRegionKind::Rom
-        } else {
-            MemoryRegionKind::Ram
+    for memory in relation.auxiliary.memory.entries() {
+        let kind = match memory.kind {
+            MemoryKind::Rom => MemoryRegionKind::Rom,
+            MemoryKind::Ram => MemoryRegionKind::Ram,
         };
-        let component_bits = if memory.id.is_rom() {
-            rom_component_bits(
+        let component_bits = match memory.kind {
+            MemoryKind::Rom => rom_component_bits(
                 memory.id,
                 memory.ports[0].address_columns.len(),
                 by_memory.get(&memory.id),
-            )?
-        } else {
-            ram_component_bits(memory.id, profile.limits)?
+            )?,
+            MemoryKind::Ram => ram_component_bits(memory.id, profile.limits)?,
         };
         let base = match kind {
             MemoryRegionKind::Rom => rom_cursor,

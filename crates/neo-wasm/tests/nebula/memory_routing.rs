@@ -10,6 +10,9 @@ use crate::layout::{
 };
 use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
+use neo_application::{
+    MemoryPortActivation as DeclaredMemoryPortActivation, MemoryPortKind as DeclaredMemoryPortKind, MemoryPortSpec,
+};
 use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
@@ -101,12 +104,12 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     let activation_supports = activation_supports();
 
     let mut atom_loads = std::collections::BTreeMap::<usize, usize>::new();
-    for memory in &relation.auxiliary.memories {
+    for memory in relation.auxiliary.memory.entries() {
         for port in &memory.ports {
-            let crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) = port.activation else {
+            let DeclaredMemoryPortActivation::When(gate) = port.activation else {
                 continue;
             };
-            if let Some(support) = activation_supports.get(&gate.0) {
+            if let Some(support) = activation_supports.get(&gate) {
                 for atom in support {
                     *atom_loads.entry(*atom).or_default() += 1;
                 }
@@ -116,14 +119,13 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     let max_atom_load = atom_loads.values().copied().max().unwrap_or_default();
     let conservative_singletons = relation
         .auxiliary
-        .memories
+        .memory
+        .entries()
         .iter()
         .flat_map(|memory| &memory.ports)
         .filter(|port| match port.activation {
-            crate::relation_layout::WasmMemoryActivation::Always => true,
-            crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) => {
-                !activation_supports.contains_key(&gate.0)
-            }
+            DeclaredMemoryPortActivation::Always | DeclaredMemoryPortActivation::Unless(_) => true,
+            DeclaredMemoryPortActivation::When(gate) => !activation_supports.contains_key(&gate),
         })
         .count();
 
@@ -150,7 +152,8 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
 
     let mut expected = relation
         .auxiliary
-        .memories
+        .memory
+        .entries()
         .iter()
         .enumerate()
         .flat_map(|(region, memory)| {
@@ -175,9 +178,9 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
                     *region == port.region()
                         && address
                             .iter()
-                            .map(|column| column.0)
+                            .copied()
                             .eq(port.address_columns().iter().copied())
-                        && value.0 == port.value_column()
+                        && *value == port.value_column()
                         && memory_kinds_match(*kind, port.kind())
                         && activations_match(*activation, port.activation())
                 })
@@ -219,11 +222,11 @@ fn routing_preserves_observable_declaration_order() {
     // Before compaction each declaration occupied its own physical slot, so
     // declaration order was execution order. Preserve that order whenever
     // co-active accesses to one region include a mutation.
-    for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
+    for (region, memory) in relation.auxiliary.memory.entries().iter().enumerate() {
         for (earlier_index, earlier) in memory.ports.iter().enumerate() {
             for (later_index, later) in memory.ports.iter().enumerate().skip(earlier_index + 1) {
-                if matches!(earlier.kind, crate::WasmMemoryPortKind::Read)
-                    && matches!(later.kind, crate::WasmMemoryPortKind::Read)
+                if matches!(earlier.kind, DeclaredMemoryPortKind::Read)
+                    && matches!(later.kind, DeclaredMemoryPortKind::Read)
                 {
                     continue;
                 }
@@ -380,43 +383,42 @@ fn s_mem_structure_census() {
     );
 }
 
-fn memory_kinds_match(declared: crate::WasmMemoryPortKind, routed: MemoryPortKind) -> bool {
+fn memory_kinds_match(declared: DeclaredMemoryPortKind, routed: MemoryPortKind) -> bool {
     match (declared, routed) {
-        (crate::WasmMemoryPortKind::Read, MemoryPortKind::Read) => true,
+        (DeclaredMemoryPortKind::Read, MemoryPortKind::Read) => true,
         (
-            crate::WasmMemoryPortKind::Write { value_before_column },
+            DeclaredMemoryPortKind::Write { value_before_column },
             MemoryPortKind::Write {
                 value_before_column: routed,
             },
-        ) => value_before_column.map(|column| column.0) == routed,
+        ) => value_before_column == routed,
         _ => false,
     }
 }
 
-fn activations_match(declared: crate::WasmMemoryActivation, routed: MemoryPortActivation) -> bool {
+fn activations_match(declared: DeclaredMemoryPortActivation, routed: MemoryPortActivation) -> bool {
     match (declared, routed) {
-        (crate::WasmMemoryActivation::Always, MemoryPortActivation::UnlessColumn(column)) => {
-            column == crate::layout::COL_PADDING_ACTIVE
-        }
-        (crate::WasmMemoryActivation::BooleanGate(column), MemoryPortActivation::Column(routed)) => column.0 == routed,
+        (DeclaredMemoryPortActivation::Always, MemoryPortActivation::Always) => true,
+        (DeclaredMemoryPortActivation::When(column), MemoryPortActivation::Column(routed)) => column == routed,
+        (DeclaredMemoryPortActivation::Unless(column), MemoryPortActivation::UnlessColumn(routed)) => column == routed,
         _ => false,
     }
 }
 
 fn declared_activations_are_disjoint(
-    left: crate::WasmMemoryActivation,
-    right: crate::WasmMemoryActivation,
+    left: DeclaredMemoryPortActivation,
+    right: DeclaredMemoryPortActivation,
     supports: &std::collections::BTreeMap<usize, BTreeSet<usize>>,
 ) -> bool {
     match (left, right) {
-        (crate::WasmMemoryActivation::BooleanGate(left), crate::WasmMemoryActivation::BooleanGate(right)) => {
-            activations_are_disjoint(left.0, right.0, supports)
+        (DeclaredMemoryPortActivation::When(left), DeclaredMemoryPortActivation::When(right)) => {
+            activations_are_disjoint(left, right, supports)
         }
         _ => false,
     }
 }
 
-fn routed_slot(slots: &[MemoryOpSlot], region: usize, declared: &crate::relation_layout::WasmMemoryPortSpec) -> usize {
+fn routed_slot(slots: &[MemoryOpSlot], region: usize, declared: &MemoryPortSpec) -> usize {
     slots
         .iter()
         .position(|slot| {
@@ -425,9 +427,9 @@ fn routed_slot(slots: &[MemoryOpSlot], region: usize, declared: &crate::relation
                     && declared
                         .address_columns
                         .iter()
-                        .map(|column| column.0)
+                        .copied()
                         .eq(port.address_columns().iter().copied())
-                    && declared.value_column.0 == port.value_column()
+                    && declared.value_column == port.value_column()
                     && memory_kinds_match(declared.kind, port.kind())
                     && activations_match(declared.activation, port.activation())
             })

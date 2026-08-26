@@ -49,7 +49,6 @@ pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
     WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
-pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
 pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec, ColumnWidth, NAMED_COLUMN_COUNT};
 #[doc(hidden)]
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
@@ -67,8 +66,7 @@ pub use preprocess::{
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
-    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryPortKind,
-    WasmMemoryPortSpec, WasmMemorySpec, WasmRelationLayout,
+    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmRelationLayout,
 };
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

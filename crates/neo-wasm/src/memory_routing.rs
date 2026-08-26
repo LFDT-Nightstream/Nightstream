@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use neo_application::{MemoryPortActivation as DeclaredMemoryPortActivation, MemoryPortKind as DeclaredMemoryPortKind};
 use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind};
 
 use crate::isa::{opcode_code, opcode_info_from_code, WasmMemoryAccessKind, WasmOpcode};
@@ -10,13 +11,12 @@ use crate::layout::{
     COL_CI_HOST_CALL, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE,
     COL_GATHER_LOCAL_WRITE_LO, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH,
     COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0,
-    COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE,
-    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE,
-    COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
-use crate::relation_layout::{WasmMemoryActivation, WasmMemoryPortKind, WasmRelationLayout};
+use crate::relation_layout::WasmRelationLayout;
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
 /// with every opcode selector under the CCS row-kind and opcode one-hots.
@@ -367,25 +367,22 @@ pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> V
     let mut singleton_slots = Vec::new();
     let mut shared_slots: Vec<Vec<MemoryPort>> = Vec::new();
 
-    for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
+    for (region, memory) in relation.auxiliary.memory.entries().iter().enumerate() {
         for declared_port in &memory.ports {
             let port = MemoryPort::new(
                 region,
-                declared_port
-                    .address_columns
-                    .iter()
-                    .map(|column| column.0)
-                    .collect(),
-                declared_port.value_column.0,
+                declared_port.address_columns.clone(),
+                declared_port.value_column,
                 match declared_port.kind {
-                    WasmMemoryPortKind::Read => MemoryPortKind::Read,
-                    WasmMemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
-                        value_before_column: value_before_column.map(|column| column.0),
-                    },
+                    DeclaredMemoryPortKind::Read => MemoryPortKind::Read,
+                    DeclaredMemoryPortKind::Write { value_before_column } => {
+                        MemoryPortKind::Write { value_before_column }
+                    }
                 },
                 match declared_port.activation {
-                    WasmMemoryActivation::Always => MemoryPortActivation::UnlessColumn(COL_PADDING_ACTIVE),
-                    WasmMemoryActivation::BooleanGate(column) => MemoryPortActivation::Column(column.0),
+                    DeclaredMemoryPortActivation::Always => MemoryPortActivation::Always,
+                    DeclaredMemoryPortActivation::When(column) => MemoryPortActivation::Column(column),
+                    DeclaredMemoryPortActivation::Unless(column) => MemoryPortActivation::UnlessColumn(column),
                 },
             );
 

@@ -18,7 +18,6 @@ use crate::comm_chain::CommChainState;
 use crate::ir::{
     WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventState, WasmOutputState, WasmStepState,
 };
-use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
@@ -137,7 +136,7 @@ pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
 /// Build preprocessing with cross-batch VM-state continuity enabled.
 ///
 /// The carried columns are derived from
-/// `WasmRelationLayout::auxiliary.ivc_state_links`: the first block's
+/// `WasmRelationLayout::auxiliary.continuity`: the first block's
 /// `*_before` columns are hashed as semantic input, and the last block's
 /// `*_after` columns are hashed as semantic output. `initial_state_digest`
 /// is verifier-owned: callers must derive or otherwise agree on it from
@@ -200,10 +199,9 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
     let fields = layout
         .auxiliary
-        .ivc_state_links
-        .iter()
-        .flat_map(|link| link.column_pairs.iter())
-        .map(|pair| carried_state_field(state, pair.next_before))
+        .continuity
+        .links()
+        .map(|link| carried_state_field(state, link.next_step_column))
         .collect::<Vec<_>>();
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
@@ -281,27 +279,27 @@ pub fn host_event_top_level_initial_state_digest(
     )?))
 }
 
-fn carried_state_field(state: WasmStepState, column: Column) -> F {
+fn carried_state_field(state: WasmStepState, column: usize) -> F {
     if let Some(limb) = COL_COMM_CHAIN_BEFORE
         .iter()
-        .position(|&candidate| candidate == column.0)
+        .position(|&candidate| candidate == column)
     {
         return F::from_u64(state.comm_chain[limb]);
     }
     if let Some(word) = COL_EVBUF_BEFORE
         .iter()
-        .position(|&candidate| candidate == column.0)
+        .position(|&candidate| candidate == column)
     {
         return F::from_u64(state.event_absorb.evbuf[word]);
     }
     if let Some(lane) = COL_PERM_STATE_BEFORE
         .iter()
-        .position(|&candidate| candidate == column.0)
+        .position(|&candidate| candidate == column)
     {
         return F::from_u64(state.event_absorb.perm_state[lane]);
     }
 
-    match column.0 {
+    match column {
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
         COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),
@@ -485,14 +483,9 @@ pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize, single_width:
     let mut input = Vec::new();
     let mut output = Vec::new();
     let last_block_offset = (batch_size - 1) * single_width;
-    for pair in layout
-        .auxiliary
-        .ivc_state_links
-        .iter()
-        .flat_map(|link| link.column_pairs.iter())
-    {
-        input.push(pair.next_before.0);
-        output.push(last_block_offset + pair.prev_after.0);
+    for link in layout.auxiliary.continuity.links() {
+        input.push(link.next_step_column);
+        output.push(last_block_offset + link.previous_step_column);
     }
     (input, output)
 }

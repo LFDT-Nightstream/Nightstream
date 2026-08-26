@@ -2,23 +2,23 @@ mod common;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
+use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
 use neo_wasm::layout::{
-    column_spec, column_specs, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
+    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
     COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
-use neo_wasm::{write_range_check_bits, WasmOpcode, WasmVmSpec, RANGE_CHECKED_WITNESS_WIDTH};
+use neo_wasm::{build_wasm_relation, write_range_check_bits, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
 use p3_field::PrimeCharacteristicRing;
 
 fn expected_aux_bits() -> usize {
-    column_specs()
-        .chain(AUX_COLUMN_SPECS.iter())
-        .map(|spec| match spec.width {
+    column_families()
+        .chain(AUX_COLUMN_FAMILIES.iter())
+        .map(|family| match family.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
             ColumnWidth::U32 => 32,
-        } * spec.len)
+        } * family.len)
         .sum()
 }
 
@@ -29,18 +29,35 @@ fn range_checked_width_bookkeeping() {
         NAMED_COLUMN_COUNT + AUX_WIDTH + expected_aux_bits()
     );
 
-    let vm = WasmVmSpec::default();
-    assert_eq!(vm.core_ccs_spec().witness_width, RANGE_CHECKED_WITNESS_WIDTH);
-    assert_eq!(vm.core_ccs_spec().structure.m, RANGE_CHECKED_WITNESS_WIDTH);
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    assert_eq!(relation.r1cs().column_count(), RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(relation.r1cs().structure().m, RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(relation.r1cs().catalog().len(), relation.r1cs().structure().n);
+    assert!(relation
+        .r1cs()
+        .structure()
+        .matrices
+        .iter()
+        .all(|matrix| matrix.as_csc().is_some()));
+    assert_eq!(relation.columns().column_count(), RANGE_CHECKED_WITNESS_WIDTH);
+
+    let range_bits = relation
+        .columns()
+        .family_for_column(NAMED_COLUMN_COUNT + AUX_WIDTH)
+        .expect("range-bit suffix must have registry metadata");
+    assert_eq!(range_bits.region, "range_bits");
+    assert_eq!(range_bits.start, NAMED_COLUMN_COUNT + AUX_WIDTH);
+    assert_eq!(range_bits.end(), RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(range_bits.width, ColumnWidth::Boolean);
 }
 
 #[test]
 fn host_event_auxiliary_registry_preserves_the_existing_layout() {
     let mut next = NAMED_COLUMN_COUNT;
-    for spec in AUX_COLUMN_SPECS {
-        assert_eq!(spec.region, "host_event_chain_aux");
-        assert_eq!(spec.start, next, "{}", spec.name);
-        next = spec.end();
+    for family in AUX_COLUMN_FAMILIES {
+        assert_eq!(family.region, "host_event_chain_aux");
+        assert_eq!(family.start, next, "{}", family.name);
+        next = family.end();
     }
     assert_eq!(next, NAMED_COLUMN_COUNT + AUX_WIDTH);
 }
@@ -49,22 +66,22 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
 fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
     let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
 
-    for spec in column_specs().chain(AUX_COLUMN_SPECS.iter()) {
-        let bit_count = match spec.width {
+    for family in column_families().chain(AUX_COLUMN_FAMILIES.iter()) {
+        let bit_count = match family.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
             ColumnWidth::U32 => 32,
         };
 
-        for column in spec.start..spec.end() {
+        for column in family.start..family.end() {
             if bit_count == 0 {
-                assert_eq!(range_checked_bit_columns(column), None, "{}", spec.name);
+                assert_eq!(range_checked_bit_columns(column), None, "{}", family.name);
             } else {
                 assert_eq!(
                     range_checked_bit_columns(column),
                     Some(next..next + bit_count),
                     "{}",
-                    spec.name
+                    family.name
                 );
                 next += bit_count;
             }
@@ -80,8 +97,14 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     // The packed ROM word is unpacked linearly. These byte bounds make that
     // decomposition unique: without them, `param += 256; result -= 1` would
     // preserve the authoritative packed value while changing call semantics.
-    assert_eq!(column_spec(COL_CALL_PARAM_COUNT).unwrap().width, ColumnWidth::Byte);
-    assert_eq!(column_spec(COL_CALL_RESULT_COUNT).unwrap().width, ColumnWidth::Byte);
+    assert_eq!(
+        named_column_family(COL_CALL_PARAM_COUNT).unwrap().width,
+        ColumnWidth::Byte
+    );
+    assert_eq!(
+        named_column_family(COL_CALL_RESULT_COUNT).unwrap().width,
+        ColumnWidth::Byte
+    );
 }
 
 /// An out-of-range value in a column no semantic row pins (the call-stack
@@ -92,7 +115,9 @@ fn packed_function_metadata_counts_are_byte_ranged() {
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     // The invariant under attack: the column is declared as a 32-bit value.
     assert_eq!(
-        column_spec(COL_CALL_STACK_RETURN_PC_VALUE).unwrap().width,
+        named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
+            .unwrap()
+            .width,
         ColumnWidth::U32
     );
 
@@ -108,9 +133,9 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1u64 << 32);
     write_range_check_bits(&mut wit);
 
-    let vm = WasmVmSpec::default();
-    let m_in = vm.core_ccs_spec().m_in;
-    let err = check_ccs_rowwise_zero(&vm.core_ccs_spec().structure, &wit[..m_in], &wit[m_in..])
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let m_in = relation.r1cs().public_input_count();
+    let err = check_ccs_rowwise_zero(relation.r1cs().structure(), &wit[..m_in], &wit[m_in..])
         .expect_err("the range-checked CCS must reject an out-of-range call-stack return pc value");
 
     let detail = err.to_string();
@@ -119,9 +144,10 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .and_then(|(_, rest)| rest.split_once(':'))
         .and_then(|(row, _)| row.parse::<usize>().ok())
         .unwrap_or_else(|| panic!("could not parse failing row from: {detail}"));
-    let tag = &vm.constraint_catalog().row_tags[row_idx];
+    let tag = relation.r1cs().catalog().rows()[row_idx].tag();
     assert_eq!(
-        tag.label, "COL_CALL_STACK_RETURN_PC_VALUE",
+        tag.label(),
+        "COL_CALL_STACK_RETURN_PC_VALUE",
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }

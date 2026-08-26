@@ -19,9 +19,9 @@ fn host_event_trace_satisfies_batched_ccs() {
     let setup = host_event_lifecycle_setup();
     let batch_size = 8;
     let batched = neo_wasm::batch::build_batched_wasm_ccs(batch_size).expect("batched CCS");
-    let vm = neo_wasm::WasmVmSpec::default();
-    let n_single = vm.core_ccs_spec().structure.n;
-    let catalog = vm.constraint_catalog();
+    let relation = neo_wasm::build_wasm_relation().expect("valid WASM relation");
+    let n_single = relation.r1cs().structure().n;
+    let catalog = relation.r1cs().catalog();
     let n_batches = neo_wasm::batch::batch_count(setup.trace.len(), batch_size);
     for batch_idx in 0..n_batches {
         let witness = neo_wasm::batch::build_batched_witness(&setup.trace, batch_size, batch_idx);
@@ -39,7 +39,7 @@ fn host_event_trace_satisfies_batched_ccs() {
                         format!(
                             "step {} constraint {:?}",
                             batch_idx * batch_size + row / n_single,
-                            catalog.row_tags.get(row % n_single)
+                            catalog.rows().get(row % n_single).map(|row| row.tag())
                         )
                     } else {
                         format!("link row {}", row - batch_size * n_single)

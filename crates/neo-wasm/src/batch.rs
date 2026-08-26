@@ -42,7 +42,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::ccs::WasmVmSpec;
+use crate::ccs::build_wasm_relation;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::COL_ONE;
@@ -70,26 +70,27 @@ pub enum BatchError {
 
 /// Build the batched wasm R1CS for the requested batch size.
 ///
-/// Sources the single-step matrices from [`WasmVmSpec::default`] and the
+/// Sources the single-step matrices from [`build_wasm_relation`] and the
 /// cross-step link spec from [`build_wasm_relation_layout`]. Every
 /// `(prev_after, next_before)` column pair in every spec link is emitted
 /// as a linking row; the `flat_map` over `column_pairs` happens to also
 /// be a no-op for any future link whose invariant can't be expressed as
 /// column equalities (none today).
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
-    let vm = WasmVmSpec::default();
-    let core = vm.core_ccs_spec();
-    let m_single = core.structure.m;
-    assert_eq!(m_single, core.witness_width);
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let core = relation.r1cs();
+    let m_single = core.column_count();
+    assert_eq!(m_single, crate::RANGE_CHECKED_WITNESS_WIDTH);
+    let structure = core.structure();
     let single = SparseR1cs::new(
-        core.structure.matrices[0].clone(),
-        core.structure.matrices[1].clone(),
-        core.structure.matrices[2].clone(),
-        core.structure.n,
-        core.structure.m,
-        core.m_in,
+        structure.matrices[0].clone(),
+        structure.matrices[1].clone(),
+        structure.matrices[2].clone(),
+        structure.n,
+        structure.m,
+        core.public_input_count(),
     )?;
-    let widths = crate::witness_layout::range_checked_variable_widths();
+    let widths = crate::witness_layout::range_checked_variable_widths(relation.columns());
     batch_wasm_relation(&single, &widths, batch_size)
 }
 

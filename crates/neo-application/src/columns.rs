@@ -16,9 +16,9 @@ pub enum ColumnWidth {
     Field,
 }
 
-/// Metadata for one contiguous family of witness columns.
+/// Declares one contiguous family of witness columns with a shared value width.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ColumnSpec {
+pub struct ColumnFamilySpec {
     pub region: &'static str,
     pub start: usize,
     pub len: usize,
@@ -27,7 +27,7 @@ pub struct ColumnSpec {
     pub width: ColumnWidth,
 }
 
-impl ColumnSpec {
+impl ColumnFamilySpec {
     pub const fn end(&self) -> usize {
         self.start + self.len
     }
@@ -47,7 +47,7 @@ macro_rules! define_column_region {
         region: $region:literal,
         start: $start:expr,
         width: $width_vis:vis $width_name:ident,
-        specs: $specs_vis:vis $specs_name:ident,
+        families: $families_vis:vis $families_name:ident,
         indices: $index_vis:vis,
         columns: [
             $($name:ident: $shape:tt => $role:literal),+ $(,)?
@@ -59,8 +59,8 @@ macro_rules! define_column_region {
         $width_vis const $width_name: usize =
             0usize $(+ $crate::define_column_region!(@len $shape))+;
         /// Macro-generated metadata for the region's declared column families.
-        $specs_vis const $specs_name: &[$crate::ColumnSpec] = &[
-            $($crate::ColumnSpec {
+        $families_vis const $families_name: &[$crate::ColumnFamilySpec] = &[
+            $($crate::ColumnFamilySpec {
                 region: $region,
                 start: $crate::define_column_region!(@start $name, $shape),
                 len: $crate::define_column_region!(@len $shape),
@@ -106,47 +106,47 @@ macro_rules! define_column_region {
 /// Complete, ordered ownership map for an application witness vector.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColumnRegistry {
-    specs: Vec<ColumnSpec>,
+    families: Vec<ColumnFamilySpec>,
     column_count: usize,
 }
 
 impl ColumnRegistry {
-    pub fn new(specs: impl IntoIterator<Item = ColumnSpec>) -> Result<Self, ColumnRegistryError> {
-        let specs: Vec<_> = specs.into_iter().collect();
-        if specs.is_empty() {
+    pub fn new(families: impl IntoIterator<Item = ColumnFamilySpec>) -> Result<Self, ColumnRegistryError> {
+        let families: Vec<_> = families.into_iter().collect();
+        if families.is_empty() {
             return Err(ColumnRegistryError::Empty);
         }
 
         let mut expected_start = 0usize;
         let mut names = BTreeSet::new();
-        for spec in &specs {
-            if spec.region.is_empty() {
-                return Err(ColumnRegistryError::EmptyRegion { name: spec.name });
+        for family in &families {
+            if family.region.is_empty() {
+                return Err(ColumnRegistryError::EmptyRegion { name: family.name });
             }
-            if spec.name.is_empty() {
-                return Err(ColumnRegistryError::EmptyName { start: spec.start });
+            if family.name.is_empty() {
+                return Err(ColumnRegistryError::EmptyName { start: family.start });
             }
-            if spec.len == 0 {
-                return Err(ColumnRegistryError::EmptyFamily { name: spec.name });
+            if family.len == 0 {
+                return Err(ColumnRegistryError::EmptyFamily { name: family.name });
             }
-            if !names.insert(spec.name) {
-                return Err(ColumnRegistryError::DuplicateName { name: spec.name });
+            if !names.insert(family.name) {
+                return Err(ColumnRegistryError::DuplicateName { name: family.name });
             }
-            if spec.start != expected_start {
+            if family.start != expected_start {
                 return Err(ColumnRegistryError::NonContiguous {
-                    name: spec.name,
+                    name: family.name,
                     expected_start,
-                    actual_start: spec.start,
+                    actual_start: family.start,
                 });
             }
-            expected_start = spec
+            expected_start = family
                 .start
-                .checked_add(spec.len)
-                .ok_or(ColumnRegistryError::IndexOverflow { name: spec.name })?;
+                .checked_add(family.len)
+                .ok_or(ColumnRegistryError::IndexOverflow { name: family.name })?;
         }
 
         Ok(Self {
-            specs,
+            families,
             column_count: expected_start,
         })
     }
@@ -155,19 +155,22 @@ impl ColumnRegistry {
         self.column_count
     }
 
-    pub fn specs(&self) -> &[ColumnSpec] {
-        &self.specs
+    pub fn families(&self) -> &[ColumnFamilySpec] {
+        &self.families
     }
 
-    pub fn spec_for_column(&self, column: usize) -> Option<&ColumnSpec> {
+    pub fn family_for_column(&self, column: usize) -> Option<&ColumnFamilySpec> {
         if column >= self.column_count {
             return None;
         }
 
         // `new` guarantees a nonempty, contiguous registry starting at zero,
         // so every in-range column has exactly one preceding family start.
-        let index = self.specs.partition_point(|spec| spec.start <= column) - 1;
-        Some(&self.specs[index])
+        let index = self
+            .families
+            .partition_point(|family| family.start <= column)
+            - 1;
+        Some(&self.families[index])
     }
 }
 

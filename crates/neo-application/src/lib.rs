@@ -8,7 +8,7 @@ mod columns;
 mod r1cs;
 mod relation;
 
-pub use columns::{ColumnRegistry, ColumnRegistryError, ColumnSpec, ColumnWidth};
+pub use columns::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
 pub use r1cs::{
     ConstraintCatalog, ConstraintTag, R1csBuildError, R1csBuilder, R1csRelation, R1csRow, R1csSide, TaggedR1csBuilder,
     TaggedR1csRow,

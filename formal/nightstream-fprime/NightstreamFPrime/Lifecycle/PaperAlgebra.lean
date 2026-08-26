@@ -322,6 +322,26 @@ def combineEvaluations : {count : Nat} ->
         combineEvaluationFamily challenges fun source =>
           (items source).getD index.val evaluationZero
 
+/-- Combining singleton evaluation arrays preserves the v1.1 split and
+produces exactly one combined Pad/matrix family. -/
+theorem combineEvaluations_singletons
+    {count : Nat} (positive : 0 < count)
+    (challenges : Fin count → RingF) (families : Fin count → Evaluation) :
+    combineEvaluations challenges (fun source => #[families source]) =
+      #[combineEvaluationFamily challenges families] := by
+  cases count with
+  | zero => omega
+  | succ count =>
+      apply Array.ext
+      · simp [combineEvaluations]
+      · intro index leftLt rightLt
+        have indexZero : index = 0 := by
+          have indexLt : index < 1 := by
+            simpa [combineEvaluations] using leftLt
+          omega
+        subst index
+        simp [combineEvaluations]
+
 theorem evaluations_combine
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     {count : Nat} (source : Structure logicalWidth) (point : Point)

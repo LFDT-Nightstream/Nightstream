@@ -292,6 +292,42 @@ theorem piRlcChallenges_member
                   simpa [piRlcChallengesWithState] using priorEq
                 simpa using inductionHypothesis priorSuccess prior
 
+/-- Pointwise success is exactly enough to construct the fixed-size concrete
+challenge response. This theorem adds no fallback value and preserves the
+`Fin` index order. -/
+theorem piRlcChallenges_eq_some_of_pointwise
+    (initial : State) {count : Nat} (challenges : Fin count → RingF)
+    (success : ∀ index,
+      sampleRingChallenge initial index.val = some (challenges index)) :
+    piRlcChallenges initial count = some challenges := by
+  unfold piRlcChallenges piRlcChallengesWithState
+  induction count with
+  | zero =>
+      simp [sampleBatch]
+      funext index
+      exact Fin.elim0 index
+  | succ count inductionHypothesis =>
+      let prior : Fin count → RingF := fun index => challenges index.castSucc
+      have priorSuccess : ∀ index,
+          sampleRingChallenge initial index.val = some (prior index) := by
+        intro index
+        exact success index.castSucc
+      have mapped := inductionHypothesis prior priorSuccess
+      cases priorBatchEq : sampleBatch initial count with
+      | none => simp [priorBatchEq] at mapped
+      | some priorBatch =>
+        have priorChallenges : priorBatch.challenges = prior := by
+          simpa [priorBatchEq] using mapped
+        have lastEq : sampleRingChallenge initial count =
+            some (challenges (Fin.last count)) := by
+          simpa using success (Fin.last count)
+        rw [sampleBatch, priorBatchEq, lastEq]
+        apply congrArg some
+        funext index
+        refine Fin.lastCases ?_ (fun priorIndex => ?_) index
+        · simp
+        · simp [priorChallenges, prior]
+
 end PiRlcSampler
 
 end NightstreamFPrime.Lifecycle.Transcript

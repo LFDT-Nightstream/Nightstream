@@ -17,7 +17,7 @@ pub enum ColumnWidth {
 }
 
 /// Metadata for one contiguous family of witness columns.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ColumnSpec {
     pub region: &'static str,
     pub start: usize,

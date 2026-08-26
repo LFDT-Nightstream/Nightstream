@@ -74,12 +74,46 @@ def laneInputs (source round : Nat) (lane : Fin 4) :
     DigestWindow.laneOffset] using
       windowInputs.initialState (DigestWindow.rateLane lane)
 
-def laneConstraints (source round : Nat) (lane : Fin 4) : List Expr :=
+private def laneConstraintsFromCircuit (source round : Nat)
+    (lane : Fin 4) : List Expr :=
   NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.logicalConstraints
     (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
       source round lane)
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
       source round lane.val)
+
+def laneConstraints (source round : Nat) (lane : Fin 4) : List Expr :=
+  let interface := laneInterface
+    (logicalWidth := logicalWidth) (publicFits := publicFits)
+    source round lane
+  let offset :=
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+      source round lane.val
+  NightstreamFPrime.Layout.Range.CanonicalU64.logicalConstraints
+      (DigestLane.canonicalInterface interface offset)
+      (DigestLane.canonicalOffset offset) ++
+    NightstreamFPrime.Layout.Sampling.Candidate16Five.logicalConstraints
+      (DigestLane.canonicalOffset offset) DigestLane.lowPart
+      (DigestLane.decoderOffset offset DigestLane.lowPart) ++
+    NightstreamFPrime.Layout.Sampling.Candidate16Five.logicalConstraints
+      (DigestLane.canonicalOffset offset) DigestLane.highPart
+      (DigestLane.decoderOffset offset DigestLane.highPart)
+
+theorem laneConstraints_eq_fromCircuit (source round : Nat) (lane : Fin 4) :
+    laneConstraints (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source round lane =
+      laneConstraintsFromCircuit (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round lane := by
+  symm
+  simpa [laneConstraints, laneConstraintsFromCircuit,
+    NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.logicalConstraints,
+    NightstreamFPrime.Layout.Range.CanonicalU64.logicalConstraints,
+    NightstreamFPrime.Layout.Sampling.Candidate16Five.logicalConstraints]
+    using DigestLane.flatConstraints_opsAt
+      (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source round lane)
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+        source round lane.val)
 
 def laneRows (source round : Nat) (lane : Fin 4) :
     List Rows.CompiledRow :=
@@ -142,6 +176,7 @@ theorem selectorFinalRows_toR1CS (source : Nat) :
     (laneRows (logicalWidth := logicalWidth) (publicFits := publicFits)
       source round lane).length = 406 := by
   rw [laneRows, PiCCSArithmetic.compilePacket_length]
+  rw [laneConstraints_eq_fromCircuit]
   exact
     NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.totalRowCount_eq
       (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -246,10 +281,7 @@ theorem rows_imply_laneSpec (source round : Nat) (lane : Fin 4)
       source round lane.val)
     assumptions
   apply holdsFlat_implies_holds
-  change ConstraintsHold
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-    (laneConstraints (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane)
+  rw [← laneConstraints_eq_fromCircuit]
   exact logical
 
 /-- Satisfaction of the full ordinary sampler packet enforces the final

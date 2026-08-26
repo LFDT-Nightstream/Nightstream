@@ -22,5 +22,21 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestWindow
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CommitmentCombination
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.RingKCombination
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBinding
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Completeness
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

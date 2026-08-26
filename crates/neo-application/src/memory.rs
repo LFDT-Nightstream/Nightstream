@@ -133,7 +133,7 @@ impl<Id: Eq> MemoryCatalog<Id> {
 }
 
 impl<Id> MemoryCatalog<Id> {
-    pub fn memories(&self) -> &[MemorySpec<Id>] {
+    pub fn entries(&self) -> &[MemorySpec<Id>] {
         &self.memories
     }
 }

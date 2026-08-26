@@ -9,9 +9,19 @@ import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.PackagePlan
+import NightstreamFPrime.Export.Stage1.VerifierContext
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PilotParity
 import NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
+import NightstreamFPrime.Export.Stage1.CompactRows
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
+import NightstreamFPrime.Export.Stage1.PiRLCFirst54Conformance
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
+import NightstreamFPrime.Export.Stage1.PiRLCNonzero
+import NightstreamFPrime.Export.Stage1.PiRLCParity
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

@@ -19,10 +19,30 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.Axioms"]
+roots = ["tests.Axioms", "tests.AxiomsStage1PiRLCExport"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
 name = "emit"
 root = "NightstreamFPrime.Export.Main"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPilotParity"
+root = "NightstreamFPrime.Export.PilotParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiCCSParity"
+root = "NightstreamFPrime.Export.PiCCSParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiRlcSamplerParity"
+root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiRLCParity"
+root = "NightstreamFPrime.Export.PiRLCParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

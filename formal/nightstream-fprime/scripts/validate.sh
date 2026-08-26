@@ -7,6 +7,8 @@
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh pilot-parity <path>
 #   validate.sh pi-ccs-parity <path>
+#   validate.sh pi-rlc-sampler-parity <path>
+#   validate.sh pi-rlc-parity <path>
 #   validate.sh all
 set -euo pipefail
 
@@ -40,11 +42,19 @@ case "$phase" in
     ;;
   pilot-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pilot-parity <path>" >&2; exit 2; fi
-    capped lake exe emit -- --pilot-parity "$2"
+    capped lake exe emitPilotParity -- "$2"
     ;;
   pi-ccs-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-ccs-parity <path>" >&2; exit 2; fi
-    capped lake exe emit -- --pi-ccs-parity "$2"
+    capped lake exe emitPiCCSParity -- "$2"
+    ;;
+  pi-rlc-sampler-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
+    capped lake exe emitPiRlcSamplerParity -- "$2"
+    ;;
+  pi-rlc-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-parity <path>" >&2; exit 2; fi
+    capped lake exe emitPiRLCParity -- "$2"
     ;;
   all)
     bash scripts/check-boundaries.sh

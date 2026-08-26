@@ -198,6 +198,60 @@ theorem constraintsHold_append (env : Env) (first second : List Expr) :
     · exact firstHolds expression member
     · exact secondHolds expression member
 
+/-- Read the exact equality carried by one indexed straight-line recipe row. -/
+theorem recipeConstraints_value (env : Env) (start : Nat)
+    (recipes : List Expr) (rows : ConstraintsHold env
+      (recipeConstraints start recipes))
+    (index : Nat) (bounded : index < recipes.length) :
+    env (start + index) =
+      (recipes.get ⟨index, bounded⟩).eval env := by
+  induction recipes generalizing start index with
+  | nil => simp at bounded
+  | cons recipe rest inductionHypothesis =>
+      cases index with
+      | zero =>
+          have row := rows (Expr.var start - recipe) (by
+            simp [recipeConstraints])
+          have zero : env start - recipe.eval env = 0 := by
+            simpa [Expr.eval_sub] using row
+          exact sub_eq_zero.mp zero
+      | succ index =>
+          have tailBound : index < rest.length := by
+            simpa using bounded
+          have tailRows : ConstraintsHold env
+              (recipeConstraints (start + 1) rest) := by
+            intro expression member
+            exact rows expression (by simp [recipeConstraints, member])
+          have value := inductionHypothesis (start + 1) tailRows index tailBound
+          simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using value
+
+/-- Indexed recipe equalities satisfy the complete straight-line row list. -/
+theorem recipeConstraints_hold_of_values (env : Env) (start : Nat)
+    (recipes : List Expr)
+    (values : ∀ index (bounded : index < recipes.length),
+      env (start + index) = (recipes.get ⟨index, bounded⟩).eval env) :
+    ConstraintsHold env (recipeConstraints start recipes) := by
+  induction recipes generalizing start with
+  | nil =>
+      intro expression member
+      simp [recipeConstraints] at member
+  | cons recipe rest inductionHypothesis =>
+      intro expression member
+      simp only [recipeConstraints, List.mem_cons] at member
+      rcases member with rfl | tailMember
+      · have head := values 0 (by simp)
+        have headEq : env start = recipe.eval env := by
+          simpa using head
+        have zero : env start - recipe.eval env = 0 := by
+          rw [headEq]
+          exact sub_self _
+        simpa [Expr.eval_sub] using zero
+      · apply inductionHypothesis (start + 1)
+        · intro index bounded
+          have value := values (index + 1) (by simpa using bounded)
+          simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using value
+        · exact tailMember
+
 /-- Execute the canonical witness recipes in order. -/
 def executeRecipes : Env → Nat → List Expr → Env
   | env, _, [] => env
@@ -282,5 +336,134 @@ theorem executeRecipes_holds_recipeConstraints (env : Env) (start : Nat)
         simp only [Expr.eval_sub, Expr.eval_var, hvalue, heval, sub_self]
       · change expression.eval completed = 0
         exact ih assigned (start + 1) hrest expression hmem
+
+/-! ## Non-authoritative hint execution -/
+
+/-- Every hint in one batch reads only caller-owned values below its start. -/
+def HintsReadBelow (start : Nat) (hints : List Hint) : Prop :=
+  ∀ hint ∈ hints, hint.source.VarsBelow start
+
+theorem Hint.eval_eq_of_agree_below (hint : Hint) (bound : Nat)
+    (left right : Env) (below : hint.source.VarsBelow bound)
+    (agrees : ∀ index, index < bound → left index = right index) :
+    hint.eval left = hint.eval right := by
+  cases hint with
+  | bit source index =>
+      simp only [Hint.eval]
+      rw [source.eval_eq_of_agree_below bound left right below agrees]
+  | inverseOrZero source =>
+      simp only [Hint.eval]
+      rw [source.eval_eq_of_agree_below bound left right below agrees]
+  | quotientFive source =>
+      simp only [Hint.eval]
+      rw [source.eval_eq_of_agree_below bound left right below agrees]
+  | remainderFive source =>
+      simp only [Hint.eval]
+      rw [source.eval_eq_of_agree_below bound left right below agrees]
+
+/-- Execute a hint list in order. Hints remain non-authoritative until later
+rows constrain their output variables. -/
+def executeHints : Env → Nat → List Hint → Env
+  | env, _, [] => env
+  | env, start, hint :: rest =>
+      executeHints (Env.set env start (hint.eval env)) (start + 1) rest
+
+theorem executeHints_agrees_below
+    (env : Env) (start : Nat) (hints : List Hint) :
+    ∀ index, index < start → executeHints env start hints index = env index := by
+  induction hints generalizing env start with
+  | nil =>
+      intro index _
+      rfl
+  | cons hint rest inductionHypothesis =>
+      intro index indexLt
+      rw [executeHints]
+      calc
+        executeHints (Env.set env start (hint.eval env)) (start + 1) rest index =
+            Env.set env start (hint.eval env) index :=
+          inductionHypothesis _ _ index (by omega)
+        _ = env index := Env.set_of_ne env start index _ (by omega)
+
+theorem executeHints_agrees_above
+    (env : Env) (start : Nat) (hints : List Hint) :
+    ∀ index, start + hints.length ≤ index →
+      executeHints env start hints index = env index := by
+  induction hints generalizing env start with
+  | nil =>
+      intro index _
+      rfl
+  | cons hint rest inductionHypothesis =>
+      intro index indexGe
+      rw [executeHints]
+      calc
+        executeHints (Env.set env start (hint.eval env)) (start + 1) rest index =
+            Env.set env start (hint.eval env) index :=
+          inductionHypothesis _ _ index (by
+            simp only [List.length_cons] at indexGe
+            omega)
+        _ = env index := Env.set_of_ne env start index _ (by
+          simp only [List.length_cons] at indexGe
+          omega)
+
+theorem executeHints_agreesOutside
+    (env : Env) (start : Nat) (hints : List Hint) :
+    AgreesOutside env (executeHints env start hints) start hints.length := by
+  intro index outside
+  rcases outside with below | above
+  · exact executeHints_agrees_below env start hints index below
+  · exact executeHints_agrees_above env start hints index above
+
+/-- An external-read hint has its exact executable value at its assigned
+slot after the whole batch completes. -/
+theorem executeHints_value_of_readBelow
+    (env : Env) (start : Nat) (hints : List Hint)
+    (readBelow : HintsReadBelow start hints)
+    (position : Nat) (positionLt : position < hints.length) :
+    executeHints env start hints (start + position) =
+      (hints.get ⟨position, positionLt⟩).eval env := by
+  induction hints generalizing env start position with
+  | nil =>
+      simp at positionLt
+  | cons hint rest inductionHypothesis =>
+      cases position with
+      | zero =>
+          let assigned := Env.set env start (hint.eval env)
+          calc
+            executeHints env start (hint :: rest) start =
+                executeHints assigned (start + 1) rest start := by
+              rfl
+            _ = assigned start :=
+              executeHints_agrees_below assigned (start + 1) rest start
+                (by omega)
+            _ = hint.eval env := Env.set_self env start _
+            _ = ((hint :: rest).get ⟨0, positionLt⟩).eval env := by rfl
+      | succ position =>
+          let assigned := Env.set env start (hint.eval env)
+          have tailPositionLt : position < rest.length := by
+            simpa using positionLt
+          have tailReadBelow : HintsReadBelow (start + 1) rest := by
+            intro tailHint member
+            exact Expr.VarsBelow.mono tailHint.source
+              (readBelow tailHint (by simp [member])) (by omega)
+          have selectedBelow :
+              (rest.get ⟨position, tailPositionLt⟩).source.VarsBelow start :=
+            readBelow _ (by simp)
+          calc
+            executeHints env start (hint :: rest) (start + (position + 1)) =
+                executeHints assigned (start + 1) rest
+                  ((start + 1) + position) := by
+              rw [executeHints]
+              apply congrArg (fun index =>
+                executeHints assigned (start + 1) rest index)
+              omega
+            _ = (rest.get ⟨position, tailPositionLt⟩).eval assigned :=
+              inductionHypothesis assigned (start + 1) tailReadBelow position
+                tailPositionLt
+            _ = (rest.get ⟨position, tailPositionLt⟩).eval env := by
+              apply Hint.eval_eq_of_agree_below _ start assigned env selectedBelow
+              intro index indexLt
+              exact Env.set_of_ne env start index _ (by omega)
+            _ = ((hint :: rest).get ⟨position + 1, positionLt⟩).eval env := by
+              rfl
 
 end NightstreamFPrime.Circuit

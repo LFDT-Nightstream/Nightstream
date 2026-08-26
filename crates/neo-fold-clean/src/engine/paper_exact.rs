@@ -7,8 +7,8 @@ use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::api as reductions;
-use neo_reductions::common::{split_b_matrix_k_with_nonzero_flags, RotRho};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use neo_reductions::common::{decode_pi_rlc_v1_1_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho};
+use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
@@ -122,6 +122,12 @@ pub fn sample_rho_n(
         )
         .into());
     }
+    if transcript.absorbed() != 0 {
+        return Err(neo_reductions::error::PiCcsError::InvalidInput(
+            "PaperExact PiRLC v1_1 sampler requires a zero transcript absorb cursor".into(),
+        )
+        .into());
+    }
     if let Some(limit) = ring.binv_floor {
         let minimum = *ring.alphabet.iter().min().expect("nonempty alphabet") as i64;
         let maximum = *ring.alphabet.iter().max().expect("nonempty alphabet") as i64;
@@ -132,32 +138,29 @@ pub fn sample_rho_n(
             .into());
         }
     }
+    if ring.alphabet != neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.as_slice() {
+        return Err(neo_reductions::error::PiCcsError::InvalidInput(
+            "PaperExact PiRLC sampler requires the fixed alphabet [-2, -1, 0, 1, 2]".into(),
+        )
+        .into());
+    }
     let mut output = Vec::with_capacity(count);
     for source in 0..count {
-        transcript.absorb_v1_1(&[F::from_u64(4), F::from_u64(source as u64)]);
-        let coefficients = sample_alphabet_coefficients(transcript, ring.alphabet);
+        let coordinate = u64::try_from(source).map_err(|_| {
+            neo_reductions::error::PiCcsError::InvalidInput("PaperExact PiRLC challenge coordinate exceeds u64".into())
+        })?;
+        transcript.absorb_v1_1(&[F::from_u64(4), F::from_u64(coordinate)]);
+        let coefficients = sample_alphabet_coefficients(transcript)?;
         let matrix = rotation_matrix(&coefficients, ring.phi_coeffs);
         output.push(RotRho::new_checked(params.inner(), matrix)?);
     }
     Ok(output)
 }
 
-fn sample_alphabet_coefficients(transcript: &mut neo_transcript::Poseidon2Transcript, alphabet: &[i8]) -> Vec<F> {
-    let mut symbols = Vec::with_capacity(neo_math::D);
-    for _ in 0..64 {
-        if symbols.len() == neo_math::D {
-            break;
-        }
-        let word = transcript.squeeze_field_v1_1().as_canonical_u64();
-        for chunk in 0..21 {
-            let candidate = ((word >> (3 * chunk)) & 7) as usize;
-            if candidate < alphabet.len() && symbols.len() < neo_math::D {
-                symbols.push(alphabet[candidate]);
-            }
-        }
-    }
-    symbols.resize(neo_math::D, alphabet[2]);
-    symbols.into_iter().map(signed_field).collect()
+fn sample_alphabet_coefficients(transcript: &mut neo_transcript::Poseidon2Transcript) -> Result<Vec<F>, Error> {
+    let digests = std::array::from_fn(|_| transcript.squeeze_digest_v1_1());
+    let symbols = decode_pi_rlc_v1_1_coefficients(&digests)?;
+    Ok(symbols.into_iter().map(signed_field).collect())
 }
 
 fn signed_field(value: i8) -> F {

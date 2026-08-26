@@ -647,6 +647,39 @@ fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
     Ok(())
 }
 
+pub const PI_RLC_V1_1_DIGEST_ROUNDS: usize = 8;
+pub const PI_RLC_V1_1_RATE_LANES: usize = 4;
+pub const PI_RLC_V1_1_REJECTION_BUCKET: usize = 65_535;
+
+/// Decode the exact Lean PiRLC 54-of-64 coefficient schedule.
+///
+/// Each field lane supplies its low and high 16-bit candidates, in that
+/// order. Candidate 65535 is rejected. Every other candidate selects one
+/// value from the fixed centered alphabet by reduction modulo five.
+pub fn decode_pi_rlc_v1_1_coefficients(
+    digests: &[[F; PI_RLC_V1_1_RATE_LANES]; PI_RLC_V1_1_DIGEST_ROUNDS],
+) -> Result<[i8; D], PiCcsError> {
+    let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
+    let mut coefficients = Vec::with_capacity(D);
+    for digest in digests {
+        for lane in digest {
+            let word = lane.as_canonical_u64();
+            for shift in [0, 16] {
+                let candidate = ((word >> shift) & 0xffff) as usize;
+                if candidate != PI_RLC_V1_1_REJECTION_BUCKET && coefficients.len() < D {
+                    coefficients.push(alphabet[candidate % alphabet.len()]);
+                }
+            }
+        }
+    }
+    let accepted = coefficients.len();
+    coefficients.try_into().map_err(|_| {
+        PiCcsError::InvalidInput(format!(
+            "PiRLC sampler shortfall: accepted {accepted} of {D} coefficients from the fixed 64 candidates"
+        ))
+    })
+}
+
 fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, label: &str) -> Result<(), PiCcsError> {
     let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
     let required_expansion = expansion_factor_T(alphabet);
@@ -712,6 +745,11 @@ pub fn sample_rot_rhos_n(
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));
     }
+    if tr.absorbed() != 0 {
+        return Err(PiCcsError::InvalidInput(
+            "PiRLC v1_1 sampler requires a zero transcript absorb cursor".into(),
+        ));
+    }
 
     // ---- Strong sampling set check (Definition 14 + Theorem 1) ----
     if let Some(binv) = ring.binv_floor {
@@ -724,6 +762,11 @@ pub fn sample_rot_rhos_n(
                 delta_a, binv
             )));
         }
+    }
+    if ring.alphabet != goldilocks_paper_b2::CHALLENGE_ALPHABET.as_slice() {
+        return Err(PiCcsError::InvalidInput(
+            "PiRLC sampler requires the fixed alphabet [-2, -1, 0, 1, 2]".into(),
+        ));
     }
 
     // ---- ΠRLC norm bound check (Section 4.3) ----
@@ -766,21 +809,11 @@ pub fn sample_rot_rhos_n(
     let mut out = Vec::with_capacity(count);
 
     for i in 0..count {
-        tr.absorb_v1_1(&[F::from_u64(4), F::from_u64(i as u64)]);
-        let mut coeffs_i8 = Vec::with_capacity(D);
-        for _ in 0..64 {
-            if coeffs_i8.len() == D {
-                break;
-            }
-            let word = tr.squeeze_field_v1_1().as_canonical_u64();
-            for chunk in 0..21 {
-                let candidate = ((word >> (3 * chunk)) & 7) as usize;
-                if candidate < ring.alphabet.len() && coeffs_i8.len() < D {
-                    coeffs_i8.push(ring.alphabet[candidate]);
-                }
-            }
-        }
-        coeffs_i8.resize(D, ring.alphabet[2]);
+        let coordinate =
+            u64::try_from(i).map_err(|_| PiCcsError::InvalidInput("PiRLC challenge coordinate exceeds u64".into()))?;
+        tr.absorb_v1_1(&[F::from_u64(4), F::from_u64(coordinate)]);
+        let digests = std::array::from_fn(|_| tr.squeeze_digest_v1_1());
+        let coeffs_i8 = decode_pi_rlc_v1_1_coefficients(&digests)?;
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();

@@ -1,9 +1,10 @@
-//! Witness-driven debug memory checker over `WasmMemorySpec`.
+//! Witness-driven debug memory checker over shared logical memory declarations.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
 use super::layout::named_column_family;
-use super::relation_layout::{WasmMemoryActivation, WasmMemoryPortKind, WasmMemorySpec, WasmRelationLayout};
+use super::relation_layout::WasmRelationLayout;
 use super::WasmMemoryId;
+use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemorySpec};
 use neo_math::F;
 use p3_field::PrimeField64;
 use std::collections::BTreeMap;
@@ -390,7 +391,7 @@ pub fn sanity_check_memory_rows(
                 row_index
             ));
         }
-        for memory in &layout.auxiliary.memories {
+        for memory in layout.auxiliary.memory.entries() {
             apply_memory_row(memory, witness, row_index, &mut state)?;
         }
     }
@@ -398,7 +399,7 @@ pub fn sanity_check_memory_rows(
 }
 
 fn apply_memory_row(
-    memory: &WasmMemorySpec,
+    memory: &MemorySpec<WasmMemoryId>,
     witness: &[F],
     row_index: usize,
     state: &mut BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
@@ -412,10 +413,10 @@ fn apply_memory_row(
         let address = port
             .address_columns
             .iter()
-            .map(|column| read_u32_column(witness, column.0, row_index, "address"))
+            .map(|&column| read_u32_column(witness, column, row_index, "address"))
             .collect::<Result<Vec<_>, _>>()?;
-        let value = read_u32_column(witness, port.value_column.0, row_index, "value")?;
-        if memory.id.is_rom() {
+        let value = read_u32_column(witness, port.value_column, row_index, "value")?;
+        if memory.kind == MemoryKind::Rom {
             match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
                     return Err(format!(
@@ -434,7 +435,7 @@ fn apply_memory_row(
             continue;
         }
         match port.kind {
-            WasmMemoryPortKind::Read => match cells.get(&address).copied() {
+            MemoryPortKind::Read => match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
                     return Err(format!(
                         "memory `{}` read mismatch at {:?} on row {}: expected {}, got {}",
@@ -460,14 +461,14 @@ fn apply_memory_row(
                     }
                 },
             },
-            WasmMemoryPortKind::Write { value_before_column } => {
+            MemoryPortKind::Write { value_before_column } => {
                 // Nebula-style RMW: if `value_before_column` is named, this
                 // row's read tuple must match the prior write at this address
                 // (or the documented init mode). Catches a malicious prover
                 // who writes a word whose unmodified bytes don't preserve the
                 // prior state — see `i32_store8_row_rejects_tampered_...`.
                 if let Some(before_col) = value_before_column {
-                    let before_value = read_u32_column(witness, before_col.0, row_index, "value_before")?;
+                    let before_value = read_u32_column(witness, before_col, row_index, "value_before")?;
                     match cells.get(&address).copied() {
                         Some(expected) if expected != before_value => {
                             return Err(format!(
@@ -504,22 +505,25 @@ fn apply_memory_row(
 }
 
 fn activation_active(
-    activation: WasmMemoryActivation,
+    activation: MemoryPortActivation,
     witness: &[F],
     row_index: usize,
     memory: WasmMemoryId,
 ) -> Result<bool, String> {
-    match activation {
-        WasmMemoryActivation::Always => Ok(true),
-        WasmMemoryActivation::BooleanGate(gate) => match witness[gate.0].as_canonical_u64() {
-            0 => Ok(false),
-            1 => Ok(true),
-            other => Err(format!(
-                "memory `{}` has non-boolean gate {} on row {}",
-                memory, other, row_index
-            )),
-        },
-    }
+    let (gate, negate) = match activation {
+        MemoryPortActivation::Always => return Ok(true),
+        MemoryPortActivation::When(gate) => (gate, false),
+        MemoryPortActivation::Unless(gate) => (gate, true),
+    };
+    let active = match witness[gate].as_canonical_u64() {
+        0 => false,
+        1 => true,
+        other => Err(format!(
+            "memory `{}` has non-boolean gate {} on row {}",
+            memory, other, row_index
+        ))?,
+    };
+    Ok(if negate { !active } else { active })
 }
 
 fn init_mode(memory: WasmMemoryId) -> DebugInitMode {
@@ -545,8 +549,8 @@ fn memory_init_mode(memory: WasmMemoryId) -> Option<DebugInitMode> {
 }
 
 fn assert_all_memory_specs_have_init_modes(layout: &WasmRelationLayout) -> Result<(), String> {
-    for memory in &layout.auxiliary.memories {
-        if !memory.id.is_rom() && memory_init_mode(memory.id).is_none() {
+    for memory in layout.auxiliary.memory.entries() {
+        if memory.kind == MemoryKind::Ram && memory_init_mode(memory.id).is_none() {
             return Err(format!(
                 "memory semantics missing init-mode coverage for `{}`",
                 memory.id

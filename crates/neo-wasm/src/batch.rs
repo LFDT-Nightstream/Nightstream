@@ -4,7 +4,7 @@
 //! The single-step wasm CCS proves *one* step satisfies the row constraints
 //! but does not, on its own, enforce that consecutive steps form a coherent
 //! execution — e.g., that `step[i].state_after.pc == step[i+1].state_before.pc`. The
-//! cross-step links live in `WasmRelationLayout::auxiliary.ivc_state_links`
+//! cross-step links live in `WasmRelationLayout::auxiliary.continuity`
 //! as metadata; this module compiles them into actual R1CS rows by:
 //!
 //! 1. **Block-diagonalising** the single-step matrices `A`, `B`, `C`: each
@@ -12,7 +12,7 @@
 //!    entries on the diagonal portion of the matrix — except `COL_ONE`
 //!    references, which all blocks share as the global `z[0]`.
 //! 2. **Adding state-continuity link rows** between adjacent blocks: for
-//!    each `(prev_after, next_before)` pair in the spec, an equality row
+//!    each `(previous_step_column, next_step_column)` pair, an equality row
 //!    across adjacent blocks.
 //!
 //! Witness shape: `m_batch = batch_size * m_single`. Step `s`'s columns
@@ -72,10 +72,7 @@ pub enum BatchError {
 ///
 /// Sources the single-step matrices from [`build_wasm_relation`] and the
 /// cross-step link spec from [`build_wasm_relation_layout`]. Every
-/// `(prev_after, next_before)` column pair in every spec link is emitted
-/// as a linking row; the `flat_map` over `column_pairs` happens to also
-/// be a no-op for any future link whose invariant can't be expressed as
-/// column equalities (none today).
+/// declared continuity link is emitted as a linking row.
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
     let relation = build_wasm_relation().expect("valid WASM relation");
     let core = relation.r1cs();
@@ -118,10 +115,9 @@ pub(crate) fn batch_wasm_relation(
     let layout = build_wasm_relation_layout();
     let link_pairs: Vec<(usize, usize)> = layout
         .auxiliary
-        .ivc_state_links
-        .iter()
-        .flat_map(|link| link.column_pairs.iter())
-        .map(|pair| (pair.prev_after.0, pair.next_before.0))
+        .continuity
+        .links()
+        .map(|link| (link.previous_step_column, link.next_step_column))
         .collect();
 
     // Per boundary: one row per state-continuity pair.

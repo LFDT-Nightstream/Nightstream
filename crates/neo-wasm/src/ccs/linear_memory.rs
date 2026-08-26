@@ -441,7 +441,7 @@ fn push_subword_byte_routing_constraints(
 
 /// Bind `laneN_load_active = use_laneN · Σ load_selectors` and likewise for
 /// store, via one R1CS quadratic per lane × direction. These are the gate
-/// columns the `linear_memory` `WasmMemorySpec` uses to fire its Read
+/// columns the `linear_memory` logical memory spec uses to fire its Read
 /// (load) and Write+RMW (store) entries — keeping load rows from writing
 /// to the cells log.
 fn push_lane_direction_gates(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {

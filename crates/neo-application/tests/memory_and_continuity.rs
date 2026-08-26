@@ -110,14 +110,14 @@ fn memory_catalog_preserves_memory_and_port_order() {
     )
     .expect("valid logical memories");
 
-    assert_eq!(catalog.memories()[0].id, TestMemory::Program);
-    assert_eq!(catalog.memories()[1].id, TestMemory::State);
+    assert_eq!(catalog.entries()[0].id, TestMemory::Program);
+    assert_eq!(catalog.entries()[1].id, TestMemory::State);
     assert_eq!(
-        catalog.memories()[1].ports[0].activation,
+        catalog.entries()[1].ports[0].activation,
         MemoryPortActivation::Unless(ACTIVE)
     );
     assert!(matches!(
-        catalog.memories()[1].ports[1].kind,
+        catalog.entries()[1].ports[1].kind,
         MemoryPortKind::Write {
             value_before_column: Some(VALUE_BEFORE)
         }

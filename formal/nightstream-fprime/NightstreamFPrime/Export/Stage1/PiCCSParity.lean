@@ -94,7 +94,7 @@ def assuranceValue (computed : Computed) : Value :=
 Order: prior preimage, output preimage, prior public input, output digest,
 verifier context, fresh commitment, round messages, output `Eval_K`, output
 `Eval_A`, complete digest-only transcript blocks, semantic verifier-input
-blocks. -/
+blocks, and the four complete verifier-context authority word lists. -/
 def inputValue (computed : Computed) : Value :=
   .array [fieldWordsValue statePreimageWords,
     fieldWordsValue statePreimageWords,
@@ -106,7 +106,11 @@ def inputValue (computed : Computed) : Value :=
     outputEval_KValue,
     outputEval_AValue,
     fieldBlocksValue (ProductionKey.publicInputBlocks running fresh),
-    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput)]
+    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput),
+    fieldBlocksValue [fixtureContextAuthority.relationWords,
+      fixtureContextAuthority.applicationWords,
+      fixtureContextAuthority.nifsKeyWords,
+      fixtureContextAuthority.commitmentKeyWords]]
 
 /-- Complete verifier result tuple.
 
@@ -133,10 +137,11 @@ def resultValue (computed : Computed) : Value :=
     stateValue computed.outgoingState,
     assuranceValue computed]
 
-/-- Schema 6 adds the separate verifier-owned context input. -/
+/-- Schema 7 adds the complete authority preimage used to derive the separate
+verifier-owned context input. -/
 def parityValue : Value :=
   let computed := compute
-  .array [.atom 6, inputValue computed, resultValue computed]
+  .array [.atom 7, inputValue computed, resultValue computed]
 
 def render : String := parityValue.render
 

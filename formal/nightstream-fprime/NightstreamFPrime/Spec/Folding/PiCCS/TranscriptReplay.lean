@@ -156,6 +156,44 @@ def TranscriptStateCollision
   left ≠ right /\
     (left.derive oracle).finalState = (right.derive oracle).finalState
 
+/-- Equal complete verifier challenge views identify one replay input unless
+the exact statement-and-message transcript replay collides. This theorem is
+deterministic; Fiat--Shamir security assigns probability only in the outer
+security composition. -/
+theorem replay_eq_or_challenge_collision
+    {Field : Type uField}
+    {State : Type uState}
+    {shape : Shape}
+    (oracle : Oracle Field State shape)
+    (left right : ReplayInput Field State shape)
+    (alphaEqual : (left.derive oracle).alpha =
+      (right.derive oracle).alpha)
+    (gammaEqual : (left.derive oracle).gamma =
+      (right.derive oracle).gamma)
+    (roundPointEqual : (left.derive oracle).roundPoint =
+      (right.derive oracle).roundPoint) :
+    left = right ∨ TranscriptReplayCollision oracle left right := by
+  classical
+  by_cases same : left = right
+  · exact Or.inl same
+  · exact Or.inr ⟨same, alphaEqual, gammaEqual, roundPointEqual⟩
+
+/-- Equal final pre-output transcript states identify one replay input unless
+the exact causal transcript chain collides. -/
+theorem replay_eq_or_state_collision
+    {Field : Type uField}
+    {State : Type uState}
+    {shape : Shape}
+    (oracle : Oracle Field State shape)
+    (left right : ReplayInput Field State shape)
+    (finalStateEqual : (left.derive oracle).finalState =
+      (right.derive oracle).finalState) :
+    left = right ∨ TranscriptStateCollision oracle left right := by
+  classical
+  by_cases same : left = right
+  · exact Or.inl same
+  · exact Or.inr ⟨same, finalStateEqual⟩
+
 /-- Verifier-derived coins from the exact statement and round schedule. -/
 structure Derived
     (Field : Type uField)

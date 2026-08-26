@@ -14,7 +14,7 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::layout::COL_ONE;
-use crate::tagged_r1cs_builder::WasmR1csRow;
+use builder::LookupR1csRow;
 
 pub(crate) struct CompactLookupShape {
     pub(crate) relation: SparseR1cs,
@@ -128,7 +128,7 @@ pub fn audit_compact_lookup_auxiliary_load_bearing(base_assignment: &[F]) -> Res
     Ok(auxiliary_assignment.len())
 }
 
-fn fixed_rows(base_columns: usize) -> Result<(Vec<WasmR1csRow>, Vec<F>), LookupCircuitError> {
+fn fixed_rows(base_columns: usize) -> Result<(Vec<LookupR1csRow>, Vec<F>), LookupCircuitError> {
     if COL_ONE >= base_columns {
         return Err(LookupCircuitError::MissingConstantColumn {
             columns: base_columns,

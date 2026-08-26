@@ -3,14 +3,13 @@
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::builder::{selector_lc, Bit, Lc, LookupR1csBuilder};
+use super::builder::{selector_lc, Bit, Lc, LookupR1csBuilder, LookupR1csRow};
 use crate::isa::WasmOpcode;
 use crate::layout::{
     selector_col, COL_DIV_OVERFLOW_COND, COL_OP_TABLE_ENABLED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
 };
 use crate::range_check::range_checked_bit_columns;
-use crate::tagged_r1cs_builder::WasmR1csRow;
 
 const LIMB_BITS: usize = 16;
 const PRODUCT_BITS: usize = 32;
@@ -25,7 +24,7 @@ struct Inputs {
     output64: Vec<Bit>,
 }
 
-pub(super) fn synthesize(base_assignment: &[F]) -> Result<(Vec<WasmR1csRow>, Vec<F>), String> {
+pub(super) fn synthesize(base_assignment: &[F]) -> Result<(Vec<LookupR1csRow>, Vec<F>), String> {
     let inputs = Inputs::new()?;
     let mut builder = LookupR1csBuilder::new(base_assignment);
 

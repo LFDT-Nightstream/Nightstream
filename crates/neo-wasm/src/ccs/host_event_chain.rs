@@ -46,16 +46,14 @@ use super::super::layout::{
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
 use super::host_event;
-use crate::column_registry::define_column_region;
 use crate::comm_chain::{
     perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
     perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
 };
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
+use neo_application::define_column_region;
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
-
-type R1csBuilder = WasmTaggedR1csBuilder;
 
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface
@@ -65,7 +63,7 @@ define_column_region! {
     region: "host_event_chain_aux",
     start: crate::witness_layout::HOST_EVENT_AUX_START,
     width: pub AUX_WIDTH,
-    specs: pub AUX_COLUMN_SPECS,
+    families: pub AUX_COLUMN_FAMILIES,
     indices: pub(self),
     columns: [
         PERM_POSITION: [Boolean; COMM_CHAIN_PERM_ROWS] => "permutation row-position one-hot flags",
@@ -168,7 +166,7 @@ pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
     ]
 }
 
-pub(super) fn push_constraints(b: &mut R1csBuilder) {
+pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_interface_constraints(b);
     push_host_event_gather_constraints(b);
     push_position_onehot_constraints(b);
@@ -182,7 +180,7 @@ pub(super) fn push_constraints(b: &mut R1csBuilder) {
 }
 
 /// Shared host-event row shape and carried-state transitions.
-fn push_interface_constraints(b: &mut R1csBuilder) {
+fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event interface"), |b| {
         b.push_linear_zero(
             [(super::super::layout::COL_HOST_CALL_ACTIVE, F::ONE)]
@@ -260,7 +258,7 @@ fn push_interface_constraints(b: &mut R1csBuilder) {
 /// stage-B gap: with these rows, the commitment chain commits exactly the event
 /// sequence obtained by applying the committed tables to the values at the
 /// call site.
-fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
+fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     use super::super::layout::{
         COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_HALTED,
         COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as HOST_CALL_ACTIVE,
@@ -806,7 +804,7 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
 }
 
 /// Position one-hot ↔ round-counter lockstep.
-fn push_position_onehot_constraints(b: &mut R1csBuilder) {
+fn push_position_onehot_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event perm position"), |b| {
         push_zero_test_gadget(
             b,
@@ -860,7 +858,7 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
 
 /// `perm_pending` is raised by the final gather row, cleared on the absorb
 /// row, and preserved everywhere else.
-fn push_pending_update_constraints(b: &mut R1csBuilder) {
+fn push_pending_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event pending update"), |b| {
         // Absorb row consumes the flag.
         b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
@@ -879,7 +877,7 @@ fn push_pending_update_constraints(b: &mut R1csBuilder) {
 
 /// Absorb-buffer writes: gather rows stage one ROM-described word, the
 /// absorb row clears the buffer, and every untouched slot is carried.
-fn push_buffer_write_constraints(b: &mut R1csBuilder) {
+fn push_buffer_write_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event buffer write"), |b| {
         // The absorb row consumes the block: the buffer resets to zero so
         // the next block's unwritten slots are the zero padding.
@@ -902,7 +900,7 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
 
 /// The absorb row's entry state is the premixed block input:
 /// `state_before = M_ext · [chain_before | evbuf_before]`.
-fn push_absorb_constraints(b: &mut R1csBuilder) {
+fn push_absorb_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let me = external_matrix();
     b.with_tag(host_event("host event absorb"), |b| {
         for lane in 0..12 {
@@ -923,7 +921,7 @@ fn push_absorb_constraints(b: &mut R1csBuilder) {
 /// Full-round rows: `state_after = M_ext · sbox(state_before + RC[pos])`,
 /// with the S-box powers in unconditional mult rows over `COL_PERM_FULL_T*`
 /// and the round constants blended in through the position one-hot.
-fn push_full_round_constraints(b: &mut R1csBuilder) {
+fn push_full_round_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let me = external_matrix();
     let full_positions: Vec<usize> = (0..COMM_CHAIN_PERM_ROWS)
         .filter(|&p| perm_row_is_full_round(p))
@@ -963,7 +961,7 @@ fn push_full_round_constraints(b: &mut R1csBuilder) {
 /// Partial-pair rows: two internal rounds. Round a S-boxes lane 0 into
 /// `U3`, round b S-boxes the mixed lane 0 into `U7`, and the gated output
 /// rows apply the composed internal linear layers.
-fn push_partial_pair_constraints(b: &mut R1csBuilder) {
+fn push_partial_pair_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let mi = internal_matrix();
     let partial_positions: Vec<usize> = (PERM_PARTIAL_FIRST_ROW..PERM_TERMINAL_FIRST_ROW).collect();
 
@@ -1031,7 +1029,7 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
 /// Chain movement: only the group's last row updates `comm_chain`, adding
 /// the raw input lanes (feed-forward) to the permutation output; every
 /// other row in the trace carries the chain unchanged.
-fn push_chain_update_constraints(b: &mut R1csBuilder) {
+fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let last = PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1];
     b.with_tag(host_event("host event chain update"), |b| {
         for limb in 0..4 {
@@ -1075,7 +1073,7 @@ fn push_chain_update_constraints(b: &mut R1csBuilder) {
 
 /// Perm rows are aux rows with no stack traffic (pc/param-init handling
 /// lives with the other aux-row shape rows in `ccs/call.rs`).
-fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
+fn push_perm_row_shape_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event perm row shape"), |b| {
         b.push_row(perm_row_gate_terms(), [(COL_STACK_READS, F::ONE)], []);
         b.push_row(perm_row_gate_terms(), [(COL_STACK_WRITES, F::ONE)], []);

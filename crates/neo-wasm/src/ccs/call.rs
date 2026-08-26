@@ -28,14 +28,12 @@ use super::always;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-type R1csBuilder = WasmTaggedR1csBuilder;
-
 /// Emit every call/frame/param-init row the wasm VM needs in a single
 /// place. Ordering inside follows the natural lifecycle of a call:
 /// row-kind classification → aux-row shape → enter/exit param init →
 /// per-aux-row witness shape → return-pc restoration → frame fbp
 /// transition → dynamic call-arity lookups.
-pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
+pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("function call metadata"), |b| {
         b.push_linear_zero([
             (COL_CALL_TARGET_METADATA, F::ONE),
@@ -278,7 +276,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     });
 }
 
-fn push_simple_output_constraints(b: &mut R1csBuilder) {
+fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("simple output carry"), |b| {
         for (after, before) in [
             (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
@@ -369,7 +367,7 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
     });
 }
 
-fn push_dynamic_call_stack_arity_constraints(b: &mut R1csBuilder) {
+fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
@@ -439,7 +437,7 @@ pub(super) fn host_call_gate_terms() -> [(usize, F); 4] {
     ]
 }
 
-fn push_host_call_attribution_constraints(b: &mut R1csBuilder) {
+fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // Indirect host calls fall through to the instruction after the call.
     // Direct calls get pc_after from the static pc ROM edge, and guest
     // indirect calls from the `function_entries` binding. Indirect host calls
@@ -494,7 +492,7 @@ fn push_host_call_attribution_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_param_init_state_preservation_constraints(b: &mut R1csBuilder) {
+fn push_param_init_state_preservation_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // Gather, tail-enter, and permutation rows carry param-init state. This
     // prevents an aux row from injecting a guest parameter-init sequence.
     for (after, before) in [
@@ -516,7 +514,7 @@ fn push_param_init_state_preservation_constraints(b: &mut R1csBuilder) {
     }
 }
 
-fn push_guest_call_flag_constraints(b: &mut R1csBuilder) {
+fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
@@ -553,7 +551,7 @@ fn push_guest_call_flag_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_call_param_init_enter_mode_constraints(b: &mut R1csBuilder) {
+fn push_call_param_init_enter_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let guest_call = COL_GUEST_ENTRY_ACTIVE;
 
     b.push_row(
@@ -576,7 +574,7 @@ fn push_call_param_init_enter_mode_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_call_param_init_exit_mode_constraints(b: &mut R1csBuilder) {
+fn push_call_param_init_exit_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_linear_zero([
         (COL_PARAM_INIT_ACTIVE_AFTER, F::ONE),
         (COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, F::ONE),
@@ -592,7 +590,7 @@ fn push_call_param_init_exit_mode_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder) {
+fn push_call_param_init_aux_row_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = COL_PARAM_INIT_ACTIVE_BEFORE;
 
     // in_param_init_mode => param_init_remaining' = param_init_remaining - 1
@@ -635,7 +633,7 @@ fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(b, selector, [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)]);
 }
 
-fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
+fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
@@ -692,7 +690,7 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_tail_call_transition_constraints(b: &mut R1csBuilder) {
+fn push_tail_call_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
@@ -732,7 +730,7 @@ fn push_tail_call_transition_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_stack_frame_base_transition_constraints(b: &mut R1csBuilder) {
+fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
@@ -763,7 +761,7 @@ fn push_stack_frame_base_transition_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder) {
+fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let guest_call = COL_GUEST_ENTRY_ACTIVE;
     let pop = COL_CALL_STACK_POP_PRESENT;
 

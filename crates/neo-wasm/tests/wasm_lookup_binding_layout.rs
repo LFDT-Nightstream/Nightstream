@@ -1,24 +1,24 @@
 #[test]
-fn column_specs_are_dense_and_in_order() {
+fn column_families_are_dense_and_in_order() {
     use neo_wasm::layout::{
-        column_specs, HOST_EVENT_COLUMN_COUNT, NAMED_COLUMN_COUNT, NAMED_COLUMN_SPEC_REGIONS, WASM_COLUMN_COUNT,
+        column_families, HOST_EVENT_COLUMN_COUNT, NAMED_COLUMN_COUNT, NAMED_COLUMN_FAMILY_REGIONS, WASM_COLUMN_COUNT,
     };
 
-    assert_eq!(NAMED_COLUMN_SPEC_REGIONS.len(), 2);
-    assert!(NAMED_COLUMN_SPEC_REGIONS[0]
+    assert_eq!(NAMED_COLUMN_FAMILY_REGIONS.len(), 2);
+    assert!(NAMED_COLUMN_FAMILY_REGIONS[0]
         .iter()
-        .all(|spec| spec.region == "wasm_named"));
-    assert!(NAMED_COLUMN_SPEC_REGIONS[1]
+        .all(|family| family.region == "wasm_named"));
+    assert!(NAMED_COLUMN_FAMILY_REGIONS[1]
         .iter()
-        .all(|spec| spec.region == "host_event_interface"));
-    assert_eq!(NAMED_COLUMN_SPEC_REGIONS[1][0].start, WASM_COLUMN_COUNT);
+        .all(|family| family.region == "host_event_interface"));
+    assert_eq!(NAMED_COLUMN_FAMILY_REGIONS[1][0].start, WASM_COLUMN_COUNT);
     assert_eq!(NAMED_COLUMN_COUNT, WASM_COLUMN_COUNT + HOST_EVENT_COLUMN_COUNT);
 
     let mut next = 0;
-    for spec in column_specs() {
-        assert!(matches!(spec.region, "wasm_named" | "host_event_interface"));
-        assert_eq!(spec.start, next, "column specs must be dense and ordered");
-        next = spec.end();
+    for family in column_families() {
+        assert!(matches!(family.region, "wasm_named" | "host_event_interface"));
+        assert_eq!(family.start, next, "column families must be dense and ordered");
+        next = family.end();
     }
     assert_eq!(next, NAMED_COLUMN_COUNT);
 }
@@ -32,12 +32,21 @@ fn every_selector_column_is_declared_boolean() {
     // annotation, the booleanity row is silently omitted and per-opcode
     // gating becomes unsound (a prover can split a selector's "1" across
     // canceling field values). This test pins that contract.
-    use neo_wasm::layout::{column_spec, ColumnWidth, SELECTOR_COLS};
+    use neo_wasm::layout::{named_column_family, ColumnWidth, SELECTOR_COLS};
 
     let undeclared: Vec<&'static str> = SELECTOR_COLS
         .iter()
-        .filter(|&&col| column_spec(col).expect("declared selector column").width != ColumnWidth::Boolean)
-        .map(|&col| column_spec(col).expect("declared selector column").name)
+        .filter(|&&col| {
+            named_column_family(col)
+                .expect("declared selector column")
+                .width
+                != ColumnWidth::Boolean
+        })
+        .map(|&col| {
+            named_column_family(col)
+                .expect("declared selector column")
+                .name
+        })
         .collect();
     assert!(
         undeclared.is_empty(),

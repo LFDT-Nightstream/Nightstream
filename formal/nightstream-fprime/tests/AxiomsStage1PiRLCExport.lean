@@ -33,7 +33,9 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.compactConstraintTemplate_rows_imply_eval_zero
 #audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.compactConstraintTemplate_complete
 #audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.compactTemplate_complete
+#audit_axioms NightstreamFPrime.Export.Stage1.WitnessProgram.piRlcDigestLaneBatches_eq_fromCircuit
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows.laneInputs
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows.laneConstraints_eq_fromCircuit
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows.laneRows_length
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows.windowRows_length
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows.selectorFinalRows_length

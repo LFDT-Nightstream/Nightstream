@@ -31,6 +31,11 @@ pub enum MemoryPortKind {
     Read,
     Write {
         /// Optional witness column for the value immediately before the write.
+        ///
+        /// `None` means the row-local relation does not name the prior value;
+        /// the memory argument still enforces its own read/write consistency.
+        /// `Some(column)` means application constraints consume that prior
+        /// value, so the memory backend must bind its read witness to `column`.
         value_before_column: Option<usize>,
     },
 }

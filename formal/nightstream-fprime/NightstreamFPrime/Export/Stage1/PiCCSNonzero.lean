@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.VerifierContext
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
 Owns one deterministic, valid, nonzero SuperNeo v1.1 PiCCS conformance
@@ -51,24 +51,16 @@ def running : Running K PaperAlgebra.Commitment
           matrix.val * 10_000 + coefficient.val)
   }
 
-/-- Exact static words for this conformance fixture. Production setup must
-replace these fixture words with its authoritative relation, application,
-NIFS-key, and commitment-key serializations before it computes a context. -/
-def fixtureContextAuthority : VerifierContext.Authority where
-  relationWords := VerifierContext.profileWords ++
-    VerifierContext.scheduleWords
-  applicationWords := stateDomainTag
-  nifsKeyWords := Transcript.piCcsDigestDomainTag ++
-    VerifierContext.scheduleWords
-  commitmentKeyWords :=
-    [Poseidon2.ofNat productionProfile.commitmentWidth,
-      Poseidon2.ofNat ringDegree, Poseidon2.ofNat 81, Poseidon2.ofNat 1]
+/-- The conformance fixture uses the canonical package-bound authority recipe
+and one explicit deterministic commitment-setup descriptor. -/
+def fixtureContextAuthority : Lifecycle.VerifierContext.Authority :=
+  VerifierContext.fixtureAuthority
 
 def stateVerifierKey : KeyDigest :=
-  VerifierContext.digest fixtureContextAuthority
+  Lifecycle.VerifierContext.digest fixtureContextAuthority
 
 theorem stateVerifierKey_length : stateVerifierKey.length = 4 := by
-  exact VerifierContext.digest_length fixtureContextAuthority
+  exact Lifecycle.VerifierContext.digest_length fixtureContextAuthority
 
 def stateZ0 : AppState :=
   [field 201, field 202, field 203, field 204]
@@ -217,7 +209,7 @@ def baseMatrix (source : Fin productionShape.sourceCount)
 /-- The exact coordinate solved once from the verifier terminal equation.
 Its acceptance is checked again by executable Lean and every emitted row. -/
 def solvedTarget : K :=
-  ⟨14649974621493256179, 14821119126112530179⟩
+  ⟨8954714909849330266, 2392921906067264225⟩
 
 def output : FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := fun source coefficient =>

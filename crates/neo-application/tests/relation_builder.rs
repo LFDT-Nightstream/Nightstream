@@ -1,5 +1,5 @@
 use neo_application::{
-    ApplicationRelation, ApplicationRelationError, ColumnRegistry, ColumnRegistryError, ColumnSpec, ColumnWidth,
+    ApplicationRelation, ApplicationRelationError, ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth,
     ConstraintTag, R1csBuildError, R1csBuilder, R1csSide,
 };
 use neo_ccs::check_ccs_rowwise_zero;
@@ -15,7 +15,7 @@ neo_application::define_column_region! {
     region: "macro_test",
     start: 0,
     width: pub MACRO_TEST_WIDTH,
-    specs: pub MACRO_TEST_SPECS,
+    families: pub MACRO_TEST_FAMILIES,
     indices: pub,
     columns: [
         MACRO_FLAG: Boolean => "test flag",
@@ -31,7 +31,7 @@ enum Owner {
 
 fn test_columns() -> ColumnRegistry {
     ColumnRegistry::new([
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "system",
             start: ONE,
             len: 1,
@@ -39,7 +39,7 @@ fn test_columns() -> ColumnRegistry {
             role: "verifier-supplied constant",
             width: ColumnWidth::Field,
         },
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "state",
             start: BIT,
             len: 1,
@@ -47,7 +47,7 @@ fn test_columns() -> ColumnRegistry {
             role: "transition selector",
             width: ColumnWidth::Boolean,
         },
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "input",
             start: FACTOR,
             len: 1,
@@ -55,7 +55,7 @@ fn test_columns() -> ColumnRegistry {
             role: "private factor",
             width: ColumnWidth::Field,
         },
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "state",
             start: PRODUCT,
             len: 1,
@@ -68,20 +68,29 @@ fn test_columns() -> ColumnRegistry {
 }
 
 #[test]
-fn exported_macro_declares_contiguous_indices_and_specs() {
+fn exported_macro_declares_contiguous_indices_and_families() {
     assert_eq!(MACRO_TEST_WIDTH, 4);
     assert_eq!(MACRO_FLAG, 0);
     assert_eq!(MACRO_BYTES, [1, 2, 3]);
-    assert_eq!(MACRO_TEST_SPECS[1].start, 1);
-    assert_eq!(MACRO_TEST_SPECS[1].len, 3);
-    assert_eq!(MACRO_TEST_SPECS[1].width, ColumnWidth::Byte);
+    assert_eq!(MACRO_TEST_FAMILIES[1].start, 1);
+    assert_eq!(MACRO_TEST_FAMILIES[1].len, 3);
+    assert_eq!(MACRO_TEST_FAMILIES[1].width, ColumnWidth::Byte);
 
-    let registry = ColumnRegistry::new(MACRO_TEST_SPECS.iter().cloned()).expect("valid generated registry");
+    let registry = ColumnRegistry::new(MACRO_TEST_FAMILIES.iter().copied()).expect("valid generated registry");
     assert_eq!(registry.column_count(), MACRO_TEST_WIDTH);
-    assert_eq!(registry.spec_for_column(0).map(|spec| spec.name), Some("MACRO_FLAG"));
-    assert_eq!(registry.spec_for_column(1).map(|spec| spec.name), Some("MACRO_BYTES"));
-    assert_eq!(registry.spec_for_column(3).map(|spec| spec.name), Some("MACRO_BYTES"));
-    assert_eq!(registry.spec_for_column(4), None);
+    assert_eq!(
+        registry.family_for_column(0).map(|family| family.name),
+        Some("MACRO_FLAG")
+    );
+    assert_eq!(
+        registry.family_for_column(1).map(|family| family.name),
+        Some("MACRO_BYTES")
+    );
+    assert_eq!(
+        registry.family_for_column(3).map(|family| family.name),
+        Some("MACRO_BYTES")
+    );
+    assert_eq!(registry.family_for_column(4), None);
 }
 
 #[test]
@@ -138,7 +147,7 @@ fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
 #[test]
 fn rejects_ambiguous_layouts_and_out_of_range_terms() {
     let layout_error = ColumnRegistry::new([
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "system",
             start: 0,
             len: 1,
@@ -146,7 +155,7 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
             role: "",
             width: ColumnWidth::Field,
         },
-        ColumnSpec {
+        ColumnFamilySpec {
             region: "state",
             start: 2,
             len: 1,

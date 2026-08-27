@@ -13,6 +13,7 @@ neo-ccs = { path = "../neo-ccs" }
 neo-transcript = { path = "../neo-transcript" }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
+rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

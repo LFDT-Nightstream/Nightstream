@@ -14,6 +14,11 @@ const ROUND_MESSAGES_ROLE: u64 = 7;
 const OUTPUT_EVAL_K_ROLE: u64 = 8;
 const OUTPUT_EVAL_A_ROLE: u64 = 9;
 const VERIFIER_CONTEXT_ROLE: u64 = 10;
+const PI_DEC_COMMITMENTS_ROLE: u64 = 11;
+const PI_DEC_EVAL_K_ROLE: u64 = 12;
+const PI_DEC_EVAL_A_ROLE: u64 = 13;
+const PI_DEC_CHILD_PUBLIC_INPUT_ROLE: u64 = 14;
+const PI_DEC_WITNESS_ROLE: u64 = 15;
 
 pub const PI_CCS_V1_1_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_1_COEFFICIENT_COUNT: usize = 54;
@@ -29,9 +34,15 @@ const EXTENSION_WORDS: usize = 2;
 const ROUND_MESSAGE_WORDS: usize = PI_CCS_V1_1_ROUND_COUNT * PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const EVAL_K_WORDS: usize = PI_CCS_V1_1_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const EVAL_A_WORDS: usize = PI_CCS_V1_1_MATRIX_COUNT * PI_CCS_V1_1_COEFFICIENT_COUNT * EXTENSION_WORDS;
+const PI_DEC_CHILD_COUNT: usize = 16;
+const PI_DEC_COMMITMENT_WORDS: usize = PI_DEC_CHILD_COUNT * 972;
+const PI_DEC_EVAL_K_WORDS: usize = PI_DEC_CHILD_COUNT * 108;
+const PI_DEC_EVAL_A_WORDS: usize = PI_DEC_CHILD_COUNT * 1_512;
+const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_CHILD_COUNT * 54;
+const PI_DEC_WITNESS_WORDS: usize = 3_618;
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
-    let mut roles = Vec::with_capacity(5 + 2 * PI_CCS_V1_1_SOURCE_COUNT);
+    let mut roles = Vec::with_capacity(10 + 2 * PI_CCS_V1_1_SOURCE_COUNT);
     roles.extend([
         PRIOR_PREIMAGE_ROLE,
         OUTPUT_PREIMAGE_ROLE,
@@ -42,7 +53,18 @@ pub(super) fn private_segment_roles() -> Vec<u64> {
         roles.extend([OUTPUT_EVAL_K_ROLE, OUTPUT_EVAL_A_ROLE]);
     }
     roles.push(WITNESS_ROLE);
+    roles.extend([
+        PI_DEC_COMMITMENTS_ROLE,
+        PI_DEC_EVAL_K_ROLE,
+        PI_DEC_EVAL_A_ROLE,
+        PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
+        PI_DEC_WITNESS_ROLE,
+    ]);
     roles
+}
+
+pub(super) fn is_witness_role(role: u64) -> bool {
+    role == WITNESS_ROLE || role == PI_DEC_WITNESS_ROLE
 }
 
 pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), PackageError> {
@@ -58,6 +80,15 @@ pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), Pack
         if pair[0].length != EVAL_K_WORDS || pair[1].length != EVAL_A_WORDS {
             return Err(PackageError::Invalid("PiCCS v1_1 output segments"));
         }
+    }
+    let suffix = &segments[4 + 2 * PI_CCS_V1_1_SOURCE_COUNT..];
+    if suffix[1].length != PI_DEC_COMMITMENT_WORDS
+        || suffix[2].length != PI_DEC_EVAL_K_WORDS
+        || suffix[3].length != PI_DEC_EVAL_A_WORDS
+        || suffix[4].length != PI_DEC_CHILD_PUBLIC_INPUT_WORDS
+        || suffix[5].length != PI_DEC_WITNESS_WORDS
+    {
+        return Err(PackageError::Invalid("PiDEC v1_1 private segments"));
     }
     Ok(())
 }
@@ -227,7 +258,14 @@ impl LoadedPackage {
         if inputs.verifier_context.package_identity() != self.relation_identifier {
             return Err(PackageError::Invalid("PiCCS v1_1 verifier-context package identity"));
         }
-        let mut private_values = Vec::with_capacity(self.private_input_count());
+        let pi_ccs_input_count = self
+            .layout
+            .private_segments
+            .iter()
+            .find(|segment| segment.role == WITNESS_ROLE)
+            .ok_or(PackageError::Invalid("witness segment"))?
+            .start;
+        let mut private_values = Vec::with_capacity(pi_ccs_input_count);
         private_values.extend_from_slice(&inputs.prior_preimage);
         private_values.extend_from_slice(&inputs.output_preimage);
         private_values.extend_from_slice(&inputs.fresh_commitment);
@@ -246,7 +284,7 @@ impl LoadedPackage {
                 }
             }
         }
-        if private_values.len() != self.private_input_count() {
+        if private_values.len() != pi_ccs_input_count {
             return Err(PackageError::Invalid("PiCCS v1_1 encoded private-input length"));
         }
 

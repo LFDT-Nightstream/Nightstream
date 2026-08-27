@@ -112,17 +112,17 @@ impl PackageR1cs {
         public_columns: usize,
         domain_size: usize,
     ) -> Result<Self, PackageError> {
-        Ok(Self {
-            a: self
-                .a
-                .into_final_layout(unpadded_constant, public_columns, domain_size)?,
-            b: self
-                .b
-                .into_final_layout(unpadded_constant, public_columns, domain_size)?,
-            c: self
-                .c
-                .into_final_layout(unpadded_constant, public_columns, domain_size)?,
-        })
+        let Self { a, b, c } = self;
+        let (a, (b, c)) = rayon::join(
+            || a.into_final_layout(unpadded_constant, public_columns, domain_size),
+            || {
+                rayon::join(
+                    || b.into_final_layout(unpadded_constant, public_columns, domain_size),
+                    || c.into_final_layout(unpadded_constant, public_columns, domain_size),
+                )
+            },
+        );
+        Ok(Self { a: a?, b: b?, c: c? })
     }
 }
 
@@ -276,34 +276,40 @@ impl CsrBuilder {
 }
 
 fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
-    let mut a = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::A)?,
-    )?;
-    let mut b = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::B)?,
-    )?;
-    let mut c = CsrBuilder::new(
-        package.layout.row_count,
-        package.layout.total_column_count,
-        entry_capacity(package, MatrixSide::C)?,
-    )?;
+    let schedule = scheduled_witnesses(package)?;
+    let (a, (b, c)) = rayon::join(
+        || expand_matrix(package, &schedule, MatrixSide::A),
+        || {
+            rayon::join(
+                || expand_matrix(package, &schedule, MatrixSide::B),
+                || expand_matrix(package, &schedule, MatrixSide::C),
+            )
+        },
+    );
+    Ok(PackageR1cs { a: a?, b: b?, c: c? })
+}
 
+fn expand_matrix(
+    package: &LoadedPackage,
+    schedule: &[ScheduledWitness<'_>],
+    side: MatrixSide,
+) -> Result<PackageSparseMatrix, PackageError> {
+    let mut builder = CsrBuilder::new(
+        package.layout.row_count,
+        package.layout.total_column_count,
+        entry_capacity(package, side)?,
+    )?;
     let mut row_cursor = 0usize;
     let mut assertion_cursor = 0usize;
-    for witness in scheduled_witnesses(package)? {
+    for &witness in schedule {
         while assertion_cursor < package.assertion_rows.len()
             && package.assertion_rows[assertion_cursor].row_index < witness.row_start()
         {
             push_assertion(
                 &package.assertion_rows[assertion_cursor],
                 package.layout.constant_column,
-                &mut a,
-                &mut b,
-                &mut c,
+                side,
+                &mut builder,
             );
             assertion_cursor += 1;
             row_cursor += 1;
@@ -314,23 +320,19 @@ fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
         match witness {
             ScheduledWitness::Permutation(invocation) => {
                 for row in &package.permutation.rows {
-                    a.push_template(&row.a, package, invocation);
-                    b.push_template(&row.b, package, invocation);
-                    c.push_template(&row.c, package, invocation);
+                    builder.push_template(template_side(row, side), package, invocation);
                     row_cursor += 1;
                 }
             }
             ScheduledWitness::Compact(invocation) => {
                 let template = &package.compact_templates[invocation.template_index];
                 for row in &template.rows {
-                    a.push_compact(&row.a, package.layout.constant_column, invocation);
-                    b.push_compact(&row.b, package.layout.constant_column, invocation);
-                    c.push_compact(&row.c, package.layout.constant_column, invocation);
+                    builder.push_compact(compact_side(row, side), package.layout.constant_column, invocation);
                     row_cursor += 1;
                 }
             }
             ScheduledWitness::Generic(instruction) => {
-                push_witness_instruction(instruction, package.layout.constant_column, &mut a, &mut b, &mut c);
+                push_witness_instruction(instruction, package.layout.constant_column, side, &mut builder);
                 row_cursor += 1;
             }
         }
@@ -339,9 +341,8 @@ fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
         push_assertion(
             &package.assertion_rows[assertion_cursor],
             package.layout.constant_column,
-            &mut a,
-            &mut b,
-            &mut c,
+            side,
+            &mut builder,
         );
         assertion_cursor += 1;
         row_cursor += 1;
@@ -349,11 +350,7 @@ fn expand_r1cs(package: &LoadedPackage) -> Result<PackageR1cs, PackageError> {
     if row_cursor != package.layout.row_count {
         return Err(PackageError::Invalid("expanded physical row count"));
     }
-    Ok(PackageR1cs {
-        a: a.finish()?,
-        b: b.finish()?,
-        c: c.finish()?,
-    })
+    builder.finish()
 }
 
 pub(super) fn expand_matrices(
@@ -370,24 +367,25 @@ pub(super) fn expand_matrices(
     Ok((a.into_spartan()?, b.into_spartan()?, c.into_spartan()?))
 }
 
-fn push_assertion(row: &SparseRow, constant_column: usize, a: &mut CsrBuilder, b: &mut CsrBuilder, c: &mut CsrBuilder) {
-    a.push_sparse(&row.a, constant_column);
-    b.push_sparse(&row.b, constant_column);
-    c.push_sparse(&row.c, constant_column);
+fn push_assertion(row: &SparseRow, constant_column: usize, side: MatrixSide, builder: &mut CsrBuilder) {
+    builder.push_sparse(sparse_side(row, side), constant_column);
 }
 
 fn push_witness_instruction(
     instruction: &WitnessInstruction,
     constant_column: usize,
-    a: &mut CsrBuilder,
-    b: &mut CsrBuilder,
-    c: &mut CsrBuilder,
+    side: MatrixSide,
+    builder: &mut CsrBuilder,
 ) {
-    a.push_sparse(&instruction.a, constant_column);
-    b.push_sparse(&instruction.b, constant_column);
-    c.scratch.clear();
-    c.push_term(instruction.target, Goldilocks::ONE);
-    c.finish_row();
+    match side {
+        MatrixSide::A => builder.push_sparse(&instruction.a, constant_column),
+        MatrixSide::B => builder.push_sparse(&instruction.b, constant_column),
+        MatrixSide::C => {
+            builder.scratch.clear();
+            builder.push_term(instruction.target, Goldilocks::ONE);
+            builder.finish_row();
+        }
+    }
 }
 
 fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, PackageError> {

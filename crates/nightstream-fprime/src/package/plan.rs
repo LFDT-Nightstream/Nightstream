@@ -3,7 +3,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{compact, PackageError, RawCompactRowInvocation};
+use super::{compact, source_map::source_to_spartan, PackageError, RawCompactRowInvocation};
 
 const PHASE: u64 = 7;
 const RING_DEGREE: usize = 54;
@@ -12,6 +12,7 @@ const VALUE_SLOTS: usize = 54;
 const COMBINATION_TEMPLATE_COUNT: usize = 108;
 const PI_CCS_SOURCE_START: usize = 12_688_104;
 const PI_CCS_TARGET_START: usize = 12_688_042;
+const PILOT_PRIOR_PUBLIC_SOURCE_START: usize = 42_475;
 
 #[derive(Debug, Deserialize)]
 struct RawFirst54Block(u64, u64);
@@ -289,7 +290,7 @@ fn combination_value(family: usize, source: usize, block: usize, cell: usize) ->
     match family {
         0 if source == 0 => linear(84_950, &[(block, RING_DEGREE)]),
         0 => linear(91, &[(source - 1, 2_649), (block, RING_DEGREE)]),
-        1 if source == 0 => Ok(25_669_002),
+        1 if source == 0 => source_to_spartan(PILOT_PRIOR_PUBLIC_SOURCE_START),
         1 => linear(1_064, &[(source - 1, 2_649)]),
         2 => linear(86_422, &[(source, 1_620), (cell, 1)]),
         3 => linear(86_530, &[(source, 1_620), (block, 108), (cell, 1)]),

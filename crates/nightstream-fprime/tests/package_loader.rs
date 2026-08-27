@@ -8,13 +8,13 @@ use nightstream_fprime::{
 };
 use serde_json::{json, Value};
 
-// Last validated PiCCS-only identity. Do not replace it until the final
-// schema-7 package passes the matrix, assignment, parity, and mutation gates.
+// Lean-emitted Pilot + PiCCS + PiRLC + PiDEC package identity. Phase
+// conformance remains open until every required gate passes on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    4_149_794_454_264_745_319,
-    3_860_295_598_124_073_314,
-    9_185_184_515_076_867_919,
-    6_634_095_431_211_870_257,
+    11_965_344_980_476_942_540,
+    12_455_623_573_690_155_525,
+    3_326_996_935_083_639_356,
+    1_575_202_054_933_656_136,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -46,7 +46,9 @@ fn canonical_bytes(value: &Value) -> Vec<u8> {
 }
 
 fn package_array(value: &mut Value) -> &mut Vec<Value> {
-    value.as_array_mut().expect("package array")
+    let plan = value.as_array_mut().expect("package plan array");
+    assert_eq!(plan[0], json!(8), "package plan schema");
+    plan[1].as_array_mut().expect("embedded package array")
 }
 
 fn assert_canonical_package_matrix(matrix: &nightstream_fprime::PackageSparseMatrix, rows: usize, columns: usize) {
@@ -100,18 +102,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 25_556_958);
-    assert_eq!(package.private_column_count(), 25_669_001);
-    assert_eq!(package.private_input_count(), 113_962);
+    assert_eq!(package.row_count(), 25_564_086);
+    assert_eq!(package.private_column_count(), 25_714_955);
+    assert_eq!(package.private_input_count(), 156_298);
     assert_eq!(package.public_column_count(), 62);
-    assert_eq!(package.total_column_count(), 25_669_064);
+    assert_eq!(package.total_column_count(), 25_715_018);
     assert_eq!(package.template_row_count(), 592);
-    assert_eq!(package.permutation_invocation_count(), 7_460);
-    assert_eq!(package.compact_template_count(), 108);
-    assert_eq!(package.compact_invocation_count(), 44_982);
+    assert_eq!(package.permutation_invocation_count(), 7_613);
+    assert_eq!(package.compact_template_count(), 326);
+    assert_eq!(package.compact_invocation_count(), 163_574);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        1_774_276
+        993_437
     );
 }
 

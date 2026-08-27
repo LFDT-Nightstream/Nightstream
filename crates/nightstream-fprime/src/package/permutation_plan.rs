@@ -8,31 +8,15 @@ use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{PackageError, RawPermutationInvocation, RawSparseCombination, RawSparseTerm, GOLDILOCKS_MODULUS};
+use super::{
+    source_map::source_to_spartan, PackageError, RawPermutationInvocation, RawSparseCombination, RawSparseTerm,
+    GOLDILOCKS_MODULUS,
+};
 
 const STATE_WIDTH: usize = 8;
 const ABSORB_RATE: usize = 4;
 const PERMUTATION_SIZE: usize = 592;
 const PERMUTATION_OUTPUT_OFFSET: usize = 584;
-
-const PILOT_SOURCE_COLUMN_COUNT: usize = 12_659_088;
-const PILOT_PRIVATE_COLUMN_COUNT: usize = 12_659_030;
-const PILOT_INPUT_PRIVATE_COLUMN_COUNT: usize = 84_950;
-const PROOF_INPUT_COLUMN_COUNT: usize = 29_012;
-const PROOF_INPUT_SOURCE_START: usize = 12_659_092;
-const PI_CCS_PHASE_OFFSET: usize = 12_688_104;
-const PI_CCS_LOCAL_START: usize = 12_688_042;
-const PRIVATE_COLUMN_COUNT: usize = 25_669_001;
-const EXPECTED_CONTEXT_PUBLIC_START: usize = 25_669_060;
-
-const PILOT_PRIOR_PUBLIC_START: usize = 42_475;
-const PILOT_OUTPUT_PREIMAGE_START: usize = 42_529;
-const PILOT_OUTPUT_DIGEST_START: usize = 85_004;
-const PILOT_WITNESS_START: usize = 85_008;
-const PILOT_SECOND_PRIVATE_START: usize = 42_475;
-const PILOT_WITNESS_PRIVATE_START: usize = 84_950;
-const PILOT_FIRST_PUBLIC_START: usize = 12_659_031;
-const PILOT_SECOND_PUBLIC_START: usize = 12_659_085;
 
 #[derive(Debug, Deserialize)]
 struct RawActionBlock(u64, u64, u64, Vec<Value>, Vec<Value>);
@@ -252,73 +236,6 @@ fn variable_expression(column: usize) -> Result<Value, PackageError> {
         Value::from(0),
         Value::from(to_word(column, "permutation output column")?),
     ]))
-}
-
-fn source_to_spartan(column: usize) -> Result<usize, PackageError> {
-    if column < PILOT_SOURCE_COLUMN_COUNT {
-        return lift_pilot_column(pilot_source_to_spartan(column)?);
-    }
-    if column < PROOF_INPUT_SOURCE_START {
-        return add(
-            EXPECTED_CONTEXT_PUBLIC_START,
-            column - PILOT_SOURCE_COLUMN_COUNT,
-            "verifier context column",
-        );
-    }
-    if column < PI_CCS_PHASE_OFFSET {
-        return add(
-            PILOT_INPUT_PRIVATE_COLUMN_COUNT,
-            column - PROOF_INPUT_SOURCE_START,
-            "proof input column",
-        );
-    }
-    add(PI_CCS_LOCAL_START, column - PI_CCS_PHASE_OFFSET, "local source column")
-}
-
-fn pilot_source_to_spartan(column: usize) -> Result<usize, PackageError> {
-    if column < PILOT_PRIOR_PUBLIC_START {
-        return Ok(column);
-    }
-    if column < PILOT_OUTPUT_PREIMAGE_START {
-        return add(
-            PILOT_FIRST_PUBLIC_START,
-            column - PILOT_PRIOR_PUBLIC_START,
-            "pilot prior public column",
-        );
-    }
-    if column < PILOT_OUTPUT_DIGEST_START {
-        return add(
-            PILOT_SECOND_PRIVATE_START,
-            column - PILOT_OUTPUT_PREIMAGE_START,
-            "pilot output private column",
-        );
-    }
-    if column < PILOT_WITNESS_START {
-        return add(
-            PILOT_SECOND_PUBLIC_START,
-            column - PILOT_OUTPUT_DIGEST_START,
-            "pilot output public column",
-        );
-    }
-    add(
-        PILOT_WITNESS_PRIVATE_START,
-        column - PILOT_WITNESS_START,
-        "pilot witness column",
-    )
-}
-
-fn lift_pilot_column(column: usize) -> Result<usize, PackageError> {
-    if column < PILOT_INPUT_PRIVATE_COLUMN_COUNT {
-        return Ok(column);
-    }
-    if column < PILOT_PRIVATE_COLUMN_COUNT {
-        return add(column, PROOF_INPUT_COLUMN_COUNT, "lifted pilot column");
-    }
-    add(
-        PRIVATE_COLUMN_COUNT,
-        column - PILOT_PRIVATE_COLUMN_COUNT,
-        "lifted pilot public column",
-    )
 }
 
 fn field_word(value: &Value) -> Result<Goldilocks, PackageError> {

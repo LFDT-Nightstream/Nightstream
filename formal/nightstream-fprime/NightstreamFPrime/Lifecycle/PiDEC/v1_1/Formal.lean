@@ -112,7 +112,7 @@ def inputBindingOffset (offset : Nat) : Nat := offset
 def publicInputOffset (offset : Nat) : Nat := offset
 
 /-- The split child is the only PiDEC child that allocates private cells. -/
-def recompositionOffset (offset : Nat) : Nat := offset + 54
+def recompositionOffset (offset : Nat) : Nat := offset + 270
 def commitmentOffset (offset : Nat) : Nat := recompositionOffset offset
 def evalKOffset (offset : Nat) : Nat := recompositionOffset offset
 def evalAOffset (offset : Nat) : Nat := recompositionOffset offset
@@ -204,8 +204,8 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 54
-def logicalRowCount : Nat := 3564
+def logicalPrivateCount : Nat := 270
+def logicalRowCount : Nat := 7452
 
 structure InputsBelow
     {logicalWidth : Nat}
@@ -415,17 +415,17 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.public_input_split"
-      (publicInputCircuit interface) offset).localLength = 54 := by
+      (publicInputCircuit interface) offset).localLength = 270 := by
   rw [childOp, Sequence.childOp_localLength]
   change localLength (Circuit.ops
-    (PublicInputSplit.circuit (publicInputInterface interface)).main offset) = 54
+    (PublicInputSplit.circuit (publicInputInterface interface)).main offset) = 270
   calc
     _ = (PublicInputSplit.circuit
           (publicInputInterface interface)).privateCount offset :=
       (PublicInputSplit.circuit
         (publicInputInterface interface)).privateCount_eq offset
     _ = PublicInputSplit.logicalPrivateCount logicalWidth publicFits := rfl
-    _ = 54 := PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
+    _ = 270 := PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
 
 @[simp] private theorem commitmentOp_localLength
     {logicalWidth : Nat}
@@ -486,8 +486,8 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.public_input_split"
-      (publicInputCircuit interface) offset).rowCount = 972 := by
-  change PublicInputSplit.logicalRowCount logicalWidth publicFits = 972
+      (publicInputCircuit interface) offset).rowCount = 4860 := by
+  change PublicInputSplit.logicalRowCount logicalWidth publicFits = 4860
   exact PublicInputSplit.logicalRowCount_eq logicalWidth publicFits
 
 @[simp] private theorem commitmentOp_rowCount

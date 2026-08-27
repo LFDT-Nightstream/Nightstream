@@ -118,7 +118,7 @@ def publicInputOffset (offset : Nat) : Nat :=
   commitmentOffset offset + 16524
 
 def evalKOffset (offset : Nat) : Nat :=
-  publicInputOffset offset + 918
+  publicInputOffset offset + 4590
 
 def evalAOffset (offset : Nat) : Nat :=
   evalKOffset offset + 1836
@@ -244,8 +244,8 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 308550
-def logicalRowCount : Nat := 310199
+def logicalPrivateCount : Nat := 312222
+def logicalRowCount : Nat := 313871
 
 structure Assumptions
     {logicalWidth : Nat}
@@ -369,7 +369,7 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_1.public_input_combination" (publicInputCircuit interface)
-      offset).localLength = 918 := by
+      offset).localLength = 4590 := by
   rw [childOp, Sequence.childOp_localLength]
   exact PublicInputCombination.localLength_eq (publicInputInterface interface) offset
 
@@ -439,9 +439,9 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_1.public_input_combination" (publicInputCircuit interface)
-      offset).rowCount = 918 := by
+      offset).rowCount = 4590 := by
   change CombinationFamily.logicalRowCount PublicInputCombination.blockCount
-    PublicInputCombination.cellCount = 918
+    PublicInputCombination.cellCount = 4590
   exact PublicInputCombination.logicalRowCount_eq
 
 @[simp] private theorem evalKOp_rowCount

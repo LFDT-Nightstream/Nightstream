@@ -197,9 +197,9 @@ def decodeHashWordExpr {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
     (word : Fin 4) : Expr :=
-  (List.finRange 64).foldl (fun value bit =>
-    value + Expr.const (Poseidon2.ofNat (2 ^ bit.val)) *
-      input (NightstreamFPrime.Lifecycle.digestBitIndex
+  (List.range 64).foldl (fun value bit =>
+    value + Expr.const (Poseidon2.ofNat (2 ^ bit)) *
+      input (NightstreamFPrime.Lifecycle.digestBitIndexNat
         (logicalWidth := logicalWidth) word bit)) 0
 
 /-- The four prior-digest words are reconstructed from the pilot-bound fresh
@@ -464,18 +464,18 @@ private theorem priorDigestExpr_eval {logicalWidth : Nat}
   apply congrArg List.ofFn
   funext word
   unfold decodeHashWordExpr NightstreamFPrime.Lifecycle.decodeHashWord
-  generalize List.finRange 64 = bits
-  have foldEval (values : List (Fin 64)) (initial : Expr) :
+  generalize List.range 64 = bits
+  have foldEval (values : List Nat) (initial : Expr) :
       (values.foldl (fun value bit =>
-          value + Expr.const (Poseidon2.ofNat (2 ^ bit.val)) *
+          value + Expr.const (Poseidon2.ofNat (2 ^ bit)) *
             (interface.fresh offset).publicInput ⟨0, by decide⟩
-              (NightstreamFPrime.Lifecycle.digestBitIndex
+              (NightstreamFPrime.Lifecycle.digestBitIndexNat
                 (logicalWidth := logicalWidth) word bit)) initial).eval env =
         values.foldl (fun value bit =>
-          value + Poseidon2.ofNat (2 ^ bit.val) *
+          value + Poseidon2.ofNat (2 ^ bit) *
             (evalFresh (interface.fresh offset) env).publicInputs
               ⟨0, by decide⟩
-              (NightstreamFPrime.Lifecycle.digestBitIndex
+              (NightstreamFPrime.Lifecycle.digestBitIndexNat
                 (logicalWidth := logicalWidth) word bit)) (initial.eval env) := by
     induction values generalizing initial with
     | nil => rfl

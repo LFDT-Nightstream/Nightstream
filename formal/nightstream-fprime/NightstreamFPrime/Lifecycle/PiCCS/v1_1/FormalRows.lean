@@ -182,7 +182,7 @@ theorem finalIdentityCircuit_main_eq_rowMain
 
 /-- Relation-free executable start of the initial-claim child. -/
 def initialClaimRowOffset (degreeBound offset : Nat) : Nat :=
-  offset + 160432 + 46176 +
+  offset + 192400 + 46176 +
     25 * RoundTranscript.perRoundRecipeCount degreeBound
 
 theorem initialClaimOffset_eq_initialClaimRowOffset

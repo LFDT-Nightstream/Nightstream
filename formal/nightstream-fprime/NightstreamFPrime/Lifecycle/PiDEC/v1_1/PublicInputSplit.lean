@@ -7,12 +7,12 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
 Paper authority: SuperNeo v1.1, Section 7.5, verifier Step 2.
 
 Obligation: reject a parent public input with any coordinate outside
-`B = 2^16`, and constrain the exact signed-binary split of all 54 production
+`B = 2^16`, and constrain the exact signed-binary split of all 270 production
 public coordinates into sixteen children.
 
 Inputs:
-- one 54-field parent public input;
-- one 54-field public input for each of the 16 child claims.
+- one 270-field parent public input;
+- one 270-field public input for each of the 16 child claims.
 
 Outputs:
 - 16 child public inputs proved equal to verifier-owned `split_b(parent)`.
@@ -44,7 +44,7 @@ theorem coordinateCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    coordinateCount logicalWidth publicFits = 54 := by
+    coordinateCount logicalWidth publicFits = 270 := by
   norm_num [coordinateCount, FullShape, fullShape,
     Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
 
@@ -65,7 +65,7 @@ theorem logicalPrivateCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    logicalPrivateCount logicalWidth publicFits = 54 := by
+    logicalPrivateCount logicalWidth publicFits = 270 := by
   rw [logicalPrivateCount, coordinateCount_eq]
   rfl
 
@@ -73,7 +73,7 @@ theorem logicalRowCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    logicalRowCount logicalWidth publicFits = 972 := by
+    logicalRowCount logicalWidth publicFits = 4860 := by
   rw [logicalRowCount, coordinateCount_eq]
   norm_num [SignedSplitScalar.exactRowCount]
 

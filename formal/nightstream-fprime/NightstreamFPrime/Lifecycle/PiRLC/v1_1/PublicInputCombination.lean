@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1, equation
 `x = sum_i rho_i x_i` under coefficient embedding.
 
-This leaf instantiates one exact 54-coefficient public ring. It proves that
+This leaf instantiates all five 54-coefficient public rings. It proves that
 the block/lane circuit order is the canonical flat public-column order used
 by `PiRLCAlgebra.PublicInput.combinePublicInputs`.
 -/
@@ -37,11 +37,9 @@ def publicColumn
   ⟨block.val * ringDegree + lane.val, by
     have blockLt := block.isLt
     have laneLt := lane.isLt
-    have blockZero : block.val = 0 := by
-      simp only [blockCount, publicRingColumns] at blockLt
-      omega
     change block.val * ringDegree + lane.val < ringDegree * publicRingColumns
-    simpa [blockZero, publicRingColumns] using laneLt⟩
+    norm_num [blockCount, publicRingColumns, ringDegree] at blockLt laneLt ⊢
+    omega⟩
 
 theorem publicColumn_decode
     {logicalWidth : Nat}
@@ -217,14 +215,14 @@ theorem parentCoverage
           (evalInputs interface offset env) column
 
 theorem logicalPrivateCount_eq :
-    CombinationFamily.logicalPrivateCount blockCount cellCount = 918 := by
+    CombinationFamily.logicalPrivateCount blockCount cellCount = 4590 := by
   rw [CombinationFamily.logicalPrivateCount,
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
     blockCount, cellCount, publicRingColumns, ringDegree]
 
 theorem logicalRowCount_eq :
-    CombinationFamily.logicalRowCount blockCount cellCount = 918 := by
+    CombinationFamily.logicalRowCount blockCount cellCount = 4590 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit
@@ -239,7 +237,7 @@ theorem localLength_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 918 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 4590 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
@@ -249,7 +247,7 @@ theorem flatConstraints_length
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      918 := by
+      4590 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
@@ -260,7 +258,7 @@ theorem flatConstraints_varsBelow
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 918) := by
+      expression.VarsBelow (offset + 4590) := by
   simpa [circuit, logicalPrivateCount_eq] using
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions

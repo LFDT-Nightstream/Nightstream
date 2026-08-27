@@ -1,8 +1,10 @@
-//! Tagged R1CS construction with one authoritative row catalog.
+//! Tagged R1CS construction with authoritative row and gadget catalogs.
 
 use neo_ccs::{sparse_r1cs_to_ccs, CcsMatrix, CcsStructure, CscMat};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+use crate::{GadgetDescriptor, GadgetOccurrence};
 
 /// Consumer-defined semantic ownership attached to one constraint row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +69,7 @@ impl<Owner> TaggedR1csRow<Owner> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConstraintCatalog<Owner> {
     rows: Vec<TaggedR1csRow<Owner>>,
+    gadget_occurrences: Vec<GadgetOccurrence<Owner>>,
 }
 
 impl<Owner> ConstraintCatalog<Owner> {
@@ -80,6 +83,11 @@ impl<Owner> ConstraintCatalog<Owner> {
 
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
+    }
+
+    /// Structured shared-gadget invocations retained alongside the flat rows.
+    pub fn gadget_occurrences(&self) -> &[GadgetOccurrence<Owner>] {
+        &self.gadget_occurrences
     }
 }
 
@@ -126,6 +134,7 @@ pub struct R1csBuilder<Owner> {
     public_input_count: usize,
     const_one_column: usize,
     rows: Vec<TaggedR1csRow<Owner>>,
+    gadget_occurrences: Vec<GadgetOccurrence<Owner>>,
 }
 
 /// Exclusive view that applies one semantic tag to every emitted row.
@@ -173,6 +182,7 @@ impl<Owner> R1csBuilder<Owner> {
             public_input_count,
             const_one_column,
             rows: Vec::new(),
+            gadget_occurrences: Vec::new(),
         })
     }
 
@@ -259,12 +269,27 @@ impl<Owner> R1csBuilder<Owner> {
             structure,
             public_input_count: self.public_input_count,
             const_one_column: self.const_one_column,
-            catalog: ConstraintCatalog { rows: self.rows },
+            catalog: ConstraintCatalog {
+                rows: self.rows,
+                gadget_occurrences: self.gadget_occurrences,
+            },
         })
     }
 }
 
 impl<Owner: Clone> TaggedR1csBuilder<'_, Owner> {
+    pub(crate) fn next_row_index(&self) -> usize {
+        self.inner.rows.len()
+    }
+
+    pub(crate) fn record_gadget(&mut self, descriptor: GadgetDescriptor, first_row: usize) {
+        let row_range = first_row..self.inner.rows.len();
+        debug_assert!(!row_range.is_empty());
+        self.inner
+            .gadget_occurrences
+            .push(GadgetOccurrence::new(self.tag.clone(), descriptor, row_range));
+    }
+
     pub fn push_row(
         &mut self,
         a_terms: impl IntoIterator<Item = (usize, F)>,

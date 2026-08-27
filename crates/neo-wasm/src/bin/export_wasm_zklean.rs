@@ -17,7 +17,7 @@ use neo_application::{GadgetDescriptor, ZeroTest};
 use neo_math::F;
 use neo_wasm::layout::{column_families, COL_ONE, NAMED_COLUMN_COUNT};
 use neo_wasm::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder};
-use p3_field::PrimeField64;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::fs;
 use std::path::PathBuf;
 
@@ -101,15 +101,17 @@ fn emit_columns() -> String {
 /// occurrence that identifies its exact flat relation rows.
 struct DemoCircuit {
     rows: Vec<(Vec<(usize, F)>, Vec<(usize, F)>, Vec<(usize, F)>)>,
-    zero_test: ZeroTest,
+    zero_test: LeanZeroTest,
+}
+
+struct LeanZeroTest {
+    value: usize,
+    inverse: usize,
+    is_zero: usize,
 }
 
 fn build_demo_zero_test_circuit() -> DemoCircuit {
-    let zero_test = ZeroTest {
-        value: 1,
-        inverse: 2,
-        is_zero: 3,
-    };
+    let zero_test = ZeroTest::column(1, 2, 3);
     let width = 8;
     let public_input_count = 1;
     let mut builder = WasmR1csBuilder::new(width, public_input_count, COL_ONE).expect("builder construction");
@@ -122,7 +124,21 @@ fn build_demo_zero_test_circuit() -> DemoCircuit {
         panic!("demo relation must retain exactly one gadget occurrence");
     };
     let zero_test = match occurrence.descriptor() {
-        GadgetDescriptor::ZeroTest(descriptor) => *descriptor,
+        GadgetDescriptor::ZeroTest {
+            expression,
+            inverse,
+            is_zero,
+        } => {
+            let [(value, coefficient)] = expression.as_slice() else {
+                panic!("the Lean demo supports a scalar zero test");
+            };
+            assert_eq!(*coefficient, F::ONE, "the Lean demo expects coefficient one");
+            LeanZeroTest {
+                value: *value,
+                inverse: *inverse,
+                is_zero: *is_zero,
+            }
+        }
     };
     let rows = catalog.rows()[occurrence.row_range().clone()]
         .iter()

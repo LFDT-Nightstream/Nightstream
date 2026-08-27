@@ -55,17 +55,17 @@ use neo_application::{define_column_region, ZeroTest};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
-pub(crate) const PERM_ROUND_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_PERM_ROUND_BEFORE,
-    inverse: COL_PERM_ROUND_BEFORE_INV,
-    is_zero: COL_PERM_ROUND_BEFORE_IS_ZERO,
-};
+pub(crate) const PERM_ROUND_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_PERM_ROUND_BEFORE,
+    COL_PERM_ROUND_BEFORE_INV,
+    COL_PERM_ROUND_BEFORE_IS_ZERO,
+);
 
-pub(crate) const HOST_EVENTS_REMAINING_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_HOST_EVENTS_REMAINING_BEFORE,
-    inverse: COL_HOST_EVENTS_REMAINING_BEFORE_INV,
-    is_zero: COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO,
-};
+pub(crate) const HOST_EVENTS_REMAINING_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_HOST_EVENTS_REMAINING_BEFORE,
+    COL_HOST_EVENTS_REMAINING_BEFORE_INV,
+    COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO,
+);
 
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface

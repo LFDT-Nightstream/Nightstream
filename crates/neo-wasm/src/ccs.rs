@@ -16,7 +16,10 @@ mod trap;
 
 pub(crate) use call::PARAM_INIT_REMAINING_AFTER_ZERO_TEST;
 pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
-pub(crate) use trap::CALL_INDIRECT_ENTRY_ZERO_TEST;
+pub(crate) use trap::{
+    dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
+    DIVISOR_ZERO_TEST,
+};
 
 use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
@@ -42,29 +45,18 @@ use neo_application::{ApplicationRelation, ZeroTest};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-pub(crate) const PC_EDGE_KIND_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_PC_EDGE_KIND,
-    inverse: COL_PC_EDGE_KIND_INV,
-    is_zero: COL_PC_EDGE_KIND_IS_STATIC,
-};
+pub(crate) const PC_EDGE_KIND_ZERO_TEST: ZeroTest =
+    ZeroTest::column(COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC);
 
-pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_STACK_READ_VALUE_LO[2],
-    inverse: COL_SELECT_SCRATCH_INV,
-    is_zero: COL_SELECT_COND_IS_ZERO,
-};
+pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_STACK_READ_VALUE_LO[2],
+    COL_SELECT_SCRATCH_INV,
+    COL_SELECT_COND_IS_ZERO,
+);
 
-pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_CMP_LO_DIFF,
-    inverse: COL_CMP_LO_INV,
-    is_zero: COL_CMP_LO_IS_ZERO,
-};
+pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
 
-pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_CMP_HI_DIFF,
-    inverse: COL_CMP_HI_INV,
-    is_zero: COL_CMP_HI_IS_ZERO,
-};
+pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
 
 /// Opcodes whose rows participate in the wide-value gating constraint.
 /// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot

@@ -22,13 +22,13 @@ use nightstream_fprime::{
 };
 use p3_field::PrimeCharacteristicRing;
 
-// Last validated PiCCS-only identity. Do not replace it until the final
-// package passes the matrix, assignment, parity, and mutation gates.
+// Validated Pilot + PiCCS + PiRLC prefix identity. The complete Stage 1
+// package must rerun every gate before it replaces this prefix identity.
 const PACKAGE_IDENTITY: [u64; 4] = [
-    4_149_794_454_264_745_319,
-    3_860_295_598_124_073_314,
-    9_185_184_515_076_867_919,
-    6_634_095_431_211_870_257,
+    2_880_828_118_570_533_443,
+    12_363_340_834_605_518_522,
+    17_891_354_081_046_714_225,
+    8_467_327_743_520_570_474,
 ];
 
 fn package_path() -> PathBuf {

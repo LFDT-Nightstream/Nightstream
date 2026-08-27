@@ -108,7 +108,9 @@ fn package_path() -> PathBuf {
 fn package_relation() -> RawRelation {
     let package: serde_json::Value =
         serde_json::from_slice(&fs::read(package_path()).expect("Lean package bytes")).expect("Lean package JSON");
-    serde_json::from_value(package[4].clone()).expect("Lean relation tuple")
+    assert_eq!(package[0].as_u64(), Some(8), "Lean package-plan schema");
+    assert_eq!(package[1][0].as_u64(), Some(7), "Lean static-package schema");
+    serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple")
 }
 
 fn parity_path() -> PathBuf {

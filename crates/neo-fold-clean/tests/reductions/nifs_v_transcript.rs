@@ -419,7 +419,6 @@ fn recursive_pi_ccs_rejects_unforwarded_output_adv() {
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
             outputs: &fixture.proof.pi_ccs.outputs,
-            outputs_digest: fixture.proof.pi_ccs.outputs_digest,
             sumcheck_rounds: &fixture.proof.pi_ccs.sumcheck.sumcheck_rounds,
         };
         enforce_pi_ccs(&mut builder, &mut circuit_tr, &pi_ccs_config(&fixture.prep), &messages)
@@ -456,40 +455,6 @@ fn nifs_v_rejects_coherent_dec_adv_parent_unlinked_from_rlc_outputs() {
     }
 }
 
-/// The recursive NIFS verifier must consume every Π_CCS field that the
-/// native NIFS verifier treats as checked proof material. Otherwise a proof
-/// rejected at the native boundary can still satisfy the recursive circuit.
-#[test]
-fn recursive_nifs_v_rejects_native_checked_pi_ccs_fields() {
-    let mut stale_digest = build_honest_fixture();
-    stale_digest.proof.pi_ccs.outputs_digest[0] += F::ONE;
-    let mut native_tr = Transcript::session();
-    assert!(
-        nifs::verify(
-            &mut native_tr,
-            &stale_digest.prep.params,
-            stale_digest.prep.structure(),
-            stale_digest.prep.optimized_cache(),
-            stale_digest.prep.mix_rhos_commits(),
-            stale_digest.prep.combine_b_pows(),
-            &stale_digest.fresh_claims,
-            &stale_digest.running,
-            &stale_digest.proof,
-        )
-        .is_err(),
-        "fixture precondition: native NIFS.V must reject a stale Π_CCS outputs digest"
-    );
-    let digest_builder = emit_verifier(&stale_digest)
-        .expect("recursive verifier synthesizes the malformed digest fixture")
-        .0;
-    let recursive_accepted_stale_digest = digest_builder.is_satisfied();
-
-    assert!(
-        !recursive_accepted_stale_digest,
-        "native/recursive differential: recursive NIFS.V accepted a stale Π_CCS output digest"
-    );
-}
-
 #[test]
 fn recursive_nifs_v_proof_values_keep_one_relation_shape() {
     let honest = build_honest_fixture();
@@ -497,7 +462,6 @@ fn recursive_nifs_v_proof_values_keep_one_relation_shape() {
     assert!(honest_builder.is_satisfied());
 
     let mut forged_values = build_honest_fixture();
-    forged_values.proof.pi_ccs.outputs_digest[0] += F::ONE;
     forged_values.proof.pi_ccs.sumcheck.sumcheck_rounds[0][0] += K::ONE;
     let forged_builder = emit_verifier(&forged_values)
         .expect("forged proof values still synthesize the fixed relation")

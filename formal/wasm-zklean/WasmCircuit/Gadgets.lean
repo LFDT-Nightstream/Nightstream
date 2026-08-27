@@ -55,8 +55,8 @@ inductive Instr where
   deriving DecidableEq, Repr
 
 /-- Closed-form lowering of a single instruction to its R1CS rows.
-    The `ZeroTest` case mirrors `push_zero_test_gadget` in
-    `crates/neo-fold-next/src/wasm/gadgets.rs`:
+    The `ZeroTest` case mirrors `ZeroTest.push_constraints` in
+    `crates/neo-application/src/gadgets.rs`:
 
       row 1: `value · invWitness = 1 − isZero`
       row 2: `value · isZero     = 0`

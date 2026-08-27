@@ -138,8 +138,11 @@ def priorWordBatches (_unit : Unit) : List WitnessBatch :=
     PilotProduction.witnessOffset)).map remapBatch
 
 def priorExtraConstraints (_unit : Unit) : List Expr :=
-  PilotProduction.priorWordConstraintsAll ++
-    PilotProduction.priorBindingConstraints
+  flatConstraints
+    (PriorStateHash.wordOps PilotProduction.priorInterface
+      PilotProduction.witnessOffset ++
+    PriorStateHash.bindingAssertions PilotProduction.priorInterface
+      PilotProduction.witnessOffset)
 
 def priorExtraRows (_unit : Unit) : List Stage1.Rows.CompiledRow :=
   Stage1.Rows.compileRowsTR

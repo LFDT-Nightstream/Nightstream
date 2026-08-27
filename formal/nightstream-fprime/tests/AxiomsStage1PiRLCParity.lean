@@ -1,0 +1,43 @@
+import Lean
+import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
+
+/-! Axiom audits for the fast PiCCS and indexed PiRLC value-parity path. -/
+
+open Lean Elab Command in
+elab "#audit_axioms " decl:ident : command => do
+  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
+  let axioms ← liftCoreM <| Lean.collectAxioms name
+  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  let bad := axioms.toList.filter (fun a => !allowed.contains a)
+  if bad.isEmpty then
+    logInfo m!"{name}: {axioms.toList}"
+  else
+    throwError m!"{name} depends on disallowed axioms: {bad}"
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.stateVerifierKey_length
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.initialClaimFast_eq_initial
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.powerFast_eq_power
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.padTerminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.matrixTerminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.assembleTerminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.FixedArray.get_ofFn
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.FixedArray.toList_length
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.MaterializedRingF.toRing_ofRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.MaterializedRingK.toRing_ofRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.MaterializedCommitment.toCommitment_ofCommitment
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.MaterializedPublicInput.toPublicInput_ofPublicInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.scan_length
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.scan_getElem?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.scan_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.scan_map_hom
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.commitmentPartials_semantics
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.commitmentPartials_indexed
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.publicInputPartials_semantics
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.publicInputPartials_indexed
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evaluationPartials_semantics
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evaluationPartials_indexed
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.commitmentPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.publicInputPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evaluationPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evalKPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evalAPartials_getLast?

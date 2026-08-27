@@ -5,8 +5,6 @@ defaultTargets = ["NightstreamFPrime", "NightstreamFPrimeTests"]
 # build sharing only; no module imports the old package (enforced by
 # scripts/check-boundaries.sh).
 packagesDir = "../nightstream-lean/.lake/packages"
-weakLeanArgs = ["-j1"]
-
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
@@ -19,7 +17,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.Axioms", "tests.AxiomsStage1PiRLCExport"]
+roots = ["tests.Axioms", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

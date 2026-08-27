@@ -43,3 +43,31 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   One Lean or Rust build process at a time.
 - Before each command or edit: one active acceptance criterion and its
   closing evidence. Three rounds without closure: stop and report.
+
+## Development speed
+
+Fast feedback is a project requirement. Slow builds and generators multiply
+the time for every proof, compiler, and conformance change and can make Stage 1
+development impractical.
+
+- Keep incremental Lean builds, emitters, fixture generators, row streamers,
+  and parity generators as fast as the current design permits. Measure elapsed
+  time before and after a change that can affect these paths, and report the
+  measured result. Treat the 1,500 s cap as a failure ceiling, not as a target
+  or an acceptable development-loop duration.
+- Do not construct artifact-sized `List`, codec `Value`, token stream, or
+  `String` values when the same result can be produced by a proved compact
+  plan or an ordered stream. Delay closed executable data behind an explicit
+  argument, keep proofs structural, and process large data in bounded blocks.
+- Use the available CPU cores for independent immutable work in builds and
+  generators. Derive concurrency from the Lean runtime or host hardware; do
+  not hard-code an arbitrary worker count. Prepare independent blocks in
+  parallel, then commit their bytes and identities in the canonical
+  Lean-proved order.
+- The one-build-process rule still applies. Parallel work must occur inside
+  that one authorized build, test, emitter, or generator process. Do not start
+  competing Lean or Rust processes to obtain parallelism.
+- Speed work must not move semantic authority into Rust, weaken a proof, skip
+  a gate, change canonical ordering, or make a digest authoritative. When a
+  development path becomes materially slower, fix or redesign that path
+  before extending it with another large phase.

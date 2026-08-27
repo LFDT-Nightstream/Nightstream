@@ -33,7 +33,7 @@ oracle or circuit result is an input.
 |---|---|---|---|
 | `nifs.pi_rlc.verify.norm_growth.assignment.action` | every coordinate of one valid action is at most `216` | derived | `act_coordinate_le_expansion` |
 | `nifs.pi_rlc.verify.norm_growth.assignment.finite` | `n` canonical actions accumulate to at most `n * 216` | derived | `combineAssignments_le` |
-| `nifs.pi_rlc.verify.norm_growth.assignment.production` | `n <= 61 + 14` implies `n * 216 < 2^14` | verifier parameter theorem | `production_total_bound` |
+| `nifs.pi_rlc.verify.norm_growth.assignment.production` | `n ≤ 303` implies `n * 216 < 2^16` | verifier parameter theorem | `production_total_bound` |
 | `nifs.pi_rlc.verify.norm_growth.algebra` | exact concrete `PiRLC.Algebra.norm_growth` field | derived | `relation_norm_growth` |
 -/
 

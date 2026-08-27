@@ -33,7 +33,7 @@ owners and does not advertise security or Rust conformance.
 |---|---|---|---|
 | `nifs.pi_dec.verify.radix.split` | `splitAssignment` | `PiDECAlgebra.Radix` | deterministic bounded signed-binary split with exact total fallback |
 | `nifs.pi_dec.verify.radix.recompose` | `recomposeAssignment`, `split_recompose` | `PiDECAlgebra.Radix` | exact recomposition of the complete typed assignment |
-| `nifs.pi_dec.verify.radix.split_norm` | `split_norm` | `PiDECAlgebra.Radix` | strict production `B = 16384` child norm |
+| `nifs.pi_dec.verify.radix.split_norm` | `split_norm` | `PiDECAlgebra.Radix` | strict production `B = 65536` child norm |
 | `nifs.pi_dec.verify.radix.recompose_norm` | `recompose_norm` | `PiDECAlgebra.Radix` | strict recomposition norm for fourteen bound-`2` children |
 | `nifs.pi_dec.verify.commitment_hom` | `recomposeCommitment`, `commit_hom` | `PiDECAlgebra.Commitment` | typed Ajtai homomorphism; binding security remains separate |
 | `nifs.pi_dec.verify.public_input_hom` | `recomposePublicInput`, `publicInput_hom` | `PiDECAlgebra.PublicInput` | homomorphism for the complete typed public carrier |

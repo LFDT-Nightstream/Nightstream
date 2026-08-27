@@ -95,16 +95,6 @@ abbrev KeyType (relation : LogicalRelation logicalWidth publicFits) :=
     (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
     (degreeBound relation)
 
-/-- The four digest lanes occupy public-input columns 1 through 4. -/
-def priorDigestIndex
-    (lane : Fin 4) :
-    Fin (FullShape logicalWidth publicFits).publicWidth :=
-  ⟨lane.val + 1, by
-    have laneBound := lane.isLt
-    norm_num [FullShape, fullShape, Phi81Relation.Shape.publicWidth,
-      publicRingColumns, ringDegree] at laneBound ⊢
-    omega⟩
-
 /-- The pilot-recomputed prior-state digest carried by the fresh public
 instance. The pilot separately enforces marker 1 and the zero tail. -/
 def priorDigest
@@ -112,8 +102,7 @@ def priorDigest
       (PaperAlgebra.PublicInput
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape) : List F :=
-  List.ofFn fun lane : Fin 4 =>
-    fresh.publicInputs ⟨0, by decide⟩ (priorDigestIndex lane)
+  decodeHash (fresh.publicInputs ⟨0, by decide⟩)
 
 /-- Digest-only PiCCS public statement in canonical block order: the
 pilot-recomputed prior digest, then the one fresh commitment and public
@@ -211,7 +200,7 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   piDecPublicInputSplit := publicInputSplit ajtai
   piDecEvaluationArity := evaluationArity ajtai
   piDecEvaluationCount := rfl
-  piDecDecision := fun _ => Classical.propDecidable _
+  piDecDecision := PaperAlgebra.piDecDecision ajtai
   oracle := Transcript.piCcsOracle
   initialTranscriptState :=
     Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag

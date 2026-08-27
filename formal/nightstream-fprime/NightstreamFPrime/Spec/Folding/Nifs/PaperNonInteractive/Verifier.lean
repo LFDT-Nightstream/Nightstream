@@ -81,7 +81,7 @@ def piDecCheck
   | some attempt =>
       letI := key.piDecDecision attempt
       decide (PiDEC.PaperVerifier.Accepted key.piDecAlgebra
-        key.piDecEvaluationArity attempt)
+        key.piDecPublicInputSplit key.piDecEvaluationArity attempt)
 
 /-- The one-message deterministic NIFS verifier. -/
 def verify
@@ -121,7 +121,7 @@ def verify
       exists attempt,
         key.piDecAttempt running fresh proof = some attempt /\
           PiDEC.PaperVerifier.Accepted key.piDecAlgebra
-            key.piDecEvaluationArity attempt := by
+            key.piDecPublicInputSplit key.piDecEvaluationArity attempt := by
   unfold piDecCheck
   split
   · simp_all

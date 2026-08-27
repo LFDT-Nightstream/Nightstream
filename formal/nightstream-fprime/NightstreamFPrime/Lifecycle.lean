@@ -38,5 +38,16 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalKRecomposition
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputBinding
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RadixRecomposition
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RingKRecomposition
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

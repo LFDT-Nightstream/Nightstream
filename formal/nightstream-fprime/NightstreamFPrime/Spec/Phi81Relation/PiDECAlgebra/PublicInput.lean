@@ -8,7 +8,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 Typed public-input split and recomposition for the concrete Phi81 `Pi_DEC`
 verifier.
 
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
+Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
 Phase: verifier-owned child public inputs and parent-input recomposition.
 Constraint family: semantic public-input operations only; this file emits no
 rows.
@@ -27,14 +27,14 @@ Emits constraints: no.
 
 Authority boundary: `splitPublicInput` consumes only the public parent and is
 the split run by the paper verifier. `recomposePublicInput` consumes only the
-fourteen public children and verifier-fixed radix weights. Both are executable
+sixteen public children and verifier-fixed radix weights. Both are executable
 without private assignments, default reads, digests, or caller-supplied laws.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.pi_dec.paper.public_split` | split every public coordinate with the same total radix map | computed | `splitPublicInput` |
 | `nifs.pi_dec.paper.public_split.projection` | public splitting commutes with assignment projection | derived | `splitPublicInput_project` |
-| `nifs.pi_dec.paper.public_split.recompose` | every public input recomposes from its fourteen public children | derived | `splitPublicInput_recompose` |
+| `nifs.pi_dec.paper.public_split.recompose` | every public input recomposes from its sixteen public children | derived | `splitPublicInput_recompose` |
 | `nifs.pi_dec.verify.public_input_hom.scale` | every public coordinate uses base-field multiplication by the same fixed weight | computed | `publicInputScale`, `projectPublicInput_scale` |
 | `nifs.pi_dec.verify.public_input_hom.finite` | assignment and public-input folds use identical head-first base weights | computed / derived | `combinePublicInputs`, `projectPublicInput_combine` |
 | `nifs.pi_dec.verify.public_input_hom.radix` | child `i` has verifier-fixed production weight `2^i` | computed | `recomposePublicInput`, `projectPublicInput_recompose` |
@@ -49,11 +49,42 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 
 /-! ## Verifier-owned public split -/
 
+/-- The Section-7.5 pre-split check over the public parent. -/
+def parentBounded {shape : Shape}
+    (input : Phi81Relation.PublicInput shape) : Prop :=
+  ∀ column, centeredMagnitude (input column) < Radix.combinedBound
+
+def parentBounded_decidable {shape : Shape}
+    (input : Phi81Relation.PublicInput shape) : Decidable (parentBounded input) := by
+  unfold parentBounded
+  infer_instance
+
+/-- A combined-bounded opening always passes the verifier's public-prefix
+bound check. -/
+theorem parentBounded_project {shape : Shape}
+    (assignment : Assignment shape)
+    (bounded : assignmentNormBounded productionGlobalParams.bigB assignment) :
+    parentBounded (projectPublicInput assignment) := by
+  intro column
+  simpa [parentBounded, Radix.combinedBound] using
+    bounded (shape.publicColumn column)
+
 /-- Coordinatewise public split computed by the Section-7.5 verifier. -/
 def splitPublicInput {shape : Shape}
     (input : Phi81Relation.PublicInput shape)
     (child : Radix.ChildIndex) : Phi81Relation.PublicInput shape :=
   fun column => Radix.splitScalar (input column) child
+
+/-- The accepted public bound selects the canonical signed-binary branch at
+every coordinate. The total fallback is unreachable in an accepted run. -/
+theorem splitPublicInput_eq_boundedDigit {shape : Shape}
+    (input : Phi81Relation.PublicInput shape)
+    (bounded : parentBounded input)
+    (child : Radix.ChildIndex)
+    (column : Fin shape.publicWidth) :
+    splitPublicInput input child column =
+      Radix.boundedDigit (input column) child := by
+  simp [splitPublicInput, Radix.splitScalar, bounded column]
 
 /-- Splitting the authoritative projected public input is exactly projection
 of the corresponding complete-assignment digit. -/
@@ -87,7 +118,7 @@ def combinePublicInputs {shape : Shape} :
           (fun index => inputs index.succ))
 
 /-- Production Π_DEC public-input recomposition with the verifier-owned
-`2^i`, `i in [0, 14)`, base-field weights. -/
+`2^i`, `i in [0, 16)`, base-field weights. -/
 def recomposePublicInput {shape : Shape}
     (inputs : Radix.ChildIndex -> Phi81Relation.PublicInput shape) :
     Phi81Relation.PublicInput shape :=

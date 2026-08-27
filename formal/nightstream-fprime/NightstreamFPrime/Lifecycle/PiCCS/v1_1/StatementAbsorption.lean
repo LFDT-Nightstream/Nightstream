@@ -166,7 +166,7 @@ private theorem serializePublicInputExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
-    (serializePublicInputExpr input).length = 54 := by
+    (serializePublicInputExpr input).length = 270 := by
   simp [serializePublicInputExpr, fullShape,
     Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
 
@@ -191,16 +191,27 @@ private theorem blockExpr_length (words : List Expr) :
 def absorbBlock (words : List Expr) : Formal.Action :=
   .absorb (blockExpr words)
 
-/-- The four prior-digest lanes are definitionally projected from the fresh
-public input that the pilot binds to `[1, digest, 0…]`. -/
+/-- Reconstruct one digest word from its 64 canonical public bits. -/
+def decodeHashWordExpr {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
+    (word : Fin 4) : Expr :=
+  (List.finRange 64).foldl (fun value bit =>
+    value + Expr.const (Poseidon2.ofNat (2 ^ bit.val)) *
+      input (NightstreamFPrime.Lifecycle.digestBitIndex
+        (logicalWidth := logicalWidth) word bit)) 0
+
+/-- The four prior-digest words are reconstructed from the pilot-bound fresh
+public bit encoding. -/
 def priorDigestExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
   List.ofFn fun lane : Fin 4 =>
-    (interface.fresh offset).publicInput ⟨0, by decide⟩
-      (ProductionKey.priorDigestIndex lane)
+    decodeHashWordExpr
+      ((interface.fresh offset).publicInput ⟨0, by decide⟩) lane
 
 /-- Symbolic form of the digest-only `ProductionKey.publicInputBlocks`. -/
 def publicInputBlocks {logicalWidth : Nat}
@@ -450,7 +461,28 @@ private theorem priorDigestExpr_eval {logicalWidth : Nat}
         (evalFresh (interface.fresh offset) env) := by
   unfold Hash.evalList priorDigestExpr ProductionKey.priorDigest
   rw [List.map_ofFn]
-  rfl
+  apply congrArg List.ofFn
+  funext word
+  unfold decodeHashWordExpr NightstreamFPrime.Lifecycle.decodeHashWord
+  generalize List.finRange 64 = bits
+  have foldEval (values : List (Fin 64)) (initial : Expr) :
+      (values.foldl (fun value bit =>
+          value + Expr.const (Poseidon2.ofNat (2 ^ bit.val)) *
+            (interface.fresh offset).publicInput ⟨0, by decide⟩
+              (NightstreamFPrime.Lifecycle.digestBitIndex
+                (logicalWidth := logicalWidth) word bit)) initial).eval env =
+        values.foldl (fun value bit =>
+          value + Poseidon2.ofNat (2 ^ bit.val) *
+            (evalFresh (interface.fresh offset) env).publicInputs
+              ⟨0, by decide⟩
+              (NightstreamFPrime.Lifecycle.digestBitIndex
+                (logicalWidth := logicalWidth) word bit)) (initial.eval env) := by
+    induction values generalizing initial with
+    | nil => rfl
+    | cons bit rest inductionHypothesis =>
+        simp only [List.foldl_cons]
+        exact inductionHypothesis _
+  exact foldEval bits 0
 
 /-- The symbolic public block list evaluates exactly to the production key's
 canonical semantic block list. -/
@@ -650,7 +682,7 @@ private theorem absorb_recipeCount (input : List Expr) :
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializePublicInputExpr input)) = 8288 := by
+        (absorbBlock (serializePublicInputExpr input)) = 40256 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializePublicInputExpr_length]
 
@@ -679,7 +711,7 @@ private theorem runningGroup_recipeCount {logicalWidth : Nat}
       [absorbBlock (serializeCommitmentExpr (running.commitment index)),
         absorbBlock (serializePublicInputExpr (running.publicInput index)),
         absorbBlock (serializeEvaluationExpr (running.evaluation index))] =
-      393088 := by
+      425056 := by
   simp [Formal.recipeCount]
 
 private theorem freshGroup_recipeCount {logicalWidth : Nat}
@@ -690,20 +722,20 @@ private theorem freshGroup_recipeCount {logicalWidth : Nat}
     Formal.recipeCount
       [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
         absorbBlock (serializePublicInputExpr (fresh.publicInput index))] =
-      152736 := by
+      184704 := by
   simp [Formal.recipeCount]
 
 private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 160432 := by
+    Formal.recipeCount (publicInputActions interface offset) = 192400 := by
   let fresh := interface.fresh offset
   have freshCost : Formal.recipeCount
       ((List.finRange productionShape.freshCount).flatMap fun index =>
         [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
           absorbBlock (serializePublicInputExpr (fresh.publicInput index))]) =
-      productionShape.freshCount * 152736 := by
+      productionShape.freshCount * 184704 := by
     apply Formal.recipeCount_flatMap_constant
     intro index _
     exact freshGroup_recipeCount fresh index
@@ -1025,21 +1057,21 @@ def recipeCount {logicalWidth : Nat}
   Formal.recipeCount (actions interface offset)
 
 /-- The fixed profile compiles the digest-only statement prefix to exactly
-160,432 private recipe variables. -/
+192,400 private recipe variables. -/
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 160432 := by
+    recipeCount interface offset = 192400 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 160432 := by
+    (program interface offset).recipes.length = 192400 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 160432
+    (actions interface offset)).recipes.length = 192400
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -1048,7 +1080,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 160432 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 192400 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -1067,7 +1099,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      160432 := by
+      192400 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 

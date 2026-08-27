@@ -6,7 +6,7 @@
 
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
@@ -15,7 +15,11 @@ use super::{
 };
 use crate::witness::{decode_template_expr, WitnessExpr};
 
-#[derive(Debug, Deserialize)]
+#[cfg(test)]
+#[path = "../../tests/unit/compact_assertion.rs"]
+mod compact_assertion_tests;
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactTemplateRow(
     Value,
     RawTemplateCombination,
@@ -23,13 +27,13 @@ pub(super) struct RawCompactTemplateRow(
     RawTemplateCombination,
 );
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactRowTemplate(u64, u64, u64, Value, Vec<RawCompactTemplateRow>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactInputRange(u64, u64, u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactRowInvocation(u64, u64, u64, u64, Vec<RawCompactInputRange>);
 
 pub(super) fn raw_invocation(
@@ -164,12 +168,7 @@ fn validate_template_row(
         {
             return Err(PackageError::Invalid("compact witness row shape"));
         }
-    } else if output_local.is_some()
-        || b.constant != Goldilocks::ONE
-        || !b.terms.is_empty()
-        || c.constant != Goldilocks::ZERO
-        || !c.terms.is_empty()
-    {
+    } else if output_local.is_some() {
         return Err(PackageError::Invalid("compact assertion row shape"));
     }
 

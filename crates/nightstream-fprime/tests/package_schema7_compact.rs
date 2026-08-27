@@ -1,181 +1,83 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{load, PackageError};
 use serde_json::{json, Value};
+
+const EXPECTED_IDENTITY: [u64; 4] = [
+    11_965_344_980_476_942_540,
+    12_455_623_573_690_155_525,
+    3_326_996_935_083_639_356,
+    1_575_202_054_933_656_136,
+];
+
+const PI_DEC_INPUT_START: u64 = 25_669_001;
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-v1.json")
 }
 
-fn schema7_value() -> Value {
-    let bytes = fs::read(artifact_path()).expect("Lean-emitted schema-6 transition artifact");
-    let mut value: Value = serde_json::from_slice(&bytes).expect("package JSON");
-    let package = value.as_array_mut().expect("package tuple");
-    assert_eq!(package[0], json!(6), "transition source schema");
-    package[0] = json!(7);
-    package.insert(8, json!([]));
-    package.insert(9, json!([]));
-    value
+fn artifact_bytes() -> Vec<u8> {
+    fs::read(artifact_path()).expect("Lean-emitted schema-8 package plan")
+}
+
+fn plan_value() -> Value {
+    serde_json::from_slice(&artifact_bytes()).expect("package-plan JSON")
 }
 
 fn canonical_bytes(value: &Value) -> Vec<u8> {
-    let mut bytes = serde_json::to_vec(value).expect("canonical package JSON");
+    let mut bytes = serde_json::to_vec(value).expect("canonical package-plan JSON");
     bytes.push(b'\n');
     bytes
 }
 
-fn candidate_identity(bytes: &[u8]) -> [u64; 4] {
-    match load(bytes, [0; 4]) {
-        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
-        other => panic!("candidate identity result: {other:?}"),
-    }
+fn first_compact_template(value: &mut Value) -> &mut Vec<Value> {
+    let plan = value.as_array_mut().expect("package-plan tuple");
+    assert_eq!(plan[0], json!(8), "package-plan schema");
+    let package = plan[1].as_array_mut().expect("embedded package tuple");
+    assert_eq!(package[0], json!(7), "embedded package schema");
+    package[8].as_array_mut().expect("compact templates")[0]
+        .as_array_mut()
+        .expect("first compact template")
 }
 
-fn zero_assertion(output: Value) -> Value {
-    json!([output, [0, []], [1, []], [0, []]])
+fn witness_blocks(value: &mut Value) -> &mut Vec<Value> {
+    let plan = value.as_array_mut().expect("package-plan tuple");
+    assert_eq!(plan[0], json!(8), "package-plan schema");
+    plan[4].as_array_mut().expect("witness-plan blocks")
 }
 
-fn constant_zero_template() -> Value {
-    json!([1, 0, 0, [1, 0], [zero_assertion(json!([0]))]])
-}
-
-fn word(value: &Value, location: &str) -> u64 {
-    value.as_u64().unwrap_or_else(|| panic!("{location} word"))
-}
-
-fn combination_terms(combination: &Value) -> &[Value] {
-    combination.as_array().expect("sparse combination")[1]
+#[test]
+fn schema8_plan_places_schema7_compact_fields_at_the_lean_owned_positions() {
+    let value = plan_value();
+    let plan = value.as_array().expect("package-plan tuple");
+    assert_eq!(plan.len(), 5, "package-plan tuple length");
+    assert_eq!(plan[0], json!(8), "package-plan schema");
+    let package = plan[1].as_array().expect("embedded package tuple");
+    assert_eq!(package.len(), 14, "embedded package tuple length");
+    assert_eq!(package[0], json!(7), "embedded package schema");
+    assert_eq!(package[8].as_array().expect("compact templates").len(), 326);
+    assert!(package[9]
         .as_array()
-        .expect("sparse terms")
-}
-
-fn mapped_combination(combination: &Value, slots: &BTreeMap<u64, usize>) -> Value {
-    let combination = combination.as_array().expect("sparse combination");
-    let terms = combination[1]
-        .as_array()
-        .expect("sparse terms")
-        .iter()
-        .map(|term| {
-            let term = term.as_array().expect("sparse term");
-            let column = word(&term[0], "sparse column");
-            let coefficient = word(&term[1], "sparse coefficient");
-            json!([[0, slots[&column]], coefficient])
-        })
-        .collect::<Vec<_>>();
-    json!([word(&combination[0], "sparse constant"), terms])
-}
-
-fn combination_expr(combination: &Value, slots: &BTreeMap<u64, usize>) -> Value {
-    let combination = combination.as_array().expect("sparse combination");
-    let mut expression = json!([1, word(&combination[0], "sparse constant")]);
-    for term in combination[1].as_array().expect("sparse terms") {
-        let term = term.as_array().expect("sparse term");
-        let column = word(&term[0], "sparse column");
-        let coefficient = word(&term[1], "sparse coefficient");
-        let scaled = json!([3, [1, coefficient], [0, slots[&column]]]);
-        expression = json!([2, expression, scaled]);
-    }
-    expression
-}
-
-fn replace_two_instructions_with_compact(value: &mut Value) {
-    let package = value.as_array_mut().expect("package tuple");
-    let instructions = package[11].as_array_mut().expect("witness instructions");
-    let pair_index = instructions
-        .windows(2)
-        .position(|pair| {
-            let first = pair[0].as_array().expect("first instruction");
-            let second = pair[1].as_array().expect("second instruction");
-            word(&second[0], "second row") == word(&first[0], "first row") + 1
-                && word(&second[1], "second target") == word(&first[1], "first target") + 1
-        })
-        .expect("adjacent generic instruction pair");
-    let first = instructions[pair_index].clone();
-    let second = instructions[pair_index + 1].clone();
-    let first = first.as_array().expect("first instruction");
-    let second = second.as_array().expect("second instruction");
-    let row_start = word(&first[0], "first row");
-    let output_column = word(&first[1], "first target");
-    let local_start = word(&second[1], "second target");
-
-    let mut columns = BTreeMap::<u64, usize>::new();
-    for combination in [&first[2], &first[3], &second[2], &second[3]] {
-        for term in combination_terms(combination) {
-            let column = word(&term.as_array().expect("sparse term")[0], "sparse column");
-            if column != output_column {
-                let next = columns.len();
-                columns.entry(column).or_insert(next);
-            }
-        }
-    }
-    let output_input = columns.len();
-    columns.insert(output_column, output_input);
-
-    let mut input_ranges = columns
-        .iter()
-        .map(|(column, input)| json!([input, 1, column, 1]))
-        .collect::<Vec<_>>();
-    input_ranges.sort_unstable_by_key(|range| {
-        word(
-            &range.as_array().expect("compact input range")[0],
-            "compact input start",
-        )
-    });
-    let output_recipe = json!([
-        3,
-        combination_expr(&first[2], &columns),
-        combination_expr(&first[3], &columns)
-    ]);
-    let witness_row = json!([
-        [1, 0],
-        mapped_combination(&second[2], &columns),
-        mapped_combination(&second[3], &columns),
-        [0, [[[1, 0], 1]]]
-    ]);
-    let template = json!([
-        columns.len(),
-        1,
-        output_input,
-        output_recipe,
-        [witness_row, zero_assertion(json!([0]))]
-    ]);
-    let invocation = json!([7, 0, row_start, local_start, input_ranges]);
-
-    instructions.drain(pair_index..pair_index + 2);
-    package[8] = json!([template]);
-    package[9] = json!([invocation]);
+        .expect("static compact invocations")
+        .is_empty());
+    assert_eq!(plan[3].as_array().expect("compact plan blocks").len(), 2);
 }
 
 #[test]
-fn schema7_decodes_the_compact_fields_at_the_lean_owned_tuple_positions() {
-    let mut value = schema7_value();
-    value.as_array_mut().expect("package tuple")[8] = json!([constant_zero_template()]);
-    let bytes = canonical_bytes(&value);
-    let identity = candidate_identity(&bytes);
-    let package = load(&bytes, identity).expect("strict schema-7 transition load");
-
-    assert_eq!(package.compact_template_count(), 1);
-    assert_eq!(package.compact_invocation_count(), 0);
+fn schema8_plan_expands_every_compact_invocation_with_exact_coverage() {
+    let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package-plan load");
+    assert_eq!(package.compact_template_count(), 326);
+    assert_eq!(package.compact_invocation_count(), 163_574);
 }
 
 #[test]
-fn schema7_validates_one_compact_invocation_as_exact_row_and_column_coverage() {
-    let mut value = schema7_value();
-    replace_two_instructions_with_compact(&mut value);
-    let bytes = canonical_bytes(&value);
-    let identity = candidate_identity(&bytes);
-    let package = load(&bytes, identity).expect("covered compact invocation");
-
-    assert_eq!(package.compact_template_count(), 1);
-    assert_eq!(package.compact_invocation_count(), 1);
-}
-
-#[test]
-fn schema7_rejects_a_malformed_compact_optional_output() {
-    let mut value = schema7_value();
-    let template = json!([1, 0, 0, [1, 0], [zero_assertion(json!([2]))]]);
-    value.as_array_mut().expect("package tuple")[8] = json!([template]);
+fn schema8_plan_rejects_a_malformed_compact_optional_output() {
+    let mut value = plan_value();
+    let template = first_compact_template(&mut value);
+    template[4].as_array_mut().expect("compact template rows")[0]
+        .as_array_mut()
+        .expect("compact template row")[0] = json!([2]);
 
     assert!(matches!(
         load(&canonical_bytes(&value), [0; 4]),
@@ -184,10 +86,11 @@ fn schema7_rejects_a_malformed_compact_optional_output() {
 }
 
 #[test]
-fn schema7_rejects_an_output_self_dependent_recipe() {
-    let mut value = schema7_value();
-    let template = json!([1, 0, 0, [0, 0], [zero_assertion(json!([0]))]]);
-    value.as_array_mut().expect("package tuple")[8] = json!([template]);
+fn schema8_plan_rejects_an_output_self_dependent_recipe() {
+    let mut value = plan_value();
+    let template = first_compact_template(&mut value);
+    let output_input = template[2].clone();
+    template[3] = json!([0, output_input]);
 
     assert!(matches!(
         load(&canonical_bytes(&value), [0; 4]),
@@ -196,14 +99,80 @@ fn schema7_rejects_an_output_self_dependent_recipe() {
 }
 
 #[test]
-fn schema7_rejects_an_incomplete_compact_input_partition() {
-    let mut value = schema7_value();
-    let package = value.as_array_mut().expect("package tuple");
-    package[8] = json!([constant_zero_template()]);
-    package[9] = json!([[7, 0, 0, 113963, []]]);
+fn schema8_plan_rejects_an_incomplete_compact_input_partition() {
+    let mut value = plan_value();
+    let template = first_compact_template(&mut value);
+    let input_count = template[0].as_u64().expect("compact input count");
+    template[0] = json!(input_count + 1);
 
     assert!(matches!(
         load(&canonical_bytes(&value), [0; 4]),
         Err(PackageError::Invalid("compact input coverage"))
+    ));
+}
+
+#[test]
+fn schema8_plan_rejects_a_wrong_digest_block_tag() {
+    let mut value = plan_value();
+    witness_blocks(&mut value)[0]
+        .as_array_mut()
+        .expect("first digest block")[0] = json!(1);
+
+    assert!(matches!(
+        load(&canonical_bytes(&value), [0; 4]),
+        Err(PackageError::Invalid("witness digest block tag"))
+    ));
+}
+
+#[test]
+fn schema8_plan_rejects_a_missing_explicit_pidec_block() {
+    let mut value = plan_value();
+    witness_blocks(&mut value)
+        .pop()
+        .expect("PiDEC witness block");
+
+    assert!(matches!(
+        load(&canonical_bytes(&value), [0; 4]),
+        Err(PackageError::Invalid("witness plan block count"))
+    ));
+}
+
+#[test]
+fn schema8_plan_rejects_a_wrong_pidec_batch_count() {
+    let mut value = plan_value();
+    let blocks = witness_blocks(&mut value);
+    blocks
+        .last_mut()
+        .expect("PiDEC witness block")
+        .as_array_mut()
+        .expect("tagged PiDEC witness block")[1]
+        .as_array_mut()
+        .expect("PiDEC witness batches")
+        .pop()
+        .expect("PiDEC witness batch");
+
+    assert!(matches!(
+        load(&canonical_bytes(&value), [0; 4]),
+        Err(PackageError::Invalid("PiDEC witness batch count"))
+    ));
+}
+
+#[test]
+fn schema8_plan_rejects_a_generated_write_into_pidec_inputs() {
+    let mut value = plan_value();
+    let blocks = witness_blocks(&mut value);
+    blocks
+        .last_mut()
+        .expect("PiDEC witness block")
+        .as_array_mut()
+        .expect("tagged PiDEC witness block")[1]
+        .as_array_mut()
+        .expect("PiDEC witness batches")[0]
+        .as_array_mut()
+        .expect("PiDEC witness batch")[0] = json!(PI_DEC_INPUT_START);
+
+    assert!(matches!(
+        load(&canonical_bytes(&value), [0; 4]),
+        Err(PackageError::Invalid("witness interval ownership"))
     ));
 }

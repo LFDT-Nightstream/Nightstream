@@ -1,11 +1,11 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{canonical_field, word_to_usize, Layout, PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCcsRelation(u64, u64, u64, Vec<u64>, u64, Vec<RawPolynomialTerm>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPolynomialTerm(u64, Vec<u64>);
 
 /// Physical matrix selected by one Lean-owned logical CCS slot.

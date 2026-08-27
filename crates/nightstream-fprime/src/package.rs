@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use wip_spartan::provider::{goldi::F as SpartanField, GoldilocksWhirEngine};
@@ -19,7 +19,9 @@ mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
 mod permutation_plan;
 mod plan;
+mod source_map;
 mod v1_1;
+mod witness_plan;
 pub use v1_1::{
     PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT,
     PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
@@ -65,7 +67,7 @@ pub enum PackageError {
 
 type SpartanEngine = GoldilocksWhirEngine;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPackage(
     u64,
     RawProfile,
@@ -84,30 +86,30 @@ struct RawPackage(
 );
 
 #[derive(Debug, Deserialize)]
-struct RawPlan(u64, RawPackage, Vec<Value>, Vec<Value>);
+struct RawPlan(u64, RawPackage, Vec<Value>, Vec<Value>, Vec<Value>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawProfile(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPoseidonSchedule(u64, u64, u64, u64, u64, u64, u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawSegment(u64, u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPhysicalLayout(u64, u64, u64, u64, u64, Vec<RawSegment>, Vec<RawSegment>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawColumnRef(u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawTemplateTerm(RawColumnRef, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawTemplateCombination(u64, Vec<RawTemplateTerm>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawTemplateRow(
     u64,
     RawTemplateCombination,
@@ -115,25 +117,25 @@ struct RawTemplateRow(
     RawTemplateCombination,
 );
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPermutationTemplate(u64, u64, u64, Vec<RawTemplateRow>);
 
-#[derive(Debug, Deserialize)]
-struct RawHashChain(u64, u64, u64, u64, u64, u64, u64, u64, u64);
+#[derive(Debug, Deserialize, Serialize)]
+struct RawHashChain(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawPermutationInvocation(u64, u64, u64, Vec<RawSparseCombination>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawWitnessInstruction(u64, u64, RawSparseCombination, RawSparseCombination);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawSparseTerm(u64, u64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawSparseCombination(u64, Vec<RawSparseTerm>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RawSparseRow(u64, RawSparseCombination, RawSparseCombination, RawSparseCombination);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -198,6 +200,7 @@ struct HashChain {
     witness_start: usize,
     witness_length: usize,
     absorb_count: usize,
+    digest_length: usize,
     digest_start: usize,
 }
 
@@ -306,8 +309,9 @@ impl LoadedPackage {
         self.layout
             .private_segments
             .iter()
-            .find(|segment| segment.role == 3)
-            .map_or(0, |segment| segment.start)
+            .filter(|segment| !v1_1::is_witness_role(segment.role))
+            .map(|segment| segment.length)
+            .sum()
     }
 
     pub fn public_column_count(&self) -> usize {
@@ -347,21 +351,13 @@ impl LoadedPackage {
     }
 
     /// Execute the canonical sparse-row witness program. `private_inputs`
-    /// contains the private segments before the package-owned witness range.
+    /// contains every non-witness private segment in package order.
     pub fn execute_witness(
         &self,
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
-        let witness_segment = self
-            .layout
-            .private_segments
-            .iter()
-            .find(|segment| segment.role == 3)
-            .ok_or(PackageError::Invalid("witness segment"))?;
-        if witness_segment.start != private_inputs.len()
-            || witness_segment.start + witness_segment.length != self.layout.private_column_count
-        {
+        if private_inputs.len() != self.private_input_count() {
             return Err(PackageError::Invalid("private input length"));
         }
         if self
@@ -383,12 +379,22 @@ impl LoadedPackage {
         }
 
         let mut assignment = vec![Goldilocks::ZERO; self.layout.total_column_count];
-        for (target, value) in assignment[..private_inputs.len()]
-            .iter_mut()
-            .zip(private_inputs)
-        {
-            *target = Goldilocks::from_u64(*value);
+        let mut input_cursor = 0usize;
+        for segment in &self.layout.private_segments {
+            if v1_1::is_witness_role(segment.role) {
+                continue;
+            }
+            let input_end = input_cursor + segment.length;
+            let segment_end = segment.start + segment.length;
+            for (target, value) in assignment[segment.start..segment_end]
+                .iter_mut()
+                .zip(&private_inputs[input_cursor..input_end])
+            {
+                *target = Goldilocks::from_u64(*value);
+            }
+            input_cursor = input_end;
         }
+        debug_assert_eq!(input_cursor, private_inputs.len());
         assignment[self.layout.constant_column] = Goldilocks::ONE;
         for (target, value) in assignment[self.layout.constant_column + 1..]
             .iter_mut()
@@ -613,6 +619,24 @@ pub fn load_file(path: impl AsRef<Path>, expected_identity: [u64; 4]) -> Result<
 }
 
 pub fn load(bytes: &[u8], expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
+    bind_expanded_package(decode_plan(bytes)?, expected_identity)
+}
+
+/// Strictly decode one compact plan and return both its identity-bound package
+/// and the exact canonical schema-7 package produced by the production
+/// expander. The caller must supply the verifier-owned expected identity.
+pub fn load_with_expanded_package(
+    bytes: &[u8],
+    expected_identity: [u64; 4],
+) -> Result<(LoadedPackage, Vec<u8>), PackageError> {
+    let raw = decode_plan(bytes)?;
+    let mut expanded_bytes = serde_json::to_vec(&raw)?;
+    expanded_bytes.push(b'\n');
+    let package = bind_expanded_package(raw, expected_identity)?;
+    Ok((package, expanded_bytes))
+}
+
+fn decode_plan(bytes: &[u8]) -> Result<RawPackage, PackageError> {
     let value: Value = serde_json::from_slice(bytes)?;
     let mut canonical = serde_json::to_vec(&value)?;
     canonical.push(b'\n');
@@ -620,7 +644,8 @@ pub fn load(bytes: &[u8], expected_identity: [u64; 4]) -> Result<LoadedPackage, 
         return Err(PackageError::NonCanonicalBytes);
     }
 
-    let RawPlan(schema, mut raw, permutation_blocks, compact_blocks): RawPlan = serde_json::from_value(value.clone())?;
+    let RawPlan(schema, mut raw, permutation_blocks, compact_blocks, witness_blocks): RawPlan =
+        serde_json::from_value(value.clone())?;
     if schema != 8 {
         return Err(PackageError::Invalid("plan schema version"));
     }
@@ -632,8 +657,14 @@ pub fn load(bytes: &[u8], expected_identity: [u64; 4]) -> Result<LoadedPackage, 
     }
     raw.7 = permutation_plan::expand(permutation_blocks)?;
     raw.9 = plan::expand(compact_blocks)?;
+    raw.10.extend(witness_plan::expand(witness_blocks)?);
+    Ok(raw)
+}
+
+fn bind_expanded_package(raw: RawPackage, expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
+    let expanded_value = serde_json::to_value(&raw)?;
+    let computed_identity = relation_identifier(&expanded_value)?;
     let mut package = validate_package(raw, [0; 4])?;
-    let computed_identity = relation_identifier(&value)?;
     if computed_identity != expected_identity {
         return Err(PackageError::ExpectedIdentityMismatch {
             expected: expected_identity,
@@ -662,7 +693,7 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         assertion_rows,
         terminal,
     ) = raw;
-    if schema != 7 {
+    if schema != 8 {
         return Err(PackageError::Invalid("schema version"));
     }
     validate_profile(profile)?;
@@ -686,19 +717,24 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
 
     let compact_templates = compact::validate_templates(compact_templates)?;
 
-    let witness_segment = layout
+    let witness_segments = layout
         .private_segments
         .iter()
-        .find(|segment| segment.role == 3)
-        .ok_or(PackageError::Invalid("witness segment"))?;
+        .copied()
+        .filter(|segment| v1_1::is_witness_role(segment.role))
+        .collect::<Vec<_>>();
+    let witness_start = witness_segments
+        .first()
+        .ok_or(PackageError::Invalid("witness segment"))?
+        .start;
     let compact_invocations =
-        compact::validate_invocations(compact_invocations, &compact_templates, &layout, witness_segment.start)?;
+        compact::validate_invocations(compact_invocations, &compact_templates, &layout, witness_start)?;
     let witness_batches = batches
         .into_iter()
         .map(|batch| {
             validate_witness_batch(
                 batch,
-                witness_segment.start,
+                witness_start,
                 layout.private_column_count,
                 layout.constant_column,
                 layout.total_column_count,
@@ -757,7 +793,21 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
             .iter()
             .map(|instruction| (instruction.target, instruction.target + 1)),
     );
-    validate_witness_coverage(witness_segment.start, witness_segment.length, witness_intervals)?;
+    if witness_intervals
+        .iter()
+        .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, &witness_segments))
+    {
+        return Err(PackageError::Invalid("witness interval ownership"));
+    }
+    for segment in &witness_segments {
+        let end = segment.start + segment.length;
+        let owned = witness_intervals
+            .iter()
+            .copied()
+            .filter(|&(start, interval_end)| segment.start <= start && interval_end <= end)
+            .collect();
+        validate_witness_coverage(segment.start, segment.length, owned)?;
+    }
 
     Ok(LoadedPackage {
         layout,
@@ -772,6 +822,13 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         assertion_rows,
         relation_identifier,
     })
+}
+
+fn interval_owned_by_witness_segment(start: usize, end: usize, segments: &[Segment]) -> bool {
+    end > start
+        && segments
+            .iter()
+            .any(|segment| segment.start <= start && end <= segment.start + segment.length)
 }
 
 fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
@@ -938,7 +995,7 @@ fn validate_template_combination(
     let terms = terms
         .into_iter()
         .map(|RawTemplateTerm(RawColumnRef(tag, index), coefficient)| {
-            canonical_nonzero_field(coefficient, "template coefficient")?;
+            canonical_field(coefficient, "template coefficient")?;
             let index = word_to_usize(index, "template reference")?;
             let column = match tag {
                 0 if index < input_count => ColumnRef::Input(index),
@@ -976,6 +1033,7 @@ fn validate_chain(
         witness_start,
         witness_length,
         absorb_count,
+        digest_length,
         digest_start,
     ) = raw;
     let chain = HashChain {
@@ -987,6 +1045,7 @@ fn validate_chain(
         witness_start: word_to_usize(witness_start, "chain witness start")?,
         witness_length: word_to_usize(witness_length, "chain witness length")?,
         absorb_count: word_to_usize(absorb_count, "chain absorb count")?,
+        digest_length: word_to_usize(digest_length, "chain digest length")?,
         digest_start: word_to_usize(digest_start, "chain digest start")?,
     };
 
@@ -1002,15 +1061,18 @@ fn validate_chain(
         .ok_or(PackageError::Invalid("hash witness length overflow"))?;
     if chain.absorb_count != expected_absorbs
         || chain.witness_length != expected_witness
-        || chain.row_count != chain.witness_length + 4
+        || chain.digest_length > 4
+        || chain.row_count != chain.witness_length + chain.digest_length
     {
         return Err(PackageError::Invalid("hash chain dimensions"));
     }
     if checked_end(chain.row_start, chain.row_count)? > layout.row_count
         || checked_end(chain.input_start, chain.input_length)? > layout.private_column_count
         || checked_end(chain.witness_start, chain.witness_length)? > layout.private_column_count
-        || chain.digest_start <= layout.constant_column
-        || checked_end(chain.digest_start, 4)? > layout.total_column_count
+        || (chain.digest_length != 0
+            && (chain.digest_start <= layout.constant_column
+                || checked_end(chain.digest_start, chain.digest_length)?
+                    > layout.total_column_count))
     {
         return Err(PackageError::Invalid("hash chain range"));
     }
@@ -1210,15 +1272,6 @@ fn validate_row_coverage(
 fn canonical_field(value: u64, location: &'static str) -> Result<(), PackageError> {
     if value >= GOLDILOCKS_MODULUS {
         Err(PackageError::NonCanonicalField { location, value })
-    } else {
-        Ok(())
-    }
-}
-
-fn canonical_nonzero_field(value: u64, location: &'static str) -> Result<(), PackageError> {
-    canonical_field(value, location)?;
-    if value == 0 {
-        Err(PackageError::Invalid("zero sparse coefficient"))
     } else {
         Ok(())
     }

@@ -1502,6 +1502,7 @@ dependencies = [
  "neo-transcript",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
+ "rayon",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

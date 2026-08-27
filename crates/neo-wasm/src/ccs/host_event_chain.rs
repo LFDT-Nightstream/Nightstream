@@ -34,12 +34,12 @@
 //! `NAMED_COLUMN_COUNT`. Their raw indices remain private; the witness-layout
 //! registry exposes only their width metadata to generic range enforcement.
 
-use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
     COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE,
-    COL_HOST_CALLEE_FREF_AFTER, COL_ONE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
-    COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER,
-    COL_PERM_STATE_BEFORE, COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
+    COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_ONE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
+    COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO,
+    COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
@@ -51,9 +51,21 @@ use crate::comm_chain::{
     perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
 };
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
-use neo_application::define_column_region;
+use neo_application::{define_column_region, ZeroTest};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
+
+pub(crate) const PERM_ROUND_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_PERM_ROUND_BEFORE,
+    inverse: COL_PERM_ROUND_BEFORE_INV,
+    is_zero: COL_PERM_ROUND_BEFORE_IS_ZERO,
+};
+
+pub(crate) const HOST_EVENTS_REMAINING_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_HOST_EVENTS_REMAINING_BEFORE,
+    inverse: COL_HOST_EVENTS_REMAINING_BEFORE_INV,
+    is_zero: COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO,
+};
 
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface
@@ -264,7 +276,6 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as HOST_CALL_ACTIVE,
         COL_HOST_EVENTS_REMAINING_AFTER as EVENTS_REMAINING_AFTER,
         COL_HOST_EVENTS_REMAINING_BEFORE as EVENTS_REMAINING_BEFORE,
-        COL_HOST_EVENTS_REMAINING_BEFORE_INV as EVENTS_REMAINING_INV,
         COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO as EVENTS_REMAINING_IS_ZERO,
         COL_HOST_EVENT_ARGS_BASE_AFTER as ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE as ARGS_BASE_BEFORE,
         COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT as EXIT_SCHEDULE_COUNT,
@@ -295,12 +306,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // event sequence), decremented by each block's last slot row,
         // preserved elsewhere; program rows require it to be spent, and
         // gather rows require it to be live.
-        push_zero_test_gadget(
-            b,
-            EVENTS_REMAINING_BEFORE,
-            EVENTS_REMAINING_INV,
-            EVENTS_REMAINING_IS_ZERO,
-        );
+        HOST_EVENTS_REMAINING_ZERO_TEST.push_constraints(b);
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVENTS_REMAINING_IS_ZERO, F::ONE)], []);
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVENTS_REMAINING_BEFORE, F::ONE)], []);
         // Pre-count cells store count + 1 (presence bias): an undeclared
@@ -806,12 +812,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// Position one-hot ↔ round-counter lockstep.
 fn push_position_onehot_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event perm position"), |b| {
-        push_zero_test_gadget(
-            b,
-            COL_PERM_ROUND_BEFORE,
-            COL_PERM_ROUND_BEFORE_INV,
-            COL_PERM_ROUND_BEFORE_IS_ZERO,
-        );
+        PERM_ROUND_ZERO_TEST.push_constraints(b);
         // sum(pos) = pending + (1 - round_is_zero): exactly one position on
         // perm rows, none elsewhere.
         b.push_linear_zero(

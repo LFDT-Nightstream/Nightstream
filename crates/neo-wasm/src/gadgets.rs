@@ -1,3 +1,5 @@
+//! WASM-only algebraic gadgets not yet represented by shared descriptors.
+
 use super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -8,14 +10,6 @@ pub(crate) fn push_gated_linear_zero<const N: usize>(
     terms: [(usize, F); N],
 ) {
     b.push_row([(selector, F::ONE)], terms, []);
-}
-
-/// Constrains `is_zero` to be exactly the zero-test of `value`.
-///
-/// The witness must set `inverse = value^{-1}` when `value != 0`, and `inverse = 0`
-/// when `value == 0`.
-pub fn push_zero_test_gadget(b: &mut WasmTaggedR1csBuilder<'_>, value: usize, inverse: usize, is_zero: usize) {
-    push_zero_test_expr_gadget(b, [(value, F::ONE)], inverse, is_zero);
 }
 
 /// Constrains `is_zero` to be exactly the zero-test of a linear expression.
@@ -36,13 +30,9 @@ pub(crate) fn push_zero_test_expr_gadget<const N: usize>(
     b.push_row(expr, [(is_zero, F::ONE)], []);
 }
 
-pub(crate) fn zero_test_witness_u64(value: u64) -> (F, F) {
-    zero_test_witness_field(F::from_u64(value))
-}
-
 /// Zero-test witness for an arbitrary field element.
 ///
-/// Returns `(is_zero, inverse)` consistent with [`push_zero_test_gadget`]:
+/// Returns `(is_zero, inverse)` consistent with [`push_zero_test_expr_gadget`]:
 /// when `value == 0` the inverse is unconstrained and we return `0`; when
 /// `value != 0` `is_zero` is `0` and we return the field inverse.
 pub(crate) fn zero_test_witness_field(value: F) -> (F, F) {

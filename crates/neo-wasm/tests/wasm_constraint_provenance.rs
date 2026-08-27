@@ -7,6 +7,21 @@ use neo_wasm::{build_wasm_relation, WasmConstraintScope, WasmOpcode};
 use std::collections::BTreeMap;
 
 #[test]
+fn gadget_occurrences_reference_their_tagged_rows() {
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let catalog = relation.r1cs().catalog();
+    assert!(!catalog.gadget_occurrences().is_empty());
+    for occurrence in catalog.gadget_occurrences() {
+        let rows = occurrence.row_range().clone();
+        assert!(rows.start < rows.end);
+        assert!(rows.end <= catalog.rows().len());
+        assert!(catalog.rows()[rows]
+            .iter()
+            .all(|row| row.tag() == occurrence.tag()));
+    }
+}
+
+#[test]
 #[ignore]
 fn dump_constraint_catalog_by_opcode() {
     let relation = build_wasm_relation().expect("valid WASM relation");

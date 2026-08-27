@@ -7,8 +7,6 @@ pub mod comm_chain;
 mod gadgets;
 pub mod host_event_bindings;
 mod host_event_layout;
-pub mod witness_builder;
-pub use gadgets::push_zero_test_gadget;
 pub mod ir;
 pub mod isa;
 mod ivc_state;
@@ -25,6 +23,7 @@ pub mod range_check;
 pub mod relation_layout;
 pub mod tables;
 pub mod tagged_r1cs_builder;
+pub mod witness_builder;
 mod witness_layout;
 
 pub use adapters::wasmtime::{

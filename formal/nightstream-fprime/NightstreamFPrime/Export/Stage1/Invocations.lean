@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Rows
+import NightstreamFPrime.Layout.Stage1.Spartan
 import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Layout.Poseidon2.Duplex

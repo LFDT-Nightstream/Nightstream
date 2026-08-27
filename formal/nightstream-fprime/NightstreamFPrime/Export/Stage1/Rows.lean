@@ -366,6 +366,15 @@ theorem witnessInstructions_length_add_assertionRows_length
         simp only [witnessInstructions, assertionRows, List.length_cons]
       all_goals omega
 
+/-- The stack-safe classifiers also partition every compiled row exactly
+once. This form lets large executable packets keep their row lists opaque. -/
+theorem witnessInstructionsTR_length_add_assertionRowsTR_length
+    (rows : List CompiledRow) :
+    (witnessInstructionsTR rows).length +
+      (assertionRowsTR rows).length = rows.length := by
+  rw [witnessInstructionsTR_eq, assertionRowsTR_eq,
+    witnessInstructions_length_add_assertionRows_length]
+
 theorem witnessInstructions_member
     (rows : List CompiledRow) (instruction : WitnessInstruction) :
     instruction ∈ witnessInstructions rows ↔

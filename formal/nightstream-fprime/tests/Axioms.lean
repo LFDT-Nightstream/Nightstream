@@ -1200,12 +1200,10 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54.totalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54.physicalPrivateColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54.physical_implies_relation
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54.physical_complete
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.totalFreshCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.totalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physicalPrivateColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physical_implies_relation
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physical_complete
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.piRlcChallenges_eq_some_of_pointwise
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.outputCount_eq_ringDegree
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.evalOutputChallenge_apply
@@ -1417,6 +1415,13 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.physical_implies_phaseHolds
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.physical_complete
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.physical_complete_production
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.inputConstraints_eq_nil
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.samplerConstraints_eq
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.commitmentConstraints_eq
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.publicInputConstraints_eq
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.evalKConstraints_eq
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.evalAConstraints_eq
+#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.outputConstraints_eq_nil
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Ownership.childOrder_length
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Ownership.childConstraintLists_length
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Ownership.ownersFor_length

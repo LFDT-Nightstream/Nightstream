@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.RowSemantics
-import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!
 Owns the compact encoding of ordinary Stage 1 R1CS rows.
@@ -283,6 +282,75 @@ def assertionRowsTR (rows : List CompiledRow) : List SparseRow :=
 theorem assertionRowsTR_eq (rows : List CompiledRow) :
     assertionRowsTR rows = assertionRows rows := by
   rw [assertionRowsTR, assertionRowsRev_eq]
+  rfl
+
+theorem witnessInstructions_append (left right : List CompiledRow) :
+    witnessInstructions (left ++ right) =
+      witnessInstructions left ++ witnessInstructions right := by
+  induction left with
+  | nil => rfl
+  | cons row rows inductionHypothesis =>
+      cases row <;> simp [witnessInstructions, inductionHypothesis]
+
+theorem assertionRows_append (left right : List CompiledRow) :
+    assertionRows (left ++ right) =
+      assertionRows left ++ assertionRows right := by
+  induction left with
+  | nil => rfl
+  | cons row rows inductionHypothesis =>
+      cases row <;> simp [assertionRows, inductionHypothesis]
+
+theorem witnessInstructionsTR_append (left right : List CompiledRow) :
+    witnessInstructionsTR (left ++ right) =
+      witnessInstructionsTR left ++ witnessInstructionsTR right := by
+  rw [witnessInstructionsTR_eq, witnessInstructions_append,
+    witnessInstructionsTR_eq, witnessInstructionsTR_eq]
+
+theorem assertionRowsTR_append (left right : List CompiledRow) :
+    assertionRowsTR (left ++ right) =
+      assertionRowsTR left ++ assertionRowsTR right := by
+  rw [assertionRowsTR_eq, assertionRows_append,
+    assertionRowsTR_eq, assertionRowsTR_eq]
+
+private def classifyRowsRev :
+    List CompiledRow → List WitnessInstruction → List SparseRow →
+      List WitnessInstruction × List SparseRow
+  | [], instructionsRev, assertionsRev =>
+      (instructionsRev.reverse, assertionsRev.reverse)
+  | .witness instruction :: rows, instructionsRev, assertionsRev =>
+      classifyRowsRev rows (instruction :: instructionsRev) assertionsRev
+  | .assertion assertion :: rows, instructionsRev, assertionsRev =>
+      classifyRowsRev rows instructionsRev (assertion :: assertionsRev)
+
+private theorem classifyRowsRev_eq (rows : List CompiledRow)
+    (instructionsRev : List WitnessInstruction)
+    (assertionsRev : List SparseRow) :
+    classifyRowsRev rows instructionsRev assertionsRev =
+      (instructionsRev.reverse ++ witnessInstructions rows,
+        assertionsRev.reverse ++ assertionRows rows) := by
+  induction rows generalizing instructionsRev assertionsRev with
+  | nil => simp [classifyRowsRev, witnessInstructions, assertionRows]
+  | cons row rows inductionHypothesis =>
+      cases row with
+      | witness instruction =>
+          simp only [classifyRowsRev, witnessInstructions, assertionRows]
+          rw [inductionHypothesis]
+          simp [List.reverse_cons, List.append_assoc]
+      | assertion assertion =>
+          simp only [classifyRowsRev, witnessInstructions, assertionRows]
+          rw [inductionHypothesis]
+          simp [List.reverse_cons, List.append_assoc]
+
+/-- Classify one compiled-row block in one stack-safe pass. -/
+def classifyRowsTR (rows : List CompiledRow) :
+    List WitnessInstruction × List SparseRow :=
+  classifyRowsRev rows [] []
+
+theorem classifyRowsTR_eq (rows : List CompiledRow) :
+    classifyRowsTR rows =
+      (witnessInstructionsTR rows, assertionRowsTR rows) := by
+  rw [classifyRowsTR, classifyRowsRev_eq, witnessInstructionsTR_eq,
+    assertionRowsTR_eq]
   rfl
 
 /-- Compact classification preserves every ordinary physical row exactly

@@ -218,6 +218,28 @@ def canonicalInvocationEnv (invocation : PermutationInvocation)
   canonicalTemplateEnv fun column =>
     (instantiateInvocationColumn invocation column).eval env
 
+/-- Canonical columns `0..7` evaluate the invocation's exact sparse input
+combinations. -/
+theorem canonicalInvocationEnv_input (invocation : PermutationInvocation)
+    (env : Env) (lane : Fin 8) :
+    canonicalInvocationEnv invocation env lane.val =
+      (invocationInputCombination invocation lane.val).toR1CS.eval env := by
+  unfold canonicalInvocationEnv canonicalTemplateEnv
+  rw [show PilotData.columnRef lane.val = .input lane.val by
+    simp [PilotData.columnRef, lane.isLt]]
+  rfl
+
+/-- Canonical column `8 + index` is the invocation's exact local witness
+column at the same relative index. -/
+theorem canonicalInvocationEnv_local (invocation : PermutationInvocation)
+    (env : Env) (index : Nat) :
+    canonicalInvocationEnv invocation env (8 + index) =
+      env (invocation.witnessStart + index) := by
+  unfold canonicalInvocationEnv canonicalTemplateEnv
+  rw [show PilotData.columnRef (8 + index) = .local index by
+    simp [PilotData.columnRef]]
+  simp [ColumnRef.eval, instantiateInvocationColumn]
+
 /-- Constructive completeness of one explicit canonical Poseidon2
 invocation. The premise is the fixed-size logical permutation constraint
 list under the invocation's exact column map. -/

@@ -1,0 +1,106 @@
+import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Lifecycle.VerifierContext
+
+/-!
+Owns the small verifier-context recipe for the current Stage 1 package cut.
+
+This module contains no package rows or layout imports. The package-bound
+module separately proves that these candidate identity words equal the
+canonical package identity. The final Stage 1 integration must replace this
+prefix width and rerun every applicable gate on the final package identity.
+-/
+
+namespace NightstreamFPrime.Export.Stage1.VerifierContext
+
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+/-- Exact logical width of the Pilot + PiCCS + PiRLC + PiDEC package cut. -/
+def candidateLogicalWidth : Nat := 25715018
+
+def candidatePublicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth candidateLogicalWidth := by
+  apply Nat.le_trans (m := candidateLogicalWidth)
+  · norm_num [candidateLogicalWidth, ringDegree, publicRingColumns]
+  · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth
+      candidateLogicalWidth
+
+/-- Verifier-owned candidate identity for the current package cut. Rust
+recomputes it from every package field. It becomes validated phase-local
+evidence only after the matrix, assignment, parity, and mutation gates pass. -/
+def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
+  c0 := ⟨11965344980476942540, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨12455623573690155525, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨3326996935083639356, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨1575202054933656136, by norm_num [F, goldilocksModulus]⟩
+
+def packageIdentityWords : List F :=
+  expectedPackageIdentity.toList
+
+/-- Domain of the compact NIFS-key authority description. -/
+def nifsKeyDomain : List F :=
+  ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+    70, 80, 114, 105, 109, 101, 47, 110, 105, 102, 115, 45,
+    107, 101, 121, 47, 118, 49, 95, 49] : List Nat).map Poseidon2.ofNat
+
+/-- Current package-bound NIFS descriptor and one verifier-owned commitment
+setup serialization. -/
+def nifsKeyWords (commitmentKeyWords : List F) : List F :=
+  nifsKeyDomain ++
+    Lifecycle.VerifierContext.framed Lifecycle.VerifierContext.profileWords ++
+    Lifecycle.VerifierContext.framed Lifecycle.VerifierContext.scheduleWords ++
+    Lifecycle.VerifierContext.framed packageIdentityWords ++
+    Lifecycle.VerifierContext.framed
+      (Lifecycle.VerifierContext.componentDigest 4 commitmentKeyWords).toList
+
+/-- Canonical context authority for the selected package. -/
+def authority (commitmentKeyWords : List F) :
+    Lifecycle.VerifierContext.Authority where
+  relationWords := packageIdentityWords
+  applicationWords := packageIdentityWords
+  nifsKeyWords := nifsKeyWords commitmentKeyWords
+  commitmentKeyWords := commitmentKeyWords
+
+@[simp] theorem authority_relationWords (commitmentKeyWords : List F) :
+    (authority commitmentKeyWords).relationWords = packageIdentityWords := by
+  rfl
+
+@[simp] theorem authority_applicationWords (commitmentKeyWords : List F) :
+    (authority commitmentKeyWords).applicationWords = packageIdentityWords := by
+  rfl
+
+@[simp] theorem authority_nifsKeyWords (commitmentKeyWords : List F) :
+    (authority commitmentKeyWords).nifsKeyWords = nifsKeyWords commitmentKeyWords := by
+  rfl
+
+@[simp] theorem authority_commitmentKeyWords (commitmentKeyWords : List F) :
+    (authority commitmentKeyWords).commitmentKeyWords = commitmentKeyWords := by
+  rfl
+
+theorem descriptor_eq (commitmentKeyWords : List F) :
+    Lifecycle.VerifierContext.descriptor (authority commitmentKeyWords) = {
+      relation := Lifecycle.VerifierContext.componentDigest 1
+        packageIdentityWords
+      application := Lifecycle.VerifierContext.componentDigest 2
+        packageIdentityWords
+      nifsKey := Lifecycle.VerifierContext.componentDigest 3
+        (nifsKeyWords commitmentKeyWords)
+      commitmentKey := Lifecycle.VerifierContext.componentDigest 4
+        commitmentKeyWords } := by
+  rfl
+
+/-- Small deterministic seeded-setup descriptor used only by the nonzero
+conformance fixture. -/
+def fixtureCommitmentKeyWords : List F :=
+  ([1, ringDegree, productionProfile.commitmentWidth,
+    Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth candidateLogicalWidth)] : List Nat).map
+      Poseidon2.ofNat ++
+    (List.range 32).map fun index => Poseidon2.ofNat (index + 1)
+
+def fixtureAuthority : Lifecycle.VerifierContext.Authority :=
+  authority fixtureCommitmentKeyWords
+
+end NightstreamFPrime.Export.Stage1.VerifierContext

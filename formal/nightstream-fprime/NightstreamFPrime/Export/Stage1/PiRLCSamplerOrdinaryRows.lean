@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
@@ -54,6 +54,67 @@ def laneInterface (source round : Nat) (lane : Fin 4) :
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart source round)
     lane
 
+abbrev fastOwnedOutput := PiRLCSamplerProjection.fastOwnedOutput
+
+theorem fastOwnedOutput_eq
+    (interface :
+      NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.Interface)
+    (offset : Nat) :
+    fastOwnedOutput interface offset =
+      NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.output
+        interface offset := by
+  exact PiRLCSamplerProjection.fastOwnedOutput_eq interface offset
+
+def fastEntryOutput (source : Nat) :
+    NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
+  PiRLCSamplerProjection.fastProductionEntryOutput
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source
+
+theorem fastEntryOutput_eq (source : Nat) :
+    fastEntryOutput (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source =
+      TranscriptAbsorption.output
+        (Sampler.entryInterface
+          (sourceInterface (logicalWidth := logicalWidth)
+            (publicFits := publicFits) source)) source
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
+          source) := by
+  unfold fastEntryOutput sourceInterface
+  exact PiRLCSamplerProjection.fastProductionEntryOutput_eq source
+
+def fastWindowInitialState (source round : Nat) :
+    NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
+  PiRLCSamplerProjection.fastProductionWindowInitialState
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source round
+
+theorem fastWindowInitialState_eq (source round : Nat) :
+    fastWindowInitialState (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round =
+      Sampler.windowInitialState
+        (sourceInterface (logicalWidth := logicalWidth)
+          (publicFits := publicFits) source)
+        source
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
+          source) round := by
+  unfold fastWindowInitialState sourceInterface
+  exact PiRLCSamplerProjection.fastProductionWindowInitialState_eq source round
+
+def fastLaneSource (source round : Nat) (lane : Fin 4) : Expr :=
+  fastWindowInitialState (logicalWidth := logicalWidth)
+    (publicFits := publicFits) source round (DigestWindow.rateLane lane)
+
+theorem fastLaneSource_eq (source round : Nat) (lane : Fin 4) :
+    fastLaneSource (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round lane =
+      (laneInterface (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round lane).source
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+          source round lane.val) := by
+  unfold fastLaneSource laneInterface windowInterface
+    DigestWindow.laneInterface Sampler.windowInterface
+  exact congrFun (fastWindowInitialState_eq source round)
+    (DigestWindow.rateLane lane)
+
 def laneInputs (source round : Nat) (lane : Fin 4) :
     NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.InputsAffine
       (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -83,9 +144,10 @@ private def laneConstraintsFromCircuit (source round : Nat)
       source round lane.val)
 
 def laneConstraints (source round : Nat) (lane : Fin 4) : List Expr :=
-  let interface := laneInterface
-    (logicalWidth := logicalWidth) (publicFits := publicFits)
-    source round lane
+  let interface : DigestLane.Interface :=
+    { source := fun _ => fastLaneSource
+        (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source round lane }
   let offset :=
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
       source round lane.val
@@ -106,6 +168,7 @@ theorem laneConstraints_eq_fromCircuit (source round : Nat) (lane : Fin 4) :
         (publicFits := publicFits) source round lane := by
   symm
   simpa [laneConstraints, laneConstraintsFromCircuit,
+    fastLaneSource_eq,
     NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.logicalConstraints,
     NightstreamFPrime.Layout.Range.CanonicalU64.logicalConstraints,
     NightstreamFPrime.Layout.Sampling.Candidate16Five.logicalConstraints]
@@ -281,6 +344,10 @@ theorem rows_imply_laneSpec (source round : Nat) (lane : Fin 4)
       source round lane.val)
     assumptions
   apply holdsFlat_implies_holds
+  change ConstraintsHold
+    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (laneConstraintsFromCircuit (logicalWidth := logicalWidth)
+      (publicFits := publicFits) source round lane)
   rw [← laneConstraints_eq_fromCircuit]
   exact logical
 

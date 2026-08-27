@@ -15,6 +15,7 @@ namespace NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Gadgets.Sampling
+open NightstreamFPrime.Layout
 
 def firstPositionInputCount : Nat := 2
 def firstPositionOutputInput : Nat := 1
@@ -87,6 +88,35 @@ def laterValueTemplate (slot : Fin First54ValueStep.outputCount) :
     CompactRowTemplate :=
   CompactRows.compactConstraintTemplate laterValueInputCount
     laterValueOutputInput (laterValueRecipe slot)
+
+set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
+@[simp] theorem firstPosition_constraintFreshCount
+    (slot : Fin First54Step.slotCount) :
+    R1CS.constraintFreshCount
+        (Expr.var firstPositionOutputInput - firstPositionRecipe slot) = 0 := by
+  fin_cases slot <;> rfl
+
+set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
+@[simp] theorem laterPosition_constraintFreshCount
+    (slot : Fin First54Step.slotCount) :
+    R1CS.constraintFreshCount
+        (Expr.var laterPositionOutputInput - laterPositionRecipe slot) =
+      (if slot.val = 0 then 0 else if slot.val = 54 then 3 else 6) := by
+  fin_cases slot <;> rfl
+
+set_option maxRecDepth 100000 in -- fixed-size: 54 value templates
+@[simp] theorem firstValue_constraintFreshCount
+    (slot : Fin First54ValueStep.outputCount) :
+    R1CS.constraintFreshCount
+        (Expr.var firstValueOutputInput - firstValueRecipe slot) = 4 := by
+  fin_cases slot <;> rfl
+
+set_option maxRecDepth 100000 in -- fixed-size: 54 value templates
+@[simp] theorem laterValue_constraintFreshCount
+    (slot : Fin First54ValueStep.outputCount) :
+    R1CS.constraintFreshCount
+        (Expr.var laterValueOutputInput - laterValueRecipe slot) = 4 := by
+  fin_cases slot <;> rfl
 
 set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
 @[simp] theorem firstPositionTemplate_rows_length

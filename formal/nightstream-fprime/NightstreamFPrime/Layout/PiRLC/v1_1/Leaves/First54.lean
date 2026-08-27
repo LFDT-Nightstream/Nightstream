@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Layout.R1CS.Segments
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler
 
 /-!
@@ -106,7 +106,7 @@ private theorem recipeConstraints_ofFn {count : Nat} (start : Nat)
         simp only [Fin.val_succ]
         omega
 
-private theorem positionConstraints_eq (interface : Logical.Interface)
+theorem positionConstraints_eq (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     positionConstraints interface coordinate parentOffset offset round =
       List.ofFn
@@ -122,7 +122,7 @@ private theorem positionConstraints_eq (interface : Logical.Interface)
   unfold NightstreamFPrime.Gadgets.Sampling.First54Step.recipes
   exact recipeConstraints_ofFn _ _
 
-private theorem valueConstraints_eq (interface : Logical.Interface)
+theorem valueConstraints_eq (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     valueConstraints interface coordinate parentOffset offset round =
       List.ofFn
@@ -148,7 +148,7 @@ def runningPositionRows
     Nat :=
   if slot.val = 0 then 1 else if slot.val = 54 then 4 else 7
 
-private theorem positionZero_cost (interface : Logical.Interface)
+theorem positionZero_cost (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat)
     (slot : Fin NightstreamFPrime.Gadgets.Sampling.First54Step.slotCount) :
     R1CS.constraintFreshCount
@@ -157,7 +157,7 @@ private theorem positionZero_cost (interface : Logical.Interface)
         (positionConstraint interface coordinate parentOffset offset 0 slot) = 1 := by
   fin_cases slot <;> constructor <;> rfl
 
-private theorem positionSucc_cost (interface : Logical.Interface)
+theorem positionSucc_cost (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat)
     (slot : Fin NightstreamFPrime.Gadgets.Sampling.First54Step.slotCount) :
     R1CS.constraintFreshCount
@@ -168,7 +168,7 @@ private theorem positionSucc_cost (interface : Logical.Interface)
           slot) = runningPositionRows slot := by
   fin_cases slot <;> constructor <;> rfl
 
-private theorem valueZero_cost (interface : Logical.Interface)
+theorem valueZero_cost (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat)
     (slot : Fin NightstreamFPrime.Gadgets.Sampling.First54ValueStep.outputCount) :
     R1CS.constraintFreshCount
@@ -177,7 +177,7 @@ private theorem valueZero_cost (interface : Logical.Interface)
         (valueConstraint interface coordinate parentOffset offset 0 slot) = 5 := by
   fin_cases slot <;> constructor <;> rfl
 
-private theorem valueSucc_cost (interface : Logical.Interface)
+theorem valueSucc_cost (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat)
     (slot : Fin NightstreamFPrime.Gadgets.Sampling.First54ValueStep.outputCount) :
     R1CS.constraintFreshCount
@@ -222,7 +222,7 @@ private theorem totalRowCount_ofFn {count : Nat}
   funext slot
   exact pointwise slot
 
-private theorem positionZero_totalFreshCount (interface : Logical.Interface)
+theorem positionZero_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) :
     R1CS.totalFreshCount
       (positionConstraints interface coordinate parentOffset offset 0) = 0 := by
@@ -242,7 +242,7 @@ private theorem positionZero_totalRowCount (interface : Logical.Interface)
       (positionZero_cost interface coordinate parentOffset offset slot).2)]
   rfl
 
-private theorem positionSucc_totalFreshCount (interface : Logical.Interface)
+theorem positionSucc_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     R1CS.totalFreshCount
       (positionConstraints interface coordinate parentOffset offset (round + 1)) =
@@ -264,7 +264,7 @@ private theorem positionSucc_totalRowCount (interface : Logical.Interface)
       (positionSucc_cost interface coordinate parentOffset offset round slot).2)]
   exact runningPositionRows_sum
 
-private theorem valueZero_totalFreshCount (interface : Logical.Interface)
+theorem valueZero_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) :
     R1CS.totalFreshCount
       (valueConstraints interface coordinate parentOffset offset 0) = 216 := by
@@ -284,7 +284,7 @@ private theorem valueZero_totalRowCount (interface : Logical.Interface)
       (valueZero_cost interface coordinate parentOffset offset slot).2)]
   rfl
 
-private theorem valueSucc_totalFreshCount (interface : Logical.Interface)
+theorem valueSucc_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     R1CS.totalFreshCount
       (valueConstraints interface coordinate parentOffset offset (round + 1)) =
@@ -311,7 +311,7 @@ def roundConstraints (interface : Logical.Interface)
   positionConstraints interface coordinate parentOffset offset round ++
     valueConstraints interface coordinate parentOffset offset round
 
-private theorem flatConstraints_roundOps (interface : Logical.Interface)
+theorem flatConstraints_roundOps (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     flatConstraints
       (NightstreamFPrime.Gadgets.Sampling.First54.roundOps
@@ -326,7 +326,7 @@ private theorem flatConstraints_roundOps (interface : Logical.Interface)
     FormalCircuit.asSubcircuit_constraints, List.append_nil]
   rfl
 
-private theorem roundZero_totalFreshCount (interface : Logical.Interface)
+theorem roundZero_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) :
     R1CS.totalFreshCount
       (flatConstraints
@@ -350,7 +350,7 @@ private theorem roundZero_totalRowCount (interface : Logical.Interface)
   rw [R1CS.totalRowCount_append, positionZero_totalRowCount,
     valueZero_totalRowCount]
 
-private theorem roundSucc_totalFreshCount (interface : Logical.Interface)
+theorem roundSucc_totalFreshCount (interface : Logical.Interface)
     (coordinate parentOffset offset round : Nat) :
     R1CS.totalFreshCount
       (flatConstraints
@@ -374,7 +374,7 @@ private theorem roundSucc_totalRowCount (interface : Logical.Interface)
   rw [R1CS.totalRowCount_append, positionSucc_totalRowCount,
     valueSucc_totalRowCount]
 
-private theorem roundOpsPrefix_succ (interface : Logical.Interface)
+theorem roundOpsPrefix_succ (interface : Logical.Interface)
     (coordinate parentOffset offset count : Nat) :
     NightstreamFPrime.Gadgets.Sampling.First54.roundOpsPrefix
         (selectorInterface interface coordinate parentOffset)
@@ -388,7 +388,7 @@ private theorem roundOpsPrefix_succ (interface : Logical.Interface)
   simp [NightstreamFPrime.Gadgets.Sampling.First54.roundOpsPrefix,
     List.range_succ]
 
-private def prefixFreshCount : Nat → Nat
+def prefixFreshCount : Nat → Nat
   | 0 => 0
   | previous + 1 => 216 + previous * 537
 
@@ -396,7 +396,7 @@ private def prefixRowCount : Nat → Nat
   | 0 => 0
   | previous + 1 => 325 + previous * 646
 
-private theorem roundOpsPrefix_totalFreshCount
+theorem roundOpsPrefix_totalFreshCount
     (interface : Logical.Interface)
     (coordinate parentOffset offset count : Nat) :
     R1CS.totalFreshCount
@@ -467,6 +467,38 @@ private theorem logicalConstraints_eq (interface : Logical.Interface)
     flatConstraints_append, flatConstraints_singleton]
   rfl
 
+/-- The selector constraint list is its exact 64-round prefix followed by
+the fail-closed final-full assertion. -/
+theorem logicalConstraints_eq_rounds_append_final
+    (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    logicalConstraints interface coordinate parentOffset offset =
+      flatConstraints
+        (NightstreamFPrime.Gadgets.Sampling.First54.roundOpsPrefix
+          (selectorInterface interface coordinate parentOffset)
+            offset NightstreamFPrime.Gadgets.Sampling.First54.candidateCount) ++
+      [NightstreamFPrime.Gadgets.Sampling.First54.finalFull offset - 1] :=
+  logicalConstraints_eq interface coordinate parentOffset offset
+
+def constraintSegments (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) : List (List Expr) :=
+  [flatConstraints
+      (NightstreamFPrime.Gadgets.Sampling.First54.roundOpsPrefix
+        (selectorInterface interface coordinate parentOffset)
+          offset NightstreamFPrime.Gadgets.Sampling.First54.candidateCount),
+   [NightstreamFPrime.Gadgets.Sampling.First54.finalFull offset - 1]]
+
+/-- The two opaque selector segments flatten to the unchanged canonical
+64-round prefix followed by the final fail-closed assertion. -/
+theorem logicalConstraints_eq_segments_flatten
+    (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    logicalConstraints interface coordinate parentOffset offset =
+      (constraintSegments interface coordinate parentOffset offset).flatten := by
+  rw [logicalConstraints_eq]
+  simp only [constraintSegments, List.flatten_cons, List.flatten_nil,
+    List.append_nil]
+
 theorem totalFreshCount_eq (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) :
     R1CS.totalFreshCount
@@ -500,6 +532,25 @@ def footprint (interface : Logical.Interface) (coordinate parentOffset : Nat) :
       (logicalConstraints interface coordinate parentOffset offset) = 41024
     exact totalRowCount_eq interface coordinate parentOffset offset
 
+/-- Opaque exact-target bridge for parents that compose this child circuit.
+It prevents a parent count proof from reducing the complete selector list. -/
+theorem selectorCircuit_totalFreshCount_eq (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    R1CS.totalFreshCount
+      (flatConstraints (Circuit.ops
+        (Logical.selectorCircuit interface coordinate parentOffset).main
+          offset)) = 34047 := by
+  exact (footprint interface coordinate parentOffset).freshColumnCount_eq offset
+
+/-- Opaque exact-target row-count bridge for parent composition. -/
+theorem selectorCircuit_totalRowCount_eq (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    R1CS.totalRowCount
+      (flatConstraints (Circuit.ops
+        (Logical.selectorCircuit interface coordinate parentOffset).main
+          offset)) = 41024 := by
+  exact (footprint interface coordinate parentOffset).physicalRowCount_eq offset
+
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) :
     localLength (Circuit.ops
@@ -529,9 +580,40 @@ def plan (interface : Logical.Interface)
   constraints := logicalConstraints interface coordinate parentOffset offset
   firstFresh := offset + Logical.logicalPrivateCount
 
+@[simp] theorem plan_constraints_eq_segments_flatten
+    (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    (plan interface coordinate parentOffset offset).constraints =
+      (constraintSegments interface coordinate parentOffset offset).flatten := by
+  exact logicalConstraints_eq_segments_flatten interface coordinate
+    parentOffset offset
+
+@[simp] theorem plan_firstFresh (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) :
+    (plan interface coordinate parentOffset offset).firstFresh =
+      offset + Logical.logicalPrivateCount := by
+  rfl
+
 def PhysicalHolds (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) (env : Env) : Prop :=
-  R1CS.RowsHold env (plan interface coordinate parentOffset offset).rows
+  R1CS.SegmentsHold env
+    (constraintSegments interface coordinate parentOffset offset)
+    (offset + Logical.logicalPrivateCount)
+
+/-- Segment satisfaction is exactly satisfaction of the canonical selector
+lowering used by the sampler and package. -/
+theorem physicalHolds_iff_rowsHold (interface : Logical.Interface)
+    (coordinate parentOffset offset : Nat) (env : Env) :
+    PhysicalHolds interface coordinate parentOffset offset env ↔
+      R1CS.RowsHold env
+        (plan interface coordinate parentOffset offset).rows := by
+  have exactRows :=
+    R1CS.LoweringPlan.rowsHold_iff_segments_of_constraints
+      (plan interface coordinate parentOffset offset) env
+      (constraintSegments interface coordinate parentOffset offset)
+      (plan_constraints_eq_segments_flatten interface coordinate
+        parentOffset offset)
+  simpa only [PhysicalHolds, plan_firstFresh] using exactRows.symm
 
 theorem physical_implies_relation (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) (env : Env)
@@ -549,9 +631,10 @@ theorem physical_implies_relation (interface : Logical.Interface)
   change ConstraintsHold env
     (logicalConstraints interface coordinate parentOffset offset)
   exact R1CS.LoweringPlan.sound
-    (plan interface coordinate parentOffset offset) env physical
+    (plan interface coordinate parentOffset offset) env
+      ((physicalHolds_iff_rowsHold interface coordinate parentOffset offset
+        env).mp physical)
 
-set_option maxRecDepth 100000 in -- fixed-size: one 64-candidate selector
 theorem physical_complete (interface : Logical.Interface)
     (coordinate parentOffset offset : Nat) (env : Env)
     (assumptions : Logical.Assumptions
@@ -608,14 +691,24 @@ theorem physical_complete (interface : Logical.Interface)
         (NightstreamFPrime.Gadgets.Sampling.First54.main
           (selectorInterface interface coordinate parentOffset)) offset))
     exact logicalRows
-  rcases R1CS.lowerConstraints_complete logicalEnv
-      (logicalConstraints interface coordinate parentOffset offset)
-      (offset + Logical.logicalPrivateCount)
-      scope logicalConstraintsHold with
-    ⟨completed, physicalAgrees, rows⟩
-  refine ⟨completed, ?_, rows⟩
+  have segmentScope : ∀ expression ∈
+      (constraintSegments interface coordinate parentOffset offset).flatten,
+      expression.VarsBelow (offset + Logical.logicalPrivateCount) := by
+    rw [← logicalConstraints_eq_segments_flatten]
+    exact scope
+  have segmentLogical : ConstraintsHold logicalEnv
+      (constraintSegments interface coordinate parentOffset offset).flatten := by
+    rw [← logicalConstraints_eq_segments_flatten]
+    exact logicalConstraintsHold
+  rcases R1CS.lowerSegments_complete logicalEnv
+      (constraintSegments interface coordinate parentOffset offset)
+      (offset + Logical.logicalPrivateCount) segmentScope segmentLogical with
+    ⟨completed, physicalAgrees, segmentRows⟩
+  refine ⟨completed, ?_, segmentRows⟩
   have combined := logicalAgreesFixed.append physicalAgrees
-  rw [totalFreshCount_eq interface coordinate parentOffset offset] at combined
+  rw [← logicalConstraints_eq_segments_flatten interface coordinate
+      parentOffset offset,
+    totalFreshCount_eq interface coordinate parentOffset offset] at combined
   simpa [Logical.logicalPrivateCount] using combined
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54

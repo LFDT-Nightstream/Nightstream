@@ -13,16 +13,15 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
 /-- Materialized source-column count for executable package emission. -/
-def SourceColumnCount : Nat := 12659088
+def SourceColumnCount : Nat := PilotValues.sourceColumnCount
 
-/-- The recursive public input has 54 cells and `XOut` has four cells. -/
+/-- The recursive public input has 270 cells and `XOut` has four cells. -/
 def publicColumnCount : Nat :=
   PriorStateHash.publicWidth + PilotProduction.digestWords
 
 /-- All hash-preimage and recipe columns are private advice. -/
 def privateColumnCount : Nat :=
-  2 * PilotProduction.stateHashWords +
-    2 * PilotProduction.hashWitnessCount
+  PilotValues.privateColumnCount
 
 /-- Spartan inserts its constant column between private and public columns. -/
 def constantColumn : Nat := privateColumnCount
@@ -43,7 +42,43 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 12659088 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 13690244 := by
+  rfl
+
+theorem publicColumnCount_value : publicColumnCount = 274 := by
+  rfl
+
+theorem privateColumnCount_value : privateColumnCount = 13689970 := by
+  rfl
+
+theorem constantColumn_value : constantColumn = 13689970 := by
+  rfl
+
+theorem spartanColumnCount_value : spartanColumnCount = 13690245 := by
+  rfl
+
+theorem priorPublicStart_value : priorPublicStart = 45931 := by
+  rfl
+
+theorem outputPreimageStart_value : outputPreimageStart = 46201 := by
+  rfl
+
+theorem outputDigestStart_value : outputDigestStart = 92132 := by
+  rfl
+
+theorem witnessStart_value : witnessStart = 92136 := by
+  rfl
+
+theorem secondPrivateStart_value : secondPrivateStart = 45931 := by
+  rfl
+
+theorem witnessPrivateStart_value : witnessPrivateStart = 91862 := by
+  rfl
+
+theorem firstPublicStart_value : firstPublicStart = 13689971 := by
+  rfl
+
+theorem secondPublicStart_value : secondPublicStart = 13690241 := by
   rfl
 
 /-- The materialized count is exactly the proved semantic pilot layout count. -/
@@ -59,20 +94,11 @@ theorem publicColumnCount_eq : publicColumnCount =
 
 theorem privateColumnCount_eq :
     privateColumnCount + publicColumnCount = SourceColumnCount := by
-  rw [sourceColumnCount_eq]
-  norm_num [privateColumnCount, publicColumnCount,
-    PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq,
-    PilotProduction.digestWords, PilotValues.digestWords,
-    PriorStateHash.publicWidth_eq]
+  rw [privateColumnCount_value, publicColumnCount_value,
+    sourceColumnCount_eq]
 
 theorem spartanColumnCount_eq : spartanColumnCount = SourceColumnCount + 1 := by
-  rw [sourceColumnCount_eq]
-  norm_num [spartanColumnCount, privateColumnCount, publicColumnCount,
-    PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq,
-    PilotProduction.digestWords, PilotValues.digestWords,
-    PriorStateHash.publicWidth_eq]
+  rw [spartanColumnCount_value, sourceColumnCount_eq]
 
 theorem sourceBoundaries_eq :
     priorPublicStart = PilotProduction.priorPublicInputStart ∧
@@ -137,14 +163,11 @@ theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [spartanColumnCount, privateColumnCount,
-    publicColumnCount, priorPublicStart, outputPreimageStart,
-    outputDigestStart, witnessStart, secondPrivateStart,
-    witnessPrivateStart, firstPublicStart, secondPublicStart,
-    PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq,
-    PilotProduction.digestWords, PilotValues.digestWords,
-    PriorStateHash.publicWidth_eq] at * <;> omega
+  all_goals norm_num [spartanColumnCount_value, privateColumnCount_value,
+    publicColumnCount_value, priorPublicStart_value,
+    outputPreimageStart_value, outputDigestStart_value, witnessStart_value,
+    secondPrivateStart_value, witnessPrivateStart_value,
+    firstPublicStart_value, secondPublicStart_value] at * <;> omega
 
 theorem spartanToSource_sourceToSpartan (column : Nat)
     (bound : column < SourceColumnCount) :
@@ -161,14 +184,12 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [privateColumnCount, constantColumn,
-    spartanColumnCount, publicColumnCount, priorPublicStart,
-    outputPreimageStart, outputDigestStart, witnessStart,
-    secondPrivateStart, witnessPrivateStart, firstPublicStart,
-    secondPublicStart, PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq,
-    PilotProduction.digestWords, PilotValues.digestWords,
-    PriorStateHash.publicWidth_eq] at * <;> omega
+  all_goals norm_num [privateColumnCount_value, constantColumn_value,
+    spartanColumnCount_value, publicColumnCount_value,
+    priorPublicStart_value, outputPreimageStart_value,
+    outputDigestStart_value, witnessStart_value,
+    secondPrivateStart_value, witnessPrivateStart_value,
+    firstPublicStart_value, secondPublicStart_value] at * <;> omega
 
 theorem sourceToSpartan_ne_constant (column : Nat)
     (bound : column < SourceColumnCount) :
@@ -179,13 +200,10 @@ theorem sourceToSpartan_ne_constant (column : Nat)
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [privateColumnCount, priorPublicStart,
-    outputPreimageStart, outputDigestStart, witnessStart,
-    secondPrivateStart, witnessPrivateStart, firstPublicStart,
-    secondPublicStart, PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq,
-    PilotProduction.digestWords, PilotValues.digestWords,
-    PriorStateHash.publicWidth_eq] at * <;> omega
+  all_goals norm_num [privateColumnCount_value, priorPublicStart_value,
+    outputPreimageStart_value, outputDigestStart_value, witnessStart_value,
+    secondPrivateStart_value, witnessPrivateStart_value,
+    firstPublicStart_value, secondPublicStart_value] at * <;> omega
 
 theorem sourceToSpartan_injective {left right : Nat}
     (leftBound : left < SourceColumnCount)
@@ -294,9 +312,8 @@ theorem sourceRowCount_bounds :
 
 theorem privateColumnCount_bounds :
     2 ^ 23 < privateColumnCount ∧ privateColumnCount ≤ domainSize := by
-  norm_num [privateColumnCount, domainSize, cubeVariables,
-    PilotProduction.stateHashWords_eq,
-    PilotProduction.hashWitnessCount_eq]
+  rw [privateColumnCount_value]
+  norm_num [domainSize, cubeVariables]
 
 /-- Column index used by the padded Spartan matrices. -/
 def spartanToPadded (column : Nat) : Nat :=

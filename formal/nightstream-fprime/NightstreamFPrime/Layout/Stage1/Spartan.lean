@@ -1,8 +1,8 @@
 import NightstreamFPrime.Layout.PilotSpartan
-import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
+import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 
 /-!
-Obligation: Permute the current pilot + PiCCS + PiRLC source layout into the
+Obligation: Permute the current pilot + PiCCS + PiRLC + PiDEC source layout into the
 one production Spartan order: all private columns, the constant column, the
 pilot's public columns, then the verifier-context public columns.
 
@@ -49,10 +49,10 @@ def piCcsPhaseOffset : Nat := 12688104
 def piCcsLocalStart : Nat := 12688042
 
 /-- Exact private proof-input plus PiCCS-local and PiRLC-local suffix. -/
-def appendedPrivateColumnCount : Nat := 13009971
+def appendedPrivateColumnCount : Nat := 13055925
 
 /-- All source columns before Spartan inserts its constant column. -/
-def SourceColumnCount : Nat := 25669063
+def SourceColumnCount : Nat := 25715017
 
 /-- Public columns owned by the closed pilot. -/
 def pilotPublicColumnCount : Nat := 58
@@ -61,20 +61,20 @@ def pilotPublicColumnCount : Nat := 58
 def publicColumnCount : Nat := 62
 
 /-- The pilot-private prefix followed by all PiCCS columns. -/
-def privateColumnCount : Nat := 25669001
+def privateColumnCount : Nat := 25714955
 
-def constantColumn : Nat := 25669001
+def constantColumn : Nat := 25714955
 
-def spartanColumnCount : Nat := 25669064
+def spartanColumnCount : Nat := 25715018
 
 /-- First final public column owned by the verifier context. -/
-def expectedContextPublicStart : Nat := 25669060
+def expectedContextPublicStart : Nat := 25715014
 
 theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 13009971 := by
+    appendedPrivateColumnCount = 13055925 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 25669063 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 25715017 := by
   rfl
 
 theorem pilotSourceColumnCount_matches :
@@ -92,17 +92,17 @@ theorem pilotPrivateColumnCount_matches :
 theorem publicColumnCount_eq : publicColumnCount = 62 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 25669001 := by
+theorem privateColumnCount_eq : privateColumnCount = 25714955 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 25669001 := by
+theorem constantColumn_eq : constantColumn = 25714955 := by
   exact privateColumnCount_eq
 
 theorem constantColumn_eq_private :
     constantColumn = privateColumnCount := by
   rfl
 
-theorem spartanColumnCount_eq : spartanColumnCount = 25669064 := by
+theorem spartanColumnCount_eq : spartanColumnCount = 25715018 := by
   rfl
 
 theorem sourceColumnCount_decomposition :
@@ -587,7 +587,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             privateColumnCount +
                 (mapped - pilotPrivateColumnCount) <
               expectedContextPublicStart := by
-          change 25669001 + (mapped - 12659030) < 25669060
+          change 25714955 + (mapped - 12659030) < 25715014
           omega
         unfold spartanToSource
         rw [if_neg notPilotPrivate, if_neg notProofInput,
@@ -858,7 +858,7 @@ variable {logicalWidth : Nat}
 def sourceRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List R1CS.Row :=
-  PilotPiCCSPiRLC.physicalRows relation
+  PilotPiCCSPiRLCPiDEC.physicalRows relation
 
 def remappedRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -869,19 +869,19 @@ theorem remappedRows_hold
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env) :
     R1CS.RowsHold target (remappedRows relation) ↔
-      PilotPiCCSPiRLC.PhysicalHolds relation (pullback target) := by
+      PilotPiCCSPiRLCPiDEC.PhysicalHolds relation (pullback target) := by
   exact remapRows_hold target (sourceRows relation)
 
 theorem sourceColumnCount_matches
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    PilotPiCCSPiRLC.physicalColumnCount relation = SourceColumnCount := by
-  rw [PilotPiCCSPiRLC.physicalColumnCount_eq relation,
+    PilotPiCCSPiRLCPiDEC.physicalColumnCount relation = SourceColumnCount := by
+  rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation,
     sourceColumnCount_eq]
 
 theorem sourceRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 25556958 := by
-  exact PilotPiCCSPiRLC.physicalRowCount_eq relation
+    (sourceRows relation).length = 25564086 := by
+  exact PilotPiCCSPiRLCPiDEC.physicalRowCount_eq relation
 
 /-- The generic Spartan row and private-variable domains use the fixed cube. -/
 def domainSize : Nat := 2 ^ cubeVariables
@@ -979,12 +979,12 @@ theorem paddedRows_length
     Nat.add_sub_of_le (sourceRowCount_bounds relation)]
 
 /-- The padded direct-Spartan rows preserve and reflect the complete current
-Stage 1 prefix through PiRLC. -/
+Stage 1 prefix through PiDEC. -/
 theorem paddedRows_hold
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env) :
     R1CS.RowsHold target (paddedRows relation) ↔
-      PilotPiCCSPiRLC.PhysicalHolds relation
+      PilotPiCCSPiRLCPiDEC.PhysicalHolds relation
         (pullback (paddedPullback target)) := by
   change R1CS.RowsHold target (paddedRows relation) ↔
     R1CS.RowsHold (pullback (paddedPullback target))

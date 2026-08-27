@@ -96,7 +96,7 @@ fn accumulator_ce_golden_claim() -> TestCeClaim {
     let r = (0..3)
         .map(|index| K::from_coeffs([F::from_u64(2_000 + 2 * index), F::from_u64(2_001 + 2 * index)]))
         .collect();
-    let y_ring: Vec<Vec<K>> = (0..3)
+    let eval_a: Vec<Vec<K>> = (0..3)
         .map(|row| {
             (0..4)
                 .map(|col| {
@@ -106,7 +106,7 @@ fn accumulator_ce_golden_claim() -> TestCeClaim {
                 .collect()
         })
         .collect();
-    let ct = y_ring.iter().map(|row| row[0]).collect();
+    let eval_k = eval_a.iter().map(|row| row[0]).collect();
     let mut fold_digest = [0u8; 32];
     for lane in 0..4 {
         fold_digest[8 * lane] = 0x30 + lane as u8;
@@ -116,8 +116,8 @@ fn accumulator_ce_golden_claim() -> TestCeClaim {
         c,
         X: x,
         r,
-        y_ring,
-        ct,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest,
         adv: None,
@@ -168,11 +168,11 @@ fn reference_accumulator_ce_claim_v3_preimage(claim: &TestCeClaim) -> Vec<F> {
     }
 
     reference_append_k_slice(&mut fields, &claim.r);
-    fields.push(F::from_u64(claim.y_ring.len() as u64));
-    for row in &claim.y_ring {
+    reference_append_k_slice(&mut fields, &claim.eval_k);
+    fields.push(F::from_u64(claim.eval_a.len() as u64));
+    for row in &claim.eval_a {
         reference_append_k_slice(&mut fields, row);
     }
-    reference_append_k_slice(&mut fields, &claim.ct);
     fields.push(F::from_u64(claim.m_in as u64));
     for chunk in claim.fold_digest.chunks_exact(8) {
         fields.push(F::from_u64(u64::from_le_bytes(
@@ -660,10 +660,10 @@ fn accumulator_ce_claim_digest_v3_golden_pins_validated_core_serialization() {
     assert_eq!(
         production.map(|lane| lane.as_canonical_u64()),
         [
-            3_283_612_841_881_098_215,
-            16_883_277_564_599_068_139,
-            3_789_798_726_854_940_133,
-            719_699_190_080_965_509,
+            14_360_153_564_368_510_481,
+            5_728_619_740_645_230_001,
+            9_240_522_470_571_407_702,
+            4_616_810_509_987_082_859,
         ],
         "deterministic v3 accumulator CE digest golden vector"
     );

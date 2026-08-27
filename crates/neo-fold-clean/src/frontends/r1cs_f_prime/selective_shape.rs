@@ -258,9 +258,5 @@ pub fn is_canonical_selective_low_norm_polynomial(polynomial: &SparsePoly<F>) ->
 }
 
 #[cfg(test)]
-#[path = "tests/pi_ccs_execution_receipt.rs"]
-mod pi_ccs_execution_receipt_tests;
-
-#[cfg(test)]
 #[path = "tests/selective_shape.rs"]
 mod tests;

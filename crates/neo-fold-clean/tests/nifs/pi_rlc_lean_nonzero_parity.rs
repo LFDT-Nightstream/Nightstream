@@ -23,7 +23,7 @@ type Claim = CeClaim<Commitment, F, K>;
 #[derive(Deserialize)]
 struct Artifact(u64, RawInput, RawResult);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawInput(
     [u64; 8],
     Vec<[u64; 2]>,
@@ -33,7 +33,10 @@ struct RawInput(
     Vec<Vec<Vec<[u64; 2]>>>,
 );
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+struct RawPartial(Vec<u64>, Vec<u64>, Vec<[u64; 2]>, Vec<Vec<[u64; 2]>>);
+
+#[derive(Clone, Deserialize)]
 struct RawResult(
     u64,
     Vec<Vec<u64>>,
@@ -43,6 +46,7 @@ struct RawResult(
     Vec<[u64; 2]>,
     Vec<[u64; 2]>,
     Vec<Vec<[u64; 2]>>,
+    Vec<RawPartial>,
     [u64; 8],
     Vec<u64>,
 );
@@ -54,6 +58,14 @@ struct RawRelation(u64, u64, u64, Vec<u64>, u64, Vec<RawTerm>);
 struct RawTerm(u64, Vec<u64>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+struct PartialResult {
+    commitment: Vec<u64>,
+    public_input: Vec<u64>,
+    eval_k: Vec<[u64; 2]>,
+    eval_a: Vec<Vec<[u64; 2]>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 struct PhaseResult {
     accepted: bool,
     challenges: Vec<Vec<u64>>,
@@ -63,6 +75,7 @@ struct PhaseResult {
     point: Vec<[u64; 2]>,
     eval_k: Vec<[u64; 2]>,
     eval_a: Vec<Vec<[u64; 2]>>,
+    partials: Vec<PartialResult>,
     outgoing_state: [u64; 8],
 }
 
@@ -182,10 +195,29 @@ fn expected_claim(input: &RawInput, result: &RawResult) -> Claim {
     }
 }
 
+fn expected_partial_claim(input: &RawInput, partial: &RawPartial) -> Claim {
+    Claim {
+        c: commitment(&partial.0),
+        X: public_input(&partial.1),
+        r: input.1.iter().copied().map(extension).collect(),
+        eval_k: padded_family(&partial.2),
+        eval_a: partial
+            .3
+            .iter()
+            .map(|family| padded_family(family))
+            .collect(),
+        m_in: D,
+        fold_digest: fold_digest(input.0),
+        adv: None,
+    }
+}
+
 fn relation() -> CcsStructure<F> {
     let package: serde_json::Value =
         serde_json::from_slice(&fs::read(package_path()).expect("Lean package bytes")).expect("Lean package JSON");
-    let raw: RawRelation = serde_json::from_value(package[4].clone()).expect("Lean relation tuple");
+    assert_eq!(package[0].as_u64(), Some(8), "Lean package-plan schema");
+    assert_eq!(package[1][0].as_u64(), Some(7), "Lean static-package schema");
+    let raw: RawRelation = serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple");
     assert_eq!(raw.2, ROUND_COUNT as u64);
     assert_eq!(raw.3, (0..MATRIX_COUNT as u64).collect::<Vec<_>>());
     let terms = raw
@@ -260,7 +292,33 @@ fn claim_result(claim: &Claim) -> (Vec<u64>, Vec<u64>, Vec<[u64; 2]>, Vec<[u64; 
     )
 }
 
-fn engine_result(accepted: bool, rhos: &[RotRho], claim: &Claim, transcript: &Poseidon2Transcript) -> PhaseResult {
+fn claim_partial_result(claim: &Claim) -> PartialResult {
+    let (commitment, public_input, _, eval_k, eval_a) = claim_result(claim);
+    PartialResult {
+        commitment,
+        public_input,
+        eval_k,
+        eval_a,
+    }
+}
+
+fn lean_partial_result(partial: &RawPartial) -> PartialResult {
+    assert_eq!(partial.3.len(), MATRIX_COUNT, "Lean partial Eval_A families");
+    PartialResult {
+        commitment: partial.0.clone(),
+        public_input: partial.1.clone(),
+        eval_k: partial.2.clone(),
+        eval_a: partial.3.clone(),
+    }
+}
+
+fn engine_result(
+    accepted: bool,
+    rhos: &[RotRho],
+    claim: &Claim,
+    partials: &[Claim],
+    transcript: &Poseidon2Transcript,
+) -> PhaseResult {
     let challenges = challenge_words(rhos);
     let (commitment, public_input, point, eval_k, eval_a) = claim_result(claim);
     PhaseResult {
@@ -275,12 +333,13 @@ fn engine_result(accepted: bool, rhos: &[RotRho], claim: &Claim, transcript: &Po
         point,
         eval_k,
         eval_a,
+        partials: partials.iter().map(claim_partial_result).collect(),
         outgoing_state: state_words(transcript),
     }
 }
 
 fn lean_result(result: &RawResult) -> PhaseResult {
-    assert_eq!(result.9, vec![1; 4], "Lean nonzero assurance flags");
+    assert_eq!(result.10, vec![1; 4], "Lean nonzero assurance flags");
     PhaseResult {
         accepted: result.0 == 1,
         challenges: result.1.clone(),
@@ -290,7 +349,8 @@ fn lean_result(result: &RawResult) -> PhaseResult {
         point: result.5.clone(),
         eval_k: result.6.clone(),
         eval_a: result.7.clone(),
-        outgoing_state: result.8,
+        partials: result.8.iter().map(lean_partial_result).collect(),
+        outgoing_state: result.9,
     }
 }
 
@@ -321,6 +381,23 @@ fn optimized_claim(structure: &CcsStructure<F>, params: &Params, rhos: &[RotRho]
     .expect("optimized public PiRLC relation")
 }
 
+fn paper_prefix_claims(structure: &CcsStructure<F>, params: &Params, rhos: &[RotRho], inputs: &[Claim]) -> Vec<Claim> {
+    (1..=SOURCE_COUNT)
+        .map(|count| paper_claim(structure, params, &rhos[..count], &inputs[..count]))
+        .collect()
+}
+
+fn optimized_prefix_claims(
+    structure: &CcsStructure<F>,
+    params: &Params,
+    rhos: &[RotRho],
+    inputs: &[Claim],
+) -> Vec<Claim> {
+    (1..=SOURCE_COUNT)
+        .map(|count| optimized_claim(structure, params, &rhos[..count], &inputs[..count]))
+        .collect()
+}
+
 fn assert_handoff_matches_pi_ccs() {
     let pi_rlc: serde_json::Value =
         serde_json::from_slice(&fs::read(artifact_path()).expect("PiRLC bytes")).expect("PiRLC JSON");
@@ -338,11 +415,12 @@ fn assert_handoff_matches_pi_ccs() {
 fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result() {
     assert_handoff_matches_pi_ccs();
     let Artifact(schema, input, result) = artifact();
-    assert_eq!(schema, 1);
+    assert_eq!(schema, 2);
     assert_eq!(result.0, 1, "Lean PiRLC acceptance");
     assert_eq!(result.1.len(), SOURCE_COUNT);
     assert!(result.1.iter().all(|rho| rho.len() == D));
     assert_eq!(result.2, vec![1; SOURCE_COUNT]);
+    assert_eq!(result.8.len(), SOURCE_COUNT, "Lean indexed partial count");
 
     let structure = relation();
     let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
@@ -365,6 +443,22 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result() {
 
     let paper_claim = paper_claim(&structure, &params, &paper_rhos, &inputs);
     let optimized_claim = optimized_claim(&structure, &params, &optimized_rhos, &inputs);
+    let paper_partials = paper_prefix_claims(&structure, &params, &paper_rhos, &inputs);
+    let optimized_partials = optimized_prefix_claims(&structure, &params, &optimized_rhos, &inputs);
+    let lean_partials = result
+        .8
+        .iter()
+        .map(|partial| expected_partial_claim(&input, partial))
+        .collect::<Vec<_>>();
+    assert_eq!(paper_partials, lean_partials, "PaperExact indexed claims equal Lean");
+    assert_eq!(optimized_partials, lean_partials, "optimized indexed claims equal Lean");
+    assert_eq!(paper_partials, optimized_partials, "independent indexed engines agree");
+    assert_eq!(paper_partials.last(), Some(&paper_claim), "PaperExact final prefix");
+    assert_eq!(
+        optimized_partials.last(),
+        Some(&optimized_claim),
+        "optimized final prefix"
+    );
     assert_eq!(paper_claim, expected, "PaperExact complete claim equals Lean");
     assert_eq!(optimized_claim, expected, "optimized complete claim equals Lean");
     assert!(paper_exact::verify_pi_rlc(
@@ -386,8 +480,14 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result() {
     .expect("optimized PiRLC verifier"));
 
     let lean = lean_result(&result);
-    let paper = engine_result(true, &paper_rhos, &paper_claim, &paper_transcript);
-    let optimized = engine_result(true, &optimized_rhos, &optimized_claim, &optimized_transcript);
+    let paper = engine_result(true, &paper_rhos, &paper_claim, &paper_partials, &paper_transcript);
+    let optimized = engine_result(
+        true,
+        &optimized_rhos,
+        &optimized_claim,
+        &optimized_partials,
+        &optimized_transcript,
+    );
     assert_eq!(paper, lean);
     assert_eq!(optimized, lean);
     assert_eq!(paper.canonical_bytes(), lean.canonical_bytes());
@@ -410,6 +510,99 @@ fn assert_both_reject(
         ajtai_rlc_mixer,
     ));
     assert!(!optimized::verify_pi_rlc(params, structure, rhos, inputs, changed, ajtai_rlc_mixer,).unwrap_or(false));
+}
+
+fn assert_mutated_source_detected(
+    structure: &CcsStructure<F>,
+    params: &Params,
+    rhos: &[RotRho],
+    changed_inputs: &[Claim],
+    source: usize,
+    lean_partial: &RawPartial,
+) {
+    let count = source + 1;
+    let paper = paper_claim(structure, params, &rhos[..count], &changed_inputs[..count]);
+    let optimized = optimized_claim(structure, params, &rhos[..count], &changed_inputs[..count]);
+    assert_eq!(paper, optimized, "engines agree on mutated prefix {source}");
+    let lean = lean_partial_result(lean_partial);
+    assert_ne!(
+        claim_partial_result(&paper),
+        lean,
+        "mutated source family changes prefix {source}"
+    );
+}
+
+fn assert_mutated_partial_detected(changed: &RawPartial, paper: &Claim, optimized: &Claim, prefix: usize) {
+    let changed = lean_partial_result(changed);
+    assert_ne!(
+        changed,
+        claim_partial_result(paper),
+        "PaperExact detects mutated partial {prefix}"
+    );
+    assert_ne!(
+        changed,
+        claim_partial_result(optimized),
+        "optimized detects mutated partial {prefix}"
+    );
+}
+
+fn bump_word(word: &mut u64) {
+    *word = if *word + 1 == MODULUS { 0 } else { *word + 1 };
+}
+
+#[test]
+fn both_engines_detect_every_indexed_pi_rlc_family_mutation() {
+    let Artifact(schema, input, result) = artifact();
+    assert_eq!(schema, 2);
+    assert_eq!(result.8.len(), SOURCE_COUNT);
+    let structure = relation();
+    let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("shape-bound Nightstream parameters");
+    let inputs = claims(&input);
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed(input.0.map(field), 0);
+    let rhos = optimized::sample_rho_n(&mut transcript, &params, SOURCE_COUNT).expect("PiRLC sampler");
+    let paper_partials = paper_prefix_claims(&structure, &params, &rhos, &inputs);
+    let optimized_partials = optimized_prefix_claims(&structure, &params, &rhos, &inputs);
+
+    for source in 0..SOURCE_COUNT {
+        let mut changed = inputs.clone();
+        changed[source].c.data[0] += F::ONE;
+        assert_mutated_source_detected(&structure, &params, &rhos, &changed, source, &result.8[source]);
+
+        let mut changed = inputs.clone();
+        changed[source].X[(0, 0)] += F::ONE;
+        assert_mutated_source_detected(&structure, &params, &rhos, &changed, source, &result.8[source]);
+
+        let mut changed = inputs.clone();
+        changed[source].eval_k[0] += K::ONE;
+        assert_mutated_source_detected(&structure, &params, &rhos, &changed, source, &result.8[source]);
+
+        for matrix in 0..MATRIX_COUNT {
+            let mut changed = inputs.clone();
+            changed[source].eval_a[matrix][0] += K::ONE;
+            assert_mutated_source_detected(&structure, &params, &rhos, &changed, source, &result.8[source]);
+        }
+    }
+
+    for prefix in 0..SOURCE_COUNT {
+        let mut changed = result.8[prefix].clone();
+        bump_word(&mut changed.0[0]);
+        assert_mutated_partial_detected(&changed, &paper_partials[prefix], &optimized_partials[prefix], prefix);
+
+        let mut changed = result.8[prefix].clone();
+        bump_word(&mut changed.1[0]);
+        assert_mutated_partial_detected(&changed, &paper_partials[prefix], &optimized_partials[prefix], prefix);
+
+        let mut changed = result.8[prefix].clone();
+        bump_word(&mut changed.2[0][0]);
+        assert_mutated_partial_detected(&changed, &paper_partials[prefix], &optimized_partials[prefix], prefix);
+
+        for matrix in 0..MATRIX_COUNT {
+            let mut changed = result.8[prefix].clone();
+            bump_word(&mut changed.3[matrix][0][0]);
+            assert_mutated_partial_detected(&changed, &paper_partials[prefix], &optimized_partials[prefix], prefix);
+        }
+    }
 }
 
 #[test]
@@ -439,9 +632,11 @@ fn both_engines_reject_pi_rlc_value_and_transcript_mutations() {
     changed.eval_k[0] += K::ONE;
     assert_both_reject(&structure, &params, &rhos, &inputs, &changed);
 
-    let mut changed = expected.clone();
-    changed.eval_a[0][0] += K::ONE;
-    assert_both_reject(&structure, &params, &rhos, &inputs, &changed);
+    for matrix in 0..MATRIX_COUNT {
+        let mut changed = expected.clone();
+        changed.eval_a[matrix][0] += K::ONE;
+        assert_both_reject(&structure, &params, &rhos, &inputs, &changed);
+    }
 
     let mut changed_inputs = inputs.clone();
     changed_inputs[0].eval_k[0] += K::ONE;
@@ -458,5 +653,5 @@ fn both_engines_reject_pi_rlc_value_and_transcript_mutations() {
         .expect("mutated transcript still samples");
     assert_ne!(challenge_words(&changed_rhos), result.1);
     assert_both_reject(&structure, &params, &changed_rhos, &inputs, &expected);
-    assert_ne!(state_words(&changed_transcript), result.8);
+    assert_ne!(state_words(&changed_transcript), result.9);
 }

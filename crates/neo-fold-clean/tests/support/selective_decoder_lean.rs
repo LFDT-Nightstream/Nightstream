@@ -551,6 +551,7 @@ pub(super) fn write_decoder_arm(
     .expect("render decoder arm");
 }
 
+#[allow(dead_code)]
 fn lean_template_batch(batch: TemplateBatch) -> String {
     format!(
         "{{ sourceStart := {}, count := {}, sourceStride := {}, finalStart := {}, finalStride := {}, referenceStart := {}, referenceStride := {}, referenceFinalStart := {}, referenceFinalStride := {} }}",
@@ -566,6 +567,7 @@ fn lean_template_batch(batch: TemplateBatch) -> String {
     )
 }
 
+#[allow(dead_code)]
 fn lean_residual_batch(batch: ResidualBatch) -> String {
     format!(
         "{{ sourceStart := {}, instanceCount := {}, instanceStride := {}, width := {}, resolution := {} }}",
@@ -577,6 +579,7 @@ fn lean_residual_batch(batch: ResidualBatch) -> String {
     )
 }
 
+#[allow(dead_code)]
 fn lean_cover_group(group: &CoverGroup) -> String {
     format!(
         "{{ sourceStart := {}, count := {}, stride := {}, owners := [{}] }}",
@@ -596,6 +599,7 @@ fn lean_cover_group(group: &CoverGroup) -> String {
 /// Render one exact decoder arm without separate list declarations. This is
 /// the same checked `RawArm` schema as `write_decoder_arm`; only the inert Lean
 /// data layout differs. It is used when many arms share one template rule set.
+#[allow(dead_code)]
 pub(super) fn write_decoder_arm_inline(
     rendered: &mut String,
     name: &str,

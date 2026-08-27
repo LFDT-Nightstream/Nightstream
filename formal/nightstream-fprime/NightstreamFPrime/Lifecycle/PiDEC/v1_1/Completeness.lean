@@ -83,13 +83,13 @@ theorem completePrefix
   have publicAssumptions := publicInputAssumptions assumptions p1.current
   have publicLength : localLength
       (Circuit.ops (publicInputCircuit shared).main
-        (publicInputOffset offset)) = 54 := by
+        (publicInputOffset offset)) = 270 := by
     calc
       _ = (publicInputCircuit shared).privateCount
           (publicInputOffset offset) :=
         (publicInputCircuit shared).privateCount_eq _
       _ = PublicInputSplit.logicalPrivateCount logicalWidth publicFits := rfl
-      _ = 54 := PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
+      _ = 270 := PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
   have publicScope : ∀ expression ∈ flatConstraints
       (Circuit.ops (publicInputCircuit shared).main (publicInputOffset offset)),
       expression.VarsBelow

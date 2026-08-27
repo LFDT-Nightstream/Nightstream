@@ -195,6 +195,33 @@ private theorem BlocksAffine.flatMap
   rcases member with ⟨index, indexMember, blockMember⟩
   exact affine index indexMember block blockMember
 
+private theorem foldl_weighted_affine (indices : List Nat)
+    (coefficient : Nat → F) (bit : Nat → Expr)
+    (bitsAffine : ∀ index, R1CS.IsAffine (bit index))
+    (initial : Expr) (initialAffine : R1CS.IsAffine initial) :
+    R1CS.IsAffine (indices.foldl (fun value index =>
+      value + Expr.const (coefficient index) * bit index) initial) := by
+  induction indices generalizing initial with
+  | nil => exact initialAffine
+  | cons index rest inductionHypothesis =>
+      apply inductionHypothesis
+      exact R1CS.IsAffine.add initialAffine
+        (R1CS.IsAffine.const_mul _ (bitsAffine index))
+
+private theorem decodeHashWordExpr_affine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsAffine interface offset) (word : Fin 4) :
+    R1CS.IsAffine (decodeHashWordExpr
+      ((interface.fresh offset).publicInput ⟨0, by decide⟩) word) := by
+  unfold decodeHashWordExpr
+  exact foldl_weighted_affine _ _ _
+    (fun bit => inputs.freshPublicInput ⟨0, by decide⟩
+      (NightstreamFPrime.Lifecycle.digestBitIndexNat
+        (logicalWidth := logicalWidth) word bit))
+    0 (R1CS.isAffine_const _)
+
 private theorem priorDigestExpr_affine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
@@ -204,8 +231,7 @@ private theorem priorDigestExpr_affine
   intro expression member
   rw [priorDigestExpr, List.mem_ofFn'] at member
   rcases member with ⟨lane, rfl⟩
-  exact inputs.freshPublicInput ⟨0, by decide⟩
-    (ProductionKey.priorDigestIndex lane)
+  exact decodeHashWordExpr_affine interface offset inputs lane
 
 private theorem publicInputBlocks_affine
     (interface :
@@ -353,6 +379,36 @@ private theorem BlocksBelow.flatMap {bound : Nat}
   rcases member with ⟨index, indexMember, blockMember⟩
   exact below index indexMember block blockMember
 
+private theorem foldl_weighted_below (bound : Nat) (indices : List Nat)
+    (coefficient : Nat → F) (bit : Nat → Expr)
+    (bitsBelow : ∀ index, (bit index).VarsBelow bound)
+    (initial : Expr) (initialBelow : initial.VarsBelow bound) :
+    (indices.foldl (fun value index =>
+      value + Expr.const (coefficient index) * bit index) initial).VarsBelow
+        bound := by
+  induction indices generalizing initial with
+  | nil => exact initialBelow
+  | cons index rest inductionHypothesis =>
+      apply inductionHypothesis
+      exact Expr.VarsBelow.add _ _ _ initialBelow
+        (Expr.VarsBelow.mul _ _ _ (by simp [Expr.VarsBelow])
+          (bitsBelow index))
+
+private theorem decodeHashWordExpr_below
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
+        logicalWidth publicFits)
+    (offset : Nat) (inputs : InputsBelow interface offset) (word : Fin 4) :
+    (decodeHashWordExpr
+      ((interface.fresh offset).publicInput ⟨0, by decide⟩) word).VarsBelow
+        offset := by
+  unfold decodeHashWordExpr
+  exact foldl_weighted_below offset _ _ _
+    (fun bit => inputs.freshPublicInput ⟨0, by decide⟩
+      (NightstreamFPrime.Lifecycle.digestBitIndexNat
+        (logicalWidth := logicalWidth) word bit))
+    0 (by simp [Expr.VarsBelow])
+
 private theorem priorDigestExpr_below
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.Interface
@@ -362,8 +418,7 @@ private theorem priorDigestExpr_below
   intro expression member
   rw [priorDigestExpr, List.mem_ofFn'] at member
   rcases member with ⟨lane, rfl⟩
-  exact inputs.freshPublicInput ⟨0, by decide⟩
-    (ProductionKey.priorDigestIndex lane)
+  exact decodeHashWordExpr_below interface offset inputs lane
 
 private theorem publicInputBlocks_below
     (interface :
@@ -441,7 +496,7 @@ def footprint
       InputsAffine (Formal.statementAbsorptionInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.statementAbsorptionCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 160432
+  physicalRowCount := fun _ => 192400
   freshColumnCount_eq := by
     intro offset
     unfold Formal.statementAbsorptionCircuit
@@ -460,7 +515,7 @@ def footprint
     rw [FormalCircuit.withConstantFootprint_main]
     change R1CS.totalRowCount (flatConstraints
       (opsAt (Formal.statementAbsorptionInterface interface) offset)) =
-        160432
+        192400
     rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.flatConstraints_opsAt]
     rw [R1CS.recipeConstraints_totalRowCount]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.program_recipes_length
@@ -486,7 +541,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.statementAbsorptionCircuit interface).main offset)) =
-        160432 :=
+        192400 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption

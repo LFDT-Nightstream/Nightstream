@@ -101,10 +101,10 @@ structure InputShapes
     (Formal.commitmentOffset offset) = 2495124
   publicInputFresh : PublicInputCombination.physicalFreshColumnCount
     (Formal.publicInputInterface (Formal.atOffset interface offset))
-    (Formal.publicInputOffset offset) = 137700
+    (Formal.publicInputOffset offset) = 688500
   publicInputRows : PublicInputCombination.physicalRowCount
     (Formal.publicInputInterface (Formal.atOffset interface offset))
-    (Formal.publicInputOffset offset) = 138618
+    (Formal.publicInputOffset offset) = 693090
   evalKFresh : EvalKCombination.physicalFreshColumnCount
     (Formal.evalKInterface (Formal.atOffset interface offset))
     (Formal.evalKOffset offset) = 275400
@@ -249,11 +249,11 @@ private theorem publicInputFresh_eq
     R1CS.totalFreshCount
       (childConstraints
         (Formal.publicInputCircuit (Formal.atOffset interface offset))
-        (Formal.publicInputOffset offset)) = 137700 := by
+        (Formal.publicInputOffset offset)) = 688500 := by
   change R1CS.totalFreshCount
     (PublicInputCombination.logicalConstraints
       (Formal.publicInputInterface (Formal.atOffset interface offset))
-      (Formal.publicInputOffset offset)) = 137700
+      (Formal.publicInputOffset offset)) = 688500
   rw [PublicInputCombination.totalFreshCount_eq]
   exact inputs.publicInputFresh
 
@@ -264,11 +264,11 @@ private theorem publicInputRows_eq
     R1CS.totalRowCount
       (childConstraints
         (Formal.publicInputCircuit (Formal.atOffset interface offset))
-        (Formal.publicInputOffset offset)) = 138618 := by
+        (Formal.publicInputOffset offset)) = 693090 := by
   change R1CS.totalRowCount
     (PublicInputCombination.logicalConstraints
       (Formal.publicInputInterface (Formal.atOffset interface offset))
-      (Formal.publicInputOffset offset)) = 138618
+      (Formal.publicInputOffset offset)) = 693090
   rw [PublicInputCombination.totalRowCount_eq]
   exact inputs.publicInputRows
 
@@ -355,7 +355,7 @@ theorem physicalFreshDeltas_eq_production
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalFreshDeltas relation interface offset =
-      [0, 743631, 2478600, 137700, 275400, 3855600, 0] := by
+      [0, 743631, 2478600, 688500, 275400, 3855600, 0] := by
   unfold physicalFreshDeltas childConstraintLists
   simp only [List.map_cons, List.map_nil]
   rw [inputFresh_eq, samplerFresh_eq _ _ _ inputs,
@@ -368,7 +368,7 @@ theorem physicalRowDeltas_eq_production
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalRowDeltas relation interface offset =
-      [0, 1008848, 2495124, 138618, 277236, 3881304, 0] := by
+      [0, 1008848, 2495124, 693090, 277236, 3881304, 0] := by
   unfold physicalRowDeltas childConstraintLists
   simp only [List.map_cons, List.map_nil]
   rw [inputRows_eq, samplerRows_eq _ _ _ inputs,
@@ -386,7 +386,7 @@ theorem logicalPrivateDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
     logicalPrivateDeltas relation interface offset =
-      [0, 263568, 16524, 918, 1836, 25704, 0] := by
+      [0, 263568, 16524, 4590, 1836, 25704, 0] := by
   unfold logicalPrivateDeltas Formal.opsAt
   simp only [List.map_cons, List.map_nil, Formal.childOp_privateCount]
   rw [show (Formal.inputBindingCircuit relation (Formal.atOffset interface offset)).privateCount
@@ -397,7 +397,7 @@ theorem logicalPrivateDeltas_eq
         (Formal.commitmentOffset offset) = 16524 by
       exact CommitmentCombination.logicalPrivateCount_eq,
     show (Formal.publicInputCircuit (Formal.atOffset interface offset)).privateCount
-        (Formal.publicInputOffset offset) = 918 by
+        (Formal.publicInputOffset offset) = 4590 by
       exact PublicInputCombination.logicalPrivateCount_eq,
     show (Formal.evalKCircuit (Formal.atOffset interface offset)).privateCount
         (Formal.evalKOffset offset) = 1836 by
@@ -420,7 +420,7 @@ theorem physicalColumnDeltas_eq_production
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalColumnDeltas relation interface offset =
-      [0, 1007199, 2495124, 138618, 277236, 3881304, 0] := by
+      [0, 1007199, 2495124, 693090, 277236, 3881304, 0] := by
   unfold physicalColumnDeltas
   rw [logicalPrivateDeltas_eq,
     physicalFreshDeltas_eq_production relation interface offset inputs]
@@ -456,11 +456,11 @@ theorem cumulativeFootprints_eq_production
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 1008848, 3503972, 3642590, 3919826, 7801130, 7801130] ∧
+        [0, 1008848, 3503972, 4197062, 4474298, 8355602, 8355602] ∧
       cumulativePhysicalColumns relation interface offset =
-        [0, 1007199, 3502323, 3640941, 3918177, 7799481, 7799481] ∧
+        [0, 1007199, 3502323, 4195413, 4472649, 8353953, 8353953] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 1008848, 3503972, 3642590, 3919826, 7801130, 7801130] := by
+        [0, 1008848, 3503972, 4197062, 4474298, 8355602, 8355602] := by
   rw [cumulativePhysicalRows,
     physicalRowDeltas_eq_production relation interface offset inputs,
     cumulativePhysicalColumns,
@@ -475,28 +475,28 @@ theorem totalFreshCount_eq_production
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     R1CS.totalFreshCount (logicalConstraints relation interface offset) =
-      7490931 := by
+      8041731 := by
   calc
     _ = (physicalFreshDeltas relation interface offset).sum :=
       totalFreshCount_eq_deltas relation interface offset
-    _ = [0, 743631, 2478600, 137700, 275400, 3855600, 0].sum :=
+    _ = [0, 743631, 2478600, 688500, 275400, 3855600, 0].sum :=
       congrArg List.sum
         (physicalFreshDeltas_eq_production relation interface offset inputs)
-    _ = 7490931 := by norm_num
+    _ = 8041731 := by norm_num
 
 theorem totalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     R1CS.totalRowCount (logicalConstraints relation interface offset) =
-      7801130 := by
+      8355602 := by
   calc
     _ = (physicalRowDeltas relation interface offset).sum :=
       totalRowCount_eq_deltas relation interface offset
-    _ = [0, 1008848, 2495124, 138618, 277236, 3881304, 0].sum :=
+    _ = [0, 1008848, 2495124, 693090, 277236, 3881304, 0].sum :=
       congrArg List.sum
         (physicalRowDeltas_eq_production relation interface offset inputs)
-    _ = 7801130 := by norm_num
+    _ = 8355602 := by norm_num
 
 theorem physicalPrivateColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -504,7 +504,7 @@ theorem physicalPrivateColumnCount_eq_production
     (inputs : InputShapes relation interface offset) :
     Formal.logicalPrivateCount +
       R1CS.totalFreshCount (logicalConstraints relation interface offset) =
-      7799481 := by
+      8353953 := by
   rw [totalFreshCount_eq_production relation interface offset inputs]
   rfl
 

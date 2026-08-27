@@ -220,7 +220,7 @@ private theorem publicFresh_eq
     (inputs : InputShapes relation interface offset) :
     R1CS.totalFreshCount
       (childConstraints (Formal.publicInputCircuit (Formal.atOffset interface offset))
-        (Formal.publicInputOffset offset)) = 3564 :=
+        (Formal.publicInputOffset offset)) = 17820 :=
   PublicInputSplit.totalFreshCount_eq
     (Formal.publicInputInterface (Formal.atOffset interface offset))
     (Formal.publicInputOffset offset)
@@ -232,7 +232,7 @@ private theorem publicRows_eq
     (inputs : InputShapes relation interface offset) :
     R1CS.totalRowCount
       (childConstraints (Formal.publicInputCircuit (Formal.atOffset interface offset))
-        (Formal.publicInputOffset offset)) = 4536 :=
+        (Formal.publicInputOffset offset)) = 22680 :=
   PublicInputSplit.totalRowCount_eq
     (Formal.publicInputInterface (Formal.atOffset interface offset))
     (Formal.publicInputOffset offset)
@@ -331,7 +331,7 @@ theorem physicalFreshDeltas_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalFreshDeltas relation interface offset =
-      [0, 3564, 0, 0, 0, 0] := by
+      [0, 17820, 0, 0, 0, 0] := by
   unfold physicalFreshDeltas childConstraintLists
   simp only [List.map_cons, List.map_nil]
   rw [inputFresh_eq, publicFresh_eq relation interface offset inputs,
@@ -344,7 +344,7 @@ theorem physicalRowDeltas_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalRowDeltas relation interface offset =
-      [0, 4536, 972, 108, 1512, 0] := by
+      [0, 22680, 972, 108, 1512, 0] := by
   unfold physicalRowDeltas childConstraintLists
   simp only [List.map_cons, List.map_nil]
   rw [inputRows_eq, publicRows_eq relation interface offset inputs,
@@ -362,7 +362,7 @@ theorem logicalPrivateDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
     logicalPrivateDeltas relation interface offset =
-      [0, 54, 0, 0, 0, 0] := by
+      [0, 270, 0, 0, 0, 0] := by
   unfold logicalPrivateDeltas Formal.opsAt Formal.childOp Sequence.childOp
   simp only [List.map_cons, List.map_nil, Op.localLength,
     FormalCircuit.asSubcircuit_localLength]
@@ -390,7 +390,7 @@ theorem physicalColumnDeltas_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalColumnDeltas relation interface offset =
-      [0, 3618, 0, 0, 0, 0] := by
+      [0, 18090, 0, 0, 0, 0] := by
   unfold physicalColumnDeltas
   rw [logicalPrivateDeltas_eq,
     physicalFreshDeltas_eq relation interface offset inputs]
@@ -426,11 +426,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 4536, 5508, 5616, 7128, 7128] ∧
+        [0, 22680, 23652, 23760, 25272, 25272] ∧
       cumulativePhysicalColumns relation interface offset =
-        [0, 3618, 3618, 3618, 3618, 3618] ∧
+        [0, 18090, 18090, 18090, 18090, 18090] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 4536, 5508, 5616, 7128, 7128] := by
+        [0, 22680, 23652, 23760, 25272, 25272] := by
   rw [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs,
     cumulativePhysicalColumns,
@@ -445,7 +445,7 @@ theorem totalFreshCount_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     R1CS.totalFreshCount (logicalConstraints relation interface offset) =
-      3564 := by
+      17820 := by
   rw [totalFreshCount_eq_deltas,
     physicalFreshDeltas_eq relation interface offset inputs]
   rfl
@@ -455,7 +455,7 @@ theorem totalRowCount_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     R1CS.totalRowCount (logicalConstraints relation interface offset) =
-      7128 := by
+      25272 := by
   rw [totalRowCount_eq_deltas,
     physicalRowDeltas_eq relation interface offset inputs]
   rfl
@@ -466,7 +466,7 @@ theorem physicalPrivateColumnCount_eq
     (inputs : InputShapes relation interface offset) :
     localLength (Circuit.ops (Formal.main relation interface) offset) +
       R1CS.totalFreshCount (logicalConstraints relation interface offset) =
-      3618 := by
+      18090 := by
   rw [Formal.localLength_eq, totalFreshCount_eq relation interface offset inputs]
   rfl
 
@@ -477,8 +477,8 @@ def footprint
     (interface : Formal.Interface logicalWidth publicFits)
     (inputs : ∀ offset, InputShapes relation interface offset) :
     R1CS.CircuitFootprint (Formal.circuit relation ajtai interface) where
-  freshColumnCount := fun _ => 3564
-  physicalRowCount := fun _ => 7128
+  freshColumnCount := fun _ => 17820
+  physicalRowCount := fun _ => 25272
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq relation interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

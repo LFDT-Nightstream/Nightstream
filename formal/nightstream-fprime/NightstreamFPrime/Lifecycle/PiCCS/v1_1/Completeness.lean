@@ -57,11 +57,11 @@ theorem specHolds_implies_holds
 
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
-  4362930 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
+  4394898 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
-  4363142 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
+  4395110 + 25 * RoundTranscript.perRoundRecipeCount degreeBound
 
 private theorem transcriptPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
@@ -70,7 +70,7 @@ private theorem transcriptPrefix_localLength_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
-      206608 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
+      238576 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold statementBindingCircuit statementAbsorptionCircuit
@@ -114,7 +114,7 @@ private theorem transcriptPrefix_rowCount_eq
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
       (transcriptPrefixOps interface offset) =
-      206768 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
+      238736 + 25 * RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
@@ -201,12 +201,12 @@ theorem flatConstraints_length_eq
   omega
 
 theorem privateCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4496130 := by
+    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4528098 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount]
 
 theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4496342 := by
+    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4528310 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount]
 

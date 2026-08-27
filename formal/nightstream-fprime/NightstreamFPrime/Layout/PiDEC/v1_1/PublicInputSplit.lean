@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
 
 /-!
-Owns the exact physical footprint composition of the 54-coordinate PiDEC
+Owns the exact physical footprint composition of the 270-coordinate PiDEC
 public-input split.
 
 The logical operation spine stays opaque. This module proves that its rows are
@@ -131,7 +131,7 @@ private theorem flatConstraints_childOps
         (Logical.childOp interface offset source).flatConstraints ++ tail)
         inductionHypothesis
 
-/-- Exact equality between parent rows and the 54 opaque scalar row lists. -/
+/-- Exact equality between parent rows and the 270 opaque scalar row lists. -/
 theorem logicalConstraints_eq_ordered
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -246,38 +246,38 @@ private theorem totalRowCount_sources
         inductionHypothesis restBounded, List.length_cons]
       omega
 
-/-- Exact R1CS multiplication-column count for all 54 scalar splits. -/
+/-- Exact R1CS multiplication-column count for all 270 scalar splits. -/
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 3564 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 17820 := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalFreshCount_sources interface offset inputs]
   · simp only [List.length_range]
     change NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
-        logicalWidth publicFits * 66 = 3564
+        logicalWidth publicFits * 66 = 17820
     rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
   · intro source member
     exact List.mem_range.mp member
 
-/-- Exact physical-row count for all 54 scalar splits. -/
+/-- Exact physical-row count for all 270 scalar splits. -/
 theorem totalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 4536 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 22680 := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalRowCount_sources interface offset inputs]
   · simp only [List.length_range]
     change NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
-        logicalWidth publicFits * 84 = 4536
+        logicalWidth publicFits * 84 = 22680
     rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
   · intro source member
     exact List.mem_range.mp member
@@ -290,7 +290,7 @@ theorem physicalPrivateColumnCount_eq
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +
-      R1CS.totalFreshCount (logicalConstraints interface offset) = 3618 := by
+      R1CS.totalFreshCount (logicalConstraints interface offset) = 18090 := by
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs,
     NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.logicalPrivateCount_eq]
 
@@ -301,8 +301,8 @@ def footprint
     (interface : Logical.Interface logicalWidth publicFits)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 3564
-  physicalRowCount := fun _ => 4536
+  freshColumnCount := fun _ => 17820
+  physicalRowCount := fun _ => 22680
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

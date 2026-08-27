@@ -1,14 +1,18 @@
-use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
+use super::ccs::{
+    CALL_INDIRECT_ENTRY_ZERO_TEST, CMP_HI_ZERO_TEST, CMP_LO_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST,
+    PARAM_INIT_REMAINING_AFTER_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST, SELECT_COND_ZERO_TEST,
+};
+use super::gadgets::{unsigned_ge_witness, zero_test_witness_field};
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
     COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
     COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA,
-    COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV,
-    COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV,
-    COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
+    COL_CI_ENTRY_IS_NULL, COL_CI_HOST_CALL, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
+    COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
+    COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
     COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS,
     COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
@@ -44,24 +48,21 @@ use super::layout::{
     COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED,
     COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
     COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
-    COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
-    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
-    COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
-    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
-    COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
-    PC_ROM_CALL_RETURN_CHOICE,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER,
+    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER,
+    COL_TAIL_CALL_PENDING_BEFORE, COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0,
+    COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
 };
 use crate::layout::{
-    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO,
 };
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -107,14 +108,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     }
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
-    let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
-    wit[COL_PC_EDGE_KIND_IS_STATIC] = pc_edge_kind_is_static;
-    wit[COL_PC_EDGE_KIND_INV] = pc_edge_kind_inv;
+    PC_EDGE_KIND_ZERO_TEST.assign(&mut wit);
     write_param_init_state(&mut wit, true, trace.state_before.param_init);
     write_param_init_state(&mut wit, false, trace.state_after.param_init);
-    let (remaining_is_zero, remaining_inv) = zero_test_witness_u64(u64::from(trace.state_after.param_init.remaining));
-    wit[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = remaining_is_zero;
-    wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
+    PARAM_INIT_REMAINING_AFTER_ZERO_TEST.assign(&mut wit);
     wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
     wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
     wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_events.turn_export_fref));
@@ -810,9 +807,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // No table entry exists at an OOB index: the entry read is de-gated.
     wit[COL_TABLE_READ_ENABLED] -= ci_oob;
 
-    let (entry_is_null, entry_null_inv) = zero_test_witness_field(wit[COL_TABLE_VALUE]);
-    wit[COL_CI_ENTRY_IS_NULL] = entry_is_null;
-    wit[COL_CI_ENTRY_NULL_INV] = entry_null_inv;
+    CALL_INDIRECT_ENTRY_ZERO_TEST.assign(&mut wit);
+    let entry_is_null = wit[COL_CI_ENTRY_IS_NULL];
     let (type_eq, type_eq_inv) = zero_test_witness_field(wit[COL_FUNCTION_TYPE_ID] - wit[COL_EXPECTED_TYPE_ID]);
     wit[COL_CI_TYPE_EQ] = type_eq;
     wit[COL_CI_TYPE_EQ_INV] = type_eq_inv;
@@ -886,8 +882,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         _ => {}
     }
 
-    let select_cond = trace.stack_read2.map(|lane| lane.value_lo).unwrap_or(0);
-    let (select_cond_is_zero, select_cond_inv) = zero_test_witness_u64(u64::from(select_cond));
+    SELECT_COND_ZERO_TEST.assign(&mut wit);
+    let select_cond_is_zero = wit[COL_SELECT_COND_IS_ZERO];
     let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)));
     let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0)));
     let select_lhs_hi = F::from_u64(u64::from(
@@ -902,8 +898,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             .and_then(|lane| lane.value_hi)
             .unwrap_or(0),
     ));
-    wit[COL_SELECT_COND_IS_ZERO] = select_cond_is_zero;
-    wit[COL_SELECT_SCRATCH_INV] = select_cond_inv;
     wit[COL_SELECT_OUT_DELTA_LO] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
     wit[COL_SELECT_OUT_DELTA_HI] = (F::ONE - select_cond_is_zero) * (select_lhs_hi - select_rhs_hi);
 
@@ -948,14 +942,12 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         }
         _ => F::ZERO,
     };
-    let (cmp_lo_is_zero, cmp_lo_inv) = zero_test_witness_field(cmp_lo_diff);
-    let (cmp_hi_is_zero, cmp_hi_inv) = zero_test_witness_field(cmp_hi_diff);
     wit[COL_CMP_LO_DIFF] = cmp_lo_diff;
-    wit[COL_CMP_LO_INV] = cmp_lo_inv;
-    wit[COL_CMP_LO_IS_ZERO] = cmp_lo_is_zero;
     wit[COL_CMP_HI_DIFF] = cmp_hi_diff;
-    wit[COL_CMP_HI_INV] = cmp_hi_inv;
-    wit[COL_CMP_HI_IS_ZERO] = cmp_hi_is_zero;
+    CMP_LO_ZERO_TEST.assign(&mut wit);
+    CMP_HI_ZERO_TEST.assign(&mut wit);
+    let cmp_lo_is_zero = wit[COL_CMP_LO_IS_ZERO];
+    let cmp_hi_is_zero = wit[COL_CMP_HI_IS_ZERO];
     wit[COL_CMP_AND] = cmp_lo_is_zero * cmp_hi_is_zero;
 
     crate::range_check::write_range_check_bits(&mut wit);
@@ -970,14 +962,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
-        COL_HOST_EVENTS_REMAINING_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
-        COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE,
-        COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_AFTER,
-        COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG,
-        COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_IMMEDIATE0,
-        COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT, COL_PERM_PENDING_AFTER,
-        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
+        COL_HOST_EVENTS_REMAINING_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_AFTER,
+        COL_HOST_EVENT_ARGS_BASE_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
+        COL_HOST_EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
+        COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
+        COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
+        COL_HOST_EVENT_SLOT_VARIANT, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
+        COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -992,9 +983,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
     wit[COL_PERM_ROUND_BEFORE] = F::from_u64(u64::from(before.perm_round));
     wit[COL_PERM_ROUND_AFTER] = F::from_u64(u64::from(after.perm_round));
-    let (round_is_zero, round_inv) = zero_test_witness_u64(u64::from(before.perm_round));
-    wit[COL_PERM_ROUND_BEFORE_IS_ZERO] = round_is_zero;
-    wit[COL_PERM_ROUND_BEFORE_INV] = round_inv;
+    PERM_ROUND_ZERO_TEST.assign(wit);
     for lane in 0..12 {
         wit[COL_PERM_STATE_BEFORE[lane]] = F::from_u64(before.perm_state[lane]);
         wit[COL_PERM_STATE_AFTER[lane]] = F::from_u64(after.perm_state[lane]);
@@ -1050,9 +1039,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     let g_after = trace.state_after.host_events;
     wit[COL_HOST_EVENTS_REMAINING_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
     wit[COL_HOST_EVENTS_REMAINING_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
-    let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
-    wit[COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = evrem_is_zero;
-    wit[COL_HOST_EVENTS_REMAINING_BEFORE_INV] = evrem_inv;
+    HOST_EVENTS_REMAINING_ZERO_TEST.assign(wit);
     wit[COL_HOST_EVENT_INDEX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
     wit[COL_HOST_EVENT_INDEX_AFTER] = F::from_u64(u64::from(g_after.event_index));
     wit[COL_HOST_EVENT_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);

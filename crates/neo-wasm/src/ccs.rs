@@ -14,7 +14,11 @@ mod memory_pages;
 mod stack_io;
 mod trap;
 
-use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget};
+pub(crate) use call::PARAM_INIT_REMAINING_AFTER_ZERO_TEST;
+pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
+pub(crate) use trap::CALL_INDIRECT_ENTRY_ZERO_TEST;
+
+use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
     selector_col, Column, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
@@ -34,9 +38,33 @@ use crate::layout::{
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
 };
-use neo_application::ApplicationRelation;
+use neo_application::{ApplicationRelation, ZeroTest};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+pub(crate) const PC_EDGE_KIND_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_PC_EDGE_KIND,
+    inverse: COL_PC_EDGE_KIND_INV,
+    is_zero: COL_PC_EDGE_KIND_IS_STATIC,
+};
+
+pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_STACK_READ_VALUE_LO[2],
+    inverse: COL_SELECT_SCRATCH_INV,
+    is_zero: COL_SELECT_COND_IS_ZERO,
+};
+
+pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_CMP_LO_DIFF,
+    inverse: COL_CMP_LO_INV,
+    is_zero: COL_CMP_LO_IS_ZERO,
+};
+
+pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_CMP_HI_DIFF,
+    inverse: COL_CMP_HI_INV,
+    is_zero: COL_CMP_HI_IS_ZERO,
+};
 
 /// Opcodes whose rows participate in the wide-value gating constraint.
 /// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot
@@ -383,7 +411,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     trap::push_trap_constraints(&mut b, layout);
 
     b.with_tag(always("pc rom active gate"), |b| {
-        push_zero_test_gadget(b, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC);
+        PC_EDGE_KIND_ZERO_TEST.push_constraints(b);
         b.push_row(
             [(COL_IS_PROGRAM_ROW, F::ONE)],
             [(COL_PC_EDGE_KIND_IS_STATIC, F::ONE)],
@@ -618,12 +646,7 @@ fn push_select_stack_addrs(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// delta columns on every row.
 fn push_select_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = selector_col(WasmOpcode::Select).unwrap();
-    push_zero_test_gadget(
-        b,
-        COL_STACK_READ_VALUE_LO[2],
-        COL_SELECT_SCRATCH_INV,
-        COL_SELECT_COND_IS_ZERO,
-    );
+    SELECT_COND_ZERO_TEST.push_constraints(b);
     push_select_mux_limb(
         b,
         selector,
@@ -952,7 +975,7 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [],
     );
 
-    push_zero_test_gadget(b, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
+    CMP_LO_ZERO_TEST.push_constraints(b);
 
     // cmp_hi_diff bindings for the i64 comparators (i64.eqz: read0_hi;
     // i64.eq/ne: read0_hi - read1_hi). Unconstrained on every other row
@@ -972,7 +995,7 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [],
     );
 
-    push_zero_test_gadget(b, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
+    CMP_HI_ZERO_TEST.push_constraints(b);
 
     // cmp_and = cmp_lo_is_zero * cmp_hi_is_zero (unconditional).
     b.push_row(

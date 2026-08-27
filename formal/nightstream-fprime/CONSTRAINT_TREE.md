@@ -56,20 +56,22 @@ connects that domain to the exact row/column maximum, and
 `Export.Stage1.PilotParity` emits schema 1 with two distinct 42,475-word
 preimages, both four-word digests, all 58 public values, and the relative
 public segments `[4, 0, 54]` and `[5, 54, 4]`. The artifact SHA-256 is
-`ba1420c80bacb4ea2e744ebae42fa4aef5ab2effa97e59a01e4b60fac818e905`.
+`50e42cbb83b8f2b0b287e21f818f714b079d0f8c575fde7925ab44ef416d575e`.
+The native-task emitter computes each digest once and emitted this artifact
+in 10.25 seconds; the prior external-review run took 464 seconds.
 
 Executed release evidence:
 
-- `pilot_lean_nonzero_parity`: 3/3 passed in 18.59 seconds. Independent Rust
+- `pilot_lean_nonzero_parity`: 3/3 passed in 18.58 seconds. Independent Rust
   Poseidon2 recomputation equaled the complete Lean result. Mutations covered
   both preimages, every serialization family, all 16 running sources, every
   source's 14 separate `Eval_A` families, all 58 public values, wrong lengths,
   trailing-zero extension, and noncanonical field words.
 - `poseidon2_lean_vectors`: 2/2 passed. The Rust permutation and sponge equal
   the Lean primitive vectors.
-- `package_matrix_conformance`: 1/1 passed in 42.27 seconds. It compared the
+- `package_matrix_conformance`: 1/1 passed in 38.09 seconds. It compared the
   final padded Rust `A/B/C` matrices with every canonical Lean row and used a
-  separate evaluator for all 17,755,828 current-prefix rows and the padded
+  separate evaluator for all 25,556,958 current-prefix rows and the padded
   zero domain. This includes every pilot row.
 
 This status is not Production-closed. The relation-identity gate must rerun
@@ -121,7 +123,7 @@ bound. `PilotPiCCS.cumulativeFootprints_eq` transports every leaf delta to
 the Stage 1 prefix and proves every cumulative row, column, and joint-domain
 endpoint.
 
-## Current Stage 1 package prefix
+## Current Stage 1 package prefix through PiRLC
 
 ```text
 Layout/Stage1/
@@ -131,14 +133,18 @@ Layout/Stage1/
 ├── PiCCSSecurity.lean     ✓ deterministic committed-statement reduction
 └── PilotPiCCS.lean        ✓ pilot → PiCCS composition and full ledger
 Export/Stage1/
-├── PiCCSInvocations.lean  ✓ 7,460 Poseidon2 invocations
+├── PiCCSInvocations.lean  ✓ PiCCS Poseidon2 invocations
 ├── PiCCSArithmetic.lean   ✓ 765,370 arithmetic rows
 ├── PiCCSCompleteness.lean ✓ semantic witness → emitted PiCCS rows
-├── PackageCompleteness.lean ✓ `complete_piCcsRows`
+├── PiRLC*Invocations.lean ✓ sampler, First54, and combination rows
+├── PiRLC*Completeness.lean ✓ every PiRLC child reaches package rows
+├── PackageCompleteness.lean ✓ cumulative `complete_piRlcPackageRows`
 ├── WitnessProgram.lean    ✓ Rust-interpreted expression IR
-├── VerifierContext.lean   ✓ canonical phase-local context recipe
+├── VerifierContextCandidate.lean ✓ canonical prefix context recipe
 ├── PiCCSNonzero.lean      ✓ complete deterministic nonzero fixture
 ├── PiCCSParity.lean       ✓ complete Lean PiCCS result vector
+├── PiRLCParity.lean       ✓ all 17 indexed partial and final results
+├── PackagePlan.lean       ✓ proved schema-8 generative plan expansion
 ├── Data.lean              ✓ sole package data assembler
 └── Package.lean           ✓ rows → `PhaseHolds`; exact row coverage
 ```
@@ -150,15 +156,17 @@ public words hold the verifier-owned context digest.
 
 | Emitted package value | Exact value |
 |---|---:|
-| Rows | 17,755,828 |
-| Source columns / joint domain | 17,869,582 |
-| Private columns / constant column | 17,869,520 |
+| Rows | 25,556,958 |
+| Source columns / joint domain | 25,669,063 |
+| Private columns / constant column | 25,669,001 |
 | Public columns | 62 |
-| Total unpadded columns | 17,869,583 |
-| Witness instructions | 685,348 |
-| Poseidon2 permutation invocations | 7,460 |
+| Total unpadded columns | 25,669,064 |
+| Witness instructions | 850,180 |
+| Assertion rows | 136,129 |
+| Poseidon2 permutation invocations | 7,613 |
+| Compact templates / invocations | 326 / 163,574 |
 
-The joint domain is `17,869,582 ≤ 2^25`. The final backend-neutral R1CS
+The joint domain is `25,669,063 ≤ 2^25`. The final backend-neutral R1CS
 layout pads the row and private-column domains to `2^25`: 33,554,432 rows,
 constant column 33,554,432, 62 public columns, and 33,554,495 total columns.
 Every padded row is empty and every padded private assignment value is zero.
@@ -169,20 +177,25 @@ prior-state digest, and then absorbs the fresh commitment and public input.
 The values below identify the current phase-local candidate. They do not give
 PiCCS Conformance-closed status.
 
-Package schema 6 carries source tags
+The canonical artifact is a schema-8 generative plan whose proved expansion
+is the schema-7 semantic package. It carries source tags
 `[Bit, GeneralSelector, A, B, C, SboxInput, CenteredUnit, EvalSelector,
 Class0, Class1, Class2, Class3, Class4, Zero]`, degree bound 9, and all 74
 polynomial terms. Its verifier-owned Poseidon2 relation identifier is:
 
 ```text
-[4149794454264745319, 3860295598124073314,
- 9185184515076867919, 6634095431211870257]
+[2880828118570533443, 12363340834605518522,
+ 17891354081046714225, 8467327743520570474]
 ```
 
-The exact package artifact SHA-256 is
-`918f4fd63906a30f521cedfd1ff08e572f969de82f1f0dfa0683fbe06144f21c`.
+The plan SHA-256 is
+`d5b43c7e2d1586475dffdf0c70a23688521b7811ee91b9cb095f9a2b56322f16`.
+The exact expanded reference SHA-256 is
+`39036d30ff3ee064a16f152a6749a89c85167fe3ee34b248110103f4f6bdabed`.
 The complete nonzero PiCCS parity artifact uses schema 7 and has SHA-256
-`1ee357f6bd19aa25da8ab1ac916812f8550d81139777abfe1c24edcc2d32f7c0`.
+`8f46ed7afbe0fe0c030ee8af03541851a087e49331bf1c4edae60c8bc9608899`.
+The indexed PiRLC schema-2 artifact has SHA-256
+`a7ea997cc19e79c08328f5aa610536db75d2be35e6ddb1247c529e4bbe65c29e`.
 
 The phase-local verifier context contains canonical relation, application,
 NIFS-key, and commitment-key word lists of lengths `[4, 4, 68, 36]`. Rust
@@ -209,9 +222,16 @@ The transported cumulative ledger is:
 | CCS terminal | 13,548,145 | 13,661,901 |
 | Norm terminal | 13,548,897 | 13,662,653 |
 | Final identity | 13,679,316 | 13,793,070 |
-| Output binding / current prefix | 17,755,828 | 17,869,582 |
+| PiCCS output binding | 17,755,828 | 17,869,582 |
+| PiRLC input binding | 17,755,828 | 17,869,582 |
+| PiRLC sampler chain | 18,764,676 | 18,876,781 |
+| PiRLC commitment combination | 21,259,800 | 21,371,905 |
+| PiRLC public-input combination | 21,398,418 | 21,510,523 |
+| PiRLC `Eval_K` combination | 21,675,654 | 21,787,759 |
+| PiRLC `Eval_A` / current prefix | 25,556,958 | 25,669,063 |
 
-`PilotPiCCS.cumulativeFootprints_eq` states these endpoints in Lean.
+`PilotPiCCSPiRLC.cumulativeFootprints_eq` states these endpoints in Lean, and
+`PilotPiCCSPiRLC.jointDomain_le_twoPow25` proves the prefix bound.
 
 ## Rust v1_1 path and evidence
 
@@ -230,28 +250,35 @@ Executed release evidence:
 
 - `poseidon2_lean_vectors`: 2/2 passed. Rust permutation and sponge hashing
   match the Lean reference used by both nonzero pilot hash chains.
-- `package_loader`: 14/14 passed in 22.29 seconds. It checked the schema-6
-  package identity, schema-7 verifier-context authority, complete nonzero
+- `package_loader`: 14/14 passed in 71.12 seconds. It checked the schema-8
+  plan, schema-7 package identity, verifier-context authority, complete nonzero
   transcript replay, separate `Eval_K` / `Eval_A`, canonical coefficients,
   raw commitment-key mutation, noncanonical authority rejection, and package
   mutation rejection.
-- `package_matrix_conformance`: 1/1 passed in 42.27 seconds. An independent
+- `package_schema7_compact`: 5/5 passed in 26.94 seconds. It checked plan
+  positions, exact generated coverage, malformed optional outputs,
+  output-recipe self-reference, and incomplete input coverage.
+- `package_matrix_conformance`: 1/1 passed in 38.09 seconds. An independent
   expander compared every final A/B/C row and term with the Lean-lowered rows.
-  An independent evaluator checked all 17,755,828 unpadded rows, all padded
+  An independent evaluator checked all 25,556,958 unpadded rows, all padded
   empty rows, the relocated constant, all public values, and zero private pad.
-  Row, column, and coefficient mutations were rejected.
-- `nifs_pi_ccs_lean_nonzero_parity`: 4/4 passed in 2.71 seconds. Lean,
+  Fifteen row, column, coefficient, input, transcript, output, and context
+  mutations were rejected.
+- `nifs_pi_ccs_lean_nonzero_parity`: 4/4 passed in 3.24 seconds. Lean,
   `paper_exact`, and `optimized` matched byte-for-byte for acceptance,
   challenges, every intermediate state and claim, all six terminal components,
   all 17 output claims and evaluation families, and the outgoing state. The
   test also rejected mutations across every input, proof, output, and result
   family.
-- `pi_ccs_v1_1_engine_parity`: 15/15 passed in 41.43 seconds.
-- `nifs_engine_crosscheck`: 10/10 passed in 89.72 seconds, including the
+- `pi_ccs_v1_1_engine_parity`: 15/15 passed in 42.01 seconds.
+- `nifs_pi_rlc_lean_nonzero_parity`: 3/3 passed in 1.91 seconds. It compared
+  all 17 challenges and membership bits, every indexed partial commitment,
+  public input, `Eval_K`, and `Eval_A`, the final claim, handoff, outgoing
+  state, both engines, and every indexed mutation family.
+- `nifs_engine_crosscheck`: 10/10 passed in 88.68 seconds, including the
   nonzero 25×10 proof bridge and package offsets.
-- `validate.sh axioms`: passed 3,180 jobs after the committed-statement
-  theorems. Those theorems use only `propext`, `Classical.choice`, and
-  `Quot.sound`.
+- `validate.sh axioms`: passed 3,270 jobs in 10.49 seconds. The audited
+  theorems use only `propext`, `Classical.choice`, and `Quot.sound`.
 
 These gates prove the matrix, assignment, value, transcript, context, and
 mutation properties of the current digest-only phase-local candidate. PiCCS
@@ -259,6 +286,33 @@ status remains open until the final authority edge below exists and the same
 gate set passes again on that final package identity. Production package-only
 `prove → verify` also remains open and is not inferred from backend
 acceptance.
+
+## Development feedback and multicore execution
+
+The sampler completeness proof uses opaque child segments and a proved
+equivalence to the unchanged canonical monolithic lowering. The exact theorem
+`Sampler.physical_complete` still concludes agreement outside the same 59,247
+columns, while `Sampler.physicalHolds_iff_rowsHold` proves that its segmented
+predicate is exactly `RowsHold` for the package plan. The focused completeness
+build is 1.0–1.7 seconds; the prior monolithic proof check was 472 seconds.
+The exact `First54` selector uses the same boundary for its 64-round prefix
+and final fail-closed assertion. Its focused build is 9.2 seconds, down from
+63–95 seconds. An affected PiRLC export and axiom rebuild is 85 seconds, and a
+current full axiom gate is 13 seconds. Every new bridge passes the
+allowed-axiom audit.
+
+The owner approved per-process multicore use for development. `validate.sh`
+selects all 10 available workers. The Lean emitter prepares independent
+witness groups, ordinary-row blocks, and permutation blocks as tasks, then
+writes their results in the one canonical order. Rust expands witness plans
+with Rayon, builds final A/B/C matrices with `rayon::join`, and evaluates the
+independent conformance schedule in parallel. Assignment execution and the
+Poseidon2 identity sponge remain ordered because later values depend on the
+earlier prefix.
+
+The current canonical schema-8 emitter completed in 123 seconds. Its output
+was byte-equal to the stored 68,815,188-byte artifact and kept SHA-256
+`d5b43c7e2d1586475dffdf0c70a23688521b7811ee91b9cb095f9a2b56322f16`.
 
 ## PiRLC sampler migration
 
@@ -288,8 +342,8 @@ Executed release evidence:
   every candidate, both complete transcript state transitions, all 54 ring
   coefficients, and the complete PaperExact and optimized rotation matrices.
 - `rot_rho_tests`: 9/9 passed, including fail-closed cursor rejection.
-- `rlc_dec_k_gt1`: 11/11 passed, including sampled commitment, public-input,
-  evaluation, and witness combinations.
+- `rlc_dec_k_gt1`: 11/11 passed in 1.18 seconds, including sampled commitment,
+  public-input, evaluation, and witness combinations.
 - `validate.sh static`: passed after the new export and emitter mode.
 
 This closes only the required sampler migration. The PiRLC logical assembler,
@@ -313,26 +367,27 @@ follows:
 - 220,881 ordinary digest-lane and fail-closed selector rows;
 - 153 canonical Poseidon2 invocations, with 592 rows each;
 - 697,391 exact compact First54 rows;
-- 6,792,282 compact combination rows, pending the exact combination-template
-  selection and count proofs.
+- 6,792,282 compact combination rows.
 
 `PiRLCFirst54Conformance.packageInvocations_imply_spec` proves the full
 First54 package semantics. `Package.circuitPackage_implies_piRlcSamplerChain`
 proves the complete 17-source sampler chain. The generic combination schedule,
 input mapping, row semantics, and package membership are proved.
-`Package.circuitPackage_implies_piRlcPhaseHolds_of_combinationTemplates`
-assembles the exact seven-child phase from package rows under the one named
-premise `PiRLCCombinationTemplateSelection (Data.circuitPackage ())`.
-`PackageCompleteness.rowsHold_of_packets` proves the reverse structural
-boundary: exact pilot, PiCCS, sampler, First54, combination, and ordinary-row
-packets assemble into the one canonical `CircuitPackage.RowsHold` predicate.
-It does not construct the still-open compact packets.
+`Package.circuitPackage_implies_piRlcPhaseHolds` assembles the exact
+seven-child phase unconditionally. `Data.circuitPackage_compactRowInvocations`
+and the combination-count theorems prove the exact selection and totals.
+`PackageCompleteness.complete_piRlcPackageRows` constructs one completed
+environment from semantic PiRLC, preserves Pilot and PiCCS rows, and proves
+the complete canonical package `RowsHold` predicate.
 
-PiRLC is not Compiler-closed. The exact combination-template selection, exact
-combination compact-row count, constructive package completeness, one-cut
-schema-7 artifact, exact final-matrix equality, independent raw-assignment
-evaluation, mutation coverage, and complete nonzero three-way parity remain
-open.
+The PiRLC compiler is closed on this prefix. Its phase-local conformance gates
+are green: exact schema-8 expansion, entry-for-entry final `A/B/C`, an
+independent evaluation of all 25,556,958 rows, schema-2 three-way nonzero
+parity with every indexed partial, and the required mutations. The current
+external reviews map all PiRLC leaves but predate these final artifact runs;
+PiRLC is therefore a validated conformance candidate until an external review
+records this exact source-and-artifact cut. This does not change PiCCS status
+open or authorize PiDEC, Production-closed, or Stage 1 closure.
 
 ## Open assembly levels
 
@@ -345,8 +400,8 @@ Layout/PiRLC/v1_1/Leaves/InputBinding.lean ✓ proved 0-row footprint
 Layout/PiRLC/v1_1/{Lowering,Preservation}.lean ✓ phase layout and both directions
 Layout/PiDEC/v1_1/                     ○ lowering and preservation
 Layout/Stage1/                         ○ full ownership and preservation
-Export/Stage1/                         ◐ PiRLC package soundness conditional;
-                                         PiRLC completeness and later phases open
+Export/Stage1/                         ✓ PiRLC package soundness and completeness;
+                                         PiDEC and later phases open
 ```
 
 The final path is `pilot → PiCCS → PiRLC → PiDEC → application → output hash → terminal`; it lowers into one package, with no second production relation.

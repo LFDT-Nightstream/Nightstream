@@ -913,74 +913,63 @@ private theorem digestRow_mem (chain : HashChain) (lane : Fin 4) :
   rw [PilotData.digestRows, List.mem_ofFn']
   exact ⟨lane, rfl⟩
 
-/-- The 58 emitted assertion rows bind both hash digests and the complete
-54-cell prior public input marker/tail layout. -/
+private theorem priorExtraRows_hold (env : Env)
+    (instructions : ∀ instruction ∈
+      (PilotData.circuitPackage ()).witnessInstructions,
+      instruction.Holds env)
+    (assertions : AssertionsHold (PilotData.circuitPackage ()) env) :
+    R1CS.RowsHold env ((PilotData.priorExtraRows ()).map
+      Stage1.Rows.CompiledRow.toR1CS) := by
+  apply (Stage1.Rows.compiledRows_hold_iff
+    (PilotData.priorExtraRows ()) env).mpr
+  constructor
+  · intro instruction member
+    apply instructions instruction
+    change instruction ∈ PilotData.witnessInstructions ()
+    rw [PilotData.witnessInstructions,
+      Stage1.Rows.witnessInstructionsTR_eq]
+    exact member
+  · intro assertion member
+    apply assertions assertion
+    change assertion ∈ PilotData.assertionRows ()
+    apply List.mem_append_left
+    rw [Stage1.Rows.assertionRowsTR_eq]
+    exact member
+
+private theorem priorExtraConstraints_hold (env : Env)
+    (instructions : ∀ instruction ∈
+      (PilotData.circuitPackage ()).witnessInstructions,
+      instruction.Holds env)
+    (assertions : AssertionsHold (PilotData.circuitPackage ()) env) :
+    ConstraintsHold (PilotSpartan.pullback env)
+      (PilotData.priorExtraConstraints ()) := by
+  have physical := priorExtraRows_hold env instructions assertions
+  rw [PilotData.priorExtraRows,
+    Stage1.Rows.compileRowsTR_toR1CS] at physical
+  have sourceRows := (PilotSpartan.remapRows_hold env
+    (Stage1.Rows.lowerConstraintsTR (PilotData.priorExtraConstraints ())
+      PilotValues.logicalColumnCount).rows).mp physical
+  rw [Stage1.Rows.lowerConstraintsTR_eq] at sourceRows
+  exact R1CS.lowerConstraints_sound (PilotSpartan.pullback env)
+    (PilotData.priorExtraConstraints ()) PilotValues.logicalColumnCount
+    sourceRows
+
+/-- The remaining explicit digest rows bind the output chain. Prior-state
+digest binding is owned by the complete canonical-word packet above. -/
 theorem canonicalAssertions_sound (env : Env)
     (holds : AssertionsHold (PilotData.circuitPackage ()) env) :
-    env PilotSpartan.firstPublicStart = 1 ∧
-      (∀ lane : Fin 4, env (PilotData.priorChain.digestStart + lane.val) =
-        chainOutputState PilotData.priorChain
-          PilotData.priorChain.absorbCount env
-          ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) ∧
-      (∀ lane : Fin 49,
-        env (PilotSpartan.firstPublicStart + 5 + lane.val) = 0) ∧
-      (∀ lane : Fin 4, env (PilotData.outputChain.digestStart + lane.val) =
+    ∀ lane : Fin 4,
+      env (PilotData.outputChain.digestStart + lane.val) =
         chainOutputState PilotData.outputChain
           PilotData.outputChain.absorbCount env
-          ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
-  unfold AssertionsHold at holds
-  have priorDigest (lane : Fin 4) :
-      (PilotData.digestRow PilotData.priorChain lane).Holds env := by
-    apply holds _
-    change PilotData.digestRow PilotData.priorChain lane ∈
-      PilotData.assertionRows ()
-    apply List.mem_append_left
-    apply List.mem_append_left
-    exact digestRow_mem PilotData.priorChain lane
-  have outputDigest (lane : Fin 4) :
-      (PilotData.digestRow PilotData.outputChain lane).Holds env := by
-    apply holds _
-    change PilotData.digestRow PilotData.outputChain lane ∈
-      PilotData.assertionRows ()
-    apply List.mem_append_right
-    exact digestRow_mem PilotData.outputChain lane
-  have marker : PilotData.markerBindingRow.Holds env := by
-    apply holds _
-    change PilotData.markerBindingRow ∈ PilotData.assertionRows ()
-    apply List.mem_append_left
-    apply List.mem_append_right
-    simp [PilotData.bindingRows]
-  have tail (lane : Fin 49) :
-      (⟨PilotData.priorBindingRowStart + 1 + lane.val,
-        ⟨0, [⟨PilotSpartan.firstPublicStart + 5 + lane.val, 1⟩]⟩,
-        PilotData.oneCombination,
-        PilotData.zeroCombination⟩ : SparseRow).Holds env := by
-    apply holds _
-    change (⟨PilotData.priorBindingRowStart + 1 + lane.val,
-      ⟨0, [⟨PilotSpartan.firstPublicStart + 5 + lane.val, 1⟩]⟩,
-      PilotData.oneCombination,
-      PilotData.zeroCombination⟩ : SparseRow) ∈ PilotData.assertionRows ()
-    apply List.mem_append_left
-    apply List.mem_append_right
-    apply List.mem_cons.mpr
-    apply Or.inr
-    rw [PilotData.tailBindingRows, List.mem_ofFn']
-    exact ⟨lane, rfl⟩
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · have markerEquation := marker
-    simp [SparseRow.Holds, SparseCombination.eval,
-      PilotData.markerBindingRow, PilotData.oneCombination,
-      PilotData.zeroCombination, fieldValue_neg_one] at markerEquation
-    have difference : env PilotSpartan.firstPublicStart - 1 = 0 := by
-      simpa [sub_eq_add_neg, add_comm] using markerEquation
-    exact sub_eq_zero.mp difference
-  · intro lane
-    exact digestRow_sound PilotData.priorChain lane env (priorDigest lane)
-  · intro lane
-    simpa [SparseRow.Holds, SparseCombination.eval,
-      PilotData.oneCombination, PilotData.zeroCombination] using tail lane
-  · intro lane
-    exact digestRow_sound PilotData.outputChain lane env (outputDigest lane)
+          ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
+  intro lane
+  apply digestRow_sound PilotData.outputChain lane env
+  apply holds _
+  change PilotData.digestRow PilotData.outputChain lane ∈
+    PilotData.assertionRows ()
+  apply List.mem_append_right
+  exact digestRow_mem PilotData.outputChain lane
 
 private theorem priorChain_count_eq :
     PilotData.priorChain.absorbCount =
@@ -993,62 +982,6 @@ private theorem outputChain_count_eq :
       (PilotData.outputChain.inputLength + Poseidon2.rate - 1) /
         Poseidon2.rate := by
   rfl
-
-/-- The canonical package rows enforce both reference hash outputs and the
-complete prior public-input marker/tail binding. -/
-theorem canonicalPackage_hashes (env : Env)
-    (holds : (PilotData.circuitPackage ()).RowsHold env) :
-    env PilotSpartan.firstPublicStart = 1 ∧
-      (∀ lane : Fin 49,
-        env (PilotSpartan.firstPublicStart + 5 + lane.val) = 0) ∧
-      List.ofFn (fun lane : Fin 4 =>
-        env (PilotData.priorChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (chainInputValues PilotData.priorChain env) ∧
-      List.ofFn (fun lane : Fin 4 =>
-        env (PilotData.outputChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (chainInputValues PilotData.outputChain env) := by
-  rcases holds with
-    ⟨chains, _invocations, _compactInvocations, _instructions, assertions⟩
-  have priorHolds : HashChainHolds (PilotData.circuitPackage ())
-      PilotData.priorChain env := by
-    apply chains _
-    simp [PilotData.circuitPackage]
-  have outputHolds : HashChainHolds (PilotData.circuitPackage ())
-      PilotData.outputChain env := by
-    apply chains _
-    simp [PilotData.circuitPackage]
-  have assertionFacts := canonicalAssertions_sound env assertions
-  have priorHash := canonicalChainDigest_eq_hash PilotData.priorChain env
-    priorChain_count_eq priorHolds
-  have outputHash := canonicalChainDigest_eq_hash PilotData.outputChain env
-    outputChain_count_eq outputHolds
-  refine ⟨assertionFacts.1, assertionFacts.2.2.1, ?_, ?_⟩
-  · calc
-      List.ofFn (fun lane : Fin 4 =>
-          env (PilotData.priorChain.digestStart + lane.val)) =
-          List.ofFn (fun lane : Fin 4 =>
-            chainOutputState PilotData.priorChain
-              PilotData.priorChain.absorbCount env
-              ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
-        congr 1
-        funext lane
-        exact assertionFacts.2.1 lane
-      _ = Spec.Poseidon2.hash
-          (chainInputValues PilotData.priorChain env) := priorHash
-  · calc
-      List.ofFn (fun lane : Fin 4 =>
-          env (PilotData.outputChain.digestStart + lane.val)) =
-          List.ofFn (fun lane : Fin 4 =>
-            chainOutputState PilotData.outputChain
-              PilotData.outputChain.absorbCount env
-              ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
-        congr 1
-        funext lane
-        exact assertionFacts.2.2.2 lane
-      _ = Spec.Poseidon2.hash
-          (chainInputValues PilotData.outputChain env) := outputHash
 
 private theorem priorInputValues_eq (env : Env) :
     chainInputValues PilotData.priorChain env =
@@ -1076,10 +1009,10 @@ private theorem sourceToSpartan_outputPreimage
     PilotSpartan.sourceToSpartan
         (PilotProduction.outputPreimageStart + index.val) =
       PilotSpartan.secondPrivateStart + index.val := by
-  have indexBound : index.val < 42475 := by
+  have indexBound : index.val < 45931 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 42475 := PilotProduction.stateHashWords_eq
+      _ = 45931 := PilotProduction.stateHashWords_eq
   unfold PilotSpartan.sourceToSpartan
   all_goals try split
   all_goals try split
@@ -1116,7 +1049,7 @@ private theorem sourceToSpartan_priorPublic
     PilotSpartan.sourceToSpartan
         (PilotProduction.priorPublicInputStart + column.val) =
       PilotSpartan.firstPublicStart + column.val := by
-  have columnBound : column.val < 54 := by
+  have columnBound : column.val < 270 := by
     rw [← PriorStateHash.publicWidth_eq]
     exact column.isLt
   unfold PilotSpartan.sourceToSpartan
@@ -1183,46 +1116,122 @@ private theorem outputDigestValues_eq (env : Env) :
   rw [sourceToSpartan_outputDigest]
   rfl
 
-private theorem priorColumn_cases
-    (column : Fin PriorStateHash.publicWidth) :
-    column = PriorStateHash.markerIndex ∨
-      (∃ lane : Fin 4, column = PriorStateHash.digestIndex lane) ∨
-      ∃ lane : Fin 49, column = PriorStateHash.tailIndex lane := by
-  have columnBound : column.val < 54 := by
-    rw [← PriorStateHash.publicWidth_eq]
-    exact column.isLt
-  by_cases isMarker : column.val = 0
-  · apply Or.inl
-    apply Fin.ext
-    simpa [PriorStateHash.markerIndex] using isMarker
-  · apply Or.inr
-    by_cases isDigest : column.val < 5
-    · apply Or.inl
-      let lane : Fin 4 := ⟨column.val - 1, by omega⟩
-      refine ⟨lane, ?_⟩
-      apply Fin.ext
-      change column.val = lane.val + 1
-      dsimp [lane]
-      omega
-    · apply Or.inr
-      let lane : Fin 49 := ⟨column.val - 5, by omega⟩
-      refine ⟨lane, ?_⟩
-      apply Fin.ext
-      change column.val = lane.val + 5
-      dsimp [lane]
-      omega
+private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
+    (RawFormal.digest
+      (PriorStateHash.hashInterface PilotProduction.priorInterface)
+      PilotProduction.witnessOffset lane).eval
+        (PilotSpartan.pullback env) =
+      chainOutputState PilotData.priorChain
+        PilotData.priorChain.absorbCount env
+        ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
+  unfold RawFormal.digest RawFormal.program
+  rw [NightstreamFPrime.Layout.Poseidon2.hash_compile_output_eq]
+  rw [PriorStateHash.hashInterface_input,
+    PilotProduction.priorInterface_preimage_apply,
+    PilotProduction.priorPreimage_chunkCount]
+  simp only [Hash.digestE, Permutation.freshState, Expr.eval_var]
+  unfold PilotSpartan.pullback chainOutputState invocationLocalStart
+  norm_num [PilotSpartan.sourceToSpartan, PilotData.circuitPackage,
+    PilotData.permutationTemplate, PilotData.priorChain,
+    PilotData.priorWitnessStart, PilotValues.priorWitnessStart,
+    PilotValues.witnessPrivateStart, PilotProduction.witnessOffset,
+    PilotProduction.externalColumnCount, PilotProduction.outputDigestStart,
+    PilotProduction.outputPreimageStart,
+    PilotProduction.priorPublicInputStart,
+    PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
+    PilotProduction.digestWords, PilotSpartan.priorPublicStart,
+    PilotSpartan.outputPreimageStart, PilotSpartan.outputDigestStart,
+    PilotSpartan.witnessStart, PilotSpartan.secondPrivateStart,
+    PilotSpartan.witnessPrivateStart]
 
-/-- The four package-enforced hash facts imply both logical pilot builder
+private theorem priorRawSpec (env : Env)
+    (holds : HashChainHolds (PilotData.circuitPackage ())
+      PilotData.priorChain env) :
+    RawFormal.SpecHolds
+      (PriorStateHash.hashInterface PilotProduction.priorInterface)
+      PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
+  unfold RawFormal.SpecHolds
+  calc
+    List.ofFn (fun lane : Fin 4 =>
+        (RawFormal.digest
+          (PriorStateHash.hashInterface PilotProduction.priorInterface)
+          PilotProduction.witnessOffset lane).eval
+            (PilotSpartan.pullback env)) =
+        List.ofFn (fun lane : Fin 4 =>
+          chainOutputState PilotData.priorChain
+            PilotData.priorChain.absorbCount env
+            ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
+      congr 1
+      funext lane
+      exact priorDigestWire_eval env lane
+    _ = Spec.Poseidon2.hash
+        (chainInputValues PilotData.priorChain env) :=
+      canonicalChainDigest_eq_hash PilotData.priorChain env
+        priorChain_count_eq holds
+    _ = Spec.Poseidon2.hash
+        (Hash.evalList (PilotSpartan.pullback env)
+          ((PriorStateHash.hashInterface
+            PilotProduction.priorInterface).input
+              PilotProduction.witnessOffset)) := by
+      rw [PriorStateHash.hashInterface_input,
+        PilotProduction.priorInterface_preimage_apply,
+        ← priorInputValues_eq]
+
+/-- The canonical package rows enforce the complete 270-cell prior-state
+relation and the four-word output hash. -/
+theorem canonicalPackage_hashes (env : Env)
+    (holds : (PilotData.circuitPackage ()).RowsHold env) :
+    PriorStateHash.SpecHolds PilotProduction.priorInterface
+        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
+      List.ofFn (fun lane : Fin 4 =>
+        env (PilotData.outputChain.digestStart + lane.val)) =
+          Spec.Poseidon2.hash
+            (chainInputValues PilotData.outputChain env) := by
+  rcases holds with
+    ⟨chains, _invocations, _compactInvocations, instructions, assertions⟩
+  have priorHolds : HashChainHolds (PilotData.circuitPackage ())
+      PilotData.priorChain env := by
+    apply chains _
+    simp [PilotData.circuitPackage]
+  have outputHolds : HashChainHolds (PilotData.circuitPackage ())
+      PilotData.outputChain env := by
+    apply chains _
+    simp [PilotData.circuitPackage]
+  have extraLogical := priorExtraConstraints_hold env instructions assertions
+  have postHashRows : holdsFlat (PilotSpartan.pullback env)
+      (PriorStateHash.wordOps PilotProduction.priorInterface
+          PilotProduction.witnessOffset ++
+        PriorStateHash.bindingAssertions PilotProduction.priorInterface
+          PilotProduction.witnessOffset) := by
+    simpa [holdsFlat, PilotData.priorExtraConstraints] using extraLogical
+  have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
+    PilotProduction.priorInterface (PilotSpartan.pullback env)
+    PilotProduction.witnessOffset
+    (PilotProduction.layoutAssumptions (PilotSpartan.pullback env)).1
+    (priorRawSpec env priorHolds) postHashRows
+  have outputRows := canonicalAssertions_sound env assertions
+  have outputHash := canonicalChainDigest_eq_hash PilotData.outputChain env
+    outputChain_count_eq outputHolds
+  refine ⟨priorSpec, ?_⟩
+  calc
+    List.ofFn (fun lane : Fin 4 =>
+        env (PilotData.outputChain.digestStart + lane.val)) =
+        List.ofFn (fun lane : Fin 4 =>
+          chainOutputState PilotData.outputChain
+            PilotData.outputChain.absorbCount env
+            ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
+      congr 1
+      funext lane
+      exact outputRows lane
+    _ = Spec.Poseidon2.hash
+        (chainInputValues PilotData.outputChain env) := outputHash
+
+/-- Package-enforced hash facts imply both logical pilot builder
 specifications after the proved Spartan column pullback. -/
 theorem hashFacts_imply_spec (env : Env)
     (facts :
-      env PilotSpartan.firstPublicStart = 1 ∧
-      (∀ lane : Fin 49,
-        env (PilotSpartan.firstPublicStart + 5 + lane.val) = 0) ∧
-      List.ofFn (fun lane : Fin 4 =>
-        env (PilotData.priorChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (chainInputValues PilotData.priorChain env) ∧
+      PriorStateHash.SpecHolds PilotProduction.priorInterface
+        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash
@@ -1231,33 +1240,7 @@ theorem hashFacts_imply_spec (env : Env)
       PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
   constructor
   · rw [PilotProduction.interface_prior]
-    unfold PriorStateHash.SpecHolds
-    funext column
-    rw [priorPublicInput_eval]
-    rw [PilotProduction.priorInterface_preimage_apply]
-    rw [← priorInputValues_eq]
-    rw [← facts.2.2.1]
-    rcases priorColumn_cases column with marker | digest | tail
-    · subst column
-      simpa [PilotSpartan.firstPublicStart] using facts.1
-    · rcases digest with ⟨lane, rfl⟩
-      rw [PriorStateHash.encodedHash_digest]
-      apply congrArg env
-      rw [← firstPublicStart_match]
-      norm_num [PilotSpartan.firstPublicStart, PilotData.priorChain,
-        PriorStateHash.digestIndex]
-      omega
-    · rcases tail with ⟨lane, rfl⟩
-      rw [PriorStateHash.encodedHash_tail]
-      calc
-        env (PilotSpartan.firstPublicStart +
-            (PriorStateHash.tailIndex lane).val) =
-            env (PilotSpartan.firstPublicStart + 5 + lane.val) := by
-          apply congrArg env
-          norm_num [PilotSpartan.firstPublicStart,
-            PriorStateHash.tailIndex]
-          omega
-        _ = 0 := facts.2.1 lane
+    exact facts.1
   · rw [PilotProduction.interface_output]
     unfold OutputHash.SpecHolds Formal.SpecHolds
     rw [OutputHash.hashInterface_input]
@@ -1265,7 +1248,7 @@ theorem hashFacts_imply_spec (env : Env)
     rw [PilotProduction.outputInterface_preimage_apply]
     rw [← outputInputValues_eq]
     rw [outputDigestValues_eq]
-    exact facts.2.2.2
+    exact facts.2
 
 /-- Satisfaction of the canonical emitted rows implies both logical pilot
 builder specifications after the proved Spartan column pullback. -/
@@ -1275,7 +1258,7 @@ theorem canonicalPackage_implies_spec (env : Env)
       PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
   exact hashFacts_imply_spec env (canonicalPackage_hashes env holds)
 
-/-- The four package-enforced hash facts, together with the fixed protocol ABI
+/-- The package-enforced hash facts, together with the fixed protocol ABI
 values below the witness boundary, imply the two recursive lifecycle slots. -/
 theorem hashFacts_imply_recursive_hash_slots
     {logicalWidth : Nat}
@@ -1307,13 +1290,8 @@ theorem hashFacts_imply_recursive_hash_slots
         output.x priorFixed outputFixed digestFixed)
       PilotProduction.witnessOffset)
     (facts :
-      env PilotSpartan.firstPublicStart = 1 ∧
-      (∀ lane : Fin 49,
-        env (PilotSpartan.firstPublicStart + 5 + lane.val) = 0) ∧
-      List.ofFn (fun lane : Fin 4 =>
-        env (PilotData.priorChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (chainInputValues PilotData.priorChain env) ∧
+      PriorStateHash.SpecHolds PilotProduction.priorInterface
+        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash

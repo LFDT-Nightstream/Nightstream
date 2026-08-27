@@ -47,8 +47,7 @@ abbrev physicalRowCount : Nat :=
 
 abbrev publicColumnCount : Nat := priorPublicInputWords + digestWords
 abbrev logicalColumnCount : Nat :=
-  externalColumnCount + 2 * hashWitnessCount + priorCanonicalPrivateCount +
-    0
+  externalColumnCount + 2 * hashWitnessCount + priorCanonicalPrivateCount
 abbrev sourceColumnCount : Nat :=
   logicalColumnCount + priorCanonicalFreshCount
 abbrev privateColumnCount : Nat := sourceColumnCount - publicColumnCount

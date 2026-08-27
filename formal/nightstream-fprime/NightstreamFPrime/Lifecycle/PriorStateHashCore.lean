@@ -444,6 +444,47 @@ private theorem spec_of_parts (interface : Interface) (offset : Nat)
           exact (Nat.mod_eq_of_lt binary).symm
     · simpa using tail lane
 
+/-- Soundness boundary for executable plans that encode the raw hash as a
+permutation chain and the remaining opaque children as ordinary rows. -/
+theorem soundness_of_hash_and_postHash
+    (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (hashSpec : RawFormal.SpecHolds (hashInterface interface) offset env)
+    (postHashRows : holdsFlat env
+      (wordOps interface offset ++ bindingAssertions interface offset)) :
+    SpecHolds interface offset env := by
+  have rows := holdsFlat_implies_holds env
+    (wordOps interface offset ++ bindingAssertions interface offset)
+    postHashRows
+  have words (word : Fin 4) :
+      CanonicalPublicU64.SpecHolds (wordInterface interface offset word)
+        (wordOffset interface offset word) env := by
+    have call := rows (wordOp interface offset word) (by
+      apply List.mem_append_left
+      rw [wordOps, List.mem_ofFn']
+      exact Set.mem_range_self word)
+    change CanonicalPublicU64.Assumptions
+        (wordInterface interface offset word)
+        (wordOffset interface offset word) env →
+      CanonicalPublicU64.SpecHolds (wordInterface interface offset word)
+        (wordOffset interface offset word) env at call
+    exact call (wordAssumptions interface offset assumptions word)
+  have markerRow := rows
+    (.assertZero (interface.publicInput offset markerIndex - 1)) (by
+      apply List.mem_append_right
+      simp [bindingAssertions])
+  have marker : (interface.publicInput offset markerIndex).eval env = 1 := by
+    exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using markerRow)
+  have tail (lane : Fin 13) :
+      (interface.publicInput offset (tailIndex lane)).eval env = 0 := by
+    apply rows (.assertZero (interface.publicInput offset (tailIndex lane)))
+    apply List.mem_append_right
+    simp only [bindingAssertions, List.mem_cons]
+    apply Or.inr
+    rw [List.mem_ofFn']
+    exact Set.mem_range_self lane
+  exact spec_of_parts interface offset env hashSpec words marker tail
+
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (rows : holds env (Circuit.ops (main interface) offset)) :

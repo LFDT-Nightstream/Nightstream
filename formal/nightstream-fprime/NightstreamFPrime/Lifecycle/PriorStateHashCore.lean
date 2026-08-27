@@ -378,7 +378,7 @@ private theorem tailAssertion_mem (interface : Interface) (offset : Nat)
   rw [List.mem_ofFn']
   exact Set.mem_range_self lane
 
-private theorem ofFn_getD {Alpha : Type} {count : Nat}
+theorem ofFn_getD {Alpha : Type} {count : Nat}
     (values : Fin count → Alpha) (lane : Fin count) (fallback : Alpha) :
     (List.ofFn values).getD lane.val fallback = values lane := by
   rw [List.getD_eq_get (List.ofFn values) fallback

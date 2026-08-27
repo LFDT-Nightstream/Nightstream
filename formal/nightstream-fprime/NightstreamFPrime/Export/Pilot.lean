@@ -925,13 +925,15 @@ private theorem priorExtraRows_hold (env : Env)
   constructor
   · intro instruction member
     apply instructions instruction
-    change instruction ∈ PilotData.witnessInstructions ()
+    rw [PilotData.circuitPackage,
+      PilotData.circuitPackageOf_witnessInstructions]
     rw [PilotData.witnessInstructions,
       Stage1.Rows.witnessInstructionsTR_eq]
     exact member
   · intro assertion member
     apply assertions assertion
-    change assertion ∈ PilotData.assertionRows ()
+    rw [PilotData.circuitPackage,
+      PilotData.circuitPackageOf_assertionRows]
     apply List.mem_append_left
     rw [Stage1.Rows.assertionRowsTR_eq]
     exact member
@@ -1131,18 +1133,19 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotProduction.priorPreimage_chunkCount]
   simp only [Hash.digestE, Permutation.freshState, Expr.eval_var]
   unfold PilotSpartan.pullback chainOutputState invocationLocalStart
-  norm_num [PilotSpartan.sourceToSpartan, PilotData.circuitPackage,
-    PilotData.permutationTemplate, PilotData.priorChain,
-    PilotData.priorWitnessStart, PilotValues.priorWitnessStart,
-    PilotValues.witnessPrivateStart, PilotProduction.witnessOffset,
-    PilotProduction.externalColumnCount, PilotProduction.outputDigestStart,
-    PilotProduction.outputPreimageStart,
-    PilotProduction.priorPublicInputStart,
-    PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
-    PilotProduction.digestWords, PilotSpartan.priorPublicStart,
-    PilotSpartan.outputPreimageStart, PilotSpartan.outputDigestStart,
-    PilotSpartan.witnessStart, PilotSpartan.secondPrivateStart,
-    PilotSpartan.witnessPrivateStart]
+  simp only [PilotData.circuitPackage,
+    PilotData.circuitPackageOf_permutation]
+  simp only [PilotData.permutationTemplate, PilotData.priorChain,
+    PilotData.priorWitnessStart]
+  rw [show PilotProduction.witnessOffset + 11483 * 592 + 584 + lane.val =
+      PilotProduction.witnessOffset + (11483 * 592 + 584 + lane.val) by
+    omega,
+    PilotSpartan.sourceToSpartan_pilotWitness]
+  norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
+    PilotValues.stateHashBaseWords, PilotValues.digestWords,
+    Spec.Poseidon2.rate, PilotSpartan.witnessPrivateStart_value]
+  apply congrArg env
+  omega
 
 private theorem priorRawSpec (env : Env)
     (holds : HashChainHolds (PilotData.circuitPackage ())
@@ -1161,9 +1164,8 @@ private theorem priorRawSpec (env : Env)
           chainOutputState PilotData.priorChain
             PilotData.priorChain.absorbCount env
             ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
-      congr 1
-      funext lane
-      exact priorDigestWire_eval env lane
+      exact congrArg List.ofFn (funext fun lane =>
+        priorDigestWire_eval env lane)
     _ = Spec.Poseidon2.hash
         (chainInputValues PilotData.priorChain env) :=
       canonicalChainDigest_eq_hash PilotData.priorChain env
@@ -1407,23 +1409,20 @@ theorem priorExtraRows_length :
   unfold PilotSpartan.remapRows
   rw [List.length_map, Stage1.Rows.lowerConstraintsTR_eq,
     R1CS.lowerConstraints_rows_length]
-  unfold PilotData.priorExtraConstraints
-  rw [flatConstraints_append, R1CS.totalRowCount_append]
-  change R1CS.totalRowCount PilotProduction.priorWordConstraintsAll +
-    R1CS.totalRowCount PilotProduction.priorBindingConstraints = 1326
-  rw [PilotProduction.priorWordConstraints_rowCount,
+  rw [PilotData.priorExtraConstraints_eq,
+    R1CS.totalRowCount_append,
+    PilotProduction.priorWordConstraints_rowCount,
     PilotProduction.priorBindingConstraints_rowCount]
 
 theorem ordinaryRows_length :
     (PilotData.circuitPackage ()).witnessInstructions.length +
       (PilotData.circuitPackage ()).assertionRows.length = 1330 := by
-  change (PilotData.witnessInstructions ()).length +
-    (PilotData.assertionRows ()).length = 1330
-  unfold PilotData.witnessInstructions PilotData.assertionRows
-  rw [List.length_append, digestRows_length,
-    Stage1.Rows.witnessInstructionsTR_eq,
-    Stage1.Rows.assertionRowsTR_eq,
-    Stage1.Rows.witnessInstructions_length_add_assertionRows_length,
+  rw [PilotData.circuitPackage,
+    PilotData.circuitPackageOf_witnessInstructions,
+    PilotData.circuitPackageOf_assertionRows]
+  rw [PilotData.witnessInstructions, PilotData.assertionRows,
+    List.length_append, digestRows_length, ← Nat.add_assoc,
+    Stage1.Rows.witnessInstructionsTR_length_add_assertionRowsTR_length,
     priorExtraRows_length]
 
 theorem circuitPackage_decode_encode :

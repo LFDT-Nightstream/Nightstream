@@ -144,6 +144,14 @@ def priorExtraConstraints (_unit : Unit) : List Expr :=
     PriorStateHash.bindingAssertions PilotProduction.priorInterface
       PilotProduction.witnessOffset)
 
+theorem priorExtraConstraints_eq :
+    priorExtraConstraints () =
+      PilotProduction.priorWordConstraintsAll ++
+        PilotProduction.priorBindingConstraints := by
+  unfold priorExtraConstraints
+  rw [flatConstraints_append]
+  rfl
+
 def priorExtraRows (_unit : Unit) : List Stage1.Rows.CompiledRow :=
   Stage1.Rows.compileRowsTR
     (PilotSpartan.sourceToSpartan PilotValues.logicalColumnCount)
@@ -219,7 +227,9 @@ def physicalLayout : PhysicalLayout where
   privateSegments := privateSegments
   publicSegments := publicSegments
 
-def circuitPackage (_unit : Unit) : CircuitPackage where
+def circuitPackageOf (batches : List WitnessBatch)
+    (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) : CircuitPackage where
   schemaVersion := 8
   profile := profile
   poseidon := poseidonSchedule
@@ -231,10 +241,49 @@ def circuitPackage (_unit : Unit) : CircuitPackage where
   permutationInvocations := []
   compactRowTemplates := []
   compactRowInvocations := []
-  witnessBatches := priorWordBatches ()
-  witnessInstructions := witnessInstructions ()
-  assertionRows := assertionRows ()
+  witnessBatches := batches
+  witnessInstructions := instructions
+  assertionRows := assertions
   terminal := none
+
+def circuitPackage (_unit : Unit) : CircuitPackage :=
+  circuitPackageOf (priorWordBatches ()) (witnessInstructions ())
+    (assertionRows ())
+
+@[simp] theorem circuitPackageOf_witnessInstructions
+    (batches : List WitnessBatch) (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) :
+    (circuitPackageOf batches instructions assertions).witnessInstructions =
+      instructions := by
+  rfl
+
+@[simp] theorem circuitPackageOf_poseidon
+    (batches : List WitnessBatch) (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) :
+    (circuitPackageOf batches instructions assertions).poseidon =
+      poseidonSchedule := by
+  rfl
+
+@[simp] theorem circuitPackageOf_permutation
+    (batches : List WitnessBatch) (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) :
+    (circuitPackageOf batches instructions assertions).permutation =
+      permutationTemplate () := by
+  rfl
+
+@[simp] theorem circuitPackageOf_hashChains
+    (batches : List WitnessBatch) (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) :
+    (circuitPackageOf batches instructions assertions).hashChains =
+      [priorChain, outputChain] := by
+  rfl
+
+@[simp] theorem circuitPackageOf_assertionRows
+    (batches : List WitnessBatch) (instructions : List WitnessInstruction)
+    (assertions : List SparseRow) :
+    (circuitPackageOf batches instructions assertions).assertionRows =
+      assertions := by
+  rfl
 
 def relationIdentifier (_unit : Unit) : List F :=
   Package.relationIdentifier (circuitPackage ())

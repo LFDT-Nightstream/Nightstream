@@ -137,6 +137,28 @@ def sourceToSpartan (column : Nat) : Nat :=
   else
     witnessPrivateStart + (column - witnessStart)
 
+theorem sourceToSpartan_witness (index : Nat) :
+    sourceToSpartan (witnessStart + index) =
+      witnessPrivateStart + index := by
+  unfold sourceToSpartan
+  rw [if_neg (by
+    rw [witnessStart_value, priorPublicStart_value]
+    omega)]
+  rw [if_neg (by
+    rw [witnessStart_value, outputPreimageStart_value]
+    omega)]
+  rw [if_neg (by
+    rw [witnessStart_value, outputDigestStart_value]
+    omega)]
+  rw [if_neg (by omega)]
+  omega
+
+theorem sourceToSpartan_pilotWitness (index : Nat) :
+    sourceToSpartan (PilotProduction.witnessOffset + index) =
+      witnessPrivateStart + index := by
+  rw [show PilotProduction.witnessOffset = witnessStart by rfl]
+  exact sourceToSpartan_witness index
+
 /-- Partial inverse because the Spartan constant column has no Lean source
 column. -/
 def spartanToSource (column : Nat) : Option Nat :=

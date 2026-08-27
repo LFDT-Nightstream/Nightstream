@@ -1,6 +1,4 @@
-use super::super::gadgets::{
-    push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget, push_zero_test_gadget,
-};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget};
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
@@ -14,8 +12,15 @@ use super::super::layout::{
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
+use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+pub(crate) const CALL_INDIRECT_ENTRY_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_TABLE_VALUE,
+    inverse: COL_CI_ENTRY_NULL_INV,
+    is_zero: COL_CI_ENTRY_IS_NULL,
+};
 
 /// Emit trap-cause flags and the state transition that carries `trapped`.
 pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &WasmRelationLayout) {
@@ -245,7 +250,7 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
 
     // 0 encodes the null funcref
-    push_zero_test_gadget(b, COL_TABLE_VALUE, COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
+    CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
 
     // typecheck
     push_zero_test_expr_gadget(

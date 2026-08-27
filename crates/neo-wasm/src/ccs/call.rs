@@ -1,7 +1,7 @@
 //! Owns call entry, return-context RAM, frame bases, parameter initialization,
 //! tail-frame replacement, and host-import attribution.
 
-use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
+use super::super::gadgets::push_gated_linear_zero;
 use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
@@ -25,8 +25,15 @@ use super::super::layout::{
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
+use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+pub(crate) const PARAM_INIT_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest {
+    value: COL_PARAM_INIT_REMAINING_AFTER,
+    inverse: COL_PARAM_INIT_REMAINING_AFTER_INV,
+    is_zero: COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
+};
 
 /// Emit every call/frame/param-init row the wasm VM needs in a single
 /// place. Ordering inside follows the natural lifecycle of a call:
@@ -582,12 +589,7 @@ fn push_call_param_init_exit_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>)
     ]);
 
     // if we reached the end of the local initialization sequence
-    push_zero_test_gadget(
-        b,
-        COL_PARAM_INIT_REMAINING_AFTER,
-        COL_PARAM_INIT_REMAINING_AFTER_INV,
-        COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    );
+    PARAM_INIT_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
 }
 
 fn push_call_param_init_aux_row_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

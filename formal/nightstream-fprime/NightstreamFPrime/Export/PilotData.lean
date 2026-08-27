@@ -1,5 +1,8 @@
 import NightstreamFPrime.Export.Package
+import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
+import NightstreamFPrime.Layout.PilotProduction
+import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.R1CS
 
@@ -17,6 +20,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Lifecycle
 
 namespace Role
 
@@ -67,7 +71,7 @@ def permutationTemplate (_unit : Unit) : PermutationTemplate where
   rows := templateRows ()
 
 def priorHashRowStart : Nat := PilotValues.priorHashRowStart
-def priorHashRowCount : Nat := PilotValues.hashRowCount
+def priorHashRowCount : Nat := PilotValues.hashWitnessCount
 def priorBindingRowStart : Nat := PilotValues.priorBindingRowStart
 def outputHashRowStart : Nat := PilotValues.outputHashRowStart
 
@@ -84,7 +88,8 @@ def priorChain : HashChain where
   witnessStart := priorWitnessStart
   witnessLength := PilotValues.hashWitnessCount
   absorbCount := PilotValues.absorbCount
-  digestStart := PilotValues.firstPublicStart + 1
+  digestLength := 0
+  digestStart := 0
 
 def outputChain : HashChain where
   phase := 2
@@ -95,6 +100,7 @@ def outputChain : HashChain where
   witnessStart := outputWitnessStart
   witnessLength := PilotValues.hashWitnessCount
   absorbCount := PilotValues.absorbCount
+  digestLength := PilotValues.digestWords
   digestStart := PilotValues.secondPublicStart
 
 def zeroCombination : SparseCombination := ⟨0, []⟩
@@ -111,22 +117,60 @@ def digestRow (chain : HashChain) (lane : Fin 4) : SparseRow :=
 def digestRows (chain : HashChain) : List SparseRow :=
   List.ofFn (digestRow chain)
 
+def remapExpr : Expr → Expr
+  | .var index => .var (PilotSpartan.sourceToSpartan index)
+  | .const value => .const value
+  | .add left right => .add (remapExpr left) (remapExpr right)
+  | .mul left right => .mul (remapExpr left) (remapExpr right)
+
+def remapBatch (batch : WitnessBatch) : WitnessBatch where
+  start := PilotSpartan.sourceToSpartan batch.start
+  recipes := batch.recipes.map remapExpr
+  hints := batch.hints.map fun hint =>
+    match hint with
+    | .bit source index => .bit (remapExpr source) index
+    | .inverseOrZero source => .inverseOrZero (remapExpr source)
+    | .quotientFive source => .quotientFive (remapExpr source)
+    | .remainderFive source => .remainderFive (remapExpr source)
+
+def priorWordBatches (_unit : Unit) : List WitnessBatch :=
+  (witnesses (PriorStateHash.wordOps PilotProduction.priorInterface
+    PilotProduction.witnessOffset)).map remapBatch
+
+def priorExtraConstraints (_unit : Unit) : List Expr :=
+  PilotProduction.priorWordConstraintsAll ++
+    PilotProduction.priorBindingConstraints
+
+def priorExtraRows (_unit : Unit) : List Stage1.Rows.CompiledRow :=
+  Stage1.Rows.compileRowsTR
+    (PilotSpartan.sourceToSpartan PilotValues.logicalColumnCount)
+    priorBindingRowStart
+    (PilotSpartan.remapRows
+      (Stage1.Rows.lowerConstraintsTR (priorExtraConstraints ())
+        PilotValues.logicalColumnCount).rows)
+
+def priorFixedRowStart : Nat :=
+  priorBindingRowStart + PilotValues.priorCanonicalRowCount
+
 def markerBindingRow : SparseRow :=
-  ⟨priorBindingRowStart,
+  ⟨priorFixedRowStart,
     ⟨(-1 : F).val, [⟨PilotValues.firstPublicStart, 1⟩]⟩,
     oneCombination, zeroCombination⟩
 
 def tailBindingRows : List SparseRow :=
-  List.ofFn fun lane : Fin 49 =>
-    ⟨priorBindingRowStart + 1 + lane.val,
-      ⟨0, [⟨PilotValues.firstPublicStart + 5 + lane.val, 1⟩]⟩,
+  List.ofFn fun lane : Fin 13 =>
+    ⟨priorFixedRowStart + 1 + lane.val,
+      ⟨0, [⟨PilotValues.firstPublicStart + 257 + lane.val, 1⟩]⟩,
       oneCombination, zeroCombination⟩
 
 def bindingRows (_unit : Unit) : List SparseRow :=
   markerBindingRow :: tailBindingRows
 
 def assertionRows (_unit : Unit) : List SparseRow :=
-  digestRows priorChain ++ bindingRows () ++ digestRows outputChain
+  Stage1.Rows.assertionRowsTR (priorExtraRows ()) ++ digestRows outputChain
+
+def witnessInstructions (_unit : Unit) : List WitnessInstruction :=
+  Stage1.Rows.witnessInstructionsTR (priorExtraRows ())
 
 def profile : Profile where
   fieldModulus := goldilocksModulus
@@ -173,7 +217,7 @@ def physicalLayout : PhysicalLayout where
   publicSegments := publicSegments
 
 def circuitPackage (_unit : Unit) : CircuitPackage where
-  schemaVersion := 7
+  schemaVersion := 8
   profile := profile
   poseidon := poseidonSchedule
   layout := physicalLayout
@@ -184,8 +228,8 @@ def circuitPackage (_unit : Unit) : CircuitPackage where
   permutationInvocations := []
   compactRowTemplates := []
   compactRowInvocations := []
-  witnessBatches := []
-  witnessInstructions := []
+  witnessBatches := priorWordBatches ()
+  witnessInstructions := witnessInstructions ()
   assertionRows := assertionRows ()
   terminal := none
 

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.PiCCSProjection
 
 /-!
 Owns the Lean-authored generative plan for Stage 1 Poseidon2 invocations.
@@ -204,29 +205,20 @@ def statementBlock (_unit : Unit) : ActionBlock :=
 def challengeBlock (_unit : Unit) : ActionBlock :=
   ActionBlock.ofActions PiCCSInvocations.challengePhase
     PiCCSInvocations.challengeRowStart PiCCSInvocations.challengeWitnessStart
-    ((PiCCSInvocations.challengeInterface Data.logicalWidth
-      Data.publicFits).initialState PiCCSInvocations.challengeWitnessStart)
-    (ChallengeDerivation.actions
-      (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
-      PiCCSInvocations.challengeWitnessStart)
+    (PiCCSProjection.fastStatementState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.challengeActions Data.logicalWidth Data.publicFits)
 
 def roundBlock (_unit : Unit) : ActionBlock :=
   ActionBlock.ofActions PiCCSInvocations.roundPhase
     PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
-    ((PiCCSInvocations.roundInterface Data.logicalWidth
-      Data.publicFits).initialState PiCCSInvocations.roundWitnessStart)
-    (RoundTranscript.actions
-      (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
-      PiCCSInvocations.roundWitnessStart)
+    (PiCCSProjection.fastChallengeState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits)
 
 def outputBlock (_unit : Unit) : ActionBlock :=
   ActionBlock.ofActions PiCCSInvocations.outputPhase
     PiCCSInvocations.outputRowStart PiCCSInvocations.outputWitnessStart
-    ((PiCCSInvocations.outputInterface Data.logicalWidth
-      Data.publicFits).initialState PiCCSInvocations.outputWitnessStart)
-    (OutputBinding.actions
-      (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
-      PiCCSInvocations.outputWitnessStart)
+    (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.outputActions Data.logicalWidth Data.publicFits)
 
 theorem statementBlock_expand :
     (statementBlock ()).expand =
@@ -244,22 +236,25 @@ theorem challengeBlock_expand :
         Data.publicFits).invocations := by
   calc
     (challengeBlock ()).expand =
-        (PiCCSInvocations.challengeSemanticTrace Data.logicalWidth
-          Data.publicFits).invocations :=
+        (Invocations.compileActions PiCCSInvocations.challengePhase
+          PiCCSInvocations.challengeRowStart
+          PiCCSInvocations.challengeWitnessStart
+          (PiCCSProjection.fastStatementState Data.logicalWidth
+            Data.publicFits)
+          (PiCCSInvocations.challengeActions Data.logicalWidth
+            Data.publicFits)).invocations :=
       (by
-        simpa [challengeBlock, PiCCSInvocations.challengeSemanticTrace] using
+        simpa [challengeBlock] using
           ActionBlock.ofActions_expand PiCCSInvocations.challengePhase
             PiCCSInvocations.challengeRowStart
             PiCCSInvocations.challengeWitnessStart
-            ((PiCCSInvocations.challengeInterface Data.logicalWidth
-              Data.publicFits).initialState
-                PiCCSInvocations.challengeWitnessStart)
-            (ChallengeDerivation.actions
-              (PiCCSInvocations.challengeInterface Data.logicalWidth
-                Data.publicFits) PiCCSInvocations.challengeWitnessStart))
-    _ = _ := congrArg (fun trace : Invocations.Trace => trace.invocations)
-      (PiCCSInvocations.challengeTrace_eq_semantic Data.logicalWidth
-        Data.publicFits).symm
+            (PiCCSProjection.fastStatementState Data.logicalWidth
+              Data.publicFits)
+            (PiCCSInvocations.challengeActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastStatementState_eq]
+      rfl
 
 theorem roundBlock_expand :
     (roundBlock ()).expand =
@@ -267,20 +262,23 @@ theorem roundBlock_expand :
         Data.publicFits).invocations := by
   calc
     (roundBlock ()).expand =
-        (PiCCSInvocations.roundSemanticTrace Data.logicalWidth
-          Data.publicFits).invocations :=
+        (Invocations.compileActions PiCCSInvocations.roundPhase
+          PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
+          (PiCCSProjection.fastChallengeState Data.logicalWidth
+            Data.publicFits)
+          (PiCCSInvocations.roundActions Data.logicalWidth
+            Data.publicFits)).invocations :=
       (by
-        simpa [roundBlock, PiCCSInvocations.roundSemanticTrace] using
+        simpa [roundBlock] using
           ActionBlock.ofActions_expand PiCCSInvocations.roundPhase
             PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
-            ((PiCCSInvocations.roundInterface Data.logicalWidth
-              Data.publicFits).initialState PiCCSInvocations.roundWitnessStart)
-            (RoundTranscript.actions
-              (PiCCSInvocations.roundInterface Data.logicalWidth
-                Data.publicFits) PiCCSInvocations.roundWitnessStart))
-    _ = _ := congrArg (fun trace : Invocations.Trace => trace.invocations)
-      (PiCCSInvocations.roundTrace_eq_semantic Data.logicalWidth
-        Data.publicFits).symm
+            (PiCCSProjection.fastChallengeState Data.logicalWidth
+              Data.publicFits)
+            (PiCCSInvocations.roundActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastChallengeState_eq]
+      rfl
 
 theorem outputBlock_expand :
     (outputBlock ()).expand =
@@ -288,21 +286,22 @@ theorem outputBlock_expand :
         Data.publicFits).invocations := by
   calc
     (outputBlock ()).expand =
-        (PiCCSInvocations.outputSemanticTrace Data.logicalWidth
-          Data.publicFits).invocations :=
+        (Invocations.compileActions PiCCSInvocations.outputPhase
+          PiCCSInvocations.outputRowStart PiCCSInvocations.outputWitnessStart
+          (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+          (PiCCSInvocations.outputActions Data.logicalWidth
+            Data.publicFits)).invocations :=
       (by
-        simpa [outputBlock, PiCCSInvocations.outputSemanticTrace] using
+        simpa [outputBlock] using
           ActionBlock.ofActions_expand PiCCSInvocations.outputPhase
             PiCCSInvocations.outputRowStart
             PiCCSInvocations.outputWitnessStart
-            ((PiCCSInvocations.outputInterface Data.logicalWidth
-              Data.publicFits).initialState PiCCSInvocations.outputWitnessStart)
-            (OutputBinding.actions
-              (PiCCSInvocations.outputInterface Data.logicalWidth
-                Data.publicFits) PiCCSInvocations.outputWitnessStart))
-    _ = _ := congrArg (fun trace : Invocations.Trace => trace.invocations)
-      (PiCCSInvocations.outputTrace_eq_semantic Data.logicalWidth
-        Data.publicFits).symm
+            (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+            (PiCCSInvocations.outputActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastRoundState_eq]
+      rfl
 
 def piCcsBlocks (_unit : Unit) : List Block :=
   [.actions (statementBlock ()), .actions (challengeBlock ()),
@@ -323,7 +322,7 @@ def samplerEntryBlock (source : Nat) : ActionBlock :=
   ActionBlock.ofActions PiRLCSamplerInvocations.phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
     (PiRLCSamplerInvocations.sourceLogicalStart source)
-    (PiRLCSamplerInvocations.entryState
+    (PiRLCSamplerInvocations.fastEntryState
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
       source)
     (TranscriptAbsorption.actions source)
@@ -334,7 +333,7 @@ def samplerWindowBlock (source round : Nat) : DirectBlock :=
       source round)
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
       source round)
-    (PiRLCSamplerInvocations.windowState
+    (PiRLCSamplerInvocations.fastWindowState
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
       source round)
 
@@ -343,28 +342,40 @@ theorem samplerEntryBlock_expand (source : Nat) :
       PiRLCSamplerInvocations.entryInvocations
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         source := by
-  simpa [samplerEntryBlock, PiRLCSamplerInvocations.entryInvocations,
-    PiRLCSamplerInvocations.entryTrace] using
-    ActionBlock.ofActions_expand PiRLCSamplerInvocations.phase
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
-      (PiRLCSamplerInvocations.sourceLogicalStart source)
-      (PiRLCSamplerInvocations.entryState
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-        source)
-      (TranscriptAbsorption.actions source)
+  calc
+    (samplerEntryBlock source).expand =
+        (Invocations.compileActions PiRLCSamplerInvocations.phase
+          (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
+          (PiRLCSamplerInvocations.sourceLogicalStart source)
+          (PiRLCSamplerInvocations.fastEntryState
+            (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+            source)
+          (TranscriptAbsorption.actions source)).invocations := by
+      simpa [samplerEntryBlock] using
+        ActionBlock.ofActions_expand PiRLCSamplerInvocations.phase
+          (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
+          (PiRLCSamplerInvocations.sourceLogicalStart source)
+          (PiRLCSamplerInvocations.fastEntryState
+            (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+            source)
+          (TranscriptAbsorption.actions source)
+    _ = _ := by
+      rw [PiRLCSamplerInvocations.fastEntryState_eq_entryState]
+      rfl
 
 theorem samplerWindowBlock_expand (source round : Nat) :
     (samplerWindowBlock source round).expand =
       PiRLCSamplerInvocations.windowInvocation
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         source round := by
-  simpa [samplerWindowBlock, PiRLCSamplerInvocations.windowInvocation] using
+  simpa [samplerWindowBlock, PiRLCSamplerInvocations.windowInvocation,
+    PiRLCSamplerInvocations.fastWindowState_eq_windowState] using
     DirectBlock.ofState_expand PiRLCSamplerInvocations.phase
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationRowStart
         source round)
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
         source round)
-      (PiRLCSamplerInvocations.windowState
+      (PiRLCSamplerInvocations.fastWindowState
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         source round)
 

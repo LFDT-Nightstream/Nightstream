@@ -61,7 +61,8 @@ def outputCommitment :
 def outputPublicInput :
     Fin (productionShape.freshCount + productionShape.runningCount) →
       PaperAlgebra.PublicInput
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) :=
+        (logicalWidth := VerifierContext.candidateLogicalWidth)
+        (publicFits := VerifierContext.candidatePublicFits) :=
   Fin.addCases fresh.publicInputs running.publicInputs
 
 def outputCommitmentsValue : Value :=
@@ -96,10 +97,10 @@ verifier context, fresh commitment, round messages, output `Eval_K`, output
 `Eval_A`, complete digest-only transcript blocks, semantic verifier-input
 blocks, and the four complete verifier-context authority word lists. -/
 def inputValue (computed : Computed) : Value :=
-  .array [fieldWordsValue statePreimageWords,
-    fieldWordsValue statePreimageWords,
-    fieldWordsValue statePublicInputWords,
-    fieldWordsValue stateDigest,
+  .array [fieldWordsValue (statePreimageWords ()),
+    fieldWordsValue (statePreimageWords ()),
+    fieldWordsValue (statePublicInputWords ()),
+    fieldWordsValue (stateDigest ()),
     fieldWordsValue stateVerifierKey,
     fieldWordsValue (serializeCommitment freshCommitment),
     roundMessagesValue computed,
@@ -139,10 +140,10 @@ def resultValue (computed : Computed) : Value :=
 
 /-- Schema 7 adds the complete authority preimage used to derive the separate
 verifier-owned context input. -/
-def parityValue : Value :=
-  let computed := compute
+def parityValue (_ : Unit) : Value :=
+  let computed := compute ()
   .array [.atom 7, inputValue computed, resultValue computed]
 
-def render : String := parityValue.render
+def render (_ : Unit) : String := (parityValue ()).render
 
 end NightstreamFPrime.Export.Stage1.PiCCSParity

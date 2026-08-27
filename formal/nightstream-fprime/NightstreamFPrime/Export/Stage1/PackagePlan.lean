@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PermutationPlan
+import NightstreamFPrime.Export.Stage1.WitnessPlan
 
 /-!
 Owns the compact, Lean-authored emission plan for the Stage 1 package.
@@ -202,6 +203,7 @@ structure Plan where
   staticPackage : CircuitPackage
   permutationBlocks : List PermutationPlan.Block
   compactInvocationBlocks : List CompactInvocationBlock
+  witnessBlocks : List WitnessPlan.Block
 
 def Plan.format : Format Plan where
   encode := fun value => .array [
@@ -209,15 +211,17 @@ def Plan.format : Format Plan where
     CircuitPackage.format.encode value.staticPackage,
     (list PermutationPlan.Block.format).encode value.permutationBlocks,
     (list CompactInvocationBlock.format).encode
-      value.compactInvocationBlocks]
+      value.compactInvocationBlocks,
+    (list WitnessPlan.Block.format).encode value.witnessBlocks]
   decode
     | .array [.atom schemaVersion, staticPackage,
-        permutationBlocks, compactInvocationBlocks] => do
+        permutationBlocks, compactInvocationBlocks, witnessBlocks] => do
       pure ⟨schemaVersion,
         ← CircuitPackage.format.decode staticPackage,
         ← (list PermutationPlan.Block.format).decode permutationBlocks,
         ← (list CompactInvocationBlock.format).decode
-          compactInvocationBlocks⟩
+          compactInvocationBlocks,
+        ← (list WitnessPlan.Block.format).decode witnessBlocks⟩
     | _ => .error "invalid Stage 1 package plan"
   decode_encode := by
     intro value
@@ -225,13 +229,16 @@ def Plan.format : Format Plan where
     simp only
     rw [CircuitPackage.format.decode_encode,
       (list PermutationPlan.Block.format).decode_encode,
-      (list CompactInvocationBlock.format).decode_encode]
+      (list CompactInvocationBlock.format).decode_encode,
+      (list WitnessPlan.Block.format).decode_encode]
     rfl
 
-def withoutPlannedInvocations (package : CircuitPackage) : CircuitPackage :=
+def withoutPlannedData (package : CircuitPackage) : CircuitPackage :=
   { package with
     permutationInvocations := []
-    compactRowInvocations := [] }
+    compactRowInvocations := []
+    witnessBatches :=
+      WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits }
 
 /-- Build the static payload directly. This avoids constructing either
 explicit invocation list only to clear it. -/
@@ -239,13 +246,31 @@ def staticComponents (_unit : Unit) : Data.Components :=
   Data.Components.of (Data.arithmeticRows ()) []
 
 def staticPackage (_unit : Unit) : CircuitPackage :=
-  { (staticComponents ()).toCircuitPackage with
-    compactRowInvocations := [] }
+  Data.circuitPackageOf (Data.arithmeticRows ()) [] []
+    (WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits)
+
+private theorem withoutPlannedData_circuitPackageOf
+    (arithmeticRows : List Rows.CompiledRow)
+    (permutations : List PermutationInvocation)
+    (compact : List CompactRowInvocation)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) :
+    withoutPlannedData
+        (Data.circuitPackageOf arithmeticRows permutations compact batches) =
+      Data.circuitPackageOf arithmeticRows [] []
+        (WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits) := by
+  rfl
 
 theorem staticPackage_eq :
     staticPackage () =
-      withoutPlannedInvocations (Data.circuitPackage ()) := by
-  rfl
+      withoutPlannedData (Data.circuitPackage ()) := by
+  symm
+  change withoutPlannedData
+      (Data.circuitPackageOf (Data.arithmeticRows ())
+        (Data.permutationInvocations ()) (Data.compactRowInvocations ())
+        (WitnessProgram.batches Data.logicalWidth Data.publicFits)) =
+    Data.circuitPackageOf (Data.arithmeticRows ()) [] []
+      (WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits)
+  exact withoutPlannedData_circuitPackageOf _ _ _ _
 
 def Plan.expand (plan : Plan) : CircuitPackage :=
   { plan.staticPackage with
@@ -253,7 +278,9 @@ def Plan.expand (plan : Plan) : CircuitPackage :=
       plan.permutationBlocks.flatMap PermutationPlan.Block.expand
     compactRowInvocations :=
       plan.compactInvocationBlocks.flatMap
-        CompactInvocationBlock.expand }
+        CompactInvocationBlock.expand
+    witnessBatches := plan.staticPackage.witnessBatches ++
+      plan.witnessBlocks.flatMap WitnessPlan.Block.expand }
 
 def canonicalCompactBlocks : List CompactInvocationBlock :=
   [.first54 canonicalFirst54Block,
@@ -264,6 +291,8 @@ def canonical (_unit : Unit) : Plan where
   staticPackage := staticPackage ()
   permutationBlocks := PermutationPlan.canonicalBlocks ()
   compactInvocationBlocks := canonicalCompactBlocks
+  witnessBlocks :=
+    WitnessPlan.canonicalBlocks Data.logicalWidth Data.publicFits
 
 theorem canonicalCompactBlocks_expand :
     canonicalCompactBlocks.flatMap CompactInvocationBlock.expand =
@@ -278,13 +307,17 @@ private theorem restorePlannedInvocations
     (package : CircuitPackage)
     (permutations : List PermutationInvocation)
     (compact : List CompactRowInvocation)
+    (witnesses : List NightstreamFPrime.Circuit.WitnessBatch)
     (permutationEqual : permutations = package.permutationInvocations)
-    (compactEqual : compact = package.compactRowInvocations) :
-    ({ withoutPlannedInvocations package with
+    (compactEqual : compact = package.compactRowInvocations)
+    (witnessEqual : witnesses = package.witnessBatches) :
+    ({ withoutPlannedData package with
         permutationInvocations := permutations
-        compactRowInvocations := compact } : CircuitPackage) = package := by
+        compactRowInvocations := compact
+        witnessBatches := witnesses } : CircuitPackage) = package := by
   subst permutations
   subst compact
+  subst witnesses
   cases package
   rfl
 
@@ -297,7 +330,10 @@ theorem canonical_expand : (canonical ()).expand = Data.circuitPackage () := by
           PermutationPlan.Block.expand
       compactRowInvocations :=
         (canonical ()).compactInvocationBlocks.flatMap
-          CompactInvocationBlock.expand } : CircuitPackage) =
+          CompactInvocationBlock.expand
+      witnessBatches := (staticPackage ()).witnessBatches ++
+        (canonical ()).witnessBlocks.flatMap
+          WitnessPlan.Block.expand } : CircuitPackage) =
     Data.circuitPackage ()
   rw [staticPackage_eq]
   apply restorePlannedInvocations
@@ -311,12 +347,25 @@ theorem canonical_expand : (canonical ()).expand = Data.circuitPackage () := by
       _ = Data.compactRowInvocations () := canonicalCompactBlocks_expand
       _ = (Data.circuitPackage ()).compactRowInvocations :=
         Data.circuitPackage_compactRowInvocations.symm
+  · change
+      WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits ++
+          (WitnessPlan.canonicalBlocks
+            Data.logicalWidth Data.publicFits).flatMap
+              WitnessPlan.Block.expand =
+        (Data.circuitPackage ()).witnessBatches
+    rw [WitnessPlan.canonicalBlocks_expand,
+      Data.circuitPackage_witnessBatches]
+    exact (WitnessProgram.batches_eq
+      Data.logicalWidth Data.publicFits).symm
 
 theorem canonical_decode_encode :
     Plan.format.decode (Plan.format.encode (canonical ())) = .ok (canonical ()) :=
   Plan.format.decode_encode (canonical ())
 
-def relationIdentifier (_unit : Unit) : List NightstreamFPrime.Spec.F :=
-  Package.relationIdentifierValue (Plan.format.encode (canonical ()))
+theorem canonical_expand_relationIdentifier :
+    Package.relationIdentifier ((canonical ()).expand) =
+      Data.relationIdentifier () := by
+  rw [canonical_expand]
+  rfl
 
 end NightstreamFPrime.Export.Stage1.PackagePlan

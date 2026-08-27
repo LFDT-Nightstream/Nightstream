@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Invocations
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 
 /-!
@@ -50,6 +51,19 @@ def entryState (source : Nat) : Invocations.EState :=
       (publicFits := publicFits) source)).initialState
     (sourceLogicalStart source)
 
+def fastEntryState (source : Nat) : Invocations.EState :=
+  PiRLCSamplerProjection.fastProductionEntryState
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source
+
+theorem fastEntryState_eq_entryState (source : Nat) :
+    fastEntryState (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source =
+      entryState (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source := by
+  unfold fastEntryState entryState sourceInterface sourceLogicalStart
+    Sampler.entryInterface
+  exact PiRLCSamplerProjection.fastProductionEntryState_eq source
+
 def entryTrace (source : Nat) : Trace :=
   compileActions phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
@@ -69,6 +83,19 @@ def windowState (source round : Nat) : Invocations.EState :=
     source (sourceLogicalStart source) round).initialState
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
         source round)
+
+def fastWindowState (source round : Nat) : Invocations.EState :=
+  PiRLCSamplerProjection.fastProductionWindowInitialState
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source round
+
+theorem fastWindowState_eq_windowState (source round : Nat) :
+    fastWindowState (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round =
+      windowState (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round := by
+  unfold fastWindowState windowState Sampler.windowInterface
+    sourceInterface sourceLogicalStart
+  exact PiRLCSamplerProjection.fastProductionWindowInitialState_eq source round
 
 def windowInvocation (source round : Nat) : PermutationInvocation :=
   invocation phase
@@ -93,6 +120,29 @@ def sourceInvocations (source : Nat) : List PermutationInvocation :=
 def invocations : List PermutationInvocation :=
   (List.range sourceCount).flatMap
     (sourceInvocations (logicalWidth := logicalWidth) (publicFits := publicFits))
+
+@[simp] theorem entryInvocations_length (source : Nat) :
+    (entryInvocations (logicalWidth := logicalWidth)
+      (publicFits := publicFits) source).length = 1 := by
+  rw [entryInvocations, entryTrace, compileActions_invocations_length]
+  norm_num [invocationCount, Action.invocationCount,
+    TranscriptAbsorption.actions, TranscriptAbsorption.constantWords,
+    TranscriptAbsorption.frameWords, Hash.inputChunks, Spec.Poseidon2.rate]
+
+@[simp] theorem windowInvocations_length (source : Nat) :
+    (windowInvocations (logicalWidth := logicalWidth)
+      (publicFits := publicFits) source).length = digestRoundCount := by
+  simp [windowInvocations]
+
+@[simp] theorem sourceInvocations_length (source : Nat) :
+    (sourceInvocations (logicalWidth := logicalWidth)
+      (publicFits := publicFits) source).length = 9 := by
+  simp [sourceInvocations, digestRoundCount]
+
+@[simp] theorem invocations_length :
+    (invocations (logicalWidth := logicalWidth)
+      (publicFits := publicFits)).length = 153 := by
+  simp [invocations, sourceCount]
 
 theorem entryState_affine (source : Nat) :
     StateAffine

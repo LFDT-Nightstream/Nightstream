@@ -183,6 +183,46 @@ theorem template_rows_length (firstSource : Bool)
 @[simp] theorem templates_length : templates.length = 108 := by
   simp [templates]
 
+theorem templateIndex_lt (source : Nat) (lane : Fin ringDegree) :
+    templateIndex source lane.val < templates.length := by
+  have laneLt : lane.val < 54 := by
+    simpa [ringDegree] using lane.isLt
+  rw [templates_length]
+  unfold templateIndex
+  split <;> norm_num [ringDegree] <;> omega
+
+private theorem map_finRange_getElem? {count : Nat} {Alpha : Type}
+    (entry : Fin count → Alpha) (index : Nat) (bound : index < count) :
+    ((List.finRange count).map entry)[index]? =
+      some (entry ⟨index, bound⟩) := by
+  rw [List.getElem?_eq_getElem (by simpa using bound)]
+  simp
+
+theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
+    templates[templateIndex source lane.val]? =
+      some (template (source == 0) lane) := by
+  by_cases first : source = 0
+  · subst source
+    unfold templates templateIndex
+    rw [if_pos rfl]
+    rw [List.getElem?_append_left (by
+      simpa [firstTemplates] using lane.isLt)]
+    simpa [firstTemplates] using
+      map_finRange_getElem? (template true) lane.val lane.isLt
+  · unfold templates templateIndex
+    rw [if_neg first]
+    have notFirst : (source == 0) = false :=
+      beq_eq_false_iff_ne.mpr first
+    rw [List.getElem?_append_right (by
+      rw [firstTemplates_length]
+      simpa [ringDegree] using lane.isLt)]
+    rw [firstTemplates_length]
+    have shifted : ringDegree + lane.val - 54 = lane.val := by
+      norm_num [ringDegree]
+    rw [shifted]
+    simpa [laterTemplates, notFirst] using
+      map_finRange_getElem? (template false) lane.val lane.isLt
+
 theorem laneFreshCount_sum :
     (List.ofFn CombinationStep.laneFreshCount).sum = 8100 := by
   rfl

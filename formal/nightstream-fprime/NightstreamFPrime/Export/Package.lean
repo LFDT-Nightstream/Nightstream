@@ -403,7 +403,8 @@ def PermutationTemplate.format : Format PermutationTemplate where
     simp [Format.decode_encode] <;> rfl
 
 /-- One exact instantiation chain. Absorb permutations precede the one final
-padding permutation; four digest-equality rows follow the chain. -/
+padding permutation. `digestLength` records how many caller-owned digest
+columns are bound by ordinary rows after the permutation rows. -/
 structure HashChain where
   phase : Nat
   rowStart : Nat
@@ -413,6 +414,7 @@ structure HashChain where
   witnessStart : Nat
   witnessLength : Nat
   absorbCount : Nat
+  digestLength : Nat
   digestStart : Nat
 deriving Repr
 
@@ -426,13 +428,15 @@ def HashChain.format : Format HashChain where
     .atom value.witnessStart,
     .atom value.witnessLength,
     .atom value.absorbCount,
+    .atom value.digestLength,
     .atom value.digestStart]
   decode
     | .array [.atom phase, .atom rowStart, .atom rowCount,
         .atom inputStart, .atom inputLength, .atom witnessStart,
-        .atom witnessLength, .atom absorbCount, .atom digestStart] =>
+        .atom witnessLength, .atom absorbCount, .atom digestLength,
+        .atom digestStart] =>
       .ok ⟨phase, rowStart, rowCount, inputStart, inputLength,
-        witnessStart, witnessLength, absorbCount, digestStart⟩
+        witnessStart, witnessLength, absorbCount, digestLength, digestStart⟩
     | _ => .error "invalid hash chain"
   decode_encode := by
     intro value

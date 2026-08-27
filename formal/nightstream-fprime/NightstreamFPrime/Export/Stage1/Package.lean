@@ -1,13 +1,16 @@
 import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationCounts
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Conformance
 import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC package.
+Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC
+package.
 
 No theorem evaluates the package artifact. Counts follow from the pilot
 proofs, the compact invocation compiler, the ordinary-row classifier, and the
@@ -146,17 +149,13 @@ theorem circuitPackage_hash_chains :
   rw [Data.circuitPackage_hashChains]
   rfl
 
-theorem circuitPackage_permutation_invocations
-    (samplerInvocationsLength :
-      (PiRLCSamplerInvocations.invocations
-        (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits)).length = 153) :
+theorem circuitPackage_permutation_invocations :
     (Data.circuitPackage ()).permutationInvocations.length = 7613 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
-    samplerInvocationsLength]
+    PiRLCSamplerInvocations.invocations_length]
 
 theorem proofInputStart_eq : Data.proofInputStart = 84950 := by
   rfl
@@ -169,11 +168,11 @@ theorem witnessLength_eq : Data.witnessLength = 25555039 := by
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 25556958 ∧
-      layout.privateColumnCount = 25669001 ∧
-      layout.constantColumn = 25669001 ∧
+    layout.rowCount = 25564086 ∧
+      layout.privateColumnCount = 25714955 ∧
+      layout.constantColumn = 25714955 ∧
       layout.publicColumnCount = 62 ∧
-      layout.totalColumnCount = 25669064 := by
+      layout.totalColumnCount = 25715018 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -190,21 +189,23 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 986251 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 993379 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 986251 := by
-      rw [Data.arithmeticRows_eq, List.length_append,
+    _ = 993379 := by
+      rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
-        PiRLCSamplerOrdinaryRows.rows_length]
+        PiRLCSamplerOrdinaryRows.rows_length,
+        PiDECArithmetic.Plan.rows_length,
+        PiDECArithmetic.canonicalPlan_rowCount relation]
 
 theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 986309 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 993437 := by
   calc
     _ = (Data.liftPilotRows (PilotData.assertionRows ())).length +
         (Data.components ()).arithmeticRows.length :=
@@ -213,12 +214,14 @@ theorem circuitPackage_ordinary_rows
       rw [liftPilotRows_length,
         NightstreamFPrime.Export.Pilot.assertionRows_length,
         Data.components_arithmeticRows]
-    _ = 58 + 986251 := by
-      rw [Data.arithmeticRows_eq, List.length_append,
+    _ = 58 + 993379 := by
+      rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
-        PiRLCSamplerOrdinaryRows.rows_length]
-    _ = 986309 := by norm_num
+        PiRLCSamplerOrdinaryRows.rows_length,
+        PiDECArithmetic.Plan.rows_length,
+        PiDECArithmetic.canonicalPlan_rowCount relation]
+    _ = 993437 := by norm_num
 
 /-- Construct all 7,460 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
@@ -301,7 +304,17 @@ theorem arithmeticRows_imply_packageOrdinary
     rw [Rows.assertionRowsTR_eq, Data.components_arithmeticRows] at member
     exact member
 
-/-- The two phase-local ordinary packets compose into the exact classified
+private theorem compiledRowsHold_three_iff
+    (env : Env) (first second third : List Rows.CompiledRow) :
+    R1CS.RowsHold env
+        (((first ++ second) ++ third).map Rows.CompiledRow.toR1CS) ↔
+      R1CS.RowsHold env (first.map Rows.CompiledRow.toR1CS) ∧
+        R1CS.RowsHold env (second.map Rows.CompiledRow.toR1CS) ∧
+        R1CS.RowsHold env (third.map Rows.CompiledRow.toR1CS) := by
+  rw [List.map_append, List.map_append, R1CS.rowsHold_append,
+    R1CS.rowsHold_append, and_assoc]
+
+/-- The three phase-local ordinary packets compose into the exact classified
 ordinary surface of the current canonical package. -/
 theorem phaseArithmeticRows_imply_packageOrdinary
     (env : Env)
@@ -310,14 +323,19 @@ theorem phaseArithmeticRows_imply_packageOrdinary
         Data.publicFits).map Rows.CompiledRow.toR1CS))
     (piRlc : R1CS.RowsHold env
       ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS)) :
+        (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS))
+    (piDec : R1CS.RowsHold env
+      ((PiDECArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows.map
+          Rows.CompiledRow.toR1CS)) :
     (∀ instruction ∈ (Data.circuitPackage ()).witnessInstructions,
         instruction.Holds env) ∧
       ∀ assertion ∈ (Data.components ()).arithmeticAssertionRows,
         assertion.Holds env := by
   apply arithmeticRows_imply_packageOrdinary env
-  rw [Data.arithmeticRows_eq, List.map_append, R1CS.rowsHold_append]
-  exact ⟨piCcs, piRlc⟩
+  rw [Data.arithmeticRows_eq]
+  exact (compiledRowsHold_three_iff env _ _ _).mpr
+    ⟨piCcs, piRlc, piDec⟩
 
 /-- The ordinary package packet preserves the exact PiCCS arithmetic prefix. -/
 theorem circuitPackage_implies_piCcsArithmeticRows
@@ -327,9 +345,8 @@ theorem circuitPackage_implies_piCcsArithmeticRows
       ((PiCCSArithmetic.arithmeticRows Data.logicalWidth Data.publicFits).map
         Rows.CompiledRow.toR1CS) := by
   have combined := circuitPackage_implies_arithmeticRows env holds
-  rw [Data.arithmeticRows_eq, List.map_append, R1CS.rowsHold_append]
-    at combined
-  exact combined.1
+  rw [Data.arithmeticRows_eq] at combined
+  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.1
 
 /-- The ordinary package packet preserves the exact PiRLC sampler-row
 suffix selected by `Data.arithmeticRows`. -/
@@ -340,9 +357,56 @@ theorem circuitPackage_implies_piRlcSamplerOrdinaryRows
       ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := Data.logicalWidth)
         (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS) := by
   have combined := circuitPackage_implies_arithmeticRows env holds
-  rw [Data.arithmeticRows_eq, List.map_append, R1CS.rowsHold_append]
-    at combined
-  exact combined.2
+  rw [Data.arithmeticRows_eq] at combined
+  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.2.1
+
+/-- The ordinary package packet preserves the exact PiDEC row suffix selected
+by the canonical generative plan. -/
+theorem circuitPackage_implies_piDecArithmeticRows
+    (env : Env)
+    (holds : (Data.circuitPackage ()).RowsHold env) :
+    R1CS.RowsHold env
+      ((PiDECArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows.map
+          Rows.CompiledRow.toR1CS) := by
+  have combined := circuitPackage_implies_arithmeticRows env holds
+  rw [Data.arithmeticRows_eq] at combined
+  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.2.2
+
+/-- Canonical package rows imply the exact PiDEC verifier semantics through
+the Lean-owned lowering plan and Spartan column permutation. -/
+theorem circuitPackage_implies_piDecPhaseHolds
+    (relation : ProductionKey.LogicalRelation Data.logicalWidth
+      Data.publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+    (env : Env)
+    (holds : (Data.circuitPackage ()).RowsHold env)
+    (assumptions :
+      NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
+        (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
+        NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
+    NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics.PhaseHolds
+      relation ajtai
+      (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
+      NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+  have packageRows := circuitPackage_implies_piDecArithmeticRows env holds
+  have exactRows := PiDECArithmetic.Plan.rows_to_layout
+    (PiDECArithmetic.canonicalPlan Data.logicalWidth Data.publicFits)
+    (PiDECArithmetic.canonicalLayoutPlan relation)
+    (PiDECArithmetic.canonicalPlan_matches relation)
+  rw [exactRows] at packageRows
+  have physical :=
+    (NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold env _).mp
+      packageRows
+  exact NightstreamFPrime.Layout.PiDEC.v1_1.physical_implies_phaseHolds
+    relation ajtai
+    (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    assumptions physical
 
 /-- Canonical package satisfaction implies the exact First54 constraint
 specification for one bounded PiRLC scalar source. -/
@@ -643,6 +707,34 @@ def PiRLCCombinationTemplateSelection (package : CircuitPackage) : Prop :=
         some (PiRLCCombinationTemplates.template
           (PiRLCCombinationInvocations.firstSource source.val) lane)
 
+private theorem piRlcPackageTemplates_selectCombination
+    (source : Nat) (lane : Fin ringDegree) :
+    PiRLCFirst54Invocations.packageTemplates[
+        PiRLCCombinationTemplates.templateIndex source lane.val]? =
+      some (PiRLCCombinationTemplates.template
+        (PiRLCCombinationInvocations.firstSource source) lane) := by
+  unfold PiRLCFirst54Invocations.packageTemplates
+  rw [List.getElem?_append_left
+    (PiRLCCombinationTemplates.templateIndex_lt source lane)]
+  simpa [PiRLCCombinationInvocations.firstSource] using
+    PiRLCCombinationTemplates.template_getElem? source lane
+
+theorem circuitPackage_piRlcCombinationTemplateSelection :
+    PiRLCCombinationTemplateSelection (Data.circuitPackage ()) := by
+  intro source lane
+  rw [Data.circuitPackage_compactRowTemplates,
+    Data.compactRowTemplates_eq]
+  change PiRLCFirst54Invocations.packageTemplates[
+      PiRLCCombinationTemplates.templateIndex source.val lane.val]? = _
+  exact piRlcPackageTemplates_selectCombination source.val lane
+
+theorem piRlcCombination_compactRowCount :
+    compactRowCountFor PiRLCFirst54Invocations.packageTemplates
+      PiRLCCombinationInvocations.invocations = 6792282 := by
+  exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
+    PiRLCFirst54Invocations.packageTemplates
+    piRlcPackageTemplates_selectCombination
+
 private theorem familyInvocationRows_of_package
     (package : CircuitPackage) (env : Env)
     (selection : PiRLCCombinationTemplateSelection package)
@@ -700,12 +792,12 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
     PiRLCCombinationInvocations.evalAValueSourceStart env
 
 /-- Canonical package satisfaction supplies all four exact combination-row
-packets once its template-selection equation is known. -/
+packets from its Lean-selected templates. -/
 theorem circuitPackage_implies_piRlcCombinationRows
     (env : Env)
-    (holds : (Data.circuitPackage ()).RowsHold env)
-    (selection : PiRLCCombinationTemplateSelection (Data.circuitPackage ())) :
+    (holds : (Data.circuitPackage ()).RowsHold env) :
     PiRLCCombinationRowsHold env := by
+  let selection := circuitPackage_piRlcCombinationTemplateSelection
   constructor
   · apply familyInvocationRows_of_package (Data.circuitPackage ()) env
       selection holds.2.2.1
@@ -763,7 +855,7 @@ theorem circuitPackage_implies_piRlcCombinationRows
 
 /-- Package-backed sampler rows plus the four exact combination packets
 assemble the authoritative seven-child PiRLC parent specification. -/
-theorem circuitPackage_implies_piRlcSpecHolds
+theorem circuitPackage_implies_piRlcSpecHolds_of_combinationRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (env : Env)
@@ -828,7 +920,7 @@ theorem circuitPackage_implies_piRlcSpecHolds
 
 /-- The same package-backed parent entails the complete deterministic PiRLC
 phase semantics for the caller-selected relation and Ajtai key. -/
-theorem circuitPackage_implies_piRlcPhaseHolds
+theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (ajtai : AjtaiKey
@@ -847,12 +939,13 @@ theorem circuitPackage_implies_piRlcPhaseHolds
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply Semantics.spec_implies_phaseHolds
-  exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
+  exact circuitPackage_implies_piRlcSpecHolds_of_combinationRows relation env
+    holds assumptions
     combinationRows
 
-/-- Canonical package satisfaction implies the seven-child PiRLC parent once
-the exact combination-template selection equation is supplied. -/
-theorem circuitPackage_implies_piRlcSpecHolds_of_combinationTemplates
+/-- Canonical package satisfaction implies the exact seven-child PiRLC
+parent specification. -/
+theorem circuitPackage_implies_piRlcSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (env : Env)
@@ -861,19 +954,18 @@ theorem circuitPackage_implies_piRlcSpecHolds_of_combinationTemplates
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
-    (selection : PiRLCCombinationTemplateSelection (Data.circuitPackage ())) :
+      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
     Formal.SpecHolds relation
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
-  exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
-    (circuitPackage_implies_piRlcCombinationRows env holds selection)
+  exact circuitPackage_implies_piRlcSpecHolds_of_combinationRows relation env
+    holds assumptions (circuitPackage_implies_piRlcCombinationRows env holds)
 
-/-- Under the same single selection equation, canonical package satisfaction
-entails the complete deterministic PiRLC phase semantics. -/
-theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationTemplates
+/-- Canonical package satisfaction entails the complete deterministic PiRLC
+phase semantics. -/
+theorem circuitPackage_implies_piRlcPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
     (ajtai : AjtaiKey
@@ -884,16 +976,14 @@ theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationTemplates
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
-    (selection : PiRLCCombinationTemplateSelection (Data.circuitPackage ())) :
+      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
     Semantics.PhaseHolds relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply Semantics.spec_implies_phaseHolds
-  exact circuitPackage_implies_piRlcSpecHolds_of_combinationTemplates relation
-    env holds assumptions selection
+  exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
 
 /-- The combined package enforces the exact two pilot hashes and the complete
 prior public-input marker/tail layout after the pilot-column lift. -/
@@ -1249,10 +1339,7 @@ private theorem hashChain_rows :
       PilotData.outputChain.witnessLength = 12574080
   omega
 
-theorem circuitPackage_compactRowCount
-    (combinationRows :
-      compactRowCountFor PiRLCFirst54Invocations.packageTemplates
-        PiRLCCombinationInvocations.invocations = 6792282) :
+theorem circuitPackage_compactRowCount :
     (Data.components ()).toCircuitPackage.compactRowCount = 7489673 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
@@ -1262,21 +1349,15 @@ theorem circuitPackage_compactRowCount
     (PiRLCFirst54Invocations.invocations ++
       PiRLCCombinationInvocations.invocations) = 7489673
   rw [compactRowCountFor_append,
-    PiRLCFirst54Invocations.compactRowCount, combinationRows]
+    PiRLCFirst54Invocations.compactRowCount,
+    piRlcCombination_compactRowCount]
 
 /-- All template and ordinary row families account for the exact physical
 row count. Exact row-index ordering is proved by the phase compilers and is
 also checked by the strict Rust loader. -/
 theorem circuitPackage_row_coverage
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
-      Data.publicFits)
-    (samplerInvocationsLength :
-      (PiRLCSamplerInvocations.invocations
-        (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits)).length = 153)
-    (combinationRows :
-      compactRowCountFor PiRLCFirst54Invocations.packageTemplates
-        PiRLCCombinationInvocations.invocations = 6792282) :
+      Data.publicFits) :
     ((Data.components ()).toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       (Data.components ()).toCircuitPackage.permutationInvocations.length *
@@ -1287,18 +1368,20 @@ theorem circuitPackage_row_coverage
         (Data.components ()).toCircuitPackage.layout.rowCount := by
   apply Data.Components.rowCoverage (Data.components ())
   · rw [Data.components_arithmeticRows, Data.arithmeticRows_eq,
-      List.length_append,
+      List.length_append, List.length_append,
       PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
         Data.publicFits relation,
-      PiRLCSamplerOrdinaryRows.rows_length]
+      PiRLCSamplerOrdinaryRows.rows_length,
+      PiDECArithmetic.Plan.rows_length,
+      PiDECArithmetic.canonicalPlan_rowCount relation]
   · rw [Data.components_permutationInvocations,
       Data.permutationInvocations_eq, List.length_append,
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
-      samplerInvocationsLength]
+      PiRLCSamplerInvocations.invocations_length]
   · exact NightstreamFPrime.Export.Pilot.templateRows_length
   · rw [liftPilotRows_length,
       NightstreamFPrime.Export.Pilot.assertionRows_length]
   · exact hashChain_rows
-  · exact circuitPackage_compactRowCount combinationRows
+  · exact circuitPackage_compactRowCount
 
 end NightstreamFPrime.Export.Stage1.Package

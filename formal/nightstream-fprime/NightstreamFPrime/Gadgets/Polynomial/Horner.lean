@@ -57,6 +57,80 @@ def compile (start : Nat) (point : KExpr) : List KExpr → Program
       ⟨tail.recipes ++ mulRecipes point tail.output,
         KExpr.add coefficient product⟩
 
+/-- Linear executable builder for `compile`. The difference list preserves
+the structural compiler's tail-first recipe order, while `recipeCount` avoids
+rescanning the growing recipe prefix at each Horner step. -/
+structure ProgramBuilder where
+  recipes : List Expr → List Expr
+  recipeCount : Nat
+  output : KExpr
+
+@[inline] def compileBuilder (start : Nat) (point : KExpr) :
+    List KExpr → ProgramBuilder
+  | [] => ⟨fun suffix => suffix, 0, KExpr.zero⟩
+  | [coefficient] => ⟨fun suffix => suffix, 0, coefficient⟩
+  | coefficient :: next :: rest =>
+      let tail := compileBuilder start point (next :: rest)
+      let productStart := start + tail.recipeCount
+      let product := productAt productStart
+      { recipes := fun suffix =>
+          tail.recipes (mulRecipes point tail.output ++ suffix)
+        recipeCount := tail.recipeCount + 2
+        output := KExpr.add coefficient product }
+
+@[inline] def compileFast (start : Nat) (point : KExpr)
+    (coefficients : List KExpr) : Program :=
+  let builder := compileBuilder start point coefficients
+  ⟨builder.recipes [], builder.output⟩
+
+private theorem compileBuilder_recipeCount (start : Nat) (point : KExpr) :
+    ∀ coefficients : List KExpr,
+      (compileBuilder start point coefficients).recipeCount =
+        (compile start point coefficients).recipes.length
+  | [] => rfl
+  | [_] => rfl
+  | coefficient :: next :: rest => by
+      simp only [compileBuilder, compile, List.length_append,
+        mulRecipes_length]
+      rw [compileBuilder_recipeCount start point (next :: rest)]
+
+private theorem compileBuilder_output (start : Nat) (point : KExpr) :
+    ∀ coefficients : List KExpr,
+      (compileBuilder start point coefficients).output =
+        (compile start point coefficients).output
+  | [] => rfl
+  | [_] => rfl
+  | coefficient :: next :: rest => by
+      simp only [compileBuilder, compile]
+      rw [compileBuilder_recipeCount start point (next :: rest)]
+
+private theorem compileBuilder_recipes (start : Nat) (point : KExpr) :
+    ∀ (coefficients : List KExpr) (suffix : List Expr),
+      (compileBuilder start point coefficients).recipes suffix =
+        (compile start point coefficients).recipes ++ suffix
+  | [], _ => rfl
+  | [_], _ => rfl
+  | coefficient :: next :: rest, suffix => by
+      simp only [compileBuilder, compile]
+      rw [compileBuilder_recipes start point (next :: rest)
+        (mulRecipes point
+          (compileBuilder start point (next :: rest)).output ++ suffix)]
+      rw [compileBuilder_output start point (next :: rest)]
+      simp only [List.append_assoc]
+
+theorem compileFast_eq_compile (start : Nat) (point : KExpr)
+    (coefficients : List KExpr) :
+    compileFast start point coefficients = compile start point coefficients := by
+  apply congrArg₂ Program.mk
+  · simpa [compileFast] using
+      compileBuilder_recipes start point coefficients []
+  · simpa [compileFast] using
+      compileBuilder_output start point coefficients
+
+@[csimp] theorem compile_eq_compileFast : @compile = @compileFast := by
+  funext start point coefficients
+  exact (compileFast_eq_compile start point coefficients).symm
+
 /-- Optimized semantic Horner form with no trailing multiplication by zero. -/
 def evaluate (point : K) : List K → K
   | [] => K.zero

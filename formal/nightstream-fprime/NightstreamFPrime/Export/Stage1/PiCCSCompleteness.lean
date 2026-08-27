@@ -760,7 +760,7 @@ private theorem childOp_flatConstraints (name : String)
       NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints child offset := by
   rfl
 
-private theorem initialClaimConstraints_eq
+theorem initialClaimConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -778,7 +778,7 @@ private theorem initialClaimConstraints_eq
   unfold PiCCSArithmetic.sharedInterface PiCCSArithmetic.parentInterface
   rfl
 
-private theorem sumcheckConstraints_eq
+theorem sumcheckConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -796,7 +796,7 @@ private theorem sumcheckConstraints_eq
   unfold PiCCSArithmetic.sharedInterface PiCCSArithmetic.parentInterface
   rfl
 
-private theorem evalKConstraints_eq
+theorem evalKConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -814,7 +814,7 @@ private theorem evalKConstraints_eq
   unfold PiCCSArithmetic.sharedInterface PiCCSArithmetic.parentInterface
   rfl
 
-private theorem evalAConstraints_eq
+theorem evalAConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -832,7 +832,7 @@ private theorem evalAConstraints_eq
   unfold PiCCSArithmetic.sharedInterface PiCCSArithmetic.parentInterface
   rfl
 
-private theorem ccsConstraints_eq
+theorem ccsConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -854,7 +854,7 @@ private theorem ccsConstraints_eq
     PiCCSArithmetic.sharedInterface PiCCSArithmetic.parentInterface
   rfl
 
-private theorem normConstraints_eq
+theorem normConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -880,7 +880,7 @@ private theorem normConstraints_eq
     PiCCSInvocations.sharedInterface
   rfl
 
-private theorem finalIdentityConstraints_eq
+theorem finalIdentityConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

@@ -1,7 +1,7 @@
-import NightstreamFPrime.Export.Stage1.Data
-import NightstreamFPrime.Export.Stage1.VerifierContext
+import NightstreamFPrime.Export.Stage1.VerifierContextCandidate
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Owns one deterministic, valid, nonzero SuperNeo v1.1 PiCCS conformance
@@ -26,7 +26,8 @@ def extension (low high : Nat) : K :=
 
 def running : Running K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits))
     productionShape where
   point := {
     coordinates := List.ofFn fun coordinate :
@@ -69,7 +70,8 @@ def stateCurrent : AppState :=
   [field 301, field 302, field 303, field 304]
 
 def statePreimage : HashPreimage
-    (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) where
+    (logicalWidth := VerifierContext.candidateLogicalWidth)
+    (publicFits := VerifierContext.candidatePublicFits) where
   verifierKeys := fun _ => stateVerifierKey
   iteration := 7
   z0 := stateZ0
@@ -77,17 +79,20 @@ def statePreimage : HashPreimage
   running := fun _ => running
   pc := 1
 
-def statePreimageWords : List F :=
-  serializePreimage (publicFits := Data.publicFits) statePreimage
+def statePreimageWords (_ : Unit) : List F :=
+  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+    statePreimage
 
-def stateDigest : Digest :=
-  stateHash (publicFits := Data.publicFits) statePreimage
+def stateDigest (_ : Unit) : Digest :=
+  stateHash (publicFits := VerifierContext.candidatePublicFits) statePreimage
 
 def lifecyclePublicInput : PaperAlgebra.PublicInput
-    (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) :=
-  fun column => encHash (publicFits := Data.publicFits) stateDigest column
+    (logicalWidth := VerifierContext.candidateLogicalWidth)
+    (publicFits := VerifierContext.candidatePublicFits) :=
+  fun column => encHash (publicFits := VerifierContext.candidatePublicFits)
+    (stateDigest ()) column
 
-def statePublicInputWords : List F :=
+def statePublicInputWords (_ : Unit) : List F :=
   List.ofFn lifecyclePublicInput
 
 def freshCommitment : PaperAlgebra.Commitment :=
@@ -96,7 +101,8 @@ def freshCommitment : PaperAlgebra.Commitment :=
 
 def fresh : Fresh PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits))
     productionShape where
   commitments := fun _ => freshCommitment
   publicInputs := fun _ => lifecyclePublicInput
@@ -112,13 +118,141 @@ def verifierInput : ProtocolPolynomial.VerifierInput K productionShape where
     (running.evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
 
-def publicState : Transcript.State :=
+/-- Linear Horner evaluation of the exact verifier-owned initial-claim
+coefficient list. -/
+def initialClaimFast (gamma : K) : K :=
+  NightstreamFPrime.Spec.SumCheck.Finite.Message.evaluateCoefficients
+    extensionOps.toOps gamma
+    (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.targetCoefficientList
+      verifierInput)
+
+theorem initialClaimFast_eq_initial (gamma : K) :
+    initialClaimFast gamma = verifierInput.initial extensionOps gamma := by
+  exact
+    NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.evaluateTargetCoefficients_eq_initial
+      extensionOps ConcreteCarrier.extensionLaws verifierInput gamma
+
+private def powerLoop (value : K) : Nat → K → K
+  | 0, accumulated => accumulated
+  | exponent + 1, accumulated =>
+      powerLoop value exponent (extensionOps.toOps.mul value accumulated)
+
+/-- Tail-recursive execution of the exact right-nested paper power. -/
+def powerFast (value : K) (exponent : Nat) : K :=
+  powerLoop value exponent extensionOps.toOps.one
+
+private theorem powerLoop_power (value : K) : ∀ count exponent,
+    powerLoop value count
+        (TargetPolynomial.power extensionOps.toOps value exponent) =
+      TargetPolynomial.power extensionOps.toOps value (count + exponent) := by
+  intro count
+  induction count with
+  | zero =>
+      intro exponent
+      simp [powerLoop]
+  | succ count inductionHypothesis =>
+      intro exponent
+      simp only [powerLoop]
+      change powerLoop value count
+        (TargetPolynomial.power extensionOps.toOps value (exponent + 1)) = _
+      rw [inductionHypothesis]
+      apply congrArg (TargetPolynomial.power extensionOps.toOps value)
+      omega
+
+theorem powerFast_eq_power (value : K) (exponent : Nat) :
+    powerFast value exponent =
+      TargetPolynomial.power extensionOps.toOps value exponent := by
+  unfold powerFast
+  change powerLoop value exponent
+    (TargetPolynomial.power extensionOps.toOps value 0) = _
+  rw [powerLoop_power]
+  simp
+
+/-- Linear evaluation of the exact paper `Eval_K` terminal. -/
+def padTerminalFast (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K productionShape) : K :=
+  extensionOps.mul
+    (SumCheckTruthPath.pointEquality extensionOps point verifierInput.priorPoint)
+    (NightstreamFPrime.Spec.SumCheck.Finite.Message.evaluateCoefficients
+      extensionOps.toOps gamma
+      (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputPadCoefficientList
+        message))
+
+theorem padTerminalFast_eq_paper (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K productionShape) :
+    padTerminalFast gamma point message =
+      ProtocolPolynomial.padAtMessage extensionOps verifierInput gamma point
+        message := by
+  exact
+    (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.padAtMessage_eq_pointEquality_mul_horner
+      extensionOps ConcreteCarrier.extensionLaws verifierInput gamma point
+        message).symm
+
+/-- Linear evaluation of the exact paper-local `Eval_A` terminal. -/
+def matrixTerminalFast (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K productionShape) : K :=
+  extensionOps.mul
+    (SumCheckTruthPath.pointEquality extensionOps point verifierInput.priorPoint)
+    (NightstreamFPrime.Spec.SumCheck.Finite.Message.evaluateCoefficients
+      extensionOps.toOps gamma
+      (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList
+        message))
+
+theorem matrixTerminalFast_eq_paper (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K productionShape) :
+    matrixTerminalFast gamma point message =
+      ProtocolPolynomial.matrixAtMessage extensionOps verifierInput gamma point
+        message := by
+  exact
+    (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.matrixAtMessage_eq_pointEquality_mul_horner
+      extensionOps ConcreteCarrier.extensionLaws verifierInput gamma point
+        message).symm
+
+/-- Assemble the exact paper terminal from independently computed terminal
+parts. Only the fixed gamma shifts use the tail-recursive power adapter. -/
+def assembleTerminalFast
+    (alpha : CubePoint K productionShape.cubeVariables)
+    (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (pad matrix ccs norm : K) : K :=
+  extensionOps.add pad <| extensionOps.add
+    (extensionOps.mul
+      (powerFast gamma productionShape.matrixEvaluationOffset) matrix)
+    (extensionOps.mul (powerFast gamma productionShape.constraintOffset) <|
+      extensionOps.mul
+        (SumCheckTruthPath.pointEquality extensionOps point alpha) <|
+        extensionOps.add ccs
+          (extensionOps.mul
+            (powerFast gamma productionShape.freshCount) norm))
+
+theorem assembleTerminalFast_eq_paper
+    (alpha : CubePoint K productionShape.cubeVariables)
+    (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K productionShape) :
+    assembleTerminalFast alpha gamma point
+        (padTerminalFast gamma point message)
+        (matrixTerminalFast gamma point message)
+        (ProtocolPolynomial.ccsAtMessage extensionOps verifierInput gamma message)
+        (ProtocolPolynomial.normAtMessage extensionOps gamma message) =
+      ProtocolPolynomial.terminalFromMessage extensionOps verifierInput alpha
+        gamma point message := by
+  rw [padTerminalFast_eq_paper, matrixTerminalFast_eq_paper]
+  unfold assembleTerminalFast ProtocolPolynomial.terminalFromMessage
+    SignedJointIdentity.gammaTerm
+  simp only [powerFast_eq_power]
+
+def publicState (_ : Unit) : Transcript.State :=
   ProductionKey.absorbPublicInput
     (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
     running fresh
 
-def statementState : Transcript.State :=
-  publicState
+def statementState (_ : Unit) : Transcript.State :=
+  publicState ()
 
 def addCopies : Nat → K → K
   | 0, _ => K.zero
@@ -209,7 +343,7 @@ def baseMatrix (source : Fin productionShape.sourceCount)
 /-- The exact coordinate solved once from the verifier terminal equation.
 Its acceptance is checked again by executable Lean and every emitted row. -/
 def solvedTarget : K :=
-  ⟨8954714909849330266, 2392921906067264225⟩
+  ⟨6360413385382072525, 18427268413714025497⟩
 
 def output : FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := fun source coefficient =>
@@ -270,12 +404,11 @@ structure Computed where
   proofMessagesNonzero : Bool
 
 /-- Evaluate the complete fixture with one shared transcript and round trace. -/
-def compute : Computed :=
+def compute (_ : Unit) : Computed :=
   let preSumcheck :=
     NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
-      Transcript.piCcsOracle.transcript statementState
-  let initialClaim :=
-    verifierInput.initial extensionOps preSumcheck.gamma
+      Transcript.piCcsOracle.transcript (statementState ())
+  let initialClaim := initialClaimFast preSumcheck.gamma
   let roundTrace := buildRoundTrace preSumcheck initialClaim
   let verifierRoundResult :=
     FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
@@ -290,19 +423,17 @@ def compute : Computed :=
   }
   let message := outputMessage output
   let padTerminal :=
-    ProtocolPolynomial.padAtMessage extensionOps verifierInput
-      preSumcheck.gamma verifierRoundPoint message
+    padTerminalFast preSumcheck.gamma verifierRoundPoint message
   let matrixTerminal :=
-    ProtocolPolynomial.matrixAtMessage extensionOps verifierInput
-      preSumcheck.gamma verifierRoundPoint message
+    matrixTerminalFast preSumcheck.gamma verifierRoundPoint message
   let ccsTerminal :=
     ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
       preSumcheck.gamma message
   let normTerminal :=
     ProtocolPolynomial.normAtMessage extensionOps preSumcheck.gamma message
   let verifierTerminal :=
-    ProtocolPolynomial.terminalFromMessage extensionOps verifierInput
-      preSumcheck.alpha preSumcheck.gamma verifierRoundPoint message
+    assembleTerminalFast preSumcheck.alpha preSumcheck.gamma verifierRoundPoint
+      padTerminal matrixTerminal ccsTerminal normTerminal
   let outgoingState :=
     ProductionKey.absorbFullOutput verifierRoundResult.2 output
   let accepted :=
@@ -323,6 +454,88 @@ def compute : Computed :=
     outgoingState := outgoingState
     accepted := accepted
     proofMessagesNonzero := proofMessagesNonzero roundTrace
+  }
+
+private abbrev ComputedTask (Alpha : Type) :=
+  Task (Except IO.Error Alpha)
+
+private def prepareComputedValue {Alpha : Type}
+    (build : Unit → Alpha) : IO Alpha := do
+  pure (build ())
+
+private def preparedComputedValue {Alpha : Type}
+    (task : ComputedTask Alpha) : IO Alpha :=
+  match task.get with
+  | .ok value => pure value
+  | .error error => throw error
+
+/-- Evaluate the same fixture record as `compute`, but schedule the independent
+terminal formulas and outgoing-state absorption on separate native tasks. -/
+def computeIO : IO Computed := do
+  let preSumcheck :=
+    NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
+      Transcript.piCcsOracle.transcript (statementState ())
+  let initialClaim := initialClaimFast preSumcheck.gamma
+  let roundTrace := buildRoundTrace preSumcheck initialClaim
+  let verifierRoundResult :=
+    FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
+      (fun index => (roundTrace.round index).toMessage) preSumcheck.state
+        (canonicalFinIndices productionShape.cubeVariables)
+  let verifierRoundPoint : CubePoint K productionShape.cubeVariables := {
+    coordinates := verifierRoundResult.1
+    dimension := by
+      dsimp only [verifierRoundResult]
+      rw [FiatShamir.deriveRoundsFrom_values_length,
+        canonicalFinIndices_length]
+  }
+  let message := outputMessage output
+  let padTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepareComputedValue fun _ =>
+      padTerminalFast preSumcheck.gamma verifierRoundPoint message)
+  let matrixTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepareComputedValue fun _ =>
+      matrixTerminalFast preSumcheck.gamma verifierRoundPoint message)
+  let ccsTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepareComputedValue fun _ =>
+      ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
+        preSumcheck.gamma message)
+  let normTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepareComputedValue fun _ =>
+      ProtocolPolynomial.normAtMessage extensionOps preSumcheck.gamma message)
+  let outgoingStateTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepareComputedValue fun _ =>
+      ProductionKey.absorbFullOutput verifierRoundResult.2 output)
+  let proofMessagesNonzeroTask ←
+    IO.asTask (prio := Task.Priority.dedicated)
+      (prepareComputedValue fun _ => proofMessagesNonzero roundTrace)
+  let padTerminal ← preparedComputedValue padTerminalTask
+  let matrixTerminal ← preparedComputedValue matrixTerminalTask
+  let ccsTerminal ← preparedComputedValue ccsTerminalTask
+  let normTerminal ← preparedComputedValue normTerminalTask
+  let verifierTerminal :=
+    assembleTerminalFast preSumcheck.alpha preSumcheck.gamma verifierRoundPoint
+      padTerminal matrixTerminal ccsTerminal normTerminal
+  let outgoingState ← preparedComputedValue outgoingStateTask
+  let proofMessagesNonzero ←
+    preparedComputedValue proofMessagesNonzeroTask
+  let accepted :=
+    NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.checkChain
+      extensionOps.toOps initialClaim (List.ofFn roundTrace.round)
+        verifierRoundResult.1 verifierTerminal
+  pure {
+    preSumcheck := preSumcheck
+    roundTrace := roundTrace
+    verifierRoundResult := verifierRoundResult
+    verifierRoundPoint := verifierRoundPoint
+    initialClaim := initialClaim
+    padTerminal := padTerminal
+    matrixTerminal := matrixTerminal
+    ccsTerminal := ccsTerminal
+    normTerminal := normTerminal
+    verifierTerminal := verifierTerminal
+    outgoingState := outgoingState
+    accepted := accepted
+    proofMessagesNonzero := proofMessagesNonzero
   }
 
 def Computed.proofValues (computed : Computed) :

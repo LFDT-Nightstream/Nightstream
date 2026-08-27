@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Codec
+import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 
 /-!
@@ -20,7 +21,8 @@ def outputCurrent : AppState :=
   [field 401, field 402, field 403, field 404]
 
 def outputPreimage : HashPreimage
-    (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) where
+    (logicalWidth := VerifierContext.candidateLogicalWidth)
+    (publicFits := VerifierContext.candidatePublicFits) where
   verifierKeys := fun _ => stateVerifierKey
   iteration := 8
   z0 := stateZ0
@@ -29,14 +31,15 @@ def outputPreimage : HashPreimage
   pc := 1
 
 def outputPreimageWords : List F :=
-  serializePreimage (publicFits := Data.publicFits) outputPreimage
+  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+    outputPreimage
 
-def priorDigest : Digest := stateDigest
+def priorDigest : Digest := stateDigest ()
 
 def outputDigest : Digest :=
-  stateHash (publicFits := Data.publicFits) outputPreimage
+  stateHash (publicFits := VerifierContext.candidatePublicFits) outputPreimage
 
-def publicValues : List F := statePublicInputWords ++ outputDigest
+def publicValues : List F := statePublicInputWords () ++ outputDigest
 
 def boolValue (value : Bool) : Value :=
   .atom (if value then 1 else 0)
@@ -49,32 +52,87 @@ def fieldWordsValue (values : List F) : Value :=
 def segmentValue (role start length : Nat) : Value :=
   .array [.atom role, .atom start, .atom length]
 
+/-- Encode the public instance from one already-computed state digest. -/
+def publicInputWordsForDigest (digest : Digest) : List F :=
+  List.ofFn fun column =>
+    encHash (publicFits := VerifierContext.candidatePublicFits) digest column
+
 /-- Caller-owned pilot inputs: prior preimage, prior public instance, output
 preimage, and claimed output digest. -/
-def inputValue : Value :=
-  .array [fieldWordsValue statePreimageWords,
-    fieldWordsValue statePublicInputWords,
-    fieldWordsValue outputPreimageWords,
-    fieldWordsValue outputDigest]
+def inputValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
+    (claimedOutputDigest : Digest) : Value :=
+  .array [fieldWordsValue priorPreimage,
+    fieldWordsValue priorPublicInput,
+    fieldWordsValue outputPreimage,
+    fieldWordsValue claimedOutputDigest]
 
 /-- Lean-computed pilot result: both digests, the complete public vector,
 relative public-segment map, and fixture assurance flags. -/
-def resultValue : Value :=
-  .array [fieldWordsValue priorDigest,
-    fieldWordsValue outputDigest,
-    fieldWordsValue publicValues,
+def resultValueFrom (computedPriorDigest computedOutputDigest : Digest)
+    (priorPublicInput : List F) : Value :=
+  let computedPublicValues := priorPublicInput ++ computedOutputDigest
+  .array [fieldWordsValue computedPriorDigest,
+    fieldWordsValue computedOutputDigest,
+    fieldWordsValue computedPublicValues,
     .array [segmentValue PilotData.Role.priorPublicInput 0
         PilotValues.priorPublicInputWords,
       segmentValue PilotData.Role.outputDigest
         PilotValues.priorPublicInputWords PilotValues.digestWords],
-    .array [boolValue (decide (priorDigest.length = PilotValues.digestWords)),
-      boolValue (decide (outputDigest.length = PilotValues.digestWords)),
-      boolValue (decide (priorDigest ≠ outputDigest)),
-      boolValue (decide (publicValues.length = PilotValues.publicColumnCount))]]
+    .array [boolValue (decide
+        (computedPriorDigest.length = PilotValues.digestWords)),
+      boolValue (decide
+        (computedOutputDigest.length = PilotValues.digestWords)),
+      boolValue (decide (computedPriorDigest ≠ computedOutputDigest)),
+      boolValue (decide
+        (computedPublicValues.length = PilotValues.publicColumnCount))]]
+
+def inputValue : Value :=
+  inputValueFrom (statePreimageWords ()) (statePublicInputWords ())
+    outputPreimageWords outputDigest
+
+def resultValue : Value :=
+  resultValueFrom priorDigest outputDigest (statePublicInputWords ())
+
+def parityValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
+    (computedPriorDigest computedOutputDigest : Digest) : Value :=
+  .array [.atom 1,
+    inputValueFrom priorPreimage priorPublicInput outputPreimage
+      computedOutputDigest,
+    resultValueFrom computedPriorDigest computedOutputDigest priorPublicInput]
 
 /-- Schema 1 is the first standalone complete nonzero pilot parity object. -/
 def parityValue : Value :=
-  .array [.atom 1, inputValue, resultValue]
+  parityValueFrom (statePreimageWords ()) (statePublicInputWords ())
+    outputPreimageWords priorDigest outputDigest
+
+private abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
+
+private def prepare {Alpha : Type} (build : Unit → Alpha) : IO Alpha := do
+  pure (build ())
+
+private def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
+  match task.get with
+  | .ok value => pure value
+  | .error error => throw error
+
+/-- Compute independent preimages and hashes on native tasks, then serialize
+the canonical schema once from the shared digest values. -/
+def parityValueIO : IO Value := do
+  let priorPreimageTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => statePreimageWords ())
+  let outputPreimageTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => outputPreimageWords)
+  let priorDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => priorDigest)
+  let outputDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => outputDigest)
+  let priorPreimage ← prepared priorPreimageTask
+  let outputPreimage ← prepared outputPreimageTask
+  let computedPriorDigest ← prepared priorDigestTask
+  let computedOutputDigest ← prepared outputDigestTask
+  let priorPublicInput := publicInputWordsForDigest computedPriorDigest
+  pure <| parityValueFrom priorPreimage priorPublicInput outputPreimage
+    computedPriorDigest computedOutputDigest
 
 def render : String := parityValue.render
 

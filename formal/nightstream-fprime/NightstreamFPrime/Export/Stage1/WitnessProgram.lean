@@ -1,7 +1,9 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
+import NightstreamFPrime.Export.Stage1.PiDECArithmetic
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.Witness
 
 /-!
-Owns the canonical logical witness-program IR through the PiRLC sampler.
+Owns the canonical logical witness-program IR through PiDEC.
 
 The seven arithmetic children already export `WitnessBatch` recipes through
 their opaque `FormalCircuit` interfaces. This module gathers those batches in
@@ -11,6 +13,8 @@ by compact permutation invocations. PiRLC digest-lane batches are built
 directly and proved equal to the opaque child traversal. PiRLC permutation and
 `First54` outputs are owned by their package invocations and are not written
 again here.
+PiDEC contributes only the 54 sign-hint batches of its opaque public-input
+split child; R1CS intermediate recipes remain ordinary row instructions.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
@@ -133,30 +137,6 @@ def finalIdentityBatches
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
     PiCCSArithmetic.finalIdentityLogicalStart
 
-private def canonicalU64Batches
-    (interface : NightstreamFPrime.Gadgets.Range.CanonicalU64.Interface)
-    (offset : Nat) : List WitnessBatch :=
-  [ WitnessBatch.hinted offset
-      (NightstreamFPrime.Gadgets.Range.CanonicalU64.bitHints interface offset),
-    WitnessBatch.hinted
-      (offset + NightstreamFPrime.Gadgets.Range.CanonicalU64.bitCount)
-      [NightstreamFPrime.Gadgets.Range.CanonicalU64.inverseHint offset],
-    WitnessBatch.arithmetic
-      (offset + NightstreamFPrime.Gadgets.Range.CanonicalU64.bitCount + 1)
-      [NightstreamFPrime.Gadgets.Range.CanonicalU64.flagRecipe offset] ]
-
-private def candidate16FiveBatches
-    (interface : NightstreamFPrime.Gadgets.Sampling.Candidate16Five.Interface)
-    (offset : Nat) : List WitnessBatch :=
-  [ WitnessBatch.hinted offset
-      (NightstreamFPrime.Gadgets.Sampling.Candidate16Five.quotientRemainderHints
-        interface offset),
-    WitnessBatch.hinted (offset + 2)
-      (NightstreamFPrime.Gadgets.Sampling.Candidate16Five.quotientBitHints offset),
-    WitnessBatch.arithmetic (offset + 16)
-      [NightstreamFPrime.Gadgets.Sampling.Candidate16Five.rejectRecipe
-        interface offset] ]
-
 private def piRlcDigestLaneBatchesFromCircuit
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -170,6 +150,11 @@ private def piRlcDigestLaneBatchesFromCircuit
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
       source round lane.val)
 
+def digestLaneBatches
+    (source : Expr) (offset : Nat) : List WitnessBatch :=
+  (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnessBatchesForSource
+    source offset).map remapBatch
+
 def piRlcDigestLaneBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -181,26 +166,7 @@ def piRlcDigestLaneBatches
   let offset :=
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
       source round lane.val
-  let canonicalInterface :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.canonicalInterface
-      interface offset
-  let canonicalOffset :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.canonicalOffset offset
-  let lowInterface :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.decoderInterface
-      offset NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.lowPart
-  let lowOffset :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.decoderOffset
-      offset NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.lowPart
-  let highInterface :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.decoderInterface
-      offset NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.highPart
-  let highOffset :=
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.decoderOffset
-      offset NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.highPart
-  (canonicalU64Batches canonicalInterface canonicalOffset ++
-    candidate16FiveBatches lowInterface lowOffset ++
-    candidate16FiveBatches highInterface highOffset).map remapBatch
+  digestLaneBatches (interface.source offset) offset
 
 theorem piRlcDigestLaneBatches_eq_fromCircuit
     (logicalWidth : Nat)
@@ -210,26 +176,11 @@ theorem piRlcDigestLaneBatches_eq_fromCircuit
     piRlcDigestLaneBatches logicalWidth publicFits source round lane =
       piRlcDigestLaneBatchesFromCircuit logicalWidth publicFits
         source round lane := by
-  simp [piRlcDigestLaneBatches, piRlcDigestLaneBatchesFromCircuit,
-    childBatches, canonicalU64Batches, candidate16FiveBatches,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.circuit,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.main,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.opsAt,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.canonicalOp,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.lowOp,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.highOp,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.canonicalCircuit,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.decoderCircuit,
-    NightstreamFPrime.Circuit.Sequence.childOp,
-    FormalCircuit.asSubcircuit, witnesses, Op.witnesses,
-    NightstreamFPrime.Gadgets.Range.CanonicalU64.circuit,
-    NightstreamFPrime.Gadgets.Range.CanonicalU64.main,
-    NightstreamFPrime.Gadgets.Range.CanonicalU64.operations,
-    NightstreamFPrime.Gadgets.Range.CanonicalU64.booleanOps,
-    NightstreamFPrime.Gadgets.Sampling.Candidate16Five.circuit,
-    NightstreamFPrime.Gadgets.Sampling.Candidate16Five.main,
-    NightstreamFPrime.Gadgets.Sampling.Candidate16Five.operations,
-    NightstreamFPrime.Gadgets.Sampling.Candidate16Five.quotientBooleanOps]
+  simp [piRlcDigestLaneBatches, digestLaneBatches,
+    piRlcDigestLaneBatchesFromCircuit,
+    childBatches,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnessBatchesForSource_eq,
+    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnesses_circuit_main]
 
 def piRlcWindowBatches
     (logicalWidth : Nat)
@@ -254,8 +205,7 @@ def piRlcSamplerBatches
   (List.range 17).flatMap
     (piRlcSourceBatches logicalWidth publicFits)
 
-/-- Exact logical-witness order through the PiRLC sampler prefix. -/
-def batches
+def piCcsBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
@@ -265,7 +215,37 @@ def batches
     evalABatches logicalWidth publicFits ++
     ccsBatches logicalWidth publicFits ++
     normBatches logicalWidth publicFits ++
-    finalIdentityBatches logicalWidth publicFits ++
-    piRlcSamplerBatches logicalWidth publicFits
+    finalIdentityBatches logicalWidth publicFits
+
+def piDecBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.atOffset
+    (PiDECArithmetic.phaseInterface logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  childBatches
+    (NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal.publicInputCircuit
+      shared).main
+    NightstreamFPrime.Layout.Stage1.PiDECStarts.publicInputLogicalStart
+
+/-- Exact logical-witness order through the PiDEC phase. -/
+def batches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  piCcsBatches logicalWidth publicFits ++
+    (piRlcSamplerBatches logicalWidth publicFits ++
+      piDecBatches logicalWidth publicFits)
+
+theorem batches_eq
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    batches logicalWidth publicFits =
+      piCcsBatches logicalWidth publicFits ++
+        (piRlcSamplerBatches logicalWidth publicFits ++
+          piDecBatches logicalWidth publicFits) := by
+  rfl
 
 end NightstreamFPrime.Export.Stage1.WitnessProgram

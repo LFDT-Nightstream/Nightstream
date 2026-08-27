@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiCCSParity
 import NightstreamFPrime.Export.Stage1.PiRLCNonzero
+import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.4, steps 1--3.
@@ -18,6 +19,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCNonzero
+open PiRLCPartialTrace
 
 def challengeValue (challenge : RingF) : Value :=
   PiCCSParity.fieldWordsValue (List.ofFn challenge)
@@ -51,16 +53,22 @@ def combinedEvalAValue (challenges : Fin SourceCount → RingF) : Value :=
       ((List.finRange productionShape.coefficientCount).map fun coefficient =>
         (combinedEvaluation challenges).matrix matrix coefficient))
 
-def pointValue : Value :=
-  PiCCSParity.extensionWordsValue point.coordinates
+def pointValue (value : Point) : Value :=
+  PiCCSParity.extensionWordsValue value.coordinates
 
-def inputValue : Value :=
-  .array [PiCCSParity.stateValue initialState,
-    pointValue,
-    PiCCSParity.outputCommitmentsValue,
+def inputFamilyValues : List Value :=
+  [PiCCSParity.outputCommitmentsValue,
     PiCCSParity.outputPublicInputsValue,
     PiCCSParity.outputEval_KValue,
     PiCCSParity.outputEval_AValue]
+
+def inputValueWithFamilies (computed : PiCCSNonzero.Computed)
+    (families : List Value) : Value :=
+  .array ([PiCCSParity.stateValue computed.outgoingState,
+    pointValue computed.verifierRoundPoint] ++ families)
+
+def inputValue (computed : PiCCSNonzero.Computed) : Value :=
+  inputValueWithFamilies computed inputFamilyValues
 
 def ringHasNonzero (value : RingF) : Bool :=
   (List.finRange ringDegree).any fun coefficient =>
@@ -71,9 +79,12 @@ def commitmentHasNonzero (value : PaperAlgebra.Commitment) : Bool :=
     ringHasNonzero (value row)
 
 def publicInputHasNonzero
-    (value : PublicInput (logicalWidth := Data.logicalWidth)
-      (publicFits := Data.publicFits)) : Bool :=
-  (List.finRange (FullShape Data.logicalWidth Data.publicFits).publicWidth).any
+    (value : PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) : Bool :=
+  (List.finRange
+    (FullShape VerifierContext.candidateLogicalWidth
+      VerifierContext.candidatePublicFits).publicWidth).any
     fun column => decide (value column ≠ 0)
 
 def evaluationHasNonzero (value : Evaluation) : Bool :=
@@ -98,24 +109,156 @@ def assuranceValue (challenges : Fin SourceCount → RingF) : Value :=
     PiCCSParity.boolValue (evaluationHasNonzero
       (combinedEvaluation challenges))]
 
-def resultValue : Value :=
-  match sampled with
+def materializedCommitmentValue (value : MaterializedCommitment) : Value :=
+  PiCCSParity.fieldWordsValue
+    (serializeCommitment value.toCommitment)
+
+def materializedPublicInputValue (value : MaterializedPublicInput) : Value :=
+  PiCCSParity.fieldWordsValue
+    (serializePublicInput value.toPublicInput)
+
+def materializedRingKValue (value : MaterializedRingK) : Value :=
+  PiCCSParity.extensionWordsValue value.toList
+
+def materializedEvalAValue (values : List MaterializedRingK) : Value :=
+  .array (values.map materializedRingKValue)
+
+def materializedCommitmentHasNonzero
+    (value : MaterializedCommitment) : Bool :=
+  value.toList.any fun row =>
+    row.toList.any fun coefficient => decide (coefficient ≠ 0)
+
+def materializedPublicInputHasNonzero
+    (value : MaterializedPublicInput) : Bool :=
+  value.toList.any fun column => decide (column ≠ 0)
+
+def materializedRingKHasNonzero (value : MaterializedRingK) : Bool :=
+  value.toList.any fun coefficient => decide (coefficient ≠ K.zero)
+
+def materializedEvaluationHasNonzero (evalK : MaterializedRingK)
+    (evalA : List MaterializedRingK) : Bool :=
+  materializedRingKHasNonzero evalK ||
+    evalA.any materializedRingKHasNonzero
+
+def assemblePartialClaims :
+    List MaterializedCommitment →
+      List MaterializedPublicInput →
+      List MaterializedRingK →
+      List (List MaterializedRingK) → Option (List Value)
+  | [], [], [], [] => some []
+  | commitment :: commitments, publicInput :: publicInputs,
+      evalK :: evalKs, evalA :: evalAs =>
+      if evalA.length = productionShape.matrixCount then
+        return .array [materializedCommitmentValue commitment,
+          materializedPublicInputValue publicInput,
+          materializedRingKValue evalK,
+          materializedEvalAValue evalA] ::
+            (← assemblePartialClaims commitments publicInputs evalKs evalAs)
+      else none
+  | _, _, _, _ => none
+
+def resultValueFromPartials (computed : PiCCSNonzero.Computed)
+    (batch : Transcript.PiRlcSampler.Batch SourceCount)
+    (inputsAreNonzero : Bool)
+    (commitments : List MaterializedCommitment)
+    (publicInputs : List MaterializedPublicInput)
+    (evalKs : List MaterializedRingK)
+    (evalAsByMatrix : List (List MaterializedRingK)) : Option Value := do
+  if evalAsByMatrix.length ≠ productionShape.matrixCount then
+    none
+  let evalAsBySource := evalAsByMatrix.transpose
+  let partialClaims ←
+    assemblePartialClaims commitments publicInputs evalKs evalAsBySource
+  if partialClaims.length ≠ SourceCount then
+    none
+  let finalCommitment ← commitments.getLast?
+  let finalPublicInput ← publicInputs.getLast?
+  let finalEvalK ← evalKs.getLast?
+  let finalEvalA ← evalAsBySource.getLast?
+  if finalEvalA.length ≠ productionShape.matrixCount then
+    none
+  pure <| .array [PiCCSParity.boolValue true,
+    challengesValue batch.challenges,
+    membershipValue,
+    materializedCommitmentValue finalCommitment,
+    materializedPublicInputValue finalPublicInput,
+    pointValue computed.verifierRoundPoint,
+    materializedRingKValue finalEvalK,
+    materializedEvalAValue finalEvalA,
+    .array partialClaims,
+    PiCCSParity.stateValue batch.finalState,
+    .array [PiCCSParity.boolValue inputsAreNonzero,
+      PiCCSParity.boolValue
+        (materializedCommitmentHasNonzero finalCommitment),
+      PiCCSParity.boolValue
+        (materializedPublicInputHasNonzero finalPublicInput),
+      PiCCSParity.boolValue
+        (materializedEvaluationHasNonzero finalEvalK finalEvalA)]]
+
+def resultValue (computed : PiCCSNonzero.Computed) : Value :=
+  match Transcript.PiRlcSampler.piRlcChallengesWithState
+      computed.outgoingState SourceCount with
   | none => .array [PiCCSParity.boolValue false]
   | some batch =>
-      .array [PiCCSParity.boolValue true,
-        challengesValue batch.challenges,
-        membershipValue,
-        combinedCommitmentValue batch.challenges,
-        combinedPublicInputValue batch.challenges,
-        pointValue,
-        combinedEvalKValue batch.challenges,
-        combinedEvalAValue batch.challenges,
-        PiCCSParity.stateValue batch.finalState,
-        assuranceValue batch.challenges]
+      (resultValueFromPartials computed batch inputsNonzero
+        (commitmentPartials batch.challenges)
+        (publicInputPartials batch.challenges)
+        (evalKPartials batch.challenges)
+        ((List.finRange productionShape.matrixCount).map fun matrix =>
+          evalAPartials batch.challenges matrix)).getD
+            (.array [PiCCSParity.boolValue false])
 
-/-- Schema 1 is the complete paper-level PiRLC result. -/
-def parityValue : Value := .array [.atom 1, inputValue, resultValue]
+abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
 
-def render : String := parityValue.render
+def prepare {Alpha : Type} (build : Unit → Alpha) : IO Alpha := do
+  pure (build ())
+
+def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
+  match task.get with
+  | .ok value => pure value
+  | .error error => throw error
+
+def parityValueIO : IO Value := do
+  let computedTask ← IO.asTask (prio := Task.Priority.dedicated)
+    PiCCSNonzero.computeIO
+  let inputFamiliesTask ← IO.asTask (prepare fun _ => inputFamilyValues)
+  let inputsNonzeroTask ← IO.asTask (prepare fun _ => inputsNonzero)
+  let computed ← prepared computedTask
+  let inputFamilies ← prepared inputFamiliesTask
+  let input := inputValueWithFamilies computed inputFamilies
+  match Transcript.PiRlcSampler.piRlcChallengesWithState
+      computed.outgoingState SourceCount with
+  | none =>
+      pure <| .array [.atom 2, input,
+        .array [PiCCSParity.boolValue false]]
+  | some batch =>
+      let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
+        (prepare fun _ => commitmentPartials batch.challenges)
+      let publicInputTask ← IO.asTask (prio := Task.Priority.dedicated)
+        (prepare fun _ => publicInputPartials batch.challenges)
+      let evalKTask ← IO.asTask (prio := Task.Priority.dedicated)
+        (prepare fun _ => evalKPartials batch.challenges)
+      let evalATasks ←
+        (List.finRange productionShape.matrixCount).mapM fun matrix =>
+          IO.asTask (prio := Task.Priority.dedicated) (prepare fun _ =>
+            evalAPartials batch.challenges matrix)
+      let commitments ← prepared commitmentTask
+      let publicInputs ← prepared publicInputTask
+      let evalKs ← prepared evalKTask
+      let evalAsByMatrix ← evalATasks.mapM prepared
+      let inputsAreNonzero ← prepared inputsNonzeroTask
+      match resultValueFromPartials computed batch inputsAreNonzero
+          commitments publicInputs evalKs evalAsByMatrix with
+      | some result =>
+          pure <| Value.array [Value.atom 2, input, result]
+      | none =>
+          throw (IO.userError "incomplete PiRLC indexed partial grid")
+
+/-- Schema 2 adds every indexed left-to-right partial combination. -/
+def parityValue (_ : Unit) : Value :=
+  let computed := PiCCSNonzero.compute ()
+  .array [.atom 2, inputValue computed, resultValue computed]
+
+def render (_ : Unit) : String := (parityValue ()).render
 
 end NightstreamFPrime.Export.Stage1.PiRLCParity

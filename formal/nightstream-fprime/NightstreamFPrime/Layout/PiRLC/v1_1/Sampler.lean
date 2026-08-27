@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestWindow
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54
+import NightstreamFPrime.Layout.R1CS.Segments
 
 /-!
 Owns physical composition for one complete PiRLC scalar sampler.
@@ -155,11 +156,22 @@ private theorem childOp_flatConstraints (name : String)
       childConstraints child offset := by
   rfl
 
-private def appendAll : List (List Expr) → List Expr
+def appendAll : List (List Expr) → List Expr
   | [] => []
   | [constraints] => constraints
   | constraints :: next :: rest =>
       constraints ++ appendAll (next :: rest)
+
+theorem appendAll_eq_flatten (lists : List (List Expr)) :
+    appendAll lists = lists.flatten := by
+  induction lists with
+  | nil => rfl
+  | cons first rest inductionHypothesis =>
+      cases rest with
+      | nil => simp [appendAll]
+      | cons second tail =>
+          simp only [appendAll, List.flatten_cons]
+          simp only [inductionHypothesis, List.flatten_cons]
 
 def childConstraintLists (interface : Logical.Interface)
     (coordinate offset : Nat) : List (List Expr) :=
@@ -183,6 +195,14 @@ def childConstraintLists (interface : Logical.Interface)
       (Logical.windowOffset offset 7),
    childConstraints (Logical.selectorCircuit interface coordinate offset)
       (Logical.selectorOffset offset)]
+
+private def physicalFreshDeltas (interface : Logical.Interface)
+    (coordinate offset : Nat) : List Nat :=
+  (childConstraintLists interface coordinate offset).map R1CS.totalFreshCount
+
+private def physicalRowDeltas (interface : Logical.Interface)
+    (coordinate offset : Nat) : List Nat :=
+  (childConstraintLists interface coordinate offset).map R1CS.totalRowCount
 
 def orderedConstraints (interface : Logical.Interface)
     (coordinate offset : Nat) : List Expr :=
@@ -242,7 +262,7 @@ def logicalConstraints (interface : Logical.Interface)
     (coordinate offset : Nat) : List Expr :=
   flatConstraints (Circuit.ops (Logical.main interface coordinate) offset)
 
-private theorem logicalConstraints_eq_ordered (interface : Logical.Interface)
+theorem logicalConstraints_eq_ordered (interface : Logical.Interface)
     (coordinate offset : Nat) :
     logicalConstraints interface coordinate offset =
       orderedConstraints interface coordinate offset := by
@@ -257,6 +277,13 @@ private theorem logicalConstraints_eq_ordered (interface : Logical.Interface)
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.windowOp,
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.selectorOp,
     childOp_flatConstraints, List.append_nil]
+
+theorem logicalConstraints_eq_flatten (interface : Logical.Interface)
+    (coordinate offset : Nat) :
+    logicalConstraints interface coordinate offset =
+      (childConstraintLists interface coordinate offset).flatten := by
+  rw [logicalConstraints_eq_ordered]
+  exact appendAll_eq_flatten _
 
 private theorem totalFreshCount_appendAll (lists : List (List Expr)) :
     R1CS.totalFreshCount (appendAll lists) =
@@ -285,6 +312,28 @@ private theorem totalRowCount_appendAll (lists : List (List Expr)) :
       | cons second tail =>
           simp only [appendAll, R1CS.totalRowCount_append, List.map_cons,
             List.sum_cons, inductionHypothesis]
+
+private theorem totalFreshCount_eq_deltas (interface : Logical.Interface)
+    (coordinate offset : Nat) :
+    R1CS.totalFreshCount (logicalConstraints interface coordinate offset) =
+      (physicalFreshDeltas interface coordinate offset).sum := by
+  rw [logicalConstraints_eq_ordered]
+  change R1CS.totalFreshCount
+      (appendAll (childConstraintLists interface coordinate offset)) =
+    ((childConstraintLists interface coordinate offset).map
+      R1CS.totalFreshCount).sum
+  exact totalFreshCount_appendAll _
+
+private theorem totalRowCount_eq_deltas (interface : Logical.Interface)
+    (coordinate offset : Nat) :
+    R1CS.totalRowCount (logicalConstraints interface coordinate offset) =
+      (physicalRowDeltas interface coordinate offset).sum := by
+  rw [logicalConstraints_eq_ordered]
+  change R1CS.totalRowCount
+      (appendAll (childConstraintLists interface coordinate offset)) =
+    ((childConstraintLists interface coordinate offset).map
+      R1CS.totalRowCount).sum
+  exact totalRowCount_appendAll _
 
 private theorem entryFreshCount_eq (interface : Logical.Interface)
     (coordinate offset : Nat)
@@ -347,10 +396,9 @@ private theorem selectorFreshCount_eq (interface : Logical.Interface)
     R1CS.totalFreshCount
       (childConstraints (Logical.selectorCircuit interface coordinate offset)
         (Logical.selectorOffset offset)) = 34047 := by
-  change R1CS.totalFreshCount
-    (Leaves.First54.logicalConstraints interface coordinate offset
-      (Logical.selectorOffset offset)) = 34047
-  exact Leaves.First54.totalFreshCount_eq interface coordinate offset
+  unfold childConstraints
+  exact Leaves.First54.selectorCircuit_totalFreshCount_eq
+    interface coordinate offset
     (Logical.selectorOffset offset)
 
 private theorem selectorRowCount_eq (interface : Logical.Interface)
@@ -358,24 +406,18 @@ private theorem selectorRowCount_eq (interface : Logical.Interface)
     R1CS.totalRowCount
       (childConstraints (Logical.selectorCircuit interface coordinate offset)
         (Logical.selectorOffset offset)) = 41024 := by
-  change R1CS.totalRowCount
-    (Leaves.First54.logicalConstraints interface coordinate offset
-      (Logical.selectorOffset offset)) = 41024
-  exact Leaves.First54.totalRowCount_eq interface coordinate offset
+  unfold childConstraints
+  exact Leaves.First54.selectorCircuit_totalRowCount_eq
+    interface coordinate offset
     (Logical.selectorOffset offset)
 
-theorem totalFreshCount_eq (interface : Logical.Interface)
+private theorem physicalFreshDeltas_eq (interface : Logical.Interface)
     (coordinate offset : Nat)
     (inputs : ∀ current, InputsAffine interface current) :
-    R1CS.totalFreshCount (logicalConstraints interface coordinate offset) =
-      43743 := by
-  rw [logicalConstraints_eq_ordered]
-  change R1CS.totalFreshCount
-      (appendAll (childConstraintLists interface coordinate offset)) = 43743
-  rw [totalFreshCount_appendAll]
-  unfold childConstraintLists
-  simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
-    Nat.add_zero]
+    physicalFreshDeltas interface coordinate offset =
+      [0, 1212, 1212, 1212, 1212, 1212, 1212, 1212, 1212, 34047] := by
+  unfold physicalFreshDeltas childConstraintLists
+  simp only [List.map_cons, List.map_nil]
   rw [entryFreshCount_eq interface coordinate offset inputs,
     windowFreshCount_eq interface coordinate offset 0,
     windowFreshCount_eq interface coordinate offset 1,
@@ -387,18 +429,13 @@ theorem totalFreshCount_eq (interface : Logical.Interface)
     windowFreshCount_eq interface coordinate offset 7,
     selectorFreshCount_eq interface coordinate offset]
 
-theorem totalRowCount_eq (interface : Logical.Interface)
+private theorem physicalRowDeltas_eq (interface : Logical.Interface)
     (coordinate offset : Nat)
     (inputs : ∀ current, InputsAffine interface current) :
-    R1CS.totalRowCount (logicalConstraints interface coordinate offset) =
-      59344 := by
-  rw [logicalConstraints_eq_ordered]
-  change R1CS.totalRowCount
-      (appendAll (childConstraintLists interface coordinate offset)) = 59344
-  rw [totalRowCount_appendAll]
-  unfold childConstraintLists
-  simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
-    Nat.add_zero]
+    physicalRowDeltas interface coordinate offset =
+      [592, 2216, 2216, 2216, 2216, 2216, 2216, 2216, 2216, 41024] := by
+  unfold physicalRowDeltas childConstraintLists
+  simp only [List.map_cons, List.map_nil]
   rw [entryRowCount_eq interface coordinate offset inputs,
     windowRowCount_eq interface coordinate offset 0,
     windowRowCount_eq interface coordinate offset 1,
@@ -409,6 +446,44 @@ theorem totalRowCount_eq (interface : Logical.Interface)
     windowRowCount_eq interface coordinate offset 6,
     windowRowCount_eq interface coordinate offset 7,
     selectorRowCount_eq interface coordinate offset]
+
+private theorem physicalFreshDeltaSum_eq :
+    [0, 1212, 1212, 1212, 1212, 1212, 1212, 1212, 1212, 34047].sum =
+      43743 := by
+  norm_num
+
+private theorem physicalRowDeltaSum_eq :
+    [592, 2216, 2216, 2216, 2216, 2216, 2216, 2216, 2216, 41024].sum =
+      59344 := by
+  norm_num
+
+theorem totalFreshCount_eq (interface : Logical.Interface)
+    (coordinate offset : Nat)
+    (inputs : ∀ current, InputsAffine interface current) :
+    R1CS.totalFreshCount (logicalConstraints interface coordinate offset) =
+      43743 := by
+  calc
+    _ = (physicalFreshDeltas interface coordinate offset).sum :=
+      totalFreshCount_eq_deltas interface coordinate offset
+    _ = [0, 1212, 1212, 1212, 1212, 1212, 1212, 1212, 1212,
+          34047].sum :=
+      congrArg List.sum
+        (physicalFreshDeltas_eq interface coordinate offset inputs)
+    _ = 43743 := physicalFreshDeltaSum_eq
+
+theorem totalRowCount_eq (interface : Logical.Interface)
+    (coordinate offset : Nat)
+    (inputs : ∀ current, InputsAffine interface current) :
+    R1CS.totalRowCount (logicalConstraints interface coordinate offset) =
+      59344 := by
+  calc
+    _ = (physicalRowDeltas interface coordinate offset).sum :=
+      totalRowCount_eq_deltas interface coordinate offset
+    _ = [592, 2216, 2216, 2216, 2216, 2216, 2216, 2216, 2216,
+          41024].sum :=
+      congrArg List.sum
+        (physicalRowDeltas_eq interface coordinate offset inputs)
+    _ = 59344 := physicalRowDeltaSum_eq
 
 def footprint (interface : Logical.Interface) (coordinate : Nat)
     (inputs : ∀ offset, InputsAffine interface offset) :
@@ -437,9 +512,35 @@ def plan (interface : Logical.Interface) (coordinate offset : Nat) :
   constraints := logicalConstraints interface coordinate offset
   firstFresh := offset + Logical.logicalPrivateCount
 
+@[simp] theorem plan_constraints_eq_flatten (interface : Logical.Interface)
+    (coordinate offset : Nat) :
+    (plan interface coordinate offset).constraints =
+      (childConstraintLists interface coordinate offset).flatten := by
+  exact logicalConstraints_eq_flatten interface coordinate offset
+
+@[simp] theorem plan_firstFresh (interface : Logical.Interface)
+    (coordinate offset : Nat) :
+    (plan interface coordinate offset).firstFresh =
+      offset + Logical.logicalPrivateCount := by
+  rfl
+
 def PhysicalHolds (interface : Logical.Interface) (coordinate offset : Nat)
     (env : Env) : Prop :=
-  R1CS.RowsHold env (plan interface coordinate offset).rows
+  R1CS.SegmentsHold env (childConstraintLists interface coordinate offset)
+    (offset + Logical.logicalPrivateCount)
+
+/-- The segmented sampler predicate is exactly the canonical monolithic
+lowering used by the package and backend. -/
+theorem physicalHolds_iff_rowsHold (interface : Logical.Interface)
+    (coordinate offset : Nat) (env : Env) :
+    PhysicalHolds interface coordinate offset env ↔
+      R1CS.RowsHold env (plan interface coordinate offset).rows := by
+  have exactRows :=
+    R1CS.LoweringPlan.rowsHold_iff_segments_of_constraints
+      (plan interface coordinate offset) env
+      (childConstraintLists interface coordinate offset)
+      (plan_constraints_eq_flatten interface coordinate offset)
+  simpa only [PhysicalHolds, plan_firstFresh] using exactRows.symm
 
 theorem physical_implies_relation (interface : Logical.Interface)
     (coordinate offset : Nat) (env : Env)
@@ -450,44 +551,7 @@ theorem physical_implies_relation (interface : Logical.Interface)
     interface coordinate offset env assumptions
   apply holdsFlat_implies_holds
   change ConstraintsHold env (logicalConstraints interface coordinate offset)
-  exact R1CS.LoweringPlan.sound (plan interface coordinate offset) env physical
-
-set_option maxRecDepth 100000 in -- fixed-size: one scalar sampler
-theorem physical_complete (interface : Logical.Interface)
-    (coordinate offset : Nat) (env : Env)
-    (inputs : ∀ current, InputsAffine interface current)
-    (assumptions : Logical.Assumptions interface offset env)
-    (relation : Logical.RelationHolds interface coordinate offset env) :
-    ∃ completed,
-      AgreesOutside env completed offset 59247 ∧
-      PhysicalHolds interface coordinate offset completed := by
-  rcases Logical.completeness interface coordinate env offset assumptions
-      relation with ⟨logicalEnv, logicalAgrees, logicalRows⟩
-  have logicalAgreesFixed : AgreesOutside env logicalEnv offset
-      Logical.logicalPrivateCount := by
-    rw [Logical.localLength_eq] at logicalAgrees
-    exact logicalAgrees
-  have logicalAssumptions : Logical.Assumptions interface offset logicalEnv :=
-    assumptions
-  have logicalSpecification : Logical.SpecHolds interface coordinate offset
-      logicalEnv := by
-    apply Logical.soundness interface coordinate logicalEnv offset
-      logicalAssumptions
-    exact holdsFlat_implies_holds logicalEnv _ logicalRows
-  have scope : ∀ expression ∈
-      logicalConstraints interface coordinate offset,
-      expression.VarsBelow (offset + Logical.logicalPrivateCount) := by
-    exact Logical.flatConstraints_varsBelow interface coordinate offset
-      logicalEnv logicalAssumptions logicalSpecification
-  have logicalConstraintsHold : ConstraintsHold logicalEnv
-      (logicalConstraints interface coordinate offset) := logicalRows
-  rcases R1CS.lowerConstraints_complete logicalEnv
-      (logicalConstraints interface coordinate offset)
-      (offset + Logical.logicalPrivateCount) scope logicalConstraintsHold with
-    ⟨completed, physicalAgrees, rows⟩
-  refine ⟨completed, ?_, rows⟩
-  have combined := logicalAgreesFixed.append physicalAgrees
-  rw [totalFreshCount_eq interface coordinate offset inputs] at combined
-  simpa [Logical.logicalPrivateCount] using combined
+  exact R1CS.LoweringPlan.sound (plan interface coordinate offset) env
+    ((physicalHolds_iff_rowsHold interface coordinate offset env).mp physical)
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Sampler

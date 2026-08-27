@@ -31,11 +31,16 @@ def logicalConstraints (interface : Interface) (offset : Nat) : List Expr :=
 
 theorem priorConstraints_eq (interface : Interface) (offset : Nat) :
     priorConstraints interface offset =
-      Poseidon2.hashConstraints
-        (PriorStateHash.hashInterface interface.prior) offset ++
+      flatConstraints [PriorStateHash.hashOp interface.prior offset] ++
+      flatConstraints (PriorStateHash.wordOps interface.prior offset) ++
       flatConstraints
         (PriorStateHash.bindingAssertions interface.prior offset) := by
-  rfl
+  rw [priorConstraints]
+  change flatConstraints
+      (PriorStateHash.hashOp interface.prior offset ::
+        (PriorStateHash.wordOps interface.prior offset ++
+          PriorStateHash.bindingAssertions interface.prior offset)) = _
+  simp [flatConstraints]
 
 theorem outputConstraints_eq (interface : Interface) (offset : Nat) :
     outputConstraints interface offset =
@@ -46,20 +51,39 @@ theorem outputConstraints_eq (interface : Interface) (offset : Nat) :
 
 def logicalColumnCount (interface : Interface) (offset : Nat) : Nat :=
   outputOffset interface offset +
-    localLength (Circuit.ops (Lifecycle.Pilot.outputCircuit interface).main
-      (outputOffset interface offset))
+    OutputHash.hashLength interface.output (outputOffset interface offset)
 
 theorem outputOffset_eq_add (interface : Interface) (offset : Nat) :
     outputOffset interface offset = offset +
       localLength (Circuit.ops (Lifecycle.Pilot.priorCircuit interface).main
         offset) := by
-  rfl
+  unfold outputOffset Lifecycle.Pilot.outputOffset
+  rw [← Lifecycle.Pilot.priorCircuit_localLength]
 
 theorem logicalColumnCount_eq_add (interface : Interface) (offset : Nat) :
     logicalColumnCount interface offset = outputOffset interface offset +
       localLength (Circuit.ops (Lifecycle.Pilot.outputCircuit interface).main
         (outputOffset interface offset)) := by
-  rfl
+  unfold logicalColumnCount
+  rw [← Lifecycle.Pilot.outputCircuit_localLength]
+
+theorem logicalConstraints_varsBelow
+    (interface : Interface) (offset : Nat) {env : Env}
+    (assumptions : Lifecycle.Pilot.Assumptions interface offset env) :
+    ∀ expression ∈ logicalConstraints interface offset,
+      expression.VarsBelow (logicalColumnCount interface offset) := by
+  intro expression member
+  rcases List.mem_append.mp member with priorMember | outputMember
+  · have below := PriorStateHash.flatConstraints_varsBelow interface.prior
+      offset assumptions.1 expression priorMember
+    rw [PriorStateHash.localLength_eq] at below
+    exact Expr.VarsBelow.mono expression below (by
+      unfold logicalColumnCount outputOffset Lifecycle.Pilot.outputOffset
+      omega)
+  · have below := OutputHash.flatConstraints_varsBelow interface.output
+      (outputOffset interface offset) assumptions.2 expression outputMember
+    rw [OutputHash.circuit_localLength] at below
+    simpa [logicalColumnCount] using below
 
 def lowering (interface : Interface) (offset : Nat) : R1CS.LoweredConstraints :=
   R1CS.lowerConstraints (logicalConstraints interface offset)

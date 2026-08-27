@@ -67,6 +67,57 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
+/-- A valid semantic phase provides the static scope required by its lowering
+plan. This theorem remains generic so production users do not reconstruct the
+seven-child completion proof. -/
+theorem plan_constraints_varsBelow_of_phase
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth publicFits)
+    (offset : Nat) (env : Env)
+    (assumptions : Formal.Assumptions relation interface offset env)
+    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    ∀ expression ∈ (plan relation interface offset).constraints,
+      expression.VarsBelow (plan relation interface offset).firstFresh := by
+  rcases Formal.completePrefix relation ajtai interface env offset assumptions
+      phase with ⟨logical, operationsEq⟩
+  have mainOpsEq : logical.operations =
+      Circuit.ops (Formal.main relation interface) offset := by
+    rw [Formal.main_ops]
+    exact operationsEq
+  rw [plan_constraints, plan_firstFresh]
+  change ∀ expression ∈ flatConstraints
+      (Circuit.ops (Formal.main relation interface) offset),
+    expression.VarsBelow (logicalColumnCount relation interface offset)
+  rw [logicalColumnCount_eq, ← mainOpsEq]
+  exact logical.scope
+
+/-- Every physical row of a valid phase uses only columns below the plan's
+declared physical endpoint. -/
+theorem physicalRows_varsBelow_of_phase
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth publicFits)
+    (offset : Nat) (env : Env)
+    (assumptions : Formal.Assumptions relation interface offset env)
+    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    ∀ row ∈ physicalRows relation interface offset,
+      row.VarsBelow (physicalColumnCount relation interface offset) := by
+  intro row member
+  have scope := R1CS.lowerConstraints_rows_varsBelow
+    (plan relation interface offset).constraints
+    (plan relation interface offset).firstFresh
+    (plan_constraints_varsBelow_of_phase relation ajtai interface offset env
+      assumptions phase)
+  change row ∈ (R1CS.lowerConstraints
+    (plan relation interface offset).constraints
+    (plan relation interface offset).firstFresh).rows at member
+  have rowScope := scope row member
+  simpa [physicalColumnCount, R1CS.LoweringPlan.next_eq,
+    R1CS.LoweringPlan.freshColumnCount] using rowScope
+
 /-- Constructive completion over the adjacent logical and R1CS-fresh
 intervals. -/
 theorem physical_complete

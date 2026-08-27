@@ -9,10 +9,10 @@ the package serializer both read these definitions.
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4
-abbrev stateHashBaseWords : Nat := 42463
+abbrev stateHashBaseWords : Nat := 45919
 abbrev stateHashWords : Nat :=
   stateHashBaseWords + digestWords + digestWords + digestWords
-abbrev priorPublicInputWords : Nat := 54
+abbrev priorPublicInputWords : Nat := 270
 
 abbrev priorPreimageStart : Nat := 0
 abbrev priorPublicInputStart : Nat := priorPreimageStart + stateHashWords
@@ -28,17 +28,29 @@ abbrev permutationRecipeCount : Nat := 592
 abbrev permutationOutputLocalStart : Nat := 584
 abbrev hashWitnessCount : Nat :=
   (absorbCount + 1) * permutationRecipeCount
-abbrev hashRowCount : Nat := hashWitnessCount + digestWords
+abbrev outputHashRowCount : Nat := hashWitnessCount + digestWords
+abbrev priorCanonicalPrivateCount : Nat := 4 * 66
+abbrev priorCanonicalFreshCount : Nat := 4 * 197
+abbrev priorCanonicalRowCount : Nat := 4 * 328
+abbrev priorFixedRowCount : Nat := 14
+abbrev priorExtraRowCount : Nat :=
+  priorCanonicalRowCount + priorFixedRowCount
+abbrev priorHashRowCount : Nat := hashWitnessCount + priorExtraRowCount
+abbrev hashRowCount : Nat := outputHashRowCount
 
 abbrev priorHashRowStart : Nat := 0
-abbrev priorBindingRowCount : Nat := 50
-abbrev priorBindingRowStart : Nat := priorHashRowStart + hashRowCount
+abbrev priorBindingRowCount : Nat := priorExtraRowCount
+abbrev priorBindingRowStart : Nat := priorHashRowStart + hashWitnessCount
 abbrev outputHashRowStart : Nat := priorBindingRowStart + priorBindingRowCount
 abbrev physicalRowCount : Nat :=
-  hashRowCount + priorBindingRowCount + hashRowCount
+  priorHashRowCount + outputHashRowCount
 
 abbrev publicColumnCount : Nat := priorPublicInputWords + digestWords
-abbrev sourceColumnCount : Nat := externalColumnCount + 2 * hashWitnessCount
+abbrev logicalColumnCount : Nat :=
+  externalColumnCount + 2 * hashWitnessCount + priorCanonicalPrivateCount +
+    0
+abbrev sourceColumnCount : Nat :=
+  logicalColumnCount + priorCanonicalFreshCount
 abbrev privateColumnCount : Nat := sourceColumnCount - publicColumnCount
 abbrev constantColumn : Nat := privateColumnCount
 abbrev spartanColumnCount : Nat :=
@@ -49,8 +61,11 @@ abbrev witnessPrivateStart : Nat := 2 * stateHashWords
 abbrev firstPublicStart : Nat := privateColumnCount + 1
 abbrev secondPublicStart : Nat := firstPublicStart + priorPublicInputWords
 
-abbrev witnessPrivateLength : Nat := 2 * hashWitnessCount
+abbrev witnessPrivateLength : Nat :=
+  2 * hashWitnessCount + priorCanonicalPrivateCount +
+    priorCanonicalFreshCount
 abbrev priorWitnessStart : Nat := witnessPrivateStart
-abbrev outputWitnessStart : Nat := witnessPrivateStart + hashWitnessCount
+abbrev outputWitnessStart : Nat :=
+  witnessPrivateStart + hashWitnessCount + priorCanonicalPrivateCount
 
 end NightstreamFPrime.Layout.PilotValues

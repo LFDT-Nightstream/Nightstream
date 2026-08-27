@@ -53,6 +53,19 @@ import NightstreamFPrime.Layout.PiRLC.v1_1.Composition
 import NightstreamFPrime.Layout.PiRLC.v1_1.Lowering
 import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
 import NightstreamFPrime.Layout.PiRLC.v1_1.Ownership
+import NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.InputBinding
+import NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar
+import NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.OutputBinding
+import NightstreamFPrime.Layout.PiDEC.v1_1.RadixRecomposition
+import NightstreamFPrime.Layout.PiDEC.v1_1.PublicInputSplit
+import NightstreamFPrime.Layout.PiDEC.v1_1.CommitmentRecomposition
+import NightstreamFPrime.Layout.PiDEC.v1_1.RingKRecomposition
+import NightstreamFPrime.Layout.PiDEC.v1_1.EvalKRecomposition
+import NightstreamFPrime.Layout.PiDEC.v1_1.EvalARecomposition
+import NightstreamFPrime.Layout.PiDEC.v1_1.Composition
+import NightstreamFPrime.Layout.PiDEC.v1_1.Lowering
+import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
+import NightstreamFPrime.Layout.PiDEC.v1_1.Ownership
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Layout.Stage1.StateEncoding
@@ -60,6 +73,9 @@ import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
+import NightstreamFPrime.Layout.Stage1.PiDECInputs
+import NightstreamFPrime.Layout.Stage1.PiDECStarts
+import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Hash
+import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 
 /-!
 Owns the one proof-carrying Poseidon2 hash circuit. The interface supplies
@@ -63,6 +63,31 @@ theorem assertion_mem (interface : Interface) (offset : Nat) (lane : Fin 4) :
         interface.expected offset lane) ∈ assertions interface offset := by
   rw [assertions, List.mem_ofFn']
   exact Set.mem_range_self lane
+
+theorem flatConstraints_varsBelow
+    (interface : Interface) (offset : Nat) {env : Env}
+    (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
+      expression.VarsBelow
+        (offset + localLength (Circuit.ops (main interface) offset)) := by
+  rw [main_ops, opsAt_localLength]
+  intro expression member
+  simp only [flatConstraints, List.mem_flatMap] at member
+  rcases member with ⟨operation, operationMember, constraintMember⟩
+  simp only [opsAt, List.mem_cons] at operationMember
+  rcases operationMember with rfl | operationMember
+  · exact RawFormal.recipeConstraints_varsBelow offset
+      (Hash.compile offset (interface.input offset)).recipes
+      (Hash.compile_causal offset (interface.input offset) assumptions.1)
+      expression constraintMember
+  · rw [assertions, List.mem_ofFn'] at operationMember
+    rcases operationMember with ⟨lane, rfl⟩
+    simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
+    subst expression
+    apply Expr.VarsBelow.sub
+    · exact Hash.compile_output_varsBelow offset (interface.input offset)
+        assumptions.1 ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩
+    · exact Expr.VarsBelow.mono _ (assumptions.2 lane) (by omega)
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (_assumptions : Assumptions interface offset env)

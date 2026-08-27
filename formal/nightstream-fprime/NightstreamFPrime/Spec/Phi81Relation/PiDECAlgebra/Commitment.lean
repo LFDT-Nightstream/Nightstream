@@ -7,8 +7,8 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Typed Ajtai commitment recomposition for the concrete Phi81 `Pi_DEC` algebra.
 
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
-Phase: public parent-commitment recomposition from the fourteen child
+Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
+Phase: public parent-commitment recomposition from the sixteen child
 commitments.
 Constraint family: semantic commitment recomposition only; this file emits no
 rows.
@@ -24,7 +24,7 @@ Rust/R1CS refinement, row removal, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: `recomposeCommitment` consumes only the fourteen public
+Authority boundary: `recomposeCommitment` consumes only the sixteen public
 child commitments and verifier-fixed radix weights. The typed Ajtai key remains
 the sole commitment map input. No assignment, digest, caller-supplied
 linearity law, or prover-selected scalar enters public recomposition.
@@ -67,7 +67,7 @@ def combineCommitments {verifierRows : Nat} :
           (fun index => values index.succ))
 
 /-- Production Π_DEC commitment recomposition with the verifier-owned
-`2^i`, `i in [0, 14)`, base-field weights. -/
+`2^i`, `i in [0, 16)`, base-field weights. -/
 def recomposeCommitment {verifierRows : Nat}
     (values : Radix.ChildIndex ->
       PiRLCAlgebra.Commitment.Value verifierRows) :

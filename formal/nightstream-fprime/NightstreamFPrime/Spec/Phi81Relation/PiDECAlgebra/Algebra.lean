@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 Complete typed Phi81 algebra used by the semantic `Pi_DEC` verifier.
 
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
+Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
 Phase: construction of the independently specified verifier algebra.
 Constraint family: semantic operations and laws only; this file emits no rows.
 

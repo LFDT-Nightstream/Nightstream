@@ -26,18 +26,16 @@ def outputCircuit (interface : Interface) : FormalCircuit :=
   OutputHash.circuit interface.output
 
 def outputOffset (interface : Interface) (offset : Nat) : Nat :=
-  offset + localLength (Circuit.ops (priorCircuit interface).main offset)
+  offset + PriorStateHash.logicalPrivateCount interface.prior offset
 
 theorem priorCircuit_localLength (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (priorCircuit interface).main offset) =
-      (NightstreamFPrime.Gadgets.Poseidon2.Hash.compile offset
-        (interface.prior.preimage offset)).recipes.length :=
+      PriorStateHash.logicalPrivateCount interface.prior offset :=
   PriorStateHash.circuit_localLength interface.prior offset
 
 theorem outputCircuit_localLength (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (outputCircuit interface).main offset) =
-      (NightstreamFPrime.Gadgets.Poseidon2.Hash.compile offset
-        (interface.output.preimage offset)).recipes.length :=
+      OutputHash.hashLength interface.output offset :=
   OutputHash.circuit_localLength interface.output offset
 
 def Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=

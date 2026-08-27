@@ -41,14 +41,38 @@ def Assumptions (interface : Interface) : Nat → Env → Prop :=
 def SpecHolds (interface : Interface) : Nat → Env → Prop :=
   Formal.SpecHolds (hashInterface interface)
 
+def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
+  (Hash.compile offset (interface.preimage offset)).recipes.length
+
+def hashLength (interface : Interface) (offset : Nat) : Nat :=
+  (Hash.inputChunks (interface.preimage offset)).length * 592 + 592
+
+theorem compiledHashLength_eq_hashLength (interface : Interface)
+    (offset : Nat) :
+    compiledHashLength interface offset = hashLength interface offset := by
+  exact Hash.compile_recipes_length offset (interface.preimage offset)
+
 /-- The production logical builder for the `outputHash` phase. -/
 def circuit (interface : Interface) : FormalCircuit :=
   Formal.circuit (hashInterface interface)
 
 theorem circuit_localLength (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) =
-      (Hash.compile offset (interface.preimage offset)).recipes.length := by
-  exact Formal.opsAt_localLength (hashInterface interface) offset
+      hashLength interface offset := by
+  calc
+    localLength (Circuit.ops (circuit interface).main offset) =
+        compiledHashLength interface offset :=
+      Formal.opsAt_localLength (hashInterface interface) offset
+    _ = hashLength interface offset :=
+      compiledHashLength_eq_hashLength interface offset
+
+theorem flatConstraints_varsBelow
+    (interface : Interface) (offset : Nat) {env : Env}
+    (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      expression.VarsBelow
+        (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
+  Formal.flatConstraints_varsBelow (hashInterface interface) offset assumptions
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

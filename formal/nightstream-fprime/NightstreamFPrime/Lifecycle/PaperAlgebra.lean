@@ -11,8 +11,8 @@ the one open circuit parameter (closed by the recursive fixed point).
 Provenance: adapted from
 `formal/nightstream-lean/Nightstream/Implementation/Nebula/NIFS/Core/PaperAlgebra.lean`
 at commit `f277c1d5e16b9f0d096d9b9da30baeb932af9be8`: the four-lane product commitment is replaced by the Ajtai
-commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
-the Stage 1 `cubeVariables`, the public block is one ring column, and the
+  commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
+  the Stage 1 `cubeVariables`, the public block is five ring columns, and the
 SuperNeo v1.1 Pad evaluation family is separate from all CCS matrices.
 -/
 
@@ -30,8 +30,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 open NightstreamFPrime.Lifecycle
 
-/-- Public block: one ring column of 54 lanes holds `encHash` (5 words). -/
-def publicRingColumns : Nat := 1
+/-- Five ring columns hold one marker, four canonical 64-bit digest encodings,
+and a zero tail. Every nonzero coordinate has centered magnitude one. -/
+def publicRingColumns : Nat := 5
 
 /-- The Φ₈₁ relation shape of the Stage 1 F′ circuit at logical width
 `logicalWidth`. All folding dimensions are fixed; only the width is open. -/
@@ -484,6 +485,9 @@ def piDecAlgebra (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := p
 
 def publicInputSplit (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     PiDEC.PaperVerifier.PublicInputSplit (piDecAlgebra key) where
+  parentBounded := PiDECAlgebra.PublicInput.parentBounded
+  parentBounded_decidable := PiDECAlgebra.PublicInput.parentBounded_decidable
+  parentBounded_project := PiDECAlgebra.PublicInput.parentBounded_project
   split := fun input child =>
     PiDECAlgebra.PublicInput.splitPublicInput (shape := FullShape logicalWidth publicFits) input child
   recompose_split := fun input => PiDECAlgebra.PublicInput.splitPublicInput_recompose input
@@ -494,6 +498,37 @@ def evaluationArity (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits :
     PiDEC.PaperVerifier.EvaluationArity (semantics key) where
   count := fun _ => 1
   evaluations_size := fun _ _ _ => rfl
+
+private def evaluationDecidableEq : DecidableEq Evaluation := by
+  letI : DecidableEq (Fin productionShape.coefficientCount → K) :=
+    Fintype.decidablePiFintype
+  letI : DecidableEq
+      (Fin productionShape.matrixCount →
+        Fin productionShape.coefficientCount → K) :=
+    Fintype.decidablePiFintype
+  intro left right
+  by_cases pad : left.pad = right.pad
+  · by_cases matrix : left.matrix = right.matrix
+    · exact isTrue (by cases left; cases right; simp_all)
+    · exact isFalse fun equal =>
+        matrix (congrArg EvaluationFamily.matrix equal)
+  · exact isFalse fun equal =>
+      pad (congrArg EvaluationFamily.pad equal)
+
+/-- Constructive production decision for the exact PiDEC accepted language. -/
+def piDecDecision
+    (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (Structure logicalWidth)
+      (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      Point Evaluation Commitment productionGlobalParams) :
+    Decidable (PiDEC.PaperVerifier.Accepted (piDecAlgebra key)
+      (publicInputSplit key) (evaluationArity key) attempt) := by
+  letI : DecidableEq RingF := Fintype.decidablePiFintype
+  letI : DecidableEq Commitment := Fintype.decidablePiFintype
+  letI : DecidableEq Evaluation := evaluationDecidableEq
+  exact PiDEC.PaperVerifier.acceptedDecision (piDecAlgebra key)
+    (publicInputSplit key) (evaluationArity key) attempt
 
 end
 

@@ -10,7 +10,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 Production-parameter evaluation recomposition for the typed Phi81 `PiDEC`
 algebra.
 
-Owns: the verifier-fixed `b = 2`, `k = 14` base-field weights; raw width-only
+Owns: the verifier-fixed `b = 2`, `k = 16` base-field weights; raw width-only
 and typed recomposition of complete assignments; their exact equality;
 fixed-shape recomposition of all matrix-evaluation arrays; and the concrete
 theorem with the exact type of `PiDEC.Algebra.evaluations_hom`.

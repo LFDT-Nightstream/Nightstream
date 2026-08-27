@@ -224,7 +224,7 @@ structure Key
         RelationSource shape columns blockCount) = 1
   piDecDecision : forall attempt,
     Decidable (PiDEC.PaperVerifier.Accepted piDecAlgebra
-      piDecEvaluationArity attempt)
+      piDecPublicInputSplit piDecEvaluationArity attempt)
   oracle : NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Oracle
     Extension State shape
   initialTranscriptState : State
@@ -700,7 +700,7 @@ def piDecAttempt
   (key.parent running fresh proof).map
     (key.piDecAttemptForParent proof)
 
-/-- Public running product from one successful typed PiDEC attempt. -/
+/-- Public running product from one successful checked PiDEC split. -/
 def outputForAttempt
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -715,19 +715,21 @@ def outputForAttempt
     (attempt : PiDEC.PaperVerifier.Attempt
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
-      (EvaluationFamily Extension shape) Commitment key.params) :
+      (EvaluationFamily Extension shape) Commitment key.params)
+    (publicInputs : Fin key.params.k → PublicInput) :
     Running Extension Commitment PublicInput shape :=
-  let children := PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt
   {
     point := attempt.parent.point
     commitments := fun runningIndex =>
-      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment
+      (attempt.messages
+        (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment
     publicInputs := fun runningIndex =>
-      (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).publicInput
+      publicInputs (Fin.cast key.runningCount_eq_outputCount runningIndex)
     evaluations := proof.piDecEvaluations
   }
 
-/-- The running output exists only after successful PiRLC sampling. -/
+/-- The running output exists only after successful PiRLC sampling and the
+strict PiDEC parent-bound check. -/
 def output
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -742,8 +744,9 @@ def output
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
     Option (Running Extension Commitment PublicInput shape) :=
-  (key.piDecAttempt running fresh proof).map
-    (key.outputForAttempt proof)
+  (key.piDecAttempt running fresh proof).bind fun attempt =>
+    (key.piDecPublicInputSplit.checked attempt.parent.publicInput).map
+      (key.outputForAttempt proof attempt)
 
 @[simp] theorem outputForAttempt_point
     {Extension : Type uExtension}
@@ -759,8 +762,10 @@ def output
     (attempt : PiDEC.PaperVerifier.Attempt
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
-      (EvaluationFamily Extension shape) Commitment key.params) :
-    (key.outputForAttempt proof attempt).point = attempt.parent.point := by
+      (EvaluationFamily Extension shape) Commitment key.params)
+    (publicInputs : Fin key.params.k → PublicInput) :
+    (key.outputForAttempt proof attempt publicInputs).point =
+      attempt.parent.point := by
   rfl
 
 @[simp] theorem outputForAttempt_commitment
@@ -778,8 +783,9 @@ def output
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape) Commitment key.params)
+    (publicInputs : Fin key.params.k → PublicInput)
     (runningIndex : Fin shape.runningCount) :
-    (key.outputForAttempt proof attempt).commitments runningIndex =
+    (key.outputForAttempt proof attempt publicInputs).commitments runningIndex =
       (attempt.messages
         (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment := by
   rfl
@@ -799,10 +805,10 @@ def output
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape) Commitment key.params)
+    (publicInputs : Fin key.params.k → PublicInput)
     (runningIndex : Fin shape.runningCount) :
-    (key.outputForAttempt proof attempt).publicInputs runningIndex =
-      key.piDecPublicInputSplit.split attempt.parent.publicInput
-        (Fin.cast key.runningCount_eq_outputCount runningIndex) := by
+    (key.outputForAttempt proof attempt publicInputs).publicInputs runningIndex =
+      publicInputs (Fin.cast key.runningCount_eq_outputCount runningIndex) := by
   rfl
 
 @[simp] theorem outputForAttempt_evaluation
@@ -820,10 +826,62 @@ def output
       (RelationSource shape columns blockCount) PublicInput
       (CubePoint Extension shape.cubeVariables)
       (EvaluationFamily Extension shape) Commitment key.params)
+    (publicInputs : Fin key.params.k → PublicInput)
     (runningIndex : Fin shape.runningCount) :
-    (key.outputForAttempt proof attempt).evaluations runningIndex =
+    (key.outputForAttempt proof attempt publicInputs).evaluations runningIndex =
       proof.piDecEvaluations runningIndex := by
   rfl
+
+theorem output_eq_none_of_parentUnbounded
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params)
+    (attemptEq : key.piDecAttempt running fresh proof = some attempt)
+    (unbounded :
+      ¬ key.piDecPublicInputSplit.parentBounded attempt.parent.publicInput) :
+    key.output running fresh proof = none := by
+  simp [output, attemptEq,
+    key.piDecPublicInputSplit.checked_eq_none attempt.parent.publicInput
+      unbounded]
+
+theorem output_eq_some_of_parentBounded
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (attempt : PiDEC.PaperVerifier.Attempt
+      (RelationSource shape columns blockCount) PublicInput
+      (CubePoint Extension shape.cubeVariables)
+      (EvaluationFamily Extension shape) Commitment key.params)
+    (attemptEq : key.piDecAttempt running fresh proof = some attempt)
+    (bounded :
+      key.piDecPublicInputSplit.parentBounded attempt.parent.publicInput) :
+    key.output running fresh proof = some
+      (key.outputForAttempt proof attempt
+        (key.piDecPublicInputSplit.split attempt.parent.publicInput)) := by
+  simp [output, attemptEq,
+    key.piDecPublicInputSplit.checked_eq_some attempt.parent.publicInput bounded]
 
 end Key
 

@@ -318,6 +318,35 @@ theorem compile_causal (start : Nat) (input : List Expr)
   apply Permutation.recipesCausal_append_causal start _ _ habsorbed
   exact hfinal
 
+/-- Every final sponge output expression reads only the input prefix and the
+exact recipe interval allocated by `compile`. -/
+theorem compile_output_varsBelow (start : Nat) (input : List Expr)
+    (hinput : ∀ expression ∈ input, expression.VarsBelow start)
+    (lane : Fin 8) :
+    ((compile start input).output lane).VarsBelow
+      (start + (compile start input).recipes.length) := by
+  let blocks := inputChunks input
+  let absorbed := compileAbsorptions start zeroE blocks
+  have hzero : ∀ current, (zeroE current).VarsBelow start := by
+    intro current
+    trivial
+  have hblocks : BlocksBelow start blocks :=
+    inputChunks_below input start hinput
+  have houtput : ∀ current, (absorbed.output current).VarsBelow
+      (start + absorbed.recipes.length) :=
+    compileAbsorptions_output_varsBelow start zeroE blocks hzero hblocks
+  have finalOutput := Permutation.compile_output_varsBelow
+    (start + absorbed.recipes.length) (padE absorbed.output)
+    Permutation.schedule (padE_varsBelow absorbed.output houtput) lane
+  change ((Permutation.compile (start + absorbed.recipes.length)
+      (padE absorbed.output) Permutation.schedule).output lane).VarsBelow
+    (start + (absorbed.recipes ++
+      (Permutation.compile (start + absorbed.recipes.length)
+        (padE absorbed.output) Permutation.schedule).recipes).length)
+  convert finalOutput using 1 <;>
+    simp only [List.length_append,
+      Permutation.compile_schedule_recipe_count] <;> omega
+
 private theorem ofFn_state {Alpha : Type} (state : Fin 8 → Alpha) :
     List.ofFn state =
       [state 0, state 1, state 2, state 3, state 4, state 5, state 6, state 7] := by

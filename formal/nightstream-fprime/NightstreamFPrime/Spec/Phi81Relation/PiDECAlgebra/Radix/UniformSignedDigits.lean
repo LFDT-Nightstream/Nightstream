@@ -122,7 +122,7 @@ private theorem natBit_succ (value index : Nat) :
   simp [natBit, Nat.div_div_eq_div_mul, Nat.pow_succ']
 
 /-- Fixed-width binary expansion is injective. This proof is structural in the
-width; it does not enumerate the `2^14` possible production words. -/
+width; it does not enumerate the `2^16` possible production words. -/
 private theorem bits_eq_natBit_binaryValue {count : Nat}
     (bits : Fin count → Nat)
     (binary : ∀ index, bits index < 2) :

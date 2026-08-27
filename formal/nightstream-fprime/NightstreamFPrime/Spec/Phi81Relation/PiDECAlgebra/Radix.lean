@@ -13,10 +13,10 @@ Phase: complete-assignment split and recomposition.
 Constraint family: semantic digit and norm obligations only; this file emits no
 rows.
 
-Owns: a deterministic signed-binary split inside the strict combined bound; a
-total exact fallback outside that precondition; coordinate and assignment
-recomposition; fresh-child norm preservation; and the reverse norm bound for
-arbitrary sixteen-child recompositions.
+Owns: a fail-closed signed-binary split inside the strict combined bound; a
+separately named total algebra helper for unconditional recomposition proofs;
+coordinate and assignment recomposition; fresh-child norm preservation; and
+the reverse norm bound for arbitrary sixteen-child recompositions.
 
 Does not own: commitment, public-input, or evaluation homomorphisms; child CE
 membership; transcript or NIFS acceptance; Rust/R1CS refinement; row removal;
@@ -35,7 +35,8 @@ That fallback is exact but deliberately carries no shortness claim.
 | `nifs.pi_dec.verify.radix.parameters` | radix two, sixteen children, `B = 65536` | verifier fixed | `production_parameters` |
 | `nifs.pi_dec.verify.radix.scalar.digits` | digit `i` is `(magnitude / 2^i) mod 2` | computed | `magnitudeDigit`, `magnitudeDigit_lt_two` |
 | `nifs.pi_dec.verify.radix.scalar.sign` | both centered signs use the same magnitude digits | computed | `boundedDigit` |
-| `nifs.pi_dec.verify.radix.scalar.total` | unbounded values retain an exact first-child fallback | computed | `splitScalar` |
+| `nifs.pi_dec.verify.radix.scalar.checked` | unbounded values fail before digit construction | checked | `splitScalarChecked` |
+| `nifs.pi_dec.algebra.radix.scalar.total` | unbounded values retain an exact first-child fallback for the total algebra law | computed | `splitScalar` |
 | `nifs.pi_dec.verify.radix.recompose` | every field value and complete assignment recomposes exactly | derived | `splitScalar_recompose`, `split_recompose` |
 | `nifs.pi_dec.verify.radix.split_norm` | a strict-`B` parent produces strict-`2` children | derived | `split_norm` |
 | `nifs.pi_dec.verify.radix.recompose_norm` | sixteen strict-`2` children recompose below `B` | derived | `recompose_norm` |
@@ -370,6 +371,32 @@ def splitScalar (value : F) (index : ChildIndex) : F :=
     boundedDigit value index
   else
     fallbackDigit value index
+
+/-- Fail-closed scalar split used by executable verifier and parity paths.
+SuperNeo defines `split_b` only after the strict `B`-norm check. -/
+def splitScalarChecked (value : F) : Option (ChildIndex → F) :=
+  if centeredMagnitude value < combinedBound then
+    some (boundedDigit value)
+  else
+    none
+
+theorem splitScalarChecked_eq_some (value : F)
+    (bounded : centeredMagnitude value < combinedBound) :
+    splitScalarChecked value = some (boundedDigit value) := by
+  simp [splitScalarChecked, bounded]
+
+theorem splitScalarChecked_eq_none (value : F)
+    (unbounded : ¬ centeredMagnitude value < combinedBound) :
+    splitScalarChecked value = none := by
+  simp [splitScalarChecked, unbounded]
+
+theorem splitScalarChecked_eq_some_iff (value : F)
+    (digits : ChildIndex → F) :
+    splitScalarChecked value = some digits ↔
+      centeredMagnitude value < combinedBound ∧ digits = boundedDigit value := by
+  by_cases bounded : centeredMagnitude value < combinedBound
+  · simp [splitScalarChecked, bounded, eq_comm]
+  · simp [splitScalarChecked, bounded]
 
 /-- Coordinatewise split of the complete typed assignment. -/
 def splitAssignment {shape : Shape}

@@ -29,11 +29,11 @@ use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-pub(crate) const PARAM_INIT_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest {
-    value: COL_PARAM_INIT_REMAINING_AFTER,
-    inverse: COL_PARAM_INIT_REMAINING_AFTER_INV,
-    is_zero: COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-};
+pub(crate) const PARAM_INIT_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
+);
 
 /// Emit every call/frame/param-init row the wasm VM needs in a single
 /// place. Ordering inside follows the natural lifecycle of a call:

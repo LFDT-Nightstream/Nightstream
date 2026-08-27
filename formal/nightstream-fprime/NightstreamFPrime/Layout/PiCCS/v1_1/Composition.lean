@@ -416,7 +416,7 @@ theorem physicalRowDeltas_eq
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowDeltas relation interface parentOffset =
-      [160, 160432, 46176, 133200, 116631, 378610, 8458, 109546,
+      [160, 192400, 46176, 133200, 116631, 378610, 8458, 109546,
         20794, 752, 125093 + terminalRowCost relation interface parentOffset,
         4076512] := by
   unfold physicalRowDeltas childConstraintLists childConstraints
@@ -466,7 +466,7 @@ theorem logicalPrivateDeltas_eq_production
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (parentOffset : Nat) :
     logicalPrivateDeltas relation interface parentOffset =
-      [0, 160432, 46176, 133200, 25918, 0, 1824, 24288, 2, 32,
+      [0, 192400, 46176, 133200, 25918, 0, 1824, 24288, 2, 32,
         27746, 4076512] := by
   unfold logicalPrivateDeltas Formal.opsAt
   simp only [List.map_cons, List.map_nil, Formal.childOp_privateCount]
@@ -485,7 +485,7 @@ theorem physicalRowDeltas_eq_production
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowDeltas relation interface parentOffset =
-      [160, 160432, 46176, 133200, 116631, 378610, 8458, 109546,
+      [160, 192400, 46176, 133200, 116631, 378610, 8458, 109546,
         20794, 752, 130419, 4076512] := by
   rw [physicalRowDeltas_eq relation interface parentOffset inputs,
     terminalRowCost_eq relation interface parentOffset inputs]
@@ -497,7 +497,7 @@ theorem physicalColumnDeltas_eq_production
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnDeltas relation interface parentOffset =
-      [0, 160432, 46176, 133200, 116631, 378560, 8458, 109546,
+      [0, 192400, 46176, 133200, 116631, 378560, 8458, 109546,
         20794, 752, 130417, 4076512] := by
   unfold physicalColumnDeltas
   rw [logicalPrivateDeltas_eq_production,
@@ -513,14 +513,14 @@ theorem cumulativeFootprints_eq_production
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     cumulativePhysicalRows relation interface parentOffset =
-        [160, 160592, 206768, 339968, 456599, 835209, 843667, 953213,
-          974007, 974759, 1105178, 5181690] ∧
+        [160, 192560, 238736, 371936, 488567, 867177, 875635, 985181,
+          1005975, 1006727, 1137146, 5213658] ∧
       cumulativePhysicalColumns relation interface parentOffset =
-        [0, 160432, 206608, 339808, 456439, 834999, 843457, 953003,
-          973797, 974549, 1104966, 5181478] ∧
+        [0, 192400, 238576, 371776, 488407, 866967, 875425, 984971,
+          1005765, 1006517, 1136934, 5213446] ∧
       cumulativeJointDomains relation interface parentOffset =
-        [160, 160592, 206768, 339968, 456599, 835209, 843667, 953213,
-          974007, 974759, 1105178, 5181690] := by
+        [160, 192560, 238736, 371936, 488567, 867177, 875635, 985181,
+          1005975, 1006727, 1137146, 5213658] := by
   rw [cumulativePhysicalRows, physicalRowDeltas_eq_production
       relation interface parentOffset inputs,
     cumulativePhysicalColumns, physicalColumnDeltas_eq_production
@@ -537,8 +537,8 @@ private theorem freshDeltaSum_eq (terminal : Nat) :
   omega
 
 private theorem rowFixedCost_eq :
-    160 + 160432 + 46176 + 133200 + 116631 + 378610 + 8458 + 109546 +
-      20794 + 752 + 125093 + 4076512 = 5176364 := by
+    160 + 192400 + 46176 + 133200 + 116631 + 378610 + 8458 + 109546 +
+      20794 + 752 + 125093 + 4076512 = 5208332 := by
   norm_num
 
 private theorem rowDeltaSum_reassociate
@@ -549,11 +549,11 @@ private theorem rowDeltaSum_reassociate
   ac_rfl
 
 private theorem rowDeltaSum_eq (terminal : Nat) :
-    [160, 160432, 46176, 133200, 116631, 378610, 8458, 109546,
+    [160, 192400, 46176, 133200, 116631, 378610, 8458, 109546,
       20794, 752, 125093 + terminal, 4076512].sum =
-        5176364 + terminal := by
+        5208332 + terminal := by
   calc
-    _ = (160 + 160432 + 46176 + 133200 + 116631 + 378610 + 8458 + 109546 +
+    _ = (160 + 192400 + 46176 + 133200 + 116631 + 378610 + 8458 + 109546 +
           20794 + 752 + 125093 + 4076512) + terminal :=
       rowDeltaSum_reassociate _ _ _ _ _ _ _ _ _ _ _ _ _
     _ = _ := by rw [rowFixedCost_eq]
@@ -581,11 +581,11 @@ theorem totalRowCount_eq_fixed
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     R1CS.totalRowCount (logicalConstraints relation interface parentOffset) =
-      5176364 + terminalRowCost relation interface parentOffset := by
+      5208332 + terminalRowCost relation interface parentOffset := by
   calc
     _ = (physicalRowDeltas relation interface parentOffset).sum :=
       totalRowCount_eq_deltas relation interface parentOffset
-    _ = [160, 160432, 46176, 133200, 116631, 378610, 8458, 109546,
+    _ = [160, 192400, 46176, 133200, 116631, 378610, 8458, 109546,
           20794, 752,
           125093 + terminalRowCost relation interface parentOffset,
           4076512].sum :=
@@ -608,7 +608,7 @@ theorem physicalRowCount_eq_fixed
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowCount relation interface parentOffset =
-      5176364 + terminalRowCost relation interface parentOffset := by
+      5208332 + terminalRowCost relation interface parentOffset := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq_fixed relation interface parentOffset inputs
 
@@ -618,7 +618,7 @@ theorem physicalColumnCount_eq_fixed
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 5176154 +
+      parentOffset + 5208122 +
         terminalFreshCost relation interface parentOffset := by
   rw [physicalColumnCount_eq,
     logicalColumnCount_eq_of_degreeBound_eq_nine relation interface
@@ -638,8 +638,8 @@ theorem jointDomain_eq_fixed
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (inputs : InputShapes relation interface 0) :
     jointDomain relation interface =
-      max (5176364 + terminalRowCost relation interface 0)
-        (5176154 + terminalFreshCost relation interface 0) := by
+      max (5208332 + terminalRowCost relation interface 0)
+        (5208122 + terminalFreshCost relation interface 0) := by
   unfold jointDomain
   rw [physicalRowCount_eq_fixed relation interface 0 inputs,
     physicalColumnCount_eq_fixed relation interface 0 inputs]
@@ -658,7 +658,7 @@ theorem physicalRowCount_eq_production
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 5181690 := by
+    physicalRowCount relation interface parentOffset = 5213658 := by
   rw [physicalRowCount_eq_fixed relation interface parentOffset inputs,
     terminalRowCost_eq relation interface parentOffset inputs]
 
@@ -668,7 +668,7 @@ theorem physicalColumnCount_eq_production
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 5181478 := by
+      parentOffset + 5213446 := by
   rw [physicalColumnCount_eq_fixed relation interface parentOffset inputs,
     terminalFreshCost_eq relation interface parentOffset inputs]
 
@@ -676,7 +676,7 @@ theorem jointDomain_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (inputs : InputShapes relation interface 0) :
-    jointDomain relation interface = 5181690 := by
+    jointDomain relation interface = 5213658 := by
   unfold jointDomain
   rw [physicalRowCount_eq_production relation interface 0 inputs,
     physicalColumnCount_eq_production relation interface 0 inputs]

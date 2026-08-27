@@ -186,7 +186,7 @@ theorem physical_complete_production
     (assumptions : Formal.Assumptions relation interface offset env)
     (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed,
-      AgreesOutside env completed offset 7799481 ∧
+      AgreesOutside env completed offset 8353953 ∧
       PhysicalHolds relation interface offset completed := by
   rcases physical_complete relation ajtai interface offset env assumptions phase with
     ⟨completed, agrees, rows⟩

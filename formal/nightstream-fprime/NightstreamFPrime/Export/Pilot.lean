@@ -1394,16 +1394,37 @@ theorem templateRows_length :
   simp [PilotData.digestRows]
 
 theorem tailBindingRows_length :
-    PilotData.tailBindingRows.length = 49 := by
+    PilotData.tailBindingRows.length = 13 := by
   simp [PilotData.tailBindingRows]
 
 theorem bindingRows_length :
-    (PilotData.bindingRows ()).length = 50 := by
+    (PilotData.bindingRows ()).length = 14 := by
   simp [PilotData.bindingRows, tailBindingRows_length]
 
-theorem assertionRows_length :
-    (PilotData.assertionRows ()).length = 58 := by
-  simp [PilotData.assertionRows, bindingRows_length]
+theorem priorExtraRows_length :
+    (PilotData.priorExtraRows ()).length = 1326 := by
+  rw [PilotData.priorExtraRows, Stage1.Rows.compileRowsTR_length]
+  unfold PilotSpartan.remapRows
+  rw [List.length_map, Stage1.Rows.lowerConstraintsTR_eq,
+    R1CS.lowerConstraints_rows_length]
+  unfold PilotData.priorExtraConstraints
+  rw [flatConstraints_append, R1CS.totalRowCount_append]
+  change R1CS.totalRowCount PilotProduction.priorWordConstraintsAll +
+    R1CS.totalRowCount PilotProduction.priorBindingConstraints = 1326
+  rw [PilotProduction.priorWordConstraints_rowCount,
+    PilotProduction.priorBindingConstraints_rowCount]
+
+theorem ordinaryRows_length :
+    (PilotData.circuitPackage ()).witnessInstructions.length +
+      (PilotData.circuitPackage ()).assertionRows.length = 1330 := by
+  change (PilotData.witnessInstructions ()).length +
+    (PilotData.assertionRows ()).length = 1330
+  unfold PilotData.witnessInstructions PilotData.assertionRows
+  rw [List.length_append, digestRows_length,
+    Stage1.Rows.witnessInstructionsTR_eq,
+    Stage1.Rows.assertionRowsTR_eq,
+    Stage1.Rows.witnessInstructions_length_add_assertionRows_length,
+    priorExtraRows_length]
 
 theorem circuitPackage_decode_encode :
     CircuitPackage.format.decode
@@ -1415,16 +1436,21 @@ theorem circuitPackage_template_rows :
     (PilotData.circuitPackage ()).permutation.rows.length = 592 :=
   templateRows_length
 
-theorem circuitPackage_assertion_rows :
-    (PilotData.circuitPackage ()).assertionRows.length = 58 :=
-  assertionRows_length
-
 theorem circuitPackage_row_coverage :
     PilotData.priorChain.witnessLength +
       PilotData.outputChain.witnessLength +
+      (PilotData.circuitPackage ()).witnessInstructions.length +
       (PilotData.circuitPackage ()).assertionRows.length =
         (PilotData.circuitPackage ()).layout.rowCount := by
-  rw [circuitPackage_assertion_rows]
+  rw [show PilotData.priorChain.witnessLength +
+      PilotData.outputChain.witnessLength +
+      (PilotData.circuitPackage ()).witnessInstructions.length +
+      (PilotData.circuitPackage ()).assertionRows.length =
+    PilotData.priorChain.witnessLength +
+      PilotData.outputChain.witnessLength +
+      ((PilotData.circuitPackage ()).witnessInstructions.length +
+        (PilotData.circuitPackage ()).assertionRows.length) by omega,
+    ordinaryRows_length]
   rfl
 
 /-- The executable package uses the exact proved pilot row and Spartan column

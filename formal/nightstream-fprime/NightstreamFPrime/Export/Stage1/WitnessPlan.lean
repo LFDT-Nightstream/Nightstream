@@ -1,7 +1,8 @@
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 
 /-!
-Owns the compact witness plan for the PiRLC sampler and PiDEC suffix.
+Owns the compact witness plan for the PiRLC sampler, PiDEC, and running-
+transition suffix.
 
 Each lane carries its logical start and source expression once. The fixed Lean
 expansion reconstructs the nine canonical-u64 and candidate-decoder batches.
@@ -167,12 +168,29 @@ def piDecBlock
       WitnessProgram.piDecBatches logicalWidth publicFits := by
   rfl
 
+def runningTransitionBlock
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : Block :=
+  .batches
+    (WitnessProgram.directRunningTransitionBatches logicalWidth publicFits)
+
+@[simp] theorem runningTransitionBlock_expand
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    (runningTransitionBlock logicalWidth publicFits).expand =
+      WitnessProgram.runningTransitionBatches logicalWidth publicFits := by
+  exact WitnessProgram.directRunningTransitionBatches_eq
+    logicalWidth publicFits
+
 def canonicalBlocks
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Block :=
   piRlcBlocks logicalWidth publicFits ++
-    [piDecBlock logicalWidth publicFits]
+    [piDecBlock logicalWidth publicFits,
+      runningTransitionBlock logicalWidth publicFits]
 
 theorem canonicalBlocks_expand
     (logicalWidth : Nat)
@@ -180,8 +198,10 @@ theorem canonicalBlocks_expand
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     (canonicalBlocks logicalWidth publicFits).flatMap Block.expand =
       WitnessProgram.piRlcSamplerBatches logicalWidth publicFits ++
-        WitnessProgram.piDecBatches logicalWidth publicFits := by
+        (WitnessProgram.piDecBatches logicalWidth publicFits ++
+          WitnessProgram.runningTransitionBatches logicalWidth publicFits) := by
   rw [canonicalBlocks, List.flatMap_append, piRlcBlocks_expand]
-  rw [List.flatMap_singleton, piDecBlock_expand]
+  simp only [List.flatMap_cons, List.flatMap_nil, piDecBlock_expand,
+    runningTransitionBlock_expand, List.append_nil]
 
 end NightstreamFPrime.Export.Stage1.WitnessPlan

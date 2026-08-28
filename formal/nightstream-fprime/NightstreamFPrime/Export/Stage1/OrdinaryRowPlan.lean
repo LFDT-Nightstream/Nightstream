@@ -4,8 +4,9 @@ import NightstreamFPrime.Export.Stage1.Data
 Owns the bounded preparation plan for ordinary Stage 1 rows.
 
 The eight PiCCS packets, 544 PiRLC digest lanes, 17 selector-final packets,
-and one PiDEC packet are independent immutable blocks. The emitter may prepare
-them concurrently, but it writes completed blocks in this Lean-owned order.
+one PiDEC packet, and one running-transition packet are independent immutable
+blocks. The emitter may prepare them concurrently, but it writes completed
+blocks in this Lean-owned order.
 The expansion and classifier theorems prove that segmentation does not change
 any package row or witness instruction.
 -/
@@ -77,8 +78,17 @@ def piDecBlock (_unit : Unit) : Block :=
 def piDecBlocks (_unit : Unit) : List Block :=
   [piDecBlock ()]
 
+def runningTransitionBlock (_unit : Unit) : Block :=
+  .explicitRows
+    (RunningTransitionArithmetic.canonicalPlan
+      Data.logicalWidth Data.publicFits).rows
+
+def runningTransitionBlocks (_unit : Unit) : List Block :=
+  [runningTransitionBlock ()]
+
 def canonicalBlocks (_unit : Unit) : List Block :=
-  piCcsBlocks () ++ piRlcBlocks () ++ piDecBlocks ()
+  piCcsBlocks () ++ piRlcBlocks () ++ piDecBlocks () ++
+    runningTransitionBlocks ()
 
 private theorem flatMap_map_rows {Alpha : Type}
     (logicalWidth : Nat)
@@ -172,13 +182,21 @@ theorem piDecBlocks_expand :
         Data.logicalWidth Data.publicFits).rows := by
   exact explicitRowsBlock_expand Data.logicalWidth Data.publicFits _
 
+theorem runningTransitionBlocks_expand :
+    (runningTransitionBlocks ()).flatMap
+        (Block.rows Data.logicalWidth Data.publicFits) =
+      (RunningTransitionArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows := by
+  exact explicitRowsBlock_expand Data.logicalWidth Data.publicFits _
+
 theorem canonicalBlocks_expand :
     (canonicalBlocks ()).flatMap
         (Block.rows Data.logicalWidth Data.publicFits) =
       Data.arithmeticRows () := by
   unfold canonicalBlocks Data.arithmeticRows
-  rw [List.flatMap_append, List.flatMap_append, piCcsBlocks_expand,
-    piRlcBlocks_expand, piDecBlocks_expand]
+  rw [List.flatMap_append, List.flatMap_append, List.flatMap_append,
+    piCcsBlocks_expand, piRlcBlocks_expand, piDecBlocks_expand,
+    runningTransitionBlocks_expand]
 
 private theorem witnessInstructions_flatMap
     (blocks : List Block) :

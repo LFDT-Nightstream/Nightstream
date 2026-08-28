@@ -7,7 +7,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCParity
 Owns the complete deterministic PiDEC v1.1 Lean parity artifact. The input
 tuple preserves the four physical PiDEC caller-input segments. The result
 contains every verifier-computed digit, range result, recomposition family,
-child claim, and the unchanged transcript state.
+child claim, the unchanged transcript state, and the transition-ready output
+state preimage and digest.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECParity
@@ -134,6 +135,32 @@ def childrenValue (fixture : PiDECNonzero.Fixture) : Value :=
   .array ((List.finRange productionGlobalParams.k).map
     (childValue fixture))
 
+def transitionRunning (fixture : PiDECNonzero.Fixture) : Running
+    (logicalWidth := VerifierContext.candidateLogicalWidth)
+    (publicFits := VerifierContext.candidatePublicFits) where
+  point := (PiDECNonzero.parent fixture).point
+  commitments := PiDECNonzero.childCommitment fixture
+  publicInputs := PiDECNonzero.childPublicInput fixture
+  evaluations := PiDECNonzero.childEvaluation fixture
+
+def transitionOutputPreimage (fixture : PiDECNonzero.Fixture) : HashPreimage
+    (logicalWidth := VerifierContext.candidateLogicalWidth)
+    (publicFits := VerifierContext.candidatePublicFits) where
+  verifierKeys := PiCCSNonzero.statePreimage.verifierKeys
+  iteration := PiCCSNonzero.statePreimage.iteration
+  z0 := PiCCSNonzero.statePreimage.z0
+  current := PiCCSNonzero.statePreimage.current
+  running := fun _ => transitionRunning fixture
+  pc := PiCCSNonzero.statePreimage.pc
+
+def transitionOutputPreimageWords (fixture : PiDECNonzero.Fixture) : List F :=
+  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+    (transitionOutputPreimage fixture)
+
+def transitionOutputDigest (fixture : PiDECNonzero.Fixture) : Digest :=
+  stateHash (publicFits := VerifierContext.candidatePublicFits)
+    (transitionOutputPreimage fixture)
+
 def allMessageEvaluationsNonzero (fixture : PiDECNonzero.Fixture) : Bool :=
   (List.finRange productionGlobalParams.k).all fun child =>
     PiRLCParity.evaluationHasNonzero
@@ -174,13 +201,15 @@ def resultValue (fixture : PiDECNonzero.Fixture) : Value :=
     childrenValue fixture,
     PiCCSParity.stateValue (PiDECNonzero.outgoingState fixture),
     PiCCSParity.boolValue (PiDECNonzero.unboundedRejected fixture),
-    assuranceValue fixture]
+    assuranceValue fixture,
+    PiCCSParity.fieldWordsValue (transitionOutputPreimageWords fixture),
+    PiCCSParity.fieldWordsValue (transitionOutputDigest fixture)]
 
 def rejectedValue : Value :=
   .array [PiCCSParity.boolValue false]
 
 def parityValueForFixture (fixture : PiDECNonzero.Fixture) : Value :=
-  .array [.atom 1, inputValue fixture, resultValue fixture]
+  .array [.atom 2, inputValue fixture, resultValue fixture]
 
 def parityValue (_ : Unit) : Value :=
   let computed := PiCCSNonzero.compute ()
@@ -188,7 +217,7 @@ def parityValue (_ : Unit) : Value :=
       computed.outgoingState PiRLCNonzero.SourceCount with
   | some batch =>
       parityValueForFixture (PiDECNonzero.makeFixture computed batch)
-  | none => .array [.atom 1, .array [], rejectedValue]
+  | none => .array [.atom 2, .array [], rejectedValue]
 
 def parityValueIO : IO Value := do
   let computed ← PiCCSNonzero.computeIO

@@ -319,6 +319,7 @@ structure PreparedRowTasks where
   statementBinding : PreparedRowTask
   piRlcSources : List PreparedRowSourceTask
   piDec : PreparedRowTask
+  runningTransition : PreparedRowTask
 
 def prepareRowBlock
     (block : Stage1.OrdinaryRowPlan.Block) : IO PreparedRowBlock := do
@@ -327,6 +328,10 @@ def prepareRowBlock
   pure {
     witnessInstructions := classified.1
     assertionRows := classified.2 }
+
+def prepareRowBlockDeferred
+    (build : Unit → Stage1.OrdinaryRowPlan.Block) : IO PreparedRowBlock := do
+  prepareRowBlock (build ())
 
 def preparePiRlcSource (source : Nat) : IO (List PreparedRowBlock) :=
   (Stage1.OrdinaryRowPlan.piRlcSourceBlocks source).mapM prepareRowBlock
@@ -340,8 +345,11 @@ def prepareRowBlocks : IO PreparedRowTasks := do
           IO.asTask (preparePiRlcSource source)
             (prio := Task.Priority.dedicated)
   let piDec ← IO.asTask
-    (prepareRowBlock (Stage1.OrdinaryRowPlan.piDecBlock ()))
-  pure { statementBinding, piRlcSources, piDec }
+    (prepareRowBlockDeferred Stage1.OrdinaryRowPlan.piDecBlock)
+  let runningTransition ← IO.asTask
+    (prepareRowBlockDeferred
+      Stage1.OrdinaryRowPlan.runningTransitionBlock)
+  pure { statementBinding, piRlcSources, piDec, runningTransition }
 
 def preparedRowBlock (task : PreparedRowTask) : IO PreparedRowBlock :=
   match task.get with
@@ -419,7 +427,8 @@ def writePreparedWitnessInstructions (handle : IO.FS.Handle)
   let first ← writePreparedPiCCSWitnessItems handle first witnessTasks
   let first ← writePreparedWitnessSourceItems handle first
     rowTasks.piRlcSources
-  let _first ← writePreparedWitnessItems handle first [rowTasks.piDec]
+  let _first ← writePreparedWitnessItems handle first
+    [rowTasks.piDec, rowTasks.runningTransition]
   writeByte handle 93
 
 partial def writePreparedAssertionItems (handle : IO.FS.Handle)
@@ -478,7 +487,8 @@ def writePreparedAssertionRows (handle : IO.FS.Handle)
   let first ← writePreparedPiCCSAssertionItems handle first witnessTasks
   let first ← writePreparedAssertionSourceItems handle first
     rowTasks.piRlcSources
-  let _first ← writePreparedAssertionItems handle first [rowTasks.piDec]
+  let _first ← writePreparedAssertionItems handle first
+    [rowTasks.piDec, rowTasks.runningTransition]
   writeByte handle 93
 
 def writePackagePrefix (handle : IO.FS.Handle) : IO Unit := do

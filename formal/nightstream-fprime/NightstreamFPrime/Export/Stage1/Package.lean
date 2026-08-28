@@ -9,8 +9,8 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC
-package.
+Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC +
+running-transition package.
 
 No theorem evaluates the package artifact. Counts follow from the pilot
 proofs, the compact invocation compiler, the ordinary-row classifier, and the
@@ -189,11 +189,11 @@ theorem witnessLength_eq : Data.witnessLength = 27189226 := by
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 27216639 ∧
-      layout.privateColumnCount = 27374006 ∧
-      layout.constantColumn = 27374006 ∧
+    layout.rowCount = 27537894 ∧
+      layout.privateColumnCount = 27649368 ∧
+      layout.constantColumn = 27649368 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 27374285 := by
+      layout.totalColumnCount = 27649647 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -210,23 +210,26 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 1026956 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 1348211 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 1026956 := by
+    _ = 1348211 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
+        List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
         PiRLCSamplerOrdinaryRows.rows_length,
         PiDECArithmetic.Plan.rows_length,
-        PiDECArithmetic.canonicalPlan_rowCount relation]
+        PiDECArithmetic.canonicalPlan_rowCount relation,
+        RunningTransitionArithmetic.Plan.rows_length,
+        RunningTransitionArithmetic.canonicalPlan_rowCount relation]
 
 theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 1028286 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 1349541 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -235,14 +238,17 @@ theorem circuitPackage_ordinary_rows
     _ = 1330 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 1330 + 1026956 := by
+    _ = 1330 + 1348211 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
+        List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
         PiRLCSamplerOrdinaryRows.rows_length,
         PiDECArithmetic.Plan.rows_length,
-        PiDECArithmetic.canonicalPlan_rowCount relation]
-    _ = 1028286 := by norm_num
+        PiDECArithmetic.canonicalPlan_rowCount relation,
+        RunningTransitionArithmetic.Plan.rows_length,
+        RunningTransitionArithmetic.canonicalPlan_rowCount relation]
+    _ = 1349541 := by norm_num
 
 /-- Construct all 7,514 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
@@ -331,17 +337,17 @@ theorem arithmeticRows_imply_packageOrdinary
     rw [Rows.assertionRowsTR_eq, Data.components_arithmeticRows] at member
     exact member
 
-private theorem compiledRowsHold_three_iff
-    (env : Env) (first second third : List Rows.CompiledRow) :
+private theorem compiledRowsHold_four_iff
+    (env : Env) (first second third fourth : List Rows.CompiledRow) :
     R1CS.RowsHold env
-        (((first ++ second) ++ third).map Rows.CompiledRow.toR1CS) ↔
+        ((first ++ second ++ third ++ fourth).map Rows.CompiledRow.toR1CS) ↔
       R1CS.RowsHold env (first.map Rows.CompiledRow.toR1CS) ∧
         R1CS.RowsHold env (second.map Rows.CompiledRow.toR1CS) ∧
-        R1CS.RowsHold env (third.map Rows.CompiledRow.toR1CS) := by
-  rw [List.map_append, List.map_append, R1CS.rowsHold_append,
-    R1CS.rowsHold_append, and_assoc]
+        R1CS.RowsHold env (third.map Rows.CompiledRow.toR1CS) ∧
+        R1CS.RowsHold env (fourth.map Rows.CompiledRow.toR1CS) := by
+  simp only [List.map_append, R1CS.rowsHold_append, and_assoc]
 
-/-- The three phase-local ordinary packets compose into the exact classified
+/-- The four phase-local ordinary packets compose into the exact classified
 ordinary surface of the current canonical package. -/
 theorem phaseArithmeticRows_imply_packageOrdinary
     (env : Env)
@@ -357,6 +363,10 @@ theorem phaseArithmeticRows_imply_packageOrdinary
     (piDec : R1CS.RowsHold env
       ((PiDECArithmetic.canonicalPlan
         Data.logicalWidth Data.publicFits).rows.map
+          Rows.CompiledRow.toR1CS))
+    (runningTransition : R1CS.RowsHold env
+      ((RunningTransitionArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows.map
           Rows.CompiledRow.toR1CS)) :
     (∀ instruction ∈ (Data.circuitPackage ()).witnessInstructions,
         instruction.Holds env) ∧
@@ -364,8 +374,8 @@ theorem phaseArithmeticRows_imply_packageOrdinary
         assertion.Holds env := by
   apply arithmeticRows_imply_packageOrdinary env _ pilot
   rw [Data.arithmeticRows_eq]
-  exact (compiledRowsHold_three_iff env _ _ _).mpr
-    ⟨piCcs, piRlc, piDec⟩
+  exact (compiledRowsHold_four_iff env _ _ _ _).mpr
+    ⟨piCcs, piRlc, piDec, runningTransition⟩
 
 /-- The ordinary package packet preserves the exact PiCCS arithmetic prefix. -/
 theorem circuitPackage_implies_piCcsArithmeticRows
@@ -376,7 +386,7 @@ theorem circuitPackage_implies_piCcsArithmeticRows
         Rows.CompiledRow.toR1CS) := by
   have combined := circuitPackage_implies_arithmeticRows env holds
   rw [Data.arithmeticRows_eq] at combined
-  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.1
+  exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.1
 
 /-- The ordinary package packet preserves the exact PiRLC sampler-row
 suffix selected by `Data.arithmeticRows`. -/
@@ -388,7 +398,7 @@ theorem circuitPackage_implies_piRlcSamplerOrdinaryRows
         (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS) := by
   have combined := circuitPackage_implies_arithmeticRows env holds
   rw [Data.arithmeticRows_eq] at combined
-  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.2.1
+  exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.1
 
 /-- The ordinary package packet preserves the exact PiDEC row suffix selected
 by the canonical generative plan. -/
@@ -401,7 +411,20 @@ theorem circuitPackage_implies_piDecArithmeticRows
           Rows.CompiledRow.toR1CS) := by
   have combined := circuitPackage_implies_arithmeticRows env holds
   rw [Data.arithmeticRows_eq] at combined
-  exact (compiledRowsHold_three_iff env _ _ _).mp combined |>.2.2
+  exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.2.1
+
+/-- The ordinary package packet preserves the exact running-transition row
+suffix selected by the canonical generative plan. -/
+theorem circuitPackage_implies_runningTransitionArithmeticRows
+    (env : Env)
+    (holds : (Data.circuitPackage ()).RowsHold env) :
+    R1CS.RowsHold env
+      ((RunningTransitionArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows.map
+          Rows.CompiledRow.toR1CS) := by
+  have combined := circuitPackage_implies_arithmeticRows env holds
+  rw [Data.arithmeticRows_eq] at combined
+  exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.2.2
 
 /-- Canonical package rows imply the exact PiDEC verifier semantics through
 the Lean-owned lowering plan and Spartan column permutation. -/
@@ -1413,12 +1436,14 @@ theorem circuitPackage_row_coverage
         (Data.components ()).toCircuitPackage.layout.rowCount := by
   apply Data.Components.rowCoverage (Data.components ())
   · rw [Data.components_arithmeticRows, Data.arithmeticRows_eq,
-      List.length_append, List.length_append,
+      List.length_append, List.length_append, List.length_append,
       PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
         Data.publicFits relation,
       PiRLCSamplerOrdinaryRows.rows_length,
       PiDECArithmetic.Plan.rows_length,
-      PiDECArithmetic.canonicalPlan_rowCount relation]
+      PiDECArithmetic.canonicalPlan_rowCount relation,
+      RunningTransitionArithmetic.Plan.rows_length,
+      RunningTransitionArithmetic.canonicalPlan_rowCount relation]
   · rw [Data.components_permutationInvocations,
       Data.permutationInvocations_eq, List.length_append,
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,

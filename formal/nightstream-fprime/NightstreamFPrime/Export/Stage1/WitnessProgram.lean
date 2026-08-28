@@ -1,9 +1,10 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
+import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.Witness
 
 /-!
-Owns the canonical logical witness-program IR through PiDEC.
+Owns the canonical logical witness-program IR through the running transition.
 
 The seven arithmetic children already export `WitnessBatch` recipes through
 their opaque `FormalCircuit` interfaces. This module gathers those batches in
@@ -15,6 +16,7 @@ directly and proved equal to the opaque child traversal. PiRLC permutation and
 again here.
 PiDEC contributes only the 54 sign-hint batches of its opaque public-input
 split child; R1CS intermediate recipes remain ordinary row instructions.
+The running transition contributes its one inverse-or-zero hint batch.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
@@ -229,14 +231,72 @@ def piDecBatches
       shared).main
     NightstreamFPrime.Layout.Stage1.PiDECStarts.publicInputLogicalStart
 
-/-- Exact logical-witness order through the PiDEC phase. -/
+def runningTransitionBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  childBatches
+    (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.circuit
+    (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+        logicalWidth publicFits)).main
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
+
+private theorem witnesses_assertions (values : List Expr) :
+    witnesses (values.map Op.assertZero) = [] := by
+  induction values with
+  | nil => rfl
+  | cons value rest inductionHypothesis =>
+      simp [witnesses, Op.witnesses]
+
+/-- Closed-form executable form of the sole running-transition witness batch.
+It avoids traversing all 45,894 assertion operations during emission. -/
+def directRunningTransitionBatches
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+  let interface :=
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+      logicalWidth publicFits
+  let offset :=
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
+  [remapBatch (WitnessBatch.hinted offset
+    [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.inverseHint
+      interface offset])]
+
+theorem directRunningTransitionBatches_eq
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    directRunningTransitionBatches logicalWidth publicFits =
+      runningTransitionBatches logicalWidth publicFits := by
+  unfold directRunningTransitionBatches runningTransitionBatches childBatches
+  change [_] =
+    (witnesses
+      (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.operations
+        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+          logicalWidth publicFits)
+        NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset)
+      ).map remapBatch
+  unfold NightstreamFPrime.Lifecycle.Stage1.RunningTransition.operations
+  change [_] =
+    ([_] ++ witnesses
+      ((NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraints
+        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+          logicalWidth publicFits)
+        NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
+      ).map Op.assertZero)).map remapBatch
+  rw [witnesses_assertions]
+  rfl
+
+/-- Exact logical-witness order through the running transition. -/
 def batches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   piCcsBatches logicalWidth publicFits ++
     (piRlcSamplerBatches logicalWidth publicFits ++
-      piDecBatches logicalWidth publicFits)
+      (piDecBatches logicalWidth publicFits ++
+        runningTransitionBatches logicalWidth publicFits))
 
 theorem batches_eq
     (logicalWidth : Nat)
@@ -245,7 +305,8 @@ theorem batches_eq
     batches logicalWidth publicFits =
       piCcsBatches logicalWidth publicFits ++
         (piRlcSamplerBatches logicalWidth publicFits ++
-          piDecBatches logicalWidth publicFits) := by
+          (piDecBatches logicalWidth publicFits ++
+            runningTransitionBatches logicalWidth publicFits)) := by
   rfl
 
 end NightstreamFPrime.Export.Stage1.WitnessProgram

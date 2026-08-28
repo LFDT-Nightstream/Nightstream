@@ -7,7 +7,7 @@ Obligation: Lower
 `E_K = eq(r', r) * sum_(i,l) gamma^I_K(i,l) cf(y'_i)_l`.
 
 Inputs:
-- the 25-coordinate verifier-derived point `r'` and prior point `r`;
+- the 26-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
 - 864 Pad-family coefficients, with no CCS-matrix coefficient.
 
@@ -15,7 +15,7 @@ Outputs:
 - the child-owned exact unshifted `Eval_K` terminal term.
 
 Constraint groups:
-- point equality: 98 logical columns, 593 fresh columns, 691 rows;
+- point equality: 102 logical columns, 617 fresh columns, 719 rows;
 - 864-term Horner: 1,726 logical columns, 6,041 fresh columns,
   7,767 rows;
 - parent wiring: zero columns and zero rows.
@@ -125,7 +125,7 @@ private theorem core_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit interface
-        ).main offset)) = 6634 := by
+        ).main offset)) = 6658 := by
   calc
     _ = (24 * productionShape.cubeVariables - 7) +
         7 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs
@@ -136,7 +136,7 @@ private theorem core_totalFreshCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 6634 := by
+    _ = 6658 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -146,7 +146,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit interface
-        ).main offset)) = 8458 := by
+        ).main offset)) = 8486 := by
   calc
     _ = (28 * productionShape.cubeVariables - 9) +
         9 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs
@@ -157,7 +157,7 @@ private theorem core_totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 8458 := by
+    _ = 8486 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs_length]
       norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -167,8 +167,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.evalKInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.evalKCircuit interface) where
-  freshColumnCount := fun _ => 6634
-  physicalRowCount := fun _ => 8458
+  freshColumnCount := fun _ => 6658
+  physicalRowCount := fun _ => 8486
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalKCircuit
@@ -186,7 +186,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.evalKInterface interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.evalKCircuit interface).main offset)) = 6634 :=
+      (Formal.evalKCircuit interface).main offset)) = 6658 :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -195,7 +195,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.evalKInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.evalKCircuit interface).main offset)) = 8458 :=
+      (Formal.evalKCircuit interface).main offset)) = 8486 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -205,10 +205,10 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.evalKCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.evalKCircuit interface).main offset)) = 8458 := by
+        (Formal.evalKCircuit interface).main offset)) = 8486 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.evalKCircuit interface).main offset) =
-        1824 := by
+        1828 := by
     unfold Formal.evalKCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

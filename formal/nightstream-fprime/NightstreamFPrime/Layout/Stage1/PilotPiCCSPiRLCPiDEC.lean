@@ -3,8 +3,8 @@ import NightstreamFPrime.Layout.Stage1.PiDECStarts
 /-!
 Owns the Stage 1 prefix through the exact PiDEC v1_1 phase.
 
-The 42,336-word PiDEC input ABI follows the completed PiRLC physical endpoint.
-The PiDEC packet then adds 7,128 rows and 3,618 logical-plus-R1CS private
+The 45,792-word PiDEC input ABI follows the completed PiRLC physical endpoint.
+The PiDEC packet then adds 25,272 rows and 18,090 logical-plus-R1CS private
 columns. No public column, copy row, or boundary row is added.
 -/
 
@@ -22,7 +22,7 @@ variable {logicalWidth : Nat}
 
 def piDecOffset : Nat := PiDECInputs.phaseOffset
 
-theorem piDecOffset_eq : piDecOffset = 25711399 := by
+theorem piDecOffset_eq : piDecOffset = 27356194 := by
   rfl
 
 def physicalRows
@@ -62,12 +62,12 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 25564086 := by
+    physicalRowCount relation = 27216639 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCSPiRLC.physicalRowCount relation +
     NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowCount relation
-      (PiDECInputs.interface logicalWidth publicFits) piDecOffset = 25564086
+      (PiDECInputs.interface logicalWidth publicFits) piDecOffset = 27216639
   rw [PilotPiCCSPiRLC.physicalRowCount_eq,
     NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowCount_eq_production
       relation (PiDECInputs.interface logicalWidth publicFits) piDecOffset
@@ -75,24 +75,24 @@ theorem physicalRowCount_eq
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 25715017 := by
+    physicalColumnCount relation = 27374284 := by
   unfold physicalColumnCount
   rw [NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount_eq_production
     relation (PiDECInputs.interface logicalWidth publicFits) piDecOffset
     (PiDECInputs.inputShapes relation), piDecOffset_eq]
-  change max 25711399 25715017 = 25715017
+  change max 27356194 27374284 = 27374284
   norm_num
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 25715017 := by
+    jointDomain relation = 27374284 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num
 
-theorem jointDomain_le_twoPow25
+theorem jointDomain_le_twoPow26
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation ≤ 2 ^ 25 := by
+    jointDomain relation ≤ 2 ^ 26 := by
   rw [jointDomain_eq relation]
   norm_num
 
@@ -101,7 +101,7 @@ def cumulativePhysicalRows
     List Nat :=
   (NightstreamFPrime.Layout.PiDEC.v1_1.cumulativePhysicalRows relation
     (PiDECInputs.interface logicalWidth publicFits) piDecOffset).map
-      (25556958 + ·)
+      (27191367 + ·)
 
 def cumulativePhysicalColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -120,16 +120,16 @@ theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowDeltas relation
         (PiDECInputs.interface logicalWidth publicFits) piDecOffset =
-        [0, 4536, 972, 108, 1512, 0] ∧
+        [0, 22680, 972, 108, 1512, 0] ∧
       NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnDeltas relation
         (PiDECInputs.interface logicalWidth publicFits) piDecOffset =
-        [0, 3618, 0, 0, 0, 0] ∧
+        [0, 18090, 0, 0, 0, 0] ∧
       cumulativePhysicalRows relation =
-        [25556958, 25561494, 25562466, 25562574, 25564086, 25564086] ∧
+        [27191367, 27214047, 27215019, 27215127, 27216639, 27216639] ∧
       cumulativePhysicalColumns relation =
-        [25711399, 25715017, 25715017, 25715017, 25715017, 25715017] ∧
+        [27356194, 27374284, 27374284, 27374284, 27374284, 27374284] ∧
       cumulativeJointDomains relation =
-        [25711399, 25715017, 25715017, 25715017, 25715017, 25715017] := by
+        [27356194, 27374284, 27374284, 27374284, 27374284, 27374284] := by
   let inputs := PiDECInputs.inputShapes relation
   have rows := NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowDeltas_eq
     relation (PiDECInputs.interface logicalWidth publicFits) piDecOffset inputs

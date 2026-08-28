@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Composition
 
 /-!
 Owns the one canonical R1CS lowering plan for the exact PiDEC v1_1 phase.
-All R1CS intermediates start after the phase's 54 logical sign cells. The
+All R1CS intermediates start after the phase's 270 logical sign cells. The
 plan lowers the unchanged six-child row order proved by `Composition`.
 -/
 
@@ -102,7 +102,7 @@ theorem logicalColumnCount_eq
 theorem logicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
-    logicalColumnCount relation interface offset = offset + 54 := by
+    logicalColumnCount relation interface offset = offset + 270 := by
   unfold logicalColumnCount Formal.logicalPrivateCount
   rfl
 
@@ -139,7 +139,7 @@ theorem physicalFreshColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalFreshColumnCount relation interface offset = 3564 := by
+    physicalFreshColumnCount relation interface offset = 17820 := by
   rw [physicalFreshColumnCount_eq]
   exact totalFreshCount_eq relation interface offset inputs
 
@@ -147,7 +147,7 @@ theorem physicalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalRowCount relation interface offset = 7128 := by
+    physicalRowCount relation interface offset = 25272 := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq relation interface offset inputs
 
@@ -155,7 +155,7 @@ theorem physicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalColumnCount relation interface offset = offset + 3618 := by
+    physicalColumnCount relation interface offset = offset + 18090 := by
   rw [physicalColumnCount_eq,
     physicalFreshColumnCount_eq_production relation interface offset inputs,
     logicalColumnCount_eq_production]

@@ -88,13 +88,15 @@ def descriptor (authority : Authority) : Descriptor where
 /-- Fixed Nightstream Goldilocks profile, including the split modulus limbs,
 `b = 2`, `k_rho = 16`, `B = 2^16`, and every Stage 1 PiCCS dimension. -/
 def profileWords : List F :=
-  ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, 14, 25, 9, 54, 18] :
+  ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, 14,
+      cubeVariables, 9, 54, 18] :
     List Nat).map Poseidon2.ofNat
 
 /-- Fixed digest-only PiCCS schedule descriptor: state digest, fresh source,
-25 causal rounds, complete output, then fail-closed PiRLC sampling. -/
+all causal rounds, complete output, then fail-closed PiRLC sampling. -/
 def scheduleWords : List F :=
-  ([1, 1, 1, 25, 10, 17, 14, 54, 16, 64] : List Nat).map Poseidon2.ofNat
+  ([1, 1, 1, cubeVariables, 10, 17, 14, 54, 16, 64] : List Nat).map
+    Poseidon2.ofNat
 
 def contextDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,

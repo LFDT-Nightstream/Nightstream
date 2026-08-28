@@ -22,13 +22,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- The completed PiRLC private-column endpoint. -/
-def proofInputStart : Nat := 25669063
+def proofInputStart : Nat := 27310402
 
 def childCount : Nat := 16
 def commitmentWordsPerChild : Nat := 972
 def evalKWordsPerChild : Nat := 108
 def evalAWordsPerChild : Nat := 1512
-def publicInputWordsPerChild : Nat := 54
+def publicInputWordsPerChild : Nat := 270
 
 def commitmentInputStart : Nat := proofInputStart
 def evalKInputStart : Nat :=
@@ -54,13 +54,13 @@ theorem proofInputStart_matches_piRlc
   rw [PilotPiCCSPiRLC.physicalColumnCount_eq]
   rfl
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 42336 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 45792 := by
   rfl
 
 theorem inputStarts_eq :
     [commitmentInputStart, evalKInputStart, evalAInputStart, publicInputStart,
       phaseOffset] =
-    [25669063, 25684615, 25686343, 25710535, 25711399] := by
+    [27310402, 27325954, 27327682, 27351874, 27356194] := by
   rfl
 
 def childCommitmentStart (child : Radix.ChildIndex) : Nat :=
@@ -93,7 +93,7 @@ def childEvalA (child : Radix.ChildIndex)
   ⟨Expr.var start, Expr.var (start + 1)⟩
 
 def childPublicInput (child : Radix.ChildIndex)
-    (coordinate : Fin 54) : Expr :=
+    (coordinate : Fin 270) : Expr :=
   Expr.var (childPublicInputStart child + coordinate.val)
 
 def piRlcInterface

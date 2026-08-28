@@ -135,7 +135,7 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     Shape.padEvaluationCount, ringDegree]
 
 theorem pointLength_eq (interface : Interface) (offset : Nat) :
-    pointLength interface offset = 98 := by
+    pointLength interface offset = 102 := by
   unfold pointLength
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     PointWeightedHorner.Owned.pointLength_eq_of_positive
@@ -148,14 +148,14 @@ theorem hornerLength_eq (interface : Interface) (offset : Nat) :
   change 2 * ((coefficientExprs interface offset).length - 1) = 1726
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 1824
+def privateCount : Nat := 1828
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 1824 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 1828 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.localLength_eq]
   change (4 * productionShape.cubeVariables - 2) +
-    2 * ((coefficientExprs interface offset).length - 1) = 1824
+    2 * ((coefficientExprs interface offset).length - 1) = 1828
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -166,11 +166,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      1824 := by
+      1828 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.flatConstraints_length]
   change (4 * productionShape.cubeVariables - 2) +
-    2 * ((coefficientExprs interface offset).length - 1) = 1824
+    2 * ((coefficientExprs interface offset).length - 1) = 1828
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 

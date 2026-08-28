@@ -197,8 +197,11 @@ def borrowTerm
   monomial coefficient
     (borrowPowers classIndex digit0 digit1 borrowIn borrowOut)
 
-private def half : F := 9223372034707292161
-private def quarter : F := 13835058052060938241
+/-- Half-field interpolation coefficient used by the canonical borrow tables. -/
+def half : F := 9223372034707292161
+
+/-- Quarter-field interpolation coefficient used by the canonical borrow tables. -/
+def quarter : F := 13835058052060938241
 
 /-- Expanded relation for the two-trit bound class 0. -/
 def borrowTerms0 : List (Monomial F matrixCount) :=
@@ -283,6 +286,20 @@ theorem term_totalDegree_le_eight
     (candidate : Monomial F matrixCount)
     (member : candidate ∈ terms) :
     candidate.totalDegree ≤ 8 := by
+  have degreeMember :
+      candidate.totalDegree ∈ terms.map Monomial.totalDegree :=
+    List.mem_map_of_mem member
+  simp [terms, baseTerms, borrowTerms0, borrowTerms1, borrowTerms2,
+    borrowTerms3, borrowTerms4, borrowTerm, borrowPowers, classExponent,
+    powers, PortExponents.totalDegree] at degreeMember
+  omega
+
+/-- Every production monomial has positive degree, so the fixed polynomial
+has no constant term. -/
+theorem term_totalDegree_pos
+    (candidate : Monomial F matrixCount)
+    (member : candidate ∈ terms) :
+    0 < candidate.totalDegree := by
   have degreeMember :
       candidate.totalDegree ∈ terms.map Monomial.totalDegree :=
     List.mem_map_of_mem member

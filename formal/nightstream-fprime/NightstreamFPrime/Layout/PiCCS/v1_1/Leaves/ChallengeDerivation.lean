@@ -3,14 +3,14 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS Fiat–Shamir challenges.
-Obligation: Derive all 25 `α` coordinates and `γ` from the exact labelled
+Obligation: Derive all 26 `α` coordinates and `γ` from the exact labelled
 Poseidon2 transcript schedule.
 
 Inputs:
 - the child-owned state produced by Statement absorption.
 
 Outputs:
-- 25 verifier-derived `α` values;
+- 26 verifier-derived `α` values;
 - one verifier-derived `γ` value;
 - the child-owned outgoing transcript state.
 
@@ -103,7 +103,8 @@ private theorem replicatedZero_affine (count : Nat) :
 private theorem layoutActions_affine : ActionsAffine layoutActions := by
   unfold layoutActions
   exact labelledActions_affine challengeLabels
-    (List.replicate 26 KExpr.zero) (replicatedZero_affine 26)
+    (List.replicate challengeLabels.length KExpr.zero)
+      (replicatedZero_affine challengeLabels.length)
 
 private theorem layoutProgram_samples_affine
     (interface :
@@ -185,7 +186,7 @@ def footprint
     (Formal.atOffset interface parentOffset) parentOffset
   {
     freshColumnCount := fun _ => 0
-    physicalRowCount := fun _ => 46176
+    physicalRowCount := fun _ => 47952
     freshColumnCount_eq := by
       intro offset
       unfold Formal.challengeCircuit
@@ -204,7 +205,7 @@ def footprint
       dsimp only
       rw [FormalCircuit.withConstantFootprint_main]
       change R1CS.totalRowCount (flatConstraints
-        (opsAt child offset)) = 46176
+        (opsAt child offset)) = 47952
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.flatConstraints_opsAt]
       rw [R1CS.recipeConstraints_totalRowCount]
       exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.program_recipes_length
@@ -236,7 +237,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.challengeCircuit interface parentOffset).main offset)) =
-        46176 :=
+        47952 :=
   (footprint interface parentOffset inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.ChallengeDerivation

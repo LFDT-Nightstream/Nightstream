@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, nico/f-prime-constraints-cuda-formal ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -92,7 +92,7 @@ jobs:
   #   steps:
   #   - name: Checkout code
   #     uses: actions/checkout@v4
-
+  #
   #   - name: Install Rust (wasm32 + rust-src)
   #     uses: dtolnay/rust-toolchain@stable
   #     with:
@@ -105,15 +105,15 @@ jobs:
   #       toolchain: nightly-2025-09-01
   #       targets: wasm32-unknown-unknown
   #       components: rust-src
-
+  #
   #   - name: Cache cargo
   #     uses: Swatinem/rust-cache@v2
   #     with:
   #       workspaces: demos/wasm-demo/wasm
-
+  #
   #   - name: Install wasm-pack
   #     uses: jetli/wasm-pack-action@v0.4.0
-
+  #
   #   - name: Build WASM bundles (Web/iOS/Android)
   #     run: ./demos/build_wasm.sh --release
   #     env:

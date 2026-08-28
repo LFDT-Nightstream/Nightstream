@@ -49,5 +49,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RingKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
+import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
 /-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

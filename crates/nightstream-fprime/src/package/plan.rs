@@ -10,9 +10,9 @@ const RING_DEGREE: usize = 54;
 const POSITION_SLOTS: usize = 55;
 const VALUE_SLOTS: usize = 54;
 const COMBINATION_TEMPLATE_COUNT: usize = 108;
-const PI_CCS_SOURCE_START: usize = 12_688_104;
-const PI_CCS_TARGET_START: usize = 12_688_042;
-const PILOT_PRIOR_PUBLIC_SOURCE_START: usize = 42_475;
+const PI_CCS_SOURCE_START: usize = 13_720_468;
+const PI_CCS_TARGET_START: usize = 13_720_190;
+const PILOT_PRIOR_PUBLIC_SOURCE_START: usize = 45_933;
 
 #[derive(Debug, Deserialize)]
 struct RawFirst54Block(u64, u64);
@@ -91,15 +91,15 @@ fn expand_first54(source_count: usize, round_count: usize) -> Result<Vec<RawComp
     let count = product(&[source_count, round_count, POSITION_SLOTS + VALUE_SLOTS])?;
     let mut result = Vec::with_capacity(count);
     for source in 0..source_count {
-        let selector_logical = linear(17_878_110, &[(source, 15_504)])?;
-        let selector_row = linear(17_774_148, &[(source, 59_344)])?;
-        let selector_fresh = linear(18_187_828, &[(source, 43_743)])?;
+        let selector_logical = linear(18_964_977, &[(source, 15_504)])?;
+        let selector_row = linear(18_854_085, &[(source, 59_344)])?;
+        let selector_fresh = linear(19_278_367, &[(source, 43_743)])?;
         for round in 0..round_count {
             let digest_round = round / 8;
             let lane = (round % 8) / 2;
             let part = round % 2;
             let decoder = linear(
-                17_870_240,
+                18_957_107,
                 &[(source, 15_504), (digest_round, 992), (lane, 100), (part, 17)],
             )?;
             let reject = final_column(add(decoder, 16)?)?;
@@ -283,17 +283,17 @@ fn expand_combinations(
 }
 
 fn combination_challenge(source: usize) -> Result<usize, PackageError> {
-    linear(17_884_970, &[(source, 15_504)])
+    final_column(linear(18_971_899, &[(source, 15_504)])?)
 }
 
 fn combination_value(family: usize, source: usize, block: usize, cell: usize) -> Result<usize, PackageError> {
     match family {
-        0 if source == 0 => linear(84_950, &[(block, RING_DEGREE)]),
-        0 => linear(91, &[(source - 1, 2_649), (block, RING_DEGREE)]),
-        1 if source == 0 => source_to_spartan(PILOT_PRIOR_PUBLIC_SOURCE_START),
-        1 => linear(1_064, &[(source - 1, 2_649)]),
-        2 => linear(86_422, &[(source, 1_620), (cell, 1)]),
-        3 => linear(86_530, &[(source, 1_620), (block, 108), (cell, 1)]),
+        0 if source == 0 => linear(91_866, &[(block, RING_DEGREE)]),
+        0 => linear(93, &[(source - 1, 2_865), (block, RING_DEGREE)]),
+        1 if source == 0 => source_to_spartan(linear(PILOT_PRIOR_PUBLIC_SOURCE_START, &[(block, RING_DEGREE)])?),
+        1 => linear(1_066, &[(source - 1, 2_865), (block, RING_DEGREE)]),
+        2 => linear(93_358, &[(source, 1_620), (cell, 1)]),
+        3 => linear(93_466, &[(source, 1_620), (block, 108), (cell, 1)]),
         _ => Err(PackageError::Invalid("combination family")),
     }
 }

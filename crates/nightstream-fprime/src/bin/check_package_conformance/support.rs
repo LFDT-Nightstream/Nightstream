@@ -1,15 +1,18 @@
 use std::{fs, path::Path};
 
 use nightstream_fprime::{
-    load_with_expanded_package, PackageSparseMatrix, PiCcsV1_1OutputEvaluations, WitnessAssignment,
-    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
-    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    load_with_expanded_package, LoadedPackage, PackageSparseMatrix, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs,
+    PiDecV1_1PackageInputs, WitnessAssignment, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS,
+    PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_DEC_V1_1_CHILD_COUNT,
+    PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD,
 };
 use rayon::prelude::*;
 use serde::de::IgnoredAny;
 use serde::Deserialize;
 use serde_json::Value;
+
+mod owner_mutations;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -55,7 +58,7 @@ struct RawTemplateTerm(RawColumnRef, u64);
 struct RawColumnRef(u64, u64);
 
 #[derive(Deserialize)]
-struct RawChain(u64, u64, u64, u64, u64, u64, u64, u64, u64);
+struct RawChain(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
 
 #[derive(Deserialize)]
 struct RawInvocation(u64, u64, u64, Vec<RawCombination>);
@@ -95,6 +98,500 @@ enum MatrixSide {
     B,
     C,
 }
+
+#[derive(Clone, Copy)]
+struct OwnerSpan {
+    name: &'static str,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Clone, Copy)]
+struct ColumnOwnerSpan {
+    name: &'static str,
+    rows: OwnerSpan,
+    columns: OwnerSpan,
+}
+
+// Exact nonempty row-owner intervals from the proved Pilot, PiCCS, PiRLC,
+// and PiDEC production ledgers. The cited Lean cumulative-footprint theorems
+// prove these boundaries and their order.
+const ROW_OWNER_SPANS: &[OwnerSpan] = &[
+    OwnerSpan {
+        name: "pilot.prior_state_hash",
+        start: 0,
+        end: 6_800_446,
+    },
+    OwnerSpan {
+        name: "pilot.output_hash",
+        start: 6_800_446,
+        end: 13_599_570,
+    },
+    OwnerSpan {
+        name: "piccs.statement_binding",
+        start: 13_599_570,
+        end: 13_599_730,
+    },
+    OwnerSpan {
+        name: "piccs.statement_absorption",
+        start: 13_599_730,
+        end: 13_792_130,
+    },
+    OwnerSpan {
+        name: "piccs.challenge_derivation",
+        start: 13_792_130,
+        end: 13_840_082,
+    },
+    OwnerSpan {
+        name: "piccs.round_transcript",
+        start: 13_840_082,
+        end: 13_978_610,
+    },
+    OwnerSpan {
+        name: "piccs.initial_claim",
+        start: 13_978_610,
+        end: 14_095_241,
+    },
+    OwnerSpan {
+        name: "piccs.sumcheck_chain",
+        start: 14_095_241,
+        end: 14_489_200,
+    },
+    OwnerSpan {
+        name: "piccs.eval_k",
+        start: 14_489_200,
+        end: 14_497_686,
+    },
+    OwnerSpan {
+        name: "piccs.eval_a",
+        start: 14_497_686,
+        end: 14_607_260,
+    },
+    OwnerSpan {
+        name: "piccs.ccs_terminal",
+        start: 14_607_260,
+        end: 14_628_054,
+    },
+    OwnerSpan {
+        name: "piccs.norm_terminal",
+        start: 14_628_054,
+        end: 14_628_806,
+    },
+    OwnerSpan {
+        name: "piccs.final_identity",
+        start: 14_628_806,
+        end: 14_759_253,
+    },
+    OwnerSpan {
+        name: "piccs.output_binding",
+        start: 14_759_253,
+        end: 18_835_765,
+    },
+    OwnerSpan {
+        name: "pirlc.sampler_chain",
+        start: 18_835_765,
+        end: 19_844_613,
+    },
+    OwnerSpan {
+        name: "pirlc.commitment",
+        start: 19_844_613,
+        end: 22_339_737,
+    },
+    OwnerSpan {
+        name: "pirlc.public_input",
+        start: 22_339_737,
+        end: 23_032_827,
+    },
+    OwnerSpan {
+        name: "pirlc.eval_k",
+        start: 23_032_827,
+        end: 23_310_063,
+    },
+    OwnerSpan {
+        name: "pirlc.eval_a",
+        start: 23_310_063,
+        end: 27_191_367,
+    },
+    OwnerSpan {
+        name: "pidec.public_input_split",
+        start: 27_191_367,
+        end: 27_214_047,
+    },
+    OwnerSpan {
+        name: "pidec.commitment",
+        start: 27_214_047,
+        end: 27_215_019,
+    },
+    OwnerSpan {
+        name: "pidec.eval_k",
+        start: 27_215_019,
+        end: 27_215_127,
+    },
+    OwnerSpan {
+        name: "pidec.eval_a",
+        start: 27_215_127,
+        end: 27_216_639,
+    },
+];
+
+const PILOT_ROWS: OwnerSpan = OwnerSpan {
+    name: "pilot",
+    start: 0,
+    end: 13_599_570,
+};
+const PICCS_ROWS: OwnerSpan = OwnerSpan {
+    name: "piccs",
+    start: 13_599_570,
+    end: 18_835_765,
+};
+const PIRLC_ROWS: OwnerSpan = OwnerSpan {
+    name: "pirlc",
+    start: 18_835_765,
+    end: 27_191_367,
+};
+const PIDEC_ROWS: OwnerSpan = OwnerSpan {
+    name: "pidec",
+    start: 27_191_367,
+    end: 27_216_639,
+};
+
+// Source-order column intervals from each phase's proved ColumnOwner map.
+// Child intervals with zero columns are not listed because no member exists.
+const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
+    ColumnOwnerSpan {
+        name: "pilot.external",
+        rows: PILOT_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 92_140,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pilot.prior_witness",
+        rows: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 6_800_446,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 92_140,
+            end: 6_891_524,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pilot.output_witness",
+        rows: OwnerSpan {
+            name: "",
+            start: 6_800_446,
+            end: 13_599_570,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 6_891_524,
+            end: 13_690_644,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pilot.multiplication",
+        rows: PILOT_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 13_690_644,
+            end: 13_691_432,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.external",
+        rows: PICCS_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 13_720_468,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.statement_absorption",
+        rows: OwnerSpan {
+            name: "",
+            start: 13_599_730,
+            end: 13_792_130,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 13_720_468,
+            end: 13_912_868,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.challenge_derivation",
+        rows: OwnerSpan {
+            name: "",
+            start: 13_792_130,
+            end: 13_840_082,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 13_912_868,
+            end: 13_960_820,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.round_transcript",
+        rows: OwnerSpan {
+            name: "",
+            start: 13_840_082,
+            end: 13_978_610,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 13_960_820,
+            end: 14_099_348,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.initial_claim",
+        rows: OwnerSpan {
+            name: "",
+            start: 13_978_610,
+            end: 14_095_241,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_099_348,
+            end: 14_125_266,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.eval_k",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_489_200,
+            end: 14_497_686,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_125_266,
+            end: 14_127_094,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.eval_a",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_497_686,
+            end: 14_607_260,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_127_094,
+            end: 14_151_386,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.ccs_terminal",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_607_260,
+            end: 14_628_054,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_151_386,
+            end: 14_151_388,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.norm_terminal",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_628_054,
+            end: 14_628_806,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_151_388,
+            end: 14_151_420,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.final_identity",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_628_806,
+            end: 14_759_253,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_151_420,
+            end: 14_179_170,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.output_binding",
+        rows: OwnerSpan {
+            name: "",
+            start: 14_759_253,
+            end: 18_835_765,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 14_179_170,
+            end: 18_255_682,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "piccs.r1cs_intermediate",
+        rows: PICCS_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 18_255_682,
+            end: 18_956_449,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.external",
+        rows: PIRLC_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 18_956_449,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.sampler_chain",
+        rows: OwnerSpan {
+            name: "",
+            start: 18_835_765,
+            end: 19_844_613,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 18_956_449,
+            end: 19_220_017,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.commitment",
+        rows: OwnerSpan {
+            name: "",
+            start: 19_844_613,
+            end: 22_339_737,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 19_220_017,
+            end: 19_236_541,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.public_input",
+        rows: OwnerSpan {
+            name: "",
+            start: 22_339_737,
+            end: 23_032_827,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 19_236_541,
+            end: 19_241_131,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.eval_k",
+        rows: OwnerSpan {
+            name: "",
+            start: 23_032_827,
+            end: 23_310_063,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 19_241_131,
+            end: 19_242_967,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.eval_a",
+        rows: OwnerSpan {
+            name: "",
+            start: 23_310_063,
+            end: 27_191_367,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 19_242_967,
+            end: 19_268_671,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pirlc.r1cs_intermediate",
+        rows: PIRLC_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 19_268_671,
+            end: 27_310_402,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pidec.external",
+        rows: PIDEC_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 27_356_194,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pidec.public_input_split",
+        rows: OwnerSpan {
+            name: "",
+            start: 27_191_367,
+            end: 27_214_047,
+        },
+        columns: OwnerSpan {
+            name: "",
+            start: 27_356_194,
+            end: 27_356_464,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "pidec.r1cs_intermediate",
+        rows: PIDEC_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 27_356_464,
+            end: 27_374_284,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "public.prior_state",
+        rows: PILOT_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 45_933,
+            end: 46_203,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "public.output_digest",
+        rows: PILOT_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 92_136,
+            end: 92_140,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "public.verifier_context",
+        rows: PICCS_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 13_691_432,
+            end: 13_691_436,
+        },
+    },
+];
 
 #[derive(Clone, Copy)]
 enum Invocation<'a> {
@@ -411,9 +908,10 @@ struct PhaseLocalInputs {
     private_values: Vec<u64>,
     public_values: Vec<u64>,
     fixture_identity: [u64; 4],
+    pi_dec_starts: [usize; 4],
 }
 
-fn nonzero_inputs(parity_path: &Path) -> PhaseLocalInputs {
+fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Path) -> PhaseLocalInputs {
     let bytes = fs::read(parity_path).expect("Lean-emitted PiCCS parity bytes");
     let parity: Value = serde_json::from_slice(&bytes).expect("PiCCS parity JSON");
     let parity = parity.as_array().expect("PiCCS parity tuple");
@@ -451,6 +949,14 @@ fn nonzero_inputs(parity_path: &Path) -> PhaseLocalInputs {
     assert_eq!(authority[1], authority[0], "PiCCS parity relation/application identity");
     assert!(!authority[2].is_empty(), "PiCCS parity NIFS-key authority");
     assert!(!authority[3].is_empty(), "PiCCS parity commitment-key authority");
+    let derived_context = package
+        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
+        .expect("package-derived PiCCS verifier context");
+    assert_eq!(
+        derived_context.digest(),
+        verifier_context,
+        "PiCCS parity verifier context"
+    );
     let fresh_commitment = json_words(&input[5], "PiCCS parity fresh commitment");
     assert_eq!(fresh_commitment.len(), PI_CCS_V1_1_FRESH_COMMITMENT_WORDS);
     assert!(fresh_commitment.iter().all(|word| *word != 0));
@@ -497,38 +1003,126 @@ fn nonzero_inputs(parity_path: &Path) -> PhaseLocalInputs {
                 matrix.len() == PI_CCS_V1_1_COEFFICIENT_COUNT && matrix.iter().all(|value| *value != [0, 0])
             })
     }));
-    PiCcsV1_1OutputEvaluations::new(eval_k.clone(), eval_a.clone()).expect("nonzero PiCCS output evaluations");
+    let output_evaluations = PiCcsV1_1OutputEvaluations::new(eval_k, eval_a).expect("nonzero PiCCS output evaluations");
     assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(prior_public_input.len(), PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS);
 
-    let mut private_values = Vec::new();
-    private_values.extend_from_slice(&prior_preimage);
-    private_values.extend_from_slice(&output_preimage);
-    private_values.extend_from_slice(&fresh_commitment);
-    for round in &round_messages {
-        for value in round {
-            private_values.extend_from_slice(value);
-        }
-    }
-    for source in 0..PI_CCS_V1_1_SOURCE_COUNT {
-        for value in &eval_k[source] {
-            private_values.extend_from_slice(value);
-        }
-        for matrix in &eval_a[source] {
-            for value in matrix {
-                private_values.extend_from_slice(value);
-            }
-        }
-    }
-    let mut public_values = prior_public_input;
-    public_values.extend_from_slice(&output_digest);
-    public_values.extend_from_slice(&verifier_context);
+    let pi_ccs = PiCcsV1_1PackageInputs::new(
+        prior_preimage,
+        output_preimage,
+        fresh_commitment,
+        round_messages,
+        output_evaluations,
+        prior_public_input,
+        output_digest,
+        derived_context,
+    )
+    .expect("typed PiCCS package inputs");
+    let pi_dec = pi_dec_inputs(pi_dec_path, fixture_identity);
+    let pi_ccs_private_count = 2 * PI_CCS_V1_1_STATE_PREIMAGE_WORDS
+        + PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
+        + PI_CCS_V1_1_ROUND_COUNT * PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT * 2
+        + PI_CCS_V1_1_SOURCE_COUNT
+            * (PI_CCS_V1_1_COEFFICIENT_COUNT * 2 + PI_CCS_V1_1_MATRIX_COUNT * PI_CCS_V1_1_COEFFICIENT_COUNT * 2);
+    let pi_dec_commitment_start = pi_ccs_private_count;
+    let pi_dec_eval_k_start =
+        pi_dec_commitment_start + PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD;
+    let pi_dec_eval_a_start = pi_dec_eval_k_start + PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD * 2;
+    let pi_dec_public_input_start = pi_dec_eval_a_start
+        + PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD * PI_CCS_V1_1_COEFFICIENT_COUNT * 2;
+    let encoded = package
+        .encode_stage1_v1_1_inputs(&pi_ccs, &pi_dec)
+        .expect("typed Stage 1 package inputs");
     PhaseLocalInputs {
-        private_values,
-        public_values,
+        private_values: encoded.private_values().to_vec(),
+        public_values: encoded.public_values().to_vec(),
         fixture_identity,
+        pi_dec_starts: [
+            pi_dec_commitment_start,
+            pi_dec_eval_k_start,
+            pi_dec_eval_a_start,
+            pi_dec_public_input_start,
+        ],
     }
+}
+
+fn pi_dec_inputs(path: &Path, expected_identity: [u64; 4]) -> PiDecV1_1PackageInputs {
+    let bytes = fs::read(path).expect("Lean-emitted PiDEC parity bytes");
+    let parity: Value = serde_json::from_slice(&bytes).expect("PiDEC parity JSON");
+    let parity = parity.as_array().expect("PiDEC parity tuple");
+    assert_eq!(parity.len(), 3, "PiDEC parity tuple length");
+    assert_eq!(parity[0].as_u64(), Some(1), "PiDEC parity schema");
+    let input = parity[1].as_array().expect("PiDEC parity input tuple");
+    let result = parity[2].as_array().expect("PiDEC parity result tuple");
+    assert_eq!(input.len(), 7, "PiDEC parity input tuple length");
+    assert_eq!(result.len(), 17, "PiDEC parity result tuple length");
+    assert_eq!(result[0].as_u64(), Some(1), "Lean PiDEC acceptance");
+    assert_eq!(result[1].as_u64(), Some(1), "Lean PiDEC parent bound");
+    assert_eq!(result[6].as_u64(), Some(1), "Lean PiDEC commitment equation");
+    assert_eq!(result[8].as_u64(), Some(1), "Lean PiDEC public-input equation");
+    assert_eq!(result[10].as_u64(), Some(1), "Lean PiDEC Eval_K equation");
+    assert_eq!(result[12].as_u64(), Some(1), "Lean PiDEC Eval_A equation");
+    assert_eq!(result[15].as_u64(), Some(1), "Lean PiDEC unbounded rejection");
+    assert!(json_words(&result[3], "PiDEC parent-bound results")
+        .iter()
+        .all(|flag| *flag == 1));
+    assert!(result[4]
+        .as_array()
+        .expect("PiDEC digit-range children")
+        .iter()
+        .all(|child| json_words(child, "PiDEC digit-range results")
+            .iter()
+            .all(|flag| *flag == 1)));
+    assert!(json_words(&result[16], "PiDEC assurance")
+        .iter()
+        .all(|flag| *flag == 1));
+    assert_eq!(result[2], input[4], "PiDEC verifier-computed public digits");
+    assert_eq!(result[14], input[5], "PiDEC outgoing state");
+    assert_eq!(
+        json_words(&input[6], "PiDEC package identity"),
+        expected_identity,
+        "PiDEC fixture package identity",
+    );
+    assert_eq!(
+        result[13].as_array().expect("PiDEC child claims").len(),
+        PI_DEC_V1_1_CHILD_COUNT,
+        "PiDEC child result count",
+    );
+
+    let child_commitments = input[1]
+        .as_array()
+        .expect("PiDEC child commitments")
+        .iter()
+        .map(|child| json_words(child, "PiDEC child commitment"))
+        .collect();
+    let child_eval_k = input[2]
+        .as_array()
+        .expect("PiDEC child Eval_K")
+        .iter()
+        .map(|child| json_extensions(child, "PiDEC child Eval_K"))
+        .collect();
+    let child_eval_a = input[3]
+        .as_array()
+        .expect("PiDEC child Eval_A")
+        .iter()
+        .map(|child| {
+            child
+                .as_array()
+                .expect("PiDEC child Eval_A matrices")
+                .iter()
+                .map(|matrix| json_extensions(matrix, "PiDEC child Eval_A"))
+                .collect()
+        })
+        .collect();
+    let child_public_inputs = input[4]
+        .as_array()
+        .expect("PiDEC child public inputs")
+        .iter()
+        .map(|child| json_words(child, "PiDEC child public input"))
+        .collect();
+    PiDecV1_1PackageInputs::new(child_commitments, child_eval_k, child_eval_a, child_public_inputs)
+        .expect("typed PiDEC package inputs")
 }
 
 fn events(raw: &RawPackage) -> Vec<Event<'_>> {
@@ -536,14 +1130,19 @@ fn events(raw: &RawPackage) -> Vec<Event<'_>> {
     let mut events = Vec::new();
     for chain in &raw.6 {
         assert_ne!(chain.0, 0, "reference hash-chain phase");
-        assert_eq!(word(chain.2), word(chain.6) + 4, "reference hash-chain rows");
+        assert_eq!(
+            word(chain.2),
+            word(chain.6) + word(chain.8),
+            "reference hash-chain rows",
+        );
         assert_eq!(
             word(chain.6),
             (word(chain.7) + 1) * template_rows,
             "reference hash-chain witness rows",
         );
         assert!(
-            word(chain.8) >= word(raw.3 .2) + 1 && word(chain.8) + 4 <= word(raw.3 .4),
+            word(chain.8) == 0
+                || (word(chain.9) >= word(raw.3 .2) + 1 && word(chain.9) + word(chain.8) <= word(raw.3 .4)),
             "reference hash-chain digest range",
         );
         for ordinal in 0..=word(chain.7) {
@@ -589,7 +1188,13 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected_identity: [u64; 4]) {
+pub fn run(
+    plan_path: &Path,
+    reference_path: &Path,
+    pi_ccs_parity_path: &Path,
+    pi_dec_parity_path: &Path,
+    expected_identity: [u64; 4],
+) {
     let plan_bytes = fs::read(plan_path).expect("Lean-emitted package-plan bytes");
     let reference_bytes = fs::read(reference_path).expect("Lean-emitted expanded-package bytes");
     let (package, expanded_bytes) = load_with_expanded_package(&plan_bytes, expected_identity)
@@ -656,32 +1261,13 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
             compare_row(matrices.c(), row_index, &expected_c, "C");
         }
     });
-    let mut mutation = None;
-    'schedule: for &event in &schedule {
-        for ordinal in 0..event_row_count(event, &raw) {
-            let expected = expected_row(event, &raw.5, ordinal, MatrixSide::A, &layout);
-            if !expected.is_empty() {
-                mutation = Some((event.row_start() + ordinal, expected));
-                break 'schedule;
-            }
-        }
-    }
-    let (mutation_row, expected_a) = mutation.expect("nonempty reference A row");
-    let actual = actual_row(matrices.a(), mutation_row);
-    let mut changed_row = expected_a.clone();
-    changed_row.remove(0);
-    assert_ne!(actual, changed_row, "row mutation must fail exact comparison");
-    let mut changed_coefficient = expected_a.clone();
-    changed_coefficient[0].1 = changed_word(changed_coefficient[0].1);
-    changed_coefficient = canonicalize(changed_coefficient);
-    assert_ne!(
-        actual, changed_coefficient,
-        "coefficient mutation must fail exact comparison"
-    );
-    let mut changed_column = expected_a;
-    changed_column[0].0 = (changed_column[0].0 + 1) % layout.final_columns;
-    changed_column = canonicalize(changed_column);
-    assert_ne!(actual, changed_column, "column mutation must fail exact comparison");
+    let (row_owner_mutation_checks, column_owner_mutation_checks) = {
+        let sides = [("A", matrices.a()), ("B", matrices.b()), ("C", matrices.c())];
+        (
+            owner_mutations::row_owner_mutation_checks(&sides, layout.unpadded_rows),
+            owner_mutations::column_owner_mutation_checks(&sides, &layout),
+        )
+    };
     println!("matrix_row_equality=passed");
 
     for matrix in [matrices.a(), matrices.b(), matrices.c()] {
@@ -692,7 +1278,7 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
     }
     drop(matrices);
 
-    let encoded = nonzero_inputs(parity_path);
+    let encoded = nonzero_inputs(&package, pi_ccs_parity_path, pi_dec_parity_path);
     assert_eq!(
         encoded.fixture_identity, expected_identity,
         "phase-local fixture package identity",
@@ -714,6 +1300,7 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
     let rounds_start = fresh_start + PI_CCS_V1_1_FRESH_COMMITMENT_WORDS;
     let eval_k_start = rounds_start + PI_CCS_V1_1_ROUND_COUNT * PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT * 2;
     let eval_a_start = eval_k_start + PI_CCS_V1_1_COEFFICIENT_COUNT * 2;
+    let mut input_mutation_checks = 0;
     for (location, index) in [
         ("prior preimage", 0),
         ("output preimage", PI_CCS_V1_1_STATE_PREIMAGE_WORDS),
@@ -730,6 +1317,23 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
                 .is_err(),
             "{location} mutation must reject",
         );
+        input_mutation_checks += 1;
+    }
+    for (location, index) in [
+        ("PiDEC commitments", encoded.pi_dec_starts[0]),
+        ("PiDEC Eval_K", encoded.pi_dec_starts[1]),
+        ("PiDEC Eval_A", encoded.pi_dec_starts[2]),
+        ("PiDEC child public inputs", encoded.pi_dec_starts[3]),
+    ] {
+        let mut private_values = encoded.private_values.clone();
+        private_values[index] = changed_word(private_values[index]);
+        assert!(
+            package
+                .execute_witness(&private_values, &encoded.public_values)
+                .is_err(),
+            "{location} mutation must reject",
+        );
+        input_mutation_checks += 1;
     }
     for (location, index) in [
         ("prior public input", 0),
@@ -743,6 +1347,7 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
                 .is_err(),
             "{location} mutation must reject",
         );
+        input_mutation_checks += 1;
     }
     let context_start = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS + 4;
     for lane in 0..4 {
@@ -754,6 +1359,7 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
                 .is_err(),
             "verifier-context lane {lane} mutation must reject",
         );
+        input_mutation_checks += 1;
     }
 
     schedule.par_iter().for_each(|&event| {
@@ -788,6 +1394,12 @@ pub fn run(plan_path: &Path, reference_path: &Path, parity_path: &Path, expected
     println!("matrix_rows={}", layout.domain_size);
     println!("matrix_nonzeros={matrix_nonzeros:?}");
     println!("independent_assignment_rows={}", layout.unpadded_rows);
-    println!("mutation_checks=15");
+    println!("row_owner_mutation_checks={row_owner_mutation_checks}");
+    println!("column_owner_mutation_checks={column_owner_mutation_checks}");
+    println!("input_mutation_checks={input_mutation_checks}");
+    println!(
+        "mutation_checks={}",
+        row_owner_mutation_checks + column_owner_mutation_checks + input_mutation_checks
+    );
     println!("package_matrix_conformance=passed");
 }

@@ -9,7 +9,8 @@ fn main() {
     let mut arguments = env::args_os().skip(1);
     let plan_path = PathBuf::from(arguments.next().expect("package-plan path"));
     let reference_path = PathBuf::from(arguments.next().expect("expanded-package path"));
-    let parity_path = PathBuf::from(arguments.next().expect("PiCCS parity path"));
+    let pi_ccs_parity_path = PathBuf::from(arguments.next().expect("PiCCS parity path"));
+    let pi_dec_parity_path = PathBuf::from(arguments.next().expect("PiDEC parity path"));
     let mut identity = [0u64; 4];
     for word in &mut identity {
         *word = arguments
@@ -21,5 +22,11 @@ fn main() {
             .expect("identity word u64");
     }
     assert!(arguments.next().is_none(), "unexpected argument");
-    support::run(&plan_path, &reference_path, &parity_path, identity);
+    support::run(
+        &plan_path,
+        &reference_path,
+        &pi_ccs_parity_path,
+        &pi_dec_parity_path,
+        identity,
+    );
 }

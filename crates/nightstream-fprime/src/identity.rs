@@ -5,14 +5,29 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::PackageError;
+use crate::package::{PackageError, PI_CCS_V1_1_ROUND_COUNT};
 const IDENTITY_DOMAIN: [u64; 29] = [
     78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97, 103,
     101, 47, 118, 50,
 ];
 
-const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 25, 9, 54, 18];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, 25, 10, 17, 14, 54, 16, 64];
+const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
+    4_294_967_295,
+    1,
+    2,
+    16,
+    65_536,
+    1,
+    16,
+    17,
+    16,
+    14,
+    PI_CCS_V1_1_ROUND_COUNT as u64,
+    9,
+    54,
+    18,
+];
+const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 16, 64];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";

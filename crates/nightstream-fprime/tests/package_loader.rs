@@ -11,10 +11,10 @@ use serde_json::{json, Value};
 // Lean-emitted Pilot + PiCCS + PiRLC + PiDEC package identity. Phase
 // conformance remains open until every required gate passes on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    11_965_344_980_476_942_540,
-    12_455_623_573_690_155_525,
-    3_326_996_935_083_639_356,
-    1_575_202_054_933_656_136,
+    12_756_407_480_944_487_176,
+    17_097_603_764_386_178_571,
+    11_791_428_871_054_057_896,
+    14_346_937_702_828_624_285,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -80,7 +80,11 @@ fn package_inputs(
 ) -> PiCcsV1_1PackageInputs {
     let mut prior_public_input = vec![0; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
-    prior_public_input[1..5].copy_from_slice(&digest);
+    for (word, value) in digest.iter().copied().enumerate() {
+        for bit in 0..64 {
+            prior_public_input[1 + word * 64 + bit] = (value >> bit) & 1;
+        }
+    }
     let verifier_context = package
         .derive_pi_ccs_v1_1_verifier_context(commitment_key_words)
         .expect("fixed verifier context");
@@ -102,18 +106,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 25_564_086);
-    assert_eq!(package.private_column_count(), 25_714_955);
-    assert_eq!(package.private_input_count(), 156_298);
-    assert_eq!(package.public_column_count(), 62);
-    assert_eq!(package.total_column_count(), 25_715_018);
+    assert_eq!(package.row_count(), 27_216_639);
+    assert_eq!(package.private_column_count(), 27_374_006);
+    assert_eq!(package.private_input_count(), 166_690);
+    assert_eq!(package.public_column_count(), 278);
+    assert_eq!(package.total_column_count(), 27_374_285);
     assert_eq!(package.template_row_count(), 592);
-    assert_eq!(package.permutation_invocation_count(), 7_613);
+    assert_eq!(package.permutation_invocation_count(), 7_679);
     assert_eq!(package.compact_template_count(), 326);
-    assert_eq!(package.compact_invocation_count(), 163_574);
+    assert_eq!(package.compact_invocation_count(), 167_246);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        993_437
+        1_028_286
     );
 }
 
@@ -262,7 +266,7 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     assert_eq!(state_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(state_public_input.len(), PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS);
-    assert_eq!(&state_public_input[1..5], state_digest);
+    assert_eq!(public[0], state_digest, "prior digest statement block");
 
     let mut output = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT * 1_620);
     for source in 0..PI_CCS_V1_1_SOURCE_COUNT {
@@ -400,11 +404,11 @@ fn loader_rejects_a_layout_above_the_stage1_joint_domain_limit() {
     let mut value = artifact_value();
     package_array(&mut value)[3]
         .as_array_mut()
-        .expect("layout array")[0] = json!((1u64 << 25) + 1);
+        .expect("layout array")[0] = json!((1u64 << 26) + 1);
 
     assert!(matches!(
         load(&canonical_bytes(&value), EXPECTED_IDENTITY),
-        Err(PackageError::Invalid("2^25 joint domain"))
+        Err(PackageError::Invalid("2^26 joint domain"))
     ));
 }
 

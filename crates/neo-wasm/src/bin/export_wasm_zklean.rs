@@ -139,6 +139,9 @@ fn build_demo_zero_test_circuit() -> DemoCircuit {
                 is_zero: *is_zero,
             }
         }
+        GadgetDescriptor::ConditionalSelect { .. } => {
+            panic!("the Lean demo expects a zero-test occurrence");
+        }
     };
     let rows = catalog.rows()[occurrence.row_range().clone()]
         .iter()

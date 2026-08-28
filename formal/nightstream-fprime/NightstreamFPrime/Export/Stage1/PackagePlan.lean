@@ -128,6 +128,16 @@ def expandCombinationFamily (sourceCount : Nat)
         block.valueStride source coordinates.1.val coordinates.2.1.val
           coordinates.2.2.val valueSourceStart
 
+private theorem expandCombinationFamily_eq_familyInvocations
+    (block : CombinationFamilyBlock)
+    (valueSourceStart : Nat → Nat → Nat → Nat) :
+    expandCombinationFamily PiRLCCombinationInvocations.sourceCount block
+        valueSourceStart =
+      PiRLCCombinationInvocations.familyInvocations block.logicalStart
+        block.rowStart block.freshStart block.blockCount block.cellCount
+        block.valueStride valueSourceStart := by
+  rfl
+
 def CombinationInvocationBlock.expand
     (block : CombinationInvocationBlock) : List CompactRowInvocation :=
   expandCombinationFamily block.sourceCount block.commitment
@@ -150,7 +160,7 @@ def canonicalCombinationBlock : CombinationInvocationBlock where
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputRowStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputFreshStart,
-    1, 1, 1⟩
+    5, 1, 1⟩
   evalK := ⟨
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalKLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalKRowStart,
@@ -165,6 +175,17 @@ def canonicalCombinationBlock : CombinationInvocationBlock where
 theorem canonicalCombinationBlock_expand :
     canonicalCombinationBlock.expand =
       PiRLCCombinationInvocations.invocations := by
+  unfold CombinationInvocationBlock.expand
+  dsimp only [canonicalCombinationBlock]
+  rw [expandCombinationFamily_eq_familyInvocations,
+    expandCombinationFamily_eq_familyInvocations,
+    expandCombinationFamily_eq_familyInvocations,
+    expandCombinationFamily_eq_familyInvocations]
+  change PiRLCCombinationInvocations.commitmentInvocations ++
+      PiRLCCombinationInvocations.publicInputInvocations ++
+      PiRLCCombinationInvocations.evalKInvocations ++
+      PiRLCCombinationInvocations.evalAInvocations =
+    PiRLCCombinationInvocations.invocations
   rfl
 
 /-- A compact invocation-plan block. Each tag has one fixed Lean expansion. -/
@@ -238,7 +259,8 @@ def withoutPlannedData (package : CircuitPackage) : CircuitPackage :=
     permutationInvocations := []
     compactRowInvocations := []
     witnessBatches :=
-      WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits }
+      Data.liftPilotBatches (PilotData.priorWordBatches ()) ++
+        WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits }
 
 /-- Build the static payload directly. This avoids constructing either
 explicit invocation list only to clear it. -/
@@ -348,15 +370,15 @@ theorem canonical_expand : (canonical ()).expand = Data.circuitPackage () := by
       _ = (Data.circuitPackage ()).compactRowInvocations :=
         Data.circuitPackage_compactRowInvocations.symm
   · change
-      WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits ++
+      (Data.liftPilotBatches (PilotData.priorWordBatches ()) ++
+        WitnessProgram.piCcsBatches Data.logicalWidth Data.publicFits) ++
           (WitnessPlan.canonicalBlocks
             Data.logicalWidth Data.publicFits).flatMap
               WitnessPlan.Block.expand =
         (Data.circuitPackage ()).witnessBatches
     rw [WitnessPlan.canonicalBlocks_expand,
-      Data.circuitPackage_witnessBatches]
-    exact (WitnessProgram.batches_eq
-      Data.logicalWidth Data.publicFits).symm
+      Data.circuitPackage_witnessBatches,
+      WitnessProgram.batches_eq, List.append_assoc]
 
 theorem canonical_decode_encode :
     Plan.format.decode (Plan.format.encode (canonical ())) = .ok (canonical ()) :=

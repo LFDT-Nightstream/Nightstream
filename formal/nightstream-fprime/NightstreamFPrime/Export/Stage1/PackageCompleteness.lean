@@ -119,15 +119,15 @@ private theorem piCcsArithmeticLogicalEnds :
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.sumcheckLogicalStart ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalKLogicalStart + 1824 ≤
+      PiCCSArithmetic.evalKLogicalStart + 1828 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalALogicalStart + 24288 ≤
+      PiCCSArithmetic.evalALogicalStart + 24292 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.ccsLogicalStart + 2 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.normLogicalStart + 32 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.finalIdentityLogicalStart + 27746 ≤
+      PiCCSArithmetic.finalIdentityLogicalStart + 27750 ≤
         PiCCSArithmetic.initialClaimFreshStart := by
   norm_num [PiCCSArithmetic.initialClaimFreshStart,
     PiCCSArithmetic.initialClaimLogicalStart,
@@ -455,7 +455,7 @@ theorem piCcsArithmeticRows_of_piRlcAgreesOutside
       (piCcsEmittedConstraints_varsBelow relation
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback before))
     rw [PiCCSCompleteness.emittedConstraints_totalFreshCount relation] at loweredScope
-    have endEq : PiCCSArithmetic.initialClaimFreshStart + 685348 =
+    have endEq : PiCCSArithmetic.initialClaimFreshStart + 700767 =
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset := by
       unfold PiCCSArithmetic.initialClaimFreshStart
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
@@ -515,6 +515,32 @@ private theorem liftPilotCombination_eval_of_piRlcAgreesOutside
   simp only [Function.comp_apply]
   rw [agrees _ (liftPilotColumn_piRlcOutside term.column)]
 
+/-- The PiRLC-and-later write interval is disjoint from every input and
+target column of the lifted Pilot witness program. -/
+theorem pilotWitnessInstructions_of_piRlcAgreesOutside
+    (before after : Env)
+    (agrees : AgreesOutside before after
+      phaseSuffixStart phaseSuffixLength)
+    (holds : ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+      instruction.Holds before) :
+    ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+      instruction.Holds after := by
+  intro instruction member
+  rw [Data.liftPilotInstructions, List.mem_map] at member
+  rcases member with ⟨pilotInstruction, pilotMember, rfl⟩
+  have beforeHolds := holds (Data.liftPilotInstruction pilotInstruction) (by
+    rw [Data.liftPilotInstructions, List.mem_map]
+    exact ⟨pilotInstruction, pilotMember, rfl⟩)
+  unfold Data.liftPilotInstruction WitnessInstruction.Holds at beforeHolds ⊢
+  rw [liftPilotCombination_eval_of_piRlcAgreesOutside
+      pilotInstruction.a before after agrees,
+    liftPilotCombination_eval_of_piRlcAgreesOutside
+      pilotInstruction.b before after agrees,
+    agrees _ (liftPilotColumn_piRlcOutside pilotInstruction.target)]
+  exact beforeHolds
+
 /-- The PiRLC write interval is disjoint from every lifted Pilot assertion
 column, including the relocated public suffix. -/
 theorem pilotAssertionRows_of_piRlcAgreesOutside
@@ -548,16 +574,70 @@ private theorem pilotHashInvocationInput_varsBelow
       (chain.absorbCount + 1) * 592 ≤ bound) :
     (invocationInput (PilotData.circuitPackage ()) chain invocation lane.val
       ).VarsBelow bound := by
-  unfold invocationInput
-  dsimp only [PilotData.circuitPackage, PilotData.poseidonSchedule,
-    PilotData.permutationTemplate]
-  split
-  all_goals try split
-  all_goals try split
-  all_goals
-    simp_all [R1CS.LinearCombination.VarsBelow,
-      R1CS.LinearCombination.zero, R1CS.LinearCombination.one,
-      R1CS.LinearCombination.ofVar, R1CS.LinearCombination.add] <;> omega
+  have laneBound := lane.isLt
+  by_cases invocationZero : invocation = 0
+  · subst invocation
+    by_cases absorbing : 0 < chain.absorbCount
+    · by_cases inputPresent :
+          lane.val < 4 ∧ lane.val < chain.inputLength
+      · have inputBelow : chain.inputStart + lane.val < bound := by
+          omega
+        simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          Spec.Poseidon2.rate,
+          absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
+          R1CS.LinearCombination.zero, R1CS.LinearCombination.ofVar,
+          R1CS.LinearCombination.add, inputBelow]
+      · simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          Spec.Poseidon2.rate,
+          absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
+          R1CS.LinearCombination.zero]
+    · by_cases zeroLane : lane.val = 0
+      · simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
+          R1CS.LinearCombination.zero, R1CS.LinearCombination.one,
+          R1CS.LinearCombination.add]
+      · simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
+          R1CS.LinearCombination.zero]
+  · have previousBelow :
+        chain.witnessStart + (invocation - 1) * 592 + 584 + lane.val <
+          bound := by
+      omega
+    by_cases absorbing : invocation < chain.absorbCount
+    · by_cases inputPresent :
+          lane.val < 4 ∧
+            invocation * 4 + lane.val < chain.inputLength
+      · have inputBelow :
+            chain.inputStart + (invocation * 4 + lane.val) < bound := by
+          omega
+        simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          Spec.Poseidon2.rate,
+          invocationZero, absorbing, inputPresent,
+          R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
+          R1CS.LinearCombination.add, previousBelow, inputBelow]
+      · simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          Spec.Poseidon2.rate,
+          invocationZero, absorbing, inputPresent,
+          R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
+          previousBelow]
+    · by_cases zeroLane : lane.val = 0
+      · simpa [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          invocationZero, absorbing, zeroLane,
+          R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
+          R1CS.LinearCombination.one, R1CS.LinearCombination.add] using
+            previousBelow
+      · simpa [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, PilotData.permutationTemplate,
+          invocationZero, absorbing, zeroLane,
+          R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar] using
+            previousBelow
 
 private theorem pilotCanonicalConstraints_varsBelow :
     ∀ expression ∈ PilotData.canonicalConstraints (),
@@ -824,6 +904,9 @@ theorem rowsHold_of_packets
     (combinationInvocations : ∀ invocation ∈
       PiRLCCombinationInvocations.invocations,
       CompactRowInvocationHolds (Data.circuitPackage ()) invocation env)
+    (pilotInstructions : ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+      instruction.Holds env)
     (pilotAssertions : ∀ row ∈
       Data.liftPilotRows (PilotData.assertionRows ()), row.Holds env)
     (piCcsArithmetic : R1CS.RowsHold env
@@ -839,7 +922,7 @@ theorem rowsHold_of_packets
     (Data.circuitPackage ()).RowsHold env := by
   have ordinary :=
     NightstreamFPrime.Export.Stage1.Package.phaseArithmeticRows_imply_packageOrdinary
-      env piCcsArithmetic piRlcArithmetic piDecArithmetic
+      env pilotInstructions piCcsArithmetic piRlcArithmetic piDecArithmetic
   refine ⟨?_, ?_, ?_, ordinary.1, ?_⟩
   · intro chain member
     rw [Data.circuitPackage_hashChains] at member
@@ -885,13 +968,17 @@ theorem rowsHold_of_phaseRows
     (env : Env)
     (pilotChains : ∀ chain ∈ [Data.priorChain, Data.outputChain],
       HashChainHolds (Data.circuitPackage ()) chain env)
+    (pilotInstructions : ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+      instruction.Holds env)
     (pilotAssertions : ∀ row ∈
       Data.liftPilotRows (PilotData.assertionRows ()), row.Holds env)
     (piCcs : PiCCSRowsHold env) (piRlc : PiRLCRowsHold env)
     (piDec : PiDECRowsHold env) :
     (Data.circuitPackage ()).RowsHold env := by
   exact rowsHold_of_packets env pilotChains piCcs.invocations
-    piRlc.permutations piRlc.first54 piRlc.combinations pilotAssertions
+    piRlc.permutations piRlc.first54 piRlc.combinations pilotInstructions
+    pilotAssertions
     piCcs.arithmetic piRlc.arithmetic piDec.arithmetic
 
 /-- A valid semantic production PiRLC phase constructs all canonical PiRLC
@@ -913,7 +1000,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 7799481 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 8353953 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩
@@ -1132,7 +1219,7 @@ theorem complete_piCcsRows
   have stableInputs := schedule_stableInputs
     (PiCCSInvocations.invocations_scheduleWithin Data.logicalWidth
       Data.publicFits relation).1
-  have physicalEnd : PiCCSInvocations.invocationCeiling + 685348 ≤
+  have physicalEnd : PiCCSInvocations.invocationCeiling + 700767 ≤
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
@@ -1153,7 +1240,7 @@ theorem complete_piCcsRows
     intro invocation member
     apply NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
       invocation afterOutput completed PiCCSInvocations.invocationCeiling
-        685348
+        700767
     · intro lane term termMember
       rcases stableInputs invocation member lane term termMember with
         inputBefore | inputPublic

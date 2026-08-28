@@ -1,4 +1,4 @@
-import Lean
+import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
 import NightstreamFPrime.Export.Stage1.PackagePlan
@@ -23,17 +23,6 @@ import NightstreamFPrime.Layout.R1CS.Segments
 
 /-! Axiom audits for the compact PiRLC Stage 1 export bridge. -/
 
-open Lean Elab Command in
-elab "#audit_axioms " decl:ident : command => do
-  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
-  let axioms ← liftCoreM <| Lean.collectAxioms name
-  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  let bad := axioms.toList.filter (fun a => !allowed.contains a)
-  if bad.isEmpty then
-    logInfo m!"{name}: {axioms.toList}"
-  else
-    throwError m!"{name} depends on disallowed axioms: {bad}"
-
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.recipe_eval
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedSpec_iff_specHolds
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestWindow.laneAssumptions
@@ -54,10 +43,24 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physicalHolds_iff_rowsHold
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physical_complete
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.cumulativeFootprints_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption.actions_affine
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compileFast_eq_compile
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compile_eq_compileFast
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.fastPriorDigest_eq
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.fastPriorWordInterface_eq
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.fastPriorWordOp_eq
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.fastPriorWordOps_eq
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.priorRawConstraints_eq
+#audit_axioms NightstreamFPrime.Export.PilotData.priorWordBatches_eq_reference
+#audit_axioms NightstreamFPrime.Export.PilotData.priorExtraConstraints_eq
+#audit_axioms NightstreamFPrime.Export.PilotData.remapSparseCombination_toR1CS
+#audit_axioms NightstreamFPrime.Export.PilotData.remapCompiledRows_toR1CS
+#audit_axioms NightstreamFPrime.Export.Pilot.priorExtraConstraints_hold
+#audit_axioms NightstreamFPrime.Export.Pilot.priorRawSpec_of_chainHash
+#audit_axioms NightstreamFPrime.Export.Stage1.Package.proofInputStart_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Package.witnessStart_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Package.witnessLength_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPackets.make_batches
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPackets.make_rows
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPackets.initialClaim_batches

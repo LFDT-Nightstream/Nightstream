@@ -938,7 +938,7 @@ private theorem priorExtraRows_hold (env : Env)
     rw [Stage1.Rows.assertionRowsTR_eq]
     exact member
 
-private theorem priorExtraConstraints_hold (env : Env)
+theorem priorExtraConstraints_hold (env : Env)
     (instructions : ∀ instruction ∈
       (PilotData.circuitPackage ()).witnessInstructions,
       instruction.Holds env)
@@ -947,6 +947,7 @@ private theorem priorExtraConstraints_hold (env : Env)
       (PilotData.priorExtraConstraints ()) := by
   have physical := priorExtraRows_hold env instructions assertions
   rw [PilotData.priorExtraRows,
+    PilotData.remapCompiledRows_toR1CS,
     Stage1.Rows.compileRowsTR_toR1CS] at physical
   have sourceRows := (PilotSpartan.remapRows_hold env
     (Stage1.Rows.lowerConstraintsTR (PilotData.priorExtraConstraints ())
@@ -1011,10 +1012,10 @@ private theorem sourceToSpartan_outputPreimage
     PilotSpartan.sourceToSpartan
         (PilotProduction.outputPreimageStart + index.val) =
       PilotSpartan.secondPrivateStart + index.val := by
-  have indexBound : index.val < 45931 := by
+  have indexBound : index.val < 45933 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 45931 := PilotProduction.stateHashWords_eq
+      _ = 45933 := PilotProduction.stateHashWords_eq
   unfold PilotSpartan.sourceToSpartan
   all_goals try split
   all_goals try split
@@ -1137,8 +1138,8 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 11483 * 592 + 584 + lane.val =
-      PilotProduction.witnessOffset + (11483 * 592 + 584 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 11484 * 592 + 584 + lane.val =
+      PilotProduction.witnessOffset + (11484 * 592 + 584 + lane.val) by
     omega,
     PilotSpartan.sourceToSpartan_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
@@ -1147,9 +1148,13 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
   apply congrArg env
   omega
 
-private theorem priorRawSpec (env : Env)
-    (holds : HashChainHolds (PilotData.circuitPackage ())
-      PilotData.priorChain env) :
+theorem priorRawSpec_of_chainHash (env : Env)
+    (chainHash :
+      List.ofFn (fun lane : Fin 4 =>
+        chainOutputState PilotData.priorChain
+          PilotData.priorChain.absorbCount env
+          ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) =
+        Spec.Poseidon2.hash (chainInputValues PilotData.priorChain env)) :
     RawFormal.SpecHolds
       (PriorStateHash.hashInterface PilotProduction.priorInterface)
       PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
@@ -1167,9 +1172,7 @@ private theorem priorRawSpec (env : Env)
       exact congrArg List.ofFn (funext fun lane =>
         priorDigestWire_eval env lane)
     _ = Spec.Poseidon2.hash
-        (chainInputValues PilotData.priorChain env) :=
-      canonicalChainDigest_eq_hash PilotData.priorChain env
-        priorChain_count_eq holds
+        (chainInputValues PilotData.priorChain env) := chainHash
     _ = Spec.Poseidon2.hash
         (Hash.evalList (PilotSpartan.pullback env)
           ((PriorStateHash.hashInterface
@@ -1205,12 +1208,16 @@ theorem canonicalPackage_hashes (env : Env)
           PilotProduction.witnessOffset ++
         PriorStateHash.bindingAssertions PilotProduction.priorInterface
           PilotProduction.witnessOffset) := by
-    simpa [holdsFlat, PilotData.priorExtraConstraints] using extraLogical
+    rw [PilotData.priorExtraConstraints,
+      PilotProduction.fastPriorWordOps_eq] at extraLogical
+    simpa only [holdsFlat] using extraLogical
   have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
     PilotProduction.priorInterface (PilotSpartan.pullback env)
     PilotProduction.witnessOffset
     (PilotProduction.layoutAssumptions (PilotSpartan.pullback env)).1
-    (priorRawSpec env priorHolds) postHashRows
+    (priorRawSpec_of_chainHash env
+      (canonicalChainDigest_eq_hash PilotData.priorChain env
+        priorChain_count_eq priorHolds)) postHashRows
   have outputRows := canonicalAssertions_sound env assertions
   have outputHash := canonicalChainDigest_eq_hash PilotData.outputChain env
     outputChain_count_eq outputHolds
@@ -1405,9 +1412,9 @@ theorem bindingRows_length :
 
 theorem priorExtraRows_length :
     (PilotData.priorExtraRows ()).length = 1326 := by
-  rw [PilotData.priorExtraRows, Stage1.Rows.compileRowsTR_length]
-  unfold PilotSpartan.remapRows
-  rw [List.length_map, Stage1.Rows.lowerConstraintsTR_eq,
+  rw [PilotData.priorExtraRows, List.length_map,
+    Stage1.Rows.compileRowsTR_length]
+  rw [Stage1.Rows.lowerConstraintsTR_eq,
     R1CS.lowerConstraints_rows_length]
   rw [PilotData.priorExtraConstraints_eq,
     R1CS.totalRowCount_append,

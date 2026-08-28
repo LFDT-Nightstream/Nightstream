@@ -159,12 +159,15 @@ def writePreparedWitnessGroups (handle : IO.FS.Handle)
   writePreparedWitnessGroup handle "final_identity" first
     tasks.finalIdentity
 
-/-- Stream the PiCCS prefix of `WitnessProgram.batches` in exact order. The
-PiRLC sampler suffix is represented by the outer witness-plan field. -/
+/-- Stream the Pilot and PiCCS prefix of `WitnessProgram.batches` in exact
+order. The PiRLC sampler suffix is represented by the outer witness-plan
+field. -/
 def writeWitnessBatches (handle : IO.FS.Handle)
     (tasks : PreparedWitnessTasks) : IO Unit := do
   writeByte handle 91
-  let _first ← writePreparedWitnessGroups handle tasks true
+  let first ← writeWitnessBatchItems handle true
+    (Stage1.Data.liftPilotBatches (PilotData.priorWordBatches ()))
+  let _first ← writePreparedWitnessGroups handle tasks first
   writeByte handle 93
 
 def writePermutationActionShape (handle : IO.FS.Handle)
@@ -296,7 +299,9 @@ partial def writeExpandedWitnessBlockItems (handle : IO.FS.Handle)
 def writeExpandedWitnessBatches (handle : IO.FS.Handle)
     (tasks : PreparedWitnessTasks) : IO Unit := do
   writeByte handle 91
-  let first ← writePreparedWitnessGroups handle tasks true
+  let first ← writeWitnessBatchItems handle true
+    (Stage1.Data.liftPilotBatches (PilotData.priorWordBatches ()))
+  let first ← writePreparedWitnessGroups handle tasks first
   let _first ← writeExpandedWitnessBlockItems handle first
     (Stage1.WitnessPlan.canonicalBlocks
       Stage1.Data.logicalWidth Stage1.Data.publicFits)
@@ -307,10 +312,12 @@ structure PreparedRowBlock where
   assertionRows : List Package.SparseRow
 
 abbrev PreparedRowTask := Task (Except IO.Error PreparedRowBlock)
+abbrev PreparedRowSourceTask :=
+  Task (Except IO.Error (List PreparedRowBlock))
 
 structure PreparedRowTasks where
   statementBinding : PreparedRowTask
-  piRlc : List PreparedRowTask
+  piRlcSources : List PreparedRowSourceTask
   piDec : PreparedRowTask
 
 def prepareRowBlock
@@ -321,18 +328,30 @@ def prepareRowBlock
     witnessInstructions := classified.1
     assertionRows := classified.2 }
 
+def preparePiRlcSource (source : Nat) : IO (List PreparedRowBlock) :=
+  (Stage1.OrdinaryRowPlan.piRlcSourceBlocks source).mapM prepareRowBlock
+
 def prepareRowBlocks : IO PreparedRowTasks := do
   let statementBinding ← IO.asTask
     (prepareRowBlock .statementBinding)
-  let piRlc ← (Stage1.OrdinaryRowPlan.piRlcBlocks ()).mapM fun block =>
-    IO.asTask (prepareRowBlock block)
+  let piRlcSources ←
+      (List.range Stage1.PiRLCSamplerOrdinaryRows.sourceCount).mapM
+        fun source =>
+          IO.asTask (preparePiRlcSource source)
+            (prio := Task.Priority.dedicated)
   let piDec ← IO.asTask
     (prepareRowBlock (Stage1.OrdinaryRowPlan.piDecBlock ()))
-  pure { statementBinding, piRlc, piDec }
+  pure { statementBinding, piRlcSources, piDec }
 
 def preparedRowBlock (task : PreparedRowTask) : IO PreparedRowBlock :=
   match task.get with
   | .ok block => pure block
+  | .error error => throw error
+
+def preparedRowSource (task : PreparedRowSourceTask) :
+    IO (List PreparedRowBlock) :=
+  match task.get with
+  | .ok blocks => pure blocks
   | .error error => throw error
 
 partial def writePreparedWitnessItems (handle : IO.FS.Handle)
@@ -346,6 +365,25 @@ partial def writePreparedWitnessItems (handle : IO.FS.Handle)
             instruction))
         first prepared.witnessInstructions
       writePreparedWitnessItems handle first rest
+
+partial def writePreparedWitnessBlockItems (handle : IO.FS.Handle)
+    (first : Bool) : List PreparedRowBlock → IO Bool
+  | [] => pure first
+  | prepared :: rest => do
+      let first ← writeArrayItemsWith handle
+        (fun instruction =>
+          writeValue handle (Package.WitnessInstruction.format.encode
+            instruction))
+        first prepared.witnessInstructions
+      writePreparedWitnessBlockItems handle first rest
+
+partial def writePreparedWitnessSourceItems (handle : IO.FS.Handle)
+    (first : Bool) : List PreparedRowSourceTask → IO Bool
+  | [] => pure first
+  | task :: rest => do
+      let prepared ← preparedRowSource task
+      let first ← writePreparedWitnessBlockItems handle first prepared
+      writePreparedWitnessSourceItems handle first rest
 
 def writePreparedPacketWitnessItems (handle : IO.FS.Handle)
     (first : Bool) (task : PreparedWitnessTask) : IO Bool := do
@@ -370,10 +408,17 @@ def writePreparedWitnessInstructions (handle : IO.FS.Handle)
     (witnessTasks : PreparedWitnessTasks)
     (rowTasks : PreparedRowTasks) : IO Unit := do
   writeByte handle 91
-  let first ← writePreparedWitnessItems handle true
+  let first ← writeArrayItemsWith handle
+    (fun instruction =>
+      writeValue handle (Package.WitnessInstruction.format.encode
+        instruction))
+    true (Stage1.Data.liftPilotInstructions
+      (PilotData.witnessInstructions ()))
+  let first ← writePreparedWitnessItems handle first
     [rowTasks.statementBinding]
   let first ← writePreparedPiCCSWitnessItems handle first witnessTasks
-  let first ← writePreparedWitnessItems handle first rowTasks.piRlc
+  let first ← writePreparedWitnessSourceItems handle first
+    rowTasks.piRlcSources
   let _first ← writePreparedWitnessItems handle first [rowTasks.piDec]
   writeByte handle 93
 
@@ -386,6 +431,23 @@ partial def writePreparedAssertionItems (handle : IO.FS.Handle)
         (fun row => writeValue handle (Package.SparseRow.format.encode row))
         first prepared.assertionRows
       writePreparedAssertionItems handle first rest
+
+partial def writePreparedAssertionBlockItems (handle : IO.FS.Handle)
+    (first : Bool) : List PreparedRowBlock → IO Bool
+  | [] => pure first
+  | prepared :: rest => do
+      let first ← writeArrayItemsWith handle
+        (fun row => writeValue handle (Package.SparseRow.format.encode row))
+        first prepared.assertionRows
+      writePreparedAssertionBlockItems handle first rest
+
+partial def writePreparedAssertionSourceItems (handle : IO.FS.Handle)
+    (first : Bool) : List PreparedRowSourceTask → IO Bool
+  | [] => pure first
+  | task :: rest => do
+      let prepared ← preparedRowSource task
+      let first ← writePreparedAssertionBlockItems handle first prepared
+      writePreparedAssertionSourceItems handle first rest
 
 def writePreparedPacketAssertionItems (handle : IO.FS.Handle)
     (first : Bool) (task : PreparedWitnessTask) : IO Bool := do
@@ -414,7 +476,8 @@ def writePreparedAssertionRows (handle : IO.FS.Handle)
   let first ← writePreparedAssertionItems handle first
     [rowTasks.statementBinding]
   let first ← writePreparedPiCCSAssertionItems handle first witnessTasks
-  let first ← writePreparedAssertionItems handle first rowTasks.piRlc
+  let first ← writePreparedAssertionSourceItems handle first
+    rowTasks.piRlcSources
   let _first ← writePreparedAssertionItems handle first [rowTasks.piDec]
   writeByte handle 93
 

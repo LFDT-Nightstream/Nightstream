@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
+import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!
 Owns the exact compact invocation schedule for all 17 PiRLC `First54`

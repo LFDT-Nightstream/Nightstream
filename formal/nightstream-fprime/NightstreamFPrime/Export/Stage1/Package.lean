@@ -72,6 +72,27 @@ private theorem liftPilotRow_holds
   rw [liftPilotCombination_eval, liftPilotCombination_eval,
     liftPilotCombination_eval]
 
+private theorem liftPilotInstruction_holds
+    (instruction : WitnessInstruction) (env : Env) :
+    (Data.liftPilotInstruction instruction).Holds env ↔
+      instruction.Holds (pilotEnv env) := by
+  unfold Data.liftPilotInstruction WitnessInstruction.Holds
+  rw [liftPilotCombination_eval, liftPilotCombination_eval]
+  rfl
+
+private theorem combinedInstructions_imply_pilotInstructions
+    (env : Env)
+    (holds : ∀ instruction ∈ (Data.circuitPackage ()).witnessInstructions,
+      instruction.Holds env) :
+    ∀ instruction ∈ (PilotData.circuitPackage ()).witnessInstructions,
+      instruction.Holds (pilotEnv env) := by
+  intro instruction member
+  have liftedMember : Data.liftPilotInstruction instruction ∈
+      (Data.circuitPackage ()).witnessInstructions := by
+    exact Data.liftPilotInstruction_mem_circuitPackage member
+  exact (liftPilotInstruction_holds instruction env).mp
+    (holds _ liftedMember)
+
 private theorem combinedAssertions_imply_pilotAssertions
     (env : Env)
     (holds : AssertionsHold (Data.circuitPackage ()) env) :
@@ -150,36 +171,36 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 7613 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 7679 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 84950 := by
+theorem proofInputStart_eq : Data.proofInputStart = 91866 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 113962 := by
+theorem witnessStart_eq : Data.witnessStart = 120898 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 25555039 := by
+theorem witnessLength_eq : Data.witnessLength = 27189226 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 25564086 ∧
-      layout.privateColumnCount = 25714955 ∧
-      layout.constantColumn = 25714955 ∧
-      layout.publicColumnCount = 62 ∧
-      layout.totalColumnCount = 25715018 := by
+    layout.rowCount = 27216639 ∧
+      layout.privateColumnCount = 27374006 ∧
+      layout.constantColumn = 27374006 ∧
+      layout.publicColumnCount = 278 ∧
+      layout.totalColumnCount = 27374285 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
-theorem circuitPackage_jointDomain_le_twoPow25 :
+theorem circuitPackage_jointDomain_le_twoPow26 :
     max (Data.circuitPackage ()).layout.rowCount
-      ((Data.circuitPackage ()).layout.totalColumnCount - 1) ≤ 2 ^ 25 := by
+      ((Data.circuitPackage ()).layout.totalColumnCount - 1) ≤ 2 ^ 26 := by
   rw [Data.circuitPackage_layout]
   norm_num [Data.physicalLayout,
     NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount]
@@ -189,11 +210,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 993379 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 1026956 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 993379 := by
+    _ = 1026956 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
@@ -205,25 +226,25 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 993437 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 1028286 := by
   calc
-    _ = (Data.liftPilotRows (PilotData.assertionRows ())).length +
-        (Data.components ()).arithmeticRows.length :=
+    _ = (PilotData.circuitPackage ()).witnessInstructions.length +
+        (PilotData.circuitPackage ()).assertionRows.length +
+          (Data.components ()).arithmeticRows.length :=
       Data.Components.ordinaryRows_length (Data.components ())
-    _ = 58 + (Data.arithmeticRows ()).length := by
-      rw [liftPilotRows_length,
-        NightstreamFPrime.Export.Pilot.assertionRows_length,
+    _ = 1330 + (Data.arithmeticRows ()).length := by
+      rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 58 + 993379 := by
+    _ = 1330 + 1026956 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
           Data.publicFits relation,
         PiRLCSamplerOrdinaryRows.rows_length,
         PiDECArithmetic.Plan.rows_length,
         PiDECArithmetic.canonicalPlan_rowCount relation]
-    _ = 993437 := by norm_num
+    _ = 1028286 := by norm_num
 
-/-- Construct all 7,460 PiCCS Poseidon2 invocations in their proved private
+/-- Construct all 7,514 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
 theorem complete_piCcsInvocations
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -266,6 +287,7 @@ theorem circuitPackage_implies_arithmeticRows
     apply holds.2.2.2.1 instruction
     rw [Data.circuitPackage_witnessInstructions]
     unfold Data.Components.witnessInstructions
+    apply List.mem_append_right
     rw [Rows.witnessInstructionsTR_eq, Data.components_arithmeticRows]
     exact member
   · intro assertion member
@@ -283,7 +305,10 @@ their separate pilot completeness owner. -/
 theorem arithmeticRows_imply_packageOrdinary
     (env : Env)
     (holds : R1CS.RowsHold env
-      ((Data.arithmeticRows ()).map Rows.CompiledRow.toR1CS)) :
+      ((Data.arithmeticRows ()).map Rows.CompiledRow.toR1CS))
+    (pilot : ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+        instruction.Holds env) :
     (∀ instruction ∈ (Data.circuitPackage ()).witnessInstructions,
         instruction.Holds env) ∧
       ∀ assertion ∈ (Data.components ()).arithmeticAssertionRows,
@@ -292,12 +317,14 @@ theorem arithmeticRows_imply_packageOrdinary
     (Rows.compiledRows_hold_iff (Data.arithmeticRows ()) env).mp holds
   constructor
   · intro instruction member
-    apply classified.1 instruction
     rw [Data.circuitPackage_witnessInstructions] at member
     unfold Data.Components.witnessInstructions at member
-    rw [Rows.witnessInstructionsTR_eq, Data.components_arithmeticRows]
-      at member
-    exact member
+    rcases List.mem_append.mp member with pilotMember | arithmeticMember
+    · exact pilot instruction pilotMember
+    · apply classified.1 instruction
+      rw [Rows.witnessInstructionsTR_eq, Data.components_arithmeticRows]
+        at arithmeticMember
+      exact arithmeticMember
   · intro assertion member
     apply classified.2 assertion
     unfold Data.Components.arithmeticAssertionRows at member
@@ -318,6 +345,9 @@ private theorem compiledRowsHold_three_iff
 ordinary surface of the current canonical package. -/
 theorem phaseArithmeticRows_imply_packageOrdinary
     (env : Env)
+    (pilot : ∀ instruction ∈
+      Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+        instruction.Holds env)
     (piCcs : R1CS.RowsHold env
       ((PiCCSArithmetic.arithmeticRows Data.logicalWidth
         Data.publicFits).map Rows.CompiledRow.toR1CS))
@@ -332,7 +362,7 @@ theorem phaseArithmeticRows_imply_packageOrdinary
         instruction.Holds env) ∧
       ∀ assertion ∈ (Data.components ()).arithmeticAssertionRows,
         assertion.Holds env := by
-  apply arithmeticRows_imply_packageOrdinary env
+  apply arithmeticRows_imply_packageOrdinary env _ pilot
   rw [Data.arithmeticRows_eq]
   exact (compiledRowsHold_three_iff env _ _ _).mpr
     ⟨piCcs, piRlc, piDec⟩
@@ -730,7 +760,7 @@ theorem circuitPackage_piRlcCombinationTemplateSelection :
 
 theorem piRlcCombination_compactRowCount :
     compactRowCountFor PiRLCFirst54Invocations.packageTemplates
-      PiRLCCombinationInvocations.invocations = 6792282 := by
+      PiRLCCombinationInvocations.invocations = 7346754 := by
   exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
     PiRLCFirst54Invocations.packageTemplates
     piRlcPackageTemplates_selectCombination
@@ -778,7 +808,7 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
   publicInput : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputRowStart
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputFreshStart 1 1 1
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputFreshStart 5 1 1
     PiRLCCombinationInvocations.publicInputValueSourceStart env
   eval_K : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalKLogicalStart
@@ -985,25 +1015,19 @@ theorem circuitPackage_implies_piRlcPhaseHolds
   apply Semantics.spec_implies_phaseHolds
   exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
 
-/-- The combined package enforces the exact two pilot hashes and the complete
-prior public-input marker/tail layout after the pilot-column lift. -/
+/-- The combined package enforces the complete 270-cell prior-state relation
+and the exact output hash after the pilot-column lift. -/
 theorem circuitPackage_implies_pilotHashFacts
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
-    let lifted := pilotEnv env
-    lifted PilotSpartan.firstPublicStart = 1 ∧
-      (∀ lane : Fin 49,
-        lifted (PilotSpartan.firstPublicStart + 5 + lane.val) = 0) ∧
+    PriorStateHash.SpecHolds PilotProduction.priorInterface
+        PilotProduction.witnessOffset
+        (PilotSpartan.pullback (pilotEnv env)) ∧
       List.ofFn (fun lane : Fin 4 =>
-        lifted (PilotData.priorChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (NightstreamFPrime.Export.Pilot.chainInputValues
-              PilotData.priorChain lifted) ∧
-      List.ofFn (fun lane : Fin 4 =>
-        lifted (PilotData.outputChain.digestStart + lane.val)) =
-          Spec.Poseidon2.hash
-            (NightstreamFPrime.Export.Pilot.chainInputValues
-              PilotData.outputChain lifted) := by
+        pilotEnv env (PilotData.outputChain.digestStart + lane.val)) =
+        Spec.Poseidon2.hash
+          (NightstreamFPrime.Export.Pilot.chainInputValues
+            PilotData.outputChain (pilotEnv env)) := by
   have priorStage : HashChainHolds (Data.circuitPackage ())
       Data.priorChain env := by
     apply holds.1 Data.priorChain
@@ -1020,10 +1044,10 @@ theorem circuitPackage_implies_pilotHashFacts
     Data.priorChain env (by rfl) priorHolds
   have outputHash := NightstreamFPrime.Export.Pilot.canonicalChainDigest_eq_hash
     Data.outputChain env (by rfl) outputHolds
+  have pilotInstructions := combinedInstructions_imply_pilotInstructions env
+    holds.2.2.2.1
   have pilotAssertions :=
     combinedAssertions_imply_pilotAssertions env holds.2.2.2.2
-  have assertionFacts := NightstreamFPrime.Export.Pilot.canonicalAssertions_sound
-    (pilotEnv env) pilotAssertions
   have priorInputs := chainInputValues_lift PilotData.priorChain env (by
     norm_num [PilotData.priorChain,
       NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount])
@@ -1068,24 +1092,21 @@ theorem circuitPackage_implies_pilotHashFacts
       NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
       Spec.Poseidon2.rate,
       NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount])
-  dsimp only
-  refine ⟨assertionFacts.1, assertionFacts.2.2.1, ?_, ?_⟩
-  · calc
+  have pilotPriorHash :
       List.ofFn (fun lane : Fin 4 =>
-          pilotEnv env (PilotData.priorChain.digestStart + lane.val)) =
-          List.ofFn (fun lane : Fin 4 =>
-            NightstreamFPrime.Export.Pilot.chainOutputState
-              PilotData.priorChain PilotData.priorChain.absorbCount
-              (pilotEnv env)
-              ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
-        apply congrArg List.ofFn
-        funext lane
-        exact assertionFacts.2.1 lane
+        NightstreamFPrime.Export.Pilot.chainOutputState
+          PilotData.priorChain PilotData.priorChain.absorbCount
+          (pilotEnv env)
+          ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) =
+        Spec.Poseidon2.hash
+          (NightstreamFPrime.Export.Pilot.chainInputValues
+            PilotData.priorChain (pilotEnv env)) := by
+    calc
       _ = List.ofFn (fun lane : Fin 4 =>
-            NightstreamFPrime.Export.Pilot.chainOutputState
-              (Data.liftPilotChain PilotData.priorChain)
-              PilotData.priorChain.absorbCount env
-              ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
+          NightstreamFPrime.Export.Pilot.chainOutputState
+            (Data.liftPilotChain PilotData.priorChain)
+            PilotData.priorChain.absorbCount env
+            ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
         rw [priorState]
       _ = Spec.Poseidon2.hash
           (NightstreamFPrime.Export.Pilot.chainInputValues
@@ -1095,7 +1116,29 @@ theorem circuitPackage_implies_pilotHashFacts
           (NightstreamFPrime.Export.Pilot.chainInputValues
             PilotData.priorChain (pilotEnv env)) := by
         rw [priorInputs]
-  · calc
+  have rawSpec := NightstreamFPrime.Export.Pilot.priorRawSpec_of_chainHash
+    (pilotEnv env) pilotPriorHash
+  have extraLogical :=
+    NightstreamFPrime.Export.Pilot.priorExtraConstraints_hold
+      (pilotEnv env) pilotInstructions pilotAssertions
+  have postHashRows : holdsFlat (PilotSpartan.pullback (pilotEnv env))
+      (PriorStateHash.wordOps PilotProduction.priorInterface
+          PilotProduction.witnessOffset ++
+        PriorStateHash.bindingAssertions PilotProduction.priorInterface
+          PilotProduction.witnessOffset) := by
+    rw [PilotData.priorExtraConstraints,
+      PilotProduction.fastPriorWordOps_eq] at extraLogical
+    simpa only [holdsFlat] using extraLogical
+  have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
+    PilotProduction.priorInterface (PilotSpartan.pullback (pilotEnv env))
+    PilotProduction.witnessOffset
+    (PilotProduction.layoutAssumptions
+      (PilotSpartan.pullback (pilotEnv env))).1
+    rawSpec postHashRows
+  have outputRows := NightstreamFPrime.Export.Pilot.canonicalAssertions_sound
+    (pilotEnv env) pilotAssertions
+  refine ⟨priorSpec, ?_⟩
+  calc
       List.ofFn (fun lane : Fin 4 =>
           pilotEnv env (PilotData.outputChain.digestStart + lane.val)) =
           List.ofFn (fun lane : Fin 4 =>
@@ -1105,7 +1148,7 @@ theorem circuitPackage_implies_pilotHashFacts
               ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩) := by
         apply congrArg List.ofFn
         funext lane
-        exact assertionFacts.2.2.2 lane
+        exact outputRows lane
       _ = List.ofFn (fun lane : Fin 4 =>
             NightstreamFPrime.Export.Pilot.chainOutputState
               (Data.liftPilotChain PilotData.outputChain)
@@ -1331,23 +1374,25 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      12574080 := by
-  have pilot := NightstreamFPrime.Export.Pilot.circuitPackage_row_coverage
-  change PilotData.priorChain.witnessLength +
-      PilotData.outputChain.witnessLength + 58 = 12574138 at pilot
-  change PilotData.priorChain.witnessLength +
-      PilotData.outputChain.witnessLength = 12574080
-  omega
+      13598240 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 13598240
+  norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
+    NightstreamFPrime.Layout.PilotValues.absorbCount,
+    NightstreamFPrime.Layout.PilotValues.stateHashWords,
+    NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
+    NightstreamFPrime.Layout.PilotValues.digestWords,
+    NightstreamFPrime.Layout.PilotValues.permutationRecipeCount,
+    Spec.Poseidon2.rate]
 
 theorem circuitPackage_compactRowCount :
-    (Data.components ()).toCircuitPackage.compactRowCount = 7489673 := by
+    (Data.components ()).toCircuitPackage.compactRowCount = 8044145 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
     Data.Components.toCircuitPackage_compactRowInvocations,
     Data.compactRowTemplates_eq, Data.compactRowInvocations_eq]
   change compactRowCountFor PiRLCFirst54Invocations.packageTemplates
     (PiRLCFirst54Invocations.invocations ++
-      PiRLCCombinationInvocations.invocations) = 7489673
+      PiRLCCombinationInvocations.invocations) = 8044145
   rw [compactRowCountFor_append,
     PiRLCFirst54Invocations.compactRowCount,
     piRlcCombination_compactRowCount]
@@ -1379,8 +1424,7 @@ theorem circuitPackage_row_coverage
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
       PiRLCSamplerInvocations.invocations_length]
   · exact NightstreamFPrime.Export.Pilot.templateRows_length
-  · rw [liftPilotRows_length,
-      NightstreamFPrime.Export.Pilot.assertionRows_length]
+  · exact NightstreamFPrime.Export.Pilot.ordinaryRows_length
   · exact hashChain_rows
   · exact circuitPackage_compactRowCount
 

@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCFirst54Completeness
 
 /-!
 Owns the package-level constructive assemblers for the exact production
-PiCCS, PiRLC, and PiDEC v1_1 phase rows. It adds no row or alternate verifier
-path.
+PiCCS, PiRLC, PiDEC v1_1, and running-transition rows. It adds no row or
+alternate verifier path.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PackageCompleteness
@@ -110,6 +110,11 @@ structure PiRLCRowsHold (env : Env) : Prop where
 structure PiDECRowsHold (env : Env) : Prop where
   arithmetic : R1CS.RowsHold env
     ((PiDECArithmetic.canonicalPlan
+      Data.logicalWidth Data.publicFits).rows.map Rows.CompiledRow.toR1CS)
+
+structure RunningTransitionRowsHold (env : Env) : Prop where
+  arithmetic : R1CS.RowsHold env
+    ((RunningTransitionArithmetic.canonicalPlan
       Data.logicalWidth Data.publicFits).rows.map Rows.CompiledRow.toR1CS)
 
 private theorem piCcsArithmeticLogicalEnds :
@@ -918,11 +923,16 @@ theorem rowsHold_of_packets
     (piDecArithmetic : R1CS.RowsHold env
       ((PiDECArithmetic.canonicalPlan
         Data.logicalWidth Data.publicFits).rows.map
+          Rows.CompiledRow.toR1CS))
+    (runningTransitionArithmetic : R1CS.RowsHold env
+      ((RunningTransitionArithmetic.canonicalPlan
+        Data.logicalWidth Data.publicFits).rows.map
           Rows.CompiledRow.toR1CS)) :
     (Data.circuitPackage ()).RowsHold env := by
   have ordinary :=
     NightstreamFPrime.Export.Stage1.Package.phaseArithmeticRows_imply_packageOrdinary
       env pilotInstructions piCcsArithmetic piRlcArithmetic piDecArithmetic
+        runningTransitionArithmetic
   refine ⟨?_, ?_, ?_, ordinary.1, ?_⟩
   · intro chain member
     rw [Data.circuitPackage_hashChains] at member
@@ -962,7 +972,7 @@ theorem piRlcRowsHold_of_packets
       env packets,
     PiRLCSamplerCompleteness.remappedPacket_implies_ordinaryRows env packets⟩
 
-/-- The pilot and all three exact phase-row packets assemble to the one
+/-- The pilot and all four exact phase-row packets assemble to the one
 canonical circuit-package predicate in one final environment. -/
 theorem rowsHold_of_phaseRows
     (env : Env)
@@ -974,12 +984,14 @@ theorem rowsHold_of_phaseRows
     (pilotAssertions : ∀ row ∈
       Data.liftPilotRows (PilotData.assertionRows ()), row.Holds env)
     (piCcs : PiCCSRowsHold env) (piRlc : PiRLCRowsHold env)
-    (piDec : PiDECRowsHold env) :
+    (piDec : PiDECRowsHold env)
+    (runningTransition : RunningTransitionRowsHold env) :
     (Data.circuitPackage ()).RowsHold env := by
   exact rowsHold_of_packets env pilotChains piCcs.invocations
     piRlc.permutations piRlc.first54 piRlc.combinations pilotInstructions
     pilotAssertions
     piCcs.arithmetic piRlc.arithmetic piDec.arithmetic
+      runningTransition.arithmetic
 
 /-- A valid semantic production PiRLC phase constructs all canonical PiRLC
 package components in one final-column environment. -/

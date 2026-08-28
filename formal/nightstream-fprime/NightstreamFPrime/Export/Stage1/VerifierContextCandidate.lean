@@ -30,10 +30,10 @@ def candidatePublicFits : ringDegree * publicRingColumns ≤
 /-- Last validated verifier-owned package identity. Do not change this pin
 until the current candidate passes every identity-change gate. -/
 def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨12756407480944487176, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨17097603764386178571, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨11791428871054057896, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨14346937702828624285, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨18090610635114842464, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨5494511358918718774, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨14026867434695270642, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨8861486951490451735, by norm_num [F, goldilocksModulus]⟩
 
 def packageIdentityWords : List F :=
   expectedPackageIdentity.toList
@@ -41,10 +41,10 @@ def packageIdentityWords : List F :=
 /-- Unpinned identity candidate recomputed from the current canonical package.
 It is used only to produce pre-pin conformance fixtures. -/
 def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨12756407480944487176, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨17097603764386178571, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨11791428871054057896, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨14346937702828624285, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨18090610635114842464, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨5494511358918718774, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨14026867434695270642, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨8861486951490451735, by norm_num [F, goldilocksModulus]⟩
 
 def candidatePackageIdentityWords : List F :=
   candidatePackageIdentity.toList

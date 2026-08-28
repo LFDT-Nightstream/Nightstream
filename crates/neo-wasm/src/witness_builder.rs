@@ -2,6 +2,7 @@ use super::ccs::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
     CMP_HI_ZERO_TEST, CMP_LO_ZERO_TEST, DIVISOR_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST,
     PARAM_INIT_REMAINING_AFTER_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST, SELECT_COND_ZERO_TEST,
+    SELECT_HI_MUX, SELECT_LO_MUX,
 };
 use super::gadgets::unsigned_ge_witness;
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
@@ -50,20 +51,17 @@ use super::layout::{
     COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
-    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
-    COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
-    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
+    COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
     COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
     COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
     PC_ROM_CALL_RETURN_CHOICE,
 };
-use crate::layout::{
-    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO,
-};
+use crate::layout::{COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_IS_ZERO};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -868,23 +866,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     }
 
     SELECT_COND_ZERO_TEST.assign(&mut wit);
-    let select_cond_is_zero = wit[COL_SELECT_COND_IS_ZERO];
-    let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)));
-    let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0)));
-    let select_lhs_hi = F::from_u64(u64::from(
-        trace
-            .stack_read0
-            .and_then(|lane| lane.value_hi)
-            .unwrap_or(0),
-    ));
-    let select_rhs_hi = F::from_u64(u64::from(
-        trace
-            .stack_read1
-            .and_then(|lane| lane.value_hi)
-            .unwrap_or(0),
-    ));
-    wit[COL_SELECT_OUT_DELTA_LO] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
-    wit[COL_SELECT_OUT_DELTA_HI] = (F::ONE - select_cond_is_zero) * (select_lhs_hi - select_rhs_hi);
+    SELECT_LO_MUX.assign_delta(&mut wit);
+    SELECT_HI_MUX.assign_delta(&mut wit);
 
     // Comparator zero-test scratch (see `push_comparator_constraints` in ccs.rs).
     // For non-comparator opcodes both diffs are 0 and the gadget pins both

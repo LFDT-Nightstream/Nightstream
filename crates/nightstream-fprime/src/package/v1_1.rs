@@ -19,6 +19,7 @@ const PI_DEC_EVAL_K_ROLE: u64 = 12;
 const PI_DEC_EVAL_A_ROLE: u64 = 13;
 const PI_DEC_CHILD_PUBLIC_INPUT_ROLE: u64 = 14;
 const PI_DEC_WITNESS_ROLE: u64 = 15;
+const RUNNING_TRANSITION_WITNESS_ROLE: u64 = 16;
 
 pub const PI_CCS_V1_1_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_1_COEFFICIENT_COUNT: usize = 54;
@@ -45,6 +46,7 @@ const PI_DEC_EVAL_A_WORDS: usize =
     PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD * PI_CCS_V1_1_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD;
 const PI_DEC_WITNESS_WORDS: usize = 18_090;
+const RUNNING_TRANSITION_WITNESS_WORDS: usize = 275_362;
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
     let mut roles = Vec::with_capacity(10 + 2 * PI_CCS_V1_1_SOURCE_COUNT);
@@ -64,12 +66,13 @@ pub(super) fn private_segment_roles() -> Vec<u64> {
         PI_DEC_EVAL_A_ROLE,
         PI_DEC_CHILD_PUBLIC_INPUT_ROLE,
         PI_DEC_WITNESS_ROLE,
+        RUNNING_TRANSITION_WITNESS_ROLE,
     ]);
     roles
 }
 
 pub(super) fn is_witness_role(role: u64) -> bool {
-    role == WITNESS_ROLE || role == PI_DEC_WITNESS_ROLE
+    role == WITNESS_ROLE || role == PI_DEC_WITNESS_ROLE || role == RUNNING_TRANSITION_WITNESS_ROLE
 }
 
 pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), PackageError> {
@@ -92,6 +95,7 @@ pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), Pack
         || suffix[3].length != PI_DEC_EVAL_A_WORDS
         || suffix[4].length != PI_DEC_CHILD_PUBLIC_INPUT_WORDS
         || suffix[5].length != PI_DEC_WITNESS_WORDS
+        || suffix[6].length != RUNNING_TRANSITION_WITNESS_WORDS
     {
         return Err(PackageError::Invalid("PiDEC v1_1 private segments"));
     }

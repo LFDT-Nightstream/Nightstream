@@ -114,8 +114,8 @@ struct ColumnOwnerSpan {
 }
 
 // Exact nonempty row-owner intervals from the proved Pilot, PiCCS, PiRLC,
-// and PiDEC production ledgers. The cited Lean cumulative-footprint theorems
-// prove these boundaries and their order.
+// PiDEC, and running-transition production ledgers. The cited Lean
+// cumulative-footprint theorems prove these boundaries and their order.
 const ROW_OWNER_SPANS: &[OwnerSpan] = &[
     OwnerSpan {
         name: "pilot.prior_state_hash",
@@ -232,6 +232,11 @@ const ROW_OWNER_SPANS: &[OwnerSpan] = &[
         start: 27_215_127,
         end: 27_216_639,
     },
+    OwnerSpan {
+        name: "running_transition",
+        start: 27_216_639,
+        end: 27_537_894,
+    },
 ];
 
 const PILOT_ROWS: OwnerSpan = OwnerSpan {
@@ -253,6 +258,11 @@ const PIDEC_ROWS: OwnerSpan = OwnerSpan {
     name: "pidec",
     start: 27_191_367,
     end: 27_216_639,
+};
+const RUNNING_TRANSITION_ROWS: OwnerSpan = OwnerSpan {
+    name: "running_transition",
+    start: 27_216_639,
+    end: 27_537_894,
 };
 
 // Source-order column intervals from each phase's proved ColumnOwner map.
@@ -562,6 +572,33 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
             name: "",
             start: 27_356_464,
             end: 27_374_284,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "running_transition.external",
+        rows: RUNNING_TRANSITION_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 0,
+            end: 27_374_284,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "running_transition.inverse_hint",
+        rows: RUNNING_TRANSITION_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 27_374_284,
+            end: 27_374_285,
+        },
+    },
+    ColumnOwnerSpan {
+        name: "running_transition.r1cs_intermediate",
+        rows: RUNNING_TRANSITION_ROWS,
+        columns: OwnerSpan {
+            name: "",
+            start: 27_374_285,
+            end: 27_649_646,
         },
     },
     ColumnOwnerSpan {
@@ -911,6 +948,12 @@ struct PhaseLocalInputs {
     pi_dec_starts: [usize; 4],
 }
 
+struct PiDecFixtureInputs {
+    package: PiDecV1_1PackageInputs,
+    output_preimage: Vec<u64>,
+    output_digest: [u64; 4],
+}
+
 fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Path) -> PhaseLocalInputs {
     let bytes = fs::read(parity_path).expect("Lean-emitted PiCCS parity bytes");
     let parity: Value = serde_json::from_slice(&bytes).expect("PiCCS parity JSON");
@@ -927,9 +970,9 @@ fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Pat
         .all(|flag| *flag == 1));
 
     let prior_preimage = json_words(&input[0], "PiCCS parity prior preimage");
-    let output_preimage = json_words(&input[1], "PiCCS parity output preimage");
+    let phase_output_preimage = json_words(&input[1], "PiCCS parity output preimage");
     let prior_public_input = json_words(&input[2], "PiCCS parity public input");
-    let output_digest: [u64; 4] = json_words(&input[3], "PiCCS parity output digest")
+    let phase_output_digest: [u64; 4] = json_words(&input[3], "PiCCS parity output digest")
         .try_into()
         .expect("PiCCS parity digest width");
     let verifier_context: [u64; 4] = json_words(&input[4], "PiCCS parity verifier context")
@@ -1005,9 +1048,18 @@ fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Pat
     }));
     let output_evaluations = PiCcsV1_1OutputEvaluations::new(eval_k, eval_a).expect("nonzero PiCCS output evaluations");
     assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
-    assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_eq!(phase_output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(prior_public_input.len(), PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS);
 
+    let PiDecFixtureInputs {
+        package: pi_dec,
+        output_preimage,
+        output_digest,
+    } = pi_dec_inputs(pi_dec_path, fixture_identity);
+    assert_ne!(
+        phase_output_digest, output_digest,
+        "recursive transition changes the phase-local output digest"
+    );
     let pi_ccs = PiCcsV1_1PackageInputs::new(
         prior_preimage,
         output_preimage,
@@ -1019,7 +1071,6 @@ fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Pat
         derived_context,
     )
     .expect("typed PiCCS package inputs");
-    let pi_dec = pi_dec_inputs(pi_dec_path, fixture_identity);
     let pi_ccs_private_count = 2 * PI_CCS_V1_1_STATE_PREIMAGE_WORDS
         + PI_CCS_V1_1_FRESH_COMMITMENT_WORDS
         + PI_CCS_V1_1_ROUND_COUNT * PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT * 2
@@ -1047,16 +1098,16 @@ fn nonzero_inputs(package: &LoadedPackage, parity_path: &Path, pi_dec_path: &Pat
     }
 }
 
-fn pi_dec_inputs(path: &Path, expected_identity: [u64; 4]) -> PiDecV1_1PackageInputs {
+fn pi_dec_inputs(path: &Path, expected_identity: [u64; 4]) -> PiDecFixtureInputs {
     let bytes = fs::read(path).expect("Lean-emitted PiDEC parity bytes");
     let parity: Value = serde_json::from_slice(&bytes).expect("PiDEC parity JSON");
     let parity = parity.as_array().expect("PiDEC parity tuple");
     assert_eq!(parity.len(), 3, "PiDEC parity tuple length");
-    assert_eq!(parity[0].as_u64(), Some(1), "PiDEC parity schema");
+    assert_eq!(parity[0].as_u64(), Some(2), "PiDEC parity schema");
     let input = parity[1].as_array().expect("PiDEC parity input tuple");
     let result = parity[2].as_array().expect("PiDEC parity result tuple");
     assert_eq!(input.len(), 7, "PiDEC parity input tuple length");
-    assert_eq!(result.len(), 17, "PiDEC parity result tuple length");
+    assert_eq!(result.len(), 19, "PiDEC parity result tuple length");
     assert_eq!(result[0].as_u64(), Some(1), "Lean PiDEC acceptance");
     assert_eq!(result[1].as_u64(), Some(1), "Lean PiDEC parent bound");
     assert_eq!(result[6].as_u64(), Some(1), "Lean PiDEC commitment equation");
@@ -1121,8 +1172,17 @@ fn pi_dec_inputs(path: &Path, expected_identity: [u64; 4]) -> PiDecV1_1PackageIn
         .iter()
         .map(|child| json_words(child, "PiDEC child public input"))
         .collect();
-    PiDecV1_1PackageInputs::new(child_commitments, child_eval_k, child_eval_a, child_public_inputs)
-        .expect("typed PiDEC package inputs")
+    let output_preimage = json_words(&result[17], "running-transition output preimage");
+    assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    let output_digest = json_words(&result[18], "running-transition output digest")
+        .try_into()
+        .expect("running-transition output digest width");
+    PiDecFixtureInputs {
+        package: PiDecV1_1PackageInputs::new(child_commitments, child_eval_k, child_eval_a, child_public_inputs)
+            .expect("typed PiDEC package inputs"),
+        output_preimage,
+        output_digest,
+    }
 }
 
 fn events(raw: &RawPackage) -> Vec<Event<'_>> {

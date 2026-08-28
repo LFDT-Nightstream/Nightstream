@@ -1,8 +1,9 @@
 //! Executes Lean-owned schema-8 witness blocks.
 //!
 //! Digest-lane blocks carry one logical start and source expression. The final
-//! explicit block carries the already-remapped PiDEC witness batches. This
-//! module accepts only that Lean-owned order and those two exact tags.
+//! two explicit blocks carry the already-remapped PiDEC and running-transition
+//! witness batches. This module accepts only that Lean-owned order and those
+//! two exact tags.
 
 use rayon::prelude::*;
 use serde_json::Value;
@@ -16,6 +17,7 @@ const LANE_COUNT: usize = 4;
 const BLOCK_COUNT: usize = SOURCE_COUNT * ROUND_COUNT * LANE_COUNT;
 const BATCHES_PER_BLOCK: usize = 9;
 const PI_DEC_BATCH_COUNT: usize = 270;
+const RUNNING_TRANSITION_BATCH_COUNT: usize = 1;
 
 const CANONICAL_BIT_COUNT: usize = 64;
 const CANONICAL_HALF_BIT_COUNT: usize = 32;
@@ -28,21 +30,34 @@ const CANDIDATE_AUXILIARY_COUNT: usize = 17;
 const NEGATIVE_ONE: u64 = GOLDILOCKS_MODULUS - 1;
 
 pub(super) fn expand(mut blocks: Vec<Value>) -> Result<Vec<RawWitnessBatch>, PackageError> {
-    if blocks.len() != BLOCK_COUNT + 1 {
+    if blocks.len() != BLOCK_COUNT + 2 {
         return Err(PackageError::Invalid("witness plan block count"));
     }
-    let explicit = blocks
+    let running_transition = blocks
         .pop()
-        .ok_or(PackageError::Invalid("witness plan explicit block"))?;
+        .ok_or(PackageError::Invalid("running-transition witness block"))?;
+    let pi_dec = blocks
+        .pop()
+        .ok_or(PackageError::Invalid("PiDEC witness block"))?;
     let expanded = blocks
         .into_par_iter()
         .map(expand_digest_block)
         .collect::<Result<Vec<_>, _>>()?;
-    let mut batches = Vec::with_capacity(BLOCK_COUNT * BATCHES_PER_BLOCK + PI_DEC_BATCH_COUNT);
+    let mut batches =
+        Vec::with_capacity(BLOCK_COUNT * BATCHES_PER_BLOCK + PI_DEC_BATCH_COUNT + RUNNING_TRANSITION_BATCH_COUNT);
     for mut block in expanded {
         batches.append(&mut block);
     }
-    batches.extend(expand_explicit_block(explicit)?);
+    batches.extend(expand_explicit_block(
+        pi_dec,
+        PI_DEC_BATCH_COUNT,
+        "PiDEC witness batch count",
+    )?);
+    batches.extend(expand_explicit_block(
+        running_transition,
+        RUNNING_TRANSITION_BATCH_COUNT,
+        "running-transition witness batch count",
+    )?);
     Ok(batches)
 }
 
@@ -65,7 +80,11 @@ fn expand_digest_block(value: Value) -> Result<Vec<RawWitnessBatch>, PackageErro
     Ok(batches)
 }
 
-fn expand_explicit_block(value: Value) -> Result<Vec<RawWitnessBatch>, PackageError> {
+fn expand_explicit_block(
+    value: Value,
+    expected_count: usize,
+    count_error: &'static str,
+) -> Result<Vec<RawWitnessBatch>, PackageError> {
     let fields = value
         .as_array()
         .ok_or(PackageError::Invalid("witness explicit block"))?;
@@ -76,8 +95,8 @@ fn expand_explicit_block(value: Value) -> Result<Vec<RawWitnessBatch>, PackageEr
         return Err(PackageError::Invalid("witness explicit block tag"));
     }
     let batches: Vec<RawWitnessBatch> = serde_json::from_value(values.clone())?;
-    if batches.len() != PI_DEC_BATCH_COUNT {
-        return Err(PackageError::Invalid("PiDEC witness batch count"));
+    if batches.len() != expected_count {
+        return Err(PackageError::Invalid(count_error));
     }
     Ok(batches)
 }

@@ -4,10 +4,10 @@ use nightstream_fprime::{load, PackageError};
 use serde_json::{json, Value};
 
 const EXPECTED_IDENTITY: [u64; 4] = [
-    12_756_407_480_944_487_176,
-    17_097_603_764_386_178_571,
-    11_791_428_871_054_057_896,
-    14_346_937_702_828_624_285,
+    18_090_610_635_114_842_464,
+    5_494_511_358_918_718_774,
+    14_026_867_434_695_270_642,
+    8_861_486_951_490_451_735,
 ];
 
 const PI_DEC_COMMITMENTS_ROLE: u64 = 11;
@@ -145,6 +145,9 @@ fn schema8_plan_rejects_a_missing_explicit_pidec_block() {
     let mut value = plan_value();
     witness_blocks(&mut value)
         .pop()
+        .expect("running-transition witness block");
+    witness_blocks(&mut value)
+        .pop()
         .expect("PiDEC witness block");
 
     assert!(matches!(
@@ -157,8 +160,9 @@ fn schema8_plan_rejects_a_missing_explicit_pidec_block() {
 fn schema8_plan_rejects_a_wrong_pidec_batch_count() {
     let mut value = plan_value();
     let blocks = witness_blocks(&mut value);
+    let pi_dec_block = blocks.len() - 2;
     blocks
-        .last_mut()
+        .get_mut(pi_dec_block)
         .expect("PiDEC witness block")
         .as_array_mut()
         .expect("tagged PiDEC witness block")[1]
@@ -174,12 +178,33 @@ fn schema8_plan_rejects_a_wrong_pidec_batch_count() {
 }
 
 #[test]
+fn schema8_plan_rejects_a_wrong_running_transition_batch_count() {
+    let mut value = plan_value();
+    let blocks = witness_blocks(&mut value);
+    blocks
+        .last_mut()
+        .expect("running-transition witness block")
+        .as_array_mut()
+        .expect("tagged running-transition witness block")[1]
+        .as_array_mut()
+        .expect("running-transition witness batches")
+        .pop()
+        .expect("running-transition witness batch");
+
+    assert!(matches!(
+        load(&canonical_bytes(&value), [0; 4]),
+        Err(PackageError::Invalid("running-transition witness batch count"))
+    ));
+}
+
+#[test]
 fn schema8_plan_rejects_a_generated_write_into_pidec_inputs() {
     let mut value = plan_value();
     let pi_dec_input_start = pi_dec_input_start(&value);
     let blocks = witness_blocks(&mut value);
+    let pi_dec_block = blocks.len() - 2;
     blocks
-        .last_mut()
+        .get_mut(pi_dec_block)
         .expect("PiDEC witness block")
         .as_array_mut()
         .expect("tagged PiDEC witness block")[1]

@@ -11,11 +11,17 @@ use serde_json::Value;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PACKAGE_IDENTITY: [u64; 4] = [
-    12_756_407_480_944_487_176,
-    17_097_603_764_386_178_571,
-    11_791_428_871_054_057_896,
-    14_346_937_702_828_624_285,
+    18_090_610_635_114_842_464,
+    5_494_511_358_918_718_774,
+    14_026_867_434_695_270_642,
+    8_861_486_951_490_451_735,
 ];
+
+struct PiDecFixture {
+    inputs: PiDecV1_1PackageInputs,
+    output_preimage: Vec<u64>,
+    output_digest: [u64; 4],
+}
 
 fn artifact_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -70,7 +76,11 @@ fn commitment_key_words() -> Vec<u64> {
     json_words(&authority[3], "Lean commitment-key authority")
 }
 
-fn pi_ccs_inputs(verifier_context: PiCcsV1_1VerifierContext) -> (PiCcsV1_1PackageInputs, Vec<u64>) {
+fn pi_ccs_inputs(
+    verifier_context: PiCcsV1_1VerifierContext,
+    output_preimage: Vec<u64>,
+    output_digest: [u64; 4],
+) -> (PiCcsV1_1PackageInputs, Vec<u64>) {
     let input = parity_input("nightstream-fprime-stage1-piccs-parity-v1.json", 7, 12);
     let authority = input[11]
         .as_array()
@@ -82,11 +92,11 @@ fn pi_ccs_inputs(verifier_context: PiCcsV1_1VerifierContext) -> (PiCcsV1_1Packag
     );
 
     let prior_preimage = json_words(&input[0], "Lean prior preimage");
-    let output_preimage = json_words(&input[1], "Lean output preimage");
+    let phase_output_preimage = json_words(&input[1], "Lean phase output preimage");
     let prior_public = json_words(&input[2], "Lean prior public input");
-    let output_digest: [u64; 4] = json_words(&input[3], "Lean output digest")
+    let phase_output_digest: [u64; 4] = json_words(&input[3], "Lean phase output digest")
         .try_into()
-        .expect("four-word output digest");
+        .expect("four-word phase output digest");
     let fresh_commitment = json_words(&input[5], "Lean fresh commitment");
     let round_messages = input[6]
         .as_array()
@@ -115,7 +125,12 @@ fn pi_ccs_inputs(verifier_context: PiCcsV1_1VerifierContext) -> (PiCcsV1_1Packag
         .collect::<Vec<_>>();
 
     assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_eq!(phase_output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    assert_ne!(
+        phase_output_digest, output_digest,
+        "running transition changes output digest"
+    );
     assert_eq!(prior_public.len(), PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS);
     assert_eq!(fresh_commitment.len(), PI_CCS_V1_1_FRESH_COMMITMENT_WORDS);
     assert_eq!(round_messages.len(), PI_CCS_V1_1_ROUND_COUNT);
@@ -152,8 +167,18 @@ fn pi_ccs_inputs(verifier_context: PiCcsV1_1VerifierContext) -> (PiCcsV1_1Packag
     (inputs, expected_public)
 }
 
-fn pi_dec_inputs() -> PiDecV1_1PackageInputs {
-    let input = parity_input("nightstream-fprime-stage1-pidec-parity-v1.json", 1, 7);
+fn pi_dec_inputs() -> PiDecFixture {
+    let bytes =
+        fs::read(artifact_path("nightstream-fprime-stage1-pidec-parity-v1.json")).expect("Lean PiDEC parity bytes");
+    let parity: Value = serde_json::from_slice(&bytes).expect("Lean PiDEC parity JSON");
+    let parity = parity.as_array().expect("Lean PiDEC parity tuple");
+    assert_eq!(parity.len(), 3, "Lean PiDEC parity tuple length");
+    assert_eq!(parity[0].as_u64(), Some(2), "Lean PiDEC parity schema");
+    let input = parity[1].as_array().expect("Lean PiDEC parity input");
+    let result = parity[2].as_array().expect("Lean PiDEC parity result");
+    assert_eq!(input.len(), 7, "Lean PiDEC parity input length");
+    assert_eq!(result.len(), 19, "Lean PiDEC parity result length");
+    assert_eq!(result[0].as_u64(), Some(1), "Lean PiDEC acceptance");
     assert_eq!(json_words(&input[6], "Lean PiDEC package identity"), PACKAGE_IDENTITY);
     let child_commitments = input[1]
         .as_array()
@@ -187,8 +212,17 @@ fn pi_dec_inputs() -> PiDecV1_1PackageInputs {
         .map(|child| json_words(child, "Lean child public input"))
         .collect::<Vec<_>>();
     assert_eq!(child_commitments.len(), PI_DEC_V1_1_CHILD_COUNT);
-    PiDecV1_1PackageInputs::new(child_commitments, child_eval_k, child_eval_a, child_public_inputs)
-        .expect("typed Lean PiDEC inputs")
+    let output_preimage = json_words(&result[17], "Lean running-transition output preimage");
+    assert_eq!(output_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
+    let output_digest = json_words(&result[18], "Lean running-transition output digest")
+        .try_into()
+        .expect("four-word running-transition output digest");
+    PiDecFixture {
+        inputs: PiDecV1_1PackageInputs::new(child_commitments, child_eval_k, child_eval_a, child_public_inputs)
+            .expect("typed Lean PiDEC inputs"),
+        output_preimage,
+        output_digest,
+    }
 }
 
 #[test]
@@ -200,8 +234,12 @@ fn application_consumes_identity_bound_lean_package_for_canonical_state() {
     assert_eq!(verifier.relation_identifier(), PACKAGE_IDENTITY);
     assert_eq!(prover.verifier_context(), verifier.verifier_context());
 
-    let (pi_ccs, expected_public) = pi_ccs_inputs(prover.verifier_context().clone());
-    let pi_dec = pi_dec_inputs();
+    let PiDecFixture {
+        inputs: pi_dec,
+        output_preimage,
+        output_digest,
+    } = pi_dec_inputs();
+    let (pi_ccs, expected_public) = pi_ccs_inputs(prover.verifier_context().clone(), output_preimage, output_digest);
     let proof = prover
         .prove(&pi_ccs, &pi_dec)
         .expect("application package proof");

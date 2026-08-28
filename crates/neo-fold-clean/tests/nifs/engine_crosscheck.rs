@@ -23,13 +23,14 @@ use nightstream_fprime::{
 };
 use p3_field::PrimeCharacteristicRing;
 
-// Validated phase-local Pilot + PiCCS + PiRLC + PiDEC package identity.
+// Validated phase-local Pilot + PiCCS + PiRLC + PiDEC + running-transition
+// package identity.
 // The final Stage 1 package must rerun every gate before replacing it.
 const PACKAGE_IDENTITY: [u64; 4] = [
-    12_756_407_480_944_487_176,
-    17_097_603_764_386_178_571,
-    11_791_428_871_054_057_896,
-    14_346_937_702_828_624_285,
+    18_090_610_635_114_842_464,
+    5_494_511_358_918_718_774,
+    14_026_867_434_695_270_642,
+    8_861_486_951_490_451_735,
 ];
 
 fn package_path() -> PathBuf {

@@ -8,13 +8,14 @@ use nightstream_fprime::{
 };
 use serde_json::{json, Value};
 
-// Lean-emitted Pilot + PiCCS + PiRLC + PiDEC package identity. Phase
-// conformance remains open until every required gate passes on these bytes.
+// Lean-emitted Pilot + PiCCS + PiRLC + PiDEC + running-transition package
+// identity. Phase conformance remains open until every required gate passes
+// on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    12_756_407_480_944_487_176,
-    17_097_603_764_386_178_571,
-    11_791_428_871_054_057_896,
-    14_346_937_702_828_624_285,
+    18_090_610_635_114_842_464,
+    5_494_511_358_918_718_774,
+    14_026_867_434_695_270_642,
+    8_861_486_951_490_451_735,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -106,18 +107,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 27_216_639);
-    assert_eq!(package.private_column_count(), 27_374_006);
+    assert_eq!(package.row_count(), 27_537_894);
+    assert_eq!(package.private_column_count(), 27_649_368);
     assert_eq!(package.private_input_count(), 166_690);
     assert_eq!(package.public_column_count(), 278);
-    assert_eq!(package.total_column_count(), 27_374_285);
+    assert_eq!(package.total_column_count(), 27_649_647);
     assert_eq!(package.template_row_count(), 592);
     assert_eq!(package.permutation_invocation_count(), 7_679);
     assert_eq!(package.compact_template_count(), 326);
     assert_eq!(package.compact_invocation_count(), 167_246);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        1_028_286
+        1_349_541
     );
 }
 

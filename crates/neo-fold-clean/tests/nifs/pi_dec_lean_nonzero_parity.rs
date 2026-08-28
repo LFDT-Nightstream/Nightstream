@@ -6,6 +6,7 @@ use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, Term};
 use neo_fold_clean::{
     engine::{optimized, paper_exact},
+    frontends::r1cs_f_prime::ivc::pi_ccs_v1_1_state_hash,
     paper::{params::Params, relations::ajtai_dec_mixer},
 };
 use neo_math::{from_complex, KExtensions, D, F, K};
@@ -23,10 +24,10 @@ const PUBLIC_INPUT_WORDS: usize = 270;
 const COMMITMENT_WORDS: usize = 972;
 const COMBINED_BOUND: u64 = 1 << 16;
 const PACKAGE_IDENTITY: [u64; 4] = [
-    12_756_407_480_944_487_176,
-    17_097_603_764_386_178_571,
-    11_791_428_871_054_057_896,
-    14_346_937_702_828_624_285,
+    18_090_610_635_114_842_464,
+    5_494_511_358_918_718_774,
+    14_026_867_434_695_270_642,
+    8_861_486_951_490_451_735,
 ];
 
 type Claim = CeClaim<Commitment, F, K>;
@@ -74,6 +75,8 @@ struct RawResult(
     [u64; 8],
     u64,
     Vec<u64>,
+    Vec<u64>,
+    [u64; 4],
 );
 
 #[derive(Deserialize)]
@@ -698,6 +701,31 @@ fn assert_cumulative_handoff() {
     assert_eq!(pi_dec[1][5], pi_rlc[2][9], "PiRLC transcript-state handoff");
 }
 
+fn transition_running_words(children: &[RawClaim]) -> Vec<u64> {
+    let mut words = Vec::new();
+    words.push((children[0].2.len() * 2) as u64);
+    for value in &children[0].2 {
+        words.extend_from_slice(value);
+    }
+    for child in children {
+        words.push(child.0.len() as u64);
+        words.extend_from_slice(&child.0);
+        words.push(child.1.len() as u64);
+        words.extend_from_slice(&child.1);
+        let evaluation_words = child.3.len() * 2 + child.4.iter().map(|matrix| matrix.len() * 2).sum::<usize>();
+        words.push(evaluation_words as u64);
+        for value in &child.3 {
+            words.extend_from_slice(value);
+        }
+        for matrix in &child.4 {
+            for value in matrix {
+                words.extend_from_slice(value);
+            }
+        }
+    }
+    words
+}
+
 fn assert_both_reject(
     params: &Params,
     structure: &CcsStructure<F>,
@@ -728,12 +756,20 @@ fn assert_changed(changed: PhaseResult, paper: &PhaseResult, optimized: &PhaseRe
 fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
     assert_cumulative_handoff();
     let Artifact(schema, input, result) = artifact();
-    assert_eq!(schema, 1);
+    assert_eq!(schema, 2);
     assert_eq!(input.6, PACKAGE_IDENTITY);
     assert_eq!(input.0 .5, 1, "PiDEC parent stage");
     assert_eq!(result.0, 1, "Lean PiDEC acceptance");
     assert_eq!(result.13.len(), CHILD_COUNT);
     assert!(result.13.iter().all(|child| child.5 == 0));
+    assert_eq!(result.17.len(), 45_933);
+    let running = transition_running_words(&result.13);
+    assert_eq!(&result.17[39..39 + running.len()], running.as_slice());
+    assert_eq!(result.17.last().copied(), Some(1));
+    assert_eq!(
+        pi_ccs_v1_1_state_hash(&result.17).expect("transition output hash"),
+        result.18
+    );
 
     let structure = relation();
     let params = params(&structure);

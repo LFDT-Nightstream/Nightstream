@@ -15,7 +15,7 @@ mod relation;
 
 pub use columns::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
 pub use continuity::{ContinuityCatalog, ContinuityCatalogError, ContinuityGroup, ContinuityLink};
-pub use gadgets::{GadgetDescriptor, GadgetOccurrence, ZeroTest};
+pub use gadgets::{ConditionalSelect, GadgetDescriptor, GadgetOccurrence, ZeroTest};
 pub use memory::{
     MemoryCatalog, MemoryCatalogError, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
 };

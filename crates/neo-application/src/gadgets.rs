@@ -7,6 +7,14 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::{ConstraintTag, TaggedR1csBuilder};
 
+fn evaluate_linear_expression<const N: usize>(expression: &[(usize, F); N], assignment: &[F]) -> F {
+    expression
+        .iter()
+        .fold(F::ZERO, |value, &(column, coefficient)| {
+            value + assignment[column] * coefficient
+        })
+}
+
 /// Columns participating in the relation `is_zero = (expression == 0)`.
 ///
 /// The constraints uniquely determine `is_zero` as either zero or one; no
@@ -64,12 +72,7 @@ impl<const N: usize> ZeroTest<N> {
     /// Derive the canonical auxiliary assignment from the current expression.
     /// Callers remain responsible for ordering dependent gadgets.
     pub fn assign(&self, assignment: &mut [F]) {
-        let value = self
-            .expression
-            .iter()
-            .fold(F::ZERO, |value, &(column, coefficient)| {
-                value + assignment[column] * coefficient
-            });
+        let value = evaluate_linear_expression(&self.expression, assignment);
         if value == F::ZERO {
             assignment[self.inverse] = F::ZERO;
             assignment[self.is_zero] = F::ONE;
@@ -80,6 +83,71 @@ impl<const N: usize> ZeroTest<N> {
     }
 }
 
+/// Conditionally selects `lhs` or `rhs` into `output` on active rows.
+///
+/// `condition` is a linear expression that must evaluate to zero or one:
+/// one selects `lhs`, and zero selects `rhs`. If it is not Boolean, the rows
+/// remain satisfiable but enforce affine interpolation in the field rather
+/// than selection.
+///
+/// `activation` is the application gate. Zero leaves `output` unconstrained,
+/// while any nonzero field value enforces the output relation. Callers must
+/// prove that it has the intended gate semantics, normally by constraining it
+/// to be Boolean. This gadget emits neither Boolean constraint.
+///
+/// Without `delta`, directly gating the select relation would multiply
+/// `activation`, `condition`, and `lhs - rhs`, exceeding R1CS degree. The
+/// global delta row computes that intermediate product so the output relation
+/// can be gated in a second R1CS row.
+///
+/// The delta relation is global, including on inactive rows. This gives the
+/// auxiliary column a canonical value while leaving `output` unconstrained
+/// when `activation` is zero.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConditionalSelect<const N: usize = 1> {
+    pub activation: usize,
+    pub condition: [(usize, F); N],
+    pub lhs: usize,
+    pub rhs: usize,
+    pub output: usize,
+    pub delta: usize,
+}
+
+impl<const N: usize> ConditionalSelect<N> {
+    /// Emit the select rows and retain this descriptor in the relation's
+    /// gadget-occurrence catalog.
+    pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
+        let first_row = builder.next_row_index();
+        builder.push_row(
+            self.condition,
+            [(self.lhs, F::ONE), (self.rhs, -F::ONE)],
+            [(self.delta, F::ONE)],
+        );
+        builder.push_row(
+            [(self.activation, F::ONE)],
+            [(self.output, F::ONE), (self.rhs, -F::ONE), (self.delta, -F::ONE)],
+            [],
+        );
+        builder.record_gadget(
+            GadgetDescriptor::ConditionalSelect {
+                activation: self.activation,
+                condition: self.condition.to_vec(),
+                lhs: self.lhs,
+                rhs: self.rhs,
+                output: self.output,
+                delta: self.delta,
+            },
+            first_row,
+        );
+    }
+
+    /// Assign the gadget-owned delta without overwriting the semantic output.
+    pub fn assign_delta(&self, assignment: &mut [F]) {
+        let condition = evaluate_linear_expression(&self.condition, assignment);
+        assignment[self.delta] = condition * (assignment[self.lhs] - assignment[self.rhs]);
+    }
+}
+
 /// Machine-readable semantics retained for one shared gadget invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
@@ -87,6 +155,14 @@ pub enum GadgetDescriptor {
         expression: Vec<(usize, F)>,
         inverse: usize,
         is_zero: usize,
+    },
+    ConditionalSelect {
+        activation: usize,
+        condition: Vec<(usize, F)>,
+        lhs: usize,
+        rhs: usize,
+        output: usize,
+        delta: usize,
     },
 }
 

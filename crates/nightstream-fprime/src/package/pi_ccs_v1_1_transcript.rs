@@ -8,16 +8,16 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
-use super::{canonical_field, PackageError, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT};
+use super::{canonical_field, PackageError, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
 const WIDTH: usize = 8;
-const CUBE_VARIABLES: usize = 25;
+const CUBE_VARIABLES: usize = PI_CCS_V1_1_ROUND_COUNT;
 const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
 const COMMITMENT_WORDS: usize = 972;
-const PUBLIC_INPUT_WORDS: usize = 54;
+const PUBLIC_INPUT_WORDS: usize = 270;
 const EVALUATION_WORDS: usize = (MATRIX_COUNT + 1) * COEFFICIENT_COUNT * 2;
 const OUTPUT_WORDS: usize = SOURCE_COUNT * EVALUATION_WORDS;
 
@@ -36,7 +36,7 @@ pub struct PiCcsV1_1Transcript {
 }
 
 impl PiCcsV1_1Transcript {
-    /// The 25 pre-SumCheck challenges.
+    /// The pre-SumCheck challenges.
     pub fn alpha(&self) -> &[[u64; 2]] {
         &self.alpha
     }
@@ -46,7 +46,7 @@ impl PiCcsV1_1Transcript {
         self.gamma
     }
 
-    /// The 25 SumCheck round challenges.
+    /// The SumCheck round challenges.
     pub fn round_point(&self) -> &[[u64; 2]] {
         &self.round_point
     }

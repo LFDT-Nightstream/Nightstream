@@ -15,7 +15,7 @@ const ROUND_COUNT: usize = 8;
 const LANE_COUNT: usize = 4;
 const BLOCK_COUNT: usize = SOURCE_COUNT * ROUND_COUNT * LANE_COUNT;
 const BATCHES_PER_BLOCK: usize = 9;
-const PI_DEC_BATCH_COUNT: usize = 54;
+const PI_DEC_BATCH_COUNT: usize = 270;
 
 const CANONICAL_BIT_COUNT: usize = 64;
 const CANONICAL_HALF_BIT_COUNT: usize = 32;

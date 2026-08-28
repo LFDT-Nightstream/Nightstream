@@ -3,18 +3,20 @@
 use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const STATE_PREIMAGE_WORDS: usize = 42_475;
-const PRIOR_PUBLIC_WORDS: usize = 54;
+const STATE_PREIMAGE_WORDS: usize = 45_933;
+const PRIOR_PUBLIC_WORDS: usize = 270;
 const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 14;
-const RUNNING_GROUP_WORDS: usize = 2_649;
+const RUNNING_GROUP_WORDS: usize = 2_865;
+const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
 
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
@@ -84,7 +86,11 @@ fn verify_pilot(input: &RawInput) -> Result<PilotResult, &'static str> {
 
     let mut expected_prior_public = vec![0; PRIOR_PUBLIC_WORDS];
     expected_prior_public[0] = 1;
-    expected_prior_public[1..5].copy_from_slice(&prior_digest);
+    for (word, value) in prior_digest.iter().copied().enumerate() {
+        for bit in 0..64 {
+            expected_prior_public[1 + word * 64 + bit] = (value >> bit) & 1;
+        }
+    }
     if *prior_public != expected_prior_public {
         return Err("prior public-input binding");
     }
@@ -98,12 +104,12 @@ fn verify_pilot(input: &RawInput) -> Result<PilotResult, &'static str> {
         prior_digest,
         output_digest,
         public_values,
-        public_segments: vec![[4, 0, 54], [5, 54, 4]],
+        public_segments: vec![[4, 0, 270], [5, 270, 4]],
         assurance_flags: vec![
             u64::from(prior_digest.len() == DIGEST_WORDS),
             u64::from(output_digest.len() == DIGEST_WORDS),
             u64::from(prior_digest != output_digest),
-            u64::from(PUBLIC_WORDS == 58),
+            u64::from(PUBLIC_WORDS == 274),
         ],
     })
 }
@@ -162,11 +168,11 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
 
     assert_eq!(cursor, 39, "running-state start");
     indices.push(("running-point length prefix".into(), cursor));
-    expect_prefix(words, &mut cursor, 50, "running point");
-    for component in 0..50 {
+    expect_prefix(words, &mut cursor, RUNNING_POINT_WORDS, "running point");
+    for component in 0..RUNNING_POINT_WORDS {
         indices.push((format!("running-point component {component}"), cursor + component));
     }
-    cursor += 50;
+    cursor += RUNNING_POINT_WORDS;
 
     for source in 0..RUNNING_COUNT {
         let group_start = cursor;
@@ -178,10 +184,10 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
         cursor += 972;
 
         indices.push((format!("source {source} public-input length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 54, "running public input");
+        expect_prefix(words, &mut cursor, 270, "running public input");
         indices.push((format!("source {source} public-input first word"), cursor));
-        indices.push((format!("source {source} public-input last word"), cursor + 53));
-        cursor += 54;
+        indices.push((format!("source {source} public-input last word"), cursor + 269));
+        cursor += 270;
 
         indices.push((format!("source {source} evaluation length prefix"), cursor));
         expect_prefix(words, &mut cursor, 1_620, "running evaluation");
@@ -212,9 +218,13 @@ fn rust_recomputation_matches_complete_lean_pilot_result() {
     assert_ne!(actual.prior_digest, actual.output_digest);
     assert_eq!(actual.public_values.len(), PUBLIC_WORDS);
     assert_eq!(actual.public_values[0], 1);
-    assert_eq!(&actual.public_values[1..5], actual.prior_digest);
-    assert!(actual.public_values[5..54].iter().all(|word| *word == 0));
-    assert_eq!(&actual.public_values[54..58], actual.output_digest);
+    for (word, value) in actual.prior_digest.iter().copied().enumerate() {
+        for bit in 0..64 {
+            assert_eq!(actual.public_values[1 + word * 64 + bit], (value >> bit) & 1);
+        }
+    }
+    assert!(actual.public_values[257..270].iter().all(|word| *word == 0));
+    assert_eq!(&actual.public_values[270..274], actual.output_digest);
 }
 
 #[test]

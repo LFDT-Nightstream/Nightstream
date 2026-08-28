@@ -4,13 +4,13 @@ use nightstream_fprime::{load, PackageError};
 use serde_json::{json, Value};
 
 const EXPECTED_IDENTITY: [u64; 4] = [
-    11_965_344_980_476_942_540,
-    12_455_623_573_690_155_525,
-    3_326_996_935_083_639_356,
-    1_575_202_054_933_656_136,
+    12_756_407_480_944_487_176,
+    17_097_603_764_386_178_571,
+    11_791_428_871_054_057_896,
+    14_346_937_702_828_624_285,
 ];
 
-const PI_DEC_INPUT_START: u64 = 25_669_001;
+const PI_DEC_COMMITMENTS_ROLE: u64 = 11;
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -47,6 +47,22 @@ fn witness_blocks(value: &mut Value) -> &mut Vec<Value> {
     plan[4].as_array_mut().expect("witness-plan blocks")
 }
 
+fn pi_dec_input_start(value: &Value) -> u64 {
+    let plan = value.as_array().expect("package-plan tuple");
+    let package = plan[1].as_array().expect("embedded package tuple");
+    let layout = package[3].as_array().expect("package layout");
+    layout[5]
+        .as_array()
+        .expect("private segments")
+        .iter()
+        .find_map(|segment| {
+            let fields = segment.as_array().expect("private segment");
+            (fields[0] == json!(PI_DEC_COMMITMENTS_ROLE))
+                .then(|| fields[1].as_u64().expect("PiDEC commitment segment start"))
+        })
+        .expect("PiDEC commitment segment")
+}
+
 #[test]
 fn schema8_plan_places_schema7_compact_fields_at_the_lean_owned_positions() {
     let value = plan_value();
@@ -68,7 +84,7 @@ fn schema8_plan_places_schema7_compact_fields_at_the_lean_owned_positions() {
 fn schema8_plan_expands_every_compact_invocation_with_exact_coverage() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package-plan load");
     assert_eq!(package.compact_template_count(), 326);
-    assert_eq!(package.compact_invocation_count(), 163_574);
+    assert_eq!(package.compact_invocation_count(), 167_246);
 }
 
 #[test]
@@ -160,6 +176,7 @@ fn schema8_plan_rejects_a_wrong_pidec_batch_count() {
 #[test]
 fn schema8_plan_rejects_a_generated_write_into_pidec_inputs() {
     let mut value = plan_value();
+    let pi_dec_input_start = pi_dec_input_start(&value);
     let blocks = witness_blocks(&mut value);
     blocks
         .last_mut()
@@ -169,7 +186,7 @@ fn schema8_plan_rejects_a_generated_write_into_pidec_inputs() {
         .as_array_mut()
         .expect("PiDEC witness batches")[0]
         .as_array_mut()
-        .expect("PiDEC witness batch")[0] = json!(PI_DEC_INPUT_START);
+        .expect("PiDEC witness batch")[0] = json!(pi_dec_input_start);
 
     assert!(matches!(
         load(&canonical_bytes(&value), [0; 4]),

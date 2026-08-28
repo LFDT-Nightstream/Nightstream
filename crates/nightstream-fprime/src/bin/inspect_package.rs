@@ -27,8 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("identity={identity:?}");
     println!("rows={}", package.row_count());
     println!("private_columns={}", package.private_column_count());
+    println!("private_inputs={}", package.private_input_count());
     println!("public_columns={}", package.public_column_count());
     println!("total_columns={}", package.total_column_count());
+    println!("compact_templates={}", package.compact_template_count());
     println!("permutation_invocations={}", package.permutation_invocation_count());
     println!("compact_invocations={}", package.compact_invocation_count());
     println!("witness_instructions={}", package.witness_instruction_count());

@@ -23,10 +23,12 @@ mod source_map;
 mod v1_1;
 mod witness_plan;
 pub use v1_1::{
-    PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
-    PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS,
+    PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs,
+    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
+    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS,
+    PI_DEC_V1_1_CHILD_COUNT, PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD,
+    PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD, PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
 mod r1cs;
 use r1cs::expand_matrices;
@@ -39,7 +41,7 @@ mod pi_ccs_v1_1_transcript;
 pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
 
 pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const MAX_JOINT_DOMAIN_VARIABLES: u32 = 25;
+const MAX_JOINT_DOMAIN_VARIABLES: u32 = 26;
 const MAX_JOINT_DOMAIN: usize = 1usize << MAX_JOINT_DOMAIN_VARIABLES;
 
 #[derive(Debug, Error)]
@@ -52,6 +54,8 @@ pub enum PackageError {
     NonCanonicalBytes,
     #[error("invalid circuit package: {0}")]
     Invalid(&'static str),
+    #[error("unsatisfied assertion row {row}")]
+    UnsatisfiedAssertionRow { row: usize },
     #[error("noncanonical Goldilocks word in {location}: {value}")]
     NonCanonicalField { location: &'static str, value: u64 },
     #[error(
@@ -426,7 +430,7 @@ impl LoadedPackage {
             let right = eval_sparse_combination(&row.b, &assignment);
             let output = eval_sparse_combination(&row.c, &assignment);
             if left * right != output {
-                return Err(PackageError::Invalid("unsatisfied assertion row"));
+                return Err(PackageError::UnsatisfiedAssertionRow { row: row.row_index });
             }
         }
 
@@ -693,7 +697,7 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         assertion_rows,
         terminal,
     ) = raw;
-    if schema != 8 {
+    if schema != 7 {
         return Err(PackageError::Invalid("schema version"));
     }
     validate_profile(profile)?;
@@ -844,7 +848,7 @@ fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         dec_children,
         matrices,
         cube,
-    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 14, 25)
+    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 14, 26)
     {
         return Err(PackageError::Invalid("fixed production profile"));
     }
@@ -885,7 +889,7 @@ fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
         return Err(PackageError::Invalid("total column count"));
     }
     if row_count.max(total_column_count.saturating_sub(1)) > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("2^25 joint domain"));
+        return Err(PackageError::Invalid("2^26 joint domain"));
     }
 
     let expected_private_roles = v1_1::private_segment_roles();
@@ -1071,8 +1075,7 @@ fn validate_chain(
         || checked_end(chain.witness_start, chain.witness_length)? > layout.private_column_count
         || (chain.digest_length != 0
             && (chain.digest_start <= layout.constant_column
-                || checked_end(chain.digest_start, chain.digest_length)?
-                    > layout.total_column_count))
+                || checked_end(chain.digest_start, chain.digest_length)? > layout.total_column_count))
     {
         return Err(PackageError::Invalid("hash chain range"));
     }

@@ -1,421 +1,319 @@
 # Nightstream F′ Stage 1 constraint tree
 
-This file is the concise audit map for the one production circuit. It defines
-no relation. `✓` means present and validated; `○` means required and open.
-
-The audit path is `paper formula → Lean predicate → leaf FormalCircuit →
-phase assembler → Stage 1 assembler → proved layout → Lean package → Rust`.
-
-PiCCS is formally **status open**. The current phase-local evidence can unlock
-PiRLC under the accepted
-[`piccs-phase-local-conformance-order`](../../decisions/piccs-phase-local-conformance-order.md)
-decision. It does not close PiCCS. Every PiCCS gate must run again on the final
-package identity after the package-to-`LogicalRelation`, application, key, and
-recursive fixed-point edge exists.
-
-## Exact SuperNeo v1_1 authority
+This file is the concise audit map for the current Lean-authored package
+prefix. It defines no relation and gives no digest authority. The audit path
+is:
 
 ```text
-Spec/Folding/PiCCS/
-├── Statement.lean       ✓ prior point and separate input Eval_K / Eval_A
-├── Transcript.lean      ✓ verifier-owned Fiat–Shamir schedule
-├── TranscriptReplay.lean ✓ complete statement-and-message replay reduction
-├── EvalK.lean           ✓ Pad evaluation family
-├── EvalA.lean           ✓ 14 CCS-matrix evaluation families
-├── FinalIdentity.lean   ✓ v1_1 terminal joint identity
-└── Accepted.lean        ✓ sole PiCCS acceptance predicate
-
-Spec/ProductionRelation/SelectivePolynomial.lean
-└── polynomial           ✓ 13 selective matrices + zero; 74 terms; degree 8
+paper formula
+  → Lean predicate
+  → leaf FormalCircuit
+  → phase assembler
+  → proved physical layout
+  → canonical Lean package
+  → exact Rust matrices and independent assignment check
 ```
 
-`Lifecycle/PaperAlgebra.lean` constructs Pad separately from the 14 CCS
-matrices. No Pad-as-matrix-zero relation and no combined `Eval` value remain.
-Equality gating gives the production PiCCS degree bound 9. Each of the 25
-SumCheck messages therefore has 10 extension-field coefficients.
+Status on this cut:
 
-`Layout/Stage1/PiCCSSecurity.lean` identifies a canonical context, a complete
-well-formed running statement, and an exact transcript replay unless a named
-context-hash, state-hash, transcript-challenge, or transcript-state collision
-occurs. This is a deterministic reduction. It does not assign a probability
-to a failure event and does not replace the final Stage 1 security composition.
+- Pilot: validated candidate; status open on the current identity.
+- PiCCS: all phase-local gates are green; formally **status open** under the
+  owner decision until the final fixed-point edge and final-identity rerun.
+- PiRLC: validated candidate; status open until an external reviewer approves
+  this exact source and artifact cut.
+- PiDEC: phase-local work is owner-authorized and all local gates below are
+  green; status open until exact external review.
+- Stage 1: open. The application, terminal assembly, fixed point, complete
+  domain proof, security composition, and package-only production path do not
+  exist yet.
 
-## Pilot conformance closure
+The external review files read at 22:20 CDT predate the verifier-context and
+accepted-fixture correction in this cut. They are evidence for prior cuts
+only. No status below uses them as approval of the current cut.
 
-The pilot is **Conformance-closed** on the current source cut. Its semantic
-path is `Lifecycle.Pilot.phase_soundness` and
-`Lifecycle.Pilot.builders_imply_hash_slots`; its emitted-row path reaches
-`Export.Pilot.canonicalPackage_implies_recursive_hash_slots` and
-`Export.Stage1.Package.circuitPackage_implies_pilotSpec`.
+## Fixed profile and semantic authority
 
-The pilot has exactly 12,574,138 rows, 12,659,088 source columns, 58 public
-columns, and joint domain 12,659,088. `PilotProduction.jointDomain_matches`
-connects that domain to the exact row/column maximum, and
-`PilotProduction.jointDomain_le_twoPow25` proves the production bound.
+Lean is the semantic authority for exact SuperNeo v1_1. The fixed Nightstream
+Goldilocks profile is:
 
-`Export.Stage1.PilotParity` emits schema 1 with two distinct 42,475-word
-preimages, both four-word digests, all 58 public values, and the relative
-public segments `[4, 0, 54]` and `[5, 54, 4]`. The artifact SHA-256 is
-`50e42cbb83b8f2b0b287e21f818f714b079d0f8c575fde7925ab44ef416d575e`.
-The native-task emitter computes each digest once and emitted this artifact
-in 10.25 seconds; the prior external-review run took 464 seconds.
-
-Executed release evidence:
-
-- `pilot_lean_nonzero_parity`: 3/3 passed in 18.58 seconds. Independent Rust
-  Poseidon2 recomputation equaled the complete Lean result. Mutations covered
-  both preimages, every serialization family, all 16 running sources, every
-  source's 14 separate `Eval_A` families, all 58 public values, wrong lengths,
-  trailing-zero extension, and noncanonical field words.
-- `poseidon2_lean_vectors`: 2/2 passed. The Rust permutation and sponge equal
-  the Lean primitive vectors.
-- `package_matrix_conformance`: 1/1 passed in 38.09 seconds. It compared the
-  final padded Rust `A/B/C` matrices with every canonical Lean row and used a
-  separate evaluator for all 25,556,958 current-prefix rows and the padded
-  zero domain. This includes every pilot row.
-
-This status is not Production-closed. The relation-identity gate must rerun
-these applicable checks on the final complete Stage 1 package identity before
-Pilot, PiCCS, or Stage 1 production closure.
-
-## PiCCS leaf circuits
-
-Logical owners are under `Lifecycle/PiCCS/v1_1/`. Matching physical owners
-are under `Layout/PiCCS/v1_1/Leaves/`.
-
-| Leaf | Mathematical constraint | Rows | Stage 1 column delta |
-|---|---|---:|---:|
-| `StatementBinding.lean` | Bind state, fresh claim, and context | 160 | 0 |
-| `StatementAbsorption.lean` | Absorb digest and fresh claim | 160,432 | 160,432 |
-| `ChallengeDerivation.lean` | Derive 25 `α` coordinates and `γ` | 46,176 | 46,176 |
-| `RoundTranscript.lean` | Absorb 25 degree-9 messages; derive `r′` | 133,200 | 133,200 |
-| `InitialClaim.lean` | `T = T_K + γ^864 T_A` | 116,631 | 116,631 |
-| `SumcheckChain.lean` | `pᵢ(0)+pᵢ(1)=cᵢ`; `cᵢ₊₁=pᵢ(rᵢ)` | 378,610 | 378,560 |
-| `EvalKTerminal.lean` | Pad-family terminal evaluation `E_K` | 8,458 | 8,458 |
-| `EvalATerminal.lean` | 14-matrix terminal evaluations `E_A` | 109,546 | 109,546 |
-| `CcsTerminal.lean` | Evaluate the 74-term selective CCS polynomial | 20,794 | 20,794 |
-| `NormTerminal.lean` | Low-norm residual `N` | 752 | 752 |
-| `FinalIdentity.lean` | Final v1_1 identity and terminal equality | 130,419 | 130,417 |
-| `OutputBinding.lean` | Absorb 17 separate `Eval_K` / `Eval_A` outputs | 4,076,512 | 4,076,512 |
-
-Reusable operations remain under `Gadgets/Poseidon2/`, `Gadgets/SumCheck/`,
-`Gadgets/Polynomial/`, and `Gadgets/Multilinear/`. Parents use child
-contracts; they do not unfold child operations.
-
-## PiCCS phase assembly
-
-```text
-Lifecycle/PiCCS/v1_1/
-├── [twelve leaves]      ✓ local soundness, completeness, and footprint
-├── Formal.lean          ✓ sole phase assembler; theorem `soundness`
-└── Completeness.lean    ✓ theorem `completeness`
-Layout/PiCCS/v1_1/
-├── Lowering.lean        ✓ one logical-to-physical lowering
-├── Composition.lean     ✓ exact child order and footprint sum
-├── Ownership.lean       ✓ row and column ownership
-└── Preservation.lean    ✓ `physical_implies_phaseHolds`, `physical_complete`
-```
-
-Exact PiCCS production totals are 5,181,690 physical rows, 685,348 lowering
-fresh columns, and a 5,181,478 physical-column delta from the parent offset.
-`Composition.jointDomain_le_twoPow25` proves the zero-based phase domain
-bound. `PilotPiCCS.cumulativeFootprints_eq` transports every leaf delta to
-the Stage 1 prefix and proves every cumulative row, column, and joint-domain
-endpoint.
-
-## Current Stage 1 package prefix through PiRLC
-
-```text
-Layout/Stage1/
-├── PiCCSInputs.lean       ✓ four public context words + 29,012 proof words
-├── PiCCSProofInputs.lean  ✓ typed 25×10 proof-message decoder
-├── PiCCSStarts.lean       ✓ one set of logical and physical starts
-├── PiCCSSecurity.lean     ✓ deterministic committed-statement reduction
-└── PilotPiCCS.lean        ✓ pilot → PiCCS composition and full ledger
-Export/Stage1/
-├── PiCCSInvocations.lean  ✓ PiCCS Poseidon2 invocations
-├── PiCCSArithmetic.lean   ✓ 765,370 arithmetic rows
-├── PiCCSCompleteness.lean ✓ semantic witness → emitted PiCCS rows
-├── PiRLC*Invocations.lean ✓ sampler, First54, and combination rows
-├── PiRLC*Completeness.lean ✓ every PiRLC child reaches package rows
-├── PackageCompleteness.lean ✓ cumulative `complete_piRlcPackageRows`
-├── WitnessProgram.lean    ✓ Rust-interpreted expression IR
-├── VerifierContextCandidate.lean ✓ canonical prefix context recipe
-├── PiCCSNonzero.lean      ✓ complete deterministic nonzero fixture
-├── PiCCSParity.lean       ✓ complete Lean PiCCS result vector
-├── PiRLCParity.lean       ✓ all 17 indexed partial and final results
-├── PackagePlan.lean       ✓ proved schema-8 generative plan expansion
-├── Data.lean              ✓ sole package data assembler
-└── Package.lean           ✓ rows → `PhaseHolds`; exact row coverage
-```
-
-The 29,012 private proof-input words are 972 commitment words, 500 words for
-25×10 extension coefficients, and 27,540 output words. Each of the 17 outputs
-has 108 `Eval_K` / Pad words and 1,512 `Eval_A` / matrix words. Four additional
-public words hold the verifier-owned context digest.
-
-| Emitted package value | Exact value |
+| Parameter | Value |
 |---|---:|
-| Rows | 25,556,958 |
-| Source columns / joint domain | 25,669,063 |
-| Private columns / constant column | 25,669,001 |
-| Public columns | 62 |
-| Total unpadded columns | 25,669,064 |
-| Witness instructions | 850,180 |
-| Assertion rows | 136,129 |
-| Poseidon2 permutation invocations | 7,613 |
-| Compact templates / invocations | 326 / 163,574 |
+| Base `b` | 2 |
+| `k_rho` | 16 |
+| Bound `B` | 65,536 |
+| Fresh / running PiCCS inputs | 1 / 16 |
+| PiRLC inputs | 17 |
+| PiDEC children | 16 |
+| Ring degree | 54 |
+| CCS matrices | 14 |
+| PiCCS rounds | 26 |
+| PiCCS round coefficients | 10 |
+| Public-input words | 270 |
 
-The joint domain is `25,669,063 ≤ 2^25`. The final backend-neutral R1CS
-layout pads the row and private-column domains to `2^25`: 33,554,432 rows,
-constant column 33,554,432, 62 public columns, and 33,554,495 total columns.
-Every padded row is empty and every padded private assignment value is zero.
+`Eval_K` is the separate Pad family. `Eval_A` is the separate 14-matrix
+family. No v1.0 Pad-as-matrix-zero encoding is present. Transcript, state,
+package-identity, and verifier-context binding use Poseidon2 only.
 
-This package uses the accepted digest-only schedule. Its 160,432-row statement
-absorption starts a fresh domain-separated transcript, absorbs the constrained
-prior-state digest, and then absorbs the fresh commitment and public input.
-The values below identify the current phase-local candidate. They do not give
-PiCCS Conformance-closed status.
-
-The canonical artifact is a schema-8 generative plan whose proved expansion
-is the schema-7 semantic package. It carries source tags
-`[Bit, GeneralSelector, A, B, C, SboxInput, CenteredUnit, EvalSelector,
-Class0, Class1, Class2, Class3, Class4, Zero]`, degree bound 9, and all 74
-polynomial terms. Its verifier-owned Poseidon2 relation identifier is:
+The public digest encoding is exact `encHash`:
 
 ```text
-[2880828118570533443, 12363340834605518522,
- 17891354081046714225, 8467327743520570474]
+[marker = 1, 256 little-endian digest bits, 13 zero cells]
 ```
 
-The plan SHA-256 is
-`d5b43c7e2d1586475dffdf0c70a23688521b7811ee91b9cb095f9a2b56322f16`.
-The exact expanded reference SHA-256 is
-`39036d30ff3ee064a16f152a6749a89c85167fe3ee34b248110103f4f6bdabed`.
-The complete nonzero PiCCS parity artifact uses schema 7 and has SHA-256
-`8f46ed7afbe0fe0c030ee8af03541851a087e49331bf1c4edae60c8bc9608899`.
-The indexed PiRLC schema-2 artifact has SHA-256
-`a7ea997cc19e79c08328f5aa610536db75d2be35e6ddb1247c529e4bbe65c29e`.
+Rust now uses this same 270-cell encoding. `decodeHash_encHash` recovers every
+canonical four-word digest, and `encHash_injective_fixed` proves that two such
+public inputs are equal only when their digests are equal. The canonical state
+preimage is 45,933 Goldilocks words. Each running group contains 972
+commitment words, 270 public-input words, and 1,620 evaluation words.
 
-The phase-local verifier context contains canonical relation, application,
-NIFS-key, and commitment-key word lists of lengths `[4, 4, 68, 36]`. Rust
-derives a typed context from the loaded package identity and commitment-key
-words. It rejects raw or noncanonical authority words. The current relation
-and application lists use reserved package-identity words. This is not the
-final theorem that the package constructs and selects the exact 14-matrix
-`LogicalRelation` and application used by `ProductionKey.key` and
-`StepHolds`.
+`Layout.ProductionRelation.Plan` is the key-facing matrix authority boundary.
+It derives all 14 typed SuperNeo matrices from 13 meaningful sparse row forms
+in the canonical Boolean-row order; matrix slot 13 and every padding row are
+zero by construction. `Plan.matrixVectorAt_matrix` proves that each matrix
+image equals its sparse row-form evaluation. `ProductionRelation.polynomial_zeroImages`
+proves that the fixed 74-term polynomial accepts the all-zero padding rows.
+The phase compiler still must construct the complete low-norm plan before
+these matrices can replace the current package relation metadata.
 
-The transported cumulative ledger is:
+## Logical phase hierarchy
+
+```text
+Lifecycle/Pilot.lean                         ✓ two hash children
+Lifecycle/PiCCS/v1_1/Formal.lean             ✓ twelve-child assembler
+Lifecycle/PiRLC/v1_1/Formal.lean             ✓ seven-child assembler
+Lifecycle/PiDEC/v1_1/Formal.lean             ✓ six-child assembler
+Lifecycle/Stage1/Formal.lean                 ○ full Stage 1 assembler
+```
+
+PiCCS leaf ownership:
+
+| Leaf | Rows | Column delta |
+|---|---:|---:|
+| Statement binding | 160 | 0 |
+| Digest-only statement absorption | 192,400 | 192,400 |
+| Challenge derivation | 47,952 | 47,952 |
+| Round transcript | 138,528 | 138,528 |
+| Initial claim | 116,631 | 116,631 |
+| SumCheck chain | 393,959 | 393,907 |
+| `Eval_K` terminal | 8,486 | 8,486 |
+| `Eval_A` terminal | 109,574 | 109,574 |
+| CCS terminal | 20,794 | 20,794 |
+| Norm terminal | 752 | 752 |
+| Final identity | 130,447 | 130,445 |
+| Output binding | 4,076,512 | 4,076,512 |
+
+PiRLC leaf ownership:
+
+| Leaf | Rows | Column delta |
+|---|---:|---:|
+| Input binding | 0 | 0 |
+| Sampler chain | 1,008,848 | 1,007,199 |
+| Commitment combination | 2,495,124 | 2,495,124 |
+| Public-input combination | 693,090 | 693,090 |
+| `Eval_K` combination | 277,236 | 277,236 |
+| `Eval_A` combination | 3,881,304 | 3,881,304 |
+| Output binding | 0 | 0 |
+
+PiDEC leaf ownership:
+
+| Leaf | Rows | Column delta |
+|---|---:|---:|
+| Input binding | 0 | 0 |
+| Public-input split and range checks | 22,680 | 18,090 |
+| Commitment recomposition | 972 | 0 |
+| `Eval_K` recomposition | 108 | 0 |
+| `Eval_A` recomposition | 1,512 | 0 |
+| Output binding | 0 | 0 |
+
+The PiDEC verifier first checks centered parent magnitude `< 2^16`. Its
+accepted path then uses the exact 16 signed radix-two digits. The computable
+decision agrees with the semantic predicate. The accepted path cannot use
+`fallbackDigit` for an out-of-range parent.
+
+## Proved cumulative layout through PiDEC
+
+The authoritative ledgers are:
+
+- `PilotProduction.physicalRowCountValue_eq` and
+  `PilotProduction.physicalColumnCount_eq`;
+- `PilotPiCCS.cumulativeFootprints_eq`;
+- `PilotPiCCSPiRLC.cumulativeFootprints_eq`;
+- `PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq`;
+- `Export.Stage1.Package.circuitPackage_layout_values`;
+- `Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow26`.
 
 | Endpoint | Rows | Source columns / joint domain |
 |---|---:|---:|
-| Pilot plus proof and context inputs | 12,574,138 | 12,688,104 |
-| Statement binding | 12,574,298 | 12,688,104 |
-| Statement absorption | 12,734,730 | 12,848,536 |
-| Challenge derivation | 12,780,906 | 12,894,712 |
-| Round transcript | 12,914,106 | 13,027,912 |
-| Initial claim | 13,030,737 | 13,144,543 |
-| SumCheck chain | 13,409,347 | 13,523,103 |
-| `Eval_K` terminal | 13,417,805 | 13,531,561 |
-| `Eval_A` terminal | 13,527,351 | 13,641,107 |
-| CCS terminal | 13,548,145 | 13,661,901 |
-| Norm terminal | 13,548,897 | 13,662,653 |
-| Final identity | 13,679,316 | 13,793,070 |
-| PiCCS output binding | 17,755,828 | 17,869,582 |
-| PiRLC input binding | 17,755,828 | 17,869,582 |
-| PiRLC sampler chain | 18,764,676 | 18,876,781 |
-| PiRLC commitment combination | 21,259,800 | 21,371,905 |
-| PiRLC public-input combination | 21,398,418 | 21,510,523 |
-| PiRLC `Eval_K` combination | 21,675,654 | 21,787,759 |
-| PiRLC `Eval_A` / current prefix | 25,556,958 | 25,669,063 |
+| Pilot | 13,599,570 | 13,691,432 |
+| PiCCS input ABI | 13,599,570 | 13,720,468 |
+| PiCCS statement binding | 13,599,730 | 13,720,468 |
+| PiCCS statement absorption | 13,792,130 | 13,912,868 |
+| PiCCS challenge derivation | 13,840,082 | 13,960,820 |
+| PiCCS round transcript | 13,978,610 | 14,099,348 |
+| PiCCS initial claim | 14,095,241 | 14,215,979 |
+| PiCCS SumCheck chain | 14,489,200 | 14,609,886 |
+| PiCCS `Eval_K` terminal | 14,497,686 | 14,618,372 |
+| PiCCS `Eval_A` terminal | 14,607,260 | 14,727,946 |
+| PiCCS CCS terminal | 14,628,054 | 14,748,740 |
+| PiCCS norm terminal | 14,628,806 | 14,749,492 |
+| PiCCS final identity | 14,759,253 | 14,879,937 |
+| PiCCS output binding | 18,835,765 | 18,956,449 |
+| PiRLC sampler chain | 19,844,613 | 19,963,648 |
+| PiRLC commitment combination | 22,339,737 | 22,458,772 |
+| PiRLC public-input combination | 23,032,827 | 23,151,862 |
+| PiRLC `Eval_K` combination | 23,310,063 | 23,429,098 |
+| PiRLC `Eval_A` combination | 27,191,367 | 27,310,402 |
+| PiDEC input ABI | 27,191,367 | 27,356,194 |
+| PiDEC public split | 27,214,047 | 27,374,284 |
+| PiDEC commitment | 27,215,019 | 27,374,284 |
+| PiDEC `Eval_K` | 27,215,127 | 27,374,284 |
+| PiDEC `Eval_A` / current endpoint | 27,216,639 | 27,374,284 |
 
-`PilotPiCCSPiRLC.cumulativeFootprints_eq` states these endpoints in Lean, and
-`PilotPiCCSPiRLC.jointDomain_le_twoPow25` proves the prefix bound.
+The current joint domain is 27,374,284. It is below
+`2^26 = 67,108,864` with exact headroom 39,734,580. This headroom still must
+contain the accumulator, running-instance transition, application, output
+hash, and terminal checks. Compact serialization does not reduce backend
+rows.
 
-## Rust v1_1 path and evidence
+## Canonical package cut
 
-```text
-crates/
-├── nightstream-fprime/src/package/{r1cs,relation,v1_1,pi_ccs_v1_1_transcript}.rs
-│   └── exact final matrices, tags, typed inputs, and transcript replay ✓
-├── neo-reductions/src/engines/{paper_exact_engine,optimized_engine}/
-│   └── literal v1_1 formulas / optimized byte-equivalent formulas      ✓
-├── neo-fold-clean/tests/nifs/pi_ccs_lean_nonzero_parity.rs
-│   └── complete Lean / paper_exact / optimized nonzero parity          ✓
-└── neo-fold-clean production lifecycle uses only package rows              ○
-```
+| Package value | Exact value |
+|---|---:|
+| Unpadded rows | 27,216,639 |
+| Private columns / constant source index | 27,374,006 |
+| Public columns | 278 |
+| Total unpadded columns | 27,374,285 |
+| Caller-owned private inputs | 166,690 |
+| Witness instructions | 884,207 |
+| Assertion rows | 144,079 |
+| Ordinary compiled rows | 1,028,286 |
+| Poseidon2 invocations | 7,679 |
+| Compact templates | 326 |
+| Compact invocations | 167,246 |
+| Padded matrix rows | 67,108,864 |
 
-Executed release evidence:
-
-- `poseidon2_lean_vectors`: 2/2 passed. Rust permutation and sponge hashing
-  match the Lean reference used by both nonzero pilot hash chains.
-- `package_loader`: 14/14 passed in 71.12 seconds. It checked the schema-8
-  plan, schema-7 package identity, verifier-context authority, complete nonzero
-  transcript replay, separate `Eval_K` / `Eval_A`, canonical coefficients,
-  raw commitment-key mutation, noncanonical authority rejection, and package
-  mutation rejection.
-- `package_schema7_compact`: 5/5 passed in 26.94 seconds. It checked plan
-  positions, exact generated coverage, malformed optional outputs,
-  output-recipe self-reference, and incomplete input coverage.
-- `package_matrix_conformance`: 1/1 passed in 38.09 seconds. An independent
-  expander compared every final A/B/C row and term with the Lean-lowered rows.
-  An independent evaluator checked all 25,556,958 unpadded rows, all padded
-  empty rows, the relocated constant, all public values, and zero private pad.
-  Fifteen row, column, coefficient, input, transcript, output, and context
-  mutations were rejected.
-- `nifs_pi_ccs_lean_nonzero_parity`: 4/4 passed in 3.24 seconds. Lean,
-  `paper_exact`, and `optimized` matched byte-for-byte for acceptance,
-  challenges, every intermediate state and claim, all six terminal components,
-  all 17 output claims and evaluation families, and the outgoing state. The
-  test also rejected mutations across every input, proof, output, and result
-  family.
-- `pi_ccs_v1_1_engine_parity`: 15/15 passed in 42.01 seconds.
-- `nifs_pi_rlc_lean_nonzero_parity`: 3/3 passed in 1.91 seconds. It compared
-  all 17 challenges and membership bits, every indexed partial commitment,
-  public input, `Eval_K`, and `Eval_A`, the final claim, handoff, outgoing
-  state, both engines, and every indexed mutation family.
-- `nifs_engine_crosscheck`: 10/10 passed in 88.68 seconds, including the
-  nonzero 25×10 proof bridge and package offsets.
-- `validate.sh axioms`: passed 3,270 jobs in 10.49 seconds. The audited
-  theorems use only `propext`, `Classical.choice`, and `Quot.sound`.
-
-These gates prove the matrix, assignment, value, transcript, context, and
-mutation properties of the current digest-only phase-local candidate. PiCCS
-status remains open until the final authority edge below exists and the same
-gate set passes again on that final package identity. Production package-only
-`prove → verify` also remains open and is not inferred from backend
-acceptance.
-
-## Development feedback and multicore execution
-
-The sampler completeness proof uses opaque child segments and a proved
-equivalence to the unchanged canonical monolithic lowering. The exact theorem
-`Sampler.physical_complete` still concludes agreement outside the same 59,247
-columns, while `Sampler.physicalHolds_iff_rowsHold` proves that its segmented
-predicate is exactly `RowsHold` for the package plan. The focused completeness
-build is 1.0–1.7 seconds; the prior monolithic proof check was 472 seconds.
-The exact `First54` selector uses the same boundary for its 64-round prefix
-and final fail-closed assertion. Its focused build is 9.2 seconds, down from
-63–95 seconds. An affected PiRLC export and axiom rebuild is 85 seconds, and a
-current full axiom gate is 13 seconds. Every new bridge passes the
-allowed-axiom audit.
-
-The owner approved per-process multicore use for development. `validate.sh`
-selects all 10 available workers. The Lean emitter prepares independent
-witness groups, ordinary-row blocks, and permutation blocks as tasks, then
-writes their results in the one canonical order. Rust expands witness plans
-with Rayon, builds final A/B/C matrices with `rayon::join`, and evaluates the
-independent conformance schedule in parallel. Assignment execution and the
-Poseidon2 identity sponge remain ordered because later values depend on the
-earlier prefix.
-
-The current canonical schema-8 emitter completed in 123 seconds. Its output
-was byte-equal to the stored 68,815,188-byte artifact and kept SHA-256
-`d5b43c7e2d1586475dffdf0c70a23688521b7811ee91b9cb095f9a2b56322f16`.
-
-## PiRLC sampler migration
-
-The pre-phase Rust sampler migration is complete. Lean remains the semantic
-authority in `Lifecycle/Transcript.lean` and the production sampler modules
-under `Spec/Folding/Nifs/NonInteractive/PiRlcSampler/`.
-
-The exact schedule is: absorb `[4, coordinate]`; consume eight complete
-four-lane Poseidon2 digest windows; decode low then high 16-bit candidates
-from every lane; reject only `65535`; map accepted candidates modulo five to
-`[-2, -1, 0, 1, 2]`; keep the first 54; and reject the batch on shortfall.
-Every scalar consumes all eight windows before the next scalar begins.
-
-`Export/Stage1/PiRlcSamplerParity.lean` emits schema 1 with decoder boundary
-cases, injected exact-bound success, injected shortfall, and two complete
-transcript-chained samples. The artifact SHA-256 is
-`e1ee42037d7750725c9442d7693b93eb60dd56c5507577370d4f06e65aad88a3`.
-
-Rust uses `Poseidon2Transcript::squeeze_digest_v1_1` and
-`decode_pi_rlc_v1_1_coefficients`. Both optimized and PaperExact paths consume
-this decoder. They reject a nonzero absorb cursor instead of panicking.
-
-Executed release evidence:
-
-- `nifs_pi_rlc_sampler_lean_parity`: 2/2 passed. It compared all constants,
-  decoder cases, exact 54-of-64 success, injected shortfall, all digest lanes,
-  every candidate, both complete transcript state transitions, all 54 ring
-  coefficients, and the complete PaperExact and optimized rotation matrices.
-- `rot_rho_tests`: 9/9 passed, including fail-closed cursor rejection.
-- `rlc_dec_k_gt1`: 11/11 passed in 1.18 seconds, including sampled commitment,
-  public-input, evaluation, and witness combinations.
-- `validate.sh static`: passed after the new export and emitter mode.
-
-This closes only the required sampler migration. The PiRLC logical assembler,
-physical layout, and phase-local package compiler now exist. The legacy native
-R1CS sampler has a different transcript schedule and is not evidence for these
-claims; the final package-only production migration must make that alternate
-relation unreachable.
-
-## PiRLC phase-local compiler
-
-`Lifecycle/PiRLC/v1_1/Formal.lean` is the sole seven-child logical assembler.
-Its `circuit` is sound and constructively complete for
-`Semantics.PhaseHolds`. `Layout/PiRLC/v1_1/Preservation.lean` proves both
-directions through the physical rows. The cumulative Stage 1 layout through
-PiRLC has 25,556,958 rows, 25,669,063 source columns, and joint domain
-25,669,063, which is below `2^25`.
-
-The canonical package representation partitions the 7,801,130 PiRLC rows as
-follows:
-
-- 220,881 ordinary digest-lane and fail-closed selector rows;
-- 153 canonical Poseidon2 invocations, with 592 rows each;
-- 697,391 exact compact First54 rows;
-- 6,792,282 compact combination rows.
-
-`PiRLCFirst54Conformance.packageInvocations_imply_spec` proves the full
-First54 package semantics. `Package.circuitPackage_implies_piRlcSamplerChain`
-proves the complete 17-source sampler chain. The generic combination schedule,
-input mapping, row semantics, and package membership are proved.
-`Package.circuitPackage_implies_piRlcPhaseHolds` assembles the exact
-seven-child phase unconditionally. `Data.circuitPackage_compactRowInvocations`
-and the combination-count theorems prove the exact selection and totals.
-`PackageCompleteness.complete_piRlcPackageRows` constructs one completed
-environment from semantic PiRLC, preserves Pilot and PiCCS rows, and proves
-the complete canonical package `RowsHold` predicate.
-
-The PiRLC compiler is closed on this prefix. Its phase-local conformance gates
-are green: exact schema-8 expansion, entry-for-entry final `A/B/C`, an
-independent evaluation of all 25,556,958 rows, schema-2 three-way nonzero
-parity with every indexed partial, and the required mutations. The current
-external reviews map all PiRLC leaves but predate these final artifact runs;
-PiRLC is therefore a validated conformance candidate until an external review
-records this exact source-and-artifact cut. This does not change PiCCS status
-open or authorize PiDEC, Production-closed, or Stage 1 closure.
-
-## Open assembly levels
+The verifier-owned Poseidon2 relation identifier is:
 
 ```text
-Lifecycle/PiRLC/v1_1/InputBinding.lean ✓ 17 inputs; 0 rows / 0 columns
-Lifecycle/PiRLC/v1_1/Formal.lean       ✓ seven-child phase assembler
-Lifecycle/PiDEC/v1_1/Formal.lean       ○ 16-child phase assembler
-Lifecycle/Stage1/Formal.lean           ○ sole full Stage 1 assembler
-Layout/PiRLC/v1_1/Leaves/InputBinding.lean ✓ proved 0-row footprint
-Layout/PiRLC/v1_1/{Lowering,Preservation}.lean ✓ phase layout and both directions
-Layout/PiDEC/v1_1/                     ○ lowering and preservation
-Layout/Stage1/                         ○ full ownership and preservation
-Export/Stage1/                         ✓ PiRLC package soundness and completeness;
-                                         PiDEC and later phases open
+[12756407480944487176, 17097603764386178571,
+ 11791428871054057896, 14346937702828624285]
 ```
 
-The final path is `pilot → PiCCS → PiRLC → PiDEC → application → output hash → terminal`; it lowers into one package, with no second production relation.
+The external-review source-cut fingerprint is:
 
-The exact PiCCS closure edge that remains open is:
+```text
+4baeea044e83ad791f03376077ea3838bbc5e85bb48636737cc15ce81c88d257
+```
+
+It is the SHA-256 of the sorted `shasum -a 256` records for all files under
+`formal/nightstream-fprime`, `crates/nightstream-fprime`,
+`crates/neo-fold-clean/{src,tests}`, and `crates/neo-reductions/src`, plus the
+three Rust `Cargo.toml` files. It excludes `.lake`, generated artifacts, and
+this audit file. Paths are part of each inner record.
+
+SHA-256 identifies bytes only:
+
+| Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| Compact schema-8 plan | 71,897,785 | `238c41d103ad88ade0f8d5321d6d88c5a8ce5f100b279bbf2029d368ce3164fb` |
+| Expanded schema-7 package | 93,257,213 | `0bc67f9b4d37cdb0bf40c72edfca9688e926c714ba2e9fdd62f166b383bd7855` |
+| Pilot parity | 657,628 | `9657505d5400ab752c4fbc0b6acf34eff063ceda042c9d415f7b6f4e184a4862` |
+| PiCCS parity | 1,576,908 | `752538cfa28559aee1f0e5b6f4440d02996438bcbb7d8df77f68479b046d6422` |
+| PiRLC parity | 1,141,393 | `fd7ed2839dc6b1a9ded83387599c08d23a7bf048ee5d59f434d1e33d1fbd7f85` |
+| PiDEC parity | 1,132,082 | `772ab2adf11063c31ee4390c43bf52a34449e6ecdbfa6cd2ccf67d16f1dded25` |
+| PiRLC sampler parity | 9,202 | `e1ee42037d7750725c9442d7693b93eb60dd56c5507577370d4f06e65aad88a3` |
+
+## Exact conformance evidence
+
+Lean evidence on this cut:
+
+- `validate.sh static`: all boundary checks passed in 7.6 seconds.
+- focused verifier-context compile: passed in 10 seconds.
+- `validate.sh axioms`: 3,327 jobs passed in 13 seconds after the final
+  26-round context and accepted-fixture correction. Audited theorems use only
+  `propext`, `Classical.choice`, and `Quot.sound`.
+- forced compact package emission: 11 seconds with `LEAN_NUM_THREADS=10`;
+  the complete 71,897,785-byte output was byte-identical to the checked-in
+  artifact.
+- changing the context descriptor and accepted fixture did not change the
+  package rows, package bytes, or package identity. All four dependent parity
+  fixtures were regenerated from Lean; the independent sampler was
+  byte-identical.
+
+The speed path preserves the generic specifications. It uses proved direct
+symbolic states, shared PiCCS operation packets, linear Horner construction,
+and streamed row classification. The emitter uses `LEAN_NUM_THREADS=10` and
+writes one canonical order.
+
+Rust evidence on this cut:
+
+- exact package matrix conformance: 1/1 in 41.90 seconds;
+- exact final matrix nonzeros `A/B/C`:
+  `[87,898,768, 36,805,391, 26,911,986]`;
+- independent assignment evaluation: all 27,216,639 unpadded rows and the
+  padded zero domain passed;
+- row-owner mutations: 138;
+- column/public-owner mutations: 71;
+- semantic input mutations: 16;
+- total exact-package mutations: 225;
+- strict package loader: 14/14 in 109.13 seconds;
+- compact-plan loader: 9/9 in 78.26 seconds;
+- pilot parity and mutations: 3/3 in 20.55 seconds;
+- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 4.07 seconds;
+- complete indexed PiRLC parity and handoff: 3/3 in 2.11 seconds;
+- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 28.42 seconds;
+- PiRLC sampler parity and fail-closed decoding: 2/2;
+- identity-bound complete typed package consumer: 1/1 in 256.37 seconds;
+  it consumed PiCCS and PiDEC inputs and rejected a changed public input.
+- `nifs_engine_crosscheck`: 10/10 in 262.90 seconds, including the 270-word
+  state-preimage bridge, PaperExact/optimized equality, carried accumulator,
+  and Nebula auxiliary commitments;
+
+The matrix comparator expands the Lean plan independently and compares every
+final A/B/C row, column index, canonical coefficient, constant placement, and
+public mapping. The assignment evaluator does not call the matrix builder,
+row expander, witness generator, or package constraint evaluator.
+
+The package consumer is a test bridge. It is not the final production
+lifecycle, and its direct package proof is not evidence that Rust implements
+the Lean relation. The semantic, matrix, assignment, and parity gates above
+provide that evidence.
+
+Superseded native v1.0 and radix-four test targets were removed from Cargo and
+the tree. They are recoverable from Git. Their required v1.1 properties are
+covered by the exact phase and package gates above. Current tests that still
+serve a v1.1 contract were migrated to separate `Eval_K` / `Eval_A` and the
+canonical nonempty running accumulator.
+
+## Open authority and assembly edges
+
+PiCCS must remain status open until this exact edge exists:
 
 ```text
 final canonical package
-  -> canonical 14-matrix LogicalRelation
-  -> ProductionKey.key
-  -> exact application F and StepHolds
-  -> recursive fixed point
-  -> rerun every PiCCS gate on this final identity
+  → exact 14-matrix LogicalRelation
+  → ProductionKey.key
+  → exact application F
+  → StepHolds
+  → recursive fixed point
+  → rerun every PiCCS gate on the final identity
 ```
 
-The owner-order exception permits PiRLC work before this edge closes. It does
-not permit a PiCCS or Stage 1 Conformance-closed claim.
+The remaining owner-ordered work is:
+
+1. obtain external approval of the exact PiRLC and PiDEC source and artifact
+   cut;
+2. add the accumulator and running-instance phase assemblers;
+3. add the exact application, output-hash, and terminal circuits;
+4. build `Lifecycle/Stage1/Formal.lean` and the matching Stage 1 layout;
+5. prove cross-phase wiring, deterministic soundness, the recursive fixed
+   point, the complete `2^26` bound, and the separate security composition;
+6. make the validated package the only reachable Rust production relation
+   and remove the alternate radix relation;
+7. rerun all PiCCS, PiRLC, PiDEC, matrix, assignment, parity, and mutation
+   gates on the final package identity;
+8. after separate owner approval of a production backend, execute the final
+   production `prove → verify` obligation.
+
+No backend is authorized on this cut. Backend acceptance cannot replace any
+semantic or conformance gate in this file.

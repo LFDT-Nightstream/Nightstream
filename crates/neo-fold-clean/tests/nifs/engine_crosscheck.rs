@@ -9,7 +9,7 @@ use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1ProofInputs,
 };
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::nifs::{
     self, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsProof, NifsProverAdapter, NifsProverRequest,
     OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
@@ -17,18 +17,19 @@ use neo_fold_clean::paper::nifs::{
 use neo_fold_clean::paper::relations::{CeClaim, LaneRanges, LaneScheme};
 use neo_math::{KExtensions, D, F, K};
 use nightstream_fprime::{
-    load, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    load, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
+    PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
 };
 use p3_field::PrimeCharacteristicRing;
 
-// Validated Pilot + PiCCS + PiRLC prefix identity. The complete Stage 1
-// package must rerun every gate before it replaces this prefix identity.
+// Validated phase-local Pilot + PiCCS + PiRLC + PiDEC package identity.
+// The final Stage 1 package must rerun every gate before replacing it.
 const PACKAGE_IDENTITY: [u64; 4] = [
-    2_880_828_118_570_533_443,
-    12_363_340_834_605_518_522,
-    17_891_354_081_046_714_225,
-    8_467_327_743_520_570_474,
+    12_756_407_480_944_487_176,
+    17_097_603_764_386_178_571,
+    11_791_428_871_054_057_896,
+    14_346_937_702_828_624_285,
 ];
 
 fn package_path() -> PathBuf {
@@ -39,6 +40,11 @@ fn package_path() -> PathBuf {
 fn parity_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-piccs-parity-v1.json")
+}
+
+fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
+    RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Plain)
+        .expect("canonical nonempty SuperNeo accumulator")
 }
 
 fn rectangular_relation(rows: usize, columns: usize) -> R1cs {
@@ -84,7 +90,7 @@ fn crosscheck_rectangular_case(rows: usize, columns: usize, seed: u64) {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("rectangular PaperExact NIFS matches optimized CPU");
 }
@@ -93,7 +99,7 @@ fn crosscheck_rectangular_case(rows: usize, columns: usize, seed: u64) {
 fn paper_exact_and_optimized_cpu_nifs_are_byte_exact() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 101), support::toy_instance(&prep, 103)];
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut optimized = OptimizedCpuNifsProver;
     let mut optimized_transcript = Transcript::session();
@@ -179,11 +185,11 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
             }
             CeClaim {
                 c: fresh_claim.c.clone(),
-                X: Mat::zero(D, 1, F::ZERO),
+                X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
                 r: vec![K::ZERO; PI_CCS_V1_1_ROUND_COUNT],
                 eval_k,
                 eval_a,
-                m_in: D,
+                m_in: PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
                 fold_digest: [source as u8; 32],
                 adv: None,
             }
@@ -208,11 +214,11 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     let running = (0..16)
         .map(|_| CeClaim {
             c: neo_ajtai::Commitment::zeros(D, 18),
-            X: Mat::zero(D, 1, F::ZERO),
+            X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
             r: vec![K::ZERO; PI_CCS_V1_1_ROUND_COUNT],
             eval_k: vec![K::ZERO; D.next_power_of_two()],
             eval_a: vec![vec![K::ZERO; D.next_power_of_two()]; PI_CCS_V1_1_MATRIX_COUNT],
-            m_in: D,
+            m_in: PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
             fold_digest: [0; 32],
             adv: None,
         })
@@ -247,14 +253,19 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     assert_eq!(prior_preimage[28], 7);
     assert_eq!(prior_preimage[29], 4);
     assert_eq!(prior_preimage[34], 4);
-    assert_eq!(prior_preimage[39], 50);
-    assert_eq!(prior_preimage[90], 972);
+    let running_point_words = 2 * PI_CCS_V1_1_ROUND_COUNT;
+    assert_eq!(prior_preimage[39], running_point_words as u64);
+    assert_eq!(prior_preimage[40 + running_point_words], 972);
     assert_eq!(*prior_preimage.last().expect("program counter"), 1);
     let digest = pi_ccs_v1_1_state_hash(&prior_preimage).expect("Lean stateHash replay");
     let prior_public_input = encode_pi_ccs_v1_1_public_input(digest).expect("Lean encHash replay");
     assert_eq!(prior_public_input[0], 1);
-    assert_eq!(&prior_public_input[1..5], digest);
-    assert!(prior_public_input[5..].iter().all(|word| *word == 0));
+    for (word, value) in digest.iter().copied().enumerate() {
+        for bit in 0..64 {
+            assert_eq!(prior_public_input[1 + word * 64 + bit], (value >> bit) & 1);
+        }
+    }
+    assert!(prior_public_input[257..].iter().all(|word| *word == 0));
 
     let lean_preimage: Vec<u64> = serde_json::from_value(parity_input[0].clone()).expect("Lean state preimage");
     let lean_digest: [u64; 4] = serde_json::from_value(parity_input[3].clone()).expect("Lean state digest");
@@ -312,7 +323,7 @@ fn crosscheck_nifs_covers_a_carried_accumulator() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![support::toy_instance(&prep, 107)],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("first crosschecked NIFS fold");
 
@@ -376,6 +387,9 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
         instance.claim.adv = Some(lanes.commit(&instance.witness.Z).expect("adv commitment"));
         instance
     };
+    let initial_running =
+        RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Nebula)
+            .expect("canonical Nebula accumulator");
 
     let mut prover = CrosscheckNifsProver;
     let mut first_transcript = Transcript::session();
@@ -390,7 +404,7 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![instance(F::ONE, F::ZERO)],
-        &RunningInstance::default(),
+        &initial_running,
     )
     .expect("first adv crosscheck");
 
@@ -419,7 +433,7 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
         .iter()
         .map(|instance| instance.claim.clone())
         .collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
     let mut prover_transcript = Transcript::session();
     let (_, proof) = nifs::prove_with_adapter(
         &mut OptimizedCpuNifsProver,
@@ -484,7 +498,7 @@ fn complete_nifs_comparator_rejects_a_round_mutation() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("optimized NIFS");
 
@@ -573,7 +587,7 @@ fn accelerator_crosscheck_accepts_an_exact_optimized_backend() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![support::toy_instance(&prep, 127)],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("accelerator crosscheck accepts exact optimized output");
 }
@@ -594,7 +608,7 @@ fn accelerator_crosscheck_rejects_a_backend_round_mutation() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![support::toy_instance(&prep, 131)],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .is_err());
 }
@@ -615,7 +629,7 @@ fn accelerator_crosscheck_rejects_a_backend_witness_mutation() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![support::toy_instance(&prep, 137)],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .is_err());
 }

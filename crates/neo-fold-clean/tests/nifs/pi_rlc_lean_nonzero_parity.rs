@@ -16,7 +16,8 @@ const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
-const ROUND_COUNT: usize = 25;
+const ROUND_COUNT: usize = 26;
+const PUBLIC_INPUT_WORDS: usize = 270;
 
 type Claim = CeClaim<Commitment, F, K>;
 
@@ -127,12 +128,20 @@ fn commitment(words: &[u64]) -> Commitment {
 }
 
 fn public_input(words: &[u64]) -> Mat<F> {
-    assert_eq!(words.len(), D, "one-ring public input");
-    let mut output = Mat::zero(D, 1, F::ZERO);
-    for (row, word) in words.iter().copied().enumerate() {
-        output[(row, 0)] = field(word);
+    assert_eq!(words.len(), PUBLIC_INPUT_WORDS, "five-ring public input");
+    let mut output = Mat::zero(D, PUBLIC_INPUT_WORDS / D, F::ZERO);
+    for (index, word) in words.iter().copied().enumerate() {
+        output[(index % D, index / D)] = field(word);
     }
     output
+}
+
+fn public_input_words(value: &Mat<F>, word_count: usize) -> Vec<u64> {
+    assert_eq!(value.rows(), D);
+    assert_eq!(value.cols(), word_count.div_ceil(D));
+    (0..word_count)
+        .map(|index| value[(index % D, index / D)].as_canonical_u64())
+        .collect()
 }
 
 fn padded_family(values: &[[u64; 2]]) -> Vec<K> {
@@ -170,7 +179,7 @@ fn claims(input: &RawInput) -> Vec<Claim> {
                     .iter()
                     .map(|family| padded_family(family))
                     .collect(),
-                m_in: D,
+                m_in: PUBLIC_INPUT_WORDS,
                 fold_digest: digest,
                 adv: None,
             }
@@ -189,7 +198,7 @@ fn expected_claim(input: &RawInput, result: &RawResult) -> Claim {
             .iter()
             .map(|family| padded_family(family))
             .collect(),
-        m_in: D,
+        m_in: PUBLIC_INPUT_WORDS,
         fold_digest: fold_digest(input.0),
         adv: None,
     }
@@ -206,7 +215,7 @@ fn expected_partial_claim(input: &RawInput, partial: &RawPartial) -> Claim {
             .iter()
             .map(|family| padded_family(family))
             .collect(),
-        m_in: D,
+        m_in: PUBLIC_INPUT_WORDS,
         fold_digest: fold_digest(input.0),
         adv: None,
     }
@@ -219,6 +228,11 @@ fn relation() -> CcsStructure<F> {
     assert_eq!(package[1][0].as_u64(), Some(7), "Lean static-package schema");
     let raw: RawRelation = serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple");
     assert_eq!(raw.2, ROUND_COUNT as u64);
+    let active_rows = usize::try_from(raw.0).expect("relation rows");
+    let padded_rows = 1usize
+        .checked_shl(u32::try_from(raw.2).expect("relation cube variables fit u32"))
+        .expect("relation padded row domain fits usize");
+    assert!(active_rows <= padded_rows, "active rows fit the padded relation domain");
     assert_eq!(raw.3, (0..MATRIX_COUNT as u64).collect::<Vec<_>>());
     let terms = raw
         .5
@@ -238,7 +252,7 @@ fn relation() -> CcsStructure<F> {
         polynomial.max_degree() + 1
     );
     CcsStructure::new_verifier_artifact_header(
-        usize::try_from(raw.0).expect("relation rows"),
+        padded_rows,
         usize::try_from(raw.1).expect("relation columns"),
         MATRIX_COUNT,
         polynomial,
@@ -275,9 +289,7 @@ fn claim_result(claim: &Claim) -> (Vec<u64>, Vec<u64>, Vec<[u64; 2]>, Vec<[u64; 
             .iter()
             .map(|value| value.as_canonical_u64())
             .collect(),
-        (0..claim.m_in)
-            .map(|row| claim.X[(row, 0)].as_canonical_u64())
-            .collect(),
+        public_input_words(&claim.X, claim.m_in),
         claim.r.iter().copied().map(extension_words).collect(),
         claim.eval_k[..D]
             .iter()

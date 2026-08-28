@@ -11,7 +11,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::{KExtensions, F, K};
 use nightstream_fprime::{
     load, LoadedPackage, PackageError, PackageProof, PackageProvingKey, PackageVerifyingKey,
-    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext, ProofRun,
+    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext, PiDecV1_1PackageInputs, ProofRun,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
     PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
     PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
@@ -79,9 +79,14 @@ pub fn load_pi_ccs_v1_1_package(
 }
 
 impl PiCcsV1_1PackageProver {
-    /// Execute the Lean-emitted witness program and prove its exact rows.
-    pub fn prove(&self, inputs: &PiCcsV1_1PackageInputs) -> Result<PiCcsV1_1PackageProof, PiCcsV1_1PackageBridgeError> {
-        let encoded = self.package.encode_pi_ccs_v1_1_inputs(inputs)?;
+    /// Execute the Lean-emitted witness program for the complete current
+    /// package prefix and prove its exact rows.
+    pub fn prove(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+    ) -> Result<PiCcsV1_1PackageProof, PiCcsV1_1PackageBridgeError> {
+        let encoded = self.package.encode_stage1_v1_1_inputs(pi_ccs, pi_dec)?;
         let assignment = self
             .package
             .execute_witness(encoded.private_values(), encoded.public_values())?;
@@ -300,12 +305,18 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
 
         if claim.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
             || claim.X.rows() != PI_CCS_V1_1_COEFFICIENT_COUNT
-            || claim.X.cols() != 1
+            || claim.X.cols() != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / PI_CCS_V1_1_COEFFICIENT_COUNT
         {
             return Err(PiCcsV1_1PackageBridgeError::Shape("running public input"));
         }
-        let public_input: Vec<_> = (0..PI_CCS_V1_1_COEFFICIENT_COUNT)
-            .map(|row| claim.X[(row, 0)].as_canonical_u64())
+        let public_input: Vec<_> = (0..PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
+            .map(|index| {
+                claim.X[(
+                    index % PI_CCS_V1_1_COEFFICIENT_COUNT,
+                    index / PI_CCS_V1_1_COEFFICIENT_COUNT,
+                )]
+                    .as_canonical_u64()
+            })
             .collect();
         push_block(&mut words, &public_input);
 
@@ -341,14 +352,18 @@ pub fn pi_ccs_v1_1_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_1Pac
     Ok(poseidon2_hash(&fields).map(|value| value.as_canonical_u64()))
 }
 
-/// Exact Lean `encHash`: marker, four digest words, then zero padding.
+/// Exact Lean `encHash`: marker, 256 little-endian digest bits, then zero padding.
 pub fn encode_pi_ccs_v1_1_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiCcsV1_1PackageBridgeError> {
     if digest.iter().any(|word| *word >= F::ORDER_U64) {
         return Err(PiCcsV1_1PackageBridgeError::Shape("state digest words"));
     }
     let mut output = vec![0; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
     output[0] = 1;
-    output[1..5].copy_from_slice(&digest);
+    for (word, value) in digest.into_iter().enumerate() {
+        for bit in 0..64 {
+            output[1 + word * 64 + bit] = (value >> bit) & 1;
+        }
+    }
     Ok(output)
 }
 

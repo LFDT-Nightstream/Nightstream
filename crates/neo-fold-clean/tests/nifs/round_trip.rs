@@ -4,17 +4,22 @@ mod support;
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::{nifs, pi_ccs, pi_rlc};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
+
+fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
+    RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Plain)
+        .expect("canonical nonempty SuperNeo accumulator")
+}
 
 #[test]
 fn nifs_prove_verify_round_trip_matches_children() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 7), support::toy_instance(&prep, 11)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (next_running, proof) = nifs::prove(
@@ -54,7 +59,7 @@ fn nifs_cpu_adapter_matches_prover_contract() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 43), support::toy_instance(&prep, 47)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut adapter = nifs::OptimizedCpuNifsProver;
     let mut prover_tr = Transcript::session();
@@ -96,7 +101,7 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 53), support::toy_instance(&prep, 59)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (_, proof) = nifs::prove(
@@ -167,7 +172,7 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         first,
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("first NIFS.P");
     assert!(
@@ -246,7 +251,7 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         first,
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("first NIFS.P");
 
@@ -292,7 +297,7 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 13)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
@@ -359,7 +364,7 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     z[1] = F::ONE;
     let fresh = vec![direct_ccs::build_instance(&prep, &r1cs, &z).expect("fresh instance")];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
@@ -388,13 +393,11 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     )
     .expect("baseline Pi_CCS.V must accept before tamper");
 
-    let y0 = proof.pi_ccs.outputs[0]
-        .y_ring
+    let eval_k = proof.pi_ccs.outputs[0]
+        .eval_k
         .get_mut(0)
-        .and_then(|row| row.get_mut(0))
-        .expect("nontrivial Pi_CCS output must carry a y_ring constant term");
-    *y0 += K::ONE;
-    proof.pi_ccs.outputs[0].ct[0] += K::ONE;
+        .expect("nontrivial Pi_CCS output must carry Eval_K");
+    *eval_k += K::ONE;
 
     let mut verifier_tr = Transcript::session();
     assert!(
@@ -417,7 +420,7 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 17)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
@@ -473,7 +476,7 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 19)];
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(

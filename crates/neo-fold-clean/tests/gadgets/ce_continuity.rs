@@ -24,11 +24,11 @@ fn claim_fixture() -> CeClaim {
     }
     let kappa = Params::production().kappa() as usize;
     let d_pad = D.next_power_of_two();
-    let mut y_ring = (0..d_pad)
+    let mut evaluation = (0..d_pad)
         .map(|idx| k(11 + idx as u64 * 2, 12 + idx as u64 * 2))
         .collect::<Vec<_>>();
     for lane in D..d_pad {
-        y_ring[lane] = K::ZERO;
+        evaluation[lane] = K::ZERO;
     }
     CeClaim {
         adv: None,
@@ -39,8 +39,8 @@ fn claim_fixture() -> CeClaim {
         },
         X: x,
         r: vec![k(1, 2)],
-        y_ring: vec![y_ring.clone()],
-        ct: vec![y_ring[0]],
+        eval_k: evaluation.clone(),
+        eval_a: vec![evaluation],
         m_in: D,
         fold_digest: [42u8; 32],
     }

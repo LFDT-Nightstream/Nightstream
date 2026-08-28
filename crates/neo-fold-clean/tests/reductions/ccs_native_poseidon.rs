@@ -24,7 +24,7 @@ use neo_fold_clean::engine::ccs_native::poseidon2::{
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, Var};
 use neo_fold_clean::engine::transcript::Transcript;
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::{config, CcsInstance, Params, Structure};
 use neo_math::{D, F, K};
@@ -157,6 +157,11 @@ struct Fixture {
     instance: CcsInstance,
 }
 
+fn canonical_running(params: &Params, structure: &Structure) -> RunningInstance {
+    RunningInstance::canonical_zero(params, structure, D, LaneCommitmentMode::Plain)
+        .expect("canonical nonempty SuperNeo accumulator")
+}
+
 fn build_fixture() -> Fixture {
     let structure = degree7_sbox_structure();
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("params");
@@ -199,6 +204,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
     let cache = OptimizedStructureCache::build(structure).expect("cache build");
     let instance =
         CcsInstance::from_low_norm_assignment(&params, &log, structure, &z, D).expect("low-norm sparse CCS assignment");
+    let running = canonical_running(&params, structure);
 
     let mut prover_tr = Transcript::session();
     let proof = pi_ccs::prove(
@@ -208,7 +214,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
         &cache,
         &log,
         vec![instance.clone()],
-        &RunningInstance::default(),
+        &running,
     )?;
 
     let mut verifier_tr = Transcript::session();
@@ -218,7 +224,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
         structure,
         &cache,
         &[instance.claim],
-        &RunningInstance::default(),
+        &running,
         &proof,
     )
 }
@@ -254,6 +260,7 @@ fn r1cs_poseidon2_hash_shape(input: &[F]) -> (usize, usize) {
 #[test]
 fn native_pi_ccs_accepts_degree7_sbox_relation() {
     let f = build_fixture();
+    let running = canonical_running(&f.params, &f.structure);
     assert_eq!(f.structure.f.max_degree(), 7);
 
     let mut prover_tr = Transcript::session();
@@ -264,7 +271,7 @@ fn native_pi_ccs_accepts_degree7_sbox_relation() {
         &f.cache,
         &f.log,
         vec![f.instance.clone()],
-        &RunningInstance::default(),
+        &running,
     )
     .expect("Π_CCS.P degree-7");
 
@@ -275,18 +282,20 @@ fn native_pi_ccs_accepts_degree7_sbox_relation() {
         &f.structure,
         &f.cache,
         &[f.instance.claim.clone()],
-        &RunningInstance::default(),
+        &running,
         &proof,
     )
     .expect("Π_CCS.V degree-7");
 
-    assert_eq!(outputs.len(), 1);
-    assert_eq!(outputs[0].y_ring.len(), 3, "padded identity, X, and Y openings");
+    assert_eq!(outputs.len(), 1 + config::K_RHO as usize);
+    assert!(!outputs[0].eval_k.is_empty(), "Pad Eval_K must be present");
+    assert_eq!(outputs[0].eval_a.len(), 2, "two genuine CCS-matrix Eval_A families");
 }
 
 #[test]
 fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
     let f = build_fixture();
+    let running = canonical_running(&f.params, &f.structure);
 
     let mut prover_tr = Transcript::session();
     let mut proof = pi_ccs::prove(
@@ -296,7 +305,7 @@ fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
         &f.cache,
         &f.log,
         vec![f.instance.clone()],
-        &RunningInstance::default(),
+        &running,
     )
     .expect("Π_CCS.P degree-7");
 
@@ -309,7 +318,7 @@ fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
         &f.structure,
         &f.cache,
         &[f.instance.claim.clone()],
-        &RunningInstance::default(),
+        &running,
         &proof,
     )
     .expect_err("tampered degree-7 sumcheck must reject");
@@ -326,6 +335,7 @@ fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
 #[test]
 fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
     let f = build_bit_backed_fixture(F::from_u64(0x1234_5678_9abc_def0));
+    let running = canonical_running(&f.params, &f.structure);
     assert_eq!(f.structure.f.max_degree(), 7);
     assert_eq!(f.structure.m, 1 + 2 * POSEIDON2_GOLDILOCKS_BITS);
     assert_eq!(f.structure.n, 2 * POSEIDON2_GOLDILOCKS_BITS + 1);
@@ -338,7 +348,7 @@ fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
         &f.cache,
         &f.log,
         vec![f.instance.clone()],
-        &RunningInstance::default(),
+        &running,
     )
     .expect("Π_CCS.P bit-backed degree-7");
 
@@ -349,12 +359,12 @@ fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
         &f.structure,
         &f.cache,
         &[f.instance.claim.clone()],
-        &RunningInstance::default(),
+        &running,
         &proof,
     )
     .expect("Π_CCS.V bit-backed degree-7");
 
-    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs.len(), 1 + config::K_RHO as usize);
 }
 
 #[test]
@@ -370,6 +380,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
     z[1 + POSEIDON2_GOLDILOCKS_BITS] = F::ONE - z[1 + POSEIDON2_GOLDILOCKS_BITS];
     let instance = CcsInstance::from_low_norm_assignment(&params, &log, &structure, &z, D)
         .expect("tampered output remains low-norm");
+    let running = canonical_running(&params, &structure);
 
     let mut prover_tr = Transcript::session();
     let maybe_proof = pi_ccs::prove(
@@ -379,7 +390,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
         &cache,
         &log,
         vec![instance.clone()],
-        &RunningInstance::default(),
+        &running,
     );
 
     if let Ok(proof) = maybe_proof {
@@ -390,7 +401,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
             &structure,
             &cache,
             &[instance.claim],
-            &RunningInstance::default(),
+            &running,
             &proof,
         )
         .expect_err("wrong decoded y must not verify");
@@ -434,7 +445,7 @@ fn native_pi_ccs_accepts_bit_backed_full_poseidon2_permutation() {
 
     let outputs = prove_verify_single_fresh(&bundle.structure, bundle.z)
         .expect("Π_CCS proves/verifies bit-backed full Poseidon2");
-    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs.len(), 1 + config::K_RHO as usize);
 }
 
 #[test]
@@ -495,7 +506,7 @@ fn native_pi_ccs_accepts_bit_backed_poseidon2_hash_short_input() {
 
     let outputs = prove_verify_single_fresh(&bundle.structure, bundle.z)
         .expect("Π_CCS proves/verifies bit-backed Poseidon2 hash");
-    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs.len(), 1 + config::K_RHO as usize);
 }
 
 #[test]

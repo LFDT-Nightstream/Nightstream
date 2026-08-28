@@ -152,7 +152,7 @@ private theorem serializeKExpr_length (value : KExpr) :
 
 private theorem serializePointExpr_length
     (point : Fin productionShape.cubeVariables → KExpr) :
-    (serializePointExpr point).length = 50 := by
+    (serializePointExpr point).length = 52 := by
   simp [serializePointExpr, serializeKExpr_length, productionShape,
     Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -180,6 +180,19 @@ def constantWords (words : List F) : List Expr := words.map Expr.const
 def blockExpr (words : List Expr) : List Expr :=
   Expr.const (NightstreamFPrime.Lifecycle.natWord words.length) :: words
 
+/-- Canonical expression-level form of the complete state-hash running
+vector: point, then the 16 framed commitment, public-input, and evaluation
+groups in `XOut.serializeRunning` order. -/
+def serializeRunningExpr {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : RunningExpr logicalWidth publicFits) : List Expr :=
+  blockExpr (serializePointExpr running.point) ++
+    ((List.finRange productionShape.runningCount).flatMap fun index =>
+      blockExpr (serializeCommitmentExpr (running.commitment index)) ++
+        blockExpr (serializePublicInputExpr (running.publicInput index)) ++
+        blockExpr (serializeEvaluationExpr (running.evaluation index)))
+
 private theorem constantWords_length (words : List F) :
     (constantWords words).length = words.length := by
   simp [constantWords]
@@ -187,6 +200,16 @@ private theorem constantWords_length (words : List F) :
 private theorem blockExpr_length (words : List Expr) :
     (blockExpr words).length = words.length + 1 := by
   simp [blockExpr]
+
+theorem serializeRunningExpr_length {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : RunningExpr logicalWidth publicFits) :
+    (serializeRunningExpr running).length = 45893 := by
+  simp [serializeRunningExpr, blockExpr_length, serializePointExpr_length,
+    serializeCommitmentExpr_length, serializePublicInputExpr_length,
+    serializeEvaluationExpr_length, productionShape, productionProfile,
+    Phi81MatrixSource.phi81Shape]
 
 def absorbBlock (words : List Expr) : Formal.Action :=
   .absorb (blockExpr words)
@@ -436,6 +459,50 @@ private theorem runningGroup_eval {logicalWidth : Nat}
     serializeEvaluationExpr_eval]
   rfl
 
+private theorem blockExpr_map_eval (words : List Expr) (env : Env) :
+    (blockExpr words).map (Expr.eval env) =
+      NightstreamFPrime.Lifecycle.block (Hash.evalList env words) := by
+  simp [blockExpr, NightstreamFPrime.Lifecycle.block, Hash.evalList]
+
+private theorem runningGroupBlocks_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : RunningExpr logicalWidth publicFits) (env : Env)
+    (index : Fin productionShape.runningCount) :
+    (blockExpr (serializeCommitmentExpr (running.commitment index)) ++
+        blockExpr (serializePublicInputExpr (running.publicInput index)) ++
+        blockExpr (serializeEvaluationExpr (running.evaluation index))).map
+        (Expr.eval env) =
+      NightstreamFPrime.Lifecycle.block
+          (NightstreamFPrime.Lifecycle.serializeCommitment
+            ((evalRunning running env).commitments index)) ++
+        NightstreamFPrime.Lifecycle.block
+          (NightstreamFPrime.Lifecycle.serializePublicInput
+            (publicFits := publicFits)
+            ((evalRunning running env).publicInputs index)) ++
+        NightstreamFPrime.Lifecycle.block
+          (NightstreamFPrime.Lifecycle.serializeEvaluations
+            ((evalRunning running env).evaluations index)) := by
+  rw [List.map_append, List.map_append, blockExpr_map_eval,
+    blockExpr_map_eval, blockExpr_map_eval, serializeCommitmentExpr_eval,
+    serializePublicInputExpr_eval, serializeEvaluationExpr_eval]
+  rfl
+
+theorem serializeRunningExpr_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : RunningExpr logicalWidth publicFits) (env : Env) :
+    Hash.evalList env (serializeRunningExpr running) =
+      NightstreamFPrime.Lifecycle.serializeRunning
+        (publicFits := publicFits) (evalRunning running env) := by
+  unfold Hash.evalList serializeRunningExpr
+    NightstreamFPrime.Lifecycle.serializeRunning
+  rw [List.map_append, blockExpr_map_eval, serializePointExpr_eval]
+  apply congrArg₂ List.append rfl
+  apply map_flatMap_congr
+  intro index
+  exact runningGroupBlocks_eval running env index
+
 private theorem freshGroup_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -665,7 +732,7 @@ private theorem absorb_recipeCount (input : List Expr) :
 @[simp] private theorem point_recipeCount
     (point : Fin productionShape.cubeVariables → KExpr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializePointExpr point)) = 7696 := by
+        (absorbBlock (serializePointExpr point)) = 8288 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializePointExpr_length]
 
@@ -750,7 +817,7 @@ private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 3844448 := by
+    Formal.recipeCount (verifierInputActions interface offset) = 3845040 := by
   rw [verifierInputActions_eq]
   simp [Formal.recipeCount]
 

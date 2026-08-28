@@ -10,7 +10,7 @@ the one open circuit parameter (closed by the recursive fixed point).
 
 Provenance: adapted from
 `formal/nightstream-lean/Nightstream/Implementation/Nebula/NIFS/Core/PaperAlgebra.lean`
-at commit `f277c1d5e16b9f0d096d9b9da30baeb932af9be8`: the four-lane product commitment is replaced by the Ajtai
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`: the four-lane product commitment is replaced by the Ajtai
   commitment of `Spec.Phi81Relation.PiRLCAlgebra.Commitment`, the row domain is
   the Stage 1 `cubeVariables`, the public block is five ring columns, and the
 SuperNeo v1.1 Pad evaluation family is separate from all CCS matrices.

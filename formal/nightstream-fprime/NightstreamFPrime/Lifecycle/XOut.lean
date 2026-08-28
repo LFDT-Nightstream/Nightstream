@@ -125,7 +125,7 @@ theorem stateDomainTag_length : stateDomainTag.length = 23 := by
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 45891 := by
+    (serializeRunning (publicFits := publicFits) value).length = 45893 := by
   simp [serializeRunning, productionShape, productionProfile, fullShape,
     publicRingColumns, ringDegree, cubeVariables,
     Phi81Relation.Shape.publicWidth, Phi81MatrixSource.phi81Shape]
@@ -135,7 +135,7 @@ application-state block lengths remain parameters. -/
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      45919 + (value.verifierKeys functionIndex).length +
+      45921 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
   simp [serializePreimage, stateDomainTag_length, serializeRunning_length]
   omega
@@ -253,6 +253,46 @@ theorem encHash_tail (digest : Digest) (index : Fin (ringDegree * publicRingColu
     encHash (publicFits := publicFits) digest index = 0 := by
   exact encodedHashCells_tail digest index tail
 
+private theorem digestBitWord_norm (value : F) (bit : Nat) :
+    centeredMagnitude (digestBitWord value bit) < 2 := by
+  have residueBound : (value.val / 2 ^ bit) % 2 < 2 :=
+    Nat.mod_lt _ (by decide)
+  have residueCases :
+      (value.val / 2 ^ bit) % 2 = 0 ∨
+        (value.val / 2 ^ bit) % 2 = 1 := by
+    omega
+  rcases residueCases with residue | residue
+  · simp [digestBitWord, residue, Poseidon2.ofNat, centeredMagnitude]
+  · simp [digestBitWord, residue, Poseidon2.ofNat, centeredMagnitude,
+      goldilocksModulus]
+
+/-- Every coordinate of the fixed recursive public input satisfies the exact
+fresh-opening norm. -/
+theorem encHash_norm (digest : Digest)
+    (column : Fin (ringDegree * publicRingColumns)) :
+    centeredMagnitude (encHash (publicFits := publicFits) digest column) < 2 := by
+  obtain ⟨index, indexBound⟩ := column
+  cases index with
+  | zero =>
+      change centeredMagnitude 1 < 2
+      decide
+  | succ index =>
+      by_cases bitRegion : index < 256
+      · unfold encHash encodedHashCells
+        rw [List.getD_cons_succ]
+        rw [List.getD_eq_getElem (l := serializeDigestBits digest) (d := 0)
+          (by simpa using bitRegion)]
+        simp only [serializeDigestBits, List.getElem_map, List.getElem_range]
+        exact digestBitWord_norm _ _
+      · let tailColumn : Fin (ringDegree * publicRingColumns) :=
+          ⟨index + 1, indexBound⟩
+        change centeredMagnitude
+          (encHash (publicFits := publicFits) digest tailColumn) < 2
+        rw [encHash_tail digest tailColumn (by
+          change 257 ≤ index + 1
+          omega)]
+        decide
+
 private def digestBitNat (value bit : Nat) : Nat :=
   value / 2 ^ bit % 2
 
@@ -353,6 +393,16 @@ theorem decodeHash_encHash (digest : Digest) (fixed : digest.length = 4) :
     rw [List.get_ofFn]
     rw [decodeHashWord_encHash]
     exact List.getD_eq_getElem (l := digest) (d := 0) rightBound
+
+/-- The fixed public-instance encoding is injective on canonical four-word
+digests. -/
+theorem encHash_injective_fixed {left right : Digest}
+    (leftFixed : left.length = 4) (rightFixed : right.length = 4)
+    (equal : encHash (publicFits := publicFits) left =
+      encHash (publicFits := publicFits) right) :
+    left = right := by
+  rw [← decodeHash_encHash left leftFixed,
+    ← decodeHash_encHash right rightFixed, equal]
 
 /-- The paper default CE instance `u_⊥` (HyperNova H.2): the commitment of the
 zero assignment with zero randomness, the zero public input (the projection of

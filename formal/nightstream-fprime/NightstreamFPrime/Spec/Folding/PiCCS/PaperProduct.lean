@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.BatchArity
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperProduct.lean`
-at commit `f277c1d5e16b9f0d096d9b9da30baeb932af9be8`; namespaces renamed, otherwise unchanged. -/
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
 Paper-level source and output products for one SuperNeo fold.

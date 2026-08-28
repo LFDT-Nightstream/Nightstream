@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 1; Fiat–Shamir transform.
-Obligation: Derive `α ∈ K^25`, then `γ ∈ K`, from the state after the
+Obligation: Derive `α ∈ K^26`, then `γ ∈ K`, from the state after the
 complete public statement absorption.
 
 Inputs:
@@ -64,14 +64,15 @@ def labelledActions :
       labelActions label sample ++ labelledActions labels samples
   | _, _ => []
 
-/-- Exact verifier-owned order: all 25 `α` labels, then `γ`. -/
+/-- Exact verifier-owned order: all 26 `α` labels, then `γ`. -/
 def challengeLabels : List (FiatShamir.ChallengeLabel productionShape) :=
   FiatShamir.alphaLabels productionShape ++ [.gamma]
 
 /-- The layout schedule fixes only sample positions. Its expected values have
 no authority and do not affect recipes, samples, or final state. -/
 def layoutActions : List Formal.Action :=
-  labelledActions challengeLabels (List.replicate 26 KExpr.zero)
+  labelledActions challengeLabels
+    (List.replicate challengeLabels.length KExpr.zero)
 
 def layoutProgram (interface : Interface) (offset : Nat) : Formal.Program :=
   Formal.compile offset (interface.initialState offset) layoutActions
@@ -130,9 +131,13 @@ private theorem scheduleActions_zip_eq_labelled
             labelActions label sample ++ labelledActions labels samples
           rw [inductionHypothesis samples sameLength]
 
-@[simp] theorem challengeLabels_length : challengeLabels.length = 26 := by
+@[simp] theorem challengeLabels_length : challengeLabels.length = 27 := by
   unfold challengeLabels FiatShamir.alphaLabels
   rw [List.length_append, List.length_map, canonicalFinIndices_length]
+  rfl
+
+private theorem productionCubeVariables_eq :
+    productionShape.cubeVariables = 26 := by
   rfl
 
 private theorem labelledActions_expectedSamples
@@ -239,9 +244,9 @@ private theorem labelledActions_append
             inductionHypothesis samples leftLength]
 
 @[simp] theorem layoutProgram_samples_length (interface : Interface)
-    (offset : Nat) : (layoutProgram interface offset).samples.length = 26 := by
+    (offset : Nat) : (layoutProgram interface offset).samples.length = 27 := by
   change (Formal.compile offset (interface.initialState offset)
-    layoutActions).samples.length = 26
+    layoutActions).samples.length = 27
   rw [Formal.compile_samples_length]
   calc
     ((layoutActions.filterMap fun action => match action with
@@ -250,45 +255,53 @@ private theorem labelledActions_append
         unfold layoutActions
         apply labelledActions_squeezeCount
         simp [challengeLabels_length]
-    _ = 26 := challengeLabels_length
+    _ = 27 := challengeLabels_length
 
 @[simp] theorem layoutWiring_samples_length (interface : Interface)
-    (offset : Nat) : (layoutWiring interface offset).samples.length = 26 := by
+    (offset : Nat) : (layoutWiring interface offset).samples.length = 27 := by
   rw [layoutWiring_samples_eq, layoutProgram_samples_length]
 
 /-- Derived `α` sample; no caller field exists. -/
 def alpha (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=
-  let values := (layoutProgram interface offset).samples.take 25
+  let values := (layoutProgram interface offset).samples.take
+    productionShape.cubeVariables
   values.get ⟨coordinate.val, by
-    have valuesLength : values.length = 25 := by
-      simp [values]
+    have valuesLength : values.length = 26 := by
+      simp [values, productionCubeVariables_eq]
     rw [valuesLength]
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       coordinate.isLt⟩
 
-/-- Derived `γ` sample follows the 25 `α` coordinates. -/
+/-- Derived `γ` sample follows the 26 `α` coordinates. -/
 def gamma (interface : Interface) (offset : Nat) : KExpr :=
-  (layoutProgram interface offset).samples.get ⟨25, by simp⟩
+  (layoutProgram interface offset).samples.get
+    ⟨productionShape.cubeVariables, by
+      simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
 /-- Executable `α` projection. Its agreement theorem preserves `alpha` as the
 semantic authority. -/
 def alphaFast (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=
-  let values := (layoutWiring interface offset).samples.take 25
+  let values := (layoutWiring interface offset).samples.take
+    productionShape.cubeVariables
   values.getD coordinate.val KExpr.zero
 
 /-- Executable `γ` projection from the same recipe-free wiring trace. -/
 def gammaFast (interface : Interface) (offset : Nat) : KExpr :=
-  (layoutWiring interface offset).samples.getD 25 KExpr.zero
+  (layoutWiring interface offset).samples.getD
+    productionShape.cubeVariables KExpr.zero
 
 theorem alpha_eq_alphaFast_pointwise (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) :
     alpha interface offset coordinate =
       alphaFast interface offset coordinate := by
-  let values := (layoutProgram interface offset).samples.take 25
+  let values := (layoutProgram interface offset).samples.take
+    productionShape.cubeVariables
   have coordinateBound : coordinate.val < values.length := by
-    simp [values]
+    have valuesLength : values.length = 26 := by
+      simp [values, productionCubeVariables_eq]
+    rw [valuesLength]
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       coordinate.isLt
   calc
@@ -298,7 +311,8 @@ theorem alpha_eq_alphaFast_pointwise (interface : Interface) (offset : Nat)
     _ = values.getD coordinate.val KExpr.zero :=
       (List.getD_eq_get values KExpr.zero
         ⟨coordinate.val, coordinateBound⟩).symm
-    _ = ((layoutWiring interface offset).samples.take 25).getD
+    _ = ((layoutWiring interface offset).samples.take
+          productionShape.cubeVariables).getD
           coordinate.val KExpr.zero := by
       rw [layoutWiring_samples_eq]
     _ = alphaFast interface offset coordinate := by
@@ -306,16 +320,20 @@ theorem alpha_eq_alphaFast_pointwise (interface : Interface) (offset : Nat)
 
 theorem gamma_eq_gammaFast_pointwise (interface : Interface) (offset : Nat) :
     gamma interface offset = gammaFast interface offset := by
-  have gammaBound : 25 < (layoutProgram interface offset).samples.length := by
-    simp
+  have gammaBound : productionShape.cubeVariables <
+      (layoutProgram interface offset).samples.length := by
+    simp [productionCubeVariables_eq]
   calc
     gamma interface offset =
-        (layoutProgram interface offset).samples.get ⟨25, gammaBound⟩ := by
+        (layoutProgram interface offset).samples.get
+          ⟨productionShape.cubeVariables, gammaBound⟩ := by
       rfl
-    _ = (layoutProgram interface offset).samples.getD 25 KExpr.zero :=
+    _ = (layoutProgram interface offset).samples.getD
+          productionShape.cubeVariables KExpr.zero :=
       (List.getD_eq_get (layoutProgram interface offset).samples KExpr.zero
-        ⟨25, gammaBound⟩).symm
-    _ = (layoutWiring interface offset).samples.getD 25 KExpr.zero := by
+        ⟨productionShape.cubeVariables, gammaBound⟩).symm
+    _ = (layoutWiring interface offset).samples.getD
+          productionShape.cubeVariables KExpr.zero := by
       rw [layoutWiring_samples_eq]
     _ = gammaFast interface offset := by
       rfl
@@ -332,7 +350,8 @@ theorem gamma_eq_gammaFast_pointwise (interface : Interface) (offset : Nat) :
 def alphaSchedule (interface : Interface) (offset : Nat) :
     List (FiatShamir.ChallengeLabel productionShape × KExpr) :=
   (FiatShamir.alphaLabels productionShape).zip
-    ((layoutProgram interface offset).samples.take 25)
+    ((layoutProgram interface offset).samples.take
+      productionShape.cubeVariables)
 
 /-- Exact action order: every `α` coordinate, then `γ`. -/
 def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
@@ -349,32 +368,41 @@ def finalState (interface : Interface) (offset : Nat) : EState :=
   (program interface offset).output
 
 theorem layoutSamples_take_gamma (interface : Interface) (offset : Nat) :
-    (layoutProgram interface offset).samples.take 25 ++
+    (layoutProgram interface offset).samples.take
+        productionShape.cubeVariables ++
         [gamma interface offset] =
       (layoutProgram interface offset).samples := by
   let samples := (layoutProgram interface offset).samples
-  have indexBelow : 25 < samples.length := by
-    simp [samples]
-  have gammaEq : gamma interface offset = samples[25] := by
+  have indexBelow : productionShape.cubeVariables < samples.length := by
+    simp [samples, productionCubeVariables_eq]
+  have gammaEq : gamma interface offset =
+      samples[productionShape.cubeVariables] := by
     rfl
-  have tailEq : samples.drop 25 = [gamma interface offset] := by
+  have tailEq : samples.drop productionShape.cubeVariables =
+      [gamma interface offset] := by
     rw [List.drop_eq_getElem_cons indexBelow]
-    have restNil : samples.drop 26 = [] := by
-      exact List.drop_eq_nil_of_le (by simp [samples])
-    rw [show 25 + 1 = 26 by omega, restNil]
+    have restNil : samples.drop (productionShape.cubeVariables + 1) = [] := by
+      exact List.drop_eq_nil_of_le (by
+        simp [samples, productionCubeVariables_eq])
+    rw [restNil]
     simp [gammaEq]
-  change samples.take 25 ++ [gamma interface offset] = samples
+  change samples.take productionShape.cubeVariables ++
+    [gamma interface offset] = samples
   calc
-    samples.take 25 ++ [samples.getD 25 KExpr.zero] =
-        samples.take 25 ++ samples.drop 25 :=
-      congrArg (fun tail => samples.take 25 ++ tail) tailEq.symm
-    _ = samples := List.take_append_drop 25 samples
+    samples.take productionShape.cubeVariables ++
+        [samples.getD productionShape.cubeVariables KExpr.zero] =
+        samples.take productionShape.cubeVariables ++
+          samples.drop productionShape.cubeVariables :=
+      congrArg (fun tail =>
+        samples.take productionShape.cubeVariables ++ tail) tailEq.symm
+    _ = samples := List.take_append_drop productionShape.cubeVariables samples
 
 theorem actions_eq_labelled (interface : Interface) (offset : Nat) :
     actions interface offset =
       labelledActions challengeLabels (layoutProgram interface offset).samples := by
   have alphaLength :
-      ((layoutProgram interface offset).samples.take 25).length =
+      ((layoutProgram interface offset).samples.take
+        productionShape.cubeVariables).length =
         (FiatShamir.alphaLabels productionShape).length := by
     rw [List.length_take, layoutProgram_samples_length]
     norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
@@ -382,7 +410,8 @@ theorem actions_eq_labelled (interface : Interface) (offset : Nat) :
   unfold actions alphaSchedule
   rw [scheduleActions_zip_eq_labelled _ _ alphaLength]
   change labelledActions (FiatShamir.alphaLabels productionShape)
-        ((layoutProgram interface offset).samples.take 25) ++
+        ((layoutProgram interface offset).samples.take
+          productionShape.cubeVariables) ++
       labelledActions [.gamma] [gamma interface offset] = _
   rw [← labelledActions_append]
   · rw [layoutSamples_take_gamma]
@@ -592,10 +621,12 @@ theorem alphaSchedule_values (interface : Interface) (offset : Nat) :
       List.ofFn (alpha interface offset) := by
   unfold alphaSchedule
   rw [List.map_snd_zip]
-  · let values := (layoutProgram interface offset).samples.take 25
+  · let values := (layoutProgram interface offset).samples.take
+      productionShape.cubeVariables
     change values = List.ofFn (fun coordinate =>
       values.get ⟨coordinate.val, by
-        have valuesLength : values.length = 25 := by simp [values]
+        have valuesLength : values.length = 26 := by
+          simp [values, productionCubeVariables_eq]
         rw [valuesLength]
         simpa [productionShape, Phi81MatrixSource.phi81Shape,
           cubeVariables] using coordinate.isLt⟩)
@@ -860,15 +891,15 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   exact scope
 
 theorem alphaSchedule_length (interface : Interface) (offset : Nat) :
-    (alphaSchedule interface offset).length = 25 := by
+    (alphaSchedule interface offset).length = 26 := by
   rw [alphaSchedule, List.length_zip, List.length_take,
     layoutProgram_samples_length]
   norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- The leaf has 25 label/squeeze pairs for `α` and one for `γ`. -/
+/-- The leaf has 26 label/squeeze pairs for `α` and one for `γ`. -/
 theorem actions_length (interface : Interface) (offset : Nat) :
-    (actions interface offset).length = 52 := by
+    (actions interface offset).length = 54 := by
   rw [actions_eq_labelled]
   rw [labelledActions_length]
   · norm_num [challengeLabels_length]
@@ -908,10 +939,10 @@ private theorem labelledActions_recipeCount
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact private symbolic footprint: 26 labelled squeezes and their label
-absorptions compile to 44,400 recipe variables. -/
+/-- Exact private symbolic footprint: 27 labelled squeezes and their label
+absorptions compile to 47,952 recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 46176 := by
+    recipeCount interface offset = 47952 := by
   unfold recipeCount
   rw [actions_eq_labelled]
   rw [labelledActions_recipeCount]
@@ -920,15 +951,15 @@ theorem recipeCount_eq (interface : Interface) (offset : Nat) :
       challengeLabels_length.symm
 
 @[simp] theorem program_recipes_length (interface : Interface) (offset : Nat) :
-    (program interface offset).recipes.length = 46176 := by
+    (program interface offset).recipes.length = 47952 := by
   change (Formal.compile offset (interface.initialState offset)
-    (actions interface offset)).recipes.length = 46176
+    (actions interface offset)).recipes.length = 47952
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
 /-- Layout may allocate exactly this private interval and no boundary copy. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 46176 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 47952 := by
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
 /-- One owned witness operation and no sample or final-state copy operation. -/
@@ -940,7 +971,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 /-- One row per causal recipe and no boundary-copy row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      46176 := by
+      47952 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
 

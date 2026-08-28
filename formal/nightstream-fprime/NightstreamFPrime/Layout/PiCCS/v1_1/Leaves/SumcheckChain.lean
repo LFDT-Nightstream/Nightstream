@@ -3,20 +3,20 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, `SumCheck(T; Q)`.
-Obligation: Enforce the 25 degree-9 round equations and export the final
+Obligation: Enforce the 26 degree-9 round equations and export the final
 verifier claim for the separate `Q(r')` identity.
 
 Inputs:
 - the Initial-claim child output;
-- 25 prover degree-9 polynomial messages;
-- 25 transcript-derived challenges.
+- 26 prover degree-9 polynomial messages;
+- 26 transcript-derived challenges.
 
 Outputs:
 - the final child-owned SumCheck claim.
 
 Constraint groups:
 - one generic round equality pair;
-- indexed composition over 25 rounds;
+- indexed composition over 26 rounds;
 - no logical witness or terminal-copy row.
 
 Parent coverage:
@@ -72,7 +72,7 @@ private theorem coreRounds_length
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
     (offset : Nat) :
     (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset).rounds.length = 25 := by
+      interface offset).rounds.length = 26 := by
   simp [NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.Interface.rounds,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
@@ -110,7 +110,7 @@ private theorem core_totalFreshCount
     R1CS.totalFreshCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-        interface offset)) = 378560 := by
+        interface offset)) = 393907 := by
   let core :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
       interface offset
@@ -131,7 +131,7 @@ private theorem core_totalRowCount
     R1CS.totalRowCount
       (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-        interface offset)) = 378610 := by
+        interface offset)) = 393959 := by
   let core :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
       interface offset
@@ -145,14 +145,14 @@ private theorem core_totalRowCount
     rw [inputs.initial.c0_mulCount, inputs.initial.c1_mulCount]
   rw [initialCount, coreRounds_length interface offset]
 
-/-- Exact parent-facing physical footprint for the fixed 25-round chain. -/
+/-- Exact parent-facing physical footprint for the fixed 26-round chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.sumcheckCircuit interface) where
-  freshColumnCount := fun _ => 378560
-  physicalRowCount := fun _ => 378610
+  freshColumnCount := fun _ => 393907
+  physicalRowCount := fun _ => 393959
   freshColumnCount_eq := by
     intro offset
     unfold Formal.sumcheckCircuit
@@ -172,7 +172,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 378560 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 393907 :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -181,7 +181,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 378610 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 393959 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -191,7 +191,7 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.sumcheckCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 378560 := by
+      (Formal.sumcheckCircuit interface).main offset)) = 393907 := by
   have noLogicalColumns :
       localLength (Circuit.ops (Formal.sumcheckCircuit interface).main
         offset) = 0 := by

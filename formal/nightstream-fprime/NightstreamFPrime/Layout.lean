@@ -77,5 +77,20 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.BalancedTernary
+import NightstreamFPrime.Layout.LowNormSlot
+import NightstreamFPrime.Layout.LowNormAssignment
+import NightstreamFPrime.Layout.ProductionAssignment
+import NightstreamFPrime.Layout.ProductionRelation
+import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
+import NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
+import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
+import NightstreamFPrime.Layout.ProductionRelation.SboxRow
+import NightstreamFPrime.Layout.ProductionRelation.PinRow
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonTraceRows
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonScheduleTrace
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonSourceRows
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonTemplatePlan
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

@@ -11,10 +11,10 @@ before deriving that round's verifier challenge.
 
 Inputs:
 - the state after `α` and `γ` derivation;
-- 25 fixed-width SumCheck polynomial messages.
+- 26 fixed-width SumCheck polynomial messages.
 
 Outputs:
-- 25 verifier-derived challenges, carried in the shared `FixedChain.Round`
+- 26 verifier-derived challenges, carried in the shared `FixedChain.Round`
   interfaces;
 - the post-round transcript state.
 
@@ -66,7 +66,7 @@ def Message.semanticPolynomial {degreeBound : Nat} (message : Message degreeBoun
     (env : Env) : NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K degreeBound :=
   (message.asRound KExpr.zero).semanticPolynomial env
 
-/-- External inputs are the prior state and 25 prover messages. Challenges
+/-- External inputs are the prior state and 26 prover messages. Challenges
 and the outgoing state are child-owned outputs. -/
 structure Interface (degreeBound : Nat) where
   initialState : Nat → EState
@@ -160,18 +160,18 @@ private theorem layoutActions_squeezeCount {degreeBound : Nat}
 
 @[simp] theorem layoutProgram_samples_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (layoutProgram interface offset).samples.length = 25 := by
+    (layoutProgram interface offset).samples.length = 26 := by
   change (Formal.compile offset (interface.initialState offset)
-    (layoutActions interface offset)).samples.length = 25
+    (layoutActions interface offset)).samples.length = 26
   rw [Formal.compile_samples_length]
   calc
     _ = (canonicalFinIndices productionShape.cubeVariables).length :=
       layoutActions_squeezeCount interface offset
-    _ = 25 := canonicalFinIndices_length productionShape.cubeVariables
+    _ = 26 := canonicalFinIndices_length productionShape.cubeVariables
 
 @[simp] theorem layoutWiring_samples_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (layoutWiring interface offset).samples.length = 25 := by
+    (layoutWiring interface offset).samples.length = 26 := by
   rw [layoutWiring_samples_eq, layoutProgram_samples_length]
 
 /-- Verifier-derived challenge for one indexed round. -/
@@ -848,7 +848,7 @@ private theorem actions_length_list {degreeBound : Nat}
 
 theorem actions_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (actions interface offset).length = 75 := by
+    (actions interface offset).length = 78 := by
   rw [actions, actions_length_list, canonicalFinIndices_length]
   rfl
 
@@ -935,11 +935,12 @@ def recipeCount {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact symbolic footprint: 25 indexed round groups, with no copied round
+/-- Exact symbolic footprint: 26 indexed round groups, with no copied round
 implementation. -/
 theorem recipeCount_eq {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    recipeCount interface offset = 25 * perRoundRecipeCount degreeBound := by
+    recipeCount interface offset =
+      productionShape.cubeVariables * perRoundRecipeCount degreeBound := by
   unfold recipeCount actions
   have each : ∀ roundIndex ∈
       canonicalFinIndices productionShape.cubeVariables,
@@ -949,12 +950,11 @@ theorem recipeCount_eq {degreeBound : Nat}
     exact roundActions_recipeCount interface offset roundIndex
   rw [Formal.recipeCount_flatMap_constant _ _ _ each]
   rw [canonicalFinIndices_length]
-  rfl
 
 theorem localLength_eq {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) =
-      25 * perRoundRecipeCount degreeBound := by
+      productionShape.cubeVariables * perRoundRecipeCount degreeBound := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength]
   unfold program
@@ -964,7 +964,7 @@ theorem localLength_eq {degreeBound : Nat}
 @[simp] theorem program_recipes_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     (program interface offset).recipes.length =
-      25 * perRoundRecipeCount degreeBound := by
+      productionShape.cubeVariables * perRoundRecipeCount degreeBound := by
   unfold program
   rw [Formal.compile_recipes_length]
   simpa [recipeCount] using recipeCount_eq interface offset
@@ -977,7 +977,7 @@ theorem operations_length {degreeBound : Nat}
 theorem flatConstraints_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      25 * perRoundRecipeCount degreeBound := by
+      productionShape.cubeVariables * perRoundRecipeCount degreeBound := by
   change (flatConstraints (opsAt interface offset)).length = _
   rw [flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]

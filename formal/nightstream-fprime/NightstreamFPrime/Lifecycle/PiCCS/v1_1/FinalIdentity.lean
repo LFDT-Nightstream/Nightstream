@@ -267,7 +267,7 @@ theorem specHolds_at_iff_of_fields_eq (interface : Interface)
     terminalEq]
 
 private theorem pointLength_eq (interface : Interface) (offset : Nat) :
-    pointLength interface offset = 98 := by
+    pointLength interface offset = 102 := by
   unfold pointLength pointCircuitAt
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     PointEquality.Owned.localLength_eq_of_positive
@@ -894,10 +894,10 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression terminalMember
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 27746
+def privateCount : Nat := 27750
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 27746 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 27750 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
@@ -908,11 +908,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      27748 := by
+      27752 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
-        offset)).length = 98 := by
+        offset)).length = 102 := by
     unfold pointCircuitAt
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       PointEquality.Owned.flatConstraints_length_of_positive

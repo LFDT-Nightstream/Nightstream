@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
 Owns the total row and column maps for the exact PiDEC v1_1 layout.
 
 Every lowered row names its logical child and row role. Every physical column
-is external, one of the 54 public-split sign cells, or an R1CS intermediate.
+is external, one of the 270 public-split sign cells, or an R1CS intermediate.
 The parent adds no copy row or boundary column.
 -/
 
@@ -135,7 +135,7 @@ theorem rowOwners_length_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    (rowOwners relation interface offset).length = 7128 := by
+    (rowOwners relation interface offset).length = 25272 := by
   rw [rowOwners_length,
     physicalRowCount_eq_production relation interface offset inputs]
 
@@ -170,11 +170,11 @@ theorem noBoundaryRows
       orderedConstraints relation interface offset :=
   logicalConstraints_eq_ordered relation interface offset
 
-/-- The parent's exact logical interval contains only the 54 sign cells. -/
+/-- The parent's exact logical interval contains only the 270 sign cells. -/
 theorem noBoundaryColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
-    logicalColumnCount relation interface offset = offset + 54 :=
+    logicalColumnCount relation interface offset = offset + 270 :=
   logicalColumnCount_eq_production relation interface offset
 
 inductive ColumnOwner where

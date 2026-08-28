@@ -63,6 +63,44 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
+/-- Every physical row is confined to the exact phase endpoint. This scope
+theorem lets a later adjacent phase preserve PiDEC without inspecting rows. -/
+theorem physicalRows_varsBelow_of_phase
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth publicFits)
+    (offset : Nat) (env : Env)
+    (assumptions : Formal.Assumptions relation interface offset env)
+    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    ∀ row ∈ physicalRows relation interface offset,
+      row.VarsBelow (physicalColumnCount relation interface offset) := by
+  rcases Formal.completePrefix relation ajtai interface env offset assumptions
+      phase with ⟨logical, operationsEq⟩
+  have mainOpsEq : logical.operations =
+      Circuit.ops (Formal.main relation interface) offset := by
+    rw [Formal.main_ops]
+    exact operationsEq
+  have planScope : ∀ expression ∈
+      (plan relation interface offset).constraints,
+      expression.VarsBelow (plan relation interface offset).firstFresh := by
+    rw [plan_constraints, plan_firstFresh]
+    change ∀ expression ∈ flatConstraints
+        (Circuit.ops (Formal.main relation interface) offset),
+      expression.VarsBelow (logicalColumnCount relation interface offset)
+    rw [logicalColumnCount_eq, ← mainOpsEq]
+    exact logical.scope
+  rw [physicalRows_eq]
+  change ∀ row ∈
+      (R1CS.lowerConstraints
+        (plan relation interface offset).constraints
+        (plan relation interface offset).firstFresh).rows,
+    row.VarsBelow (plan relation interface offset).next
+  rw [R1CS.LoweringPlan.next_eq]
+  exact R1CS.lowerConstraints_rows_varsBelow
+    (plan relation interface offset).constraints
+    (plan relation interface offset).firstFresh planScope
+
 /-- Constructive completion over adjacent logical and R1CS-fresh intervals. -/
 theorem physical_complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

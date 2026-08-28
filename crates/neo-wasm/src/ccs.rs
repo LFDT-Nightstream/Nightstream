@@ -36,12 +36,12 @@ use crate::layout::{
     COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
     COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
     COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
-    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
+    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
     COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
 };
-use neo_application::{ApplicationRelation, ZeroTest};
+use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -57,6 +57,24 @@ pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest::column(
 pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
 
 pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
+
+pub(crate) const SELECT_LO_MUX: ConditionalSelect<2> = ConditionalSelect {
+    activation: COL_SEL_SELECT,
+    condition: [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, F::NEG_ONE)],
+    lhs: COL_STACK_READ_VALUE_LO[0],
+    rhs: COL_STACK_READ_VALUE_LO[1],
+    output: COL_STACK_WRITE0_VALUE_LO,
+    delta: COL_SELECT_OUT_DELTA_LO,
+};
+
+pub(crate) const SELECT_HI_MUX: ConditionalSelect<2> = ConditionalSelect {
+    activation: COL_SEL_SELECT,
+    condition: [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, F::NEG_ONE)],
+    lhs: COL_STACK_READ_VALUE_HI[0],
+    rhs: COL_STACK_READ_VALUE_HI[1],
+    output: COL_STACK_WRITE0_VALUE_HI,
+    delta: COL_SELECT_OUT_DELTA_HI,
+};
 
 /// Opcodes whose rows participate in the wide-value gating constraint.
 /// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot
@@ -637,42 +655,9 @@ fn push_select_stack_addrs(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// populates `COL_SELECT_COND_IS_ZERO`, `COL_SELECT_SCRATCH_INV`, and both
 /// delta columns on every row.
 fn push_select_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let selector = selector_col(WasmOpcode::Select).unwrap();
     SELECT_COND_ZERO_TEST.push_constraints(b);
-    push_select_mux_limb(
-        b,
-        selector,
-        COL_STACK_READ_VALUE_LO[0],
-        COL_STACK_READ_VALUE_LO[1],
-        COL_STACK_WRITE0_VALUE_LO,
-        COL_SELECT_OUT_DELTA_LO,
-    );
-    push_select_mux_limb(
-        b,
-        selector,
-        COL_STACK_READ_VALUE_HI[0],
-        COL_STACK_READ_VALUE_HI[1],
-        COL_STACK_WRITE0_VALUE_HI,
-        COL_SELECT_OUT_DELTA_HI,
-    );
-}
-
-fn push_select_mux_limb(
-    b: &mut WasmTaggedR1csBuilder<'_>,
-    selector: usize,
-    lhs: usize,
-    rhs: usize,
-    out: usize,
-    delta: usize,
-) {
-    // delta = (cond != 0) · (lhs − rhs)
-    b.push_row(
-        [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, -F::ONE)],
-        [(lhs, F::ONE), (rhs, -F::ONE)],
-        [(delta, F::ONE)],
-    );
-    // selector · ((out − rhs) − delta) = 0
-    push_gated_linear_zero(b, selector, [(out, F::ONE), (rhs, -F::ONE), (delta, -F::ONE)]);
+    SELECT_LO_MUX.push_constraints(b);
+    SELECT_HI_MUX.push_constraints(b);
 }
 
 fn push_stack_read0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {

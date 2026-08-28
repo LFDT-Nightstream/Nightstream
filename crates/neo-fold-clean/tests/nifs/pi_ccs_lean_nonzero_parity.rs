@@ -20,9 +20,10 @@ const SOURCE_COUNT: usize = 17;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
-const ROUND_COUNT: usize = 25;
+const ROUND_COUNT: usize = 26;
 const ROUND_COEFFICIENT_COUNT: usize = 10;
-const STATE_PREIMAGE_WORDS: usize = 42_475;
+const STATE_PREIMAGE_WORDS: usize = 45_933;
+const PUBLIC_INPUT_WORDS: usize = 270;
 const STATE_DOMAIN_TAG: [u64; 23] = [
     72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49,
 ];
@@ -149,12 +150,20 @@ fn commitment(words: &[u64], kappa: usize) -> Commitment {
 }
 
 fn public_input(words: &[u64]) -> Mat<F> {
-    assert_eq!(words.len(), D, "one-ring public input");
-    let mut output = Mat::zero(D, 1, F::ZERO);
-    for (row, word) in words.iter().enumerate() {
-        output[(row, 0)] = field(*word);
+    assert_eq!(words.len(), PUBLIC_INPUT_WORDS, "five-ring public input");
+    let mut output = Mat::zero(D, PUBLIC_INPUT_WORDS / D, F::ZERO);
+    for (index, word) in words.iter().enumerate() {
+        output[(index % D, index / D)] = field(*word);
     }
     output
+}
+
+fn public_input_words(value: &Mat<F>, word_count: usize) -> Vec<u64> {
+    assert_eq!(value.rows(), D);
+    assert_eq!(value.cols(), word_count.div_ceil(D));
+    (0..word_count)
+        .map(|index| value[(index % D, index / D)].as_canonical_u64())
+        .collect()
 }
 
 fn padded_family(values: &[[u64; 2]]) -> Vec<K> {
@@ -200,17 +209,25 @@ fn framed_payload<'a>(words: &'a [u64], cursor: &mut usize, expected_len: usize,
 }
 
 fn output_digest(state: [u64; 8]) -> [u8; 32] {
+    digest_bytes(state[..4].try_into().expect("four transcript lanes"))
+}
+
+fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
     let mut digest = [0u8; 32];
-    for (lane, word) in state[..4].iter().enumerate() {
+    for (lane, word) in words.iter().enumerate() {
         digest[lane * 8..(lane + 1) * 8].copy_from_slice(&word.to_le_bytes());
     }
     digest
 }
 
 fn relation(raw: &RawRelation) -> CcsStructure<F> {
-    let rows = usize::try_from(raw.0).expect("relation rows fit usize");
+    let active_rows = usize::try_from(raw.0).expect("relation rows fit usize");
     let columns = usize::try_from(raw.1).expect("relation columns fit usize");
     assert_eq!(raw.2, ROUND_COUNT as u64, "relation cube variables");
+    let rows = 1usize
+        .checked_shl(u32::try_from(raw.2).expect("relation cube variables fit u32"))
+        .expect("relation padded row domain fits usize");
+    assert!(active_rows <= rows, "active rows fit the padded relation domain");
     assert_eq!(raw.3, (0..MATRIX_COUNT as u64).collect::<Vec<_>>());
     assert_eq!(raw.4, (ROUND_COEFFICIENT_COUNT - 1) as u64);
     let terms = raw
@@ -259,7 +276,7 @@ fn statement_claims(input: &RawInput, params: &NeoParams) -> (FreshClaim, Vec<Ru
     let mut running = Vec::with_capacity(RUNNING_COUNT);
     for source in 0..RUNNING_COUNT {
         let commitment_words = framed_payload(preimage, &mut cursor, D * params.kappa as usize, "running commitment");
-        let public_input_words = framed_payload(preimage, &mut cursor, D, "running public input");
+        let public_input_words = framed_payload(preimage, &mut cursor, PUBLIC_INPUT_WORDS, "running public input");
         let evaluation_words = framed_payload(
             preimage,
             &mut cursor,
@@ -273,8 +290,8 @@ fn statement_claims(input: &RawInput, params: &NeoParams) -> (FreshClaim, Vec<Ru
             r: point.clone(),
             eval_k,
             eval_a,
-            m_in: D,
-            fold_digest: [0; 32],
+            m_in: PUBLIC_INPUT_WORDS,
+            fold_digest: digest_bytes(input.3),
             adv: None,
         });
         assert_eq!(running.len(), source + 1);
@@ -292,7 +309,7 @@ fn statement_claims(input: &RawInput, params: &NeoParams) -> (FreshClaim, Vec<Ru
     let fresh = FreshClaim {
         c: commitment(&blocks[1], params.kappa as usize),
         x: fields(&blocks[2]),
-        m_in: D,
+        m_in: PUBLIC_INPUT_WORDS,
         adv: None,
     };
     (fresh, running)
@@ -339,7 +356,7 @@ fn outputs(result: &RawResult, params: &NeoParams) -> Vec<RunningClaim> {
                 .iter()
                 .map(|matrix| padded_family(matrix))
                 .collect(),
-            m_in: D,
+            m_in: PUBLIC_INPUT_WORDS,
             fold_digest: digest,
             adv: None,
         })
@@ -433,11 +450,7 @@ fn engine_result(accepted: bool, trace: &ProtocolTrace, outputs: &[RunningClaim]
             .collect(),
         output_public_inputs: outputs
             .iter()
-            .map(|output| {
-                (0..output.m_in)
-                    .map(|row| output.X[(row, 0)].as_canonical_u64())
-                    .collect()
-            })
+            .map(|output| public_input_words(&output.X, output.m_in))
             .collect(),
         output_eval_k: outputs
             .iter()

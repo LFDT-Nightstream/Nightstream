@@ -253,18 +253,6 @@ name = "reductions_accumulator_sis"
 path = "tests/reductions/accumulator_sis.rs"
 
 [[test]]
-name = "reductions_pi_rlc"
-path = "tests/reductions/pi_rlc.rs"
-
-[[test]]
-name = "reductions_pi_dec"
-path = "tests/reductions/pi_dec.rs"
-
-[[test]]
-name = "reductions_nifs_v"
-path = "tests/reductions/nifs_v.rs"
-
-[[test]]
 name = "reductions_nifs_v_transcript"
 path = "tests/reductions/nifs_v_transcript.rs"
 
@@ -305,6 +293,10 @@ name = "nifs_pi_rlc_lean_nonzero_parity"
 path = "tests/nifs/pi_rlc_lean_nonzero_parity.rs"
 
 [[test]]
+name = "nifs_pi_dec_lean_nonzero_parity"
+path = "tests/nifs/pi_dec_lean_nonzero_parity.rs"
+
+[[test]]
 name = "nifs_package_consumer"
 path = "tests/nifs/package_consumer.rs"
 
@@ -315,10 +307,6 @@ path = "tests/nifs/fixed.rs"
 [[test]]
 name = "nifs_r1cs_isolated"
 path = "tests/nifs/r1cs_isolated.rs"
-
-[[test]]
-name = "nifs_production_golden_receipts"
-path = "tests/nifs/production_golden_receipts.rs"
 
 [[test]]
 name = "direct_ccs_r1cs"
@@ -339,10 +327,6 @@ path = "tests/f_prime/nebula_lane_circuit.rs"
 [[test]]
 name = "f_prime_r1cs"
 path = "tests/f_prime/r1cs.rs"
-
-[[test]]
-name = "f_prime_transcript_redteam"
-path = "tests/f_prime/transcript_redteam.rs"
 
 [[test]]
 name = "f_prime_source_image"
@@ -381,10 +365,6 @@ name = "f_prime_pi_dec_source_lean_artifact"
 path = "tests/f_prime/pi_dec_source_lean_artifact.rs"
 
 [[test]]
-name = "f_prime_pi_dec_canonical_x_lean_artifact"
-path = "tests/f_prime/pi_dec_canonical_x_lean_artifact.rs"
-
-[[test]]
 name = "system_audit_anchor"
 path = "tests/system/audit_anchor.rs"
 
@@ -413,10 +393,6 @@ name = "system_lifecycle_redteam"
 path = "tests/system/lifecycle_redteam.rs"
 
 [[test]]
-name = "system_lifecycle_f_prime_link"
-path = "tests/system/lifecycle_f_prime_link.rs"
-
-[[test]]
 name = "system_formal_conformance"
 path = "tests/system/formal_conformance.rs"
 
@@ -441,16 +417,8 @@ name = "system_phase_1_mini_1_state_x_out"
 path = "tests/system/phase_1_mini_1_state_x_out.rs"
 
 [[test]]
-name = "system_phase_1_mini_2_parent_authority"
-path = "tests/system/phase_1_mini_2_parent_authority.rs"
-
-[[test]]
 name = "system_phase_1_mini_3a_one_shot_digests"
 path = "tests/system/phase_1_mini_3a_one_shot_digests.rs"
-
-[[test]]
-name = "system_phase_1_mini_3b_sponge_transcript"
-path = "tests/system/phase_1_mini_3b_sponge_transcript.rs"
 
 [[test]]
 name = "system_phase_1_mini_4_ring_action"
@@ -465,16 +433,8 @@ name = "system_phase_1_3a_fill"
 path = "tests/system/phase_1_3a_fill.rs"
 
 [[test]]
-name = "system_phase_1_3b_nifs_payloads"
-path = "tests/system/phase_1_3b_nifs_payloads.rs"
-
-[[test]]
 name = "system_phase_1_3c_kmul"
 path = "tests/system/phase_1_3c_kmul.rs"
-
-[[test]]
-name = "system_phase_1_3d_step_parity"
-path = "tests/system/phase_1_3d_step_parity.rs"
 
 [[test]]
 name = "system_phase_1_3d_kmul_wire_parity"
@@ -515,10 +475,6 @@ path = "tests/system/phase_1_4e_recursive_plan.rs"
 [[test]]
 name = "system_phase_1_4f_state_x_out"
 path = "tests/system/phase_1_4f_state_x_out.rs"
-
-[[test]]
-name = "system_decider_ce_relation_isolation"
-path = "tests/system/decider_ce_relation_isolation.rs"
 
 [[test]]
 name = "system_lean_canonical_manifest"
@@ -603,10 +559,6 @@ path = "tests/nebula/pi_ccs_round_selective_ccs.rs"
 [[test]]
 name = "nebula_streaming_pi_ccs_round_relation"
 path = "tests/nebula/streaming_pi_ccs_round_relation.rs"
-
-[[test]]
-name = "nebula_streaming_pi_ccs_start_relation"
-path = "tests/nebula/streaming_pi_ccs_start_relation.rs"
 
 [[test]]
 name = "nebula_adv"

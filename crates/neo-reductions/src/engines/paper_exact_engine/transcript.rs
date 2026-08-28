@@ -9,7 +9,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
@@ -49,6 +49,33 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
     framed.push(F::from_u64(fields.len() as u64));
     framed.extend(fields);
     trace.events.push(TraceEvent::Absorb(framed));
+}
+
+fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
+    let first = running.first().ok_or_else(|| {
+        PiCcsError::InvalidInput("PaperExact v1_1 digest-only statement requires a running claim".into())
+    })?;
+    if running
+        .iter()
+        .any(|claim| claim.fold_digest != first.fold_digest)
+    {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact v1_1 running claims do not share the prior digest".into(),
+        ));
+    }
+    first
+        .fold_digest
+        .chunks_exact(8)
+        .map(|chunk| {
+            let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
+            if word >= F::ORDER_U64 {
+                return Err(PiCcsError::InvalidInput(
+                    "PaperExact v1_1 prior digest has a noncanonical field word".into(),
+                ));
+            }
+            Ok(F::from_u64(word))
+        })
+        .collect()
 }
 
 fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
@@ -130,9 +157,9 @@ pub(super) fn bind_and_sample(
     dims: JointDims,
     _binding: PaperTranscriptBinding,
 ) -> Result<Challenges, PiCcsError> {
-    if fresh.is_empty() || fresh[0].x.len() < 5 {
+    if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 digest-only statement requires prior-digest slots in the first fresh claim".into(),
+            "PaperExact v1_1 digest-only statement requires a fresh claim".into(),
         ));
     }
     let prior_point = running
@@ -151,7 +178,7 @@ pub(super) fn bind_and_sample(
         DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
     );
 
-    append_block(transcript, trace, fresh[0].x[1..5].to_vec());
+    append_block(transcript, trace, prior_digest_fields(running)?);
     for claim in fresh {
         append_block(transcript, trace, commitment_fields(&claim.c)?);
         append_block(transcript, trace, claim.x.clone());

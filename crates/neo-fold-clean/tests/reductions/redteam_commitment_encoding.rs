@@ -15,7 +15,7 @@ use neo_fold_clean::paper::reductions::pi_rlc_circuit::{
 };
 use neo_fold_clean::paper::relations::{CcsClaim, CcsWitness};
 use neo_fold_clean::{config, preprocess, CcsInstance, CeClaim, Preprocessing};
-use neo_math::{D, F};
+use neo_math::{D, F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -78,8 +78,8 @@ fn recursive_pi_dec_rejects_wrapped_empty_commitment_shape() {
         },
         X: Mat::zero(D, 0, F::ZERO),
         r: Vec::new(),
-        y_ring: Vec::new(),
-        ct: Vec::new(),
+        eval_k: vec![K::ZERO; D.next_power_of_two()],
+        eval_a: vec![vec![K::ZERO; D.next_power_of_two()]; prep.structure().t()],
         m_in: 0,
         fold_digest: [0u8; 32],
         adv: None,

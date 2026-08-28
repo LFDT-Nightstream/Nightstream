@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PackageCompleteness
 Owns constructive completeness for the canonical PiDEC package-row packet.
 
 The semantic completion runs in Lean source-column order. One proved Spartan
-copy then writes exactly the 3,618 PiDEC logical and R1CS-fresh columns into
+copy then writes exactly the full PiDEC logical and R1CS-fresh suffix into
 the final package assignment. The compiled-row equality fixes the final row
 order; no exporter or Rust code selects it.
 -/
@@ -36,8 +36,9 @@ theorem targetStart_eq :
   rfl
 
 theorem targetEnd_eq :
-    Data.piDecWitnessStart + 3618 = Spartan.privateColumnCount := by
-  rfl
+    Data.piDecWitnessStart + Data.piDecWitnessLength =
+      Spartan.privateColumnCount := by
+  exact Data.piDecPrivateSegments_contiguous.2.2.2.2.2
 
 /-- A valid semantic PiDEC phase constructs every canonical PiDEC package row
 and changes only its declared final private-column interval. -/
@@ -53,7 +54,8 @@ theorem completeRows
       relation ajtai phaseInterface PiDECInputs.phaseOffset
         (Spartan.pullback env)) :
     ∃ completed,
-      AgreesOutside env completed Data.piDecWitnessStart 3618 ∧
+      AgreesOutside env completed Data.piDecWitnessStart
+          Data.piDecWitnessLength ∧
         PackageCompleteness.PiDECRowsHold completed := by
   rcases
       NightstreamFPrime.Layout.PiDEC.v1_1.physical_complete_production
@@ -62,12 +64,12 @@ theorem completeRows
         assumptions phase with
     ⟨source, sourceAgrees, sourceRows⟩
   let completed := Spartan.copyMappedInterval env source
-    PiDECInputs.phaseOffset 3618
+    PiDECInputs.phaseOffset Data.piDecWitnessLength
   have targetAgrees : AgreesOutside env completed
-      Data.piDecWitnessStart 3618 := by
+      Data.piDecWitnessStart Data.piDecWitnessLength := by
     rw [← targetStart_eq]
     exact Spartan.copyMappedInterval_agreesOutside env source
-      PiDECInputs.phaseOffset 3618
+      PiDECInputs.phaseOffset Data.piDecWitnessLength
   have startLocal : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset := by
     norm_num [Spartan.piCcsPhaseOffset, PiDECInputs.phaseOffset,
       PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
@@ -75,7 +77,8 @@ theorem completeRows
       PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
       PiDECInputs.publicInputWordsPerChild]
   have targetPrivate :
-      Spartan.sourceToSpartan PiDECInputs.phaseOffset + 3618 ≤
+      Spartan.sourceToSpartan PiDECInputs.phaseOffset +
+          Data.piDecWitnessLength ≤
         Spartan.privateColumnCount := by
     rw [targetStart_eq, targetEnd_eq]
   have remappedRows : R1CS.RowsHold completed
@@ -85,7 +88,8 @@ theorem completeRows
     exact Spartan.remapRows_hold_copyMappedInterval
       (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation
         phaseInterface PiDECInputs.phaseOffset)
-      env source PiDECInputs.phaseOffset 3618 startLocal targetPrivate
+      env source PiDECInputs.phaseOffset Data.piDecWitnessLength startLocal
+      targetPrivate
       sourceAgrees sourceRows
   have exactRows := PiDECArithmetic.Plan.rows_to_layout
     (PiDECArithmetic.canonicalPlan Data.logicalWidth Data.publicFits)
@@ -109,7 +113,8 @@ private theorem agreesOutside_widen
 
 theorem targetAgrees_implies_phaseSuffix
     (before after : Env)
-    (agrees : AgreesOutside before after Data.piDecWitnessStart 3618) :
+    (agrees : AgreesOutside before after Data.piDecWitnessStart
+      Data.piDecWitnessLength) :
     AgreesOutside before after PackageCompleteness.phaseSuffixStart
       PackageCompleteness.phaseSuffixLength := by
   apply agreesOutside_widen agrees
@@ -126,7 +131,8 @@ theorem targetAgrees_implies_phaseSuffix
 
 private theorem pullback_agreesBelow_piDec
     (before after : Env)
-    (agrees : AgreesOutside before after Data.piDecWitnessStart 3618) :
+    (agrees : AgreesOutside before after Data.piDecWitnessStart
+      Data.piDecWitnessLength) :
     ∀ index, index < PiDECInputs.phaseOffset →
       Spartan.pullback after index = Spartan.pullback before index := by
   intro index below
@@ -189,7 +195,8 @@ theorem piRlcPhysicalRows_of_piDecAgreesOutside
     (phase : NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics.PhaseHolds
       relation ajtai piRlcInterface PiRLCInputs.phaseOffset
         (Spartan.pullback before))
-    (agrees : AgreesOutside before after Data.piDecWitnessStart 3618)
+    (agrees : AgreesOutside before after Data.piDecWitnessStart
+      Data.piDecWitnessLength)
     (holds : R1CS.RowsHold before (Spartan.remapRows
       (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset))) :
@@ -228,6 +235,10 @@ theorem completePackageRows
     (pilotChains : ∀ chain ∈ [Data.priorChain, Data.outputChain],
       NightstreamFPrime.Export.Package.HashChainHolds
         (Data.circuitPackage ()) chain env)
+    (pilotInstructions : ∀ instruction ∈
+      Data.liftPilotInstructions
+        (NightstreamFPrime.Export.PilotData.witnessInstructions ()),
+      instruction.Holds env)
     (pilotAssertions : ∀ row ∈
       Data.liftPilotRows (NightstreamFPrime.Export.PilotData.assertionRows ()),
         row.Holds env)
@@ -236,7 +247,8 @@ theorem completePackageRows
       (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
         piRlcInterface PiRLCInputs.phaseOffset))) :
     ∃ completed,
-      AgreesOutside env completed Data.piDecWitnessStart 3618 ∧
+      AgreesOutside env completed Data.piDecWitnessStart
+          Data.piDecWitnessLength ∧
         (Data.circuitPackage ()).RowsHold completed := by
   rcases completeRows relation ajtai env piDecAssumptions piDecPhase with
     ⟨completed, agrees, piDec⟩
@@ -248,9 +260,11 @@ theorem completePackageRows
     relation completed piRlcPhysicalAfter
   have piRlc := PackageCompleteness.piRlcRowsHold_of_packets completed packets
   refine ⟨completed, agrees, PackageCompleteness.rowsHold_of_phaseRows
-    completed ?_ ?_ ?_ piRlc piDec⟩
+    completed ?_ ?_ ?_ ?_ piRlc piDec⟩
   · exact PackageCompleteness.pilotHashChains_of_piRlcAgreesOutside
       env completed suffixAgrees pilotChains
+  · exact PackageCompleteness.pilotWitnessInstructions_of_piRlcAgreesOutside
+      env completed suffixAgrees pilotInstructions
   · exact PackageCompleteness.pilotAssertionRows_of_piRlcAgreesOutside
       env completed suffixAgrees pilotAssertions
   · exact PackageCompleteness.piCcsRows_of_piRlcAgreesOutside relation

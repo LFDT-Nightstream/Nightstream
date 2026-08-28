@@ -603,10 +603,10 @@ private theorem commitmentSourceFreshCount
         canonicalSource block lane cell))
 
 private theorem publicInputSourceFreshCount
-    (source : Fin sourceCount) (block : Fin 1) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 5) (lane : Fin ringDegree)
     (cell : Fin 1) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.publicInputLogicalStart 1 1 1 source.val
+        (sourceConstraint PiRLCStarts.publicInputLogicalStart 5 1 1 source.val
           block.val cell.val publicInputValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -684,7 +684,7 @@ structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
     PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
     commitmentValueSourceStart env
   publicInput : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
-    PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 1 1 1
+    PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 5 1 1
     publicInputValueSourceStart env
   evalK : FamilyInvocationRowsHold PiRLCStarts.evalKLogicalStart
     PiRLCStarts.evalKRowStart PiRLCStarts.evalKFreshStart 1 2 2
@@ -744,14 +744,14 @@ theorem remappedPackets_imply_familyInvocationRows
     simpa using commitmentValueSource_affine source.val block.val cell.val offset
       source.isLt block.isLt offsetLt
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 1) (cellCount := 1)
+      (blockCount := 5) (cellCount := 1)
       PiRLCStarts.publicInputLogicalStart PiRLCStarts.publicInputRowStart
       PiRLCStarts.publicInputFreshStart 1 publicInputValueSourceStart
       publicInputFreshStart_local publicInputSourceFreshCount ?_ env
       publicInputRows
     intro source block cell offset offsetLt
     simpa using publicInputValueSource_affine source.val block.val cell.val offset
-      source.isLt offsetLt
+      source.isLt block.isLt offsetLt
   · refine familyPhysicalRows_imply_invocationRows
       (blockCount := 1) (cellCount := 2)
       PiRLCStarts.evalKLogicalStart PiRLCStarts.evalKRowStart

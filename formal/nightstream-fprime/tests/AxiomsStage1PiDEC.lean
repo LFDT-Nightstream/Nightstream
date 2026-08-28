@@ -1,4 +1,4 @@
-import Lean
+import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
@@ -21,17 +21,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 
 /-! Axiom audits for the strict production PiDEC public split. -/
-
-open Lean Elab Command in
-elab "#audit_axioms " decl:ident : command => do
-  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
-  let axioms ← liftCoreM <| Lean.collectAxioms name
-  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  let bad := axioms.toList.filter (fun a => !allowed.contains a)
-  if bad.isEmpty then
-    logInfo m!"{name}: {axioms.toList}"
-  else
-    throwError m!"{name} depends on disallowed axioms: {bad}"
 
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.parentBounded_project
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput_eq_boundedDigit
@@ -233,7 +222,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.jointDomain_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECArithmetic.constraints_eq_logical
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECArithmetic.Plan.rows_toR1CS

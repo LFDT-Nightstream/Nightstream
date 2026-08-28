@@ -23,5 +23,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCFirst54Conformance
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 import NightstreamFPrime.Export.Stage1.PiRLCParity
+import NightstreamFPrime.Export.Stage1.DirectPoseidonFootprint
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

@@ -1,10 +1,6 @@
 name = "nightstream_fprime"
 version = "0.1.0"
 defaultTargets = ["NightstreamFPrime", "NightstreamFPrimeTests"]
-# Reuse the already-built dependency checkout of the frozen package. This is
-# build sharing only; no module imports the old package (enforced by
-# scripts/check-boundaries.sh).
-packagesDir = "../nightstream-lean/.lake/packages"
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
@@ -17,7 +13,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.Axioms", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
+roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -43,4 +39,9 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "emitPiRLCParity"
 root = "NightstreamFPrime.Export.PiRLCParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiDECParity"
+root = "NightstreamFPrime.Export.PiDECParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

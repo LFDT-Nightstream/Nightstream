@@ -37,8 +37,7 @@ def running : Running K PaperAlgebra.Commitment
   }
   commitments := fun source row coefficient =>
     field (1_000 + source.val * 2_000 + row.val * ringDegree + coefficient.val)
-  publicInputs := fun source column =>
-    field (100_000 + source.val * 100_000 + column.val)
+  publicInputs := fun source column => field (source.val + column.val)
   evaluations := fun source => {
     pad := fun coefficient =>
       extension
@@ -343,7 +342,7 @@ def baseMatrix (source : Fin productionShape.sourceCount)
 /-- The exact coordinate solved once from the verifier terminal equation.
 Its acceptance is checked again by executable Lean and every emitted row. -/
 def solvedTarget : K :=
-  ⟨6360413385382072525, 18427268413714025497⟩
+  ⟨10271597081852751832, 12582709478729976987⟩
 
 def output : FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := fun source coefficient =>

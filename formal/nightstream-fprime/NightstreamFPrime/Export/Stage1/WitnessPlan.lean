@@ -182,6 +182,6 @@ theorem canonicalBlocks_expand
       WitnessProgram.piRlcSamplerBatches logicalWidth publicFits ++
         WitnessProgram.piDecBatches logicalWidth publicFits := by
   rw [canonicalBlocks, List.flatMap_append, piRlcBlocks_expand]
-  rfl
+  rw [List.flatMap_singleton, piDecBlock_expand]
 
 end NightstreamFPrime.Export.Stage1.WitnessPlan

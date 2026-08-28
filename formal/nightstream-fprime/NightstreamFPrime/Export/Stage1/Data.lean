@@ -27,6 +27,7 @@ PiDEC then adds one proved ordinary-row plan and its constrained input ABI.
 namespace NightstreamFPrime.Export.Stage1.Data
 
 open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
@@ -74,6 +75,53 @@ def liftPilotRow (row : SparseRow) : SparseRow :=
 
 def liftPilotRows (rows : List SparseRow) : List SparseRow :=
   rows.map liftPilotRow
+
+def liftPilotExpr : Expr → Expr
+  | .var index =>
+      .var (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn index)
+  | .const value => .const value
+  | .add left right => .add (liftPilotExpr left) (liftPilotExpr right)
+  | .mul left right => .mul (liftPilotExpr left) (liftPilotExpr right)
+
+def liftPilotHint : Hint → Hint
+  | .bit source index => .bit (liftPilotExpr source) index
+  | .inverseOrZero source => .inverseOrZero (liftPilotExpr source)
+  | .quotientFive source => .quotientFive (liftPilotExpr source)
+  | .remainderFive source => .remainderFive (liftPilotExpr source)
+
+def liftPilotBatch (batch : WitnessBatch) : WitnessBatch where
+  start := NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn batch.start
+  recipes := batch.recipes.map liftPilotExpr
+  hints := batch.hints.map liftPilotHint
+
+def liftPilotBatches (batches : List WitnessBatch) : List WitnessBatch :=
+  batches.map liftPilotBatch
+
+def liftPilotInstruction (instruction : WitnessInstruction) :
+    WitnessInstruction where
+  rowIndex := instruction.rowIndex
+  target :=
+    NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn instruction.target
+  a := liftPilotCombination instruction.a
+  b := liftPilotCombination instruction.b
+
+def liftPilotInstructions (instructions : List WitnessInstruction) :
+    List WitnessInstruction :=
+  instructions.map liftPilotInstruction
+
+@[simp] theorem liftPilotBatches_length (batches : List WitnessBatch) :
+    (liftPilotBatches batches).length = batches.length := by
+  simp [liftPilotBatches]
+
+@[simp] theorem liftPilotInstructions_length
+    (instructions : List WitnessInstruction) :
+    (liftPilotInstructions instructions).length = instructions.length := by
+  simp [liftPilotInstructions]
+
+theorem liftPilotInstruction_mem {instruction : WitnessInstruction}
+    {instructions : List WitnessInstruction} (member : instruction ∈ instructions) :
+    liftPilotInstruction instruction ∈ liftPilotInstructions instructions := by
+  exact List.mem_map_of_mem member
 
 def liftPilotChain (chain : HashChain) : HashChain :=
   { chain with
@@ -263,7 +311,7 @@ def publicSegments : List Segment :=
       NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 25564086
+  rowCount := 27216639
   privateColumnCount :=
     NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
   constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
@@ -344,7 +392,8 @@ theorem Components.of_permutationInvocations
 
 def Components.witnessInstructions (components : Components) :
     List WitnessInstruction :=
-  Rows.witnessInstructionsTR components.arithmeticRows
+  liftPilotInstructions (PilotData.witnessInstructions ()) ++
+    Rows.witnessInstructionsTR components.arithmeticRows
 
 def Components.arithmeticAssertionRows (components : Components) :
     List SparseRow :=
@@ -360,7 +409,7 @@ def circuitPackageOf
     (compactInvocations : List CompactRowInvocation)
     (witnessBatches : List NightstreamFPrime.Circuit.WitnessBatch) :
     CircuitPackage where
-  schemaVersion := 8
+  schemaVersion := 7
   profile := PilotData.profile
   poseidon := PilotData.poseidonSchedule
   layout := physicalLayout
@@ -371,8 +420,11 @@ def circuitPackageOf
   permutationInvocations := permutationInvocations
   compactRowTemplates := compactRowTemplates ()
   compactRowInvocations := compactInvocations
-  witnessBatches := witnessBatches
-  witnessInstructions := Rows.witnessInstructionsTR arithmeticRows
+  witnessBatches :=
+    liftPilotBatches (PilotData.priorWordBatches ()) ++ witnessBatches
+  witnessInstructions :=
+    liftPilotInstructions (PilotData.witnessInstructions ()) ++
+      Rows.witnessInstructionsTR arithmeticRows
   assertionRows := liftPilotRows (PilotData.assertionRows ()) ++
     Rows.assertionRowsTR arithmeticRows
   terminal := none
@@ -428,7 +480,8 @@ theorem Components.toCircuitPackage_witnessInstructions
 theorem Components.toCircuitPackage_witnessBatches
     (components : Components) :
     components.toCircuitPackage.witnessBatches =
-      WitnessProgram.batches logicalWidth publicFits := by
+      liftPilotBatches (PilotData.priorWordBatches ()) ++
+        WitnessProgram.batches logicalWidth publicFits := by
   rfl
 
 theorem Components.toCircuitPackage_assertionRows (components : Components) :
@@ -439,39 +492,51 @@ theorem Components.toCircuitPackage_assertionRows (components : Components) :
 theorem Components.ordinaryRows_length (components : Components) :
     components.toCircuitPackage.witnessInstructions.length +
       components.toCircuitPackage.assertionRows.length =
-        (liftPilotRows (PilotData.assertionRows ())).length +
-          components.arithmeticRows.length := by
+        (PilotData.circuitPackage ()).witnessInstructions.length +
+          (PilotData.circuitPackage ()).assertionRows.length +
+            components.arithmeticRows.length := by
   rw [components.toCircuitPackage_witnessInstructions,
     components.toCircuitPackage_assertionRows]
   unfold Components.witnessInstructions Components.assertionRows
     Components.arithmeticAssertionRows
-  rw [List.length_append]
+  rw [List.length_append, List.length_append,
+    liftPilotInstructions_length]
+  simp only [liftPilotRows, List.length_map]
   rw [Rows.witnessInstructionsTR_eq, Rows.assertionRowsTR_eq]
   have partition :=
     Rows.witnessInstructions_length_add_assertionRows_length
       components.arithmeticRows
   calc
-    _ = (liftPilotRows (PilotData.assertionRows ())).length +
-        ((Rows.witnessInstructions components.arithmeticRows).length +
-          (Rows.assertionRows components.arithmeticRows).length) := by
+    _ = (PilotData.witnessInstructions ()).length +
+        (PilotData.assertionRows ()).length +
+          ((Rows.witnessInstructions components.arithmeticRows).length +
+            (Rows.assertionRows components.arithmeticRows).length) := by
       omega
-    _ = (liftPilotRows (PilotData.assertionRows ())).length +
-        components.arithmeticRows.length := by rw [partition]
+    _ = (PilotData.witnessInstructions ()).length +
+        (PilotData.assertionRows ()).length +
+          components.arithmeticRows.length := by rw [partition]
+    _ = (PilotData.circuitPackage ()).witnessInstructions.length +
+        (PilotData.circuitPackage ()).assertionRows.length +
+          components.arithmeticRows.length := by
+      rw [PilotData.circuitPackage,
+        PilotData.circuitPackageOf_witnessInstructions,
+        PilotData.circuitPackageOf_assertionRows]
 
 /-- Exact total row coverage for any component lists with the production
 counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
-    (arithmeticRows_length : components.arithmeticRows.length = 993379)
+    (arithmeticRows_length : components.arithmeticRows.length = 1026956)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 7613)
+      components.permutationInvocations.length = 7679)
     (templateRows_length :
       (PilotData.permutationTemplate ()).rows.length = 592)
-    (pilotAssertionRows_length :
-      (liftPilotRows (PilotData.assertionRows ())).length = 58)
+    (pilotOrdinaryRows_length :
+      (PilotData.circuitPackage ()).witnessInstructions.length +
+        (PilotData.circuitPackage ()).assertionRows.length = 1330)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 12574080)
+      priorChain.witnessLength + outputChain.witnessLength = 13598240)
     (compactRows_length :
-      components.toCircuitPackage.compactRowCount = 7489673) :
+      components.toCircuitPackage.compactRowCount = 8044145) :
     (components.toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       components.toCircuitPackage.permutationInvocations.length *
@@ -482,14 +547,15 @@ theorem Components.rowCoverage (components : Components)
       components.toCircuitPackage.layout.rowCount := by
   have ordinaryFixed :
       components.toCircuitPackage.witnessInstructions.length +
-        components.toCircuitPackage.assertionRows.length = 993437 := by
+        components.toCircuitPackage.assertionRows.length = 1028286 := by
     calc
-      _ = (liftPilotRows (PilotData.assertionRows ())).length +
-          components.arithmeticRows.length :=
+      _ = (PilotData.circuitPackage ()).witnessInstructions.length +
+          (PilotData.circuitPackage ()).assertionRows.length +
+            components.arithmeticRows.length :=
         components.ordinaryRows_length
-      _ = 58 + 993379 := by
-        rw [pilotAssertionRows_length, arithmeticRows_length]
-      _ = 993437 := by norm_num
+      _ = 1330 + 1026956 := by
+        rw [pilotOrdinaryRows_length, arithmeticRows_length]
+      _ = 1028286 := by norm_num
   rw [components.toCircuitPackage_hashChains,
     components.toCircuitPackage_permutationInvocations,
     components.toCircuitPackage_permutation,
@@ -497,17 +563,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 25564086 from rfl]
+  rw [show physicalLayout.rowCount = 27216639 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          7613 * 592 +
+          7679 * 592 +
           components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
           components.toCircuitPackage.assertionRows.length) := by
       omega
-    _ = 12574080 + 7613 * 592 + 7489673 + 993437 := by
+    _ = 13598240 + 7679 * 592 + 8044145 + 1028286 := by
       rw [hashChainRows, compactRows_length, ordinaryFixed]
-    _ = 25564086 := by norm_num
+    _ = 27216639 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())
@@ -563,9 +629,23 @@ theorem circuitPackage_witnessInstructions :
       (components ()).witnessInstructions :=
   Components.toCircuitPackage_witnessInstructions (components ())
 
+theorem liftPilotInstruction_mem_circuitPackage
+    {instruction : WitnessInstruction}
+    (member : instruction ∈
+      (PilotData.circuitPackage ()).witnessInstructions) :
+    liftPilotInstruction instruction ∈
+      (circuitPackage ()).witnessInstructions := by
+  rw [circuitPackage_witnessInstructions]
+  unfold Components.witnessInstructions
+  apply List.mem_append_left
+  apply liftPilotInstruction_mem
+  simpa only [PilotData.circuitPackage,
+    PilotData.circuitPackageOf_witnessInstructions] using member
+
 theorem circuitPackage_witnessBatches :
     (circuitPackage ()).witnessBatches =
-      WitnessProgram.batches logicalWidth publicFits :=
+      liftPilotBatches (PilotData.priorWordBatches ()) ++
+        WitnessProgram.batches logicalWidth publicFits :=
   Components.toCircuitPackage_witnessBatches (components ())
 
 theorem circuitPackage_assertionRows :

@@ -378,27 +378,27 @@ theorem commitmentInvocationRows_imply_sourceConstraint
 
 theorem publicInputInvocationRows_imply_sourceConstraint
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (env : Env)
+    (sourceLt : source < sourceCount) (blockLt : block < 5) (env : Env)
     (holds : R1CS.RowsHold env
       (CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.publicInputLogicalStart
             PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart
-            1 1 1 source block lane.val cell
+            5 1 1 source block lane.val cell
             publicInputValueSourceStart).inputRanges)
         (invocation PiRLCStarts.publicInputLogicalStart
           PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart
-          1 1 1 source block lane.val cell
+          5 1 1 source block lane.val cell
           publicInputValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
-    (sourceConstraint PiRLCStarts.publicInputLogicalStart 1 1 1 source block
+    (sourceConstraint PiRLCStarts.publicInputLogicalStart 5 1 1 source block
       cell publicInputValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _
       publicInputFreshStart_local
   · intro offset offsetLt
     simpa using publicInputValueSource_affine source block cell offset sourceLt
-      offsetLt
+      blockLt offsetLt
   · exact holds
 
 theorem evalKInvocationRows_imply_sourceConstraint
@@ -556,7 +556,7 @@ theorem publicInputFamilyRows_imply_canonical
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
-      PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 1 1 1
+      PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 5 1 1
       publicInputValueSourceStart env) :
     CombinationFamily.CanonicalHolds
       (productionPublicInputFamilyInterface (logicalWidth := logicalWidth)
@@ -571,7 +571,8 @@ theorem publicInputFamilyRows_imply_canonical
   · intro source index
     let coordinates := CombinationStep.coordinates index
     apply publicInputInvocationRows_imply_sourceConstraint source.val
-      coordinates.1.val coordinates.2.2.val coordinates.2.1 source.isLt env
+      coordinates.1.val coordinates.2.2.val coordinates.2.1 source.isLt
+      coordinates.1.isLt env
     exact rows source index
   · intro source block lane cell
     exact publicInputSourceConstraint_eq_stepAssertion

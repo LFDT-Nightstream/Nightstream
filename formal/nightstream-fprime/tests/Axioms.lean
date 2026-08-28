@@ -1,23 +1,11 @@
-import Lean
+import tests.AxiomAudit
 import NightstreamFPrime
+import tests.AxiomsProductionMatrixPlan
 import tests.AxiomsStage1PiRLCExport
 
 /-! Axiom gate. Every exported theorem is audited here with an explicit
 import and an explicit `#print axioms`. The gate fails closed: a theorem whose
 axioms are not exactly the allowed set is a build error. -/
-
-open Lean Elab Command in
-/-- Fail unless `decl` depends only on `propext`, `Classical.choice`,
-`Quot.sound` (or a subset). -/
-elab "#audit_axioms " decl:ident : command => do
-  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
-  let axioms ← liftCoreM <| (Lean.collectAxioms name)
-  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  let bad := axioms.toList.filter (fun a => !allowed.contains a)
-  if bad.isEmpty then
-    logInfo m!"{name}: {axioms.toList}"
-  else
-    throwError m!"{name} depends on disallowed axioms: {bad}"
 
 /-! ## Spec -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
@@ -766,7 +754,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.jointDomain_eq
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsBelow
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSRepresentation.evalRunning_protocolEnv_eq_priorRunning
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProofInputs.serializeProofInputs_length
@@ -775,7 +763,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_injective
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_ne_constant
@@ -793,7 +781,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.jointDomain_matches
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.physicalColumnCount_eq
-#audit_axioms NightstreamFPrime.Layout.PilotProduction.jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Layout.PilotProduction.jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.protocolEnv_represents
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.protocolEnv_represents_of_agreesBelow
 #audit_axioms NightstreamFPrime.Layout.PilotProduction.physical_implies_recursive_hash_slots
@@ -941,7 +929,7 @@ elab "#audit_axioms " decl:ident : command => do
 #audit_axioms NightstreamFPrime.Export.Stage1.VerifierContext.authority_commitmentKeyWords
 #audit_axioms NightstreamFPrime.Export.Stage1.VerifierContext.descriptor_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values
-#audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow25
+#audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow26
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_ordinary_rows
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.complete_piCcsInvocations
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_arithmeticRows

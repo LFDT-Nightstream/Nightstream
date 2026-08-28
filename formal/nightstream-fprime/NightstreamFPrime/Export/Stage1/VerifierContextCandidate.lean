@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Exact logical width of the Pilot + PiCCS + PiRLC + PiDEC package cut. -/
-def candidateLogicalWidth : Nat := 25715018
+def candidateLogicalWidth : Nat := 27374285
 
 def candidatePublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth candidateLogicalWidth := by
@@ -27,17 +27,27 @@ def candidatePublicFits : ringDegree * publicRingColumns ≤
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth
       candidateLogicalWidth
 
-/-- Verifier-owned candidate identity for the current package cut. Rust
-recomputes it from every package field. It becomes validated phase-local
-evidence only after the matrix, assignment, parity, and mutation gates pass. -/
+/-- Last validated verifier-owned package identity. Do not change this pin
+until the current candidate passes every identity-change gate. -/
 def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨11965344980476942540, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨12455623573690155525, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨3326996935083639356, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨1575202054933656136, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨12756407480944487176, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨17097603764386178571, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨11791428871054057896, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨14346937702828624285, by norm_num [F, goldilocksModulus]⟩
 
 def packageIdentityWords : List F :=
   expectedPackageIdentity.toList
+
+/-- Unpinned identity candidate recomputed from the current canonical package.
+It is used only to produce pre-pin conformance fixtures. -/
+def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
+  c0 := ⟨12756407480944487176, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨17097603764386178571, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨11791428871054057896, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨14346937702828624285, by norm_num [F, goldilocksModulus]⟩
+
+def candidatePackageIdentityWords : List F :=
+  candidatePackageIdentity.toList
 
 /-- Domain of the compact NIFS-key authority description. -/
 def nifsKeyDomain : List F :=
@@ -45,23 +55,30 @@ def nifsKeyDomain : List F :=
     70, 80, 114, 105, 109, 101, 47, 110, 105, 102, 115, 45,
     107, 101, 121, 47, 118, 49, 95, 49] : List Nat).map Poseidon2.ofNat
 
-/-- Current package-bound NIFS descriptor and one verifier-owned commitment
-setup serialization. -/
-def nifsKeyWords (commitmentKeyWords : List F) : List F :=
+/-- Package-bound NIFS descriptor for explicit identity words and one
+verifier-owned commitment setup serialization. -/
+def nifsKeyWordsFor (identityWords commitmentKeyWords : List F) : List F :=
   nifsKeyDomain ++
     Lifecycle.VerifierContext.framed Lifecycle.VerifierContext.profileWords ++
     Lifecycle.VerifierContext.framed Lifecycle.VerifierContext.scheduleWords ++
-    Lifecycle.VerifierContext.framed packageIdentityWords ++
+    Lifecycle.VerifierContext.framed identityWords ++
     Lifecycle.VerifierContext.framed
       (Lifecycle.VerifierContext.componentDigest 4 commitmentKeyWords).toList
 
+def nifsKeyWords (commitmentKeyWords : List F) : List F :=
+  nifsKeyWordsFor packageIdentityWords commitmentKeyWords
+
+def authorityForIdentity (identityWords commitmentKeyWords : List F) :
+    Lifecycle.VerifierContext.Authority where
+  relationWords := identityWords
+  applicationWords := identityWords
+  nifsKeyWords := nifsKeyWordsFor identityWords commitmentKeyWords
+  commitmentKeyWords := commitmentKeyWords
+
 /-- Canonical context authority for the selected package. -/
 def authority (commitmentKeyWords : List F) :
-    Lifecycle.VerifierContext.Authority where
-  relationWords := packageIdentityWords
-  applicationWords := packageIdentityWords
-  nifsKeyWords := nifsKeyWords commitmentKeyWords
-  commitmentKeyWords := commitmentKeyWords
+    Lifecycle.VerifierContext.Authority :=
+  authorityForIdentity packageIdentityWords commitmentKeyWords
 
 @[simp] theorem authority_relationWords (commitmentKeyWords : List F) :
     (authority commitmentKeyWords).relationWords = packageIdentityWords := by
@@ -101,6 +118,6 @@ def fixtureCommitmentKeyWords : List F :=
     (List.range 32).map fun index => Poseidon2.ofNat (index + 1)
 
 def fixtureAuthority : Lifecycle.VerifierContext.Authority :=
-  authority fixtureCommitmentKeyWords
+  authorityForIdentity candidatePackageIdentityWords fixtureCommitmentKeyWords
 
 end NightstreamFPrime.Export.Stage1.VerifierContext

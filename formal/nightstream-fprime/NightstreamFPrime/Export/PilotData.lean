@@ -133,32 +133,81 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch where
     | .quotientFive source => .quotientFive (remapExpr source)
     | .remainderFive source => .remainderFive (remapExpr source)
 
+def remapSparseTerm (term : SparseTerm) : SparseTerm :=
+  ⟨PilotSpartan.sourceToSpartan term.column, term.coefficient⟩
+
+def remapSparseCombination (combination : SparseCombination) :
+    SparseCombination :=
+  ⟨combination.constant, combination.terms.map remapSparseTerm⟩
+
+def remapWitnessInstruction (instruction : WitnessInstruction) :
+    WitnessInstruction where
+  rowIndex := instruction.rowIndex
+  target := PilotSpartan.sourceToSpartan instruction.target
+  a := remapSparseCombination instruction.a
+  b := remapSparseCombination instruction.b
+
+def remapSparseRow (row : SparseRow) : SparseRow :=
+  ⟨row.rowIndex, remapSparseCombination row.a,
+    remapSparseCombination row.b, remapSparseCombination row.c⟩
+
+def remapCompiledRow : Stage1.Rows.CompiledRow → Stage1.Rows.CompiledRow
+  | .witness instruction => .witness (remapWitnessInstruction instruction)
+  | .assertion row => .assertion (remapSparseRow row)
+
+theorem remapSparseCombination_toR1CS (combination : SparseCombination) :
+    (remapSparseCombination combination).toR1CS =
+      PilotSpartan.remapCombination combination.toR1CS := by
+  cases combination
+  simp [remapSparseCombination, remapSparseTerm,
+    SparseCombination.toR1CS, PilotSpartan.remapCombination,
+    List.map_map, Function.comp_def]
+
+theorem remapCompiledRows_toR1CS (rows : List Stage1.Rows.CompiledRow) :
+    (rows.map remapCompiledRow).map Stage1.Rows.CompiledRow.toR1CS =
+      PilotSpartan.remapRows
+        (rows.map Stage1.Rows.CompiledRow.toR1CS) := by
+  unfold PilotSpartan.remapRows
+  rw [List.map_map, List.map_map]
+  apply List.map_congr_left
+  intro row member
+  cases row <;>
+    simp [remapCompiledRow, remapWitnessInstruction, remapSparseRow,
+      Stage1.Rows.CompiledRow.toR1CS, WitnessInstruction.toR1CS,
+      SparseRow.toR1CS, PilotSpartan.remapRow,
+      remapSparseCombination_toR1CS, PilotSpartan.remapCombination,
+      R1CS.LinearCombination.ofVar]
+
 def priorWordBatches (_unit : Unit) : List WitnessBatch :=
-  (witnesses (PriorStateHash.wordOps PilotProduction.priorInterface
-    PilotProduction.witnessOffset)).map remapBatch
+  (witnesses (PilotProduction.fastPriorWordOps ())).map remapBatch
+
+theorem priorWordBatches_eq_reference :
+    priorWordBatches () =
+      (witnesses (PriorStateHash.wordOps PilotProduction.priorInterface
+        PilotProduction.witnessOffset)).map remapBatch := by
+  unfold priorWordBatches
+  rw [PilotProduction.fastPriorWordOps_eq]
 
 def priorExtraConstraints (_unit : Unit) : List Expr :=
   flatConstraints
-    (PriorStateHash.wordOps PilotProduction.priorInterface
-      PilotProduction.witnessOffset ++
+    (PilotProduction.fastPriorWordOps () ++
     PriorStateHash.bindingAssertions PilotProduction.priorInterface
       PilotProduction.witnessOffset)
 
 theorem priorExtraConstraints_eq :
     priorExtraConstraints () =
-      PilotProduction.priorWordConstraintsAll ++
+      PilotProduction.priorWordConstraintsAll () ++
         PilotProduction.priorBindingConstraints := by
   unfold priorExtraConstraints
+  rw [PilotProduction.fastPriorWordOps_eq]
   rw [flatConstraints_append]
   rfl
 
 def priorExtraRows (_unit : Unit) : List Stage1.Rows.CompiledRow :=
-  Stage1.Rows.compileRowsTR
-    (PilotSpartan.sourceToSpartan PilotValues.logicalColumnCount)
+  (Stage1.Rows.compileRowsTR PilotValues.logicalColumnCount
     priorBindingRowStart
-    (PilotSpartan.remapRows
-      (Stage1.Rows.lowerConstraintsTR (priorExtraConstraints ())
-        PilotValues.logicalColumnCount).rows)
+    (Stage1.Rows.lowerConstraintsTR (priorExtraConstraints ())
+      PilotValues.logicalColumnCount).rows).map remapCompiledRow
 
 def priorFixedRowStart : Nat :=
   priorBindingRowStart + PilotValues.priorCanonicalRowCount
@@ -193,7 +242,7 @@ def profile : Profile where
   piRlcInputs := 17
   piDecChildren := 16
   ccsMatrices := 14
-  cubeVariables := 25
+  cubeVariables := 26
 
 def poseidonSchedule : PoseidonSchedule where
   width := Spec.Poseidon2.width

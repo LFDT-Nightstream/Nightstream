@@ -1,14 +1,13 @@
-# F′ Stage 1 Domain `2^26`
+# F′ Stage 1 Domain `2^26` (superseded)
 
 ## Status
 
-Accepted by the owner on 2026-08-27.
+Superseded by `fprime-stage1-domain-2p28.md` on 2026-08-28.
 
 ## Decision
 
-The Nightstream F′ Stage 1 production relation uses a 26-variable row cube.
-Its maximum joint row and carrier domain is `2^26`, and PiCCS therefore uses
-exactly 26 SumCheck rounds.
+This file records the previous 26-variable decision. It is not the active
+Stage 1 profile.
 
 Every dependent layout theorem, package field, fixture, Rust loader check,
 relation identity, and final fixed-point proof must use this one value. Old
@@ -20,7 +19,5 @@ proof-backend boundaries.
 
 ## Footprint note
 
-The larger domain does not make the current all-direct low-norm Poseidon2
-plan fit. Lean proves that its retained S-box outputs alone require
-108,019,010 coordinates, which is greater than `2^26 = 67,108,864`.
-The final compiler still needs an actual constraint and column reduction.
+Lean later established the corrected direct S-box count as 108,068,374
+coordinates, which is greater than `2^26 = 67,108,864`.

@@ -29,7 +29,7 @@ Status on this cut:
   domain proof, security composition, and package-only production path do not
   exist yet.
 
-The external review files read in full at 02:29 CDT predate this exact source
+The external review files read in full at 14:20 CDT predate this exact source
 and artifact cut. They are evidence for prior cuts only. No status below uses
 them as approval of the current cut.
 
@@ -48,7 +48,7 @@ Goldilocks profile is:
 | PiDEC children | 16 |
 | Ring degree | 54 |
 | CCS matrices | 14 |
-| PiCCS rounds | 26 |
+| PiCCS rounds | 28 |
 | PiCCS round coefficients | 10 |
 | Public-input words | 270 |
 
@@ -65,7 +65,7 @@ The public digest encoding is exact `encHash`:
 Rust now uses this same 270-cell encoding. `decodeHash_encHash` recovers every
 canonical four-word digest, and `encHash_injective_fixed` proves that two such
 public inputs are equal only when their digests are equal. The canonical state
-preimage is 45,933 Goldilocks words. Each running group contains 972
+preimage is 45,937 Goldilocks words. Each running group contains 972
 commitment words, 270 public-input words, and 1,620 evaluation words.
 
 `Layout.ProductionRelation.Plan` is the key-facing matrix authority boundary.
@@ -94,15 +94,15 @@ PiCCS leaf ownership:
 |---|---:|---:|
 | Statement binding | 160 | 0 |
 | Digest-only statement absorption | 192,400 | 192,400 |
-| Challenge derivation | 47,952 | 47,952 |
-| Round transcript | 138,528 | 138,528 |
+| Challenge derivation | 51,504 | 51,504 |
+| Round transcript | 149,184 | 149,184 |
 | Initial claim | 116,631 | 116,631 |
-| SumCheck chain | 393,959 | 393,907 |
-| `Eval_K` terminal | 8,486 | 8,486 |
-| `Eval_A` terminal | 109,574 | 109,574 |
+| SumCheck chain | 424,657 | 424,601 |
+| `Eval_K` terminal | 8,542 | 8,542 |
+| `Eval_A` terminal | 109,630 | 109,630 |
 | CCS terminal | 20,794 | 20,794 |
 | Norm terminal | 752 | 752 |
-| Final identity | 130,447 | 130,445 |
+| Final identity | 130,503 | 130,501 |
 | Output binding | 4,076,512 | 4,076,512 |
 
 PiRLC leaf ownership:
@@ -143,71 +143,76 @@ The authoritative ledgers are:
 - `PilotPiCCSPiRLC.cumulativeFootprints_eq`;
 - `PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq`;
 - `PilotPiCCSPiRLCPiDECRunningTransition.cumulativeFootprints_eq` and
-  `jointDomain_le_twoPow26`;
+  `jointDomain_le_twoPow28`;
 - `Export.Stage1.Package.circuitPackage_layout_values`;
-- `Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow26`.
+- `Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow28`.
 
 | Endpoint | Rows | Source columns / joint domain |
 |---|---:|---:|
-| Pilot | 13,599,570 | 13,691,432 |
-| PiCCS input ABI | 13,599,570 | 13,720,468 |
-| PiCCS statement binding | 13,599,730 | 13,720,468 |
-| PiCCS statement absorption | 13,792,130 | 13,912,868 |
-| PiCCS challenge derivation | 13,840,082 | 13,960,820 |
-| PiCCS round transcript | 13,978,610 | 14,099,348 |
-| PiCCS initial claim | 14,095,241 | 14,215,979 |
-| PiCCS SumCheck chain | 14,489,200 | 14,609,886 |
-| PiCCS `Eval_K` terminal | 14,497,686 | 14,618,372 |
-| PiCCS `Eval_A` terminal | 14,607,260 | 14,727,946 |
-| PiCCS CCS terminal | 14,628,054 | 14,748,740 |
-| PiCCS norm terminal | 14,628,806 | 14,749,492 |
-| PiCCS final identity | 14,759,253 | 14,879,937 |
-| PiCCS output binding | 18,835,765 | 18,956,449 |
-| PiRLC sampler chain | 19,844,613 | 19,963,648 |
-| PiRLC commitment combination | 22,339,737 | 22,458,772 |
-| PiRLC public-input combination | 23,032,827 | 23,151,862 |
-| PiRLC `Eval_K` combination | 23,310,063 | 23,429,098 |
-| PiRLC `Eval_A` combination | 27,191,367 | 27,310,402 |
-| PiDEC input ABI | 27,191,367 | 27,356,194 |
-| PiDEC public split | 27,214,047 | 27,374,284 |
-| PiDEC commitment | 27,215,019 | 27,374,284 |
-| PiDEC `Eval_K` | 27,215,127 | 27,374,284 |
-| PiDEC `Eval_A` | 27,216,639 | 27,374,284 |
-| Running-instance branch / current endpoint | 27,537,894 | 27,649,646 |
+| Pilot | 13,600,754 | 13,692,624 |
+| PiCCS input ABI | 13,600,754 | 13,721,700 |
+| PiCCS statement binding | 13,600,914 | 13,721,700 |
+| PiCCS statement absorption | 13,793,314 | 13,914,100 |
+| PiCCS challenge derivation | 13,844,818 | 13,965,604 |
+| PiCCS round transcript | 13,994,002 | 14,114,788 |
+| PiCCS initial claim | 14,110,633 | 14,231,419 |
+| PiCCS SumCheck chain | 14,535,290 | 14,656,020 |
+| PiCCS `Eval_K` terminal | 14,543,832 | 14,664,562 |
+| PiCCS `Eval_A` terminal | 14,653,462 | 14,774,192 |
+| PiCCS CCS terminal | 14,674,256 | 14,794,986 |
+| PiCCS norm terminal | 14,675,008 | 14,795,738 |
+| PiCCS final identity | 14,805,511 | 14,926,239 |
+| PiCCS output binding | 18,882,023 | 19,002,751 |
+| PiRLC sampler chain | 19,890,871 | 20,009,950 |
+| PiRLC commitment combination | 22,385,995 | 22,505,074 |
+| PiRLC public-input combination | 23,079,085 | 23,198,164 |
+| PiRLC `Eval_K` combination | 23,356,321 | 23,475,400 |
+| PiRLC `Eval_A` combination | 27,237,625 | 27,356,704 |
+| PiDEC input ABI | 27,237,625 | 27,402,496 |
+| PiDEC public split | 27,260,305 | 27,420,586 |
+| PiDEC commitment | 27,261,277 | 27,420,586 |
+| PiDEC `Eval_K` | 27,261,385 | 27,420,586 |
+| PiDEC `Eval_A` | 27,262,897 | 27,420,586 |
+| Running-instance branch / current endpoint | 27,584,180 | 27,695,972 |
 
-The current joint domain is 27,649,646. It is below
-`2^26 = 67,108,864` with exact headroom 39,459,218. This headroom still must
+The current joint domain is 27,695,972. It is below
+`2^28 = 268,435,456` with exact headroom 240,739,484. This headroom still must
 contain the accumulator update, application, output hash, and terminal
 checks. Compact serialization does not reduce backend rows.
+
+Separately, Lean proves that the current direct low-norm Poseidon2 plan needs
+108,160,050 retained S-box coordinates, leaving 160,275,406 coordinates below
+`2^28`. That count excludes final outputs and non-Poseidon source values. It
+is not the complete final-fit theorem.
 
 ## Canonical package cut
 
 | Package value | Exact value |
 |---|---:|
-| Unpadded rows | 27,537,894 |
-| Private columns / constant source index | 27,649,368 |
+| Unpadded rows | 27,584,180 |
+| Private columns / constant source index | 27,695,694 |
 | Public columns | 278 |
-| Total unpadded columns | 27,649,647 |
-| Caller-owned private inputs | 166,690 |
-| Witness instructions | 1,159,568 |
-| Assertion rows | 189,973 |
-| Ordinary compiled rows | 1,349,541 |
-| Poseidon2 invocations | 7,679 |
+| Total unpadded columns | 27,695,973 |
+| Caller-owned private inputs | 166,738 |
+| Witness instructions | 1,190,430 |
+| Assertion rows | 190,005 |
+| Ordinary compiled rows | 1,380,435 |
+| Poseidon2 invocations | 7,703 |
 | Compact templates | 326 |
 | Compact invocations | 167,246 |
-| Padded matrix rows | 67,108,864 |
+| Padded matrix rows | 268,435,456 |
 
 The verifier-owned Poseidon2 relation identifier is:
 
 ```text
-[18090610635114842464, 5494511358918718774,
- 14026867434695270642, 8861486951490451735]
+[3355019049079043662, 4920201927044277974,
+ 5339237732450517664, 894111819037169888]
 ```
 
 The external-review source-cut fingerprint is:
 
 ```text
-ca0c8ef2eb3f55aaaf72daedea216f2febba71b8d078e83b39e88221733b07b3
+32291f7c9edbe968a171421da665b9b8de7fe0050044a684f58c4a25c3d9b13d
 ```
 
 It is the SHA-256 of the sorted `shasum -a 256` records for all files under
@@ -220,12 +225,12 @@ SHA-256 identifies bytes only:
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| Compact schema-8 plan | 90,484,027 | `e0feeaa17f1a4acaded22eb15ff3af6c20aa4c8ee400b629004ba99691efe4b8` |
-| Expanded schema-7 package | 111,843,449 | `c1c1c62975cfcf3c56bce5ab30dfda79b08c7b24e017a8b5e096de778e4fbad9` |
-| Pilot parity | 657,624 | `70d6a31d58d4657321e3921483c21c28c84d9fc8194dfb26dfceffe5fb184ee9` |
-| PiCCS parity | 1,576,929 | `2f061b153d2858bd27c2eb3212f45bd558f4befb1422ca05bbff0f72b9034a6e` |
-| PiRLC parity | 1,068,051 | `7377f8134b7f4d51deff77428bb205098888e995ed57ecb24224a9cbe15ee77f` |
-| PiDEC parity | 1,547,708 | `3e3f09d49db12dd364b990e410e246a7c64ebb1a6b95590cc204fddf97a801bf` |
+| Compact schema-8 plan | 92,146,719 | `68a307b00ce94abdca7d72105ed56fe65b8562b55700d68de887810bfbaace43` |
+| Expanded schema-7 package | 113,510,169 | `c9e2f007ef95686ff923d81a3b36066cc4e585705808cbe918ca1c8836f82bc5` |
+| Pilot parity | 657,656 | `6da6640801d177101772b7c47783f3dfad7a76305e300e37b57c95a652de9309` |
+| PiCCS parity | 1,577,823 | `37df146b6ef6a302faf3a0976df633db3fd9764e322ccf5cd5fbbcc8da3862f7` |
+| PiRLC parity | 1,189,342 | `9db3718f84c9b956f7dba8a135d7c9ea2c57c16b10bc9223cf00a62ce2e7bc7b` |
+| PiDEC parity | 1,540,175 | `c8886db867f509d5a79923c6eba86ce22633143b29a7d6cde09078dd735db932` |
 | PiRLC sampler parity | 9,202 | `e1ee42037d7750725c9442d7693b93eb60dd56c5507577370d4f06e65aad88a3` |
 
 ## Exact conformance evidence
@@ -233,47 +238,54 @@ SHA-256 identifies bytes only:
 Lean evidence on this cut:
 
 - `validate.sh static`: all boundary checks passed.
-- full `NightstreamFPrime` root: 3,333 jobs passed in 39 seconds.
-- focused package-bound verifier context: 3,274 jobs passed in 8 seconds.
+- full `NightstreamFPrime` root: 3,333 jobs passed in 41 seconds.
 - `validate.sh axioms`: 3,342 jobs passed in 9 seconds. Audited theorems use
-  only `propext`, `Classical.choice`, and `Quot.sound`.
-- forced compact package emission: 17 seconds with `LEAN_NUM_THREADS=10`;
-  forced expanded emission: 9 seconds. Both final outputs were byte-identical
-  to the pre-pin scratch cut that passed matrix and assignment conformance.
+  only `propext`, `Classical.choice`, and `Quot.sound`; the production strong
+  set and complete-fork extraction roots are included.
+- forced compact package emission improved from a 7.16-second baseline median
+  to 5.78 seconds with `LEAN_NUM_THREADS=10`, a 19.3% reduction;
+- forced expanded emission improved from a 9.11-second baseline median to
+  7.39 seconds, an 18.9% reduction. Every baseline and final output was
+  byte-identical to the checked artifact. No reliable compile-time reduction
+  was established.
 - all five dependent phase parity fixtures and the independent sampler
   fixture were regenerated from the same locked Lean source.
+- CI is configured to run `formal/nightstream-fprime/scripts/validate.sh all`.
+  No remote CI run is claimed on this cut.
 
 The speed path preserves the generic specifications. It uses proved direct
 symbolic states, shared PiCCS operation packets, linear Horner construction,
-and streamed row classification. The emitter uses `LEAN_NUM_THREADS=10` and
-writes one canonical order.
+streamed row classification, direct typed serialization, and cached immutable
+punctuation buffers. The package formats remain the schema authority. The
+emitter uses `LEAN_NUM_THREADS=10` and writes one canonical order.
 
 Rust evidence on this cut:
 
-- exact package matrix conformance: 1/1 in 48.72 seconds;
+- exact package matrix conformance: 1/1 in 49.62 seconds;
 - exact final matrix nonzeros `A/B/C`:
-  `[88,357,702, 37,080,803, 27,187,347]`;
-- independent assignment evaluation: all 27,537,894 unpadded rows and the
+  `[88,443,656, 37,139,799, 27,233,601]`;
+- independent assignment evaluation: all 27,584,180 unpadded rows and the
   padded zero domain passed;
-- row-owner mutations: 144;
-- column/public-owner mutations: 77;
+- row-owner mutations rejected by the exact row comparator: 144;
+- column/public-owner mutations rejected by the exact row comparator: 77;
 - semantic input mutations: 16;
 - total exact-package mutations: 237;
-- strict package loader: 14/14 in 90.35 seconds;
-- compact-plan loader: 10/10 in 37.94 seconds;
-- pilot parity and mutations: 3/3 in 20.62 seconds;
-- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 3.77 seconds;
-- complete indexed PiRLC parity and handoff: 3/3 in 2.30 seconds;
-- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 32.90 seconds;
+- strict package loader: 14/14 in 91.69 seconds;
+- compact-plan loader: 10/10 in 36.71 seconds;
+- pilot parity and mutations: 3/3 in 20.71 seconds;
+- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 3.68 seconds;
+- complete indexed PiRLC parity and handoff: 3/3 in 2.29 seconds;
+- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 32.96 seconds;
 - PiRLC sampler parity and fail-closed decoding: 2/2;
-- identity-bound complete typed package consumer: 1/1 in 195.22 seconds;
+- identity-bound complete typed package consumer: 1/1 in 198.29 seconds;
   it consumed PiCCS, PiDEC, and the Lean-authored running-transition output,
   and rejected a changed public input.
-- `nifs_engine_crosscheck`: 10/10 in 181.34 seconds, including the 270-word
+- `nifs_engine_crosscheck`: 10/10 in 180.02 seconds, including the 270-word
   state-preimage bridge, PaperExact/optimized equality, carried accumulator,
   and Nebula auxiliary commitments;
-- all `nightstream-fprime` test targets compiled in 6.93 seconds;
-- all `neo-fold-clean` test targets compiled in 64 seconds on the incremental
+- Poseidon2 Lean vectors: 2/2;
+- all `nightstream-fprime` test targets compiled in 5.55 seconds;
+- all `neo-fold-clean` test targets compiled in 57.18 seconds on the incremental
   retry. The first cold aggregate compile reached the five-minute cap without
   a compiler diagnostic, so it is not a passing cold-build result.
 
@@ -315,7 +327,7 @@ The remaining owner-ordered work is:
 3. add the exact application, output-hash, and terminal circuits;
 4. build `Lifecycle/Stage1/Formal.lean` and the matching Stage 1 layout;
 5. prove cross-phase wiring, deterministic soundness, the recursive fixed
-   point, the complete `2^26` bound, and the separate security composition;
+   point, the complete `2^28` bound, and the separate security composition;
 6. make the validated package the only reachable Rust production relation
    and remove the alternate radix relation;
 7. rerun all PiCCS, PiRLC, PiDEC, matrix, assignment, parity, and mutation

@@ -68,7 +68,7 @@ jobs:
     - name: Install pinned Lean toolchain
       uses: leanprover/lean-action@v1
       with:
-        lake-package-directory: formal/nightstream-lean
+        lake-package-directory: formal/nightstream-fprime
         auto-config: false
         build: false
         test: false
@@ -77,7 +77,7 @@ jobs:
         use-mathlib-cache: false
 
     - name: Run bounded assurance gates
-      working-directory: formal/nightstream-lean
+      working-directory: formal/nightstream-fprime
       run: ./scripts/validate.sh all
 
   # ============================================================================

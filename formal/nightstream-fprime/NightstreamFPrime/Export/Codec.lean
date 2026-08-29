@@ -105,17 +105,28 @@ def Value.renderInto : Value → ByteArray → ByteArray
 def Value.renderBytes (value : Value) : ByteArray :=
   value.renderInto ByteArray.empty
 
+private def leftBracketBytes : ByteArray := ByteArray.empty.push 91
+private def rightBracketBytes : ByteArray := ByteArray.empty.push 93
+private def commaBytes : ByteArray := ByteArray.empty.push 44
+private def newlineBytes : ByteArray := ByteArray.empty.push 10
+
+/-- Write common punctuation without allocating a new singleton byte array. -/
 def writeByte (handle : IO.FS.Handle) (byte : UInt8) : IO Unit :=
-  handle.write (ByteArray.empty.push byte)
+  handle.write <| match byte with
+    | 91 => leftBracketBytes
+    | 93 => rightBracketBytes
+    | 44 => commaBytes
+    | 10 => newlineBytes
+    | _ => ByteArray.empty.push byte
 
 /-- Write the canonical numeric-array encoding directly to a file handle.
 The traversal uses the same atom, bracket, comma, and child order as
 `renderInto`, but it does not retain the complete artifact in memory. -/
 partial def Value.writeCanonical (handle : IO.FS.Handle) : Value → IO Nat
   | .atom value => do
-      let bytes := (toString value).toUTF8
-      handle.write bytes
-      pure bytes.size
+      let text := toString value
+      handle.putStr text
+      pure text.length
   | .array values => do
       writeByte handle 91
       let rec writeValues : List Value → IO Nat

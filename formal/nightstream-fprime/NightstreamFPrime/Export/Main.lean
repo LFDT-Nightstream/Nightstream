@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PackagePlan
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
+import NightstreamFPrime.Export.TypedWriter
 
 /-! Executable entry point for the canonical Stage 1 circuit-package emitter. -/
 
@@ -35,7 +36,7 @@ def writePermutationTemplate (handle : IO.FS.Handle) : IO Unit := do
   comma handle
   writeValue handle (.atom template.outputLocalStart)
   comma handle
-  writeList handle Package.TemplateRow.format template.rows
+  writeListWith handle (TypedWriter.writeTemplateRow handle) template.rows
   writeByte handle 93
 
 def writeCompactRowTemplate (handle : IO.FS.Handle)
@@ -47,20 +48,15 @@ def writeCompactRowTemplate (handle : IO.FS.Handle)
   comma handle
   writeValue handle (.atom template.outputInput)
   comma handle
-  writeValue handle (Package.exprFormat.encode template.outputRecipe)
+  TypedWriter.writeExpr handle template.outputRecipe
   comma handle
-  writeList handle Package.CompactTemplateRow.format template.rows
+  writeListWith handle (TypedWriter.writeCompactTemplateRow handle)
+    template.rows
   writeByte handle 93
 
 def writeWitnessBatch (handle : IO.FS.Handle)
-    (batch : NightstreamFPrime.Circuit.WitnessBatch) : IO Unit := do
-  writeByte handle 91
-  writeValue handle (.atom batch.start)
-  comma handle
-  writeList handle Package.exprFormat batch.recipes
-  comma handle
-  writeList handle Package.hintFormat batch.hints
-  writeByte handle 93
+    (batch : NightstreamFPrime.Circuit.WitnessBatch) : IO Unit :=
+  TypedWriter.writeWitnessBatch handle batch
 
 def writeWitnessBatchItems (handle : IO.FS.Handle) (first : Bool)
     (batches : List NightstreamFPrime.Circuit.WitnessBatch) : IO Bool :=
@@ -177,7 +173,7 @@ def writePermutationActionShape (handle : IO.FS.Handle)
       writeByte handle 91
       writeValue handle (.atom 0)
       comma handle
-      writeList handle Package.exprFormat input
+      writeListWith handle (TypedWriter.writeExpr handle) input
       writeByte handle 93
   | .squeezeK =>
       writeByte handle 91
@@ -193,7 +189,7 @@ def writePermutationActionBlock (handle : IO.FS.Handle)
   comma handle
   writeValue handle (.atom block.witnessStart)
   comma handle
-  writeList handle Package.exprFormat block.initialState
+  writeListWith handle (TypedWriter.writeExpr handle) block.initialState
   comma handle
   writeListWith handle (writePermutationActionShape handle)
     block.actionShapes
@@ -208,7 +204,7 @@ def writeDirectPermutationBlock (handle : IO.FS.Handle)
   comma handle
   writeValue handle (.atom block.witnessStart)
   comma handle
-  writeList handle Package.exprFormat block.state
+  writeListWith handle (TypedWriter.writeExpr handle) block.state
   writeByte handle 93
 
 def writePermutationBlock (handle : IO.FS.Handle)
@@ -262,8 +258,7 @@ partial def writeExpandedPermutationBlockItems (handle : IO.FS.Handle)
   | [] => pure first
   | block :: rest => do
       let first ← writeArrayItemsWith handle
-        (fun invocation => writeValue handle
-          (Package.PermutationInvocation.format.encode invocation))
+        (TypedWriter.writePermutationInvocation handle)
         first block.expand
       writeExpandedPermutationBlockItems handle first rest
 
@@ -278,8 +273,7 @@ partial def writeExpandedCompactBlockItems (handle : IO.FS.Handle)
   | [] => pure first
   | block :: rest => do
       let first ← writeArrayItemsWith handle
-        (fun invocation => writeValue handle
-          (Package.CompactRowInvocation.format.encode invocation))
+        (TypedWriter.writeCompactRowInvocation handle)
         first block.expand
       writeExpandedCompactBlockItems handle first rest
 
@@ -368,9 +362,7 @@ partial def writePreparedWitnessItems (handle : IO.FS.Handle)
   | task :: rest => do
       let prepared ← preparedRowBlock task
       let first ← writeArrayItemsWith handle
-        (fun instruction =>
-          writeValue handle (Package.WitnessInstruction.format.encode
-            instruction))
+        (TypedWriter.writeWitnessInstruction handle)
         first prepared.witnessInstructions
       writePreparedWitnessItems handle first rest
 
@@ -379,9 +371,7 @@ partial def writePreparedWitnessBlockItems (handle : IO.FS.Handle)
   | [] => pure first
   | prepared :: rest => do
       let first ← writeArrayItemsWith handle
-        (fun instruction =>
-          writeValue handle (Package.WitnessInstruction.format.encode
-            instruction))
+        (TypedWriter.writeWitnessInstruction handle)
         first prepared.witnessInstructions
       writePreparedWitnessBlockItems handle first rest
 
@@ -397,9 +387,7 @@ def writePreparedPacketWitnessItems (handle : IO.FS.Handle)
     (first : Bool) (task : PreparedWitnessTask) : IO Bool := do
   let prepared ← preparedWitnessGroup task
   writeArrayItemsWith handle
-    (fun instruction =>
-      writeValue handle (Package.WitnessInstruction.format.encode
-        instruction))
+    (TypedWriter.writeWitnessInstruction handle)
     first prepared.witnessInstructions
 
 def writePreparedPiCCSWitnessItems (handle : IO.FS.Handle)
@@ -417,9 +405,7 @@ def writePreparedWitnessInstructions (handle : IO.FS.Handle)
     (rowTasks : PreparedRowTasks) : IO Unit := do
   writeByte handle 91
   let first ← writeArrayItemsWith handle
-    (fun instruction =>
-      writeValue handle (Package.WitnessInstruction.format.encode
-        instruction))
+    (TypedWriter.writeWitnessInstruction handle)
     true (Stage1.Data.liftPilotInstructions
       (PilotData.witnessInstructions ()))
   let first ← writePreparedWitnessItems handle first
@@ -437,7 +423,7 @@ partial def writePreparedAssertionItems (handle : IO.FS.Handle)
   | task :: rest => do
       let prepared ← preparedRowBlock task
       let first ← writeArrayItemsWith handle
-        (fun row => writeValue handle (Package.SparseRow.format.encode row))
+        (TypedWriter.writeSparseRow handle)
         first prepared.assertionRows
       writePreparedAssertionItems handle first rest
 
@@ -446,7 +432,7 @@ partial def writePreparedAssertionBlockItems (handle : IO.FS.Handle)
   | [] => pure first
   | prepared :: rest => do
       let first ← writeArrayItemsWith handle
-        (fun row => writeValue handle (Package.SparseRow.format.encode row))
+        (TypedWriter.writeSparseRow handle)
         first prepared.assertionRows
       writePreparedAssertionBlockItems handle first rest
 
@@ -462,7 +448,7 @@ def writePreparedPacketAssertionItems (handle : IO.FS.Handle)
     (first : Bool) (task : PreparedWitnessTask) : IO Bool := do
   let prepared ← preparedWitnessGroup task
   writeArrayItemsWith handle
-    (fun row => writeValue handle (Package.SparseRow.format.encode row))
+    (TypedWriter.writeSparseRow handle)
     first prepared.assertionRows
 
 def writePreparedPiCCSAssertionItems (handle : IO.FS.Handle)
@@ -480,7 +466,7 @@ def writePreparedAssertionRows (handle : IO.FS.Handle)
     (rowTasks : PreparedRowTasks) : IO Unit := do
   writeByte handle 91
   let first ← writeArrayItemsWith handle
-    (fun row => writeValue handle (Package.SparseRow.format.encode row))
+    (TypedWriter.writeSparseRow handle)
     true (Stage1.Data.liftPilotRows (PilotData.assertionRows ()))
   let first ← writePreparedAssertionItems handle first
     [rowTasks.statementBinding]

@@ -120,149 +120,149 @@ const ROW_OWNER_SPANS: &[OwnerSpan] = &[
     OwnerSpan {
         name: "pilot.prior_state_hash",
         start: 0,
-        end: 6_800_446,
+        end: 6_801_038,
     },
     OwnerSpan {
         name: "pilot.output_hash",
-        start: 6_800_446,
-        end: 13_599_570,
+        start: 6_801_038,
+        end: 13_600_754,
     },
     OwnerSpan {
         name: "piccs.statement_binding",
-        start: 13_599_570,
-        end: 13_599_730,
+        start: 13_600_754,
+        end: 13_600_914,
     },
     OwnerSpan {
         name: "piccs.statement_absorption",
-        start: 13_599_730,
-        end: 13_792_130,
+        start: 13_600_914,
+        end: 13_793_314,
     },
     OwnerSpan {
         name: "piccs.challenge_derivation",
-        start: 13_792_130,
-        end: 13_840_082,
+        start: 13_793_314,
+        end: 13_844_818,
     },
     OwnerSpan {
         name: "piccs.round_transcript",
-        start: 13_840_082,
-        end: 13_978_610,
+        start: 13_844_818,
+        end: 13_994_002,
     },
     OwnerSpan {
         name: "piccs.initial_claim",
-        start: 13_978_610,
-        end: 14_095_241,
+        start: 13_994_002,
+        end: 14_110_633,
     },
     OwnerSpan {
         name: "piccs.sumcheck_chain",
-        start: 14_095_241,
-        end: 14_489_200,
+        start: 14_110_633,
+        end: 14_535_290,
     },
     OwnerSpan {
         name: "piccs.eval_k",
-        start: 14_489_200,
-        end: 14_497_686,
+        start: 14_535_290,
+        end: 14_543_832,
     },
     OwnerSpan {
         name: "piccs.eval_a",
-        start: 14_497_686,
-        end: 14_607_260,
+        start: 14_543_832,
+        end: 14_653_462,
     },
     OwnerSpan {
         name: "piccs.ccs_terminal",
-        start: 14_607_260,
-        end: 14_628_054,
+        start: 14_653_462,
+        end: 14_674_256,
     },
     OwnerSpan {
         name: "piccs.norm_terminal",
-        start: 14_628_054,
-        end: 14_628_806,
+        start: 14_674_256,
+        end: 14_675_008,
     },
     OwnerSpan {
         name: "piccs.final_identity",
-        start: 14_628_806,
-        end: 14_759_253,
+        start: 14_675_008,
+        end: 14_805_511,
     },
     OwnerSpan {
         name: "piccs.output_binding",
-        start: 14_759_253,
-        end: 18_835_765,
+        start: 14_805_511,
+        end: 18_882_023,
     },
     OwnerSpan {
         name: "pirlc.sampler_chain",
-        start: 18_835_765,
-        end: 19_844_613,
+        start: 18_882_023,
+        end: 19_890_871,
     },
     OwnerSpan {
         name: "pirlc.commitment",
-        start: 19_844_613,
-        end: 22_339_737,
+        start: 19_890_871,
+        end: 22_385_995,
     },
     OwnerSpan {
         name: "pirlc.public_input",
-        start: 22_339_737,
-        end: 23_032_827,
+        start: 22_385_995,
+        end: 23_079_085,
     },
     OwnerSpan {
         name: "pirlc.eval_k",
-        start: 23_032_827,
-        end: 23_310_063,
+        start: 23_079_085,
+        end: 23_356_321,
     },
     OwnerSpan {
         name: "pirlc.eval_a",
-        start: 23_310_063,
-        end: 27_191_367,
+        start: 23_356_321,
+        end: 27_237_625,
     },
     OwnerSpan {
         name: "pidec.public_input_split",
-        start: 27_191_367,
-        end: 27_214_047,
+        start: 27_237_625,
+        end: 27_260_305,
     },
     OwnerSpan {
         name: "pidec.commitment",
-        start: 27_214_047,
-        end: 27_215_019,
+        start: 27_260_305,
+        end: 27_261_277,
     },
     OwnerSpan {
         name: "pidec.eval_k",
-        start: 27_215_019,
-        end: 27_215_127,
+        start: 27_261_277,
+        end: 27_261_385,
     },
     OwnerSpan {
         name: "pidec.eval_a",
-        start: 27_215_127,
-        end: 27_216_639,
+        start: 27_261_385,
+        end: 27_262_897,
     },
     OwnerSpan {
         name: "running_transition",
-        start: 27_216_639,
-        end: 27_537_894,
+        start: 27_262_897,
+        end: 27_584_180,
     },
 ];
 
 const PILOT_ROWS: OwnerSpan = OwnerSpan {
     name: "pilot",
     start: 0,
-    end: 13_599_570,
+    end: 13_600_754,
 };
 const PICCS_ROWS: OwnerSpan = OwnerSpan {
     name: "piccs",
-    start: 13_599_570,
-    end: 18_835_765,
+    start: 13_600_754,
+    end: 18_882_023,
 };
 const PIRLC_ROWS: OwnerSpan = OwnerSpan {
     name: "pirlc",
-    start: 18_835_765,
-    end: 27_191_367,
+    start: 18_882_023,
+    end: 27_237_625,
 };
 const PIDEC_ROWS: OwnerSpan = OwnerSpan {
     name: "pidec",
-    start: 27_191_367,
-    end: 27_216_639,
+    start: 27_237_625,
+    end: 27_262_897,
 };
 const RUNNING_TRANSITION_ROWS: OwnerSpan = OwnerSpan {
     name: "running_transition",
-    start: 27_216_639,
-    end: 27_537_894,
+    start: 27_262_897,
+    end: 27_584_180,
 };
 
 // Source-order column intervals from each phase's proved ColumnOwner map.
@@ -274,7 +274,7 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 0,
-            end: 92_140,
+            end: 92_148,
         },
     },
     ColumnOwnerSpan {
@@ -282,25 +282,25 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: OwnerSpan {
             name: "",
             start: 0,
-            end: 6_800_446,
+            end: 6_801_038,
         },
         columns: OwnerSpan {
             name: "",
-            start: 92_140,
-            end: 6_891_524,
+            start: 92_148,
+            end: 6_892_124,
         },
     },
     ColumnOwnerSpan {
         name: "pilot.output_witness",
         rows: OwnerSpan {
             name: "",
-            start: 6_800_446,
-            end: 13_599_570,
+            start: 6_801_038,
+            end: 13_600_754,
         },
         columns: OwnerSpan {
             name: "",
-            start: 6_891_524,
-            end: 13_690_644,
+            start: 6_892_124,
+            end: 13_691_836,
         },
     },
     ColumnOwnerSpan {
@@ -308,8 +308,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PILOT_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 13_690_644,
-            end: 13_691_432,
+            start: 13_691_836,
+            end: 13_692_624,
         },
     },
     ColumnOwnerSpan {
@@ -318,137 +318,137 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 0,
-            end: 13_720_468,
+            end: 13_721_700,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.statement_absorption",
         rows: OwnerSpan {
             name: "",
-            start: 13_599_730,
-            end: 13_792_130,
+            start: 13_600_914,
+            end: 13_793_314,
         },
         columns: OwnerSpan {
             name: "",
-            start: 13_720_468,
-            end: 13_912_868,
+            start: 13_721_700,
+            end: 13_914_100,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.challenge_derivation",
         rows: OwnerSpan {
             name: "",
-            start: 13_792_130,
-            end: 13_840_082,
+            start: 13_793_314,
+            end: 13_844_818,
         },
         columns: OwnerSpan {
             name: "",
-            start: 13_912_868,
-            end: 13_960_820,
+            start: 13_914_100,
+            end: 13_965_604,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.round_transcript",
         rows: OwnerSpan {
             name: "",
-            start: 13_840_082,
-            end: 13_978_610,
+            start: 13_844_818,
+            end: 13_994_002,
         },
         columns: OwnerSpan {
             name: "",
-            start: 13_960_820,
-            end: 14_099_348,
+            start: 13_965_604,
+            end: 14_114_788,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.initial_claim",
         rows: OwnerSpan {
             name: "",
-            start: 13_978_610,
-            end: 14_095_241,
+            start: 13_994_002,
+            end: 14_110_633,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_099_348,
-            end: 14_125_266,
+            start: 14_114_788,
+            end: 14_140_706,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.eval_k",
         rows: OwnerSpan {
             name: "",
-            start: 14_489_200,
-            end: 14_497_686,
+            start: 14_535_290,
+            end: 14_543_832,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_125_266,
-            end: 14_127_094,
+            start: 14_140_706,
+            end: 14_142_542,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.eval_a",
         rows: OwnerSpan {
             name: "",
-            start: 14_497_686,
-            end: 14_607_260,
+            start: 14_543_832,
+            end: 14_653_462,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_127_094,
-            end: 14_151_386,
+            start: 14_142_542,
+            end: 14_166_842,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.ccs_terminal",
         rows: OwnerSpan {
             name: "",
-            start: 14_607_260,
-            end: 14_628_054,
+            start: 14_653_462,
+            end: 14_674_256,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_151_386,
-            end: 14_151_388,
+            start: 14_166_842,
+            end: 14_166_844,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.norm_terminal",
         rows: OwnerSpan {
             name: "",
-            start: 14_628_054,
-            end: 14_628_806,
+            start: 14_674_256,
+            end: 14_675_008,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_151_388,
-            end: 14_151_420,
+            start: 14_166_844,
+            end: 14_166_876,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.final_identity",
         rows: OwnerSpan {
             name: "",
-            start: 14_628_806,
-            end: 14_759_253,
+            start: 14_675_008,
+            end: 14_805_511,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_151_420,
-            end: 14_179_170,
+            start: 14_166_876,
+            end: 14_194_634,
         },
     },
     ColumnOwnerSpan {
         name: "piccs.output_binding",
         rows: OwnerSpan {
             name: "",
-            start: 14_759_253,
-            end: 18_835_765,
+            start: 14_805_511,
+            end: 18_882_023,
         },
         columns: OwnerSpan {
             name: "",
-            start: 14_179_170,
-            end: 18_255_682,
+            start: 14_194_634,
+            end: 18_271_146,
         },
     },
     ColumnOwnerSpan {
@@ -456,8 +456,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PICCS_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 18_255_682,
-            end: 18_956_449,
+            start: 18_271_146,
+            end: 19_002_751,
         },
     },
     ColumnOwnerSpan {
@@ -466,72 +466,72 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 0,
-            end: 18_956_449,
+            end: 19_002_751,
         },
     },
     ColumnOwnerSpan {
         name: "pirlc.sampler_chain",
         rows: OwnerSpan {
             name: "",
-            start: 18_835_765,
-            end: 19_844_613,
+            start: 18_882_023,
+            end: 19_890_871,
         },
         columns: OwnerSpan {
             name: "",
-            start: 18_956_449,
-            end: 19_220_017,
+            start: 19_002_751,
+            end: 19_266_319,
         },
     },
     ColumnOwnerSpan {
         name: "pirlc.commitment",
         rows: OwnerSpan {
             name: "",
-            start: 19_844_613,
-            end: 22_339_737,
+            start: 19_890_871,
+            end: 22_385_995,
         },
         columns: OwnerSpan {
             name: "",
-            start: 19_220_017,
-            end: 19_236_541,
+            start: 19_266_319,
+            end: 19_282_843,
         },
     },
     ColumnOwnerSpan {
         name: "pirlc.public_input",
         rows: OwnerSpan {
             name: "",
-            start: 22_339_737,
-            end: 23_032_827,
+            start: 22_385_995,
+            end: 23_079_085,
         },
         columns: OwnerSpan {
             name: "",
-            start: 19_236_541,
-            end: 19_241_131,
+            start: 19_282_843,
+            end: 19_287_433,
         },
     },
     ColumnOwnerSpan {
         name: "pirlc.eval_k",
         rows: OwnerSpan {
             name: "",
-            start: 23_032_827,
-            end: 23_310_063,
+            start: 23_079_085,
+            end: 23_356_321,
         },
         columns: OwnerSpan {
             name: "",
-            start: 19_241_131,
-            end: 19_242_967,
+            start: 19_287_433,
+            end: 19_289_269,
         },
     },
     ColumnOwnerSpan {
         name: "pirlc.eval_a",
         rows: OwnerSpan {
             name: "",
-            start: 23_310_063,
-            end: 27_191_367,
+            start: 23_356_321,
+            end: 27_237_625,
         },
         columns: OwnerSpan {
             name: "",
-            start: 19_242_967,
-            end: 19_268_671,
+            start: 19_289_269,
+            end: 19_314_973,
         },
     },
     ColumnOwnerSpan {
@@ -539,8 +539,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PIRLC_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 19_268_671,
-            end: 27_310_402,
+            start: 19_314_973,
+            end: 27_356_704,
         },
     },
     ColumnOwnerSpan {
@@ -549,20 +549,20 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 0,
-            end: 27_356_194,
+            end: 27_402_496,
         },
     },
     ColumnOwnerSpan {
         name: "pidec.public_input_split",
         rows: OwnerSpan {
             name: "",
-            start: 27_191_367,
-            end: 27_214_047,
+            start: 27_237_625,
+            end: 27_260_305,
         },
         columns: OwnerSpan {
             name: "",
-            start: 27_356_194,
-            end: 27_356_464,
+            start: 27_402_496,
+            end: 27_402_766,
         },
     },
     ColumnOwnerSpan {
@@ -570,8 +570,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PIDEC_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 27_356_464,
-            end: 27_374_284,
+            start: 27_402_766,
+            end: 27_420_586,
         },
     },
     ColumnOwnerSpan {
@@ -580,7 +580,7 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 0,
-            end: 27_374_284,
+            end: 27_420_586,
         },
     },
     ColumnOwnerSpan {
@@ -588,8 +588,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: RUNNING_TRANSITION_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 27_374_284,
-            end: 27_374_285,
+            start: 27_420_586,
+            end: 27_420_587,
         },
     },
     ColumnOwnerSpan {
@@ -597,8 +597,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: RUNNING_TRANSITION_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 27_374_285,
-            end: 27_649_646,
+            start: 27_420_587,
+            end: 27_695_972,
         },
     },
     ColumnOwnerSpan {
@@ -606,8 +606,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PILOT_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 45_933,
-            end: 46_203,
+            start: 45_937,
+            end: 46_207,
         },
     },
     ColumnOwnerSpan {
@@ -615,8 +615,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PILOT_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 92_136,
-            end: 92_140,
+            start: 92_144,
+            end: 92_148,
         },
     },
     ColumnOwnerSpan {
@@ -624,8 +624,8 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         rows: PICCS_ROWS,
         columns: OwnerSpan {
             name: "",
-            start: 13_691_432,
-            end: 13_691_436,
+            start: 13_692_624,
+            end: 13_692_628,
         },
     },
 ];
@@ -880,9 +880,14 @@ fn actual_row(matrix: &PackageSparseMatrix, row: usize) -> Vec<(usize, u64)> {
         .collect()
 }
 
+fn exact_row_accepts(matrix: &PackageSparseMatrix, row: usize, candidate: &[(usize, u64)]) -> bool {
+    actual_row(matrix, row) == candidate
+}
+
 fn compare_row(matrix: &PackageSparseMatrix, row: usize, expected: &[(usize, u64)], side: &str) {
-    let actual = actual_row(matrix, row);
-    assert_eq!(actual, expected, "{side} row {row}");
+    if !exact_row_accepts(matrix, row, expected) {
+        assert_eq!(actual_row(matrix, row), expected, "{side} row {row}");
+    }
 }
 
 fn assignment_value(column: usize, layout: &ReferenceLayout, assignment: &WitnessAssignment) -> u64 {

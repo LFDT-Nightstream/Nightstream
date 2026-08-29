@@ -9,6 +9,7 @@ use neo_fold_clean::paper::{params::Params, relations::ajtai_rlc_mixer};
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::{api, common::RotRho, engines::paper_exact_engine};
 use neo_transcript::Poseidon2Transcript;
+use nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +17,6 @@ const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
-const ROUND_COUNT: usize = 26;
 const PUBLIC_INPUT_WORDS: usize = 270;
 
 type Claim = CeClaim<Commitment, F, K>;

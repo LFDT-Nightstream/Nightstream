@@ -13,10 +13,10 @@ fn final_rust_matrices_equal_the_lean_padded_rows_entry_for_entry() {
         &artifact_directory.join("nightstream-fprime-stage1-piccs-parity-v1.json"),
         &artifact_directory.join("nightstream-fprime-stage1-pidec-parity-v1.json"),
         [
-            18_090_610_635_114_842_464,
-            5_494_511_358_918_718_774,
-            14_026_867_434_695_270_642,
-            8_861_486_951_490_451_735,
+            3_355_019_049_079_043_662,
+            4_920_201_927_044_277_974,
+            5_339_237_732_450_517_664,
+            894_111_819_037_169_888,
         ],
     );
 }

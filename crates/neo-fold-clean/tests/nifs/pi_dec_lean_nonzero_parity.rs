@@ -11,7 +11,7 @@ use neo_fold_clean::{
 };
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::split_b_matrix_k;
-use nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT;
+use nightstream_fprime::{PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -24,10 +24,10 @@ const PUBLIC_INPUT_WORDS: usize = 270;
 const COMMITMENT_WORDS: usize = 972;
 const COMBINED_BOUND: u64 = 1 << 16;
 const PACKAGE_IDENTITY: [u64; 4] = [
-    18_090_610_635_114_842_464,
-    5_494_511_358_918_718_774,
-    14_026_867_434_695_270_642,
-    8_861_486_951_490_451_735,
+    3_355_019_049_079_043_662,
+    4_920_201_927_044_277_974,
+    5_339_237_732_450_517_664,
+    894_111_819_037_169_888,
 ];
 
 type Claim = CeClaim<Commitment, F, K>;
@@ -762,7 +762,7 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
     assert_eq!(result.0, 1, "Lean PiDEC acceptance");
     assert_eq!(result.13.len(), CHILD_COUNT);
     assert!(result.13.iter().all(|child| child.5 == 0));
-    assert_eq!(result.17.len(), 45_933);
+    assert_eq!(result.17.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     let running = transition_running_words(&result.13);
     assert_eq!(&result.17[39..39 + running.len()], running.as_slice());
     assert_eq!(result.17.last().copied(), Some(1));

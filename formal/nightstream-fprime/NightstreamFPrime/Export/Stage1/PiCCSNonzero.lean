@@ -342,7 +342,7 @@ def baseMatrix (source : Fin productionShape.sourceCount)
 /-- The exact coordinate solved once from the verifier terminal equation.
 Its acceptance is checked again by executable Lean and every emitted row. -/
 def solvedTarget : K :=
-  ⟨8696679408015090753, 2702247391024371259⟩
+  ⟨9049108147461059813, 15010977030373376220⟩
 
 def output : FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := fun source coefficient =>

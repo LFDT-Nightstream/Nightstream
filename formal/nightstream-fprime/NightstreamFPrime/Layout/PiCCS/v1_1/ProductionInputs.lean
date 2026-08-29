@@ -320,7 +320,7 @@ theorem physicalFreshColumnCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalFreshColumnCount relation interface parentOffset = 700767 :=
+    physicalFreshColumnCount relation interface parentOffset = 731605 :=
   physicalFreshColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -329,7 +329,7 @@ theorem physicalRowCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 5236195 :=
+    physicalRowCount relation interface parentOffset = 5281269 :=
   physicalRowCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -339,7 +339,7 @@ theorem physicalColumnCount_eq
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 5235981 :=
+      parentOffset + 5281051 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -347,16 +347,16 @@ theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface = 5236195 :=
+    jointDomain relation interface = 5281269 :=
   jointDomain_eq_production relation interface
     (inputShapes relation interface 0 external)
 
-theorem jointDomain_le_twoPow26
+theorem jointDomain_le_twoPow28
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface ≤ 2 ^ 26 :=
-  NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow26 relation interface
+    jointDomain relation interface ≤ 2 ^ 28 :=
+  NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow28 relation interface
     (inputShapes relation interface 0 external)
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs

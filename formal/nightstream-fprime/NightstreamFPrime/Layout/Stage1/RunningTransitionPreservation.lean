@@ -93,7 +93,7 @@ theorem physical_complete
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env) :
     ∃ completed,
-      AgreesOutside env completed phaseOffset 275362 ∧
+      AgreesOutside env completed phaseOffset 275386 ∧
       PhysicalHolds logicalWidth publicFits completed := by
   let transition := interface logicalWidth publicFits
   let sourceAssumptions := assumptions logicalWidth publicFits relation env

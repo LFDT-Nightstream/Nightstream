@@ -258,7 +258,7 @@ theorem initialClaim
       simpa [Formal.initialClaimInterface, frozen, Formal.atOffset] using widened
 
 /-- The initial-claim output, external round messages, and transcript-derived
-round challenges discharge the fixed 26-round SumCheck assumption. -/
+round challenges discharge the fixed 28-round SumCheck assumption. -/
 theorem sumcheck
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth

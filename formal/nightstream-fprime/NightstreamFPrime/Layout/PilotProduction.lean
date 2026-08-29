@@ -19,11 +19,11 @@ open NightstreamFPrime.Lifecycle
 
 def digestWords : Nat := PilotValues.digestWords
 
-/-- `45921 + |vk| + |z0| + |zi|` at the fixed four-word production ABI. -/
+/-- `45925 + |vk| + |z0| + |zi|` at the fixed four-word production ABI. -/
 def stateHashWords : Nat :=
   PilotValues.stateHashBaseWords + digestWords + digestWords + digestWords
 
-theorem stateHashWords_eq : stateHashWords = 45933 := by
+theorem stateHashWords_eq : stateHashWords = 45937 := by
   rfl
 
 def priorPreimageStart : Nat := 0
@@ -34,7 +34,7 @@ def outputDigestStart : Nat := outputPreimageStart + stateHashWords
 
 def externalColumnCount : Nat := outputDigestStart + digestWords
 
-theorem externalColumnCount_eq : externalColumnCount = 92140 := by
+theorem externalColumnCount_eq : externalColumnCount = 92148 := by
   rfl
 
 /-- Fixed physical schedule values derived from the v1.1 state-hash width. -/
@@ -57,20 +57,20 @@ def outputHashRowStart : Nat := priorBindingRowStart + priorBindingRowCount
 def physicalRowCountValue : Nat :=
   hashWitnessCount + priorBindingRowCount + hashRowCount
 
-theorem absorbCount_eq : absorbCount = 11484 := by
+theorem absorbCount_eq : absorbCount = 11485 := by
   norm_num [absorbCount, stateHashWords, digestWords,
     PilotValues.stateHashBaseWords, PilotValues.digestWords,
     NightstreamFPrime.Spec.Poseidon2.rate]
 
-theorem hashWitnessCount_eq : hashWitnessCount = 6799120 := by
+theorem hashWitnessCount_eq : hashWitnessCount = 6799712 := by
   norm_num [hashWitnessCount, absorbCount_eq, permutationRecipeCount,
     PilotValues.permutationRecipeCount]
 
-theorem hashRowCount_eq : hashRowCount = 6799124 := by
+theorem hashRowCount_eq : hashRowCount = 6799716 := by
   norm_num [hashRowCount, hashWitnessCount_eq, digestWords,
     PilotValues.digestWords]
 
-theorem physicalRowCountValue_eq : physicalRowCountValue = 13599570 := by
+theorem physicalRowCountValue_eq : physicalRowCountValue = 13600754 := by
   norm_num [physicalRowCountValue, hashWitnessCount_eq, hashRowCount_eq,
     priorBindingRowCount, PilotValues.priorBindingRowCount,
     PilotValues.priorExtraRowCount, PilotValues.priorCanonicalRowCount,
@@ -215,7 +215,7 @@ theorem outputHash_affine :
     exact R1CS.isAffine_var _
 
 theorem stateHash_chunkCount (start : Nat) :
-    (Hash.inputChunks (variableExprs start stateHashWords)).length = 11484 := by
+    (Hash.inputChunks (variableExprs start stateHashWords)).length = 11485 := by
   unfold Hash.inputChunks
   rw [List.length_map, List.length_range, variableExprs_length]
   norm_num [stateHashWords, digestWords,
@@ -223,12 +223,12 @@ theorem stateHash_chunkCount (start : Nat) :
     NightstreamFPrime.Spec.Poseidon2.rate]
 
 theorem priorPreimage_chunkCount (offset : Nat) :
-    (Hash.inputChunks (priorPreimage offset)).length = 11484 := by
+    (Hash.inputChunks (priorPreimage offset)).length = 11485 := by
   unfold priorPreimage
   exact stateHash_chunkCount priorPreimageStart
 
 theorem outputPreimage_chunkCount (offset : Nat) :
-    (Hash.inputChunks (outputPreimage offset)).length = 11484 := by
+    (Hash.inputChunks (outputPreimage offset)).length = 11485 := by
   unfold outputPreimage
   exact stateHash_chunkCount outputPreimageStart
 
@@ -313,7 +313,7 @@ theorem priorHash_freshCount :
     (priorPreimage witnessOffset) (priorPreimage_affine witnessOffset)
 
 theorem priorHash_rowCount :
-    R1CS.totalRowCount (priorRawConstraints ()) = 6799120 := by
+    R1CS.totalRowCount (priorRawConstraints ()) = 6799712 := by
   rw [priorRawConstraints_eq,
     Poseidon2.hash_recipeConstraints_rowCount witnessOffset
       (priorPreimage witnessOffset) (priorPreimage_affine witnessOffset),
@@ -410,7 +410,7 @@ theorem outputHash_rowCount :
     R1CS.totalRowCount
       (Poseidon2.hashConstraints
         (OutputHash.hashInterface outputInterface)
-        (Pilot.outputOffset interface witnessOffset)) = 6799124 := by
+        (Pilot.outputOffset interface witnessOffset)) = 6799716 := by
   rw [Poseidon2.hashConstraints_rowCount _ _ outputHash_affine,
     outputHashInterface_input,
     outputPreimage_chunkCount]
@@ -509,7 +509,7 @@ theorem priorConstraints_freshCount :
 
 theorem priorConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.priorConstraints interface witnessOffset) = 6800446 := by
+      (Pilot.priorConstraints interface witnessOffset) = 6801038 := by
   rw [priorConstraints_decomposition, R1CS.totalRowCount_append,
     R1CS.totalRowCount_append, priorHash_rowCount,
     priorWordConstraints_rowCount, priorBindingConstraints_rowCount]
@@ -521,7 +521,7 @@ theorem outputConstraints_freshCount :
 
 theorem outputConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.outputConstraints interface witnessOffset) = 6799124 := by
+      (Pilot.outputConstraints interface witnessOffset) = 6799716 := by
   rw [outputConstraints_decomposition, outputHash_rowCount]
 
 theorem logicalConstraints_freshCount :
@@ -533,41 +533,41 @@ theorem logicalConstraints_freshCount :
 
 theorem logicalConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.logicalConstraints interface witnessOffset) = 13599570 := by
+      (Pilot.logicalConstraints interface witnessOffset) = 13600754 := by
   unfold Pilot.logicalConstraints
   rw [R1CS.totalRowCount_append, priorConstraints_rowCount,
     outputConstraints_rowCount]
 
 theorem physicalRowCount_eq :
-    Pilot.physicalRowCount interface witnessOffset = 13599570 := by
+    Pilot.physicalRowCount interface witnessOffset = 13600754 := by
   rw [Pilot.physicalRowCount_eq, logicalConstraints_rowCount]
 
 theorem priorHashLogicalLength_eq :
-    PriorStateHash.hashLength priorInterface witnessOffset = 6799120 := by
+    PriorStateHash.hashLength priorInterface witnessOffset = 6799712 := by
   rw [PriorStateHash.hashLength_eq, priorInterface_preimage_apply,
     priorPreimage_chunkCount]
 
 theorem priorWitnessCount :
     PriorStateHash.logicalPrivateCount priorInterface witnessOffset =
-      6799384 := by
+      6799976 := by
   unfold PriorStateHash.logicalPrivateCount
   rw [priorHashLogicalLength_eq]
 
 theorem outputWitnessCount :
     OutputHash.hashLength outputInterface
-      (Pilot.outputOffset interface witnessOffset) = 6799120 := by
+      (Pilot.outputOffset interface witnessOffset) = 6799712 := by
   unfold OutputHash.hashLength
   rw [outputInterface_preimage_apply, outputPreimage_chunkCount]
 
 theorem outputOffset_eq :
-    Pilot.outputOffset interface witnessOffset = 6891524 := by
+    Pilot.outputOffset interface witnessOffset = 6892124 := by
   unfold Pilot.outputOffset Lifecycle.Pilot.outputOffset
   rw [interface_prior, priorWitnessCount]
   unfold witnessOffset
   rw [externalColumnCount_eq]
 
 def lifecycleOutputOffset : Nat :=
-  6891524
+  6892124
 
 /-- The materialized executable offset is exactly the logical pilot offset. -/
 theorem lifecycleOutputOffset_matches :
@@ -583,10 +583,10 @@ theorem lifecycleOutputOffset_matches_layout :
     Lifecycle.Pilot.outputOffset interface witnessOffset
   exact lifecycleOutputOffset_matches
 
-theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 6891524 := by
+theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 6892124 := by
   rfl
 
-theorem witnessOffset_eq : witnessOffset = 92140 := by
+theorem witnessOffset_eq : witnessOffset = 92148 := by
   unfold witnessOffset
   exact externalColumnCount_eq
 
@@ -597,17 +597,17 @@ theorem witnessOffset_le_lifecycleOutputOffset :
   norm_num
 
 theorem logicalColumnCount_eq :
-    Pilot.logicalColumnCount interface witnessOffset = 13690644 := by
+    Pilot.logicalColumnCount interface witnessOffset = 13691836 := by
   unfold Pilot.logicalColumnCount
   rw [interface_output, outputWitnessCount, outputOffset_eq]
 
 theorem physicalColumnCount_eq :
-    Pilot.physicalColumnCount interface witnessOffset = 13691432 := by
+    Pilot.physicalColumnCount interface witnessOffset = 13692624 := by
   rw [Pilot.physicalColumnCount_eq, logicalConstraints_freshCount,
     logicalColumnCount_eq]
 
 def jointDomain : Nat :=
-  13691432
+  13692624
 
 /-- The materialized executable domain is exactly the semantic pilot domain. -/
 theorem jointDomain_matches :
@@ -617,11 +617,11 @@ theorem jointDomain_matches :
   rw [physicalRowCount_eq, physicalColumnCount_eq]
   rfl
 
-theorem jointDomain_eq : jointDomain = 13691432 := by
+theorem jointDomain_eq : jointDomain = 13692624 := by
   rfl
 
-/-- The complete pilot layout fits the fixed `2^26` production domain. -/
-theorem jointDomain_le_twoPow26 : jointDomain ≤ 2 ^ 26 := by
+/-- The complete pilot layout fits the fixed `2^28` production domain. -/
+theorem jointDomain_le_twoPow28 : jointDomain ≤ 2 ^ 28 := by
   rw [jointDomain_eq]
   norm_num
 

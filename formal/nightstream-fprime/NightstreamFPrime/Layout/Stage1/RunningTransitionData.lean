@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- The completed PiDEC source-column endpoint. -/
-def phaseOffset : Nat := 27374284
+def phaseOffset : Nat := 27420586
 
 theorem phaseOffset_matches_piDec
     {logicalWidth : Nat}

@@ -152,7 +152,7 @@ private theorem serializeKExpr_length (value : KExpr) :
 
 private theorem serializePointExpr_length
     (point : Fin productionShape.cubeVariables → KExpr) :
-    (serializePointExpr point).length = 52 := by
+    (serializePointExpr point).length = 56 := by
   simp [serializePointExpr, serializeKExpr_length, productionShape,
     Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -205,7 +205,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 45893 := by
+    (serializeRunningExpr running).length = 45897 := by
   simp [serializeRunningExpr, blockExpr_length, serializePointExpr_length,
     serializeCommitmentExpr_length, serializePublicInputExpr_length,
     serializeEvaluationExpr_length, productionShape, productionProfile,
@@ -732,7 +732,7 @@ private theorem absorb_recipeCount (input : List Expr) :
 @[simp] private theorem point_recipeCount
     (point : Fin productionShape.cubeVariables → KExpr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializePointExpr point)) = 8288 := by
+        (absorbBlock (serializePointExpr point)) = 8880 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializePointExpr_length]
 
@@ -817,7 +817,7 @@ private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 3845040 := by
+    Formal.recipeCount (verifierInputActions interface offset) = 3845632 := by
   rw [verifierInputActions_eq]
   simp [Formal.recipeCount]
 

@@ -20,9 +20,13 @@ import NightstreamFPrime.Layout.PiRLC.v1_1.PacketProjection
 import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerSegments
 import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerCompleteness
 import NightstreamFPrime.Layout.R1CS.Segments
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
+import NightstreamFPrime.Spec.Phi81StrongSet
 
 /-! Axiom audits for the compact PiRLC Stage 1 export bridge. -/
 
+#audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.productionSet_strong
+#audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction.completeFork_implies_correctedAmbientHolds
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep.recipe_eval
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.ownedSpec_iff_specHolds
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestWindow.laneAssumptions
@@ -43,7 +47,7 @@ import NightstreamFPrime.Layout.R1CS.Segments
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physicalHolds_iff_rowsHold
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.physical_complete
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.cumulativeFootprints_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow26
+#audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC.jointDomain_le_twoPow28
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption.actions_affine
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compileFast_eq_compile
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.compile_eq_compileFast

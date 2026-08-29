@@ -135,7 +135,7 @@ theorem logicalConstraints_length_eq_of_degreeBound_eq_nine
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    (logicalConstraints relation interface offset).length = 4535428 := by
+    (logicalConstraints relation interface offset).length = 4549664 := by
   rw [logicalConstraints_length]
   exact Formal.rowCount_eq_of_degreeBound_eq_nine degreeBound degreeEq
 
@@ -143,7 +143,7 @@ theorem logicalColumnCount_eq_of_degreeBound_eq_nine
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    logicalColumnCount relation interface offset = offset + 4535214 := by
+    logicalColumnCount relation interface offset = offset + 4549446 := by
   unfold logicalColumnCount
   rw [Formal.privateCount_eq_of_degreeBound_eq_nine degreeBound degreeEq]
 

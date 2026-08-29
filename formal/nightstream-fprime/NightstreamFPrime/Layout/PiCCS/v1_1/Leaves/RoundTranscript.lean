@@ -8,16 +8,16 @@ the corresponding verifier challenge in exact round order.
 
 Inputs:
 - the prior child-owned transcript state;
-- 26 prover polynomial messages of degree at most `degreeBound`.
+- 28 prover polynomial messages of degree at most `degreeBound`.
 
 Outputs:
-- 26 verifier-derived round challenges;
+- 28 verifier-derived round challenges;
 - the child-owned outgoing transcript state.
 
 Constraint groups:
 - one generic message-absorption action group;
 - one generic labelled squeeze action group;
-- indexed composition over the fixed 26-round chain.
+- indexed composition over the fixed 28-round chain.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.round_transcript`.
@@ -341,7 +341,7 @@ theorem actions_affine
     (challenge interface offset roundIndex) inputs
     (challenge_affine interface offset inputs roundIndex)
 
-/-- Exact parent-facing physical footprint for the indexed 26-round transcript
+/-- Exact parent-facing physical footprint for the indexed 28-round transcript
 chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -412,7 +412,7 @@ theorem physicalRowCount_eq_of_degreeBound_eq_nine
       InputsAffine (Formal.roundTranscriptInterface interface) offset)
     (offset : Nat) (degreeBound_eq : degreeBound = 9) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.roundTranscriptCircuit interface).main offset)) = 138528 := by
+      (Formal.roundTranscriptCircuit interface).main offset)) = 149184 := by
   rw [physicalRowCount_eq interface inputs offset, degreeBound_eq]
   rfl
 

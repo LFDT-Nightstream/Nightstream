@@ -171,36 +171,36 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 7679 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 7703 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 91866 := by
+theorem proofInputStart_eq : Data.proofInputStart = 91874 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 120898 := by
+theorem witnessStart_eq : Data.witnessStart = 120946 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 27189226 := by
+theorem witnessLength_eq : Data.witnessLength = 27235480 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 27537894 ∧
-      layout.privateColumnCount = 27649368 ∧
-      layout.constantColumn = 27649368 ∧
+    layout.rowCount = 27584180 ∧
+      layout.privateColumnCount = 27695694 ∧
+      layout.constantColumn = 27695694 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 27649647 := by
+      layout.totalColumnCount = 27695973 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
-theorem circuitPackage_jointDomain_le_twoPow26 :
+theorem circuitPackage_jointDomain_le_twoPow28 :
     max (Data.circuitPackage ()).layout.rowCount
-      ((Data.circuitPackage ()).layout.totalColumnCount - 1) ≤ 2 ^ 26 := by
+      ((Data.circuitPackage ()).layout.totalColumnCount - 1) ≤ 2 ^ 28 := by
   rw [Data.circuitPackage_layout]
   norm_num [Data.physicalLayout,
     NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount]
@@ -210,11 +210,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 1348211 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 1379105 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 1348211 := by
+    _ = 1379105 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -229,7 +229,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 1349541 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 1380435 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -238,7 +238,7 @@ theorem circuitPackage_ordinary_rows
     _ = 1330 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 1330 + 1348211 := by
+    _ = 1330 + 1379105 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -248,9 +248,9 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 1349541 := by norm_num
+    _ = 1380435 := by norm_num
 
-/-- Construct all 7,514 PiCCS Poseidon2 invocations in their proved private
+/-- Construct all 7,550 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
 theorem complete_piCcsInvocations
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -1397,8 +1397,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      13598240 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 13598240
+      13599424 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 13599424
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,

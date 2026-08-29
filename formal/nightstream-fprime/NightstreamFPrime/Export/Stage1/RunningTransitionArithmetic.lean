@@ -17,7 +17,20 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def rowStart : Nat := 27216639
+/-- The running-transition packet starts at the exact end of PiDEC. -/
+def rowStart : Nat :=
+  NightstreamFPrime.Layout.Stage1.PiDECStarts.outputRowStart
+
+theorem rowStart_eq_prefix
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    rowStart =
+      NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount
+        relation := by
+  rw [NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount_eq]
+  rfl
 
 structure Plan where
   rowStart : Nat
@@ -101,13 +114,13 @@ theorem canonicalPlan_rowCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      321255 := by
+      321283 := by
   change R1CS.totalRowCount
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
         (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
           logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
-    321255
+    321283
   rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints,
     ← logicalConstraints_eq]
   exact NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalRowCount_eq

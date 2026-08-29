@@ -42,7 +42,7 @@ def fixedWords : List FixedWord :=
       ⟨29, Poseidon2.ofNat 4⟩,
       ⟨34, Poseidon2.ofNat 4⟩,
       ⟨39, Poseidon2.ofNat (cubeVariables * 2)⟩] ++
-    runningPrefixWords ++ [⟨45932, Poseidon2.ofNat 1⟩]
+    runningPrefixWords ++ [⟨45936, Poseidon2.ofNat 1⟩]
 
 def contextWordStart : Nat := 24
 
@@ -57,14 +57,14 @@ theorem fixedWords_length : fixedWords.length = 76 := by
   simp [fixedWords, tagWords_length, runningPrefixWords_length]
 
 theorem fixedWord_index_lt (word : FixedWord) (member : word ∈ fixedWords) :
-    word.index < 45933 := by
+    word.index < 45937 := by
   simp only [fixedWords, List.mem_append] at member
   rcases member with ((tagMember | fixedMember) | runningMember) | pcMember
   · rw [tagWords, List.mem_map] at tagMember
     rcases tagMember with ⟨index, _indexMember, rfl⟩
     have bound := index.isLt
     have tagLength := stateDomainTag_length
-    change index.val < 45933
+    change index.val < 45937
     omega
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at fixedMember
     rcases fixedMember with rfl | rfl | rfl | rfl <;> norm_num

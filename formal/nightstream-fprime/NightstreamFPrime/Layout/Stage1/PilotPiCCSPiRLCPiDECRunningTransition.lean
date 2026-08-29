@@ -22,7 +22,7 @@ variable {logicalWidth : Nat}
 def transitionOffset : Nat :=
   RunningTransitionInputs.phaseOffset
 
-theorem transitionOffset_eq : transitionOffset = 27374284 := by
+theorem transitionOffset_eq : transitionOffset = 27420586 := by
   rfl
 
 def physicalRows
@@ -59,17 +59,17 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 27537894 := by
+    physicalRowCount relation = 27584180 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCSPiRLCPiDEC.physicalRowCount relation +
-    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 27537894
+    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 27584180
   rw [PilotPiCCSPiRLCPiDEC.physicalRowCount_eq relation,
     RunningTransitionLayout.physicalRowCount_eq relation]
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 27649646 := by
+    physicalColumnCount relation = 27695972 := by
   unfold physicalColumnCount
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation,
     RunningTransitionLayout.physicalColumnCount_eq relation]
@@ -77,14 +77,14 @@ theorem physicalColumnCount_eq
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 27649646 := by
+    jointDomain relation = 27695972 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num
 
-theorem jointDomain_le_twoPow26
+theorem jointDomain_le_twoPow28
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation ≤ 2 ^ 26 := by
+    jointDomain relation ≤ 2 ^ 28 := by
   rw [jointDomain_eq relation]
   norm_num
 
@@ -109,14 +109,14 @@ def cumulativeJointDomains
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =
-        [27191367, 27214047, 27215019, 27215127, 27216639, 27216639,
-          27537894] ∧
+        [27237625, 27260305, 27261277, 27261385, 27262897, 27262897,
+          27584180] ∧
       cumulativePhysicalColumns relation =
-        [27356194, 27374284, 27374284, 27374284, 27374284, 27374284,
-          27649646] ∧
+        [27402496, 27420586, 27420586, 27420586, 27420586, 27420586,
+          27695972] ∧
       cumulativeJointDomains relation =
-        [27356194, 27374284, 27374284, 27374284, 27374284, 27374284,
-          27649646] := by
+        [27402496, 27420586, 27420586, 27420586, 27420586, 27420586,
+          27695972] := by
   rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with
     ⟨_rowDeltas, _columnDeltas, rows, columns, joint⟩
   refine ⟨?_, ?_, ?_⟩

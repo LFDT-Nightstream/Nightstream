@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 open NightstreamFPrime.Lifecycle.PiDEC.v1_1
 
 def phaseLogicalStart : Nat := PiDECInputs.phaseOffset
-def phaseRowStart : Nat := 27191367
+def phaseRowStart : Nat := 27237625
 def phaseFreshStart : Nat := phaseLogicalStart + Formal.logicalPrivateCount
 
 def inputLogicalStart : Nat := Formal.inputBindingOffset phaseLogicalStart
@@ -58,35 +58,35 @@ def recompositionRowStart (source : Nat) : Nat :=
 
 theorem phaseStarts_eq :
     [phaseLogicalStart, phaseRowStart, phaseFreshStart] =
-      [27356194, 27191367, 27356464] := by
+      [27402496, 27237625, 27402766] := by
   rfl
 
 theorem childLogicalStarts_eq :
     [inputLogicalStart, publicInputLogicalStart, commitmentLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [27356194, 27356194, 27356464, 27356464, 27356464, 27356464] := by
+    [27402496, 27402496, 27402766, 27402766, 27402766, 27402766] := by
   rfl
 
 theorem childRowStarts_eq :
     [inputRowStart, publicInputRowStart, commitmentRowStart, evalKRowStart,
       evalARowStart, outputRowStart] =
-    [27191367, 27191367, 27214047, 27215019, 27215127, 27216639] := by
+    [27237625, 27237625, 27260305, 27261277, 27261385, 27262897] := by
   rfl
 
 theorem childFreshStarts_eq :
     [inputFreshStart, publicInputFreshStart, commitmentFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [27356464, 27356464, 27374284, 27374284, 27374284, 27374284] := by
+    [27402766, 27402766, 27420586, 27420586, 27420586, 27420586] := by
   rfl
 
 theorem scalarStarts_eq (source : Nat) :
-    scalarLogicalStart source = 27356194 + source ∧
-      scalarRowStart source = 27191367 + source * 84 ∧
-      scalarFreshStart source = 27356464 + source * 66 := by
+    scalarLogicalStart source = 27402496 + source ∧
+      scalarRowStart source = 27237625 + source * 84 ∧
+      scalarFreshStart source = 27402766 + source * 66 := by
   exact ⟨rfl, rfl, rfl⟩
 
 theorem finalBoundaries_eq :
-    outputRowStart = 27216639 ∧ outputFreshStart = 27374284 := by
+    outputRowStart = 27262897 ∧ outputFreshStart = 27420586 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStarts

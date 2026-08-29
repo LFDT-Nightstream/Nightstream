@@ -52,7 +52,7 @@ theorem runningTransitionTargetStart_eq :
   rfl
 
 theorem runningTransitionTargetLength_eq :
-    Data.runningTransitionWitnessLength = 275362 := by
+    Data.runningTransitionWitnessLength = 275386 := by
   rfl
 
 theorem runningTransitionTargetEnd_eq :

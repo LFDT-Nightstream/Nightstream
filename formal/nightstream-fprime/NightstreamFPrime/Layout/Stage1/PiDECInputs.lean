@@ -22,7 +22,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- The completed PiRLC private-column endpoint. -/
-def proofInputStart : Nat := 27310402
+def proofInputStart : Nat := 27356704
 
 def childCount : Nat := 16
 def commitmentWordsPerChild : Nat := 972
@@ -60,7 +60,7 @@ theorem proofInputColumnCount_eq : proofInputColumnCount = 45792 := by
 theorem inputStarts_eq :
     [commitmentInputStart, evalKInputStart, evalAInputStart, publicInputStart,
       phaseOffset] =
-    [27310402, 27325954, 27327682, 27351874, 27356194] := by
+    [27356704, 27372256, 27373984, 27398176, 27402496] := by
   rfl
 
 def childCommitmentStart (child : Radix.ChildIndex) : Nat :=

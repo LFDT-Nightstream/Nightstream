@@ -25,9 +25,9 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 
-def exactWordCount : Nat := 45893
+def exactWordCount : Nat := 45897
 def exactPrivateCount : Nat := 1
-def exactRowCount : Nat := 45894
+def exactRowCount : Nat := 45898
 
 abbrev WordIndex := Fin exactWordCount
 

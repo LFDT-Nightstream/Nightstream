@@ -11,7 +11,7 @@ verifier-context source words move to the public suffix. The appended proof
 input, PiCCS-local, and PiRLC-local intervals are private and fill the interval
 between the pilot-private columns and the relocated public columns. This
 module changes no row and adds only the generic zero padding required by the
-fixed `2^26` domain.
+fixed `2^28` domain.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.Spartan
@@ -25,34 +25,34 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Fixed completed pilot source interval. -/
-def pilotSourceColumnCount : Nat := 13691432
+def pilotSourceColumnCount : Nat := 13692624
 
 /-- Fixed completed pilot private interval. -/
-def pilotPrivateColumnCount : Nat := 13691158
+def pilotPrivateColumnCount : Nat := 13692350
 
 /-- Caller-supplied pilot private inputs precede all generated witnesses. -/
-def pilotInputPrivateColumnCount : Nat := 91866
+def pilotInputPrivateColumnCount : Nat := 91874
 
 /-- Caller-supplied PiCCS proof inputs. -/
-def proofInputColumnCount : Nat := 29032
+def proofInputColumnCount : Nat := 29072
 
 /-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
 
 /-- Source boundary between public context and private PiCCS proof inputs. -/
-def proofInputSourceStart : Nat := 13691436
+def proofInputSourceStart : Nat := 13692628
 
 /-- Source boundary between proof inputs and PiCCS local witnesses. -/
-def piCcsPhaseOffset : Nat := 13720468
+def piCcsPhaseOffset : Nat := 13721700
 
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
-def piCcsLocalStart : Nat := 13720190
+def piCcsLocalStart : Nat := 13721422
 
 /-- Exact private proof-input plus PiCCS-local and PiRLC-local suffix. -/
-def appendedPrivateColumnCount : Nat := 13958210
+def appendedPrivateColumnCount : Nat := 14003344
 
 /-- All source columns before Spartan inserts its constant column. -/
-def SourceColumnCount : Nat := 27649646
+def SourceColumnCount : Nat := 27695972
 
 /-- Public columns owned by the closed pilot. -/
 def pilotPublicColumnCount : Nat := 274
@@ -61,20 +61,20 @@ def pilotPublicColumnCount : Nat := 274
 def publicColumnCount : Nat := 278
 
 /-- The pilot-private prefix followed by all PiCCS columns. -/
-def privateColumnCount : Nat := 27649368
+def privateColumnCount : Nat := 27695694
 
-def constantColumn : Nat := 27649368
+def constantColumn : Nat := 27695694
 
-def spartanColumnCount : Nat := 27649647
+def spartanColumnCount : Nat := 27695973
 
 /-- First final public column owned by the verifier context. -/
-def expectedContextPublicStart : Nat := 27649643
+def expectedContextPublicStart : Nat := 27695969
 
 theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 13958210 := by
+    appendedPrivateColumnCount = 14003344 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 27649646 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 27695972 := by
   rfl
 
 theorem pilotSourceColumnCount_matches :
@@ -90,17 +90,17 @@ theorem pilotPrivateColumnCount_matches :
 theorem publicColumnCount_eq : publicColumnCount = 278 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 27649368 := by
+theorem privateColumnCount_eq : privateColumnCount = 27695694 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 27649368 := by
+theorem constantColumn_eq : constantColumn = 27695694 := by
   exact privateColumnCount_eq
 
 theorem constantColumn_eq_private :
     constantColumn = privateColumnCount := by
   rfl
 
-theorem spartanColumnCount_eq : spartanColumnCount = 27649647 := by
+theorem spartanColumnCount_eq : spartanColumnCount = 27695973 := by
   rfl
 
 theorem sourceColumnCount_decomposition :
@@ -565,7 +565,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 13691433 := by
+        have mappedBoundNumeric : mapped < 13692625 := by
           rw [PilotSpartan.spartanColumnCount_eq,
             PilotSpartan.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound
@@ -574,7 +574,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             privateColumnCount +
                 (mapped - pilotPrivateColumnCount) <
               expectedContextPublicStart := by
-          change 27649368 + (mapped - 13691158) < 27649643
+          change 27695694 + (mapped - 13692350) < 27695969
           omega
         unfold spartanToSource
         rw [if_neg notPilotPrivate, if_neg notProofInput,
@@ -869,7 +869,7 @@ theorem sourceColumnCount_matches
 
 theorem sourceRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 27537894 := by
+    (sourceRows relation).length = 27584180 := by
   exact PilotPiCCSPiRLCPiDECRunningTransition.physicalRowCount_eq relation
 
 /-- The generic Spartan row and private-variable domains use the fixed cube. -/
@@ -880,7 +880,7 @@ def paddedConstantColumn : Nat := domainSize
 def paddedSpartanColumnCount : Nat :=
   domainSize + 1 + publicColumnCount
 
-theorem domainSize_eq : domainSize = 67108864 := by
+theorem domainSize_eq : domainSize = 268435456 := by
   norm_num [domainSize, cubeVariables]
 
 theorem sourceRowCount_bounds

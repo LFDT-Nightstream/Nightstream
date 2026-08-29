@@ -127,20 +127,20 @@ theorem localLength_eq {degree : Nat} (interface : Interface degree)
 
 theorem operations_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 52 := by
+    (Circuit.ops (circuit interface).main offset).length = 56 := by
   change (Circuit.ops
     (FixedChain.Owned.main
-      (coreInterface interface offset)) offset).length = 52
+      (coreInterface interface offset)) offset).length = 56
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     FixedChain.Owned.operations_length (coreInterface interface offset) offset
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      52 := by
+      56 := by
   change (flatConstraints (Circuit.ops
     (FixedChain.Owned.main
-      (coreInterface interface offset)) offset)).length = 52
+      (coreInterface interface offset)) offset)).length = 56
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
     FixedChain.Owned.flatConstraints_length
       (coreInterface interface offset) offset

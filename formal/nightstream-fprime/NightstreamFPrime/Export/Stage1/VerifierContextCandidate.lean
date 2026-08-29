@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Exact logical width of the Pilot + PiCCS + PiRLC + PiDEC package cut. -/
-def candidateLogicalWidth : Nat := 27374285
+def candidateLogicalWidth : Nat := 27420587
 
 def candidatePublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth candidateLogicalWidth := by
@@ -30,10 +30,10 @@ def candidatePublicFits : ringDegree * publicRingColumns ≤
 /-- Last validated verifier-owned package identity. Do not change this pin
 until the current candidate passes every identity-change gate. -/
 def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨18090610635114842464, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨5494511358918718774, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨14026867434695270642, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨8861486951490451735, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨3355019049079043662, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨4920201927044277974, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨5339237732450517664, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨894111819037169888, by norm_num [F, goldilocksModulus]⟩
 
 def packageIdentityWords : List F :=
   expectedPackageIdentity.toList
@@ -41,10 +41,10 @@ def packageIdentityWords : List F :=
 /-- Unpinned identity candidate recomputed from the current canonical package.
 It is used only to produce pre-pin conformance fixtures. -/
 def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨18090610635114842464, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨5494511358918718774, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨14026867434695270642, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨8861486951490451735, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨3355019049079043662, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨4920201927044277974, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨5339237732450517664, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨894111819037169888, by norm_num [F, goldilocksModulus]⟩
 
 def candidatePackageIdentityWords : List F :=
   candidatePackageIdentity.toList

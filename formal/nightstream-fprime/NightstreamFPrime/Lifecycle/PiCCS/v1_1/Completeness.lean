@@ -57,12 +57,12 @@ theorem specHolds_implies_holds
 
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
-  4396686 + productionShape.cubeVariables *
+  4400262 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
-  4396900 + productionShape.cubeVariables *
+  4400480 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound
 
 private theorem transcriptPrefix_localLength_eq
@@ -72,7 +72,7 @@ private theorem transcriptPrefix_localLength_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
-      240352 + productionShape.cubeVariables *
+      243904 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
@@ -87,7 +87,7 @@ private theorem evaluationPrefix_localLength_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    localLength (evaluationPrefixOps interface offset) = 52038 := by
+    localLength (evaluationPrefixOps interface offset) = 52054 := by
   simp only [evaluationPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold initialClaimCircuit sumcheckCircuit evalKCircuit
@@ -102,7 +102,7 @@ private theorem terminalPrefix_localLength_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    localLength (terminalPrefixOps relation interface offset) = 4104296 := by
+    localLength (terminalPrefixOps relation interface offset) = 4104304 := by
   simp only [terminalPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold ccsCircuit normCircuit finalIdentityCircuit
@@ -118,7 +118,7 @@ private theorem transcriptPrefix_rowCount_eq
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
       (transcriptPrefixOps interface offset) =
-      240512 + productionShape.cubeVariables *
+      244064 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
@@ -135,7 +135,7 @@ private theorem evaluationPrefix_rowCount_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
-      (evaluationPrefixOps interface offset) = 52090 := by
+      (evaluationPrefixOps interface offset) = 52110 := by
   simp only [evaluationPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
@@ -151,7 +151,7 @@ private theorem terminalPrefix_rowCount_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
-      (terminalPrefixOps relation interface offset) = 4104298 := by
+      (terminalPrefixOps relation interface offset) = 4104306 := by
   simp only [terminalPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
@@ -207,13 +207,13 @@ theorem flatConstraints_length_eq
   omega
 
 theorem privateCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4535214 := by
+    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4549446 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4535428 := by
+    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4549664 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]

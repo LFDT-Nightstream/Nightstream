@@ -375,13 +375,13 @@ theorem totalFreshCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
-      275361 := by
+      275385 := by
   rw [logicalConstraints_eq]
   change R1CS.totalFreshCount
       (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
           phaseOffset ::
         List.ofFn (RunningTransition.muxConstraint
-          (interface logicalWidth publicFits) phaseOffset)) = 275361
+          (interface logicalWidth publicFits) phaseOffset)) = 275385
   calc
     R1CS.totalFreshCount
         (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
@@ -392,13 +392,13 @@ theorem totalFreshCount_eq
       totalFreshCount_cons_ofFn _ _ 3 6
         (binding_freshCount_eq logicalWidth publicFits)
         (mux_freshCount_eq relation)
-    _ = 275361 := by rfl
+    _ = 275385 := by rfl
 
 theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (logicalConstraints logicalWidth publicFits).length = 45894 := by
+    (logicalConstraints logicalWidth publicFits).length = 45898 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
@@ -407,7 +407,7 @@ theorem totalRowCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
-      321255 := by
+      321283 := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq relation, logicalConstraints_length_eq]
 

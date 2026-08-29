@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
-def phaseOffset : Nat := 18956449
+def phaseOffset : Nat := 19002751
 
 theorem phaseOffset_matches_piCcs
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

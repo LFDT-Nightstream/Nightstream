@@ -186,24 +186,24 @@ private theorem serializeRunning_commitment_getD
     (row : Fin productionProfile.commitmentWidth)
     (coefficient : Fin ringDegree) :
     (serializeRunning (publicFits := publicFits) running).getD
-        (53 + source.val * runningGroupWords +
+        (57 + source.val * runningGroupWords +
           (1 + row.val * ringDegree + coefficient.val)) 0 =
       running.commitments source row coefficient := by
   change
     (block (serializePoint running.point) ++
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
-          (53 + source.val * runningGroupWords +
+          (57 + source.val * runningGroupWords +
             (1 + row.val * ringDegree + coefficient.val)) 0 =
       running.commitments source row coefficient
   rw [List.getD_append_right]
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     have shifted :
-        53 + source.val * runningGroupWords +
-              (1 + row.val * ringDegree + coefficient.val) - 53 =
+        57 + source.val * runningGroupWords +
+              (1 + row.val * ringDegree + coefficient.val) - 57 =
           source.val * runningGroupWords +
             (1 + row.val * ringDegree + coefficient.val) := by
       omega
@@ -221,7 +221,7 @@ private theorem serializeRunning_commitment_getD
       _ = _ := serializeRunningGroup_commitment_getD
         running source row coefficient
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     omega
@@ -229,8 +229,8 @@ private theorem serializeRunning_commitment_getD
 private def runningCommitmentPayloadIndex
     (source : Fin productionShape.runningCount)
     (row : Fin productionProfile.commitmentWidth)
-    (coefficient : Fin ringDegree) : Fin 45893 :=
-  ⟨53 + source.val * runningGroupWords +
+    (coefficient : Fin ringDegree) : Fin 45897 :=
+  ⟨57 + source.val * runningGroupWords +
       (1 + row.val * ringDegree + coefficient.val), by
     have sourceBound := source.isLt
     have rowBound := row.isLt
@@ -406,21 +406,21 @@ private theorem serializeRunning_publicInput_getD
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (serializeRunning (publicFits := publicFits) running).getD
-        (53 + source.val * runningGroupWords + (974 + column.val)) 0 =
+        (57 + source.val * runningGroupWords + (974 + column.val)) 0 =
       running.publicInputs source column := by
   change
     (block (serializePoint running.point) ++
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
-          (53 + source.val * runningGroupWords + (974 + column.val)) 0 =
+          (57 + source.val * runningGroupWords + (974 + column.val)) 0 =
       running.publicInputs source column
   rw [List.getD_append_right]
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     have shifted :
-        53 + source.val * runningGroupWords + (974 + column.val) - 53 =
+        57 + source.val * runningGroupWords + (974 + column.val) - 57 =
           source.val * runningGroupWords + (974 + column.val) := by
       omega
     rw [shifted]
@@ -435,7 +435,7 @@ private theorem serializeRunning_publicInput_getD
       _ = _ := serializeRunningGroup_publicInput_getD
         running source column
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     omega
@@ -446,8 +446,8 @@ private def runningPublicInputPayloadIndex
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    Fin 45893 :=
-  ⟨53 + source.val * runningGroupWords + (974 + column.val), by
+    Fin 45897 :=
+  ⟨57 + source.val * runningGroupWords + (974 + column.val), by
     have sourceBound := source.isLt
     have columnBound := publicColumn_lt_270 column
     norm_num [productionShape, productionProfile,
@@ -628,7 +628,7 @@ private theorem serializeRunning_evalK_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeRunning (publicFits := publicFits) running).getD
-        (53 + source.val * runningGroupWords +
+        (57 + source.val * runningGroupWords +
           (1245 + coefficient.val * 2 + component.val)) 0 =
       (serializeK ((running.evaluations source).pad coefficient)).getD
         component.val 0 := by
@@ -636,18 +636,18 @@ private theorem serializeRunning_evalK_getD
     (block (serializePoint running.point) ++
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
-          (53 + source.val * runningGroupWords +
+          (57 + source.val * runningGroupWords +
             (1245 + coefficient.val * 2 + component.val)) 0 =
       (serializeK ((running.evaluations source).pad coefficient)).getD
         component.val 0
   rw [List.getD_append_right]
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     have shifted :
-        53 + source.val * runningGroupWords +
-              (1245 + coefficient.val * 2 + component.val) - 53 =
+        57 + source.val * runningGroupWords +
+              (1245 + coefficient.val * 2 + component.val) - 57 =
           source.val * runningGroupWords +
             (1245 + coefficient.val * 2 + component.val) := by
       omega
@@ -667,7 +667,7 @@ private theorem serializeRunning_evalK_getD
       _ = _ := serializeRunningGroup_evalK_getD
         running source coefficient component
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     omega
@@ -675,8 +675,8 @@ private theorem serializeRunning_evalK_getD
 private def runningEvalKPayloadIndex
     (source : Fin productionShape.runningCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 45893 :=
-  ⟨53 + source.val * runningGroupWords +
+    (component : Fin 2) : Fin 45897 :=
+  ⟨57 + source.val * runningGroupWords +
       (1245 + coefficient.val * 2 + component.val), by
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
@@ -917,7 +917,7 @@ private theorem serializeRunning_evalA_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeRunning (publicFits := publicFits) running).getD
-        (53 + source.val * runningGroupWords +
+        (57 + source.val * runningGroupWords +
           (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
             component.val)) 0 =
       (serializeK
@@ -927,7 +927,7 @@ private theorem serializeRunning_evalA_getD
     (block (serializePoint running.point) ++
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
-          (53 + source.val * runningGroupWords +
+          (57 + source.val * runningGroupWords +
             (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
               component.val)) 0 =
       (serializeK
@@ -935,13 +935,13 @@ private theorem serializeRunning_evalA_getD
           component.val 0
   rw [List.getD_append_right]
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     have shifted :
-        53 + source.val * runningGroupWords +
+        57 + source.val * runningGroupWords +
               (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
-                component.val) - 53 =
+                component.val) - 57 =
           source.val * runningGroupWords +
             (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
               component.val) := by
@@ -966,7 +966,7 @@ private theorem serializeRunning_evalA_getD
       _ = _ := serializeRunningGroup_evalA_getD
         running source matrix coefficient component
   · rw [block_length, serializePoint_length]
-    have pointBlockWords : cubeVariables * 2 + 1 = 53 := by
+    have pointBlockWords : cubeVariables * 2 + 1 = 57 := by
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     omega
@@ -975,8 +975,8 @@ private def runningEvalAPayloadIndex
     (source : Fin productionShape.runningCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 45893 :=
-  ⟨53 + source.val * runningGroupWords +
+    (component : Fin 2) : Fin 45897 :=
+  ⟨57 + source.val * runningGroupWords +
       (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
         component.val), by
     have sourceBound := source.isLt

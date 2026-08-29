@@ -40,15 +40,15 @@ theorem rowBase_eq_layout :
 def statementBindingRowStart : Nat := rowBase
 def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160
 def challengeRowStart : Nat := statementAbsorptionRowStart + 192400
-def roundTranscriptRowStart : Nat := challengeRowStart + 47952
-def initialClaimRowStart : Nat := roundTranscriptRowStart + 138528
+def roundTranscriptRowStart : Nat := challengeRowStart + 51504
+def initialClaimRowStart : Nat := roundTranscriptRowStart + 149184
 def sumcheckRowStart : Nat := initialClaimRowStart + 116631
-def evalKRowStart : Nat := sumcheckRowStart + 393959
-def evalARowStart : Nat := evalKRowStart + 8486
-def ccsRowStart : Nat := evalARowStart + 109574
+def evalKRowStart : Nat := sumcheckRowStart + 424657
+def evalARowStart : Nat := evalKRowStart + 8542
+def ccsRowStart : Nat := evalARowStart + 109630
 def normRowStart : Nat := ccsRowStart + 20794
 def finalIdentityRowStart : Nat := normRowStart + 752
-def outputBindingRowStart : Nat := finalIdentityRowStart + 130447
+def outputBindingRowStart : Nat := finalIdentityRowStart + 130503
 
 /-- Row starts in the exact twelve-child parent order. -/
 def rowStarts : List Nat :=
@@ -61,28 +61,28 @@ def rowStarts : List Nat :=
 Poseidon2 invocation packets. -/
 def statementWitnessStart : Nat := PiCCSInputs.phaseOffset
 def challengeWitnessStart : Nat := statementWitnessStart + 192400
-def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 47952
-def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 138528
+def roundTranscriptWitnessStart : Nat := challengeWitnessStart + 51504
+def initialClaimLogicalStart : Nat := roundTranscriptWitnessStart + 149184
 def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 25918
 def evalKLogicalStart : Nat := sumcheckLogicalStart
-def evalALogicalStart : Nat := evalKLogicalStart + 1828
-def ccsLogicalStart : Nat := evalALogicalStart + 24292
+def evalALogicalStart : Nat := evalKLogicalStart + 1836
+def ccsLogicalStart : Nat := evalALogicalStart + 24300
 def normLogicalStart : Nat := ccsLogicalStart + 2
 def finalIdentityLogicalStart : Nat := normLogicalStart + 32
-def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 27750
+def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 27758
 
-theorem statementWitnessStart_eq : statementWitnessStart = 13720468 := by
+theorem statementWitnessStart_eq : statementWitnessStart = 13721700 := by
   exact PiCCSInputs.phaseOffset_eq
 
-theorem challengeWitnessStart_eq : challengeWitnessStart = 13912868 := by
+theorem challengeWitnessStart_eq : challengeWitnessStart = 13914100 := by
   rw [challengeWitnessStart, statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
-    roundTranscriptWitnessStart = 13960820 := by
+    roundTranscriptWitnessStart = 13965604 := by
   rw [roundTranscriptWitnessStart, challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 14179170 := by
+    outputBindingWitnessStart = 14194634 := by
   norm_num [outputBindingWitnessStart, finalIdentityLogicalStart,
     normLogicalStart, ccsLogicalStart, evalALogicalStart, evalKLogicalStart,
     sumcheckLogicalStart, initialClaimLogicalStart,
@@ -105,7 +105,7 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 4535214
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 4549446
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -124,12 +124,12 @@ def challengeFreshStart : Nat := statementAbsorptionFreshStart
 def roundTranscriptFreshStart : Nat := challengeFreshStart
 def initialClaimFreshStart : Nat := roundTranscriptFreshStart
 def sumcheckFreshStart : Nat := initialClaimFreshStart + 90713
-def evalKFreshStart : Nat := sumcheckFreshStart + 393907
-def evalAFreshStart : Nat := evalKFreshStart + 6658
-def ccsFreshStart : Nat := evalAFreshStart + 85282
+def evalKFreshStart : Nat := sumcheckFreshStart + 424601
+def evalAFreshStart : Nat := evalKFreshStart + 6706
+def ccsFreshStart : Nat := evalAFreshStart + 85330
 def normFreshStart : Nat := ccsFreshStart + 20792
 def finalIdentityFreshStart : Nat := normFreshStart + 720
-def outputBindingFreshStart : Nat := finalIdentityFreshStart + 97371 + 5324
+def outputBindingFreshStart : Nat := finalIdentityFreshStart + 97419 + 5324
 
 /-- R1CS-fresh starts in the exact twelve-child parent order. -/
 def freshStarts : List Nat :=

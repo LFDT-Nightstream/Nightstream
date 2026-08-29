@@ -3,13 +3,12 @@
 use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT;
+use nightstream_fprime::{PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const STATE_PREIMAGE_WORDS: usize = 45_933;
 const PRIOR_PUBLIC_WORDS: usize = 270;
 const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;

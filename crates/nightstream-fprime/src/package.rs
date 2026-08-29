@@ -41,7 +41,7 @@ mod pi_ccs_v1_1_transcript;
 pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
 
 pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-const MAX_JOINT_DOMAIN_VARIABLES: u32 = 26;
+const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;
 const MAX_JOINT_DOMAIN: usize = 1usize << MAX_JOINT_DOMAIN_VARIABLES;
 
 #[derive(Debug, Error)]
@@ -848,7 +848,7 @@ fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         dec_children,
         matrices,
         cube,
-    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 14, 26)
+    ) != (GOLDILOCKS_MODULUS, 2, 16, 65_536, 1, 16, 17, 16, 14, 28)
     {
         return Err(PackageError::Invalid("fixed production profile"));
     }
@@ -889,7 +889,7 @@ fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
         return Err(PackageError::Invalid("total column count"));
     }
     if row_count.max(total_column_count.saturating_sub(1)) > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("2^26 joint domain"));
+        return Err(PackageError::Invalid("2^28 joint domain"));
     }
 
     let expected_private_roles = v1_1::private_segment_roles();

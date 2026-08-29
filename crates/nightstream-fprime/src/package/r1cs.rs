@@ -494,7 +494,7 @@ fn sparse_entry_bound(combination: &SparseCombination) -> usize {
 }
 
 impl LoadedPackage {
-    /// Expand the Lean-emitted schedule and apply the exact final `2^26`
+    /// Expand the Lean-emitted schedule and apply the exact final `2^28`
     /// row/private-domain padding proved by `Layout.Stage1.Spartan`.
     pub fn r1cs_matrices(&self) -> Result<PackageR1cs, PackageError> {
         let shift =

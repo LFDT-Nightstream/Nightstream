@@ -3,79 +3,80 @@
 use nightstream_fprime::PackageSparseMatrix;
 
 use super::{
-    actual_row, canonicalize, changed_word, ColumnOwnerSpan, ReferenceLayout, COLUMN_OWNER_SPANS, ROW_OWNER_SPANS,
+    actual_row, canonicalize, changed_word, exact_row_accepts, ColumnOwnerSpan, ReferenceLayout, COLUMN_OWNER_SPANS,
+    ROW_OWNER_SPANS,
 };
 
 fn pilot_source_to_spartan(column: usize) -> usize {
-    if column < 45_933 {
+    if column < 45_937 {
         column
-    } else if column < 46_203 {
-        13_691_159 + (column - 45_933)
-    } else if column < 92_136 {
-        45_933 + (column - 46_203)
-    } else if column < 92_140 {
-        13_691_429 + (column - 92_136)
+    } else if column < 46_207 {
+        13_692_351 + (column - 45_937)
+    } else if column < 92_144 {
+        45_937 + (column - 46_207)
+    } else if column < 92_148 {
+        13_692_621 + (column - 92_144)
     } else {
-        91_866 + (column - 92_140)
+        91_874 + (column - 92_148)
     }
 }
 
 fn lift_pilot_column(column: usize) -> usize {
-    if column < 91_866 {
+    if column < 91_874 {
         column
-    } else if column < 13_691_158 {
-        column + 29_032
+    } else if column < 13_692_350 {
+        column + 29_072
     } else {
-        27_649_368 + (column - 13_691_158)
+        27_695_694 + (column - 13_692_350)
     }
 }
 
 fn source_to_spartan(column: usize) -> usize {
-    assert!(column < 27_649_646, "Stage 1 source column");
-    if column < 13_691_432 {
+    assert!(column < 27_695_972, "Stage 1 source column");
+    if column < 13_692_624 {
         lift_pilot_column(pilot_source_to_spartan(column))
-    } else if column < 13_691_436 {
-        27_649_643 + (column - 13_691_432)
-    } else if column < 13_720_468 {
-        91_866 + (column - 13_691_436)
+    } else if column < 13_692_628 {
+        27_695_969 + (column - 13_692_624)
+    } else if column < 13_721_700 {
+        91_874 + (column - 13_692_628)
     } else {
-        13_720_190 + (column - 13_720_468)
+        13_721_422 + (column - 13_721_700)
     }
 }
 
 fn pilot_spartan_to_source(column: usize) -> Option<usize> {
-    if column < 45_933 {
+    if column < 45_937 {
         Some(column)
-    } else if column < 91_866 {
-        Some(46_203 + (column - 45_933))
-    } else if column < 13_691_158 {
-        Some(92_140 + (column - 91_866))
-    } else if column == 13_691_158 {
+    } else if column < 91_874 {
+        Some(46_207 + (column - 45_937))
+    } else if column < 13_692_350 {
+        Some(92_148 + (column - 91_874))
+    } else if column == 13_692_350 {
         None
-    } else if column < 13_691_429 {
-        Some(45_933 + (column - 13_691_159))
-    } else if column < 13_691_433 {
-        Some(92_136 + (column - 13_691_429))
+    } else if column < 13_692_621 {
+        Some(45_937 + (column - 13_692_351))
+    } else if column < 13_692_625 {
+        Some(92_144 + (column - 13_692_621))
     } else {
         None
     }
 }
 
 fn spartan_to_source(column: usize) -> Option<usize> {
-    if column < 91_866 {
+    if column < 91_874 {
         pilot_spartan_to_source(column)
-    } else if column < 120_898 {
-        Some(13_691_436 + (column - 91_866))
-    } else if column < 13_720_190 {
-        pilot_spartan_to_source(column - 29_032)
-    } else if column < 27_649_368 {
-        Some(13_720_468 + (column - 13_720_190))
-    } else if column == 27_649_368 {
+    } else if column < 120_946 {
+        Some(13_692_628 + (column - 91_874))
+    } else if column < 13_721_422 {
+        pilot_spartan_to_source(column - 29_072)
+    } else if column < 27_695_694 {
+        Some(13_721_700 + (column - 13_721_422))
+    } else if column == 27_695_694 {
         None
-    } else if column < 27_649_643 {
-        pilot_spartan_to_source(13_691_158 + (column - 27_649_368))
-    } else if column < 27_649_647 {
-        Some(13_691_432 + (column - 27_649_643))
+    } else if column < 27_695_969 {
+        pilot_spartan_to_source(13_692_350 + (column - 27_695_694))
+    } else if column < 27_695_973 {
+        Some(13_692_624 + (column - 27_695_969))
     } else {
         None
     }
@@ -112,13 +113,21 @@ pub(super) fn row_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)], 
 
             let mut deleted = actual.clone();
             deleted.remove(0);
-            assert_ne!(actual, deleted, "{} {side} row deletion", owner.name);
+            assert!(
+                !exact_row_accepts(matrix, row, &deleted),
+                "exact comparator accepted {} {side} row deletion",
+                owner.name
+            );
             checks += 1;
 
             let mut coefficient = actual.clone();
             coefficient[0].1 = changed_word(coefficient[0].1);
             coefficient = canonicalize(coefficient);
-            assert_ne!(actual, coefficient, "{} {side} coefficient", owner.name);
+            assert!(
+                !exact_row_accepts(matrix, row, &coefficient),
+                "exact comparator accepted {} {side} coefficient mutation",
+                owner.name
+            );
             checks += 1;
         }
         assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
@@ -181,7 +190,11 @@ pub(super) fn column_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)
             let mut changed = actual.clone();
             changed[term].0 = target_column;
             changed = canonicalize(changed);
-            assert_ne!(actual, changed, "{} {side} column", owner.name);
+            assert!(
+                !exact_row_accepts(matrix, row, &changed),
+                "exact comparator accepted {} {side} column mutation",
+                owner.name
+            );
             checks += 1;
         }
         assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
@@ -199,7 +212,10 @@ pub(super) fn column_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)
         let mut changed = actual.clone();
         changed[term].0 = 0;
         changed = canonicalize(changed);
-        assert_ne!(actual, changed, "constant {side} column at row {row}");
+        assert!(
+            !exact_row_accepts(matrix, row, &changed),
+            "exact comparator accepted constant {side} column mutation at row {row}"
+        );
         checks += 1;
     }
     checks

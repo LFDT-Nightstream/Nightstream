@@ -12,6 +12,9 @@ use neo_reductions::engines::pi_ccs_joint::ProtocolTrace;
 use neo_reductions::optimized_engine::optimized_verify_with_trace;
 use neo_reductions::PiCcsProof;
 use neo_transcript::Poseidon2Transcript;
+use nightstream_fprime::{
+    PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
@@ -20,9 +23,7 @@ const SOURCE_COUNT: usize = 17;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
-const ROUND_COUNT: usize = 26;
 const ROUND_COEFFICIENT_COUNT: usize = 10;
-const STATE_PREIMAGE_WORDS: usize = 45_933;
 const PUBLIC_INPUT_WORDS: usize = 270;
 const STATE_DOMAIN_TAG: [u64; 23] = [
     72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49,

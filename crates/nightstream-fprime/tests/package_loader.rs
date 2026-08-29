@@ -12,10 +12,10 @@ use serde_json::{json, Value};
 // identity. Phase conformance remains open until every required gate passes
 // on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    18_090_610_635_114_842_464,
-    5_494_511_358_918_718_774,
-    14_026_867_434_695_270_642,
-    8_861_486_951_490_451_735,
+    3_355_019_049_079_043_662,
+    4_920_201_927_044_277_974,
+    5_339_237_732_450_517_664,
+    894_111_819_037_169_888,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -107,18 +107,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 27_537_894);
-    assert_eq!(package.private_column_count(), 27_649_368);
-    assert_eq!(package.private_input_count(), 166_690);
+    assert_eq!(package.row_count(), 27_584_180);
+    assert_eq!(package.private_column_count(), 27_695_694);
+    assert_eq!(package.private_input_count(), 166_738);
     assert_eq!(package.public_column_count(), 278);
-    assert_eq!(package.total_column_count(), 27_649_647);
+    assert_eq!(package.total_column_count(), 27_695_973);
     assert_eq!(package.template_row_count(), 592);
-    assert_eq!(package.permutation_invocation_count(), 7_679);
+    assert_eq!(package.permutation_invocation_count(), 7_703);
     assert_eq!(package.compact_template_count(), 326);
     assert_eq!(package.compact_invocation_count(), 167_246);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        1_349_541
+        1_380_435
     );
 }
 
@@ -405,11 +405,11 @@ fn loader_rejects_a_layout_above_the_stage1_joint_domain_limit() {
     let mut value = artifact_value();
     package_array(&mut value)[3]
         .as_array_mut()
-        .expect("layout array")[0] = json!((1u64 << 26) + 1);
+        .expect("layout array")[0] = json!((1u64 << 28) + 1);
 
     assert!(matches!(
         load(&canonical_bytes(&value), EXPECTED_IDENTITY),
-        Err(PackageError::Invalid("2^26 joint domain"))
+        Err(PackageError::Invalid("2^28 joint domain"))
     ));
 }
 

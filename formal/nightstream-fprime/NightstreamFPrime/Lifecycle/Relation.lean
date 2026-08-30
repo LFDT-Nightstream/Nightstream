@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Lifecycle.Stage1.Application
 
 /-!
 Owns the concrete Stage 1 F′ relation: HyperNova Construction 2 instantiated
@@ -64,6 +65,19 @@ def machine (publicFits : ringDegree * publicRingColumns <=
   encodeInstance := encHash (publicFits := publicFits)
   hash := stateHash (publicFits := publicFits)
 
+/-- Verifier-selected machine for one Lean-authored application. This is the
+production-facing constructor; the prover supplies only the program's witness
+words, not the program or its step function. -/
+def machineFor (publicFits : ringDegree * publicRingColumns <=
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (application : Stage1.Application.Program) :
+    Machine KeyDigest Digest AppState AppWitness
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth)
+        (publicFits := publicFits)) slotCount :=
+  machine publicFits application.step
+
 /-- The complete Stage 1 augmented-function relation `F′`: one step from
 `input` to `output` is valid exactly when HyperNova's fixed transition holds
 for the production setup and machine. -/
@@ -78,6 +92,37 @@ noncomputable def StepHolds (relation : LogicalRelation logicalWidth publicFits)
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount) : Prop :=
   FixedAugmentedTransition (setup relation ajtai vk) (machine publicFits F)
     functionIndex input output
+
+/-- The production Stage 1 relation for one fixed Lean-authored application.
+The final package definition must supply a closed `application` value. -/
+noncomputable def StepHoldsFor
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (application : Stage1.Application.Program)
+    (input : Input KeyDigest AppState AppWitness
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Proof (degreeBound relation)) slotCount)
+    (output : Output Digest AppState
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      slotCount) : Prop :=
+  FixedAugmentedTransition (setup relation ajtai vk)
+    (machineFor publicFits application) functionIndex input output
+
+theorem stepHoldsFor_eq
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (application : Stage1.Application.Program)
+    (input : Input KeyDigest AppState AppWitness
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Proof (degreeBound relation)) slotCount)
+    (output : Output Digest AppState
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      slotCount) :
+    StepHoldsFor relation ajtai vk application input output =
+      StepHolds relation ajtai vk application.step input output := by
+  rfl
 
 /-- The CE statement of running slot `i` at the fresh norm stage `CE(b)`. -/
 def runningStatement (relation : LogicalRelation logicalWidth publicFits)

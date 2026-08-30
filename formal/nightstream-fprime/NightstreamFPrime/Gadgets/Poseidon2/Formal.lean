@@ -57,6 +57,19 @@ theorem opsAt_localLength (interface : Interface) (offset : Nat) :
   rw [assertions_localLength]
   omega
 
+theorem assertions_rowCount (interface : Interface) (offset : Nat) :
+    rowCount (assertions interface offset) = 4 := by
+  change (List.ofFn (fun _ : Fin 4 => 1)).sum = 4
+  decide
+
+theorem flatConstraints_length_eq (interface : Interface) (offset : Nat) :
+    (flatConstraints (Circuit.ops (main interface) offset)).length =
+      (Hash.compile offset (interface.input offset)).recipes.length + 4 := by
+  rw [flatConstraints_length_eq_rowCount, main_ops]
+  change (Hash.compile offset (interface.input offset)).recipes.length +
+      rowCount (assertions interface offset) = _
+  rw [assertions_rowCount]
+
 theorem assertion_mem (interface : Interface) (offset : Nat) (lane : Fin 4) :
     Op.assertZero
       (Hash.digestE (Hash.compile offset (interface.input offset)).output lane -
@@ -204,6 +217,14 @@ def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
   spec := SpecHolds interface
+  privateCount := fun offset =>
+    (Hash.compile offset (interface.input offset)).recipes.length
+  rowCount := fun offset =>
+    (Hash.compile offset (interface.input offset)).recipes.length + 4
+  privateCount_eq := by
+    intro offset
+    rw [main_ops, opsAt_localLength]
+  rowCount_eq := flatConstraints_length_eq interface
   soundness := soundness interface
   completeness := completeness interface
 

@@ -149,6 +149,36 @@ theorem flatConstraints_varsBelow
         CanonicalU64.auxiliaryCount] at bounded ⊢
       omega
 
+/-- Every public-word constraint reads only the caller-supported source,
+public bits, and the exact 66 local columns. -/
+theorem flatConstraints_varsSatisfy
+    (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
+    (sourceSupported : (interface.source offset).VarsSatisfy allowed)
+    (bitSupported : ∀ index, index < bitCount →
+      (interface.bit offset index).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < privateCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
+      expression.VarsSatisfy allowed := by
+  change ∀ expression ∈ flatConstraints (opsAt interface offset),
+    expression.VarsSatisfy allowed
+  rw [flatConstraints_opsAt]
+  intro expression member
+  rcases List.mem_append.mp member with childMember | bindingMember
+  · exact CanonicalU64.flatConstraints_varsSatisfy
+      (childInterface interface offset) offset allowed sourceSupported
+      localSupported expression childMember
+  · rcases List.mem_map.mp bindingMember with ⟨index, indexMember, rfl⟩
+    unfold bindingConstraint
+    apply Expr.VarsSatisfy.sub
+    · exact bitSupported index (List.mem_range.mp indexMember)
+    · exact CanonicalU64.bitExpr_varsSatisfy offset index allowed
+        (localSupported index (by
+          have bounded := List.mem_range.mp indexMember
+          norm_num [bitCount, privateCount, CanonicalU64.bitCount,
+            CanonicalU64.auxiliaryCount] at bounded ⊢
+          omega))
+
 private theorem childCall_sound
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

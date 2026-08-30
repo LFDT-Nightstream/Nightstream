@@ -968,6 +968,97 @@ theorem flatConstraints_varsBelow
         exact ⟨⟨⟨⟨remainderBelow, differenceBelow 1⟩,
           differenceBelow 2⟩, differenceBelow 3⟩, differenceBelow 4⟩
 
+private theorem productExpr_varsSatisfy (bit : Nat → Expr) (count : Nat)
+    (allowed : Nat → Prop)
+    (bitsSupported : ∀ index, index < count →
+      (bit index).VarsSatisfy allowed) :
+    (productExpr bit count).VarsSatisfy allowed := by
+  induction count with
+  | zero => trivial
+  | succ count inductionHypothesis =>
+      exact Expr.VarsSatisfy.mul _ _ allowed
+        (inductionHypothesis (fun index bounded =>
+          bitsSupported index (by omega)))
+        (bitsSupported count (by omega))
+
+private theorem weightedExpr_varsSatisfy (bit : Nat → Expr) (count : Nat)
+    (allowed : Nat → Prop)
+    (bitsSupported : ∀ index, index < count →
+      (bit index).VarsSatisfy allowed) :
+    (weightedExpr bit count).VarsSatisfy allowed := by
+  induction count with
+  | zero => trivial
+  | succ count inductionHypothesis =>
+      rw [weightedExpr_succ]
+      exact Expr.VarsSatisfy.add _ _ allowed
+        (inductionHypothesis (fun index bounded =>
+          bitsSupported index (by omega)))
+        (Expr.VarsSatisfy.mul _ _ allowed trivial
+          (bitsSupported count (by omega)))
+
+/-- Every candidate-decoder constraint reads only caller-supported candidate
+inputs and the exact 17 local columns. -/
+theorem flatConstraints_varsSatisfy
+    (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
+    (candidateSupported : (interface.candidate offset).VarsSatisfy allowed)
+    (bitsSupported : ∀ index, index < candidateBitCount →
+      (interface.candidateBit offset index).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < auxiliaryCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints (operations interface offset),
+      expression.VarsSatisfy allowed := by
+  intro expression member
+  rw [flatConstraints_operations] at member
+  rcases List.mem_append.mp member with recipeMember | assertionMember
+  · simp only [recipeConstraints, List.mem_singleton] at recipeMember
+    subst expression
+    apply Expr.VarsSatisfy.sub
+    · exact localSupported 16 (by norm_num [auxiliaryCount])
+    · exact productExpr_varsSatisfy
+        (interface.candidateBit offset) candidateBitCount allowed bitsSupported
+  · rcases List.mem_append.mp assertionMember with booleanMember | finalMember
+    · rcases List.mem_map.mp booleanMember with ⟨index, indexMember, rfl⟩
+      have bounded := List.mem_range.mp indexMember
+      simp only [quotientBitCount] at bounded
+      have bitSupported : (quotientBitExpr offset index).VarsSatisfy allowed := by
+        simpa [quotientBitExpr, Nat.add_assoc] using
+          localSupported (2 + index) (by
+            norm_num [auxiliaryCount] at bounded ⊢
+            omega)
+      unfold quotientBooleanConstraint
+      exact Expr.VarsSatisfy.mul _ _ allowed bitSupported
+        (Expr.VarsSatisfy.sub _ _ allowed bitSupported trivial)
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at finalMember
+      rcases finalMember with rfl | rfl | rfl
+      · unfold quotientRecompositionConstraint quotientWordExpr
+        apply Expr.VarsSatisfy.sub
+        · exact localSupported 0 (by norm_num [auxiliaryCount])
+        · apply weightedExpr_varsSatisfy
+          intro index bounded
+          simpa [quotientBitExpr, Nat.add_assoc] using
+            localSupported (2 + index) (by
+              norm_num [quotientBitCount, auxiliaryCount] at bounded ⊢
+              omega)
+      · unfold divisionConstraint quotientExpr remainderExpr
+        apply Expr.VarsSatisfy.sub
+        · exact candidateSupported
+        · apply Expr.VarsSatisfy.add
+          · apply Expr.VarsSatisfy.mul
+            · trivial
+            · exact localSupported 0 (by norm_num [auxiliaryCount])
+          · exact localSupported 1 (by norm_num [auxiliaryCount])
+      · have remainderSupported :
+            (remainderExpr offset).VarsSatisfy allowed :=
+          localSupported 1 (by norm_num [auxiliaryCount])
+        have differenceSupported (value : Nat) :
+            (remainderExpr offset - (OfNat.ofNat value : Expr)).VarsSatisfy
+              allowed :=
+          Expr.VarsSatisfy.sub _ _ allowed remainderSupported trivial
+        unfold remainderConstraint
+        exact ⟨⟨⟨⟨remainderSupported, differenceSupported 1⟩,
+          differenceSupported 2⟩, differenceSupported 3⟩,
+          differenceSupported 4⟩
+
 private theorem completeEnv_holdsFlat
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :

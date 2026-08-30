@@ -110,6 +110,46 @@ theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
 
 end Forms
 
+/-- A canonical plan built directly from row-local ordinary forms. -/
+def planOfForms {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth) :
+    ProductionRelation.Plan logicalWidth where
+  rowCount := rowCount
+  rowCount_le := rowCount_le
+  forms := fun row port => (forms row).meaningfulForm port
+
+private theorem planOfForms_portForm {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth) (row : Fin rowCount)
+    (port : Fin Spec.ProductionRelation.matrixCount) :
+    (planOfForms rowCount_le forms).portForm row port =
+      (forms row).portForm port := by
+  rfl
+
+/-- One direct ordinary-form row accepts exactly its preserved source row. -/
+theorem planOfForms_residual_zero_iff {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Circuit.Env)
+    (row : Fin rowCount) (sourceRow : R1CS.Row)
+    (preserves : (forms row).Preserves assignment source sourceRow) :
+    evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+        ((planOfForms rowCount_le forms).rowImage assignment
+          ((planOfForms rowCount_le forms).rowLayout.toVertex row)) = 0 ↔
+      sourceRow.Holds source := by
+  have images :
+      (planOfForms rowCount_le forms).rowImage assignment
+          ((planOfForms rowCount_le forms).rowLayout.toVertex row) =
+        (forms row).portImages assignment := by
+    funext port
+    unfold ProductionRelation.Plan.rowImage Forms.portImages
+    rw [(planOfForms rowCount_le forms).rowLayout.toColumn_toVertex]
+    exact congrArg (fun form => form.eval assignment)
+      (planOfForms_portForm rowCount_le forms row port)
+  rw [images]
+  exact Forms.residual_zero_iff _ _ _ _ preserves
+
 /-- One source equation together with its final sparse matrix forms. -/
 structure Row (logicalWidth : Nat) where
   source : R1CS.Row
@@ -155,12 +195,12 @@ def Preserves {logicalWidth : Nat} (program : Program logicalWidth)
     (program.row row).forms.Preserves assignment source
       (program.row row).source
 
-/-- At every live Boolean row, the exact plan residual vanishes exactly when
-the corresponding source R1CS equation holds. -/
-theorem residualAt_live_zero_iff {logicalWidth : Nat}
+/-- A selected live row needs only its own preservation proof. -/
+theorem residualAt_live_zero_iff_row {logicalWidth : Nat}
     (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
-    (source : Circuit.Env) (preserves : program.Preserves assignment source)
-    (row : Fin program.rowCount) :
+    (source : Circuit.Env) (row : Fin program.rowCount)
+    (preserves : (program.row row).forms.Preserves assignment source
+      (program.row row).source) :
     evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         (program.toPlan.rowImage assignment
           (program.toPlan.rowLayout.toVertex row)) = 0 ↔
@@ -172,7 +212,20 @@ theorem residualAt_live_zero_iff {logicalWidth : Nat}
     funext port
     exact rowImage_at program assignment row port
   rw [images]
-  exact Forms.residual_zero_iff _ _ _ _ (preserves row)
+  exact Forms.residual_zero_iff _ _ _ _ preserves
+
+/-- At every live Boolean row, the exact plan residual vanishes exactly when
+the corresponding source R1CS equation holds. -/
+theorem residualAt_live_zero_iff {logicalWidth : Nat}
+    (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
+    (source : Circuit.Env) (preserves : program.Preserves assignment source)
+    (row : Fin program.rowCount) :
+    evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+        (program.toPlan.rowImage assignment
+          (program.toPlan.rowLayout.toVertex row)) = 0 ↔
+      (program.row row).source.Holds source := by
+  exact residualAt_live_zero_iff_row program assignment source row
+    (preserves row)
 
 end Program
 

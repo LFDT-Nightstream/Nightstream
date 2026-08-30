@@ -1364,6 +1364,50 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
   rw [main_ops, opsAt_localLength]
   simpa [output, program] using scope
 
+/-- The owned semantic trace is stable when the complete local interval is
+unchanged. The wider bound is necessary because the owned output contains
+compiled recipe variables. -/
+theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
+    (before after : Env) (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index,
+      index < offset + localLength (Circuit.ops (main interface) offset) →
+        after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  let bound := offset + localLength (Circuit.ops (main interface) offset)
+  have offsetLe : offset ≤ bound := by
+    simp [bound]
+  have initialEval :
+      List.ofFn (Layer.evalState after (interface.initial offset)) =
+        List.ofFn (Layer.evalState before (interface.initial offset)) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.initial offset lane).eval_eq_of_agree_below bound
+      after before
+      (Expr.VarsBelow.mono _ (assumptions.1 lane) offsetLe)
+      (by simpa [bound] using agrees)
+  have actionsEval :
+      (interface.actions offset).map (Action.eval after) =
+        (interface.actions offset).map (Action.eval before) := by
+    apply List.map_congr_left
+    intro action member
+    exact action_eval_preserved before after offset action
+      (assumptions.2 action member)
+      (fun index below => agrees index (lt_of_lt_of_le below offsetLe))
+  have finalEval :
+      List.ofFn (Layer.evalState after (output interface offset)) =
+        List.ofFn (Layer.evalState before (output interface offset)) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (output interface offset lane).eval_eq_of_agree_below bound
+      after before
+      (by simpa [bound] using
+        output_varsBelow interface offset before assumptions lane)
+      (by simpa [bound] using agrees)
+  unfold SpecHolds at specification ⊢
+  rw [initialEval, actionsEval, finalEval]
+  exact specification
+
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface

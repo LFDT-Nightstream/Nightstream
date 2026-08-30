@@ -125,6 +125,14 @@ theorem compileRow_toR1CS (freshStart rowIndex : Nat) (row : R1CS.Row) :
       · simp [fresh, CompiledRow.toR1CS, SparseRow.toR1CS,
           sparseCombination_toR1CS]
 
+@[simp] theorem compileRow_rowIndex (freshStart rowIndex : Nat)
+    (row : R1CS.Row) :
+    (compileRow freshStart rowIndex row).rowIndex = rowIndex := by
+  unfold compileRow
+  split
+  · split <;> rfl
+  · rfl
+
 def compileRowsFrom (freshStart : Nat) : Nat → List R1CS.Row → List CompiledRow
   | _, [] => []
   | rowIndex, row :: rows =>
@@ -462,5 +470,24 @@ theorem compileRowsTR_toR1CS (freshStart rowStart : Nat)
     (rows : List R1CS.Row) :
     (compileRowsTR freshStart rowStart rows).length = rows.length := by
   rw [compileRowsTR_eq, compileRows_length]
+
+/-- Compiled rows own one exact contiguous physical row interval. -/
+theorem compileRows_rowIndices (freshStart rowStart : Nat)
+    (rows : List R1CS.Row) :
+    (compileRows freshStart rowStart rows).map CompiledRow.rowIndex =
+      List.range' rowStart rows.length := by
+  unfold compileRows
+  induction rows generalizing rowStart with
+  | nil => rfl
+  | cons row rows inductionHypothesis =>
+      simp [compileRowsFrom, inductionHypothesis, List.range'_succ]
+
+/-- The stack-safe executable compiler preserves the same exact interval. -/
+theorem compileRowsTR_rowIndices (freshStart rowStart : Nat)
+    (rows : List R1CS.Row) :
+    (compileRowsTR freshStart rowStart rows).map CompiledRow.rowIndex =
+      List.range' rowStart rows.length := by
+  rw [compileRowsTR_eq]
+  exact compileRows_rowIndices freshStart rowStart rows
 
 end NightstreamFPrime.Export.Stage1.Rows

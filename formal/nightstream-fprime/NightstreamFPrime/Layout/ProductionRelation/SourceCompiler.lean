@@ -178,6 +178,19 @@ def compileRow {sourceWidth logicalWidth : Nat}
     b := compileCombination sourceMap oneColumn row.b bounded.2.1
     c := compileCombination sourceMap oneColumn row.c bounded.2.2 }
 
+/-- Equal source rows compile to equal sparse forms. Boundedness certificates
+are proof-irrelevant and do not affect the matrix data. -/
+theorem compileRow_eq_of_row {sourceWidth logicalWidth : Nat}
+    (sourceMap : SourceMap sourceWidth logicalWidth)
+    (oneColumn : Fin logicalWidth) {left right : R1CS.Row}
+    (equal : left = right)
+    (leftBounded : RowBounded sourceWidth left)
+    (rightBounded : RowBounded sourceWidth right) :
+    compileRow sourceMap oneColumn left leftBounded =
+      compileRow sourceMap oneColumn right rightBounded := by
+  subst right
+  rfl
+
 /-- A compiled bounded row satisfies the exact preservation premise of the
 ordinary-row selective semantics. -/
 theorem compileRow_preserves {sourceWidth logicalWidth : Nat}

@@ -36,6 +36,16 @@ def encode : Kind → F → List F
 def coordinate (kind : Kind) (value : F) (index : Fin kind.width) : F :=
   (encode kind value).getD index.val 0
 
+/-- Transporting a coordinate index across an equal slot kind does not change
+the selected coordinate. -/
+theorem coordinate_cast {left right : Kind} (equal : left = right)
+    (value : F) (index : Fin left.width) :
+    coordinate right value
+        (Fin.cast (congrArg Kind.width equal) index) =
+      coordinate left value index := by
+  cases equal
+  rfl
+
 /-- Source condition required before a one-coordinate slot is admissible.
 General fields are canonical by their exact balanced encoding. -/
 def Valid : Kind → F → Prop

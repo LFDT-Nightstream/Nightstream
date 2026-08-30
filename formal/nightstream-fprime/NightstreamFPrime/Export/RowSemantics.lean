@@ -44,6 +44,68 @@ private theorem sumCombinations_eval (env : Env)
   | cons combination rest ih =>
       simp [sumCombinations, ih]
 
+/-- Exact column renaming for one R1CS linear combination. This small common
+definition lets the three package instantiation forms share one custody
+proof without exposing the private summation implementation. -/
+def mapCombinationColumns (column : Nat → Nat)
+    (combination : R1CS.LinearCombination) : R1CS.LinearCombination :=
+  ⟨combination.constant,
+    combination.terms.map fun term => (column term.1, term.2)⟩
+
+def mapRowColumns (column : Nat → Nat) (row : R1CS.Row) : R1CS.Row :=
+  ⟨mapCombinationColumns column row.a,
+    mapCombinationColumns column row.b,
+    mapCombinationColumns column row.c⟩
+
+@[simp] theorem mapCombinationColumns_zero (column : Nat → Nat) :
+    mapCombinationColumns column R1CS.LinearCombination.zero =
+      R1CS.LinearCombination.zero := by
+  rfl
+
+@[simp] theorem mapCombinationColumns_const (column : Nat → Nat) (value : F) :
+    mapCombinationColumns column (R1CS.LinearCombination.const value) =
+      R1CS.LinearCombination.const value := by
+  rfl
+
+@[simp] theorem mapCombinationColumns_one (column : Nat → Nat) :
+    mapCombinationColumns column R1CS.LinearCombination.one =
+      R1CS.LinearCombination.one := by
+  rfl
+
+@[simp] theorem mapCombinationColumns_ofVar (column : Nat → Nat)
+    (index : Nat) :
+    mapCombinationColumns column (R1CS.LinearCombination.ofVar index) =
+      R1CS.LinearCombination.ofVar (column index) := by
+  rfl
+
+@[simp] theorem mapCombinationColumns_add (column : Nat → Nat)
+    (left right : R1CS.LinearCombination) :
+    mapCombinationColumns column (R1CS.LinearCombination.add left right) =
+      R1CS.LinearCombination.add (mapCombinationColumns column left)
+        (mapCombinationColumns column right) := by
+  cases left
+  cases right
+  simp [mapCombinationColumns, R1CS.LinearCombination.add, List.map_append]
+
+@[simp] theorem mapCombinationColumns_scale (column : Nat → Nat)
+    (coefficient : F) (combination : R1CS.LinearCombination) :
+    mapCombinationColumns column
+        (R1CS.LinearCombination.scale coefficient combination) =
+      R1CS.LinearCombination.scale coefficient
+        (mapCombinationColumns column combination) := by
+  cases combination
+  simp [mapCombinationColumns, R1CS.LinearCombination.scale, List.map_map,
+    Function.comp_def]
+
+private theorem mapCombinationColumns_sum (column : Nat → Nat)
+    (combinations : List R1CS.LinearCombination) :
+    mapCombinationColumns column (sumCombinations combinations) =
+      sumCombinations (combinations.map (mapCombinationColumns column)) := by
+  induction combinations with
+  | nil => rfl
+  | cons combination rest ih =>
+      simp [sumCombinations, ih]
+
 /-- The affine input to one permutation invocation. Invocation zero starts
 from zero. Later invocations use the previous permutation output. Absorb
 invocations add one rate-width input block; the final invocation adds the
@@ -89,6 +151,30 @@ def instantiateCombination (package : CircuitPackage) (chain : HashChain)
     (sumCombinations (combination.terms.map fun term =>
       R1CS.LinearCombination.scale (fieldValue term.coefficient)
         (instantiateColumn package chain invocation term.column)))
+
+theorem instantiateCombination_mapColumns
+    (finalPackage sourcePackage : CircuitPackage)
+    (finalChain sourceChain : HashChain) (invocation : Nat)
+    (column : Nat → Nat) (combination : TemplateCombination)
+    (agree : ∀ term ∈ combination.terms,
+      instantiateColumn finalPackage finalChain invocation term.column =
+        mapCombinationColumns column
+          (instantiateColumn sourcePackage sourceChain invocation
+            term.column)) :
+    instantiateCombination finalPackage finalChain invocation combination =
+      mapCombinationColumns column
+        (instantiateCombination sourcePackage sourceChain invocation
+          combination) := by
+  unfold instantiateCombination
+  rw [mapCombinationColumns_add, mapCombinationColumns_const]
+  congr 1
+  rw [mapCombinationColumns_sum]
+  congr 1
+  rw [List.map_map]
+  apply List.map_congr_left
+  intro term member
+  simp only [Function.comp_apply, mapCombinationColumns_scale]
+  rw [agree term member]
 
 def instantiateRow (package : CircuitPackage) (chain : HashChain)
     (invocation : Nat) (row : TemplateRow) : R1CS.Row :=
@@ -160,6 +246,27 @@ def instantiateInvocationCombination (invocation : PermutationInvocation)
       R1CS.LinearCombination.scale (fieldValue term.coefficient)
         (instantiateInvocationColumn invocation term.column)))
 
+theorem instantiateInvocationCombination_mapColumns
+    (finalInvocation sourceInvocation : PermutationInvocation)
+    (column : Nat → Nat) (combination : TemplateCombination)
+    (agree : ∀ term ∈ combination.terms,
+      instantiateInvocationColumn finalInvocation term.column =
+        mapCombinationColumns column
+          (instantiateInvocationColumn sourceInvocation term.column)) :
+    instantiateInvocationCombination finalInvocation combination =
+      mapCombinationColumns column
+        (instantiateInvocationCombination sourceInvocation combination) := by
+  unfold instantiateInvocationCombination
+  rw [mapCombinationColumns_add, mapCombinationColumns_const]
+  congr 1
+  rw [mapCombinationColumns_sum]
+  congr 1
+  rw [List.map_map]
+  apply List.map_congr_left
+  intro term member
+  simp only [Function.comp_apply, mapCombinationColumns_scale]
+  rw [agree term member]
+
 def instantiateInvocationRow (invocation : PermutationInvocation)
     (row : TemplateRow) : R1CS.Row :=
   ⟨instantiateInvocationCombination invocation row.a,
@@ -208,6 +315,24 @@ def instantiateCompactCombination (invocation : CompactRowInvocation)
     combination.terms.map fun term =>
       (instantiateCompactColumn invocation term.column,
         fieldValue term.coefficient)⟩
+
+theorem instantiateCompactCombination_mapColumns
+    (finalInvocation sourceInvocation : CompactRowInvocation)
+    (column : Nat → Nat) (combination : TemplateCombination)
+    (agree : ∀ term ∈ combination.terms,
+      instantiateCompactColumn finalInvocation term.column =
+        column (instantiateCompactColumn sourceInvocation term.column)) :
+    instantiateCompactCombination finalInvocation combination =
+      mapCombinationColumns column
+        (instantiateCompactCombination sourceInvocation combination) := by
+  cases combination
+  unfold instantiateCompactCombination mapCombinationColumns
+  simp only [List.map_map]
+  congr 1
+  apply List.map_congr_left
+  intro term member
+  simp only [Function.comp_apply]
+  rw [agree term member]
 
 def instantiateCompactRow (invocation : CompactRowInvocation)
     (row : CompactTemplateRow) : R1CS.Row :=

@@ -1,5 +1,5 @@
 import Mathlib.Data.Nat.Digits.Lemmas
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
@@ -391,6 +391,111 @@ theorem flatConstraints_varsBelow
         · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
         · apply weightedExpr_varsBelow
           simp [halfBitCount, bitCount, auxiliaryCount]
+
+theorem bitExpr_varsSatisfy (offset index : Nat) (allowed : Nat → Prop)
+    (supported : allowed (offset + index)) :
+    (bitExpr offset index).VarsSatisfy allowed := by
+  exact supported
+
+theorem weightedExpr_varsSatisfy (offset bitStart count : Nat)
+    (allowed : Nat → Prop)
+    (supported : ∀ index, index < count →
+      allowed (offset + bitStart + index)) :
+    (weightedExpr offset bitStart count).VarsSatisfy allowed := by
+  induction count with
+  | zero => simp [weightedExpr, Expr.VarsSatisfy]
+  | succ count inductionHypothesis =>
+      rw [weightedExpr_succ]
+      refine ⟨inductionHypothesis (fun index bounded =>
+        supported index (by omega)), ?_⟩
+      exact ⟨trivial, bitExpr_varsSatisfy offset (bitStart + count) allowed (by
+        simpa [Nat.add_assoc] using supported count (by omega))⟩
+
+private theorem highDifference_varsSatisfy (offset : Nat)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < auxiliaryCount →
+      allowed (offset + index)) :
+    (highDifferenceExpr offset).VarsSatisfy allowed := by
+  unfold highDifferenceExpr highExpr
+  apply Expr.VarsSatisfy.sub
+  · simpa [Nat.add_assoc] using
+      weightedExpr_varsSatisfy offset halfBitCount halfBitCount allowed (by
+        intro index bounded
+        simpa [Nat.add_assoc] using
+          localSupported (halfBitCount + index) (by
+            norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+            omega))
+  · trivial
+
+private theorem flagRecipe_varsSatisfy (offset : Nat)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < auxiliaryCount →
+      allowed (offset + index)) :
+    (flagRecipe offset).VarsSatisfy allowed := by
+  unfold flagRecipe
+  apply Expr.VarsSatisfy.sub
+  · trivial
+  · apply Expr.VarsSatisfy.mul
+    · exact highDifference_varsSatisfy offset allowed localSupported
+    · exact localSupported bitCount (by norm_num [bitCount, auxiliaryCount])
+
+/-- Every canonical-decomposition constraint reads only the caller-supported
+source and the exact 66 local columns. -/
+theorem flatConstraints_varsSatisfy
+    (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
+    (sourceSupported : (interface.source offset).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < auxiliaryCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints (operations interface offset),
+      expression.VarsSatisfy allowed := by
+  intro expression member
+  rw [flatConstraints_operations] at member
+  rcases List.mem_append.mp member with recipeMember | assertionMember
+  · simp only [recipeConstraints, List.mem_singleton] at recipeMember
+    subst expression
+    apply Expr.VarsSatisfy.sub
+    · exact localSupported (bitCount + 1) (by
+        norm_num [bitCount, auxiliaryCount])
+    · exact flagRecipe_varsSatisfy offset allowed localSupported
+  · rcases List.mem_append.mp assertionMember with booleanMember | finalMember
+    · rcases List.mem_map.mp booleanMember with ⟨index, indexMember, rfl⟩
+      have bounded := List.mem_range.mp indexMember
+      have bit := bitExpr_varsSatisfy offset index allowed (localSupported index (by
+        simp only [bitCount] at bounded
+        norm_num [auxiliaryCount] at bounded ⊢
+        omega))
+      unfold booleanConstraint
+      exact Expr.VarsSatisfy.mul _ _ allowed bit
+        (Expr.VarsSatisfy.sub _ _ allowed bit trivial)
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at finalMember
+      rcases finalMember with rfl | rfl
+      · unfold recompositionConstraint wordExpr lowExpr highExpr
+        apply Expr.VarsSatisfy.sub
+        · exact sourceSupported
+        · apply Expr.VarsSatisfy.add
+          · exact weightedExpr_varsSatisfy offset 0 halfBitCount allowed (by
+              intro index bounded
+              exact localSupported index (by
+                norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+                omega))
+          · apply Expr.VarsSatisfy.mul
+            · trivial
+            · simpa [Nat.add_assoc] using
+                weightedExpr_varsSatisfy offset halfBitCount halfBitCount allowed (by
+                  intro index bounded
+                  simpa [Nat.add_assoc] using
+                    localSupported (halfBitCount + index) (by
+                      norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+                      omega))
+      · unfold canonicalityConstraint highFlagExpr lowExpr
+        apply Expr.VarsSatisfy.mul
+        · exact localSupported (bitCount + 1) (by
+            norm_num [bitCount, auxiliaryCount])
+        · exact weightedExpr_varsSatisfy offset 0 halfBitCount allowed (by
+            intro index bounded
+            exact localSupported index (by
+              norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+              omega))
 
 private theorem bitHints_length (interface : Interface) (offset : Nat) :
     (bitHints interface offset).length = bitCount := by

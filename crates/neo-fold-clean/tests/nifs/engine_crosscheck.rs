@@ -27,10 +27,10 @@ use p3_field::PrimeCharacteristicRing;
 // package identity.
 // The final Stage 1 package must rerun every gate before replacing it.
 const PACKAGE_IDENTITY: [u64; 4] = [
-    3_355_019_049_079_043_662,
-    4_920_201_927_044_277_974,
-    5_339_237_732_450_517_664,
-    894_111_819_037_169_888,
+    5_326_948_389_888_638_380,
+    15_945_253_772_729_055_182,
+    12_038_831_075_978_321_435,
+    4_066_786_242_110_063_495,
 ];
 
 fn package_path() -> PathBuf {

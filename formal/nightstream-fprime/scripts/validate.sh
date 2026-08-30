@@ -3,6 +3,7 @@
 #   validate.sh static            boundary checks only (no Lean)
 #   validate.sh build [target]    lake build (default: the two libraries)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
+#   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
@@ -38,12 +39,31 @@ capped() {
   return $rc
 }
 
+lean_file() {
+  capped lake env lean "-j${LEAN_NUM_THREADS}" \
+    -DautoImplicit=false -DrelaxedAutoImplicit=false "$1"
+}
+
 phase="${1:-all}"
 case "$phase" in
   static) bash scripts/check-boundaries.sh ;;
   build)  capped lake build "${2:-NightstreamFPrime}" ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
-  file)   capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false "$2" ;;
+  stage1-axioms)
+    for audit in \
+      tests/AxiomsStage1Accumulator.lean \
+      tests/AxiomsStage1Application.lean \
+      tests/AxiomsStage1Assembler.lean \
+      tests/AxiomsStage1PiDEC.lean \
+      tests/AxiomsStage1PiRLCExport.lean \
+      tests/AxiomsStage1PiRLCParity.lean \
+      tests/AxiomsStage1Security.lean \
+      tests/AxiomsProductionMatrixPlan.lean
+    do
+      lean_file "$audit"
+    done
+    ;;
+  file)   lean_file "$2" ;;
   emit)
     if (( $# != 2 )); then echo "usage: validate.sh emit <path>" >&2; exit 2; fi
     capped lake exe emit -- "$2"

@@ -13,7 +13,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
+roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

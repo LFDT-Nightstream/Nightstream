@@ -59,17 +59,17 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 27584180 := by
+    physicalRowCount relation = 27584200 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCSPiRLCPiDEC.physicalRowCount relation +
-    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 27584180
+    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 27584200
   rw [PilotPiCCSPiRLCPiDEC.physicalRowCount_eq relation,
     RunningTransitionLayout.physicalRowCount_eq relation]
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 27695972 := by
+    physicalColumnCount relation = 27695988 := by
   unfold physicalColumnCount
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation,
     RunningTransitionLayout.physicalColumnCount_eq relation]
@@ -77,7 +77,7 @@ theorem physicalColumnCount_eq
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 27695972 := by
+    jointDomain relation = 27695988 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num
@@ -110,13 +110,13 @@ theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =
         [27237625, 27260305, 27261277, 27261385, 27262897, 27262897,
-          27584180] ∧
+          27584200] ∧
       cumulativePhysicalColumns relation =
         [27402496, 27420586, 27420586, 27420586, 27420586, 27420586,
-          27695972] ∧
+          27695988] ∧
       cumulativeJointDomains relation =
         [27402496, 27420586, 27420586, 27420586, 27420586, 27420586,
-          27695972] := by
+          27695988] := by
   rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with
     ⟨_rowDeltas, _columnDeltas, rows, columns, joint⟩
   refine ⟨?_, ?_, ?_⟩

@@ -927,6 +927,27 @@ def invocation (logicalStart rowStart freshStart blockCount cellCount valueStrid
     inputRanges := inputRanges logicalStart blockCount cellCount valueStride
       source block lane cell valueSourceStart }
 
+@[simp] theorem invocation_localStart
+    (logicalStart rowStart freshStart blockCount cellCount valueStride source
+      block lane cell : Nat)
+    (valueSourceStart : Nat → Nat → Nat → Nat) :
+    (invocation logicalStart rowStart freshStart blockCount cellCount valueStride
+      source block lane cell valueSourceStart).localStart =
+      Spartan.sourceToSpartan
+        (invocationFreshSource freshStart blockCount cellCount source block lane
+          cell) := by
+  rfl
+
+@[simp] theorem invocation_inputRanges
+    (logicalStart rowStart freshStart blockCount cellCount valueStride source
+      block lane cell : Nat)
+    (valueSourceStart : Nat → Nat → Nat → Nat) :
+    (invocation logicalStart rowStart freshStart blockCount cellCount valueStride
+      source block lane cell valueSourceStart).inputRanges =
+      inputRanges logicalStart blockCount cellCount valueStride source block lane
+        cell valueSourceStart := by
+  rfl
+
 theorem invocationOutputRecipe_eq_remappedSourceRecipe
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)

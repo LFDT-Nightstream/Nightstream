@@ -111,6 +111,10 @@ def evalAInterface
 def inputBindingOffset (offset : Nat) : Nat := offset
 def samplerOffset (offset : Nat) : Nat := offset
 
+theorem samplerOffset_eq (offset : Nat) :
+    samplerOffset offset = offset := by
+  rfl
+
 def commitmentOffset (offset : Nat) : Nat :=
   samplerOffset offset + SamplerChain.logicalPrivateCount
 
@@ -246,6 +250,9 @@ def main
 
 def logicalPrivateCount : Nat := 312222
 def logicalRowCount : Nat := 313871
+
+theorem logicalPrivateCount_eq : logicalPrivateCount = 312222 := by
+  rfl
 
 structure Assumptions
     {logicalWidth : Nat}

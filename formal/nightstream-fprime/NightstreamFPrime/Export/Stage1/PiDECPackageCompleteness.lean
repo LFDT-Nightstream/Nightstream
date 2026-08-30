@@ -52,7 +52,7 @@ theorem runningTransitionTargetStart_eq :
   rfl
 
 theorem runningTransitionTargetLength_eq :
-    Data.runningTransitionWitnessLength = 275386 := by
+    Data.runningTransitionWitnessLength = 275402 := by
   rfl
 
 theorem runningTransitionTargetEnd_eq :
@@ -396,6 +396,50 @@ private theorem transitionSpec_of_piDecAgreesOutside
           sourceBefore :=
     Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
       sourceAfter sourceBefore iterationBelow sourceAgrees
+  have initialStateEq : ∀ index,
+      (runningTransitionInterface.initialState
+          RunningTransitionInputs.phaseOffset index).eval sourceAfter =
+        (runningTransitionInterface.initialState
+          RunningTransitionInputs.phaseOffset index).eval sourceBefore := by
+    intro index
+    apply Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+      sourceAfter sourceBefore
+    · simp [runningTransitionInterface, RunningTransitionInputs.interface,
+        RunningTransitionInputs.initialStateExpr, Expr.VarsBelow,
+        RunningTransitionInputs.initialStateWordStart,
+        PilotProduction.priorPreimageStart]
+      have bound := index.isLt
+      norm_num [
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount,
+        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
+        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
+        PiDECInputs.evalAWordsPerChild,
+        PiDECInputs.publicInputWordsPerChild] at bound ⊢
+      omega
+    · exact sourceAgrees
+  have currentStateEq : ∀ index,
+      (runningTransitionInterface.currentState
+          RunningTransitionInputs.phaseOffset index).eval sourceAfter =
+        (runningTransitionInterface.currentState
+          RunningTransitionInputs.phaseOffset index).eval sourceBefore := by
+    intro index
+    apply Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+      sourceAfter sourceBefore
+    · simp [runningTransitionInterface, RunningTransitionInputs.interface,
+        RunningTransitionInputs.currentStateExpr, Expr.VarsBelow,
+        RunningTransitionInputs.currentStateWordStart,
+        PilotProduction.priorPreimageStart]
+      have bound := index.isLt
+      norm_num [
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount,
+        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
+        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
+        PiDECInputs.evalAWordsPerChild,
+        PiDECInputs.publicInputWordsPerChild] at bound ⊢
+      omega
+    · exact sourceAgrees
   have recursiveEq : ∀ index,
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.runningWord
           (runningTransitionInterface.recursive
@@ -430,7 +474,17 @@ private theorem transitionSpec_of_piDecAgreesOutside
               Data.logicalWidth Data.publicFits)
             PiDECInputs.phaseOffset outputRunningBelowPiDec index
     · exact sourceAgrees
-  refine { base := ?_, recursive := ?_ }
+  refine { initialState := ?_, base := ?_, recursive := ?_ }
+  · intro iterationZero index
+    have beforeZero :
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.iterationValue
+            runningTransitionInterface RunningTransitionInputs.phaseOffset
+            sourceBefore = 0 := by
+      rw [← iterationEq]
+      exact iterationZero
+    exact (initialStateEq index).trans
+      ((specification.initialState beforeZero index).trans
+        (currentStateEq index).symm)
   · intro iterationZero index
     have beforeZero :
         NightstreamFPrime.Lifecycle.Stage1.RunningTransition.iterationValue

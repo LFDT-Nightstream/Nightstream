@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Export.Stage1.PiCCSProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 
@@ -85,6 +86,41 @@ def fastEntryOutputFromState (state : Layer.EState)
     (coordinate offset : Nat) : Layer.EState :=
   (Formal.compileWiringLazy offset (fun _ => state)
     (TranscriptAbsorption.actions coordinate)).output
+
+/-- One scalar-entry absorption owns exactly one permutation, so its output
+variables depend only on the compiler start. -/
+theorem fastEntryOutputFromState_eq_scheduleOutput (state : Layer.EState)
+    (coordinate offset : Nat) :
+    fastEntryOutputFromState state coordinate offset =
+      Permutation.scheduleOutput offset := by
+  have chunkCount :
+      (Hash.inputChunks (TranscriptAbsorption.constantWords
+        (TranscriptAbsorption.frameWords coordinate))).length = 1 := by
+    simp [Hash.inputChunks, TranscriptAbsorption.constantWords,
+      TranscriptAbsorption.frameWords, Spec.Poseidon2.rate]
+  calc
+    fastEntryOutputFromState state coordinate offset =
+        (Formal.compile offset state
+          (TranscriptAbsorption.actions coordinate)).output := by
+      unfold fastEntryOutputFromState
+      rw [Formal.compileWiringLazy_eq offset (fun _ => state) state
+        (TranscriptAbsorption.actions coordinate) rfl]
+      exact (Formal.compileWiring_matches offset state
+        (TranscriptAbsorption.actions coordinate)).2
+    _ = Permutation.scheduleOutput offset := by
+      have positive : InvocationLastOutput.ActionsPositive
+          (TranscriptAbsorption.actions coordinate) := by
+        intro action member
+        simp only [TranscriptAbsorption.actions, List.mem_singleton] at member
+        subst action
+        simp [Invocations.Action.invocationCount, chunkCount]
+      have endpoint :=
+        InvocationLastOutput.compileActions_state_scheduleOutput
+          0 0 offset state (TranscriptAbsorption.actions coordinate)
+          (by simp [TranscriptAbsorption.actions]) positive
+      rw [Invocations.compileActions_state_eq] at endpoint
+      simpa [TranscriptAbsorption.actions, Invocations.invocationCount,
+        Invocations.Action.invocationCount, chunkCount] using endpoint
 
 theorem fastEntryOutputFromState_eq (interface : Sampler.Interface)
     (state : Layer.EState) (coordinate offset : Nat)
@@ -195,6 +231,16 @@ def fastProductionEntryOutput (source : Nat) : Layer.EState :=
     source
     (SamplerChain.sourceOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart source)
+
+theorem fastProductionEntryOutput_eq_scheduleOutput (source : Nat) :
+    fastProductionEntryOutput (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source =
+      Permutation.scheduleOutput
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
+          source) := by
+  unfold fastProductionEntryOutput
+  rw [fastEntryOutputFromState_eq_scheduleOutput]
+  rfl
 
 theorem fastProductionEntryOutput_eq (source : Nat) :
     fastProductionEntryOutput (logicalWidth := logicalWidth)

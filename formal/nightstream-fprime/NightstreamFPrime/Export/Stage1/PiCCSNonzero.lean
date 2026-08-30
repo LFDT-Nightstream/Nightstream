@@ -339,15 +339,11 @@ def baseMatrix (source : Fin productionShape.sourceCount)
     (80_000_000 + source.val * 1_000_000 +
       matrix.val * 10_000 + coefficient.val)
 
-/-- The exact coordinate solved once from the verifier terminal equation.
-Its acceptance is checked again by executable Lean and every emitted row. -/
-def solvedTarget : K :=
-  ⟨9049108147461059813, 15010977030373376220⟩
-
-def output : FullOutputCoordinates.FullOutput K productionShape where
+def outputWithTarget (target : K) :
+    FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := fun source coefficient =>
     if source.val = 1 ∧ coefficient.val = 1 then
-      solvedTarget
+      target
     else
       basePad source coefficient
   matrixCoordinate := baseMatrix
@@ -366,6 +362,71 @@ def outputMessage
   matrixImage := fun coordinate =>
     output.matrixCoordinate (runningSourceIndex coordinate.running)
       coordinate.matrix coordinate.coefficient
+
+structure TranscriptCore where
+  preSumcheck : FiatShamir.PreSumcheck K Transcript.State productionShape
+  initialClaim : K
+  roundTrace : RoundTrace
+  verifierRoundResult : List K × Transcript.State
+  verifierRoundPoint : CubePoint K productionShape.cubeVariables
+
+def transcriptCore (_ : Unit) : TranscriptCore :=
+  let preSumcheck :=
+    NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
+      Transcript.piCcsOracle.transcript (statementState ())
+  let initialClaim := initialClaimFast preSumcheck.gamma
+  let roundTrace := buildRoundTrace preSumcheck initialClaim
+  let verifierRoundResult :=
+    FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
+      (fun index => (roundTrace.round index).toMessage) preSumcheck.state
+        (canonicalFinIndices productionShape.cubeVariables)
+  let verifierRoundPoint : CubePoint K productionShape.cubeVariables := {
+    coordinates := verifierRoundResult.1
+    dimension := by
+      dsimp only [verifierRoundResult]
+      rw [FiatShamir.deriveRoundsFrom_values_length,
+        canonicalFinIndices_length]
+  }
+  { preSumcheck
+    initialClaim
+    roundTrace
+    verifierRoundResult
+    verifierRoundPoint }
+
+def terminalForTarget (core : TranscriptCore) (target : K) : K :=
+  let message := outputMessage (outputWithTarget target)
+  let padTerminal :=
+    padTerminalFast core.preSumcheck.gamma core.verifierRoundPoint message
+  let matrixTerminal :=
+    matrixTerminalFast core.preSumcheck.gamma core.verifierRoundPoint message
+  let ccsTerminal :=
+    ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
+      core.preSumcheck.gamma message
+  let normTerminal :=
+    ProtocolPolynomial.normAtMessage extensionOps core.preSumcheck.gamma message
+  assembleTerminalFast core.preSumcheck.alpha core.preSumcheck.gamma
+    core.verifierRoundPoint padTerminal matrixTerminal ccsTerminal normTerminal
+
+/-- Executable inverse in `K = F[X]/(X² - 7)`. The base inverse is the
+existing Goldilocks witness computation. Fixture acceptance independently
+checks the result. -/
+def inverseExtension (value : K) : K :=
+  let norm := value.c0 * value.c0 - 7 * value.c1 * value.c1
+  let inverseNorm := NightstreamFPrime.Circuit.Hint.inverse norm
+  ⟨value.c0 * inverseNorm, (0 - value.c1) * inverseNorm⟩
+
+/-- The chosen output coordinate is affine in the final SumCheck terminal.
+Solve it from terminal evaluations at zero and one. -/
+def solveTarget (core : TranscriptCore) : K :=
+  let terminalZero := terminalForTarget core K.zero
+  let terminalOne := terminalForTarget core K.one
+  K.mul (K.sub core.roundTrace.claim terminalZero)
+    (inverseExtension (K.sub terminalOne terminalZero))
+
+def solvedTarget : K := solveTarget (transcriptCore ())
+
+def output : FullOutputCoordinates.FullOutput K productionShape :=
+  outputWithTarget solvedTarget
 
 def proofMessagesNonzero (trace : RoundTrace) : Bool :=
   trace.rounds.all fun polynomial =>

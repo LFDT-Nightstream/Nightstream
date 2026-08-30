@@ -290,6 +290,10 @@ def circuit
   assumptions := Assumptions relation interface
   spec := fun offset env =>
     PhaseHolds relation ajtai interface offset env template
+  privateCount := fun _ => privateCount (ProductionKey.degreeBound relation)
+  rowCount := fun _ => rowCount (ProductionKey.degreeBound relation)
+  privateCount_eq := localLength_eq relation interface
+  rowCount_eq := flatConstraints_length_eq relation interface
   soundness := fun env offset assumptions rows =>
     spec_implies_phaseHolds relation ajtai interface offset env template
       (soundness relation interface env offset assumptions rows)

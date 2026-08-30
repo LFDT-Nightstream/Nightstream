@@ -35,14 +35,67 @@ def phaseInterface
     Formal.Interface logicalWidth publicFits :=
   NightstreamFPrime.Layout.Stage1.PiDECInputs.interface logicalWidth publicFits
 
+def publicInputConstraints
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+  let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+    (Formal.publicInputCircuit shared)
+    (Formal.publicInputOffset
+      NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
+
+def commitmentConstraints
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+  let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+    (Formal.commitmentCircuit shared)
+    (Formal.commitmentOffset
+      NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
+
+def evalKConstraints
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+  let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+    (Formal.evalKCircuit shared)
+    (Formal.evalKOffset NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
+
+def evalAConstraints
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+  let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  NightstreamFPrime.Layout.PiDEC.v1_1.childConstraints
+    (Formal.evalACircuit shared)
+    (Formal.evalAOffset NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
+
 /-- The four nonempty PiDEC child lists in exact parent order. -/
 def constraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
-  NightstreamFPrime.Layout.PiDEC.v1_1.nonBoundaryConstraints
-    (phaseInterface logicalWidth publicFits)
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
+  publicInputConstraints logicalWidth publicFits ++
+    commitmentConstraints logicalWidth publicFits ++
+      evalKConstraints logicalWidth publicFits ++
+        evalAConstraints logicalWidth publicFits
+
+theorem constraints_eq_nonBoundary
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    constraints logicalWidth publicFits =
+      NightstreamFPrime.Layout.PiDEC.v1_1.nonBoundaryConstraints
+        (phaseInterface logicalWidth publicFits)
+        NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset := by
+  rfl
 
 theorem constraints_eq_logical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -50,6 +103,7 @@ theorem constraints_eq_logical
       NightstreamFPrime.Layout.PiDEC.v1_1.logicalConstraints relation
         (phaseInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset := by
+  rw [constraints_eq_nonBoundary]
   exact (NightstreamFPrime.Layout.PiDEC.v1_1.logicalConstraints_eq_nonBoundary
     relation (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset).symm

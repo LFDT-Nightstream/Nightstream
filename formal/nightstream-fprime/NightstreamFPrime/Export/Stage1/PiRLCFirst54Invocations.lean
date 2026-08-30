@@ -152,6 +152,40 @@ def valueInvocation (source round slot : Nat) : CompactRowInvocation where
     firstValueInputRanges source round slot
   else laterValueInputRanges source round slot
 
+@[simp] theorem positionInvocation_localStart (source round slot : Nat) :
+    (positionInvocation source round slot).localStart =
+      finalColumn (PiRLCStarts.selectorFreshStart source +
+        roundFreshPrefix round + positionFreshPrefix round slot) := by
+  rfl
+
+@[simp] theorem valueInvocation_localStart (source round slot : Nat) :
+    (valueInvocation source round slot).localStart =
+      finalColumn (PiRLCStarts.selectorFreshStart source +
+        roundFreshPrefix round + valueFreshPrefix round slot) := by
+  rfl
+
+@[simp] theorem positionInvocation_zero_inputRanges (source slot : Nat) :
+    (positionInvocation source 0 slot).inputRanges =
+      firstPositionInputRanges source 0 slot := by
+  rfl
+
+@[simp] theorem positionInvocation_succ_inputRanges
+    (source round slot : Nat) :
+    (positionInvocation source (round + 1) slot).inputRanges =
+      laterPositionInputRanges source (round + 1) slot := by
+  simp [positionInvocation]
+
+@[simp] theorem valueInvocation_zero_inputRanges (source slot : Nat) :
+    (valueInvocation source 0 slot).inputRanges =
+      firstValueInputRanges source 0 slot := by
+  rfl
+
+@[simp] theorem valueInvocation_succ_inputRanges
+    (source round slot : Nat) :
+    (valueInvocation source (round + 1) slot).inputRanges =
+      laterValueInputRanges source (round + 1) slot := by
+  simp [valueInvocation]
+
 def positionInvocations (source round : Nat) : List CompactRowInvocation :=
   (List.finRange First54Step.slotCount).map fun slot =>
     positionInvocation source round slot.val

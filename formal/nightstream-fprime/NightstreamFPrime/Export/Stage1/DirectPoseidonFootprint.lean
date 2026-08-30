@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 import NightstreamFPrime.Layout.PilotValues
-import NightstreamFPrime.Layout.ProductionRelation.PoseidonTemplatePlan
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
 /-!
 Owns the constant-time footprint guard for the current all-direct Poseidon2
@@ -58,21 +58,22 @@ def totalPermutationCount : Nat :=
 the current direct template. -/
 def directSboxFieldCount : Nat :=
   totalPermutationCount *
-    (PoseidonTemplatePlan.plan.map fun step => step.sboxes.length).sum
+    PoseidonRetainedSlots.slots.length
 
 @[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 2638050 := by
   rw [directSboxFieldCount, totalPermutationCount_eq,
-    PoseidonTemplatePlan.sboxRowCount_eq]
+    PoseidonRetainedSlots.slots_length]
 
-/-- Canonical low-norm coordinates needed by only those S-box output slots.
+/-- Canonical low-norm coordinates of the actual retained S-box slot plan.
 This excludes final outputs and every non-Poseidon source value. -/
 def directSboxCoordinateCount : Nat :=
-  directSboxFieldCount * BalancedTernary.width
+  totalPermutationCount *
+    LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
 
 @[simp] theorem directSboxCoordinateCount_eq :
     directSboxCoordinateCount = 108160050 := by
-  rw [directSboxCoordinateCount, directSboxFieldCount_eq]
-  rfl
+  rw [directSboxCoordinateCount, totalPermutationCount_eq,
+    PoseidonRetainedSlots.slots_logicalWidth]
 
 /-- The retained S-box coordinates in the current direct plan fit below the
 Stage 1 carrier domain. Other assignment coordinates still require the final

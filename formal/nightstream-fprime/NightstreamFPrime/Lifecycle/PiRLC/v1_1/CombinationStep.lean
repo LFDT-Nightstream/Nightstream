@@ -193,7 +193,7 @@ private theorem rawExpr_eval (env : Env)
   simpa using foldl_eval env (List.range ringDegree) degree
     challenge value 0
 
-private theorem mulExpr_eval (env : Env)
+theorem mulExpr_eval (env : Env)
     (challenge value : Fin ringDegree → Expr) (lane : Fin ringDegree) :
     (mulExpr challenge value lane).eval env =
       ringFMul (evalRing env challenge) (evalRing env value) lane := by

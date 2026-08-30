@@ -339,6 +339,41 @@ private theorem mux_freshCount_eq
   rw [R1CS.constraintFreshCount, mux_directConstraint_eq_none,
     mux_mulCount_eq relation index]
 
+private theorem baseState_directConstraint_eq_none
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (index : RunningTransition.StateIndex) :
+    R1CS.directConstraint
+      (RunningTransition.baseStateConstraint
+        (interface logicalWidth publicFits) phaseOffset index) = none := by
+  rfl
+
+private theorem baseState_mulCount_eq
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (index : RunningTransition.StateIndex) :
+    R1CS.mulCount
+      (RunningTransition.baseStateConstraint
+        (interface logicalWidth publicFits) phaseOffset index) = 4 := by
+  change R1CS.mulCount
+    ((1 - (iterationExpr * Expr.var phaseOffset)) *
+      (initialStateExpr index - currentStateExpr index)) = 4
+  norm_num [R1CS.mulCount, iterationExpr, initialStateExpr, currentStateExpr]
+
+private theorem baseState_freshCount_eq
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (index : RunningTransition.StateIndex) :
+    R1CS.constraintFreshCount
+      (RunningTransition.baseStateConstraint
+        (interface logicalWidth publicFits) phaseOffset index) = 4 := by
+  rw [R1CS.constraintFreshCount,
+    baseState_directConstraint_eq_none,
+    baseState_mulCount_eq]
+
 private theorem listSumOfFn {count : Nat} (values : Fin count → Nat) :
     (List.ofFn values).sum = ∑ index, values index := by
   induction count with
@@ -369,36 +404,65 @@ private theorem totalFreshCount_cons_ofFn {count : Nat}
   rw [sumEq, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
   simp
 
+private theorem totalFreshCount_ofFn {count : Nat}
+    (items : Fin count → Expr) (itemCost : Nat)
+    (costEq : ∀ index, R1CS.constraintFreshCount (items index) = itemCost) :
+    R1CS.totalFreshCount (List.ofFn items) = count * itemCost := by
+  unfold R1CS.totalFreshCount
+  rw [List.map_ofFn]
+  change (List.ofFn (fun index : Fin count =>
+    R1CS.constraintFreshCount (items index))).sum = count * itemCost
+  rw [listSumOfFn]
+  have sumEq :
+      (∑ index : Fin count, R1CS.constraintFreshCount (items index)) =
+        ∑ _index : Fin count, itemCost := by
+    apply Finset.sum_congr rfl
+    intro index _member
+    exact costEq index
+  rw [sumEq, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
+  simp
+
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
-      275385 := by
+      275401 := by
   rw [logicalConstraints_eq]
   change R1CS.totalFreshCount
       (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
           phaseOffset ::
-        List.ofFn (RunningTransition.muxConstraint
-          (interface logicalWidth publicFits) phaseOffset)) = 275385
-  calc
-    R1CS.totalFreshCount
-        (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-            phaseOffset ::
-          List.ofFn (RunningTransition.muxConstraint
+        (List.ofFn (RunningTransition.muxConstraint
+            (interface logicalWidth publicFits) phaseOffset) ++
+          List.ofFn (RunningTransition.baseStateConstraint
+            (interface logicalWidth publicFits) phaseOffset))) = 275401
+  rw [show
+    RunningTransition.bindingConstraint (interface logicalWidth publicFits)
+          phaseOffset ::
+        (List.ofFn (RunningTransition.muxConstraint
+            (interface logicalWidth publicFits) phaseOffset) ++
+          List.ofFn (RunningTransition.baseStateConstraint
             (interface logicalWidth publicFits) phaseOffset)) =
-        3 + RunningTransition.exactWordCount * 6 :=
-      totalFreshCount_cons_ofFn _ _ 3 6
-        (binding_freshCount_eq logicalWidth publicFits)
-        (mux_freshCount_eq relation)
-    _ = 275385 := by rfl
+      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
+          phaseOffset ::
+        List.ofFn (RunningTransition.muxConstraint
+          (interface logicalWidth publicFits) phaseOffset)) ++
+      List.ofFn (RunningTransition.baseStateConstraint
+        (interface logicalWidth publicFits) phaseOffset) by rfl]
+  rw [R1CS.totalFreshCount_append]
+  rw [totalFreshCount_cons_ofFn _ _ 3 6
+      (binding_freshCount_eq logicalWidth publicFits)
+      (mux_freshCount_eq relation),
+    totalFreshCount_ofFn _ 4
+      (baseState_freshCount_eq logicalWidth publicFits)]
+  rfl
 
 theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (logicalConstraints logicalWidth publicFits).length = 45898 := by
+    (logicalConstraints logicalWidth publicFits).length = 45902 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
@@ -407,7 +471,7 @@ theorem totalRowCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
-      321283 := by
+      321303 := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq relation, logicalConstraints_length_eq]
 

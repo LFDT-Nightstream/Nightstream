@@ -112,6 +112,15 @@ theorem compilePacket_toR1CS (rowStart freshStart : Nat)
   rw [compilePacket, Rows.compileRowsTR_toR1CS,
     Rows.lowerConstraintsTR_eq]
 
+theorem compilePacket_rowIndices (rowStart freshStart : Nat)
+    (constraints : List Expr) :
+    (compilePacket rowStart freshStart constraints).map
+        Rows.CompiledRow.rowIndex =
+      List.range' rowStart (compilePacket rowStart freshStart constraints).length := by
+  unfold compilePacket
+  rw [Rows.compileRowsTR_rowIndices]
+  rw [Rows.compileRowsTR_length]
+
 /-- Satisfaction of one emitted arithmetic packet implies its exact source
 constraint list under the proved Stage 1 column pullback. -/
 theorem compilePacket_sound (rowStart freshStart : Nat)

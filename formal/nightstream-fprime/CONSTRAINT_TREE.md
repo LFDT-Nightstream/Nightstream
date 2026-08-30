@@ -25,13 +25,28 @@ Status on this cut:
   green; status open until exact external review.
 - Running-instance branch: compiler and phase-local conformance gates are
   green; status open as part of the cumulative package cut.
-- Stage 1: open. The application, terminal assembly, fixed point, complete
-  domain proof, security composition, and package-only production path do not
-  exist yet.
+- Accumulator: the zero-row SuperNeo verifier composition and canonical
+  package edge are kernel-checked; status open until the final package
+  identity and fixed-point gates are rerun.
+- Application: the verifier-owned per-application `Program`, zero-copy
+  four-word state layout, direct canonical lowering, plan identity,
+  verifier-context component, verification-key binding preimage, and
+  row-to-typed-transition theorem are kernel-checked. The generic final
+  package constructor appends that plan, installs terminal metadata, binds raw
+  static-key authority, proves exact preservation of every validated prefix
+  row family, and proves package rows imply the selected `F`.
+  Status open because no concrete production application exists.
+- Stage 1: open. The seven-child opaque assembly order, derived offsets,
+  aggregate footprints, arbitrary-witness soundness, and the generic
+  package-row-to-`StepHoldsFor` theorem are kernel-checked. That package theorem
+  still takes the typed external-ABI representation and the existing PiRLC and
+  PiDEC scope certificates as premises. Complete parent-circuit physical
+  preservation, a concrete application, fixed point, final domain proof,
+  security composition, and package-only production path do not exist yet.
 
-The external review files read in full at 14:20 CDT predate this exact source
-and artifact cut. They are evidence for prior cuts only. No status below uses
-them as approval of the current cut.
+The official external review approves the package cut before the zero-row
+accumulator source additions. The Fable review is older. Both remain evidence,
+not approval of this current source cut. No status below treats them as such.
 
 ## Fixed profile and semantic authority
 
@@ -85,7 +100,23 @@ Lifecycle/PiCCS/v1_1/Formal.lean             ✓ twelve-child assembler
 Lifecycle/PiRLC/v1_1/Formal.lean             ✓ seven-child assembler
 Lifecycle/PiDEC/v1_1/Formal.lean             ✓ six-child assembler
 Lifecycle/Stage1/RunningTransition.lean      ✓ running-instance branch
-Lifecycle/Stage1/Formal.lean                 ○ full Stage 1 assembler
+Lifecycle/Stage1/Accumulator.lean            ✓ exact NIFS verifier result
+Layout/Stage1/AccumulatorSemantics.lean      ✓ zero-copy phase composition
+Export/Stage1/AccumulatorPackage.lean        ✓ zero-row package edge
+Lifecycle/Stage1/Application.lean            ✓ per-application proof contract
+Layout/Stage1/ApplicationInputs.lean         ✓ zero-copy four-word ABI
+Layout/Stage1/ApplicationSemantics.lean      ✓ typed state representation
+Export/Stage1/ApplicationPackage.lean        ✓ direct plan and custody theorem
+Export/Stage1/PerApplicationPackage.lean     △ generic final package and F edge
+Export/Stage1/PerApplicationSoundness.lean   △ package rows imply StepHoldsFor
+Lifecycle/Stage1/VerificationKey.lean        ✓ acyclic key binding preimage
+Lifecycle/Stage1/Terminal.lean               ✓ outer terminal semantics
+Export/Stage1/TerminalPackage.lean           ✓ zero-row terminal metadata
+Lifecycle/Stage1/Interface.lean              ✓ symbolic child interfaces
+Lifecycle/Stage1/Formal.lean                 △ order, footprint, soundness
+Layout/Stage1/AssemblerInputs.lean           ✓ compact cross-phase wiring
+Layout/Stage1/AssemblerSoundness.lean        △ deterministic relation composition
+Layout/Stage1/Preservation.lean              ○ final physical preservation
 ```
 
 PiCCS leaf ownership:
@@ -173,12 +204,16 @@ The authoritative ledgers are:
 | PiDEC commitment | 27,261,277 | 27,420,586 |
 | PiDEC `Eval_K` | 27,261,385 | 27,420,586 |
 | PiDEC `Eval_A` | 27,262,897 | 27,420,586 |
-| Running-instance branch / current endpoint | 27,584,180 | 27,695,972 |
+| Running-instance branch / current endpoint | 27,584,200 | 27,695,988 |
+| Accumulator semantic/package edge | 27,584,200 | 27,695,988 |
 
-The current joint domain is 27,695,972. It is below
-`2^28 = 268,435,456` with exact headroom 240,739,484. This headroom still must
-contain the accumulator update, application, output hash, and terminal
-checks. Compact serialization does not reduce backend rows.
+The current joint domain is 27,695,988. It is below
+`2^28 = 268,435,456` with exact headroom 240,739,468. The accumulator edge
+adds zero rows and columns. The per-application framework is not embedded in
+this candidate and therefore changes no current count. The outer terminal
+metadata also adds no row or column. This headroom still must contain the
+selected application, its witness inputs, and its lowering. Compact
+serialization does not reduce backend rows.
 
 Separately, Lean proves that the current direct low-norm Poseidon2 plan needs
 108,160,050 retained S-box coordinates, leaving 160,275,406 coordinates below
@@ -189,14 +224,14 @@ is not the complete final-fit theorem.
 
 | Package value | Exact value |
 |---|---:|
-| Unpadded rows | 27,584,180 |
-| Private columns / constant source index | 27,695,694 |
+| Unpadded rows | 27,584,200 |
+| Private columns / constant source index | 27,695,710 |
 | Public columns | 278 |
-| Total unpadded columns | 27,695,973 |
+| Total unpadded columns | 27,695,989 |
 | Caller-owned private inputs | 166,738 |
-| Witness instructions | 1,190,430 |
-| Assertion rows | 190,005 |
-| Ordinary compiled rows | 1,380,435 |
+| Witness instructions | 1,190,446 |
+| Assertion rows | 190,009 |
+| Ordinary compiled rows | 1,380,455 |
 | Poseidon2 invocations | 7,703 |
 | Compact templates | 326 |
 | Compact invocations | 167,246 |
@@ -205,17 +240,18 @@ is not the complete final-fit theorem.
 The verifier-owned Poseidon2 relation identifier is:
 
 ```text
-[3355019049079043662, 4920201927044277974,
- 5339237732450517664, 894111819037169888]
+[5326948389888638380, 15945253772729055182,
+ 12038831075978321435, 4066786242110063495]
 ```
 
-The external-review source-cut fingerprint is:
+The last externally reviewed source-cut fingerprint is:
 
 ```text
 32291f7c9edbe968a171421da665b9b8de7fe0050044a684f58c4a25c3d9b13d
 ```
 
-It is the SHA-256 of the sorted `shasum -a 256` records for all files under
+It identifies the superseded 27,584,180-row cut. It is the SHA-256 of the
+sorted `shasum -a 256` records for all files under
 `formal/nightstream-fprime`, `crates/nightstream-fprime`,
 `crates/neo-fold-clean/{src,tests}`, and `crates/neo-reductions/src`, plus the
 three Rust `Cargo.toml` files. It excludes `.lake`, generated artifacts, and
@@ -225,12 +261,12 @@ SHA-256 identifies bytes only:
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| Compact schema-8 plan | 92,146,719 | `68a307b00ce94abdca7d72105ed56fe65b8562b55700d68de887810bfbaace43` |
-| Expanded schema-7 package | 113,510,169 | `c9e2f007ef95686ff923d81a3b36066cc4e585705808cbe918ca1c8836f82bc5` |
-| Pilot parity | 657,656 | `6da6640801d177101772b7c47783f3dfad7a76305e300e37b57c95a652de9309` |
-| PiCCS parity | 1,577,823 | `37df146b6ef6a302faf3a0976df633db3fd9764e322ccf5cd5fbbcc8da3862f7` |
-| PiRLC parity | 1,189,342 | `9db3718f84c9b956f7dba8a135d7c9ea2c57c16b10bc9223cf00a62ce2e7bc7b` |
-| PiDEC parity | 1,540,175 | `c8886db867f509d5a79923c6eba86ce22633143b29a7d6cde09078dd735db932` |
+| Compact schema-8 plan | 92,147,859 | `a293eb5e6af2d956c92490a3038285f8bf460fcb06fdde0e5663882b13c82307` |
+| Expanded schema-7 package | 113,511,309 | `d3c7be44e8eb74e87a4d13286fd293491f1c53e749401e729497028b56d06f45` |
+| Pilot parity | 657,652 | `47b151c8d04dae1ce2898a749396fad27c54b991ca00034a7fde951055e3554a` |
+| PiCCS parity | 1,577,847 | `08e356f8b2ef9e8a2a0399be6d5b6404ad3b19a2ea215e12b81c7869c51092f4` |
+| PiRLC parity | 1,195,249 | `7a5c877dec8171d7dde79cecf6525da8d99128ea98a1c4ffaa72025d3cf152ce` |
+| PiDEC parity | 1,617,291 | `025d3bda2ed276f4e04614062e051d251e058bf4d0a46244f884a7aec9406592` |
 | PiRLC sampler parity | 9,202 | `e1ee42037d7750725c9442d7693b93eb60dd56c5507577370d4f06e65aad88a3` |
 
 ## Exact conformance evidence
@@ -238,10 +274,23 @@ SHA-256 identifies bytes only:
 Lean evidence on this cut:
 
 - `validate.sh static`: all boundary checks passed.
-- full `NightstreamFPrime` root: 3,333 jobs passed in 41 seconds.
+- full `NightstreamFPrime` root: 3,338 jobs passed in 6 seconds on the
+  accumulator slice.
+- `tests/AxiomsStage1Accumulator.lean`: all 18 new theorem roots passed in
+  3 seconds with only `propext`, `Classical.choice`, and `Quot.sound`.
+- `AccumulatorSemantics.phases_imply_holds` proves that the complete
+  PiCCS → PiRLC → PiDEC verifier graph equals `Accumulator.Holds`.
+- `AccumulatorPackage.circuitPackage_implies_accumulatorHolds` derives that
+  result from the unchanged canonical package rows.
 - `validate.sh axioms`: 3,342 jobs passed in 9 seconds. Audited theorems use
   only `propext`, `Classical.choice`, and `Quot.sound`; the production strong
   set and complete-fork extraction roots are included.
+- the phase-local Stage 1 parent validates in 3 seconds after explicit
+  Poseidon and PiCCS footprint metadata replaced the default executable list
+  reductions; the rejected first check exceeded 86 seconds and 25.5 GB RSS;
+- full `NightstreamFPrime`: 3,350 jobs passed in 29 seconds after the
+  per-application package additions; `NightstreamFPrimeTests`: 3,362 jobs
+  passed in 10 seconds, including all focused Stage 1 axiom roots;
 - forced compact package emission improved from a 7.16-second baseline median
   to 5.78 seconds with `LEAN_NUM_THREADS=10`, a 19.3% reduction;
 - forced expanded emission improved from a 9.11-second baseline median to
@@ -261,26 +310,26 @@ emitter uses `LEAN_NUM_THREADS=10` and writes one canonical order.
 
 Rust evidence on this cut:
 
-- exact package matrix conformance: 1/1 in 49.62 seconds;
+- exact package matrix conformance: 1/1 in 49.60 seconds;
 - exact final matrix nonzeros `A/B/C`:
-  `[88,443,656, 37,139,799, 27,233,601]`;
-- independent assignment evaluation: all 27,584,180 unpadded rows and the
+  `[88,443,680, 37,139,823, 27,233,617]`;
+- independent assignment evaluation: all 27,584,200 unpadded rows and the
   padded zero domain passed;
 - row-owner mutations rejected by the exact row comparator: 144;
 - column/public-owner mutations rejected by the exact row comparator: 77;
 - semantic input mutations: 16;
 - total exact-package mutations: 237;
-- strict package loader: 14/14 in 91.69 seconds;
-- compact-plan loader: 10/10 in 36.71 seconds;
-- pilot parity and mutations: 3/3 in 20.71 seconds;
-- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 3.68 seconds;
-- complete indexed PiRLC parity and handoff: 3/3 in 2.29 seconds;
-- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 32.96 seconds;
+- strict package loader: 14/14 in 91.51 seconds;
+- compact-plan loader: 10/10 in 36.69 seconds;
+- pilot parity and mutations: 3/3 in 20.72 seconds;
+- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 3.76 seconds;
+- complete indexed PiRLC parity and handoff: 3/3 in 2.34 seconds;
+- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 33.10 seconds;
 - PiRLC sampler parity and fail-closed decoding: 2/2;
-- identity-bound complete typed package consumer: 1/1 in 198.29 seconds;
+- identity-bound complete typed package consumer: 1/1 in 194.22 seconds;
   it consumed PiCCS, PiDEC, and the Lean-authored running-transition output,
   and rejected a changed public input.
-- `nifs_engine_crosscheck`: 10/10 in 180.02 seconds, including the 270-word
+- `nifs_engine_crosscheck`: 10/10 in 179.49 seconds, including the 270-word
   state-preimage bridge, PaperExact/optimized equality, carried accumulator,
   and Nebula auxiliary commitments;
 - Poseidon2 Lean vectors: 2/2;
@@ -313,26 +362,32 @@ PiCCS must remain status open until this exact edge exists:
 final canonical package
   → exact 14-matrix LogicalRelation
   → ProductionKey.key
-  → exact application F
-  → StepHolds
+  → exact Lean-authored application Program and plan identity
+  → StepHoldsFor
   → recursive fixed point
   → rerun every PiCCS gate on the final identity
 ```
 
+The accepted per-application-package decision requires the verifier to pin or
+allowlist one final identity. `PerApplicationPackage.packageRows_imply_applicationHolds`
+proves that the generic final package enforces the selected `F`, and
+`packageRows_imply_baseOrdinaryRows` proves the ordinary-row part of prefix
+column-shift preservation. No concrete application has been selected, and
+template/hash/compact preservation is still open.
+
 The remaining owner-ordered work is:
 
-1. obtain external approval of the exact PiRLC, PiDEC, and running-instance
-   source and artifact cut;
-2. add the accumulator phase assembler;
-3. add the exact application, output-hash, and terminal circuits;
-4. build `Lifecycle/Stage1/Formal.lean` and the matching Stage 1 layout;
-5. prove cross-phase wiring, deterministic soundness, the recursive fixed
+1. finish hash, permutation, and compact-row preservation for the generic
+   per-application package;
+2. select one concrete Lean application, instantiate its package, and prove
+   the exact final `2^28` fit;
+3. prove exact cross-phase wiring, deterministic soundness, the recursive fixed
    point, the complete `2^28` bound, and the separate security composition;
-6. make the validated package the only reachable Rust production relation
+4. make the validated package the only reachable Rust production relation
    and remove the alternate radix relation;
-7. rerun all PiCCS, PiRLC, PiDEC, matrix, assignment, parity, and mutation
-   gates on the final package identity;
-8. after separate owner approval of a production backend, execute the final
+5. rerun all exact-cut reviews and every PiCCS, PiRLC, PiDEC, matrix,
+   assignment, parity, and mutation gate on the final package identity;
+6. after separate owner approval of a production backend, execute the final
    production `prove → verify` obligation.
 
 No backend is authorized on this cut. Backend acceptance cannot replace any

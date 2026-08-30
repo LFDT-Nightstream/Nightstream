@@ -27,16 +27,16 @@ fn lift_pilot_column(column: usize) -> usize {
     } else if column < 13_692_350 {
         column + 29_072
     } else {
-        27_695_694 + (column - 13_692_350)
+        27_695_710 + (column - 13_692_350)
     }
 }
 
 fn source_to_spartan(column: usize) -> usize {
-    assert!(column < 27_695_972, "Stage 1 source column");
+    assert!(column < 27_695_988, "Stage 1 source column");
     if column < 13_692_624 {
         lift_pilot_column(pilot_source_to_spartan(column))
     } else if column < 13_692_628 {
-        27_695_969 + (column - 13_692_624)
+        27_695_985 + (column - 13_692_624)
     } else if column < 13_721_700 {
         91_874 + (column - 13_692_628)
     } else {
@@ -69,14 +69,14 @@ fn spartan_to_source(column: usize) -> Option<usize> {
         Some(13_692_628 + (column - 91_874))
     } else if column < 13_721_422 {
         pilot_spartan_to_source(column - 29_072)
-    } else if column < 27_695_694 {
+    } else if column < 27_695_710 {
         Some(13_721_700 + (column - 13_721_422))
-    } else if column == 27_695_694 {
+    } else if column == 27_695_710 {
         None
-    } else if column < 27_695_969 {
-        pilot_spartan_to_source(13_692_350 + (column - 27_695_694))
-    } else if column < 27_695_973 {
-        Some(13_692_624 + (column - 27_695_969))
+    } else if column < 27_695_985 {
+        pilot_spartan_to_source(13_692_350 + (column - 27_695_710))
+    } else if column < 27_695_989 {
+        Some(13_692_624 + (column - 27_695_985))
     } else {
         None
     }

@@ -235,7 +235,7 @@ const ROW_OWNER_SPANS: &[OwnerSpan] = &[
     OwnerSpan {
         name: "running_transition",
         start: 27_262_897,
-        end: 27_584_180,
+        end: 27_584_200,
     },
 ];
 
@@ -262,7 +262,7 @@ const PIDEC_ROWS: OwnerSpan = OwnerSpan {
 const RUNNING_TRANSITION_ROWS: OwnerSpan = OwnerSpan {
     name: "running_transition",
     start: 27_262_897,
-    end: 27_584_180,
+    end: 27_584_200,
 };
 
 // Source-order column intervals from each phase's proved ColumnOwner map.
@@ -598,7 +598,7 @@ const COLUMN_OWNER_SPANS: &[ColumnOwnerSpan] = &[
         columns: OwnerSpan {
             name: "",
             start: 27_420_587,
-            end: 27_695_972,
+            end: 27_695_988,
         },
     },
     ColumnOwnerSpan {

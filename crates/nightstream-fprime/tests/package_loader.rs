@@ -12,10 +12,10 @@ use serde_json::{json, Value};
 // identity. Phase conformance remains open until every required gate passes
 // on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    3_355_019_049_079_043_662,
-    4_920_201_927_044_277_974,
-    5_339_237_732_450_517_664,
-    894_111_819_037_169_888,
+    5_326_948_389_888_638_380,
+    15_945_253_772_729_055_182,
+    12_038_831_075_978_321_435,
+    4_066_786_242_110_063_495,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -107,18 +107,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 27_584_180);
-    assert_eq!(package.private_column_count(), 27_695_694);
+    assert_eq!(package.row_count(), 27_584_200);
+    assert_eq!(package.private_column_count(), 27_695_710);
     assert_eq!(package.private_input_count(), 166_738);
     assert_eq!(package.public_column_count(), 278);
-    assert_eq!(package.total_column_count(), 27_695_973);
+    assert_eq!(package.total_column_count(), 27_695_989);
     assert_eq!(package.template_row_count(), 592);
     assert_eq!(package.permutation_invocation_count(), 7_703);
     assert_eq!(package.compact_template_count(), 326);
     assert_eq!(package.compact_invocation_count(), 167_246);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        1_380_435
+        1_380_455
     );
 }
 

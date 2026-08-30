@@ -12,7 +12,8 @@ mod witness;
 
 pub use identity::PiCcsV1_1VerifierContext;
 pub use package::{
-    derive_pi_ccs_v1_1_transcript, load, load_file, load_with_expanded_package, CcsMatrixSource, LoadedPackage,
+    derive_pi_ccs_v1_1_transcript, load, load_file, load_per_application_package, load_with_expanded_package,
+    CcsMatrixSource, LoadedPackage, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
     PackageCcsRelation, PackageError, PackagePolynomialTerm, PackageProof, PackageProvingKey, PackageR1cs,
     PackageSparseMatrix, PackageVerifyingKey, PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations,
     PiCcsV1_1PackageInputs, PiCcsV1_1Transcript, PiDecV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT,

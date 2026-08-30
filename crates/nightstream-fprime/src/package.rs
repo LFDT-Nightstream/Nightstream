@@ -17,6 +17,7 @@ use crate::{ProofRun, WitnessAssignment};
 
 mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
+mod matrix_program;
 mod permutation_plan;
 mod plan;
 mod source_map;
@@ -35,7 +36,10 @@ use r1cs::expand_matrices;
 pub use r1cs::{PackageR1cs, PackageSparseMatrix};
 mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
+mod sealed;
+pub use sealed::{load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow};
 mod proving;
+mod source_row;
 pub use proving::{PackageProof, PackageProvingKey, PackageVerifyingKey};
 mod pi_ccs_v1_1_transcript;
 pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
@@ -681,6 +685,14 @@ fn bind_expanded_package(raw: RawPackage, expected_identity: [u64; 4]) -> Result
 }
 
 fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<LoadedPackage, PackageError> {
+    validate_package_schema(raw, relation_identifier, 7)
+}
+
+fn validate_package_schema(
+    raw: RawPackage,
+    relation_identifier: [u64; 4],
+    expected_schema: u64,
+) -> Result<LoadedPackage, PackageError> {
     let RawPackage(
         schema,
         profile,
@@ -697,15 +709,15 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
         assertion_rows,
         terminal,
     ) = raw;
-    if schema != 7 {
+    if schema != expected_schema {
         return Err(PackageError::Invalid("schema version"));
     }
     validate_profile(profile)?;
     validate_poseidon(poseidon)?;
-    validate_terminal(&terminal)?;
 
     let layout = validate_layout(layout)?;
-    let relation = relation::validate(relation, &layout)?;
+    let relation = relation::validate(relation, &layout, expected_schema)?;
+    validate_terminal(&terminal, expected_schema, relation.row_count())?;
     let permutation = validate_permutation(permutation)?;
     let hash_chains = chains
         .into_iter()
@@ -863,11 +875,27 @@ fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
     Ok(())
 }
 
-fn validate_terminal(raw: &[Value]) -> Result<(), PackageError> {
-    match raw {
-        [Value::Number(tag)] if tag.as_u64() == Some(0) => Ok(()),
-        _ => Err(PackageError::Invalid("pilot terminal option")),
+fn validate_terminal(raw: &[Value], schema: u64, relation_row_count: usize) -> Result<(), PackageError> {
+    let valid = match (schema, raw) {
+        (7, [Value::Number(tag)]) => tag.as_u64() == Some(0),
+        (8, [Value::Number(tag), Value::Array(layout)]) => {
+            tag.as_u64() == Some(1)
+                && matches!(
+                    layout.as_slice(),
+                    [row_start, row_count, running, fresh]
+                        if row_start.as_u64() == Some(0)
+                            && row_count.as_u64()
+                                == u64::try_from(relation_row_count).ok()
+                            && running.as_u64() == Some(16)
+                            && fresh.as_u64() == Some(1)
+                )
+        }
+        _ => false,
+    };
+    if !valid {
+        return Err(PackageError::Invalid("pilot terminal option"));
     }
+    Ok(())
 }
 
 fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {

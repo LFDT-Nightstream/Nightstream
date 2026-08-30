@@ -95,7 +95,7 @@ theorem physicalFreshColumnCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalFreshColumnCount logicalWidth publicFits = 275385 := by
+    physicalFreshColumnCount logicalWidth publicFits = 275401 := by
   exact totalFreshCount_eq relation
 
 theorem physicalRowCount_eq
@@ -103,7 +103,7 @@ theorem physicalRowCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount logicalWidth publicFits = 321283 := by
+    physicalRowCount logicalWidth publicFits = 321303 := by
   rw [physicalRowCount]
   exact (R1CS.LoweringPlan.rowCount_eq _).trans (totalRowCount_eq relation)
 
@@ -120,10 +120,10 @@ theorem physicalColumnCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount logicalWidth publicFits = 27695972 := by
+    physicalColumnCount logicalWidth publicFits = 27695988 := by
   rw [physicalColumnCount, R1CS.LoweringPlan.next_eq,
     plan_firstFresh, logicalColumnCount_eq,
-    show (plan logicalWidth publicFits).freshColumnCount = 275385 from
+    show (plan logicalWidth publicFits).freshColumnCount = 275401 from
       physicalFreshColumnCount_eq relation]
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionLayout

@@ -23,10 +23,24 @@ def assumptions
       (interface logicalWidth publicFits) phaseOffset env := by
   refine {
     iteration := ?_
+    initialState := ?_
+    currentState := ?_
     recursive := ?_
     output := ?_ }
   · simp [interface, iterationExpr, Expr.VarsBelow, phaseOffset,
       iterationWordIndex, PilotProduction.priorPreimageStart]
+  · intro index
+    simp [interface, initialStateExpr, Expr.VarsBelow, phaseOffset,
+      initialStateWordStart, PilotProduction.priorPreimageStart]
+    have bound := index.isLt
+    norm_num [RunningTransition.stateWordCount] at bound ⊢
+    omega
+  · intro index
+    simp [interface, currentStateExpr, Expr.VarsBelow, phaseOffset,
+      currentStateWordStart, PilotProduction.priorPreimageStart]
+    have bound := index.isLt
+    norm_num [RunningTransition.stateWordCount] at bound ⊢
+    omega
   · intro index
     exact RunningTransition.runningWord_varsBelow _ phaseOffset
       (recursiveRunningBelow logicalWidth publicFits

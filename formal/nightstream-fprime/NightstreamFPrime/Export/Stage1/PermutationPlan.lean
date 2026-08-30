@@ -1,3 +1,4 @@
+import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.PiCCSProjection
 
@@ -435,6 +436,178 @@ theorem piRlcSamplerBlocks_expand :
   unfold piRlcSamplerBlocks PiRLCSamplerInvocations.invocations
   simpa only using
     samplerBlocks_expand (List.range PiRLCSamplerInvocations.sourceCount)
+
+/-! ## Random-access sampler witness starts -/
+
+def samplerStepsPerSource : Nat := 9
+
+@[simp] theorem samplerStepsPerSource_eq : samplerStepsPerSource = 9 := by
+  rfl
+
+/-- One source-local block in entry-then-window order. -/
+def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
+    Block :=
+  if step.val = 0 then
+    .actions (samplerEntryBlock source)
+  else
+    .direct (samplerWindowBlock source (step.val - 1))
+
+/-- One source-local final invocation witness start after the canonical
+Spartan permutation. -/
+def samplerSourceWitnessStartAt (source : Nat)
+    (step : Fin samplerStepsPerSource) : Nat :=
+  if step.val = 0 then
+    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (PiRLCSamplerInvocations.sourceLogicalStart source)
+  else
+    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
+        source (step.val - 1))
+
+theorem samplerSourceBlockAt_witnessStarts (source : Nat)
+    (step : Fin samplerStepsPerSource) :
+    ((samplerSourceBlockAt source step).expand.map
+      fun invocation => invocation.witnessStart) =
+      [samplerSourceWitnessStartAt source step] := by
+  by_cases entry : step.val = 0
+  · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
+    rw [if_pos entry, if_pos entry]
+    change ((samplerEntryBlock source).expand.map
+      fun invocation => invocation.witnessStart) = _
+    rw [samplerEntryBlock_expand]
+    simp [PiRLCSamplerInvocations.entryInvocations,
+      PiRLCSamplerInvocations.entryTrace, Invocations.compileActions,
+      Invocations.compileBlocks, TranscriptAbsorption.actions,
+      TranscriptAbsorption.constantWords, TranscriptAbsorption.frameWords,
+      Hash.inputChunks, Spec.Poseidon2.rate]
+  · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
+    rw [if_neg entry, if_neg entry]
+    simp [Block.expand, samplerWindowBlock, DirectBlock.expand,
+      DirectBlock.ofState, Invocations.invocation_witnessStart]
+
+theorem samplerSourceBlockAt_materializes (source : Nat) :
+    List.ofFn (samplerSourceBlockAt source) = samplerSourceBlocks source := by
+  change List.ofFn (fun step : Fin 9 => samplerSourceBlockAt source step) = _
+  rw [List.ofFn_succ]
+  unfold samplerSourceBlocks
+  apply congrArg₂ List.cons
+  · simp [samplerSourceBlockAt]
+  · rw [List.ofFn_eq_map, ← List.map_coe_finRange_eq_range, List.map_map]
+    apply List.map_congr_left
+    intro step _member
+    simp [samplerSourceBlockAt, samplerStepsPerSource]
+
+private theorem ofFn_decodeProd_eq_range_flatMap {Alpha : Type}
+    (m n : Nat) (value : Nat → Fin n → Alpha) :
+    List.ofFn (fun index : Fin (m * n) =>
+        let decoded : Fin m × Fin n := Fin.decodeProd index
+        value decoded.1.val decoded.2) =
+      (List.range m).flatMap fun outer =>
+        List.ofFn fun inner : Fin n => value outer inner := by
+  rw [List.ofFn_mul]
+  simp only [List.flatten_eq_flatMap]
+  rw [List.ofFn_eq_map]
+  rw [List.flatMap_map]
+  rw [← List.map_coe_finRange_eq_range]
+  rw [List.flatMap_map]
+  apply List.flatMap_congr
+  intro outer _member
+  simp only [id_eq]
+  apply congrArg List.ofFn
+  funext inner
+  let combined : Fin (m * n) :=
+    ⟨outer.val * n + inner.val, by
+      calc
+        outer.val * n + inner.val < (outer.val + 1) * n := by
+          simpa [Nat.add_mul] using Nat.add_lt_add_left inner.isLt (outer.val * n)
+        _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
+  change value (Fin.decodeProd combined).1.val (Fin.decodeProd combined).2 =
+    value outer.val inner
+  have combined_eq : combined = Fin.encodeProd (outer, inner) := by
+    apply Fin.ext
+    simp [combined, Fin.encodeProd, Nat.mul_comm]
+  rw [combined_eq, Fin.decodeProd_encodeProd]
+
+def samplerBlockAt
+    (index : Fin (PiRLCSamplerInvocations.sourceCount *
+      samplerStepsPerSource)) : Block :=
+  let decoded : Fin PiRLCSamplerInvocations.sourceCount ×
+      Fin samplerStepsPerSource := Fin.decodeProd index
+  samplerSourceBlockAt decoded.1.val decoded.2
+
+def samplerWitnessStartAt
+    (index : Fin (PiRLCSamplerInvocations.sourceCount *
+      samplerStepsPerSource)) : Nat :=
+  let decoded : Fin PiRLCSamplerInvocations.sourceCount ×
+      Fin samplerStepsPerSource := Fin.decodeProd index
+  samplerSourceWitnessStartAt decoded.1.val decoded.2
+
+theorem samplerBlockAt_materializes :
+    List.ofFn samplerBlockAt = piRlcSamplerBlocks () := by
+  calc
+    List.ofFn samplerBlockAt =
+        (List.range PiRLCSamplerInvocations.sourceCount).flatMap fun source =>
+          List.ofFn fun step : Fin samplerStepsPerSource =>
+            samplerSourceBlockAt source step :=
+      ofFn_decodeProd_eq_range_flatMap PiRLCSamplerInvocations.sourceCount
+        samplerStepsPerSource samplerSourceBlockAt
+    _ = (List.range PiRLCSamplerInvocations.sourceCount).flatMap
+        samplerSourceBlocks := by
+      apply List.flatMap_congr
+      intro source _member
+      exact samplerSourceBlockAt_materializes source
+    _ = piRlcSamplerBlocks () := rfl
+
+private theorem ofFn_flatMap_witnessStarts {count : Nat}
+    (block : Fin count → Block) (value : Fin count → Nat)
+    (each : ∀ index,
+      ((block index).expand.map fun invocation => invocation.witnessStart) =
+        [value index]) :
+    (List.ofFn block).flatMap
+        (fun current => current.expand.map fun invocation =>
+          invocation.witnessStart) =
+      List.ofFn value := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      rw [List.ofFn_succ (f := block), List.flatMap_cons,
+        List.ofFn_succ (f := value)]
+      have head := each (0 : Fin (count + 1))
+      rw [head, List.singleton_append]
+      apply congrArg (fun tail => value 0 :: tail)
+      exact inductionHypothesis
+        (fun index => block index.succ) (fun index => value index.succ)
+        (fun index => each index.succ)
+
+/-- The random-access witness-start schedule materializes to the exact
+canonical sampler invocation list. -/
+theorem samplerWitnessStartAt_materializes :
+    List.ofFn samplerWitnessStartAt =
+      (PiRLCSamplerInvocations.invocations
+        (logicalWidth := Data.logicalWidth)
+        (publicFits := Data.publicFits)).map
+          (fun invocation => invocation.witnessStart) := by
+  calc
+    List.ofFn samplerWitnessStartAt =
+        (List.ofFn samplerBlockAt).flatMap
+          (fun current => current.expand.map fun invocation =>
+            invocation.witnessStart) := by
+      exact (ofFn_flatMap_witnessStarts samplerBlockAt samplerWitnessStartAt
+        (fun index => by
+          exact samplerSourceBlockAt_witnessStarts
+            (Fin.decodeProd index).1.val (Fin.decodeProd index).2)).symm
+    _ = (piRlcSamplerBlocks ()).flatMap
+          (fun current => current.expand.map fun invocation =>
+            invocation.witnessStart) := by
+      rw [samplerBlockAt_materializes]
+    _ = ((piRlcSamplerBlocks ()).flatMap Block.expand).map
+          (fun invocation => invocation.witnessStart) := by
+      rw [List.map_flatMap]
+    _ = (PiRLCSamplerInvocations.invocations
+          (logicalWidth := Data.logicalWidth)
+          (publicFits := Data.publicFits)).map
+            (fun invocation => invocation.witnessStart) := by
+      rw [piRlcSamplerBlocks_expand]
 
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcSamplerBlocks ()

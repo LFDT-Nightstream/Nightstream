@@ -166,66 +166,68 @@ private theorem piCcsArithmeticLogicalEnds :
 completed PiCCS logical prefix. This proof is structural in the eight opaque
 child circuits and does not traverse the emitted rows. -/
 theorem piCcsEmittedConstraints_varsBelow
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    ∀ expression ∈ emittedConstraints Data.logicalWidth Data.publicFits,
+    ∀ expression ∈ emittedConstraints logicalWidth publicFits,
       expression.VarsBelow PiCCSArithmetic.initialClaimFreshStart := by
-  let parent := PiCCSInvocations.parentInterface Data.logicalWidth
-    Data.publicFits
+  let parent := PiCCSInvocations.parentInterface logicalWidth publicFits
   let assumptions :=
     NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
-        Data.logicalWidth Data.publicFits) env
+        logicalWidth publicFits) env
   have initialStartEq : PiCCSArithmetic.initialClaimLogicalStart =
       Formal.initialClaimOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.initialClaimLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.initialClaimLogicalStart_matches logicalWidth
+        publicFits)
   have sumcheckStartEq : PiCCSArithmetic.sumcheckLogicalStart =
       Formal.sumcheckOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.sumcheckLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.sumcheckLogicalStart_matches logicalWidth
+        publicFits)
   have evalKStartEq : PiCCSArithmetic.evalKLogicalStart =
       Formal.evalKOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.evalKLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.evalKLogicalStart_matches logicalWidth
+        publicFits)
   have evalAStartEq : PiCCSArithmetic.evalALogicalStart =
       Formal.evalAOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.evalALogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.evalALogicalStart_matches logicalWidth
+        publicFits)
   have ccsStartEq : PiCCSArithmetic.ccsLogicalStart =
       Formal.ccsOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.ccsLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.ccsLogicalStart_matches logicalWidth
+        publicFits)
   have normStartEq : PiCCSArithmetic.normLogicalStart =
       Formal.normRowOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.normLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.normLogicalStart_matches logicalWidth
+        publicFits)
   have finalStartEq : PiCCSArithmetic.finalIdentityLogicalStart =
       Formal.finalIdentityRowOffset parent
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
     dsimp [parent]
     simpa [PiCCSArithmetic.parentInterface] using
-      (PiCCSArithmetic.finalIdentityLogicalStart_matches Data.logicalWidth
-        Data.publicFits)
+      (PiCCSArithmetic.finalIdentityLogicalStart_matches logicalWidth
+        publicFits)
   intro expression member
   rw [emittedConstraints, List.mem_append] at member
   rcases member with statementMember | packetMember

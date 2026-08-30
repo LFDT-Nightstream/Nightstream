@@ -119,6 +119,31 @@ set_option maxRecDepth 100000 in -- fixed-size: 54 value templates
   fin_cases slot <;> rfl
 
 set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
+@[simp] theorem firstPositionTemplate_localColumnCount
+    (slot : Fin First54Step.slotCount) :
+    (firstPositionTemplate slot).localColumnCount = 0 := by
+  exact firstPosition_constraintFreshCount slot
+
+set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
+@[simp] theorem laterPositionTemplate_localColumnCount
+    (slot : Fin First54Step.slotCount) :
+    (laterPositionTemplate slot).localColumnCount =
+      (if slot.val = 0 then 0 else if slot.val = 54 then 3 else 6) := by
+  exact laterPosition_constraintFreshCount slot
+
+set_option maxRecDepth 100000 in -- fixed-size: 54 value templates
+@[simp] theorem firstValueTemplate_localColumnCount
+    (slot : Fin First54ValueStep.outputCount) :
+    (firstValueTemplate slot).localColumnCount = 4 := by
+  exact firstValue_constraintFreshCount slot
+
+set_option maxRecDepth 100000 in -- fixed-size: 54 value templates
+@[simp] theorem laterValueTemplate_localColumnCount
+    (slot : Fin First54ValueStep.outputCount) :
+    (laterValueTemplate slot).localColumnCount = 4 := by
+  exact laterValue_constraintFreshCount slot
+
+set_option maxRecDepth 100000 in -- fixed-size: 55 position templates
 @[simp] theorem firstPositionTemplate_rows_length
     (slot : Fin First54Step.slotCount) :
     (firstPositionTemplate slot).rows.length = 1 := by

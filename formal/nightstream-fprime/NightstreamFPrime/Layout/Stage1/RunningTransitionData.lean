@@ -30,8 +30,17 @@ theorem phaseOffset_matches_piDec
 
 def iterationWordIndex : Nat := 28
 
+def initialStateWordStart : Nat := 30
+def currentStateWordStart : Nat := 35
+
 def iterationExpr : Expr :=
   Expr.var (PilotProduction.priorPreimageStart + iterationWordIndex)
+
+def initialStateExpr (index : RunningTransition.StateIndex) : Expr :=
+  Expr.var (PilotProduction.priorPreimageStart + initialStateWordStart + index.val)
+
+def currentStateExpr (index : RunningTransition.StateIndex) : Expr :=
+  Expr.var (PilotProduction.priorPreimageStart + currentStateWordStart + index.val)
 
 def outputBase : Nat := PilotProduction.outputPreimageStart
 
@@ -152,6 +161,8 @@ def interface
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     RunningTransition.Interface logicalWidth publicFits where
   iteration := fun _ => iterationExpr
+  initialState := fun _ => initialStateExpr
+  currentState := fun _ => currentStateExpr
   recursive := fun _ => recursiveRunningExpr logicalWidth publicFits
   output := fun _ => outputRunningExpr logicalWidth publicFits
 

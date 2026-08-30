@@ -31,6 +31,13 @@ variable {logicalWidth : Nat}
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
 def phaseOffset : Nat := 19002751
 
+/-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
+that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
+theorem piCcsLogicalFreshBase_le_phaseOffset :
+    PiCCSStarts.logicalFreshBase ≤ phaseOffset := by
+  norm_num [PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq,
+    phaseOffset]
+
 theorem phaseOffset_matches_piCcs
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     phaseOffset = PilotPiCCS.physicalColumnCount relation := by
@@ -125,6 +132,66 @@ def sourceInput (source : Fin productionShape.sourceCount) :
     { commitment := (parent.running PiCCSInputs.phaseOffset).commitment running
       publicInput := (parent.running PiCCSInputs.phaseOffset).publicInput running
       evaluation := evaluation }
+
+/-- The same source view written in the paper's explicit `K + k` order.
+This form is used by cross-phase proofs; the production layout continues to
+use `sourceInput`. -/
+def canonicalSourceInput (source : Fin productionShape.sourceCount) :
+    NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputExpr
+      logicalWidth publicFits :=
+  let parent := piCcsInterface (logicalWidth := logicalWidth)
+    (publicFits := publicFits)
+  let output := parent.output PiCCSInputs.phaseOffset
+  Fin.addCases
+    (fun fresh =>
+      { commitment := (parent.fresh PiCCSInputs.phaseOffset).commitment fresh
+        publicInput := (parent.fresh PiCCSInputs.phaseOffset).publicInput fresh
+        evaluation := {
+          eval_K := output.padCoordinate (UnifiedSources.freshSourceIndex fresh)
+          eval_A := output.matrixCoordinate
+            (UnifiedSources.freshSourceIndex fresh) } })
+    (fun running =>
+      { commitment := (parent.running PiCCSInputs.phaseOffset).commitment running
+        publicInput := (parent.running PiCCSInputs.phaseOffset).publicInput running
+        evaluation := {
+          eval_K := output.padCoordinate
+            (UnifiedSources.runningSourceIndex running)
+          eval_A := output.matrixCoordinate
+            (UnifiedSources.runningSourceIndex running) } })
+    source
+
+/-- The executable source view is exactly the paper's fresh-then-running
+partition. -/
+theorem sourceInput_eq_canonical
+    (source : Fin productionShape.sourceCount) :
+    sourceInput (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source =
+      canonicalSourceInput (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source := by
+  rcases UnifiedSources.source_eq_fresh_or_running source with
+    ⟨fresh, rfl⟩ | ⟨running, rfl⟩
+  · have sourceEq : UnifiedSources.freshSourceIndex fresh =
+        Fin.castAdd productionShape.runningCount fresh := by
+      apply Fin.ext
+      rfl
+    rw [sourceEq]
+    unfold canonicalSourceInput
+    rw [Fin.addCases_left]
+    have freshPositive : 0 < productionShape.freshCount := by decide
+    have freshCount : productionShape.freshCount = 1 := by decide
+    have freshEq : fresh = ⟨0, freshPositive⟩ := by
+      apply Fin.ext
+      have freshBound := fresh.isLt
+      omega
+    simp [sourceInput, freshPositive, freshEq,
+      UnifiedSources.freshSourceIndex]
+    constructor <;> congr 1
+  · have sourceEq : UnifiedSources.runningSourceIndex running =
+        Fin.natAdd productionShape.freshCount running := by
+      apply Fin.ext
+      rfl
+    rw [sourceEq]
+    simp [sourceInput, canonicalSourceInput, runningIndex, sourceEq]
 
 /-- The sole production PiRLC parent interface in cumulative source order. -/
 def interface :

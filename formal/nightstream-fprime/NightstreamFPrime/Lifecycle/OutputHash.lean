@@ -53,18 +53,43 @@ theorem compiledHashLength_eq_hashLength (interface : Interface)
   exact Hash.compile_recipes_length offset (interface.preimage offset)
 
 /-- The production logical builder for the `outputHash` phase. -/
-def circuit (interface : Interface) : FormalCircuit :=
+def rawCircuit (interface : Interface) : FormalCircuit :=
   Formal.circuit (hashInterface interface)
 
-theorem circuit_localLength (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) =
+theorem rawCircuit_localLength (interface : Interface) (offset : Nat) :
+    localLength (Circuit.ops (rawCircuit interface).main offset) =
       hashLength interface offset := by
   calc
-    localLength (Circuit.ops (circuit interface).main offset) =
+    localLength (Circuit.ops (rawCircuit interface).main offset) =
         compiledHashLength interface offset :=
       Formal.opsAt_localLength (hashInterface interface) offset
     _ = hashLength interface offset :=
       compiledHashLength_eq_hashLength interface offset
+
+theorem rawCircuit_rowCount (interface : Interface) (offset : Nat) :
+    (flatConstraints (Circuit.ops (rawCircuit interface).main offset)).length =
+      hashLength interface offset + 4 := by
+  calc
+    (flatConstraints (Circuit.ops
+        (rawCircuit interface).main offset)).length =
+        compiledHashLength interface offset + 4 :=
+      Formal.flatConstraints_length_eq (hashInterface interface) offset
+    _ = hashLength interface offset + 4 := by
+      rw [compiledHashLength_eq_hashLength]
+
+/-- The production output hash with closed-form footprint metadata. -/
+def circuit (interface : Interface) : FormalCircuit :=
+  { rawCircuit interface with
+    privateCount := hashLength interface
+    rowCount := fun offset => hashLength interface offset + 4
+    privateCount_eq := rawCircuit_localLength interface
+    rowCount_eq := rawCircuit_rowCount interface }
+
+theorem circuit_localLength (interface : Interface) (offset : Nat) :
+    localLength (Circuit.ops (circuit interface).main offset) =
+      hashLength interface offset := by
+  rw [circuit]
+  exact rawCircuit_localLength interface offset
 
 theorem flatConstraints_varsBelow
     (interface : Interface) (offset : Nat) {env : Env}

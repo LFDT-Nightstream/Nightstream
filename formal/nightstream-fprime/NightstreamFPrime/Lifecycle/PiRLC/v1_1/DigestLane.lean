@@ -328,6 +328,100 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
           CanonicalU64.auxiliaryCount,
           Candidate16Five.auxiliaryCount])
 
+private theorem decoderCandidate_varsSatisfy (offset : Nat) (part : Fin 2)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < logicalPrivateCount →
+      allowed (offset + index)) :
+    ((decoderInterface offset part).candidate (decoderOffset offset part)
+      ).VarsSatisfy allowed := by
+  unfold decoderInterface Candidate16Five.canonicalWindowInterface
+  apply CanonicalU64.weightedExpr_varsSatisfy
+  intro index bounded
+  have partLt := part.isLt
+  simpa [canonicalOffset, Nat.add_assoc] using
+    localSupported (16 * part.val + index) (by
+      norm_num [Candidate16Five.candidateBitCount, logicalPrivateCount] at bounded partLt ⊢
+      omega)
+
+private theorem decoderBits_varsSatisfy (offset : Nat) (part : Fin 2)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < logicalPrivateCount →
+      allowed (offset + index)) :
+    ∀ index, index < Candidate16Five.candidateBitCount →
+      ((decoderInterface offset part).candidateBit
+        (decoderOffset offset part) index).VarsSatisfy allowed := by
+  intro index bounded
+  unfold decoderInterface Candidate16Five.canonicalWindowInterface
+  apply CanonicalU64.bitExpr_varsSatisfy
+  have partLt := part.isLt
+  exact localSupported (16 * part.val + index) (by
+    norm_num [Candidate16Five.candidateBitCount, logicalPrivateCount] at bounded partLt ⊢
+    omega)
+
+private theorem canonicalScope_varsSatisfy (interface : Interface)
+    (offset : Nat) (allowed : Nat → Prop)
+    (sourceSupported : (interface.source offset).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < logicalPrivateCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints
+        (Circuit.ops (canonicalCircuit interface offset).main
+          (canonicalOffset offset)),
+      expression.VarsSatisfy allowed := by
+  change ∀ expression ∈ flatConstraints
+      (CanonicalU64.operations (canonicalInterface interface offset)
+        (canonicalOffset offset)), expression.VarsSatisfy allowed
+  apply CanonicalU64.flatConstraints_varsSatisfy
+  · exact sourceSupported
+  · intro index bounded
+    exact localSupported index (by
+      norm_num [CanonicalU64.auxiliaryCount, logicalPrivateCount] at bounded ⊢
+      omega)
+
+private theorem decoderScope_varsSatisfy (offset : Nat) (part : Fin 2)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < logicalPrivateCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints
+        (Circuit.ops (decoderCircuit offset part).main
+          (decoderOffset offset part)),
+      expression.VarsSatisfy allowed := by
+  change ∀ expression ∈ flatConstraints
+      (Candidate16Five.operations (decoderInterface offset part)
+        (decoderOffset offset part)), expression.VarsSatisfy allowed
+  apply Candidate16Five.flatConstraints_varsSatisfy
+  · exact decoderCandidate_varsSatisfy offset part allowed localSupported
+  · exact decoderBits_varsSatisfy offset part allowed localSupported
+  · intro index bounded
+    have partLt := part.isLt
+    unfold decoderOffset
+    simpa [Nat.add_assoc] using localSupported
+      (CanonicalU64.auxiliaryCount +
+        part.val * Candidate16Five.auxiliaryCount + index) (by
+          norm_num [CanonicalU64.auxiliaryCount,
+            Candidate16Five.auxiliaryCount, logicalPrivateCount] at bounded partLt ⊢
+          omega)
+
+/-- Every digest-lane constraint reads only the caller-supported Poseidon2
+lane or one of the exact 100 lane-local columns. -/
+theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
+    (allowed : Nat → Prop)
+    (sourceSupported : (interface.source offset).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < logicalPrivateCount →
+      allowed (offset + index)) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
+      expression.VarsSatisfy allowed := by
+  change ∀ expression ∈ flatConstraints (opsAt interface offset), _
+  rw [flatConstraints_opsAt]
+  intro expression member
+  rcases List.mem_append.mp member with previous | highMember
+  · rcases List.mem_append.mp previous with canonicalMember | lowMember
+    · exact canonicalScope_varsSatisfy interface offset allowed
+        sourceSupported localSupported expression canonicalMember
+    · exact decoderScope_varsSatisfy offset lowPart allowed localSupported
+        expression lowMember
+  · exact decoderScope_varsSatisfy offset highPart allowed localSupported
+      expression highMember
+
 private theorem prefixCanonicalSpec
     (interface : Interface) (offset : Nat) (initial : Env)
     (completedPrefix : Sequence.Prefix initial offset)

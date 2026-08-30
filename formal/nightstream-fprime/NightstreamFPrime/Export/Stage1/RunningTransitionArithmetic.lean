@@ -114,13 +114,13 @@ theorem canonicalPlan_rowCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      321283 := by
+      321303 := by
   change R1CS.totalRowCount
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
         (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
           logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
-    321283
+    321303
   rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints,
     ← logicalConstraints_eq]
   exact NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalRowCount_eq

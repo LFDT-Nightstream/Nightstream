@@ -2,8 +2,9 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
 /-!
 Owns every physical row and column of the Stage 1 running transition.
-The transition is parent wiring: one flag-binding family and one indexed mux
-family. No file boundary or copy family exists.
+The transition is parent wiring: one flag-binding family, one indexed mux
+family, and four base-state equality rows. No file boundary or copy family
+exists.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.Ownership
@@ -20,11 +21,16 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 inductive ConstraintOwner where
   | binding
   | mux (word : Nat)
+  | baseState (word : Nat)
 deriving Repr, DecidableEq
 
 def constraintOwner : Nat → ConstraintOwner
   | 0 => .binding
-  | logicalRow + 1 => .mux logicalRow
+  | logicalRow + 1 =>
+      if logicalRow < RunningTransition.exactWordCount then
+        .mux logicalRow
+      else
+        .baseState (logicalRow - RunningTransition.exactWordCount)
 
 inductive RowRole where
   | directRecipe
@@ -84,7 +90,7 @@ theorem rowOwners_length
   calc
     _ = R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) :=
       ownersFor_length _ _
-    _ = 321283 := totalRowCount_eq relation
+    _ = 321303 := totalRowCount_eq relation
     _ = _ := (physicalRowCount_eq relation).symm
 
 theorem rowOwners_length_production
@@ -92,7 +98,7 @@ theorem rowOwners_length_production
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (rowOwners logicalWidth publicFits).length = 321283 := by
+    (rowOwners logicalWidth publicFits).length = 321303 := by
   rw [rowOwners_length relation, physicalRowCount_eq relation]
 
 def rowOwner
@@ -132,8 +138,10 @@ theorem noBoundaryRows
     logicalConstraints logicalWidth publicFits =
       RunningTransition.bindingConstraint (interface logicalWidth publicFits)
           phaseOffset ::
-        RunningTransition.muxConstraints (interface logicalWidth publicFits)
-          phaseOffset := by
+        (RunningTransition.muxConstraints (interface logicalWidth publicFits)
+            phaseOffset ++
+          RunningTransition.baseStateConstraints
+            (interface logicalWidth publicFits) phaseOffset) := by
   rw [logicalConstraints_eq]
   rfl
 

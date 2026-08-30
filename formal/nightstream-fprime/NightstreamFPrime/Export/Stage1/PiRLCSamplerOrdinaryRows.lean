@@ -103,6 +103,44 @@ def fastLaneSource (source round : Nat) (lane : Fin 4) : Expr :=
   fastWindowInitialState (logicalWidth := logicalWidth)
     (publicFits := publicFits) source round (DigestWindow.rateLane lane)
 
+theorem fastLaneSource_varsBelow (source round : Nat) (lane : Fin 4)
+    (roundLt : round < digestRoundCount) :
+    (fastLaneSource (logicalWidth := logicalWidth) (publicFits := publicFits)
+      source round lane).VarsBelow
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+          source round lane.val) := by
+  unfold fastLaneSource fastWindowInitialState
+    PiRLCSamplerProjection.fastProductionWindowInitialState
+  cases round with
+  | zero =>
+      rw [PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
+      simp only [NightstreamFPrime.Gadgets.Poseidon2.Permutation.scheduleOutput,
+        NightstreamFPrime.Gadgets.Poseidon2.Permutation.freshState,
+        Expr.VarsBelow]
+      have laneLt := lane.isLt
+      simp only [digestRoundCount] at roundLt
+      norm_num [NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
+        DigestWindow.rateLane] at laneLt ⊢
+      omega
+  | succ previous =>
+      simp only [NightstreamFPrime.Gadgets.Poseidon2.Permutation.scheduleOutput,
+        NightstreamFPrime.Gadgets.Poseidon2.Permutation.freshState,
+        Expr.VarsBelow]
+      have laneLt := lane.isLt
+      simp only [digestRoundCount] at roundLt
+      norm_num [DigestWindow.permutationOffset, Sampler.windowOffset,
+        Sampler.windowBase, Sampler.entryPrivateCount,
+        Sampler.logicalPrivateCount, SamplerChain.sourceOffset,
+        DigestWindow.logicalPrivateCount, DigestLane.logicalPrivateCount,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart,
+        DigestWindow.rateLane] at laneLt ⊢
+      omega
+
 theorem fastLaneSource_eq (source round : Nat) (lane : Fin 4) :
     fastLaneSource (logicalWidth := logicalWidth)
         (publicFits := publicFits) source round lane =
@@ -177,6 +215,27 @@ theorem laneConstraints_eq_fromCircuit (source round : Nat) (lane : Fin 4) :
         source round lane)
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
         source round lane.val)
+
+theorem laneConstraints_varsBelow (source round : Nat) (lane : Fin 4)
+    (roundLt : round < digestRoundCount) :
+    ∀ expression ∈ laneConstraints (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source round lane,
+      expression.VarsBelow
+        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+          source round lane.val + DigestLane.logicalPrivateCount) := by
+  rw [laneConstraints_eq_fromCircuit]
+  let offset := NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
+    source round lane.val
+  have assumptions : DigestLane.Assumptions
+      (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+        source round lane) offset (fun _ => 0) := by
+    change ((laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+      source round lane).source offset).VarsBelow offset
+    rw [← fastLaneSource_eq]
+    exact fastLaneSource_varsBelow source round lane roundLt
+  exact DigestLane.flatConstraints_varsBelow
+    (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+      source round lane) offset assumptions
 
 def laneRows (source round : Nat) (lane : Fin 4) :
     List Rows.CompiledRow :=

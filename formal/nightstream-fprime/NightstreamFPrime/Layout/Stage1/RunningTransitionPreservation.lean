@@ -84,6 +84,35 @@ theorem physical_implies_typed_recursive
   spec_typed_recursive_eq_piDecOutput relation
     (physical_implies_specHolds relation env physical) iterationNonzero
 
+/-- Every running-transition row is confined to the exact physical endpoint.
+This is a static layout fact and needs no satisfying phase witness. -/
+theorem physicalRows_varsBelow
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    ∀ row ∈ physicalRows logicalWidth publicFits,
+      row.VarsBelow (physicalColumnCount logicalWidth publicFits) := by
+  let env : Env := fun _ => 0
+  let transition := interface logicalWidth publicFits
+  let sourceAssumptions := assumptions logicalWidth publicFits relation env
+  have planScope : ∀ expression ∈
+      (plan logicalWidth publicFits).constraints,
+      expression.VarsBelow (plan logicalWidth publicFits).firstFresh := by
+    rw [plan_constraints, plan_firstFresh]
+    change ∀ expression ∈ flatConstraints
+        (RunningTransition.operations transition phaseOffset),
+      expression.VarsBelow
+        (phaseOffset + RunningTransition.exactPrivateCount)
+    exact RunningTransition.flatConstraints_varsBelow transition phaseOffset env
+      sourceAssumptions
+  intro row member
+  change row ∈ (plan logicalWidth publicFits).rows at member
+  have rowScope := R1CS.lowerConstraints_rows_varsBelow
+    (plan logicalWidth publicFits).constraints
+    (plan logicalWidth publicFits).firstFresh planScope row member
+  simpa [physicalColumnCount, R1CS.LoweringPlan.next_eq] using rowScope
+
 theorem physical_complete
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -93,7 +122,7 @@ theorem physical_complete
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env) :
     ∃ completed,
-      AgreesOutside env completed phaseOffset 275386 ∧
+      AgreesOutside env completed phaseOffset 275402 ∧
       PhysicalHolds logicalWidth publicFits completed := by
   let transition := interface logicalWidth publicFits
   let sourceAssumptions := assumptions logicalWidth publicFits relation env

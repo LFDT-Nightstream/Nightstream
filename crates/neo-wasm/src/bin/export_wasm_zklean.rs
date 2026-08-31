@@ -14,14 +14,12 @@
 //!   `native_decide`-checked cross-check theorem.
 
 use neo_application::{GadgetDescriptor, ZeroTest};
-use neo_math::F;
+use neo_math::{balanced::to_balanced_i128, F};
 use neo_wasm::layout::{column_families, COL_ONE, NAMED_COLUMN_COUNT};
 use neo_wasm::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 use std::fs;
 use std::path::PathBuf;
-
-const GOLDILOCKS_P: i128 = (1i128 << 64) - (1i128 << 32) + 1;
 
 fn formal_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../formal/wasm-zklean/WasmCircuit")
@@ -47,18 +45,6 @@ fn snake_to_camel(snake: &str) -> String {
         }
     }
     out
-}
-
-/// Balanced-residue conversion: maps Goldilocks field elements to their
-/// signed-integer representation in [-p/2, p/2]. Lets us emit `-1` instead of
-/// `18446744069414584320` in the Lean output.
-fn f_to_int(x: F) -> i128 {
-    let u = x.as_canonical_u64() as i128;
-    if u > GOLDILOCKS_P / 2 {
-        u - GOLDILOCKS_P
-    } else {
-        u
-    }
 }
 
 fn emit_columns() -> String {
@@ -160,7 +146,7 @@ fn emit_terms(terms: &[(usize, F)]) -> String {
     let parts: Vec<String> = terms
         .iter()
         .map(|(idx, coeff)| {
-            let c = f_to_int(*coeff);
+            let c = to_balanced_i128(*coeff);
             if c < 0 {
                 format!("({idx}, ({c}))")
             } else {

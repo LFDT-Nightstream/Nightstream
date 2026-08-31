@@ -78,8 +78,9 @@ const fn build_range_bit_offsets() -> [usize; DECLARED_WITNESS_COLUMN_COUNT + 1]
 const RANGE_BIT_OFFSETS: [usize; DECLARED_WITNESS_COLUMN_COUNT + 1] = build_range_bit_offsets();
 const RANGE_BIT_COUNT: usize = RANGE_BIT_OFFSETS[DECLARED_WITNESS_COLUMN_COUNT];
 pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX.end(), RANGE_BIT_COUNT);
+pub const RANGE_BITS_REGION: &str = "range_bits";
 const RANGE_BITS_FAMILY: ColumnFamilySpec = ColumnFamilySpec {
-    region: "range_bits",
+    region: RANGE_BITS_REGION,
     start: RANGE_BITS.start,
     len: RANGE_BIT_COUNT,
     name: "RANGE_BITS",

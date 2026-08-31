@@ -8,8 +8,14 @@ license = "Apache-2.0"
 [lints]
 workspace = true
 
+[features]
+default = []
+audit-html = ["dep:serde", "dep:serde_json"]
+
 [dependencies]
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { path = "../neo-math" }
 p3-field = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }

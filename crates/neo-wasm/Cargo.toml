@@ -10,7 +10,18 @@ workspace = true
 
 [features]
 default = []
+audit-html = ["neo-application/audit-html"]
 perf-timers = ["neo-fold-clean/perf-timers"]
+
+[[bin]]
+name = "wasm_column_audit"
+path = "src/bin/wasm_column_audit.rs"
+required-features = ["audit-html"]
+
+[[test]]
+name = "wasm_column_audit"
+path = "tests/wasm_column_audit.rs"
+required-features = ["audit-html"]
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
@@ -41,4 +52,5 @@ wasmtime = { version = "47.0.0", features = ["debug", "cranelift"] }
 [dev-dependencies]
 object = "0.37"
 rand_chacha = { workspace = true }
+serde_json = { workspace = true }
 wat = "1"

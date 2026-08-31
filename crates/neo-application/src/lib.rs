@@ -5,6 +5,9 @@
 //! diagnostic metadata. It does not own application state-machine semantics,
 //! top-level witness orchestration, or the folding backend.
 
+mod audit;
+#[cfg(feature = "audit-html")]
+mod audit_html;
 mod columns;
 mod continuity;
 mod gadgets;
@@ -13,6 +16,13 @@ mod memory_check;
 mod r1cs;
 mod relation;
 
+pub use audit::{
+    continuity_column_occurrences, memory_column_occurrences, ColumnConstraintIndex, ContinuityColumnOccurrence,
+    ContinuityColumnRole, GadgetColumnOccurrence, GadgetColumnRole, MemoryColumnOccurrence, MemoryColumnRole,
+    R1csColumnOccurrence,
+};
+#[cfg(feature = "audit-html")]
+pub use audit_html::render_column_audit_html;
 pub use columns::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
 pub use continuity::{ContinuityCatalog, ContinuityCatalogError, ContinuityGroup, ContinuityLink};
 pub use gadgets::{ConditionalSelect, GadgetDescriptor, GadgetOccurrence, ZeroTest};

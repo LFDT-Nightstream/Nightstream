@@ -70,4 +70,4 @@ pub use relation_layout::{
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
 pub use witness_builder::build_witness_vector;
-pub use witness_layout::RANGE_CHECKED_WITNESS_WIDTH;
+pub use witness_layout::{RANGE_BITS_REGION, RANGE_CHECKED_WITNESS_WIDTH};

@@ -8,7 +8,9 @@ use neo_wasm::layout::{
     COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
-use neo_wasm::{build_wasm_relation, write_range_check_bits, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
+use neo_wasm::{
+    build_wasm_relation, write_range_check_bits, WasmOpcode, RANGE_BITS_REGION, RANGE_CHECKED_WITNESS_WIDTH,
+};
 use p3_field::PrimeCharacteristicRing;
 
 fn expected_aux_bits() -> usize {
@@ -45,7 +47,7 @@ fn range_checked_width_bookkeeping() {
         .columns()
         .family_for_column(NAMED_COLUMN_COUNT + AUX_WIDTH)
         .expect("range-bit suffix must have registry metadata");
-    assert_eq!(range_bits.region, "range_bits");
+    assert_eq!(range_bits.region, RANGE_BITS_REGION);
     assert_eq!(range_bits.start, NAMED_COLUMN_COUNT + AUX_WIDTH);
     assert_eq!(range_bits.end(), RANGE_CHECKED_WITNESS_WIDTH);
     assert_eq!(range_bits.width, ColumnWidth::Boolean);

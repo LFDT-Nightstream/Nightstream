@@ -31,6 +31,26 @@ impl WasmConstraintScope {
     }
 }
 
+impl std::fmt::Display for WasmConstraintScope {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Always => formatter.write_str("Always"),
+            Self::HostEvent => formatter.write_str("HostEvent"),
+            Self::Opcode(opcode) => write!(formatter, "Opcode({})", opcode.name()),
+            Self::Opcodes(opcodes) => {
+                formatter.write_str("Opcodes(")?;
+                for (index, opcode) in opcodes.iter().enumerate() {
+                    if index > 0 {
+                        formatter.write_str(", ")?;
+                    }
+                    formatter.write_str(opcode.name())?;
+                }
+                formatter.write_str(")")
+            }
+        }
+    }
+}
+
 pub type WasmConstraintTag = ConstraintTag<WasmConstraintScope>;
 pub type WasmConstraintCatalog = ConstraintCatalog<WasmConstraintScope>;
 pub type WasmR1csBuilder = R1csBuilder<WasmConstraintScope>;

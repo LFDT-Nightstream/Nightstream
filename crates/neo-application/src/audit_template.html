@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Column audit</title>
+<style>
+:root { color-scheme: light dark; --bg:#f7f7f8; --panel:#fff; --text:#202124; --muted:#686b70; --line:#d9dadd; --accent:#3157c8; --match:#fff0a8; --code:#f1f2f4; }
+@media (prefers-color-scheme:dark) { :root { --bg:#151619; --panel:#1d1f23; --text:#eceef1; --muted:#a6aab2; --line:#373a41; --accent:#8ca8ff; --match:#594b00; --code:#272a30; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,input { font:inherit; }
+header { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:16px; min-height:58px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+header strong { white-space:nowrap; }
+#search { width:min(520px,55vw); padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); }
+.spacer { flex:1; }
+.muted,.status { color:var(--muted); }
+.layout { display:grid; grid-template-columns:350px minmax(0,1fr); min-height:calc(100vh - 58px); }
+aside { position:sticky; top:58px; height:calc(100vh - 58px); overflow:auto; padding:12px; background:var(--panel); border-right:1px solid var(--line); }
+main { min-width:0; padding:22px clamp(16px,3vw,46px) 60px; }
+#sidebar-status { margin:0 4px 10px; }
+details.region,details.family { margin:4px 0; }
+details.region > summary { font-weight:700; }
+details.family { margin-left:12px; }
+details.family > summary { color:var(--muted); }
+.column-button { display:block; width:100%; padding:5px 8px; border:0; border-radius:4px; background:transparent; color:var(--text); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.column-button:hover,.column-button.active { background:var(--code); color:var(--accent); }
+.column-index { float:right; color:var(--muted); margin-left:8px; }
+h1 { margin:0 0 4px; font-size:25px; overflow-wrap:anywhere; }
+h2 { margin:30px 0 10px; font-size:18px; }
+.badges { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 18px; }
+.badge { padding:2px 7px; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:var(--panel); }
+.metadata { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:5px 14px; max-width:900px; }
+.metadata dt { color:var(--muted); }
+.metadata dd { margin:0; overflow-wrap:anywhere; }
+.notice { max-width:900px; margin:18px 0; padding:9px 11px; border-left:3px solid var(--line); color:var(--muted); background:var(--panel); }
+.row-card { margin:8px 0; border:1px solid var(--line); border-radius:7px; background:var(--panel); }
+.row-card > summary { padding:9px 11px; cursor:pointer; overflow-wrap:anywhere; }
+.row-body { padding:4px 12px 12px; border-top:1px solid var(--line); }
+.equation-shape { margin:8px 0; color:var(--muted); font-weight:600; }
+.expression { display:grid; grid-template-columns:24px minmax(0,1fr); gap:8px; margin:6px 0; }
+.side { color:var(--muted); font-weight:700; }
+.terms { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; overflow-wrap:anywhere; }
+.term { border-radius:3px; padding:1px 2px; }
+.term.match { background:var(--match); outline:1px solid color-mix(in srgb,var(--match),var(--text) 25%); }
+.column-link { padding:0; border:0; background:transparent; color:var(--accent); font:inherit; cursor:pointer; text-decoration:underline; text-decoration-color:transparent; }
+.column-link:hover { text-decoration-color:currentColor; }
+.mechanism { margin:8px 0; padding:10px 12px; border-left:3px solid var(--line); background:var(--panel); overflow-wrap:anywhere; }
+.mechanism p { margin:4px 0; }
+.empty { color:var(--muted); font-style:italic; }
+@media (max-width:800px) { .layout { grid-template-columns:1fr; } aside { position:static; height:auto; max-height:45vh; border-right:0; border-bottom:1px solid var(--line); } header { flex-wrap:wrap; } #search { order:3; width:100%; } }
+</style>
+</head>
+<body>
+<header>
+  <strong id="report-title">Column audit</strong>
+  <input id="search" type="search" placeholder="Search columns, roles, regions, or indices" autocomplete="off" spellcheck="false">
+  <span class="spacer"></span>
+  <label><input id="show-generated" type="checkbox"> Browse generated columns</label>
+  <span id="report-stats" class="muted"></span>
+</header>
+<div class="layout">
+  <aside><div id="sidebar-status" class="status"></div><div id="sidebar"></div></aside>
+  <main id="detail"></main>
+</div>
+<script id="report-data" type="application/json">/*__COLUMN_AUDIT_REPORT__*/</script>
+<script>
+'use strict';
+const report = JSON.parse(document.getElementById('report-data').textContent);
+const search = document.getElementById('search');
+const showGenerated = document.getElementById('show-generated');
+const sidebar = document.getElementById('sidebar');
+const sidebarStatus = document.getElementById('sidebar-status');
+const detail = document.getElementById('detail');
+const byName = new Map(report.columns.map(column => [column.name, column.index]));
+let selectedColumn = null;
+let currentSearchResults = [];
+
+document.title = report.title;
+document.getElementById('report-title').textContent = report.title;
+document.getElementById('report-stats').textContent = `${report.columns.length} columns · ${report.rows.length} rows`;
+
+function element(tag, className, text) {
+  const value = document.createElement(tag);
+  if (className) value.className = className;
+  if (text !== undefined) value.textContent = text;
+  return value;
+}
+
+function columnButton(column) {
+  const button = element('button', 'column-button');
+  button.type = 'button';
+  button.dataset.column = String(column.index);
+  button.title = column.role;
+  button.append(column.name, element('span', 'column-index', String(column.index)));
+  button.addEventListener('click', () => navigateTo(column.index));
+  if (column.index === selectedColumn) button.classList.add('active');
+  return button;
+}
+
+function approximateDamerauLevenshtein(pattern, text) {
+  // Row zero is all zeroes so an unmatched text prefix is free. Taking the
+  // minimum of the final row likewise leaves the suffix free.
+  let beforePrevious = null;
+  let previous = Array(text.length + 1).fill(0);
+  for (let i = 1; i <= pattern.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= text.length; j += 1) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (pattern[i - 1] === text[j - 1] ? 0 : 1),
+      );
+      if (i > 1 && j > 1 && pattern[i - 1] === text[j - 2] && pattern[i - 2] === text[j - 1]) {
+        current[j] = Math.min(current[j], beforePrevious[j - 2] + 1);
+      }
+    }
+    beforePrevious = previous;
+    previous = current;
+  }
+  return Math.min(...previous);
+}
+
+function searchColumns(query) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return {columns:[], fuzzy:false, total:0};
+  const scored = [];
+  for (const column of report.columns) {
+    const name = column.name.toLowerCase();
+    const family = column.family.toLowerCase();
+    const haystack = `${name} ${column.index} ${family} ${column.region} ${column.width} ${column.role}`.toLowerCase();
+    let rank = null;
+    if (normalized === name || normalized === String(column.index)) rank = 0;
+    else if (name.startsWith(normalized)) rank = 1;
+    else if (family.startsWith(normalized)) rank = 2;
+    else if (haystack.includes(normalized)) rank = 3;
+    if (rank !== null) scored.push({column,rank});
+  }
+  let fuzzy = false;
+  if (scored.length === 0 && normalized.length >= 3) {
+    const maximum = normalized.length <= 5 ? 1 : 2;
+    for (const column of report.columns) {
+      const name = column.name.toLowerCase();
+      const distance = approximateDamerauLevenshtein(normalized, name);
+      if (distance <= maximum) scored.push({column,rank:10 + distance});
+    }
+    fuzzy = scored.length > 0;
+  }
+  scored.sort((left, right) => left.rank - right.rank || left.column.name.localeCompare(right.column.name) || left.column.index - right.column.index);
+  return {columns:scored.map(entry => entry.column), fuzzy, total:scored.length};
+}
+
+function renderSidebar() {
+  sidebar.replaceChildren();
+  const query = search.value;
+  if (query.trim()) {
+    const result = searchColumns(query);
+    currentSearchResults = result.columns;
+    sidebarStatus.textContent = result.total === 0
+      ? 'No matching columns'
+      : `${result.fuzzy ? 'Fuzzy matches' : 'Matches'}: ${Math.min(result.total, 200)}${result.total > 200 ? ` of ${result.total}` : ''}`;
+    for (const column of result.columns.slice(0, 200)) sidebar.append(columnButton(column));
+    return;
+  }
+
+  currentSearchResults = [];
+  const visible = report.columns.filter(column => showGenerated.checked || !column.generated);
+  const hidden = report.columns.length - visible.length;
+  sidebarStatus.textContent = hidden ? `${visible.length} columns · ${hidden} generated columns hidden` : `${visible.length} columns`;
+  const regions = new Map();
+  for (const column of visible) {
+    if (!regions.has(column.region)) regions.set(column.region, new Map());
+    const families = regions.get(column.region);
+    if (!families.has(column.family)) families.set(column.family, []);
+    families.get(column.family).push(column);
+  }
+  for (const [regionName, families] of regions) {
+    const region = element('details', 'region');
+    region.open = !Array.from(families.values()).every(members => members.every(column => column.generated));
+    const count = Array.from(families.values()).reduce((sum, members) => sum + members.length, 0);
+    region.append(element('summary', '', `${regionName} (${count})`));
+    for (const [familyName, members] of families) {
+      if (members.length === 1) {
+        region.append(columnButton(members[0]));
+      } else {
+        const family = element('details', 'family');
+        family.append(element('summary', '', `${familyName} (${members.length})`));
+        for (const member of members) family.append(columnButton(member));
+        region.append(family);
+      }
+    }
+    sidebar.append(region);
+  }
+}
+
+function navigateTo(index) {
+  const hash = `#column=${encodeURIComponent(report.columns[index].name)}`;
+  if (location.hash === hash) renderDetail(index);
+  else location.hash = hash;
+}
+
+function columnFromHash() {
+  const key = new URLSearchParams(location.hash.slice(1)).get('column');
+  if (key === null) return null;
+  if (byName.has(key)) return byName.get(key);
+  if (/^\d+$/.test(key)) {
+    const index = Number(key);
+    if (index >= 0 && index < report.columns.length) return index;
+  }
+  return null;
+}
+
+function columnLink(index, matching = false) {
+  const button = element('button', `column-link${matching ? ' match' : ''}`, report.columns[index].name);
+  button.type = 'button';
+  button.addEventListener('click', () => navigateTo(index));
+  return button;
+}
+
+function metadata(label, value, list) {
+  list.append(element('dt', '', label), element('dd', '', value));
+}
+
+function matchingSides(row, columnIndex) {
+  const sides = [];
+  for (const [name, terms] of [['A',row.a],['B',row.b],['C',row.c]]) {
+    const count = terms.filter(term => term.column === columnIndex).length;
+    if (count) sides.push(count === 1 ? name : `${name}×${count}`);
+  }
+  return sides.join(', ');
+}
+
+function expressionSide(name, terms, columnIndex) {
+  const row = element('div', 'expression');
+  row.append(element('span', 'side', name));
+  const body = element('div', 'terms');
+  if (terms.length === 0) body.textContent = '0';
+  terms.forEach((term, index) => {
+    const signed = BigInt(term.signed);
+    const negative = signed < 0n;
+    const magnitude = negative ? -signed : signed;
+    if (index > 0) body.append(document.createTextNode(negative ? ' − ' : ' + '));
+    else if (negative) body.append(document.createTextNode('−'));
+    const wrapper = element('span', `term${term.column === columnIndex ? ' match' : ''}`);
+    wrapper.title = `canonical coefficient: ${term.canonical}`;
+    if (magnitude !== 1n) wrapper.append(document.createTextNode(`${magnitude}·`));
+    wrapper.append(columnLink(term.column));
+    body.append(wrapper);
+  });
+  row.append(body);
+  return row;
+}
+
+function rowCard(row, column, open) {
+  const card = element('details', 'row-card');
+  card.open = open;
+  card.append(element('summary', '', `[row ${row.index}] ${row.label} (${row.scope}) · ${matchingSides(row, column.index)}`));
+  const body = element('div', 'row-body');
+  body.append(element('div', 'equation-shape', 'A × B = C'));
+  body.append(expressionSide('A', row.a, column.index));
+  body.append(expressionSide('B', row.b, column.index));
+  body.append(expressionSide('C', row.c, column.index));
+  card.append(body);
+  return card;
+}
+
+function section(title, count) {
+  const fragment = document.createDocumentFragment();
+  fragment.append(element('h2', '', `${title} (${count})`));
+  return fragment;
+}
+
+function empty() {
+  return element('p', 'empty', 'None');
+}
+
+function renderGadgets(column) {
+  detail.append(section('Gadget occurrences', column.gadgets.length));
+  if (!column.gadgets.length) return detail.append(empty());
+  for (const gadget of column.gadgets) {
+    detail.append(element('div', 'mechanism', `rows ${gadget.rowStart}..${gadget.rowEnd} · ${gadget.label} (${gadget.scope}) · ${gadget.role}`));
+  }
+}
+
+function appendColumnList(parent, columns) {
+  columns.forEach((column, index) => {
+    if (index) parent.append(document.createTextNode(', '));
+    parent.append(columnLink(column));
+  });
+}
+
+function renderMemory(column) {
+  detail.append(section('Memory-port occurrences', column.memoryPorts.length));
+  if (!column.memoryPorts.length) return detail.append(empty());
+  for (const memory of column.memoryPorts) {
+    const item = element('div', 'mechanism');
+    item.append(element('strong', '', `${memory.memory} (${memory.memoryKind})`));
+    item.append(element('p', 'muted', `catalog ${memory.memoryIndex}, port ${memory.portIndex} · ${memory.portKind} · role ${memory.columnRole}`));
+    const address = element('p'); address.append('Address: '); appendColumnList(address, memory.address); item.append(address);
+    const value = element('p'); value.append('Value: ', columnLink(memory.value)); item.append(value);
+    if (memory.valueBefore !== null) {
+      const before = element('p'); before.append('Value before: ', columnLink(memory.valueBefore)); item.append(before);
+    }
+    const activation = element('p'); activation.append(`Activation: ${memory.activation.mode}`);
+    if (memory.activation.column !== null) activation.append(' ', columnLink(memory.activation.column));
+    item.append(activation);
+    detail.append(item);
+  }
+}
+
+function renderContinuity(column) {
+  detail.append(section('Continuity occurrences', column.continuity.length));
+  if (!column.continuity.length) return detail.append(empty());
+  for (const continuity of column.continuity) {
+    const item = element('div', 'mechanism');
+    item.append(element('strong', '', `${continuity.name} · ${continuity.endpointRole}`));
+    const link = element('p'); link.append(columnLink(continuity.previousStep), ' → ', columnLink(continuity.nextStep)); item.append(link);
+    item.append(element('p', 'muted', continuity.description));
+    detail.append(item);
+  }
+}
+
+function renderDetail(index) {
+  selectedColumn = index;
+  const column = report.columns[index];
+  detail.replaceChildren();
+  detail.append(element('h1', '', column.name));
+  const badges = element('div', 'badges');
+  for (const value of [`#${column.index}`, column.width, column.visibility, column.region]) badges.append(element('span', 'badge', value));
+  if (column.constantOne) badges.append(element('span', 'badge', 'constant one'));
+  if (column.generated) badges.append(element('span', 'badge', 'generated'));
+  detail.append(badges);
+  const list = element('dl', 'metadata');
+  metadata('Family', column.family, list);
+  metadata('Role', column.role, list);
+  detail.append(list);
+
+  detail.append(element('p', 'notice', 'R1CS rows show pre-coalescing builder terms. Repeated terms on one side may combine or cancel in the compiled matrix.'));
+  detail.append(section('R1CS rows', column.rowIndices.length));
+  if (!column.rowIndices.length) detail.append(empty());
+  const openRows = column.rowIndices.length <= 16;
+  for (const rowIndex of column.rowIndices) detail.append(rowCard(report.rows[rowIndex], column, openRows));
+  renderGadgets(column);
+  renderMemory(column);
+  renderContinuity(column);
+
+  document.querySelectorAll('[data-column]').forEach(button => {
+    button.classList.toggle('active', Number(button.dataset.column) === selectedColumn);
+  });
+}
+
+search.addEventListener('input', renderSidebar);
+search.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && currentSearchResults.length) navigateTo(currentSearchResults[0].index);
+});
+showGenerated.addEventListener('change', renderSidebar);
+window.addEventListener('hashchange', () => {
+  const index = columnFromHash();
+  if (index !== null) renderDetail(index);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === '/' && document.activeElement !== search) {
+    event.preventDefault();
+    search.focus();
+  }
+});
+
+renderSidebar();
+const initial = columnFromHash() ?? report.columns.find(column => !column.generated)?.index ?? 0;
+if (columnFromHash() === null) history.replaceState(null, '', `#column=${encodeURIComponent(report.columns[initial].name)}`);
+renderDetail(initial);
+</script>
+</body>
+</html>

@@ -123,6 +123,9 @@ def piCcsOracle :
       absorbRound := fun s round m =>
         absorbBlock s (natWord round.val :: serializeMessage m)
       squeeze := fun s label => squeezeK (absorb s (labelWord label)) }
+  initialState_is_prior := by
+    intro statement
+    rfl
 
 /-! ## Π_RLC challenge sampler -/
 

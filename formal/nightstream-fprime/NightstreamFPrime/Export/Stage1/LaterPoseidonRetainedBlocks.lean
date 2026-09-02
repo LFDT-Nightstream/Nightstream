@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 
 /-!
 Owns zero-copy PiCCS and PiRLC sampler views of the retained later-Poseidon2
-block. PiCCS owns the first 7,550 invocations and the sampler owns the next
+block. PiCCS owns the first 7,604 invocations and the sampler owns the next
 153. Both views keep the original invocation-major coordinate order.
 
 This module does not construct matrix rows or duplicate retained values.
@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
-def piCcsInvocationCount : Nat := 7550
+def piCcsInvocationCount : Nat := 7604
 def samplerInvocationCount : Nat := 153
 
 def piCcsSlotCount : Nat :=
@@ -64,13 +64,13 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).slotCount = 649300 := by
+    (piCcsBlock program).slotCount = 653944 := by
   calc
     (piCcsBlock program).slotCount = piCcsSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 649300 := by rfl
+    _ = 653944 := by rfl
 
 @[simp] theorem samplerBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -84,7 +84,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).coordinateCount = 26621300 := by
+    (piCcsBlock program).coordinateCount = 26811704 := by
   calc
     (piCcsBlock program).coordinateCount =
         piCcsSlotCount *
@@ -92,7 +92,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
       LowNormBlock.Block.slice_coordinateCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 26621300 := by
+    _ = 26811704 := by
       rw [PiRLCRetainedGeometry.laterPoseidonBlock_kind]
       rfl
 
@@ -113,7 +113,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 @[simp] theorem samplerStart_eq
     (program : Lifecycle.Stage1.Application.Program) :
     samplerStart program =
-      PiRLCRetainedGeometry.laterPoseidonStart program + 26621300 := by
+      PiRLCRetainedGeometry.laterPoseidonStart program + 26811704 := by
   unfold samplerStart piCcsStart
   rw [piCcsBlock_coordinateCount]
 

@@ -13,12 +13,22 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity"]
+roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.PerApplicationEmitterFixture"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
 name = "emit"
-root = "NightstreamFPrime.Export.Main"
+root = "NightstreamFPrime.Export.Entrypoint"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPerApplicationReferenceFixture"
+root = "tests.PerApplicationReferenceMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPerApplicationStreamedFixture"
+root = "tests.PerApplicationStreamedMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -44,4 +54,14 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "emitPiDECParity"
 root = "NightstreamFPrime.Export.PiDECParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitAjtaiSetupV1Parity"
+root = "NightstreamFPrime.Export.AjtaiSetupV1ParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPoseidon2HashChainV1Parity"
+root = "NightstreamFPrime.Export.Poseidon2HashChainV1ParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

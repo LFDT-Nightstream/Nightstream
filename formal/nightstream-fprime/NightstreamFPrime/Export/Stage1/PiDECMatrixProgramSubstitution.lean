@@ -16,19 +16,19 @@ open PiDECRetainedBlocks
 open PiDECRetainedGeometry
 
 private theorem rangeValues (program : ApplicationProgram) :
-    (parentCommitmentRange program).sourceStart = 19281593 ∧
-    (parentCommitmentRange program).sourceCount = 972 ∧
-    (parentPublicInputRange program).sourceStart = 19286885 ∧
+    (parentCommitmentRange program).sourceStart = 20347121 ∧
+    (parentCommitmentRange program).sourceCount = 1188 ∧
+    (parentPublicInputRange program).sourceStart = 20352629 ∧
     (parentPublicInputRange program).sourceCount = 270 ∧
-    (parentEvalKRange program).sourceStart = 19288883 ∧
+    (parentEvalKRange program).sourceStart = 20354627 ∧
     (parentEvalKRange program).sourceCount = 108 ∧
-    (parentEvalARange program).sourceStart = 19313183 ∧
+    (parentEvalARange program).sourceStart = 20378927 ∧
     (parentEvalARange program).sourceCount = 1512 ∧
-    (proofRange program).sourceStart = 27356426 ∧
-    (proofRange program).sourceCount = 45792 ∧
-    (logicalRange program).sourceStart = 27402218 ∧
+    (proofRange program).sourceStart = 28972970 ∧
+    (proofRange program).sourceCount = 49248 ∧
+    (logicalRange program).sourceStart = 29022218 ∧
     (logicalRange program).sourceCount = 270 ∧
-    (freshRange program).sourceStart = 27402488 ∧
+    (freshRange program).sourceStart = 29022488 ∧
     (freshRange program).sourceCount = 17820 := by
   norm_num [parentCommitmentRange, parentPublicInputRange, parentEvalKRange,
     parentEvalARange, proofRange, logicalRange, freshRange,
@@ -49,7 +49,7 @@ private theorem parentCommitmentTarget (program : ApplicationProgram)
     (index : Fin PiDECInputs.commitmentWordsPerChild) :
     Spartan.sourceToSpartan
         (PiDECSourceSupport.parentCommitmentStart + index.val) =
-      19281593 + index.val := by
+      20347121 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · rw [PiDECSourceSupport.parentCommitmentStart_eq]
     norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
@@ -62,7 +62,7 @@ private theorem parentPublicInputTarget (program : ApplicationProgram)
     (index : Fin PiDECInputs.publicInputWordsPerChild) :
     Spartan.sourceToSpartan
         (PiDECSourceSupport.parentPublicInputStart + index.val) =
-      19286885 + index.val := by
+      20352629 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · rw [PiDECSourceSupport.parentPublicInputStart_eq]
     norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
@@ -75,7 +75,7 @@ private theorem parentEvalKTarget (program : ApplicationProgram)
     (index : Fin PiDECInputs.evalKWordsPerChild) :
     Spartan.sourceToSpartan
         (PiDECSourceSupport.parentEvalKStart + index.val) =
-      19288883 + index.val := by
+      20354627 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · rw [PiDECSourceSupport.parentEvalKStart_eq]
     norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
@@ -88,7 +88,7 @@ private theorem parentEvalATarget (program : ApplicationProgram)
     (index : Fin PiDECInputs.evalAWordsPerChild) :
     Spartan.sourceToSpartan
         (PiDECSourceSupport.parentEvalAStart + index.val) =
-      19313183 + index.val := by
+      20378927 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · rw [PiDECSourceSupport.parentEvalAStart_eq]
     norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
@@ -100,7 +100,7 @@ private theorem parentEvalATarget (program : ApplicationProgram)
 private theorem proofTarget (program : ApplicationProgram)
     (index : Fin PiDECInputs.proofInputColumnCount) :
     Spartan.sourceToSpartan (PiDECInputs.proofInputStart + index.val) =
-      27356426 + index.val := by
+      28972970 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · norm_num [PiDECInputs.proofInputStart, Spartan.sourceToSpartan,
       Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart,
@@ -110,7 +110,7 @@ private theorem proofTarget (program : ApplicationProgram)
 private theorem logicalTarget (program : ApplicationProgram)
     (index : Fin 270) :
     Spartan.sourceToSpartan (PiDECStarts.phaseLogicalStart + index.val) =
-      27402218 + index.val := by
+      29022218 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
       PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
@@ -128,7 +128,7 @@ private theorem logicalTarget (program : ApplicationProgram)
 private theorem freshTarget (program : ApplicationProgram)
     (index : Fin freshCount) :
     Spartan.sourceToSpartan (PiDECStarts.phaseFreshStart + index.val) =
-      27402488 + index.val := by
+      29022488 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
   · norm_num [PiDECStarts.phaseFreshStart, PiDECStarts.phaseLogicalStart,
       PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
@@ -300,18 +300,18 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have publicNone := SourceRange.form?_eq_none_of_before
-        (parentPublicInputRange program) logicalWidth (19281593 + index.val)
+        (parentPublicInputRange program) logicalWidth (20347121 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_before
-        (parentEvalKRange program) logicalWidth (19281593 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (20347121 + index.val) (by omega)
       have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (19281593 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (20347121 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (19281593 + index.val) (by omega)
+        (proofRange program) logicalWidth (20347121 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (19281593 + index.val) (by omega)
+        (logicalRange program) logicalWidth (20347121 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (19281593 + index.val) (by omega)
+        (freshRange program) logicalWidth (20347121 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, selected, publicNone,
         evalKNone, evalANone, proofNone, logicalNone, freshNone]
   | parentPublicInput index =>
@@ -323,18 +323,18 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (19286885 + index.val)
+        (parentCommitmentRange program) logicalWidth (20352629 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_before
-        (parentEvalKRange program) logicalWidth (19286885 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (20352629 + index.val) (by omega)
       have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (19286885 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (20352629 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (19286885 + index.val) (by omega)
+        (proofRange program) logicalWidth (20352629 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (19286885 + index.val) (by omega)
+        (logicalRange program) logicalWidth (20352629 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (19286885 + index.val) (by omega)
+        (freshRange program) logicalWidth (20352629 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, selected,
         evalKNone, evalANone, proofNone, logicalNone, freshNone]
   | parentEvalK index =>
@@ -346,19 +346,19 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (19288883 + index.val)
+        (parentCommitmentRange program) logicalWidth (20354627 + index.val)
         (by omega)
       have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (19288883 + index.val)
+        (parentPublicInputRange program) logicalWidth (20354627 + index.val)
         (by omega)
       have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (19288883 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (20354627 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (19288883 + index.val) (by omega)
+        (proofRange program) logicalWidth (20354627 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (19288883 + index.val) (by omega)
+        (logicalRange program) logicalWidth (20354627 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (19288883 + index.val) (by omega)
+        (freshRange program) logicalWidth (20354627 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
         selected, evalANone, proofNone, logicalNone, freshNone]
   | parentEvalA index =>
@@ -370,19 +370,19 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (19313183 + index.val)
+        (parentCommitmentRange program) logicalWidth (20378927 + index.val)
         (by omega)
       have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (19313183 + index.val)
+        (parentPublicInputRange program) logicalWidth (20378927 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (19313183 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (20378927 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (19313183 + index.val) (by omega)
+        (proofRange program) logicalWidth (20378927 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (19313183 + index.val) (by omega)
+        (logicalRange program) logicalWidth (20378927 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (19313183 + index.val) (by omega)
+        (freshRange program) logicalWidth (20378927 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
         evalKNone, selected, proofNone, logicalNone, freshNone]
   | proof index =>
@@ -397,19 +397,19 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (27356426 + index.val)
+        (parentCommitmentRange program) logicalWidth (28972970 + index.val)
         (by omega)
       have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (27356426 + index.val)
+        (parentPublicInputRange program) logicalWidth (28972970 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (27356426 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (28972970 + index.val) (by omega)
       have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (27356426 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (28972970 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (27356426 + index.val) (by omega)
+        (logicalRange program) logicalWidth (28972970 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (27356426 + index.val) (by omega)
+        (freshRange program) logicalWidth (28972970 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
         evalKNone, evalANone, selected, logicalNone, freshNone]
   | logical index =>
@@ -420,19 +420,19 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (27402218 + index.val)
+        (parentCommitmentRange program) logicalWidth (29022218 + index.val)
         (by omega)
       have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (27402218 + index.val)
+        (parentPublicInputRange program) logicalWidth (29022218 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (27402218 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (29022218 + index.val) (by omega)
       have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (27402218 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (29022218 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_after
-        (proofRange program) logicalWidth (27402218 + index.val) (by omega)
+        (proofRange program) logicalWidth (29022218 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (27402218 + index.val) (by omega)
+        (freshRange program) logicalWidth (29022218 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
         evalKNone, evalANone, proofNone, selected, freshNone]
   | fresh index =>
@@ -444,19 +444,19 @@ theorem substitution_location_form?
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
       have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (27402488 + index.val)
+        (parentCommitmentRange program) logicalWidth (29022488 + index.val)
         (by omega)
       have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (27402488 + index.val)
+        (parentPublicInputRange program) logicalWidth (29022488 + index.val)
         (by omega)
       have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (27402488 + index.val) (by omega)
+        (parentEvalKRange program) logicalWidth (29022488 + index.val) (by omega)
       have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (27402488 + index.val) (by omega)
+        (parentEvalARange program) logicalWidth (29022488 + index.val) (by omega)
       have proofNone := SourceRange.form?_eq_none_of_after
-        (proofRange program) logicalWidth (27402488 + index.val) (by omega)
+        (proofRange program) logicalWidth (29022488 + index.val) (by omega)
       have logicalNone := SourceRange.form?_eq_none_of_after
-        (logicalRange program) logicalWidth (27402488 + index.val) (by omega)
+        (logicalRange program) logicalWidth (29022488 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
         evalKNone, evalANone, proofNone, logicalNone, selected]
 

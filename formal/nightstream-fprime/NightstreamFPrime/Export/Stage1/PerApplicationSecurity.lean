@@ -1,4 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
+import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
+import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
@@ -7,10 +9,12 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 Owns the deterministic binding reduction for one verifier-selected canonical
 Stage 1 application package.
 
-The success branch identifies the complete circuit-and-matrix envelope and
-all four raw verifier-authority word lists. The failure branches name only
-Poseidon2 collisions. This module assigns no probability to those events and
-does not authorize a proof backend.
+The success branch identifies the complete circuit-and-matrix envelope, all
+four raw verifier-authority word lists, the state preimage, and the absorbed
+PiCCS replay authority. Semantic verifier input is identified separately from
+the canonical running and fresh claims. The failure branches are precise
+deterministic events; this module assigns no probability or generic Poseidon2
+bound to them and does not authorize a proof backend.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSecurity
@@ -29,18 +33,18 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev FitsTwoPow28 (program : Program) :=
   PerApplicationFixedPoint.FitsTwoPow28 program
 
-abbrev CommitmentKey (program : Program) :=
-  AjtaiKey
-    (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-    (publicFits := PerApplicationFixedPoint.publicFits program)
+abbrev CommitmentSetup (program : Program) :=
+  PerApplicationCanonicalPackage.CommitmentSetup program
 
 abbrev CanonicalKey (program : Program) (fits : FitsTwoPow28 program) :=
   ProductionKey.KeyType (PerApplicationFixedPoint.relation program fits)
 
 noncomputable def canonicalKey {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program) :
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program) :
     CanonicalKey program fits :=
-  ProductionKey.key (PerApplicationFixedPoint.relation program fits) ajtai
+  ProductionKey.key (PerApplicationFixedPoint.relation program fits)
+    (commitmentKey commitmentSetup)
 
 abbrev StepInput (program : Program) (fits : FitsTwoPow28 program) :=
   Input KeyDigest AppState AppWitness
@@ -64,30 +68,35 @@ def selectedRunning {program : Program} {fits : FitsTwoPow28 program}
   input.running functionIndex
 
 def verificationKeyDigest {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program) : KeyDigest :=
-  (verificationKeyBinding fits ajtai).digest
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program) : KeyDigest :=
+  (verificationKeyBinding fits commitmentSetup).digest
 
 /-- Exact prior-state hash preimage selected by this package and the actual
 HyperNova input. -/
 noncomputable def replayState {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     HashPreimage
       (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
       (publicFits := PerApplicationFixedPoint.publicFits program) :=
   priorHashPreimage
-    (Lifecycle.setup (PerApplicationFixedPoint.relation program fits) ajtai
-      (verificationKeyDigest fits ajtai)) input
+    (Lifecycle.setup (PerApplicationFixedPoint.relation program fits)
+      (commitmentKey commitmentSetup)
+      (verificationKeyDigest fits commitmentSetup)) input
 
 /-- Exact PiCCS statement and round-message replay selected by the canonical
 package key and the actual NIFS proof. No transcript field is caller-owned. -/
 noncomputable def replayInput {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
     Spec.Folding.PiCCS.TranscriptReplay.ReplayInput K Transcript.State
       productionShape :=
   let key := ProductionKey.key
-    (PerApplicationFixedPoint.relation program fits) ajtai
+    (PerApplicationFixedPoint.relation program fits)
+    (commitmentKey commitmentSetup)
   let running := selectedRunning input
   {
     statement := {
@@ -99,43 +108,67 @@ noncomputable def replayInput {program : Program}
     }
   }
 
+/-- The semantic verifier input in the canonical replay is derived from the
+same selected running and fresh claims. It is not inferred from transcript
+coin equality. -/
+theorem replayInput_statement_input {program : Program}
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
+    (input : StepInput program fits) :
+    (replayInput fits commitmentSetup input).statement.input =
+      ((canonicalKey fits commitmentSetup).statement
+        (selectedRunning input) input.fresh).verifierInput
+          (canonicalKey fits commitmentSetup).lift := by
+  rfl
+
 /-- The replay view derives exactly the coins used by the production NIFS
 key. -/
 theorem replayInput_derive_eq_piCcsExecution {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) :
-    (replayInput fits ajtai input).derive
+    (replayInput fits commitmentSetup input).derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle =
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle =
       ((ProductionKey.key
-        (PerApplicationFixedPoint.relation program fits) ajtai).piCcsExecution
+        (PerApplicationFixedPoint.relation program fits)
+        (commitmentKey commitmentSetup)).piCcsExecution
           (selectedRunning input) input.fresh input.nifsProof).coins := by
   rfl
 
 /-- Two different complete PiCCS outputs produce one post-output transcript
 state when absorbed from the same causal pre-output state. -/
 def PiCcsOutputAbsorptionCollision {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (state : Transcript.State)
     (left right : FullOutputCoordinates.FullOutput K productionShape) : Prop :=
   left ≠ right ∧
-    (canonicalKey fits ajtai).absorbPiCcsOutput state left =
-      (canonicalKey fits ajtai).absorbPiCcsOutput state right
+    (canonicalKey fits commitmentSetup).absorbPiCcsOutput state left =
+      (canonicalKey fits commitmentSetup).absorbPiCcsOutput state right
+
+/-- The sole deterministic extraction algebra selected by the exact Ajtai key
+and production NIFS key. -/
+noncomputable def productionExtractionAlgebra {program : Program}
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program) :
+    Spec.Folding.PiRLC.PaperForkExtraction.ExtractionAlgebra
+      (canonicalKey fits commitmentSetup).piRlcSemantics
+      (canonicalKey fits commitmentSetup).params
+      (canonicalKey fits commitmentSetup).piRlcAlgebra :=
+  Lifecycle.PaperExtractionAlgebra.extractionAlgebra
+    (commitmentKey commitmentSetup)
 
 /-- Convert the isolated production low-norm theorem into the exact strong-set
-unit record used by one concrete extraction algebra. -/
+unit record used by the verifier-selected extraction algebra. -/
 noncomputable def productionStrongSet {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
-    (laws : Spec.Folding.PiRLC.PaperForkExtraction.ExtractionAlgebra
-      (canonicalKey fits ajtai).piRlcSemantics
-      (canonicalKey fits ajtai).params
-      (canonicalKey fits ajtai).piRlcAlgebra)
-    (ringExact : laws.ring =
-      Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility) :
-    Spec.Folding.PiRLC.PaperForkExtraction.StrongSetUnits laws.ring
-      (canonicalKey fits ajtai).piRlcAlgebra.challengeValid := by
-  rw [ringExact]
+    Spec.Folding.PiRLC.PaperForkExtraction.StrongSetUnits
+      (productionExtractionAlgebra fits commitmentSetup).ring
+      (canonicalKey fits commitmentSetup).piRlcAlgebra.challengeValid := by
   exact Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits theorem8
 
 /-- Package-derived committed-statement reduction. The left authority, state,
@@ -143,7 +176,8 @@ statement, fresh input, and round messages are all computed from one canonical
 package and one actual HyperNova input. The right side is the alleged replay
 being compared with it. -/
 theorem packageReplay_identifies_claim_or_failure {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits)
     (claimedAuthority : VerifierContext.Authority)
     (claimedState : HashPreimage
@@ -153,58 +187,68 @@ theorem packageReplay_identifies_claim_or_failure {program : Program}
       Transcript.State productionShape)
     (stateWellFormed :
       NightstreamFPrime.Layout.Stage1.StateEncoding.WellFormed
-        (replayState fits ajtai input))
+        (replayState fits commitmentSetup input))
     (claimedStateWellFormed :
       NightstreamFPrime.Layout.Stage1.StateEncoding.WellFormed claimedState)
     (contextDigestEqual :
-      (VerifierContext.descriptor (authority fits ajtai)).digest4 =
+      (VerifierContext.descriptor (authority fits commitmentSetup)).digest4 =
         (VerifierContext.descriptor claimedAuthority).digest4)
     (stateDigestEqual :
       stateHash (publicFits := PerApplicationFixedPoint.publicFits program)
-          (replayState fits ajtai input) =
+          (replayState fits commitmentSetup input) =
         stateHash (publicFits := PerApplicationFixedPoint.publicFits program)
           claimedState)
     (alphaEqual :
-      ((replayInput fits ajtai input).derive
+      ((replayInput fits commitmentSetup input).derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle).alpha =
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle).alpha =
       (claimedReplay.derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle).alpha)
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle).alpha)
     (gammaEqual :
-      ((replayInput fits ajtai input).derive
+      ((replayInput fits commitmentSetup input).derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle).gamma =
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle).gamma =
       (claimedReplay.derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle).gamma)
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle).gamma)
     (roundPointEqual :
-      ((replayInput fits ajtai input).derive
+      ((replayInput fits commitmentSetup input).derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle
         ).roundPoint =
       (claimedReplay.derive
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle
         ).roundPoint) :
-    (authority fits ajtai = claimedAuthority ∧
-      replayState fits ajtai input = claimedState ∧
-      replayInput fits ajtai input = claimedReplay) ∨
-      AuthorityComponentDigestCollision (authority fits ajtai)
+    (authority fits commitmentSetup = claimedAuthority ∧
+      replayState fits commitmentSetup input = claimedState ∧
+      (replayInput fits commitmentSetup input).authority =
+        claimedReplay.authority) ∨
+      AuthorityComponentDigestCollision (authority fits commitmentSetup)
         claimedAuthority ∨
-      ContextDigestCollision (VerifierContext.descriptor (authority fits ajtai))
+      ContextDigestCollision
+        (VerifierContext.descriptor (authority fits commitmentSetup))
         (VerifierContext.descriptor claimedAuthority) ∨
-      StateHashCollision (replayState fits ajtai input) claimedState ∨
+      StateHashCollision (replayState fits commitmentSetup input) claimedState ∨
       Spec.Folding.PiCCS.TranscriptReplay.TranscriptReplayCollision
         (ProductionKey.key
-          (PerApplicationFixedPoint.relation program fits) ajtai).oracle
-        (replayInput fits ajtai input) claimedReplay := by
+          (PerApplicationFixedPoint.relation program fits)
+          (commitmentKey commitmentSetup)).oracle
+        (replayInput fits commitmentSetup input) claimedReplay := by
   exact committed_authority_statement_challenges_identify_or_failure
     (ProductionKey.key
-      (PerApplicationFixedPoint.relation program fits) ajtai).oracle
-    (authority fits ajtai) claimedAuthority
-    (replayState fits ajtai input) claimedState
-    (replayInput fits ajtai input) claimedReplay
+      (PerApplicationFixedPoint.relation program fits)
+      (commitmentKey commitmentSetup)).oracle
+    (authority fits commitmentSetup) claimedAuthority
+    (replayState fits commitmentSetup input) claimedState
+    (replayInput fits commitmentSetup input) claimedReplay
     stateWellFormed claimedStateWellFormed contextDigestEqual stateDigestEqual
     alphaEqual gammaEqual roundPointEqual
 
@@ -212,7 +256,8 @@ theorem packageReplay_identifies_claim_or_failure {program : Program}
 success branch identifies the actual NIFS proof's PiCCS output as well as its
 authority, state, statement, fresh input, and round messages. -/
 theorem packageReplayAndOutput_identifies_claim_or_failure {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits)
     (claimedAuthority : VerifierContext.Authority)
     (claimedState : HashPreimage
@@ -223,58 +268,76 @@ theorem packageReplayAndOutput_identifies_claim_or_failure {program : Program}
     (claimedOutput : FullOutputCoordinates.FullOutput K productionShape)
     (stateWellFormed :
       NightstreamFPrime.Layout.Stage1.StateEncoding.WellFormed
-        (replayState fits ajtai input))
+        (replayState fits commitmentSetup input))
     (claimedStateWellFormed :
       NightstreamFPrime.Layout.Stage1.StateEncoding.WellFormed claimedState)
     (contextDigestEqual :
-      (VerifierContext.descriptor (authority fits ajtai)).digest4 =
+      (VerifierContext.descriptor (authority fits commitmentSetup)).digest4 =
         (VerifierContext.descriptor claimedAuthority).digest4)
     (stateDigestEqual :
       stateHash (publicFits := PerApplicationFixedPoint.publicFits program)
-          (replayState fits ajtai input) =
+          (replayState fits commitmentSetup input) =
         stateHash (publicFits := PerApplicationFixedPoint.publicFits program)
           claimedState)
     (alphaEqual :
-      ((replayInput fits ajtai input).derive
-        (canonicalKey fits ajtai).oracle).alpha =
-      (claimedReplay.derive (canonicalKey fits ajtai).oracle).alpha)
+      ((replayInput fits commitmentSetup input).derive
+        (canonicalKey fits commitmentSetup).oracle).alpha =
+      (claimedReplay.derive
+        (canonicalKey fits commitmentSetup).oracle).alpha)
     (gammaEqual :
-      ((replayInput fits ajtai input).derive
-        (canonicalKey fits ajtai).oracle).gamma =
-      (claimedReplay.derive (canonicalKey fits ajtai).oracle).gamma)
+      ((replayInput fits commitmentSetup input).derive
+        (canonicalKey fits commitmentSetup).oracle).gamma =
+      (claimedReplay.derive
+        (canonicalKey fits commitmentSetup).oracle).gamma)
     (roundPointEqual :
-      ((replayInput fits ajtai input).derive
-        (canonicalKey fits ajtai).oracle).roundPoint =
-      (claimedReplay.derive (canonicalKey fits ajtai).oracle).roundPoint)
+      ((replayInput fits commitmentSetup input).derive
+        (canonicalKey fits commitmentSetup).oracle).roundPoint =
+      (claimedReplay.derive
+        (canonicalKey fits commitmentSetup).oracle).roundPoint)
     (outgoingStateEqual :
-      ((canonicalKey fits ajtai).piCcsExecution (selectedRunning input)
-        input.fresh input.nifsProof).outgoingState =
-      (canonicalKey fits ajtai).absorbPiCcsOutput
-        (claimedReplay.derive (canonicalKey fits ajtai).oracle).finalState
+      ((canonicalKey fits commitmentSetup).piCcsExecution
+        (selectedRunning input) input.fresh input.nifsProof).outgoingState =
+      (canonicalKey fits commitmentSetup).absorbPiCcsOutput
+        (claimedReplay.derive
+          (canonicalKey fits commitmentSetup).oracle).finalState
         claimedOutput) :
-    (authority fits ajtai = claimedAuthority ∧
-      replayState fits ajtai input = claimedState ∧
-      replayInput fits ajtai input = claimedReplay ∧
+    (authority fits commitmentSetup = claimedAuthority ∧
+      replayState fits commitmentSetup input = claimedState ∧
+      (replayInput fits commitmentSetup input).authority =
+        claimedReplay.authority ∧
       input.nifsProof.piCcsOutput = claimedOutput) ∨
-      AuthorityComponentDigestCollision (authority fits ajtai)
+      AuthorityComponentDigestCollision (authority fits commitmentSetup)
         claimedAuthority ∨
-      ContextDigestCollision (VerifierContext.descriptor (authority fits ajtai))
+      ContextDigestCollision
+        (VerifierContext.descriptor (authority fits commitmentSetup))
         (VerifierContext.descriptor claimedAuthority) ∨
-      StateHashCollision (replayState fits ajtai input) claimedState ∨
+      StateHashCollision (replayState fits commitmentSetup input) claimedState ∨
       Spec.Folding.PiCCS.TranscriptReplay.TranscriptReplayCollision
-        (canonicalKey fits ajtai).oracle (replayInput fits ajtai input)
+        (canonicalKey fits commitmentSetup).oracle
+        (replayInput fits commitmentSetup input)
         claimedReplay ∨
-      PiCcsOutputAbsorptionCollision fits ajtai
-        ((replayInput fits ajtai input).derive
-          (canonicalKey fits ajtai).oracle).finalState
+      PiCcsOutputAbsorptionCollision fits commitmentSetup
+        ((replayInput fits commitmentSetup input).derive
+          (canonicalKey fits commitmentSetup).oracle).finalState
         input.nifsProof.piCcsOutput claimedOutput := by
-  rcases packageReplay_identifies_claim_or_failure fits ajtai input
+  rcases packageReplay_identifies_claim_or_failure fits commitmentSetup input
       claimedAuthority claimedState claimedReplay stateWellFormed
       claimedStateWellFormed contextDigestEqual stateDigestEqual alphaEqual
       gammaEqual roundPointEqual with
     identified | componentFailure | contextFailure | stateFailure |
       transcriptFailure
   · rcases identified with ⟨authoritySame, stateSame, replaySame⟩
+    have replayDerivedSame :=
+      Spec.Folding.PiCCS.TranscriptReplay.ReplayInput.derive_eq_of_authority_eq
+        (canonicalKey fits commitmentSetup).oracle
+        (replayInput fits commitmentSetup input) claimedReplay replaySame
+    have replayExecution :
+        (replayInput fits commitmentSetup input).derive
+            (canonicalKey fits commitmentSetup).oracle =
+          ((canonicalKey fits commitmentSetup).piCcsExecution
+            (selectedRunning input) input.fresh input.nifsProof).coins := by
+      simpa [canonicalKey] using
+        replayInput_derive_eq_piCcsExecution fits commitmentSetup input
     by_cases outputSame : input.nifsProof.piCcsOutput = claimedOutput
     · exact Or.inl ⟨authoritySame, stateSame, replaySame, outputSame⟩
     · apply Or.inr
@@ -284,21 +347,33 @@ theorem packageReplayAndOutput_identifies_claim_or_failure {program : Program}
       apply Or.inr
       refine ⟨outputSame, ?_⟩
       calc
-        (canonicalKey fits ajtai).absorbPiCcsOutput
-            ((replayInput fits ajtai input).derive
-              (canonicalKey fits ajtai).oracle).finalState
+        (canonicalKey fits commitmentSetup).absorbPiCcsOutput
+            ((replayInput fits commitmentSetup input).derive
+              (canonicalKey fits commitmentSetup).oracle).finalState
             input.nifsProof.piCcsOutput =
-            ((canonicalKey fits ajtai).piCcsExecution
+            (canonicalKey fits commitmentSetup).absorbPiCcsOutput
+              ((canonicalKey fits commitmentSetup).piCcsExecution
+                (selectedRunning input) input.fresh input.nifsProof).coins.finalState
+              input.nifsProof.piCcsOutput := by
+                exact congrArg
+                  (fun coins => (canonicalKey fits commitmentSetup
+                    ).absorbPiCcsOutput coins.finalState
+                      input.nifsProof.piCcsOutput)
+                  replayExecution
+        _ =
+            ((canonicalKey fits commitmentSetup).piCcsExecution
               (selectedRunning input) input.fresh input.nifsProof
             ).outgoingState := by
               rfl
-        _ = (canonicalKey fits ajtai).absorbPiCcsOutput
-            (claimedReplay.derive (canonicalKey fits ajtai).oracle).finalState
+        _ = (canonicalKey fits commitmentSetup).absorbPiCcsOutput
+            (claimedReplay.derive
+              (canonicalKey fits commitmentSetup).oracle).finalState
             claimedOutput := outgoingStateEqual
-        _ = (canonicalKey fits ajtai).absorbPiCcsOutput
-            ((replayInput fits ajtai input).derive
-              (canonicalKey fits ajtai).oracle).finalState claimedOutput := by
-              rw [replaySame]
+        _ = (canonicalKey fits commitmentSetup).absorbPiCcsOutput
+            ((replayInput fits commitmentSetup input).derive
+              (canonicalKey fits commitmentSetup).oracle).finalState
+            claimedOutput := by
+              rw [replayDerivedSame]
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
   · exact Or.inr (Or.inr (Or.inr (Or.inl stateFailure)))
@@ -318,31 +393,30 @@ The base branch performs no NIFS extraction. The recursive branch uses the
 same relation, Ajtai key, proof, running input, and output already selected by
 `StepHoldsFor`. -/
 theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
-    (fits : FitsTwoPow28 program) (ajtai : CommitmentKey program)
+    (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) (output : StepOutput program)
-    (laws : Spec.Folding.PiRLC.PaperForkExtraction.ExtractionAlgebra
-      (canonicalKey fits ajtai).piRlcSemantics
-      (canonicalKey fits ajtai).params
-      (canonicalKey fits ajtai).piRlcAlgebra)
-    (ringExact : laws.ring =
-      Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring)
     (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (step : Lifecycle.StepHoldsFor
-      (PerApplicationFixedPoint.relation program fits) ajtai
-      (verificationKeyDigest fits ajtai) program input output) :
+      (PerApplicationFixedPoint.relation program fits)
+      (commitmentKey commitmentSetup)
+      (verificationKeyDigest fits commitmentSetup) program input output) :
     Lifecycle.StepHoldsFor
-        (PerApplicationFixedPoint.relation program fits) ajtai
-        (verificationKeyDigest fits ajtai) program input output /\
+        (PerApplicationFixedPoint.relation program fits)
+        (commitmentKey commitmentSetup)
+        (verificationKeyDigest fits commitmentSetup) program input output /\
       (input.iteration = 0 \/
         (0 < input.iteration /\
           Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome
-            (canonicalKey fits ajtai) (selectedRunning input) input.fresh
-            input.nifsProof laws
-            (productionStrongSet fits ajtai laws ringExact theorem8))) := by
+            (canonicalKey fits commitmentSetup) (selectedRunning input)
+            input.fresh input.nifsProof
+            (productionExtractionAlgebra fits commitmentSetup)
+            (productionStrongSet fits commitmentSetup theorem8))) := by
   refine ⟨step, ?_⟩
   change FixedAugmentedTransition
-    (Lifecycle.setup (PerApplicationFixedPoint.relation program fits) ajtai
-      (verificationKeyDigest fits ajtai))
+    (Lifecycle.setup (PerApplicationFixedPoint.relation program fits)
+      (commitmentKey commitmentSetup)
+      (verificationKeyDigest fits commitmentSetup))
     (Lifecycle.machineFor (PerApplicationFixedPoint.publicFits program) program)
     functionIndex input output at step
   rcases step.2.2.2 with base | recursive
@@ -354,16 +428,52 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
     rw [selectedEq] at selectedNifs
     have accepted :
         Spec.Folding.Nifs.PaperNonInteractive.verify
-            (canonicalKey fits ajtai) (selectedRunning input) input.fresh
-            input.nifsProof =
+            (canonicalKey fits commitmentSetup) (selectedRunning input)
+            input.fresh input.nifsProof =
           some (output.runningNext functionIndex) := by
       simpa [Accepts, Lifecycle.setup,
         Lifecycle.nifsVerifier, canonicalKey, selectedRunning] using selectedNifs
     exact Or.inr ⟨iterationPositive,
       Spec.Folding.Nifs.PaperSecurityComposition.accepted_implies_securityOutcome
-        (canonicalKey fits ajtai) (selectedRunning input) input.fresh
-        input.nifsProof (output.runningNext functionIndex) laws
-        (productionStrongSet fits ajtai laws ringExact theorem8) accepted⟩
+        (canonicalKey fits commitmentSetup) (selectedRunning input) input.fresh
+        input.nifsProof (output.runningNext functionIndex)
+        (productionExtractionAlgebra fits commitmentSetup)
+        (productionStrongSet fits commitmentSetup theorem8) accepted⟩
+
+/-- Acceptance of the verifier-bound canonical matrix plan reaches the full
+per-application security boundary without a caller-owned semantic premise.
+The base branch performs no extraction. The recursive branch uses the exact
+application, package-derived verification-key digest, relation, Ajtai key,
+raw assignment, and NIFS proof constrained by those rows. -/
+theorem verifierBoundRowsZero_implies_base_or_securityOutcome
+    {program : Program} (fits : FitsTwoPow28 program)
+    (commitmentSetup : CommitmentSetup program)
+    (raw : PerApplicationCanonicalAssignment.RawValues program)
+    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
+    (accepted : (PerApplicationFixedPoint.structuralPlan program fits
+      ).RowsZero
+        (PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw
+          ).assignment) :
+    let bound := PerApplicationVerifierBoundAssignment.bind fits
+      commitmentSetup raw
+    let input := PerApplicationDecodedIO.input program fits bound
+    let output := PerApplicationDecodedIO.output program bound
+    Lifecycle.StepHoldsFor
+        (PerApplicationFixedPoint.relation program fits)
+        (commitmentKey commitmentSetup)
+        (verificationKeyDigest fits commitmentSetup) program input output ∧
+      (input.iteration = 0 ∨
+        (0 < input.iteration ∧
+          Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome
+            (canonicalKey fits commitmentSetup) (selectedRunning input)
+            input.fresh input.nifsProof
+            (productionExtractionAlgebra fits commitmentSetup)
+            (productionStrongSet fits commitmentSetup theorem8))) := by
+  dsimp only
+  apply stepHoldsFor_implies_base_or_securityOutcome fits commitmentSetup _ _
+    theorem8
+  exact PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor
+    program fits commitmentSetup raw accepted
 
 /-- Two different canonical circuit-and-matrix envelopes produce one
 structural package digest. -/
@@ -382,11 +492,12 @@ def FinalPackageBindingCollision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
     (rightFits : FitsTwoPow28 rightProgram)
-    (leftKey : CommitmentKey leftProgram)
-    (rightKey : CommitmentKey rightProgram) : Prop :=
-  packageIdentityPreimage leftFits leftKey ≠
-      packageIdentityPreimage rightFits rightKey ∧
-    packageIdentity leftFits leftKey = packageIdentity rightFits rightKey
+    (leftSetup : CommitmentSetup leftProgram)
+    (rightSetup : CommitmentSetup rightProgram) : Prop :=
+  packageIdentityPreimage leftFits leftSetup ≠
+      packageIdentityPreimage rightFits rightSetup ∧
+    packageIdentity leftFits leftSetup =
+      packageIdentity rightFits rightSetup
 
 /-- Equal final package identities identify the exact canonical circuit,
 matrix program, and every raw verifier-authority word list unless one named
@@ -395,23 +506,23 @@ theorem packageIdentity_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
     (rightFits : FitsTwoPow28 rightProgram)
-    (leftKey : CommitmentKey leftProgram)
-    (rightKey : CommitmentKey rightProgram)
-    (identityEqual : packageIdentity leftFits leftKey =
-      packageIdentity rightFits rightKey) :
+    (leftSetup : CommitmentSetup leftProgram)
+    (rightSetup : CommitmentSetup rightProgram)
+    (identityEqual : packageIdentity leftFits leftSetup =
+      packageIdentity rightFits rightSetup) :
     (sealedPackageValue leftProgram leftFits =
         sealedPackageValue rightProgram rightFits ∧
-      authority leftFits leftKey = authority rightFits rightKey) ∨
+      authority leftFits leftSetup = authority rightFits rightSetup) ∨
       StructuralPackageCollision leftProgram rightProgram leftFits rightFits ∨
       AuthorityComponentDigestCollision
-        (authority leftFits leftKey) (authority rightFits rightKey) ∨
-      FinalPackageBindingCollision leftFits rightFits leftKey rightKey := by
-  by_cases preimageSame : packageIdentityPreimage leftFits leftKey =
-      packageIdentityPreimage rightFits rightKey
+        (authority leftFits leftSetup) (authority rightFits rightSetup) ∨
+      FinalPackageBindingCollision leftFits rightFits leftSetup rightSetup := by
+  by_cases preimageSame : packageIdentityPreimage leftFits leftSetup =
+      packageIdentityPreimage rightFits rightSetup
   · have components := packageIdentityPreimage_components leftFits rightFits
-      leftKey rightKey preimageSame
+      leftSetup rightSetup preimageSame
     rcases descriptor_identifies_authority_or_component_collision
-        (authority leftFits leftKey) (authority rightFits rightKey)
+        (authority leftFits leftSetup) (authority rightFits rightSetup)
         components.2 with authoritySame | componentCollision
     · by_cases packageSame : sealedPackageValue leftProgram leftFits =
           sealedPackageValue rightProgram rightFits
@@ -427,22 +538,78 @@ theorem verificationKeyBinding_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
     (rightFits : FitsTwoPow28 rightProgram)
-    (leftKey : CommitmentKey leftProgram)
-    (rightKey : CommitmentKey rightProgram)
-    (bindingEqual : verificationKeyBinding leftFits leftKey =
-      verificationKeyBinding rightFits rightKey) :
+    (leftSetup : CommitmentSetup leftProgram)
+    (rightSetup : CommitmentSetup rightProgram)
+    (bindingEqual : verificationKeyBinding leftFits leftSetup =
+      verificationKeyBinding rightFits rightSetup) :
     (sealedPackageValue leftProgram leftFits =
         sealedPackageValue rightProgram rightFits ∧
-      authority leftFits leftKey = authority rightFits rightKey) ∨
+      authority leftFits leftSetup = authority rightFits rightSetup) ∨
       StructuralPackageCollision leftProgram rightProgram leftFits rightFits ∨
       AuthorityComponentDigestCollision
-        (authority leftFits leftKey) (authority rightFits rightKey) ∨
-      FinalPackageBindingCollision leftFits rightFits leftKey rightKey := by
+        (authority leftFits leftSetup) (authority rightFits rightSetup) ∨
+      FinalPackageBindingCollision leftFits rightFits leftSetup rightSetup := by
   apply packageIdentity_identifies_package_authority_or_collision
-    leftFits rightFits leftKey rightKey
+    leftFits rightFits leftSetup rightSetup
   have packageIdentityEqual := congrArg
     Lifecycle.Stage1.VerificationKey.Binding.packageIdentity bindingEqual
   simpa only [verificationKeyBinding_packageIdentity] using
     packageIdentityEqual
+
+/-- A verifier-owned expected binding and accepted canonical rows identify the
+exact package authority and reach the complete deterministic/security outcome,
+unless one existing Poseidon2 binding event occurs. This theorem remains
+generic until the owner selects one concrete production application. -/
+theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
+    {expectedProgram claimedProgram : Program}
+    (expectedFits : FitsTwoPow28 expectedProgram)
+    (claimedFits : FitsTwoPow28 claimedProgram)
+    (expectedSetup : CommitmentSetup expectedProgram)
+    (claimedSetup : CommitmentSetup claimedProgram)
+    (raw : PerApplicationCanonicalAssignment.RawValues claimedProgram)
+    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
+    (bindingEqual : verificationKeyBinding expectedFits expectedSetup =
+      verificationKeyBinding claimedFits claimedSetup)
+    (accepted : (PerApplicationFixedPoint.structuralPlan claimedProgram
+      claimedFits).RowsZero
+        (PerApplicationVerifierBoundAssignment.bind
+          claimedFits claimedSetup raw).assignment) :
+    ((sealedPackageValue expectedProgram expectedFits =
+          sealedPackageValue claimedProgram claimedFits ∧
+        authority expectedFits expectedSetup =
+          authority claimedFits claimedSetup) ∧
+      (let bound := PerApplicationVerifierBoundAssignment.bind
+          claimedFits claimedSetup raw
+       let input := PerApplicationDecodedIO.input
+          claimedProgram claimedFits bound
+       let output := PerApplicationDecodedIO.output claimedProgram bound
+       Lifecycle.StepHoldsFor
+            (PerApplicationFixedPoint.relation claimedProgram claimedFits)
+            (commitmentKey claimedSetup)
+            (verificationKeyDigest claimedFits claimedSetup)
+            claimedProgram input output ∧
+          (input.iteration = 0 ∨
+            (0 < input.iteration ∧
+              Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome
+                (canonicalKey claimedFits claimedSetup)
+                (selectedRunning input) input.fresh input.nifsProof
+                (productionExtractionAlgebra claimedFits claimedSetup)
+                (productionStrongSet claimedFits claimedSetup theorem8))))) ∨
+      StructuralPackageCollision expectedProgram claimedProgram
+        expectedFits claimedFits ∨
+      AuthorityComponentDigestCollision
+        (authority expectedFits expectedSetup)
+        (authority claimedFits claimedSetup) ∨
+      FinalPackageBindingCollision expectedFits claimedFits
+        expectedSetup claimedSetup := by
+  rcases verificationKeyBinding_identifies_package_authority_or_collision
+      expectedFits claimedFits expectedSetup claimedSetup bindingEqual with
+    identified | structuralCollision | componentCollision | finalCollision
+  · exact Or.inl ⟨identified,
+      verifierBoundRowsZero_implies_base_or_securityOutcome
+        claimedFits claimedSetup raw theorem8 accepted⟩
+  · exact Or.inr (Or.inl structuralCollision)
+  · exact Or.inr (Or.inr (Or.inl componentCollision))
+  · exact Or.inr (Or.inr (Or.inr finalCollision))
 
 end NightstreamFPrime.Export.Stage1.PerApplicationSecurity

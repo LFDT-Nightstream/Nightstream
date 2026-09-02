@@ -25,7 +25,7 @@ private theorem previousRule_zero
 private theorem previousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (invocationOffset : Fin 7549) (lane : Fin 8) :
+    (invocationOffset : Fin 7603) (lane : Fin 8) :
     (previousRule program).form? logicalWidth
         (PiCCSPoseidonPlan.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -55,7 +55,7 @@ private theorem previousRule_succ
               slotBound selected⟩) lane)) by
     simpa [previousRule] using
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 7549 0 8)
+        (region := PoseidonInput.Region.mk 1 7603 0 8)
         invocationOffset lane lane.isLt
         (PiCCSPoseidonPlan.schedule program).block
         (PiCCSPoseidonPlan.retainedStart program)
@@ -90,9 +90,9 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero geometry lane
   · rw [if_neg first]
-    let invocationOffset : Fin 7549 :=
+    let invocationOffset : Fin 7603 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 7550 := by
+        have bound : invocation.val < 7604 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -125,12 +125,12 @@ private theorem payloadRule_absorb
   have slotBound : 0 + invocation.val * 4 + lane.val * 1 <
       (PiCCSActionPayloadBlock.block program).slotCount := by
     rw [PiCCSActionPayloadBlock.block_slotCount]
-    have bound : invocation.val < 7550 := by
+    have bound : invocation.val < 7604 := by
       simpa only [PiCCSPoseidonPlan.invocationCount_eq] using invocation.isLt
     omega
   have exactRule :=
     PoseidonInput.Rule.taggedRetained_form?_ofSemantic_of_eq
-      (region := PoseidonInput.Region.mk 0 7550 0 4) invocation lane
+      (region := PoseidonInput.Region.mk 0 7604 0 4) invocation lane
       (PiCCSActionPayloadBlock.block program)
       (PiCCSActionPayloadBlock.payloadStart program)
       (PiCCSPoseidonPlan.payloadFits geometry)
@@ -172,7 +172,7 @@ private theorem payloadRule_squeezeFirst
     simp [tagAt, invocationTag, found]
   simpa [payloadRule, tags] using
     PoseidonInput.Rule.taggedRetained_form?_ofSemantic_of_ne
-      (region := PoseidonInput.Region.mk 0 7550 0 4) invocation lane
+      (region := PoseidonInput.Region.mk 0 7604 0 4) invocation lane
       (PiCCSActionPayloadBlock.block program)
       (PiCCSActionPayloadBlock.payloadStart program)
       (PiCCSPoseidonPlan.oneColumn geometry).val 0 4 1 tagAt .absorb
@@ -190,7 +190,7 @@ private theorem payloadRule_squeezeSecond
     simp [tagAt, invocationTag, found]
   simpa [payloadRule, tags] using
     PoseidonInput.Rule.taggedRetained_form?_ofSemantic_of_ne
-      (region := PoseidonInput.Region.mk 0 7550 0 4) invocation lane
+      (region := PoseidonInput.Region.mk 0 7604 0 4) invocation lane
       (PiCCSActionPayloadBlock.block program)
       (PiCCSActionPayloadBlock.payloadStart program)
       (PiCCSPoseidonPlan.oneColumn geometry).val 0 4 1 tagAt .absorb

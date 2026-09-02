@@ -41,6 +41,8 @@ inductive BlockKind where
   | piDec
   | runningTransition
   | application
+  | nextPreimage
+  | recursivePublicOutput
 deriving Repr, DecidableEq
 
 def BlockKind.format : Format BlockKind where
@@ -57,6 +59,8 @@ def BlockKind.format : Format BlockKind where
     | .piDec => .atom 9
     | .runningTransition => .atom 10
     | .application => .atom 11
+    | .nextPreimage => .atom 12
+    | .recursivePublicOutput => .atom 13
   decode
     | .atom 0 => .ok .pilotPoseidon
     | .atom 1 => .ok .piCcsPoseidon
@@ -70,6 +74,8 @@ def BlockKind.format : Format BlockKind where
     | .atom 9 => .ok .piDec
     | .atom 10 => .ok .runningTransition
     | .atom 11 => .ok .application
+    | .atom 12 => .ok .nextPreimage
+    | .atom 13 => .ok .recursivePublicOutput
     | _ => .error "invalid production matrix block kind"
   decode_encode := by
     intro kind
@@ -125,21 +131,27 @@ def BlockKind.plan (application : ProgramApplication)
         (relation application fits) (samplerGeometry application)
   | .application => DirectApplicationPrefixPlan.applicationPlan fits.package
       (applicationGeometry application)
+  | .nextPreimage => DirectApplicationPrefixPlan.nextPreimagePlan
+      (applicationGeometry application)
+  | .recursivePublicOutput => DirectApplicationPrefixPlan.publicOutputPlan
+      (applicationGeometry application)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 2159368
-  | .piCcsPoseidon => 724800
+  | .pilotPoseidon => 2321800
+  | .piCcsPoseidon => 729984
   | .piCcsOrdinary => 811669
   | .pilotOrdinary => 1330
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 32
   | .samplerPoseidon => 14382
   | .samplerOrdinary => 220881
-  | .piRlc => 1773933
-  | .piDec => 25272
-  | .runningTransition => 321303
+  | .piRlc => 1898781
+  | .piDec => 25488
+  | .runningTransition => 345495
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
+  | .nextPreimage => 5
+  | .recursivePublicOutput => 4
 
 /-- The direct block count is exactly the count of the selected semantic
 plan. -/
@@ -154,7 +166,9 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
       DirectPiDECPrefixPlan.piDecPlan,
       DirectPiRLCSamplerCompletePrefixPlan.transitionPlan,
       DirectPiDECPrefixPlan.transitionPlan,
-      DirectApplicationPrefixPlan.applicationPlan]
+      DirectApplicationPrefixPlan.applicationPlan,
+      DirectApplicationPrefixPlan.nextPreimagePlan,
+      DirectApplicationPrefixPlan.publicOutputPlan]
 
 /-- Interpreter for the compact tree. Every concatenation checks the final
 row bound before it constructs a plan. -/
@@ -202,8 +216,14 @@ def piDecCompleteProgram : Program :=
 def runningCompleteProgram : Program :=
   .append piDecCompleteProgram (.leaf .runningTransition)
 
-def canonical : Program :=
+def applicationCompleteProgram : Program :=
   .append runningCompleteProgram (.leaf .application)
+
+def throughNextPreimageProgram : Program :=
+  .append applicationCompleteProgram (.leaf .nextPreimage)
+
+def canonical : Program :=
+  .append throughNextPreimageProgram (.leaf .recursivePublicOutput)
 
 def Program.kinds : Program → List BlockKind
   | .leaf kind => [kind]
@@ -213,7 +233,8 @@ def Program.kinds : Program → List BlockKind
 def canonicalKinds : List BlockKind :=
   [.pilotPoseidon, .piCcsPoseidon, .piCcsOrdinary, .pilotOrdinary,
     .pilotDigestBinding, .piCcsEndpoint, .samplerPoseidon,
-    .samplerOrdinary, .piRlc, .piDec, .runningTransition, .application]
+    .samplerOrdinary, .piRlc, .piDec, .runningTransition, .application,
+    .nextPreimage, .recursivePublicOutput]
 
 @[simp] theorem canonical_kinds : canonical.kinds = canonicalKinds := by
   rfl
@@ -568,13 +589,13 @@ private theorem compile_runningCompleteProgram
       unfold DirectPiRLCSamplerCompletePrefixPlan.plan
       rfl
 
-/-- The compact instruction program expands to the exact self-derived
-14-matrix plan. -/
-theorem compile_canonical (application : ProgramApplication)
-    (fits : FitsTwoPow28 application) :
-    canonical.compile application fits =
-      some (PerApplicationFixedPoint.structuralPlan application fits) := by
-  unfold canonical
+private theorem compile_applicationCompleteProgram
+    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    applicationCompleteProgram.compile application fits =
+      some (DirectApplicationPrefixPlan.prefixApplicationPlan
+        (relation application fits) fits.package
+        (applicationGeometry application)) := by
+  unfold applicationCompleteProgram
   have leftEq :
       DirectPiRLCSamplerCompletePrefixPlan.plan
           (relation application fits) (samplerGeometry application) =
@@ -587,14 +608,15 @@ theorem compile_canonical (application : ProgramApplication)
           (relation application fits) (applicationGeometry application)) :=
     (compile_runningCompleteProgram application fits).trans
       (congrArg some leftEq)
+  have complete := DirectApplicationPrefixPlan.rowCount_le
+    (relation application fits) fits.package (applicationGeometry application)
   have bounded :
       (DirectApplicationPrefixPlan.prefixPlan
           (relation application fits) (applicationGeometry application)).rowCount +
         (DirectApplicationPrefixPlan.applicationPlan fits.package
           (applicationGeometry application)).rowCount ≤
-        2 ^ Lifecycle.cubeVariables :=
-    DirectApplicationPrefixPlan.rowCount_le (relation application fits)
-      fits.package (applicationGeometry application)
+        2 ^ Lifecycle.cubeVariables := by
+    omega
   calc
     _ = some (ProductionRelation.Plan.append
         (DirectApplicationPrefixPlan.prefixPlan
@@ -602,6 +624,67 @@ theorem compile_canonical (application : ProgramApplication)
         (DirectApplicationPrefixPlan.applicationPlan fits.package
           (applicationGeometry application)) bounded) :=
       compile_append application fits leftCompiled rfl bounded
+    _ = _ := by
+      unfold DirectApplicationPrefixPlan.prefixApplicationPlan
+      rfl
+
+private theorem compile_throughNextPreimageProgram
+    (application : ProgramApplication) (fits : FitsTwoPow28 application) :
+    throughNextPreimageProgram.compile application fits =
+      some (DirectApplicationPrefixPlan.throughNextPreimagePlan
+        (relation application fits) fits.package
+        (applicationGeometry application)) := by
+  unfold throughNextPreimageProgram
+  have complete := DirectApplicationPrefixPlan.rowCount_le
+    (relation application fits) fits.package (applicationGeometry application)
+  have bounded :
+      (DirectApplicationPrefixPlan.prefixApplicationPlan
+          (relation application fits) fits.package
+          (applicationGeometry application)).rowCount +
+        (DirectApplicationPrefixPlan.nextPreimagePlan
+          (applicationGeometry application)).rowCount ≤
+        2 ^ Lifecycle.cubeVariables := by
+    rw [DirectApplicationPrefixPlan.prefixApplicationPlan,
+      ProductionRelation.Plan.append_rowCount]
+    omega
+  calc
+    _ = some (ProductionRelation.Plan.append
+        (DirectApplicationPrefixPlan.prefixApplicationPlan
+          (relation application fits) fits.package
+          (applicationGeometry application))
+        (DirectApplicationPrefixPlan.nextPreimagePlan
+          (applicationGeometry application)) bounded) :=
+      compile_append application fits
+        (compile_applicationCompleteProgram application fits) rfl bounded
+    _ = _ := by
+      unfold DirectApplicationPrefixPlan.throughNextPreimagePlan
+      rfl
+
+/-- The compact instruction program expands to the exact self-derived
+14-matrix plan. -/
+theorem compile_canonical (application : ProgramApplication)
+    (fits : FitsTwoPow28 application) :
+    canonical.compile application fits =
+      some (PerApplicationFixedPoint.structuralPlan application fits) := by
+  unfold canonical
+  have bounded :
+      (DirectApplicationPrefixPlan.throughNextPreimagePlan
+          (relation application fits) fits.package
+          (applicationGeometry application)).rowCount +
+        (DirectApplicationPrefixPlan.publicOutputPlan
+          (applicationGeometry application)).rowCount ≤
+        2 ^ Lifecycle.cubeVariables :=
+    DirectApplicationPrefixPlan.rowCount_le (relation application fits)
+      fits.package (applicationGeometry application)
+  calc
+    _ = some (ProductionRelation.Plan.append
+        (DirectApplicationPrefixPlan.throughNextPreimagePlan
+          (relation application fits) fits.package
+          (applicationGeometry application))
+        (DirectApplicationPrefixPlan.publicOutputPlan
+          (applicationGeometry application)) bounded) :=
+      compile_append application fits
+        (compile_throughNextPreimageProgram application fits) rfl bounded
     _ = some (PerApplicationFixedPoint.structuralPlan application fits) := by
       unfold PerApplicationFixedPoint.structuralPlan
         DirectApplicationPrefixPlan.plan

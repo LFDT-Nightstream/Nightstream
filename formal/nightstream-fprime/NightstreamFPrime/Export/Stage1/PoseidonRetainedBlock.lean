@@ -18,28 +18,40 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-def basePackage : CircuitPackage := PerApplicationPackage.basePackage
+def basePackage (_delay : Unit := ()) : CircuitPackage :=
+  PerApplicationPackage.basePackage ()
 
 def priorInvocationCount : Nat := Data.priorChain.absorbCount + 1
 def outputInvocationCount : Nat := Data.outputChain.absorbCount + 1
 def pilotInvocationCount : Nat := priorInvocationCount + outputInvocationCount
-def laterInvocationCount : Nat := basePackage.permutationInvocations.length
+def laterInvocationCountReference (_delay : Unit := ()) : Nat :=
+  basePackage.permutationInvocations.length
+def laterInvocationCount : Nat := 7757
 def totalInvocationCount : Nat := pilotInvocationCount + laterInvocationCount
 
-@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 11486 := by
+@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 12350 := by
   rfl
 
-@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 11486 := by
+@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 12350 := by
   rfl
 
-@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 22972 := by
+@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 24700 := by
   simp [pilotInvocationCount]
 
-@[simp] theorem laterInvocationCount_eq : laterInvocationCount = 7703 := by
-  unfold laterInvocationCount basePackage PerApplicationPackage.basePackage
+@[simp] theorem laterInvocationCount_eq : laterInvocationCount = 7757 := by
+  rfl
+
+@[simp] theorem basePackage_permutationInvocations_length :
+    basePackage.permutationInvocations.length = laterInvocationCount := by
+  unfold basePackage PerApplicationPackage.basePackage laterInvocationCount
   exact Package.circuitPackage_permutation_invocations
 
-@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 30675 := by
+theorem laterInvocationCount_eq_reference :
+    laterInvocationCount = laterInvocationCountReference () := by
+  unfold laterInvocationCountReference
+  exact basePackage_permutationInvocations_length.symm
+
+@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 32457 := by
   simp [totalInvocationCount]
 
 private theorem priorChain_mem :
@@ -115,35 +127,35 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
 @[simp] theorem laterBlock_kind : laterBlock.kind = .field := by
   rfl
 
-@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 987796 := by
+@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 1062100 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq]
 
-@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 987796 := by
+@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 1062100 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     outputInvocationCount_eq]
 
-@[simp] theorem laterBlock_slotCount : laterBlock.slotCount = 662458 := by
+@[simp] theorem laterBlock_slotCount : laterBlock.slotCount = 667102 := by
   rw [laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     laterInvocationCount_eq]
 
 @[simp] theorem priorBlock_coordinateCount :
-    priorBlock.coordinateCount = 40499636 := by
+    priorBlock.coordinateCount = 43546100 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     priorInvocationCount_eq]
 
 @[simp] theorem outputBlock_coordinateCount :
-    outputBlock.coordinateCount = 40499636 := by
+    outputBlock.coordinateCount = 43546100 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     outputInvocationCount_eq]
 
 @[simp] theorem laterBlock_coordinateCount :
-    laterBlock.coordinateCount = 27160778 := by
+    laterBlock.coordinateCount = 27351182 := by
   rw [laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     laterInvocationCount_eq]
@@ -159,14 +171,14 @@ def retainedSlotCount : Nat :=
 def retainedCoordinateCount : Nat :=
   (retainedBlocks.map fun block => block.coordinateCount).sum
 
-@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 2638050 := by
+@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 2791302 := by
   simp [retainedSlotCount, retainedBlocks, priorBlock, outputBlock, laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq, outputInvocationCount_eq,
     laterInvocationCount_eq]
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 108160050 := by
+    retainedCoordinateCount = 114443382 := by
   simp [retainedCoordinateCount, retainedBlocks, priorBlock, outputBlock,
     laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,

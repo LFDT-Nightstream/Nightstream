@@ -18,18 +18,58 @@ open NightstreamFPrime.Lifecycle
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
+@[simp] private theorem basePackage_constantColumn_eq :
+    PerApplicationPackage.basePackage.layout.constantColumn = 29336446 := by
+  rw [PerApplicationPackage.basePackage, Data.circuitPackage_layout]
+  rfl
+
 def finalConstant (program : Program) : Nat :=
   PerApplicationPackage.basePackage.layout.constantColumn +
     PerApplicationPackage.addedPrivateColumnCount program
 
-def basePrivateRange : SourceProjectionRange :=
+def directFinalConstant (program : Program) : Nat :=
+  29336446 + PerApplicationPackage.directAddedPrivateColumnCount program
+
+theorem directFinalConstant_eq_finalConstant (program : Program) :
+    directFinalConstant program = finalConstant program := by
+  unfold directFinalConstant finalConstant
+  rw [PerApplicationPackage.directAddedPrivateColumnCount_eq_addedPrivateColumnCount,
+    basePackage_constantColumn_eq]
+
+@[csimp] theorem finalConstant_eq_directFinalConstant :
+    @finalConstant = @directFinalConstant := by
+  funext program
+  exact (directFinalConstant_eq_finalConstant program).symm
+
+def basePrivateRangeReference (_delay : Unit := ()) : SourceProjectionRange :=
   ⟨0, 0, PerApplicationPackage.basePackage.layout.constantColumn⟩
+
+def basePrivateRange : SourceProjectionRange := ⟨0, 0, 29336446⟩
+
+theorem basePrivateRange_eq_reference :
+    basePrivateRange = basePrivateRangeReference () := by
+  simp [basePrivateRange, basePrivateRangeReference]
 
 def baseSuffixRange (program : Program) : SourceProjectionRange :=
   ⟨finalConstant program,
     PerApplicationPackage.basePackage.layout.constantColumn,
     PerApplicationPackage.basePackage.layout.totalColumnCount -
       PerApplicationPackage.basePackage.layout.constantColumn⟩
+
+def directBaseSuffixRange (program : Program) : SourceProjectionRange :=
+  ⟨directFinalConstant program, 29336446, 279⟩
+
+theorem directBaseSuffixRange_eq_baseSuffixRange (program : Program) :
+    directBaseSuffixRange program = baseSuffixRange program := by
+  unfold directBaseSuffixRange baseSuffixRange
+  rw [directFinalConstant_eq_finalConstant,
+    basePackage_constantColumn_eq,
+    PerApplicationPackage.basePackage_totalColumnCount_eq]
+
+@[csimp] theorem baseSuffixRange_eq_directBaseSuffixRange :
+    @baseSuffixRange = @directBaseSuffixRange := by
+  funext program
+  exact (directBaseSuffixRange_eq_baseSuffixRange program).symm
 
 /-- Raw prefix package rows project back to the established combined Spartan
 source order. -/
@@ -63,6 +103,7 @@ theorem base_column (program : Program) (column : Nat)
       column < PerApplicationPackage.basePackage.layout.constantColumn
   · have shifted := PerApplicationPackage.shiftColumn_private program column
       privateColumn
+    rw [basePackage_constantColumn_eq] at privateColumn
     have first : basePrivateRange.column? column = some column := by
       simpa [basePrivateRange] using
         (SourceProjectionRange.column?_at basePrivateRange
@@ -78,19 +119,22 @@ theorem base_column (program : Program) (column : Nat)
       Nat.le_of_not_gt privateColumn
     have shifted := PerApplicationPackage.shiftColumn_constantOrPublic
       program column suffixColumn
+    rw [basePackage_constantColumn_eq] at suffixColumn
     let offset := column -
       PerApplicationPackage.basePackage.layout.constantColumn
     have offsetBound : offset < (baseSuffixRange program).count := by
-      simp [offset, baseSuffixRange]
+      rw [PerApplicationPackage.basePackage_totalColumnCount_eq] at bound
+      simp [offset, baseSuffixRange, basePackage_constantColumn_eq]
       omega
     have shiftedEq :
         column + PerApplicationPackage.addedPrivateColumnCount program =
           (baseSuffixRange program).packageStart + offset := by
-      simp [baseSuffixRange, finalConstant, offset]
+      simp [baseSuffixRange, finalConstant, offset,
+        basePackage_constantColumn_eq]
       omega
     have sourceEq :
         (baseSuffixRange program).sourceStart + offset = column := by
-      simp [baseSuffixRange, offset]
+      simp [baseSuffixRange, offset, basePackage_constantColumn_eq]
       omega
     have first : basePrivateRange.column?
         (column + PerApplicationPackage.addedPrivateColumnCount program) = none := by

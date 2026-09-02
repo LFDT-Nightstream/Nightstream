@@ -60,13 +60,13 @@ def laterPoseidonBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem laterPoseidonBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).slotCount = 662458 := by
+    (laterPoseidonBlock program).slotCount = 667102 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_slotCount,
     PoseidonRetainedBlock.laterBlock_slotCount]
 
 @[simp] theorem laterPoseidonBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).coordinateCount = 27160778 := by
+    (laterPoseidonBlock program).coordinateCount = 27351182 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_coordinateCount,
     PoseidonRetainedBlock.laterBlock_coordinateCount]
 
@@ -126,7 +126,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 180537786 := by
+    prefixLogicalWidth program = 192090438 := by
   unfold prefixLogicalWidth productOutputStart productInputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart

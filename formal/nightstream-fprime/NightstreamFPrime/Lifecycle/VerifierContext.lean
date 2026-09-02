@@ -89,7 +89,7 @@ def descriptor (authority : Authority) : Descriptor where
 `b = 2`, `k_rho = 16`, `B = 2^16`, and every Stage 1 PiCCS dimension. -/
 def profileWords : List F :=
   ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, 14,
-      cubeVariables, 9, 54, 18] :
+      cubeVariables, 9, 54, productionProfile.commitmentWidth] :
     List Nat).map Poseidon2.ofNat
 
 /-- Fixed digest-only PiCCS schedule descriptor: state digest, fresh source,

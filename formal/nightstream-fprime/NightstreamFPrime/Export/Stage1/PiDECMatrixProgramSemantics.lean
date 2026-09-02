@@ -28,7 +28,7 @@ theorem publicSchedule_index? (index : Fin 22680) :
       some (PiDECStarts.publicInputRowStart + index.val) := by
   simp [publicSchedule, index.isLt]
 
-theorem commitmentSchedule_index? (index : Fin 972) :
+theorem commitmentSchedule_index? (index : Fin 1188) :
     commitmentSchedule.index? index.val =
       some (PiDECStarts.commitmentRowStart + index.val) := by
   simp [commitmentSchedule, index.isLt]
@@ -90,7 +90,7 @@ def commitmentDirectForms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 972) :
+    (geometry : Geometry program logicalWidth) (index : Fin 1188) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiDECDirectPlan.sourceMap geometry)
     (oneColumn geometry)
@@ -136,7 +136,7 @@ theorem commitmentPlan_forms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 972) :
+    (geometry : Geometry program logicalWidth) (index : Fin 1188) :
     (PiDECDirectPlan.commitmentPlan relation geometry).forms index =
       (commitmentDirectForms relation geometry index).meaningfulForm := by
   simpa only [PiDECDirectPlan.commitmentPlan, commitmentDirectForms,
@@ -208,7 +208,7 @@ theorem commitmentBlock_row?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 972)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin 1188)
     (loaded : sourceRow (PiDECStarts.commitmentRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow program
         (PiDECOrdinaryDirectSource.commitmentProgramRow relation index))) :
@@ -314,17 +314,17 @@ theorem commitmentProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 972,
+    (loaded : ∀ index : Fin 1188,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))
     (index : Fin (PiDECDirectPlan.commitmentPlan relation geometry).rowCount) :
     (commitmentProgram geometry).row? logicalWidth sourceRow index.val =
       some ((PiDECDirectPlan.commitmentPlan relation geometry).forms index) := by
-  change Fin 972 at index
+  change Fin 1188 at index
   have blockBound : index.val <
       (MatrixProgram.Block.ordinary (commitmentBlock geometry)).rowCount := by
-    change index.val < 972
+    change index.val < 1188
     exact index.isLt
   rw [show commitmentProgram geometry =
       MatrixProgram.Program.mk [.ordinary (commitmentBlock geometry)] by rfl]
@@ -455,7 +455,7 @@ theorem recompositionProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loadedCommitment : ∀ index : Fin 972,
+    (loadedCommitment : ∀ index : Fin 1188,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))
@@ -495,7 +495,7 @@ theorem matrixProgram_row?
       sourceRow (PiDECStarts.publicInputRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.publicProgramRow relation index)))
-    (loadedCommitment : ∀ index : Fin 972,
+    (loadedCommitment : ∀ index : Fin 1188,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))

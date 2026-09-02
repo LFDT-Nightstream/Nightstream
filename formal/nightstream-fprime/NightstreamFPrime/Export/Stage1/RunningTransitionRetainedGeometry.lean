@@ -54,12 +54,12 @@ def completeLogicalWidth
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 200597938 := by
+    completeLogicalWidth program = 213576406 := by
   unfold completeLogicalWidth freshStart piDecStart roundC1Start roundC0Start
     outputStart stateStart
   rw [PiCCSActionPayloadBlock.logicalWidth_eq]
-  change 185542820 + 11 * 41 + 45937 * 41 + 28 * 41 + 28 * 41 +
-    45792 * 41 + 275402 * 41 = 200597938
+  change 197387720 + 11 * 41 + 49393 * 41 + 28 * 41 + 28 * 41 +
+    49248 * 41 + 296138 * 41 = 213576406
   norm_num
 
 theorem completeLogicalWidth_le_cube

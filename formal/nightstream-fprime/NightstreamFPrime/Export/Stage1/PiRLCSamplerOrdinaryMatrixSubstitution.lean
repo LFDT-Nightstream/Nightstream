@@ -117,14 +117,14 @@ theorem selectorSourceStart_eq :
   simpa [selectorSourceStart, logicalSourceStart] using affine
 
 theorem freshSourceStart_eq :
-    freshSourceStart = logicalSourceStart + 311630 := by
+    freshSourceStart = logicalSourceStart + 315302 := by
   have startEq : PiRLCStarts.samplerFreshStart =
-      PiRLCStarts.samplerLogicalStart + 592 + 311630 := by
+      PiRLCStarts.samplerLogicalStart + 592 + 315302 := by
     unfold PiRLCStarts.samplerFreshStart
     rw [PiRLCStarts.phaseFreshStart_eq]
     rfl
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal
-    (PiRLCStarts.samplerLogicalStart + 592) 311630 (by
+    (PiRLCStarts.samplerLogicalStart + 592) 315302 (by
       exact Nat.le_trans samplerLogical_after_piCcs (by omega))
   unfold freshSourceStart logicalSourceStart
   rw [startEq]

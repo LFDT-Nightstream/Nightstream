@@ -5,9 +5,9 @@ import NightstreamFPrime.Lifecycle.Stage1.Interface
 Owns the first complete opaque-child order for the Stage 1 augmented circuit.
 
 This file proves exact offsets, aggregate footprints, coverage, and soundness
-for arbitrary satisfying assignments. It does not yet export the final
-`Stage1.circuit`: that requires the base/recursive completeness proof and the
-cross-phase relation theorem in `Soundness.lean`.
+for arbitrary satisfying assignments. It also owns the sole Stage 1 logical
+`FormalCircuit`. The physical layout supplies its proof-only root completion;
+that proof does not change the circuit operations or semantic predicate.
 
 HyperNova's terminal checks are outside `F'`. They are therefore not an
 operation in this circuit. `Stage1.Terminal` owns that outer verifier boundary.
@@ -347,5 +347,74 @@ theorem opsAt_coverage
     (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
     (opsAt relation ajtai program interface template offset).length = 7 := by
   rfl
+
+/-- Proof-only evidence that the exact seven-child parent can be completed at
+one verifier-owned root. Layout constructs this record from the canonical
+wire placement. It does not select or change the circuit. -/
+structure RootCompleteness
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat) : Prop where
+  complete : ∀ env,
+    Assumptions relation ajtai program interface template root env →
+    SpecHolds relation ajtai program interface template root env →
+    ∃ completed : Sequence.Prefix env root,
+      completed.operations = Circuit.ops
+        (main relation ajtai program interface template) root ∧
+      root + localLength completed.operations =
+        finalOffset relation ajtai program interface template root
+
+/-- The sole proved logical Stage 1 circuit. The root and completion proof are
+fixed by the verifier-owned Lean layout before package emission. -/
+noncomputable def circuit
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat)
+    (completion : RootCompleteness relation ajtai program interface template
+      root) : FormalCircuit where
+  main := main relation ajtai program interface template
+  assumptions := fun offset env =>
+    offset = root ∧
+      Assumptions relation ajtai program interface template offset env
+  spec := SpecHolds relation ajtai program interface template
+  privateCount := logicalPrivateCount relation ajtai program interface template
+  rowCount := logicalRowCount relation ajtai program interface template
+  privateCount_eq := localLength_eq relation ajtai program interface template
+  rowCount_eq := flatConstraints_length_eq relation ajtai program interface
+    template
+  soundness := by
+    intro env offset assumptions rows
+    exact soundness relation ajtai program interface template offset env
+      assumptions.2 rows
+  completeness := by
+    intro env offset assumptions specification
+    rcases assumptions with ⟨offsetEq, childAssumptions⟩
+    subst offset
+    rcases completion.complete env childAssumptions specification with
+      ⟨completed, operationsEq, _endEq⟩
+    refine ⟨completed.current, ?_, ?_⟩
+    · rw [← operationsEq]
+      exact completed.agrees
+    · rw [← operationsEq]
+      exact completed.rows
+
+/-- The exported circuit contains each of the seven Stage 1 children exactly
+once in protocol order. -/
+theorem circuit_coverage
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat)
+    (completion : RootCompleteness relation ajtai program interface template
+      root) :
+    (Circuit.ops
+      (circuit relation ajtai program interface template root completion).main
+      root).length = 7 := by
+  exact opsAt_coverage relation ajtai program interface template root
 
 end NightstreamFPrime.Lifecycle.Stage1

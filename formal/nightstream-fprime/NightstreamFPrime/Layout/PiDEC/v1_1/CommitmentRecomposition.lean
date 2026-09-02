@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 
 /-!
-Owns the typed physical footprint for the 18×54 PiDEC commitment
+Owns the typed physical footprint for the 22×54 PiDEC commitment
 recomposition family. It selects no evaluation family and adds no copy row.
 -/
 
@@ -55,7 +55,7 @@ def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 972
+  physicalRowCount := fun _ => 1188
   freshColumnCount_eq := by
     intro offset
     exact PiDEC.v1_1.RadixRecomposition.freshColumnCount_eq
@@ -68,7 +68,7 @@ def footprint (interface : Logical.Interface)
           Logical.coordinateCount :=
         PiDEC.v1_1.RadixRecomposition.physicalRowCount_eq
           (Logical.scalarInterface interface) (scalarInputs interface inputs) offset
-      _ = 972 :=
+      _ = 1188 :=
         NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq
 
 theorem freshColumnCount_eq (interface : Logical.Interface)
@@ -80,7 +80,7 @@ theorem freshColumnCount_eq (interface : Logical.Interface)
 theorem physicalRowCount_eq (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) (offset : Nat) :
     R1CS.totalRowCount
-      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = 972 :=
+      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = 1188 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)

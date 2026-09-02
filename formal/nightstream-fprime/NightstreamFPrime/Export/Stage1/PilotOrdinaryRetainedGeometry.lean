@@ -32,7 +32,7 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 255046225 := by
+    completeLogicalWidth program = 252435837 := by
   unfold completeLogicalWidth outputDigestStart canonicalFreshStart
     canonicalLocalStart prefixLogicalWidth
   rw [PiCCSOrdinaryRetainedGeometry.completeLogicalWidth_eq]

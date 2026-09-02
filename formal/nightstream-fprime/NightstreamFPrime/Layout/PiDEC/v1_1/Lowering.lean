@@ -147,7 +147,7 @@ theorem physicalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalRowCount relation interface offset = 25272 := by
+    physicalRowCount relation interface offset = 25488 := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq relation interface offset inputs
 

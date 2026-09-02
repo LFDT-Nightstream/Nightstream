@@ -503,7 +503,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
       (tailAssertion_mem interface offset lane)
   exact spec_of_parts interface offset env hashSpec wordSpecs marker tail
 
-private theorem spec_preserved_below (interface : Interface) (offset : Nat)
+theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
     (specification : SpecHolds interface offset before) :
@@ -662,7 +662,7 @@ private theorem appendWord
     exact before.agrees index (Or.inl below)
   have currentAssumptions : Assumptions interface offset before.current :=
     initialAssumptions
-  have currentSpecification := spec_preserved_below interface offset
+  have currentSpecification := specHolds_of_agree_below interface offset
     initial before.current initialAssumptions agreesBelow initialSpecification
   have currentHash := prefixHashSpec interface offset initial before
     currentAssumptions hashMember
@@ -781,7 +781,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
   have agreesBelow : ∀ index, index < offset → after3.current index = env index := by
     intro index below
     exact after3.agrees index (Or.inl below)
-  have completedSpecification := spec_preserved_below interface offset env
+  have completedSpecification := specHolds_of_agree_below interface offset env
     after3.current assumptions agreesBelow specification
   refine ⟨after3.current, ?_, ?_⟩
   · have fullLength : localLength (Circuit.ops (main interface) offset) =

@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.CompactRows
 import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.NextPreimagePackage
 import NightstreamFPrime.Export.Stage1.TerminalPackage
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 
@@ -19,6 +20,7 @@ namespace NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
@@ -30,12 +32,89 @@ def applicationLocal : Nat := 18
 
 end Role
 
-def basePackage : CircuitPackage := Data.circuitPackage ()
+def basePackage (_delay : Unit := ()) : CircuitPackage := Data.circuitPackage ()
 
 /-- Exact application plan whose rows start after the validated prefix. -/
 def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
   ApplicationPackage.productionPlan program basePackage.layout.rowCount
+
+/-- Closed-form executable plan. The reference definition above remains the
+package authority. -/
+def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
+    ApplicationPackage.Plan :=
+  ApplicationPackage.productionPlan program 29218024
+
+theorem directApplicationPlan_eq_applicationPlan
+    (program : Lifecycle.Stage1.Application.Program) :
+    directApplicationPlan program = applicationPlan program := by
+  unfold directApplicationPlan applicationPlan basePackage
+  rw [Data.circuitPackage_layout]
+  rfl
+
+@[csimp] theorem applicationPlan_eq_directApplicationPlan :
+    @applicationPlan = @directApplicationPlan := by
+  funext program
+  exact (directApplicationPlan_eq_applicationPlan program).symm
+
+/-- Count only the physical application rows. This avoids constructing,
+lowering, and classifying the complete row list when geometry needs only its
+length. -/
+def directApplicationRowCount
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  R1CS.totalRowCount
+    (ApplicationPackage.constraints program
+      (ApplicationPackage.productionColumns program)
+      (Layout.Stage1.ApplicationInputs.localStart program))
+
+theorem directApplicationRowCount_eq_plan
+    (program : Lifecycle.Stage1.Application.Program) :
+    directApplicationRowCount program =
+      (directApplicationPlan program).rowCount := by
+  unfold directApplicationRowCount directApplicationPlan
+  rw [ApplicationPackage.productionPlan_rowCount]
+  unfold ApplicationPackage.compiledRows
+  rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq,
+    R1CS.lowerConstraints_rows_length]
+
+/-- Count only application-owned private columns. Geometry does not need the
+compiled rows, witness instructions, or assertion partition. -/
+def directApplicationPrivateCount
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  let operations := ApplicationPackage.operations program
+    (ApplicationPackage.productionColumns program)
+    (Layout.Stage1.ApplicationInputs.localStart program)
+  localLength operations +
+    R1CS.totalFreshCount (flatConstraints operations)
+
+theorem directApplicationPrivateCount_eq_plan
+    (program : Lifecycle.Stage1.Application.Program) :
+    directApplicationPrivateCount program =
+      (directApplicationPlan program).privateCount := by
+  unfold directApplicationPrivateCount directApplicationPlan
+  rw [ApplicationPackage.productionPlan_privateCount]
+  rfl
+
+def nextPreimageRowStart
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  basePackage.layout.rowCount + (applicationPlan program).rowCount
+
+def directNextPreimageRowStart
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  29218024 + directApplicationRowCount program
+
+theorem directNextPreimageRowStart_eq_nextPreimageRowStart
+    (program : Lifecycle.Stage1.Application.Program) :
+    directNextPreimageRowStart program = nextPreimageRowStart program := by
+  unfold directNextPreimageRowStart nextPreimageRowStart basePackage
+  rw [directApplicationRowCount_eq_plan,
+    directApplicationPlan_eq_applicationPlan, Data.circuitPackage_layout]
+  rfl
+
+@[csimp] theorem nextPreimageRowStart_eq_directNextPreimageRowStart :
+    @nextPreimageRowStart = @directNextPreimageRowStart := by
+  funext program
+  exact (directNextPreimageRowStart_eq_nextPreimageRowStart program).symm
 
 /-- New caller-owned witness words plus every application-generated private
 column. -/
@@ -43,12 +122,45 @@ def addedPrivateColumnCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   program.witnessWordCount + (applicationPlan program).privateCount
 
+def directAddedPrivateColumnCount
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  program.witnessWordCount + directApplicationPrivateCount program
+
+theorem directAddedPrivateColumnCount_eq_addedPrivateColumnCount
+    (program : Lifecycle.Stage1.Application.Program) :
+    directAddedPrivateColumnCount program = addedPrivateColumnCount program := by
+  unfold directAddedPrivateColumnCount addedPrivateColumnCount
+  rw [directApplicationPrivateCount_eq_plan,
+    directApplicationPlan_eq_applicationPlan]
+
+@[csimp] theorem addedPrivateColumnCount_eq_directAddedPrivateColumnCount :
+    @addedPrivateColumnCount = @directAddedPrivateColumnCount := by
+  funext program
+  exact (directAddedPrivateColumnCount_eq_addedPrivateColumnCount program).symm
+
 /-- Existing private columns stay fixed. The former constant and every public
 column move after the application-private suffix. -/
 def shiftColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) : Nat :=
   if column < basePackage.layout.constantColumn then column
   else column + addedPrivateColumnCount program
+
+def directShiftColumn (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) : Nat :=
+  if column < Data.physicalLayout.constantColumn then column
+  else column + directAddedPrivateColumnCount program
+
+theorem directShiftColumn_eq_shiftColumn
+    (program : Lifecycle.Stage1.Application.Program) (column : Nat) :
+    directShiftColumn program column = shiftColumn program column := by
+  unfold directShiftColumn shiftColumn basePackage
+  rw [directAddedPrivateColumnCount_eq_addedPrivateColumnCount,
+    Data.circuitPackage_layout]
+
+@[csimp] theorem shiftColumn_eq_directShiftColumn :
+    @shiftColumn = @directShiftColumn := by
+  funext program column
+  exact (directShiftColumn_eq_shiftColumn program column).symm
 
 def baseEnv (program : Lifecycle.Stage1.Application.Program)
     (env : Env) : Env :=
@@ -183,7 +295,7 @@ def applicationLocalSegment
 
 def finalLayout (program : Lifecycle.Stage1.Application.Program) :
     PhysicalLayout where
-  rowCount := basePackage.layout.rowCount + (applicationPlan program).rowCount
+  rowCount := nextPreimageRowStart program + 5
   privateColumnCount :=
     basePackage.layout.privateColumnCount + addedPrivateColumnCount program
   constantColumn :=
@@ -194,6 +306,68 @@ def finalLayout (program : Lifecycle.Stage1.Application.Program) :
   privateSegments := basePackage.layout.privateSegments ++
     [applicationWitnessSegment program, applicationLocalSegment program]
   publicSegments := basePackage.layout.publicSegments.map (shiftSegment program)
+
+def directApplicationWitnessSegment
+    (program : Lifecycle.Stage1.Application.Program) : Segment :=
+  ⟨Role.applicationWitness, Data.physicalLayout.constantColumn,
+    program.witnessWordCount⟩
+
+def directApplicationLocalSegment
+    (program : Lifecycle.Stage1.Application.Program) : Segment :=
+  ⟨Role.applicationLocal, (directApplicationPlan program).privateStart,
+    (directApplicationPlan program).privateCount⟩
+
+def directShiftSegment (program : Lifecycle.Stage1.Application.Program)
+    (segment : Segment) : Segment :=
+  ⟨segment.role, directShiftColumn program segment.start, segment.length⟩
+
+def directFinalLayout (program : Lifecycle.Stage1.Application.Program) :
+    PhysicalLayout where
+  rowCount := directNextPreimageRowStart program + 5
+  privateColumnCount := Data.physicalLayout.privateColumnCount +
+    directAddedPrivateColumnCount program
+  constantColumn := Data.physicalLayout.constantColumn +
+    directAddedPrivateColumnCount program
+  publicColumnCount := Data.physicalLayout.publicColumnCount
+  totalColumnCount := Data.physicalLayout.totalColumnCount +
+    directAddedPrivateColumnCount program
+  privateSegments := Data.physicalLayout.privateSegments ++
+    [directApplicationWitnessSegment program,
+      directApplicationLocalSegment program]
+  publicSegments := Data.physicalLayout.publicSegments.map
+    (directShiftSegment program)
+
+theorem directApplicationWitnessSegment_eq_applicationWitnessSegment
+    (program : Lifecycle.Stage1.Application.Program) :
+    directApplicationWitnessSegment program = applicationWitnessSegment program := by
+  unfold directApplicationWitnessSegment applicationWitnessSegment basePackage
+  rw [Data.circuitPackage_layout]
+
+theorem directApplicationLocalSegment_eq_applicationLocalSegment
+    (program : Lifecycle.Stage1.Application.Program) :
+    directApplicationLocalSegment program = applicationLocalSegment program := by
+  unfold directApplicationLocalSegment applicationLocalSegment
+  rw [directApplicationPlan_eq_applicationPlan]
+
+theorem directShiftSegment_eq_shiftSegment
+    (program : Lifecycle.Stage1.Application.Program) (segment : Segment) :
+    directShiftSegment program segment = shiftSegment program segment := by
+  unfold directShiftSegment shiftSegment
+  rw [directShiftColumn_eq_shiftColumn]
+
+theorem directFinalLayout_eq_finalLayout
+    (program : Lifecycle.Stage1.Application.Program) :
+    directFinalLayout program = finalLayout program := by
+  have shiftSegments :
+      directShiftSegment program = shiftSegment program := by
+    funext segment
+    exact directShiftSegment_eq_shiftSegment program segment
+  unfold directFinalLayout finalLayout
+  rw [directNextPreimageRowStart_eq_nextPreimageRowStart,
+    directAddedPrivateColumnCount_eq_addedPrivateColumnCount,
+    directApplicationWitnessSegment_eq_applicationWitnessSegment,
+    directApplicationLocalSegment_eq_applicationLocalSegment,
+    shiftSegments, basePackage, Data.circuitPackage_layout]
 
 /-- One complete package for one selected application. Application rows are
 ordinary rows because `Program.circuit` is the semantic authority; Rust does
@@ -219,8 +393,9 @@ def package (program : Lifecycle.Stage1.Application.Program) : CircuitPackage :=
       plan.witnessBatches
     witnessInstructions := basePackage.witnessInstructions.map
       (shiftWitnessInstruction program) ++ plan.witnessInstructions
-    assertionRows := basePackage.assertionRows.map (shiftSparseRow program) ++
-      plan.assertionRows
+    assertionRows := (basePackage.assertionRows.map (shiftSparseRow program) ++
+      plan.assertionRows) ++
+        NextPreimagePackage.assertionRows (nextPreimageRowStart program)
     terminal := none }
 
 def structuralPackageIdentity
@@ -383,7 +558,7 @@ theorem applicationPlan_wellFormed
 theorem package_rowCount
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount =
-      basePackage.layout.rowCount + (applicationPlan program).rowCount := by
+      basePackage.layout.rowCount + (applicationPlan program).rowCount + 5 := by
   rfl
 
 theorem package_privateColumnCount
@@ -466,8 +641,10 @@ theorem package_witnessInstructions
 theorem package_assertionRows
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).assertionRows =
-      basePackage.assertionRows.map (shiftSparseRow program) ++
-        (applicationPlan program).assertionRows := by
+      (basePackage.assertionRows.map (shiftSparseRow program) ++
+        (applicationPlan program).assertionRows) ++
+          NextPreimagePackage.assertionRows
+            (nextPreimageRowStart program) := by
   rfl
 
 /-- Any satisfying final-package assignment obeys the exact selected
@@ -491,6 +668,7 @@ theorem packageRows_imply_applicationHolds
     intro assertion member
     exact holds.2.2.2.2 assertion (by
       rw [package_assertionRows]
+      apply List.mem_append_left
       exact List.mem_append_right _ member)
   have assumptions := program.assumptions
     (Layout.Stage1.ApplicationInputs.interface program)
@@ -527,8 +705,54 @@ theorem packageRows_imply_baseOrdinaryRows
       holds.2.2.2.2 _ (by
         rw [package_assertionRows]
         apply List.mem_append_left
+        apply List.mem_append_left
         exact List.mem_map_of_mem member)
     exact (shiftSparseRow_holds program assertion env).mp shifted
+
+/-- The five per-application parent-wiring rows force the exact next-preimage
+counter and initial-state equations. -/
+theorem packageRows_imply_nextPreimageSpec
+    (program : Lifecycle.Stage1.Application.Program) (env : Env)
+    (holds : (package program).RowsHold env) :
+    Lifecycle.Stage1.NextPreimage.SpecHolds
+      Layout.Stage1.NextPreimageInputs.sourceInterface
+      Layout.Stage1.RunningTransitionInputs.phaseOffset
+      (Layout.Stage1.Spartan.pullback env) := by
+  let rowStart := nextPreimageRowStart program
+  let rows := NextPreimagePackage.compiledRows rowStart
+  have instructions : ∀ instruction ∈
+      Rows.witnessInstructionsTR rows, instruction.Holds env := by
+    intro instruction member
+    have empty : Rows.witnessInstructionsTR rows = [] := by
+      simpa [rows, rowStart, NextPreimagePackage.witnessInstructions] using
+        NextPreimagePackage.witnessInstructions_eq_nil rowStart
+    rw [empty] at member
+    contradiction
+  have assertions : ∀ assertion ∈ Rows.assertionRowsTR rows,
+      assertion.Holds env := by
+    intro assertion member
+    exact holds.2.2.2.2 assertion (by
+      rw [package_assertionRows]
+      apply List.mem_append_right
+      simpa [rows, rowStart, NextPreimagePackage.assertionRows] using member)
+  have compiled : R1CS.RowsHold env
+      (rows.map Rows.CompiledRow.toR1CS) :=
+    (Rows.compiledRows_hold_iff rows env).mpr ⟨instructions, assertions⟩
+  have sourceRows : R1CS.RowsHold env NextPreimagePackage.sourceRows := by
+    rw [NextPreimagePackage.sourceRows_eq,
+      ← NextPreimagePackage.compiledRows_toR1CS rowStart]
+    exact compiled
+  have spartanSpec := NextPreimagePackage.sourceRows_imply_spec env sourceRows
+  have sourceSpec :=
+    (Layout.Stage1.NextPreimageInputs.spartanSpec_iff_sourceSpec
+      NextPreimagePackage.privateStart env).mp spartanSpec
+  refine {
+    iteration := ?_
+    initialState := fun index => ?_ }
+  · simpa [Layout.Stage1.NextPreimageInputs.sourceInterface] using
+      sourceSpec.iteration
+  · simpa [Layout.Stage1.NextPreimageInputs.sourceInterface] using
+      sourceSpec.initialState index
 
 @[simp] theorem authority_relationWords
     (program : Lifecycle.Stage1.Application.Program)
@@ -573,11 +797,49 @@ theorem verificationKeyBinding_context
       verifierContextDescriptor program nifsKeyWords commitmentKeyWords := by
   rfl
 
+@[simp] theorem basePackage_rowCount_eq :
+    basePackage.layout.rowCount = 29218024 := by
+  rw [basePackage, Data.circuitPackage_layout]
+  rfl
+
+@[simp] theorem basePackage_totalColumnCount_eq :
+    basePackage.layout.totalColumnCount = 29336725 := by
+  rw [basePackage, Data.circuitPackage_layout]
+  rfl
+
+/-- Exact application-only physical row budget in the `2^28` package. -/
+theorem package_rowCount_le_twoPow28_iff
+    (program : Lifecycle.Stage1.Application.Program) :
+    (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
+      (applicationPlan program).rowCount ≤ 239217427 := by
+  rw [package_rowCount, basePackage_rowCount_eq]
+  norm_num [Lifecycle.cubeVariables]
+  omega
+
+/-- Exact application-only private-column budget in the `2^28` package. -/
+theorem package_totalColumnCount_le_twoPow28_iff
+    (program : Lifecycle.Stage1.Application.Program) :
+    (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
+      addedPrivateColumnCount program ≤ 239098731 := by
+  rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
+  norm_num [Lifecycle.cubeVariables]
+  omega
+
 /-- Exact finite bounds that one concrete application must discharge. -/
 structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop where
   rows : (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables
   columns : (package program).layout.totalColumnCount ≤
     2 ^ Lifecycle.cubeVariables
+
+/-- Construct the physical package fit from application-only row and private
+column bounds. -/
+def fitsTwoPow28OfApplicationBounds
+    (program : Lifecycle.Stage1.Application.Program)
+    (rows : (applicationPlan program).rowCount ≤ 239217427)
+    (columns : addedPrivateColumnCount program ≤ 239098731) :
+    FitsTwoPow28 program where
+  rows := (package_rowCount_le_twoPow28_iff program).2 rows
+  columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns
 
 def jointDomain (program : Lifecycle.Stage1.Application.Program) : Nat :=
   max (package program).layout.rowCount

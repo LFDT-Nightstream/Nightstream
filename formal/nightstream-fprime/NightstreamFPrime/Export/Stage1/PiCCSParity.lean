@@ -95,7 +95,8 @@ def assuranceValue (computed : Computed) : Value :=
 Order: prior preimage, output preimage, prior public input, output digest,
 verifier context, fresh commitment, round messages, output `Eval_K`, output
 `Eval_A`, complete digest-only transcript blocks, semantic verifier-input
-blocks, and the four complete verifier-context authority word lists. -/
+blocks. The production verifier recomputes the context from the canonical
+sealed package and fixed setup; the fixture does not duplicate that authority. -/
 def inputValue (computed : Computed) : Value :=
   .array [fieldWordsValue (statePreimageWords ()),
     fieldWordsValue (statePreimageWords ()),
@@ -107,11 +108,7 @@ def inputValue (computed : Computed) : Value :=
     outputEval_KValue,
     outputEval_AValue,
     fieldBlocksValue (ProductionKey.publicInputBlocks running fresh),
-    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput),
-    fieldBlocksValue [fixtureContextAuthority.relationWords,
-      fixtureContextAuthority.applicationWords,
-      fixtureContextAuthority.nifsKeyWords,
-      fixtureContextAuthority.commitmentKeyWords]]
+    fieldBlocksValue (Transcript.verifierInputBlocks verifierInput)]
 
 /-- Complete verifier result tuple.
 
@@ -138,11 +135,11 @@ def resultValue (computed : Computed) : Value :=
     stateValue computed.outgoingState,
     assuranceValue computed]
 
-/-- Schema 7 adds the complete authority preimage used to derive the separate
-verifier-owned context input. -/
+/-- Schema 8 binds the context through the separately loaded canonical
+production package and removes the old fixture-owned authority duplicate. -/
 def parityValue (_ : Unit) : Value :=
   let computed := compute ()
-  .array [.atom 7, inputValue computed, resultValue computed]
+  .array [.atom 8, inputValue computed, resultValue computed]
 
 def render (_ : Unit) : String := (parityValue ()).render
 

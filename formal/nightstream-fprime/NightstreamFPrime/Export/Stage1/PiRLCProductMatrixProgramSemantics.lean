@@ -372,27 +372,27 @@ theorem previousInvocation_eq
   have sourceNonzero : source.val ≠ 0 := notFirst
   cases family
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change (972 * source.val +
-        (CombinationStep.indexOf block lane cell).val) - 972 =
-      972 * (source.val - 1) +
+    change (1188 * source.val +
+        (CombinationStep.indexOf block lane cell).val) - 1188 =
+      1188 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 16524 + (270 * source.val +
+    change 20196 + (270 * source.val +
         (CombinationStep.indexOf block lane cell).val) - 270 =
-      16524 + (270 * (source.val - 1) +
+      20196 + (270 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 16524 + (4590 + (108 * source.val +
+    change 20196 + (4590 + (108 * source.val +
         (CombinationStep.indexOf block lane cell).val)) - 108 =
-      16524 + (4590 + (108 * (source.val - 1) +
+      20196 + (4590 + (108 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val))
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 16524 + (4590 + (1836 + (1512 * source.val +
+    change 20196 + (4590 + (1836 + (1512 * source.val +
         (CombinationStep.indexOf block lane cell).val))) - 1512 =
-      16524 + (4590 + (1836 + (1512 * (source.val - 1) +
+      20196 + (4590 + (1836 + (1512 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)))
     omega
 
@@ -505,7 +505,7 @@ theorem block_row?
   have bound : ordinal < (block geometry).rowCount := by
     rw [block_rowCount]
     dsimp only [ordinal]
-    have invocationBound : descriptor.invocation.val < 48654 := by
+    have invocationBound : descriptor.invocation.val < 52326 := by
       simpa using descriptor.invocation.isLt
     omega
   have quotient : ordinal / 34 = descriptor.invocation.val := by
@@ -564,7 +564,7 @@ theorem matrixProgram_invocation_row?
       (MatrixProgram.Block.phi81Product (block geometry)).rowCount := by
     change invocation.val * 34 + localRow.val < (block geometry).rowCount
     rw [block_rowCount]
-    have invocationBound : invocation.val < 48654 := by
+    have invocationBound : invocation.val < 52326 := by
       simpa using invocation.isLt
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk

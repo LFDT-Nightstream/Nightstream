@@ -57,12 +57,12 @@ theorem specHolds_implies_holds
 
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
-  4400262 + productionShape.cubeVariables *
+  4432230 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
-  4400480 + productionShape.cubeVariables *
+  4432448 + productionShape.cubeVariables *
     RoundTranscript.perRoundRecipeCount degreeBound
 
 private theorem transcriptPrefix_localLength_eq
@@ -72,7 +72,7 @@ private theorem transcriptPrefix_localLength_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
-      243904 + productionShape.cubeVariables *
+      275872 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
@@ -118,7 +118,7 @@ private theorem transcriptPrefix_rowCount_eq
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
       (transcriptPrefixOps interface offset) =
-      244064 + productionShape.cubeVariables *
+      276032 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound := by
   simp only [transcriptPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
@@ -207,13 +207,13 @@ theorem flatConstraints_length_eq
   omega
 
 theorem privateCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4549446 := by
+    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4581414 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4549664 := by
+    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4581632 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]

@@ -73,10 +73,10 @@ theorem inputColumn_value
 
 theorem outputColumn_value
     (index : Lifecycle.Stage1.Application.StateIndex) :
-    outputColumn index = 45972 + index.val := by
+    outputColumn index = 49428 + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change Spartan.sourceToSpartan (46242 + index.val) = 45972 + index.val
+  change Spartan.sourceToSpartan (49698 + index.val) = 49428 + index.val
   unfold Spartan.sourceToSpartan
   rw [if_pos (by
     norm_num [Spartan.pilotSourceColumnCount]
@@ -87,7 +87,7 @@ theorem outputColumn_value
   rw [if_pos (by rw [PilotSpartan.outputDigestStart_value]; omega)]
   rw [PilotSpartan.secondPrivateStart_value,
     PilotSpartan.outputPreimageStart_value]
-  have difference : 46242 + index.val - 46207 = 35 + index.val := by omega
+  have difference : 49698 + index.val - 49663 = 35 + index.val := by omega
   rw [difference]
   unfold Spartan.liftPilotColumn
   rw [if_pos (by

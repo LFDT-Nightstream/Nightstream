@@ -578,10 +578,10 @@ private theorem sourceConstraint_freshCount_of_production
       lane cell constraintEq
 
 private theorem commitmentSourceFreshCount
-    (source : Fin sourceCount) (block : Fin 18) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 22) (lane : Fin ringDegree)
     (cell : Fin 1) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source.val
+        (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source.val
           block.val cell.val commitmentValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -681,7 +681,7 @@ private theorem evalASourceFreshCount
 canonical compact invocation families. -/
 structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
   commitment : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
-    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
+    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
     commitmentValueSourceStart env
   publicInput : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
     PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 5 1 1
@@ -735,7 +735,7 @@ theorem remappedPackets_imply_familyInvocationRows
   rw [← evalAFamilyConstraints_eq_parent] at evalARows
   refine ⟨?_, ?_, ?_, ?_⟩
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 18) (cellCount := 1)
+      (blockCount := 22) (cellCount := 1)
       PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
       PiRLCStarts.commitmentFreshStart 1 commitmentValueSourceStart
       commitmentFreshStart_local commitmentSourceFreshCount ?_ env

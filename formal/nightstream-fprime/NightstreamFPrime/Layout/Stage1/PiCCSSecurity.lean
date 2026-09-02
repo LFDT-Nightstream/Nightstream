@@ -191,8 +191,9 @@ theorem no_valid_trailing_extension
 
 /-- Digest-only committed-statement reduction through the complete verifier
 challenge view. Equal context and state digests plus equal derived PiCCS coins
-identify the canonical context, full running statement, and exact statement
-and round-message replay input, unless one named collision event occurred. -/
+identify the canonical context, full running statement, and exact absorbed
+prior-state-and-round-message replay authority, unless one named collision
+event occurred. -/
 theorem committed_statement_challenges_identify_or_failure
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -216,7 +217,7 @@ theorem committed_statement_challenges_identify_or_failure
     (roundPointEqual : (leftReplay.derive oracle).roundPoint =
       (rightReplay.derive oracle).roundPoint) :
     (leftContext = rightContext ∧ leftState = rightState ∧
-      leftReplay = rightReplay) ∨
+      leftReplay.authority = rightReplay.authority) ∨
       ContextDigestCollision leftContext rightContext ∨
       StateHashCollision leftState rightState ∨
       TranscriptReplay.TranscriptReplayCollision oracle leftReplay rightReplay := by
@@ -224,7 +225,7 @@ theorem committed_statement_challenges_identify_or_failure
       leftContext rightContext contextDigestEqual with contextSame | contextFailure
   · rcases stateHash_identifies_statement_or_collision leftState rightState
         leftWellFormed rightWellFormed stateDigestEqual with stateSame | stateFailure
-    · rcases TranscriptReplay.replay_eq_or_challenge_collision oracle
+    · rcases TranscriptReplay.authority_eq_or_challenge_collision oracle
           leftReplay rightReplay alphaEqual gammaEqual roundPointEqual with
         replaySame | replayFailure
       · exact Or.inl ⟨contextSame, stateSame, replaySame⟩
@@ -254,7 +255,7 @@ theorem committed_statement_finalState_identify_or_failure
     (finalStateEqual : (leftReplay.derive oracle).finalState =
       (rightReplay.derive oracle).finalState) :
     (leftContext = rightContext ∧ leftState = rightState ∧
-      leftReplay = rightReplay) ∨
+      leftReplay.authority = rightReplay.authority) ∨
       ContextDigestCollision leftContext rightContext ∨
       StateHashCollision leftState rightState ∨
       TranscriptReplay.TranscriptStateCollision oracle leftReplay rightReplay := by
@@ -262,7 +263,7 @@ theorem committed_statement_finalState_identify_or_failure
       leftContext rightContext contextDigestEqual with contextSame | contextFailure
   · rcases stateHash_identifies_statement_or_collision leftState rightState
         leftWellFormed rightWellFormed stateDigestEqual with stateSame | stateFailure
-    · rcases TranscriptReplay.replay_eq_or_state_collision oracle
+    · rcases TranscriptReplay.authority_eq_or_state_collision oracle
           leftReplay rightReplay finalStateEqual with replaySame | replayFailure
       · exact Or.inl ⟨contextSame, stateSame, replaySame⟩
       · exact Or.inr (Or.inr (Or.inr replayFailure))
@@ -297,7 +298,7 @@ theorem committed_authority_statement_challenges_identify_or_failure
     (roundPointEqual : (leftReplay.derive oracle).roundPoint =
       (rightReplay.derive oracle).roundPoint) :
     (leftAuthority = rightAuthority ∧ leftState = rightState ∧
-      leftReplay = rightReplay) ∨
+      leftReplay.authority = rightReplay.authority) ∨
       AuthorityComponentDigestCollision leftAuthority rightAuthority ∨
       ContextDigestCollision (VerifierContext.descriptor leftAuthority)
         (VerifierContext.descriptor rightAuthority) ∨
@@ -309,7 +310,7 @@ theorem committed_authority_statement_challenges_identify_or_failure
   · rcases stateHash_identifies_statement_or_collision leftState rightState
         leftWellFormed rightWellFormed stateDigestEqual with
         stateSame | stateFailure
-    · rcases TranscriptReplay.replay_eq_or_challenge_collision oracle
+    · rcases TranscriptReplay.authority_eq_or_challenge_collision oracle
           leftReplay rightReplay alphaEqual gammaEqual roundPointEqual with
           replaySame | replayFailure
       · exact Or.inl ⟨authoritySame, stateSame, replaySame⟩
@@ -340,7 +341,7 @@ theorem committed_authority_statement_finalState_identify_or_failure
     (finalStateEqual : (leftReplay.derive oracle).finalState =
       (rightReplay.derive oracle).finalState) :
     (leftAuthority = rightAuthority ∧ leftState = rightState ∧
-      leftReplay = rightReplay) ∨
+      leftReplay.authority = rightReplay.authority) ∨
       AuthorityComponentDigestCollision leftAuthority rightAuthority ∨
       ContextDigestCollision (VerifierContext.descriptor leftAuthority)
         (VerifierContext.descriptor rightAuthority) ∨
@@ -352,7 +353,7 @@ theorem committed_authority_statement_finalState_identify_or_failure
   · rcases stateHash_identifies_statement_or_collision leftState rightState
         leftWellFormed rightWellFormed stateDigestEqual with
         stateSame | stateFailure
-    · rcases TranscriptReplay.replay_eq_or_state_collision oracle
+    · rcases TranscriptReplay.authority_eq_or_state_collision oracle
           leftReplay rightReplay finalStateEqual with replaySame | replayFailure
       · exact Or.inl ⟨authoritySame, stateSame, replaySame⟩
       · exact Or.inr (Or.inr (Or.inr (Or.inr replayFailure)))

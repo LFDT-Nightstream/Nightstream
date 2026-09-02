@@ -90,7 +90,7 @@ theorem rowOwners_length
   calc
     _ = R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) :=
       ownersFor_length _ _
-    _ = 321303 := totalRowCount_eq relation
+    _ = 345495 := totalRowCount_eq relation
     _ = _ := (physicalRowCount_eq relation).symm
 
 theorem rowOwners_length_production
@@ -98,7 +98,7 @@ theorem rowOwners_length_production
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (rowOwners logicalWidth publicFits).length = 321303 := by
+    (rowOwners logicalWidth publicFits).length = 345495 := by
   rw [rowOwners_length relation, physicalRowCount_eq relation]
 
 def rowOwner

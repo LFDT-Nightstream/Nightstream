@@ -174,25 +174,25 @@ private theorem parent_interval {source : Nat}
   rcases support with commitment | publicInput | evalK | evalA
   · unfold PiDECSourceSupport.InRange at commitment
     rw [PiDECSourceSupport.parentCommitmentStart_eq] at commitment
-    rw [show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl,
+    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
       PiRLCStarts.phaseFreshStart_eq]
     norm_num [PiDECInputs.commitmentWordsPerChild] at commitment ⊢
     omega
   · unfold PiDECSourceSupport.InRange at publicInput
     rw [PiDECSourceSupport.parentPublicInputStart_eq] at publicInput
-    rw [show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl,
+    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
       PiRLCStarts.phaseFreshStart_eq]
     norm_num [PiDECInputs.publicInputWordsPerChild] at publicInput ⊢
     omega
   · unfold PiDECSourceSupport.InRange at evalK
     rw [PiDECSourceSupport.parentEvalKStart_eq] at evalK
-    rw [show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl,
+    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
       PiRLCStarts.phaseFreshStart_eq]
     norm_num [PiDECInputs.evalKWordsPerChild] at evalK ⊢
     omega
   · unfold PiDECSourceSupport.InRange at evalA
     rw [PiDECSourceSupport.parentEvalAStart_eq] at evalA
-    rw [show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl,
+    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
       PiRLCStarts.phaseFreshStart_eq]
     norm_num [PiDECInputs.evalAWordsPerChild] at evalA ⊢
     omega

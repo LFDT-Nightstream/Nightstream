@@ -453,7 +453,7 @@ def commitmentSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.commitmentRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := 972
+  rowCount := 1188
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := PiDECOrdinaryDirectSource.commitmentProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.commitmentProgramRows_eq relation
@@ -526,7 +526,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (commitmentPlan relation geometry).rowCount = 972 := by
+    (commitmentPlan relation geometry).rowCount = 1188 := by
   rfl
 
 @[simp] theorem evalKPlan_rowCount
@@ -595,7 +595,7 @@ def recompositionPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (recompositionPlan relation geometry).rowCount = 2592 := by
+    (recompositionPlan relation geometry).rowCount = 2808 := by
   simp [recompositionPlan]
 
 private theorem allPlans_fit
@@ -621,7 +621,7 @@ def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 25272 := by
+    (plan relation geometry).rowCount = 25488 := by
   simp [plan]
 
 /-- The PiDEC matrix plan depends on relation shape only. The logical

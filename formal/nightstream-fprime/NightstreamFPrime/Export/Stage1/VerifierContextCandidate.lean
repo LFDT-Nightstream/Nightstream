@@ -49,6 +49,29 @@ def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
 def candidatePackageIdentityWords : List F :=
   candidatePackageIdentity.toList
 
+/-- Final verifier-owned identity of the canonical
+`Poseidon2HashChainV1` package under the approved indexed Ajtai setup. -/
+def productionPackageIdentity : Lifecycle.VerifierContext.Digest4 where
+  c0 := ⟨14715010765054236145, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨2785364480572687531, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨13125420619761893675, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨2341830514818296126, by norm_num [F, goldilocksModulus]⟩
+
+def productionPackageIdentityWords : List F :=
+  productionPackageIdentity.toList
+
+/-- Final verifier-context digest recomputed from the canonical relation,
+application, NIFS key description, and approved indexed Ajtai setup. This is
+fixture input; `PerApplicationCanonicalPackage` owns its authority recipe. -/
+def productionContextDigest : Lifecycle.VerifierContext.Digest4 where
+  c0 := ⟨16645910989757723079, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨12253730763395394590, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨9553146821867740835, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨381369392357003375, by norm_num [F, goldilocksModulus]⟩
+
+def productionContextWords : List F :=
+  productionContextDigest.toList
+
 /-- Domain of the compact NIFS-key authority description. -/
 def nifsKeyDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,

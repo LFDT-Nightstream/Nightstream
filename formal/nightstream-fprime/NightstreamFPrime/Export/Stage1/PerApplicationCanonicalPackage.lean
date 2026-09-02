@@ -1,6 +1,9 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
+import NightstreamFPrime.Export.StreamingIdentity
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
+import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-!
 Owns the verifier-owned canonical package for one Lean-authored application.
@@ -31,6 +34,26 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev FitsTwoPow28 (program : Program) :=
   PerApplicationFixedPoint.FitsTwoPow28 program
 
+/-- One verifier-owned indexed setup with dimensions derived from the exact
+recursive fixed point. The setup seed is the only stored key material. -/
+abbrev CommitmentSetup (program : Program) :=
+  AjtaiSetupV1.Setup productionProfile.commitmentWidth
+    (Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth
+        (PerApplicationFixedPoint.logicalWidth program)))
+
+/-- The semantic Ajtai key and the compact authority words are projections of
+the same indexed setup. -/
+def commitmentKey {program : Program} (setup : CommitmentSetup program) :
+    AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
+      (publicFits := PerApplicationFixedPoint.publicFits program) :=
+  setup.verifierKey
+
+def commitmentKeyWords {program : Program}
+    (setup : CommitmentSetup program) : List F :=
+  setup.authorityWords
+
 /-- Exact key-facing relation metadata for the self-derived matrix plan. -/
 def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     CcsRelation :=
@@ -38,6 +61,37 @@ def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     (PerApplicationFixedPoint.structuralPlan program fits).rowCount
     (PerApplicationFixedPoint.logicalWidth program)
     Lifecycle.cubeVariables
+
+def directStructuralRowCount (program : Program) : Nat :=
+  6369850 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
+
+theorem directStructuralRowCount_eq
+    (program : Program) (fits : FitsTwoPow28 program) :
+    directStructuralRowCount program =
+      (PerApplicationFixedPoint.structuralPlan program fits).rowCount := by
+  rw [directStructuralRowCount,
+    PerApplicationPackage.directApplicationPlan_eq_applicationPlan,
+    PerApplicationFixedPoint.structuralPlan_rowCount]
+
+def directLogicalWidth (program : Program) : Nat :=
+  264311733 +
+    (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
+
+theorem directLogicalWidth_eq (program : Program) :
+    directLogicalWidth program = PerApplicationFixedPoint.logicalWidth program := by
+  unfold directLogicalWidth PerApplicationFixedPoint.logicalWidth
+  exact (ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts
+    program).symm
+
+def directRecursiveRelation (program : Program) : CcsRelation :=
+  productionCcsRelation (directStructuralRowCount program)
+    (directLogicalWidth program) Lifecycle.cubeVariables
+
+theorem directRecursiveRelation_eq_recursiveRelation
+    (program : Program) (fits : FitsTwoPow28 program) :
+    directRecursiveRelation program = recursiveRelation program fits := by
+  unfold directRecursiveRelation recursiveRelation
+  rw [directStructuralRowCount_eq program fits, directLogicalWidth_eq]
 
 /-- One canonical physical row program and one exact recursive relation. -/
 def replaceRelation (source : CircuitPackage) (relation : CcsRelation) :
@@ -59,6 +113,20 @@ def package (program : Program) (fits : FitsTwoPow28 program) :
     CircuitPackage :=
   TerminalPackage.install (replaceRelation
     (PerApplicationPackage.package program) (recursiveRelation program fits))
+
+def directTerminalLayout (program : Program) : TerminalLayout where
+  rowStart := 0
+  rowCount := (directRecursiveRelation program).rowCount
+  runningClaims := productionShape.runningCount
+  freshClaims := productionShape.freshCount
+
+theorem directTerminalLayout_eq_layoutFor_package
+    (program : Program) (fits : FitsTwoPow28 program) :
+    directTerminalLayout program = TerminalPackage.layoutFor
+      (package program fits) := by
+  unfold directTerminalLayout TerminalPackage.layoutFor
+  rw [directRecursiveRelation_eq_recursiveRelation]
+  rfl
 
 private theorem rowsHold_replaceRelation (source : CircuitPackage)
     (relation : CcsRelation) (env : Circuit.Env) :
@@ -170,34 +238,45 @@ theorem matrixProgram_row? (program : Program)
       some ((PerApplicationFixedPoint.structuralPlan program fits).forms row) :=
   (matrixProgram_exact program fits).row? row
 
-/-- Prefix-free canonical value for one Goldilocks ring element. -/
-def ringValue (value : RingF) : Value :=
-  .array ((List.ofFn value).map fun coefficient => .atom coefficient.val)
+/-- Exact physical owner of the five NextPreimage rows after the selected
+application. The range is carried in the sealed authority value so Rust does
+not infer this boundary. -/
+def nextPreimageRange (program : Program) : MatrixProgram.IndexRange :=
+  ⟨PerApplicationPackage.nextPreimageRowStart program, 5⟩
 
-/-- Prefix-free canonical value for the actual semantic Ajtai key. -/
-def commitmentKeyValue {program : Program}
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) : Value :=
-  .array ((List.ofFn key).map fun row =>
-    .array ((List.ofFn row).map ringValue))
+@[simp] theorem nextPreimageRange_count (program : Program) :
+    (nextPreimageRange program).count = 5 := by
+  rfl
 
-/-- Complete raw canonical token stream of the actual Ajtai key. This is the
-authority input. Its component digest is only a compression of these words. -/
-def commitmentKeyWords {program : Program}
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) : List F :=
-  Package.valuePreimage (commitmentKeyValue key)
+theorem nextPreimageRange_startsAtApplicationEnd (program : Program) :
+    (nextPreimageRange program).start =
+      (PerApplicationPackage.applicationPlan program).rowStart +
+        (PerApplicationPackage.applicationPlan program).rowCount := by
+  rfl
+
+theorem nextPreimageRange_endsAtPackageEnd (program : Program)
+    (fits : FitsTwoPow28 program) :
+    (nextPreimageRange program).endExclusive =
+      (package program fits).layout.rowCount := by
+  rfl
+
+/-- Exact recursive public prefix of the production low-norm relation. This
+value is carried in the sealed envelope so Rust does not infer it from the
+physical package's different 278-column public layout. -/
+def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
+
+@[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 270 :=
+  ProductionAssignment.publicWidth_eq
 
 /-- Schema of the canonical per-application package envelope. The inner
 `CircuitPackage` and application plan keep their own schema versions. -/
-def sealedPackageSchema : Nat := 2
+def sealedPackageSchema : Nat := 5
 
 /-- One prefix-free authority value that carries the physical circuit package,
-the exact compact 14-matrix program, and the exact Lean-authored application
-plan. Rust must decode these children; it must not reconstruct application
-layout or rows. -/
+the exact compact 14-matrix program, the exact Lean-authored application plan,
+the retained-assignment transport plan, the exact NextPreimage row owner, and
+the recursive public prefix length. Rust must decode these children; it must
+not reconstruct relation, assignment, or application layout. -/
 def sealedPackageValue (program : Program)
     (fits : FitsTwoPow28 program) : Value :=
   .array [
@@ -206,12 +285,31 @@ def sealedPackageValue (program : Program)
     MatrixProgram.Program.format.encode
       (PerApplicationMatrixProgram.matrixProgram program),
     ApplicationPackage.Plan.format.encode
-      (PerApplicationPackage.applicationPlan program)]
+      (PerApplicationPackage.applicationPlan program),
+    PerApplicationAssignmentPlan.format.encode
+      PerApplicationAssignmentPlan.canonicalKinds,
+    MatrixProgram.IndexRange.format.encode (nextPreimageRange program),
+    .atom logicalPublicInputCount]
 
 def structuralPackageIdentity (program : Program)
     (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (Package.relationIdentifierValue (sealedPackageValue program fits))
+
+/-- Bounded-memory executable identity. The theorem below keeps
+`structuralPackageIdentity` as the semantic authority. -/
+def structuralPackageIdentityFast (program : Program)
+    (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
+  VerifierContext.Digest4.ofList
+    (StreamingIdentity.relationIdentifierValueFast
+      (sealedPackageValue program fits))
+
+theorem structuralPackageIdentityFast_eq (program : Program)
+    (fits : FitsTwoPow28 program) :
+    structuralPackageIdentityFast program fits =
+      structuralPackageIdentity program fits := by
+  unfold structuralPackageIdentityFast structuralPackageIdentity
+  rw [StreamingIdentity.relationIdentifierValueFast_eq]
 
 theorem sealedPackageValue_exact (program : Program)
     (fits : FitsTwoPow28 program) :
@@ -221,7 +319,12 @@ theorem sealedPackageValue_exact (program : Program)
       MatrixProgram.Program.format.encode
         (PerApplicationMatrixProgram.matrixProgram program),
       ApplicationPackage.Plan.format.encode
-        (PerApplicationPackage.applicationPlan program)] := by
+        (PerApplicationPackage.applicationPlan program),
+      PerApplicationAssignmentPlan.format.encode
+        PerApplicationAssignmentPlan.canonicalKinds,
+      MatrixProgram.IndexRange.format.encode
+        (nextPreimageRange program),
+      .atom logicalPublicInputCount] := by
   rfl
 
 /-- Equality of sealed values identifies all authoritative children. The
@@ -237,21 +340,31 @@ theorem sealedPackageValue_components
       PerApplicationMatrixProgram.matrixProgram leftProgram =
         PerApplicationMatrixProgram.matrixProgram rightProgram ∧
       PerApplicationPackage.applicationPlan leftProgram =
-        PerApplicationPackage.applicationPlan rightProgram := by
+        PerApplicationPackage.applicationPlan rightProgram ∧
+      nextPreimageRange leftProgram = nextPreimageRange rightProgram := by
   have packageEncoded := congrArg (fun value =>
     match value with
-    | .array (_schema :: encodedPackage :: _matrix :: _application :: []) =>
+    | .array (_schema :: encodedPackage :: _matrix :: _application ::
+        _assignment :: _nextPreimage :: _publicInputCount :: []) =>
         encodedPackage
     | _ => .array []) same
   have matrixEncoded := congrArg (fun value =>
     match value with
-    | .array (_schema :: _package :: encodedMatrix :: _application :: []) =>
+    | .array (_schema :: _package :: encodedMatrix :: _application ::
+        _assignment :: _nextPreimage :: _publicInputCount :: []) =>
         encodedMatrix
     | _ => .array []) same
   have applicationEncoded := congrArg (fun value =>
     match value with
-    | .array (_schema :: _package :: _matrix :: encodedApplication :: []) =>
+    | .array (_schema :: _package :: _matrix :: encodedApplication ::
+        _assignment :: _nextPreimage :: _publicInputCount :: []) =>
         encodedApplication
+    | _ => .array []) same
+  have nextPreimageEncoded := congrArg (fun value =>
+    match value with
+    | .array (_schema :: _package :: _matrix :: _application ::
+        _assignment :: encodedNextPreimage :: _publicInputCount :: []) =>
+        encodedNextPreimage
     | _ => .array []) same
   constructor
   · have decoded := congrArg CircuitPackage.format.decode packageEncoded
@@ -262,10 +375,15 @@ theorem sealedPackageValue_components
         congrArg MatrixProgram.Program.format.decode matrixEncoded
       simpa [sealedPackageValue,
         MatrixProgram.Program.format.decode_encode] using decoded
-    · have decoded :=
-        congrArg ApplicationPackage.Plan.format.decode applicationEncoded
-      simpa [sealedPackageValue,
-        ApplicationPackage.Plan.format.decode_encode] using decoded
+    · constructor
+      · have decoded :=
+          congrArg ApplicationPackage.Plan.format.decode applicationEncoded
+        simpa [sealedPackageValue,
+          ApplicationPackage.Plan.format.decode_encode] using decoded
+      · have decoded :=
+          congrArg MatrixProgram.IndexRange.format.decode nextPreimageEncoded
+        simpa [sealedPackageValue,
+          MatrixProgram.IndexRange.format.decode_encode] using decoded
 
 theorem structuralPackageIdentity_recomputed (program : Program)
     (fits : FitsTwoPow28 program) :
@@ -279,6 +397,15 @@ def relationShapeValue (program : Program)
     (fits : FitsTwoPow28 program) : Value :=
   CcsRelation.format.encode (recursiveRelation program fits)
 
+def directRelationShapeValue (program : Program) : Value :=
+  CcsRelation.format.encode (directRecursiveRelation program)
+
+theorem directRelationShapeValue_eq (program : Program)
+    (fits : FitsTwoPow28 program) :
+    directRelationShapeValue program = relationShapeValue program fits := by
+  unfold directRelationShapeValue relationShapeValue
+  rw [directRecursiveRelation_eq_recursiveRelation]
+
 /-- Raw relation authority is the canonical relation metadata followed by a
 recomputed digest of the complete circuit-and-matrix envelope. The envelope
 remains authoritative; the digest is never accepted without verifier-side
@@ -287,6 +414,21 @@ def relationAuthorityWords (program : Program)
     (fits : FitsTwoPow28 program) : List F :=
   Package.valuePreimage (relationShapeValue program fits) ++
     (structuralPackageIdentity program fits).toList
+
+/-- Relation authority with an explicitly supplied structural digest. The
+caller must recompute this digest from `sealedPackageValue`; the theorem below
+shows the canonical specialization. -/
+def relationAuthorityWordsFromStructural (program : Program)
+    (fits : FitsTwoPow28 program)
+    (structural : VerifierContext.Digest4) : List F :=
+  Package.valuePreimage (relationShapeValue program fits) ++ structural.toList
+
+@[simp] theorem relationAuthorityWordsFromStructural_canonical
+    (program : Program) (fits : FitsTwoPow28 program) :
+    relationAuthorityWordsFromStructural program fits
+        (structuralPackageIdentity program fits) =
+      relationAuthorityWords program fits := by
+  rfl
 
 def applicationAuthorityWords (program : Program) : List F :=
   ApplicationPackage.authorityWords
@@ -301,35 +443,78 @@ def nifsKeyDomain : List F :=
 fixed Lean definition, so these words bind its relation, profile, schedule,
 and actual commitment key without serializing erased proof fields. -/
 def nifsKeyWords {program : Program} (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) : List F :=
+    (setup : CommitmentSetup program) : List F :=
   nifsKeyDomain ++
     VerifierContext.framed (relationAuthorityWords program fits) ++
     VerifierContext.framed VerifierContext.profileWords ++
     VerifierContext.framed VerifierContext.scheduleWords ++
     VerifierContext.framed
-      (VerifierContext.componentDigest 4 (commitmentKeyWords key)).toList
+      (VerifierContext.componentDigest 4 (commitmentKeyWords setup)).toList
+
+def nifsKeyWordsFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) : List F :=
+  nifsKeyDomain ++
+    VerifierContext.framed
+      (relationAuthorityWordsFromStructural program fits structural) ++
+    VerifierContext.framed VerifierContext.profileWords ++
+    VerifierContext.framed VerifierContext.scheduleWords ++
+    VerifierContext.framed
+      (VerifierContext.componentDigest 4 (commitmentKeyWords setup)).toList
+
+@[simp] theorem nifsKeyWordsFromStructural_canonical {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program) :
+    nifsKeyWordsFromStructural fits setup
+        (structuralPackageIdentity program fits) =
+      nifsKeyWords fits setup := by
+  rfl
 
 /-- Raw verifier authority computed only from the exact package, application,
-and semantic Ajtai key. There are no caller-supplied authority words. -/
+and indexed Ajtai setup. There are no caller-supplied authority words. -/
 def authority {program : Program} (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
+    (setup : CommitmentSetup program) :
     VerifierContext.Authority where
   relationWords := relationAuthorityWords program fits
   applicationWords := applicationAuthorityWords program
-  nifsKeyWords := nifsKeyWords fits key
-  commitmentKeyWords := commitmentKeyWords key
+  nifsKeyWords := nifsKeyWords fits setup
+  commitmentKeyWords := commitmentKeyWords setup
+
+def authorityFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    VerifierContext.Authority where
+  relationWords := relationAuthorityWordsFromStructural program fits structural
+  applicationWords := applicationAuthorityWords program
+  nifsKeyWords := nifsKeyWordsFromStructural fits setup structural
+  commitmentKeyWords := commitmentKeyWords setup
+
+@[simp] theorem authorityFromStructural_canonical {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program) :
+    authorityFromStructural fits setup
+        (structuralPackageIdentity program fits) =
+      authority fits setup := by
+  rfl
 
 def verifierContextDescriptor {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
+    (setup : CommitmentSetup program) :
     VerifierContext.Descriptor :=
-  VerifierContext.descriptor (authority fits key)
+  VerifierContext.descriptor (authority fits setup)
+
+def verifierContextDescriptorFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    VerifierContext.Descriptor :=
+  VerifierContext.descriptor
+    (authorityFromStructural fits setup structural)
+
+@[simp] theorem verifierContextDescriptorFromStructural_canonical
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program) :
+    verifierContextDescriptorFromStructural fits setup
+        (structuralPackageIdentity program fits) =
+      verifierContextDescriptor fits setup := by
+  rfl
 
 def packageIdentityDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
@@ -339,12 +524,10 @@ def packageIdentityDomain : List F :=
 
 def packageIdentityPreimage {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) : List F :=
+    (setup : CommitmentSetup program) : List F :=
   packageIdentityDomain ++
     VerifierContext.framed (structuralPackageIdentity program fits).toList ++
-    VerifierContext.framed (verifierContextDescriptor fits key).serialize
+    VerifierContext.framed (verifierContextDescriptor fits setup).serialize
 
 /-- Equality of final binding preimages identifies both acyclic digest
 components. Fixed-length framing prevents either component from consuming
@@ -353,27 +536,23 @@ theorem packageIdentityPreimage_components
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
     (rightFits : FitsTwoPow28 rightProgram)
-    (leftKey : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth leftProgram)
-      (publicFits := PerApplicationFixedPoint.publicFits leftProgram))
-    (rightKey : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth rightProgram)
-      (publicFits := PerApplicationFixedPoint.publicFits rightProgram))
-    (same : packageIdentityPreimage leftFits leftKey =
-      packageIdentityPreimage rightFits rightKey) :
+    (leftSetup : CommitmentSetup leftProgram)
+    (rightSetup : CommitmentSetup rightProgram)
+    (same : packageIdentityPreimage leftFits leftSetup =
+      packageIdentityPreimage rightFits rightSetup) :
     structuralPackageIdentity leftProgram leftFits =
         structuralPackageIdentity rightProgram rightFits ∧
-      verifierContextDescriptor leftFits leftKey =
-        verifierContextDescriptor rightFits rightKey := by
+      verifierContextDescriptor leftFits leftSetup =
+        verifierContextDescriptor rightFits rightSetup := by
   have body :
       VerifierContext.framed
           (structuralPackageIdentity leftProgram leftFits).toList ++
           VerifierContext.framed
-            (verifierContextDescriptor leftFits leftKey).serialize =
+            (verifierContextDescriptor leftFits leftSetup).serialize =
         VerifierContext.framed
           (structuralPackageIdentity rightProgram rightFits).toList ++
           VerifierContext.framed
-            (verifierContextDescriptor rightFits rightKey).serialize := by
+            (verifierContextDescriptor rightFits rightSetup).serialize := by
     apply List.append_cancel_left (as := packageIdentityDomain)
     simpa [packageIdentityPreimage, List.append_assoc] using same
   have structuralWords := congrArg (List.take 5) body
@@ -387,94 +566,109 @@ theorem packageIdentityPreimage_components
       VerifierContext.Descriptor.serialize_length] using descriptorWords
 
 /-- Final verifier-owned identity for one exact application, recursive
-relation, physical package, and semantic commitment key. -/
+relation, physical package, and indexed commitment setup. -/
 def packageIdentity {program : Program} (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
+    (setup : CommitmentSetup program) :
     VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
-    (Poseidon2.hash (packageIdentityPreimage fits key))
+    (Poseidon2.hash (packageIdentityPreimage fits setup))
+
+def packageIdentityFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    VerifierContext.Digest4 :=
+  VerifierContext.Digest4.ofList
+    (Poseidon2.hash
+      (packageIdentityDomain ++
+        VerifierContext.framed structural.toList ++
+        VerifierContext.framed
+          (verifierContextDescriptorFromStructural
+            fits setup structural).serialize))
+
+@[simp] theorem packageIdentityFromStructural_canonical {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program) :
+    packageIdentityFromStructural fits setup
+        (structuralPackageIdentity program fits) =
+      packageIdentity fits setup := by
+  rfl
 
 def verificationKeyBinding {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
+    (setup : CommitmentSetup program) :
     Lifecycle.Stage1.VerificationKey.Binding :=
   Lifecycle.Stage1.VerificationKey.ofAuthority
-    (packageIdentity fits key) (authority fits key)
+    (packageIdentity fits setup) (authority fits setup)
+
+def verificationKeyBindingFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    Lifecycle.Stage1.VerificationKey.Binding :=
+  Lifecycle.Stage1.VerificationKey.ofAuthority
+    (packageIdentityFromStructural fits setup structural)
+    (authorityFromStructural fits setup structural)
+
+@[simp] theorem verificationKeyBindingFromStructural_canonical
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program) :
+    verificationKeyBindingFromStructural fits setup
+        (structuralPackageIdentity program fits) =
+      verificationKeyBinding fits setup := by
+  rfl
 
 @[simp] theorem authority_relationWords {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (authority fits key).relationWords =
+    (setup : CommitmentSetup program) :
+    (authority fits setup).relationWords =
       relationAuthorityWords program fits := by
   rfl
 
 @[simp] theorem authority_applicationWords {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (authority fits key).applicationWords =
+    (setup : CommitmentSetup program) :
+    (authority fits setup).applicationWords =
       applicationAuthorityWords program := by
   rfl
 
 @[simp] theorem authority_nifsKeyWords {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (authority fits key).nifsKeyWords = nifsKeyWords fits key := by
+    (setup : CommitmentSetup program) :
+    (authority fits setup).nifsKeyWords = nifsKeyWords fits setup := by
   rfl
 
 @[simp] theorem authority_commitmentKeyWords {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (authority fits key).commitmentKeyWords = commitmentKeyWords key := by
+    (setup : CommitmentSetup program) :
+    (authority fits setup).commitmentKeyWords = commitmentKeyWords setup := by
   rfl
 
 theorem packageIdentity_recomputed {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (packageIdentity fits key).toList =
+    (setup : CommitmentSetup program) :
+    (packageIdentity fits setup).toList =
       (VerifierContext.Digest4.ofList
-        (Poseidon2.hash (packageIdentityPreimage fits key))).toList := by
+        (Poseidon2.hash (packageIdentityPreimage fits setup))).toList := by
   rfl
 
 @[simp] theorem verificationKeyBinding_packageIdentity {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (verificationKeyBinding fits key).packageIdentity =
-      packageIdentity fits key := by
+    (setup : CommitmentSetup program) :
+    (verificationKeyBinding fits setup).packageIdentity =
+      packageIdentity fits setup := by
   rfl
 
 @[simp] theorem verificationKeyBinding_context {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (verificationKeyBinding fits key).context =
-      verifierContextDescriptor fits key := by
+    (setup : CommitmentSetup program) :
+    (verificationKeyBinding fits setup).context =
+      verifierContextDescriptor fits setup := by
   rfl
 
 theorem verificationKeyDigest_recomputed {program : Program}
     (fits : FitsTwoPow28 program)
-    (key : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
-      (publicFits := PerApplicationFixedPoint.publicFits program)) :
-    (verificationKeyBinding fits key).digest =
+    (setup : CommitmentSetup program) :
+    (verificationKeyBinding fits setup).digest =
       (VerifierContext.Digest4.ofList
-        (Poseidon2.hash (verificationKeyBinding fits key).serialize)).toList := by
+        (Poseidon2.hash (verificationKeyBinding fits setup).serialize)).toList := by
   exact Lifecycle.Stage1.VerificationKey.Binding.digest_recomputed _
 
 end NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage

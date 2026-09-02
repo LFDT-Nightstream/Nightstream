@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.Relation
@@ -30,6 +31,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.FinalIdentity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.VerifierView
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane
@@ -47,6 +49,9 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Completeness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PhaseTransport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerGeneratedSupport
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
@@ -60,6 +65,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 import NightstreamFPrime.Lifecycle.Stage1.Application
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition

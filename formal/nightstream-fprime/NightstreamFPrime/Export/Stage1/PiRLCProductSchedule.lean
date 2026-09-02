@@ -30,7 +30,7 @@ deriving Repr, DecidableEq
 namespace Family
 
 def blockCount : Family → Nat
-  | .commitment => 18
+  | .commitment => 22
   | .publicInput => 5
   | .evalK => 1
   | .evalA => 14
@@ -60,7 +60,7 @@ def invocationCount (family : Family) : Nat :=
   sourceCount * family.privateCount
 
 @[simp] theorem commitment_invocationCount :
-    invocationCount .commitment = 16524 := by
+    invocationCount .commitment = 20196 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
@@ -205,7 +205,7 @@ def sourceConstraint (descriptor : Descriptor) :
   match descriptor with
   | ⟨.commitment, source, block, lane, cell⟩ =>
       PiRLCCombinationInvocations.sourceConstraint
-        PiRLCStarts.commitmentLogicalStart 18 1 1 source.val block.val cell.val
+        PiRLCStarts.commitmentLogicalStart 22 1 1 source.val block.val cell.val
           commitmentValueSourceStart lane
   | ⟨.publicInput, source, block, lane, cell⟩ =>
       PiRLCCombinationInvocations.sourceConstraint
@@ -259,7 +259,7 @@ def Descriptor.compactInvocation (descriptor : Descriptor) :
   | ⟨.commitment, source, block, lane, cell⟩ =>
       invocation PiRLCStarts.commitmentLogicalStart
         PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          18 1 1 source.val block.val lane.val cell.val
+          22 1 1 source.val block.val lane.val cell.val
             commitmentValueSourceStart
   | ⟨.publicInput, source, block, lane, cell⟩ =>
       invocation PiRLCStarts.publicInputLogicalStart
@@ -327,12 +327,12 @@ theorem commitmentCompactInvocations_eq :
   simp only [familyDescriptor, Descriptor.compactInvocation]
   simpa only using
     (ofFn_decodeProd_eq_range_flatMap sourceCount
-      (CombinationStep.privateCount 18 1)
+      (CombinationStep.privateCount 22 1)
       (fun source index =>
         let coordinates := CombinationStep.coordinates index
         invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            18 1 1 source coordinates.1.val coordinates.2.1.val
+            22 1 1 source coordinates.1.val coordinates.2.1.val
               coordinates.2.2.val commitmentValueSourceStart))
 
 theorem publicInputCompactInvocations_eq :
@@ -390,7 +390,7 @@ def invocationCount : Nat :=
     (Family.invocationCount .publicInput +
       (Family.invocationCount .evalK + Family.invocationCount .evalA))
 
-@[simp] theorem invocationCount_eq : invocationCount = 48654 := by
+@[simp] theorem invocationCount_eq : invocationCount = 52326 := by
   norm_num [invocationCount]
 
 /-- Constant-time semantic descriptor selector in exact family order. -/

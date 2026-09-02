@@ -51,16 +51,11 @@ def running : Running K PaperAlgebra.Commitment
           matrix.val * 10_000 + coefficient.val)
   }
 
-/-- The conformance fixture uses the canonical package-bound authority recipe
-and one explicit deterministic commitment-setup descriptor. -/
-def fixtureContextAuthority : Lifecycle.VerifierContext.Authority :=
-  VerifierContext.fixtureAuthority
-
 def stateVerifierKey : KeyDigest :=
-  Lifecycle.VerifierContext.digest fixtureContextAuthority
+  VerifierContext.productionContextWords
 
 theorem stateVerifierKey_length : stateVerifierKey.length = 4 := by
-  exact Lifecycle.VerifierContext.digest_length fixtureContextAuthority
+  rfl
 
 def stateZ0 : AppState :=
   [field 201, field 202, field 203, field 204]

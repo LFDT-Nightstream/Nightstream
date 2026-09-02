@@ -1012,10 +1012,10 @@ private theorem sourceToSpartan_outputPreimage
     PilotSpartan.sourceToSpartan
         (PilotProduction.outputPreimageStart + index.val) =
       PilotSpartan.secondPrivateStart + index.val := by
-  have indexBound : index.val < 45937 := by
+  have indexBound : index.val < 49393 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 45937 := PilotProduction.stateHashWords_eq
+      _ = 49393 := PilotProduction.stateHashWords_eq
   unfold PilotSpartan.sourceToSpartan
   all_goals try split
   all_goals try split
@@ -1138,8 +1138,8 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 11485 * 592 + 584 + lane.val =
-      PilotProduction.witnessOffset + (11485 * 592 + 584 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 12349 * 592 + 584 + lane.val =
+      PilotProduction.witnessOffset + (12349 * 592 + 584 + lane.val) by
     omega,
     PilotSpartan.sourceToSpartan_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,

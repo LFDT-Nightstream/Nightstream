@@ -65,4 +65,18 @@ theorem varsSatisfy_lt_iff_varsBelow (expression : Expr) (bound : Nat) :
   | mul left right leftIH rightIH =>
       simp only [VarsSatisfy, VarsBelow, leftIH, rightIH]
 
+/-- Evaluation is unchanged when two environments agree on every variable
+selected by the expression's exact support predicate. -/
+theorem eval_eq_of_agree_satisfy (expression : Expr) (allowed : Nat → Prop)
+    (left right : Env) (support : expression.VarsSatisfy allowed)
+    (agrees : ∀ index, allowed index → left index = right index) :
+    expression.eval left = expression.eval right := by
+  induction expression with
+  | var index => exact agrees index support
+  | const value => rfl
+  | add left right leftIH rightIH =>
+      exact congrArg₂ (· + ·) (leftIH support.1) (rightIH support.2)
+  | mul left right leftIH rightIH =>
+      exact congrArg₂ (· * ·) (leftIH support.1) (rightIH support.2)
+
 end NightstreamFPrime.Circuit.Expr

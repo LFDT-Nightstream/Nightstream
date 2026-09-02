@@ -24,7 +24,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-def basePackage := PiRLCProductPlan.basePackage
+def basePackage (_delay : Unit := ()) := PiRLCProductPlan.basePackage ()
 
 def prefixSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCProductPlan.sourceWidth program
@@ -34,7 +34,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCFirst54DirectSchedule.candidateCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 27695710 := by
+    basePackage.layout.constantColumn = 29336446 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem rejectColumn_lt_basePackage

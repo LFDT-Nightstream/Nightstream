@@ -7,11 +7,17 @@
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
+#   validate.sh emit-poseidon2-hash-chain-v1 <path>
+#   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
 #   validate.sh pilot-parity <path>
 #   validate.sh pi-ccs-parity <path>
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh pi-rlc-parity <path>
 #   validate.sh pi-dec-parity <path>
+#   validate.sh ajtai-setup-v1-parity <path>
+#   validate.sh poseidon2-hash-chain-v1-parity <path>
+#   validate.sh per-application-reference <path>
+#   validate.sh per-application-streamed <path>
 #   validate.sh all
 set -euo pipefail
 
@@ -51,6 +57,7 @@ case "$phase" in
   axioms) capped lake build NightstreamFPrimeTests ;;
   stage1-axioms)
     for audit in \
+      tests/AxiomsAjtaiSetupV1.lean \
       tests/AxiomsStage1Accumulator.lean \
       tests/AxiomsStage1Application.lean \
       tests/AxiomsStage1Assembler.lean \
@@ -72,6 +79,14 @@ case "$phase" in
     if (( $# != 2 )); then echo "usage: validate.sh emit-expanded <path>" >&2; exit 2; fi
     capped lake exe emit -- --expanded "$2"
     ;;
+  emit-poseidon2-hash-chain-v1)
+    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1 <path>" >&2; exit 2; fi
+    capped lake exe emit -- --poseidon2-hash-chain-v1 "$2"
+    ;;
+  emit-poseidon2-hash-chain-v1-expanded)
+    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1-expanded <path>" >&2; exit 2; fi
+    capped lake exe emit -- --poseidon2-hash-chain-v1-expanded "$2"
+    ;;
   pilot-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pilot-parity <path>" >&2; exit 2; fi
     capped lake exe emitPilotParity -- "$2"
@@ -91,6 +106,22 @@ case "$phase" in
   pi-dec-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-dec-parity <path>" >&2; exit 2; fi
     capped lake exe emitPiDECParity -- "$2"
+    ;;
+  ajtai-setup-v1-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi
+    capped lake exe emitAjtaiSetupV1Parity -- "$2"
+    ;;
+  poseidon2-hash-chain-v1-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh poseidon2-hash-chain-v1-parity <path>" >&2; exit 2; fi
+    capped lake exe emitPoseidon2HashChainV1Parity -- "$2"
+    ;;
+  per-application-reference)
+    if (( $# != 2 )); then echo "usage: validate.sh per-application-reference <path>" >&2; exit 2; fi
+    capped lake exe emitPerApplicationReferenceFixture -- "$2"
+    ;;
+  per-application-streamed)
+    if (( $# != 2 )); then echo "usage: validate.sh per-application-streamed <path>" >&2; exit 2; fi
+    capped lake exe emitPerApplicationStreamedFixture -- "$2"
     ;;
   all)
     bash scripts/check-boundaries.sh

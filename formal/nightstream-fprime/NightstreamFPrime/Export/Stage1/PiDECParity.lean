@@ -83,7 +83,7 @@ def inputValue (fixture : PiDECNonzero.Fixture) : Value :=
     messageEvalAValue fixture,
     childPublicInputsValue fixture,
     PiCCSParity.stateValue fixture.batch.finalState,
-    PiCCSParity.fieldWordsValue VerifierContext.candidatePackageIdentityWords]
+    PiCCSParity.fieldWordsValue VerifierContext.productionPackageIdentityWords]
 
 def parentBoundResultsValue (fixture : PiDECNonzero.Fixture) : Value :=
   .array ((List.finRange 270).map fun coordinate =>

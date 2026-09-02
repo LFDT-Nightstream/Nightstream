@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-private theorem combinationOutput_varsBelow
+theorem combinationOutput_varsBelow
     {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : PiRLC.v1_1.CombinationFamily.Interface blockCount cellCount)
     (offset : Nat) (block : Fin blockCount) (lane : Fin ringDegree)
@@ -98,7 +98,7 @@ theorem inputsBelow
         PiRLCStarts.commitmentLogicalStart row lane
         PiRLC.v1_1.CommitmentCombination.cell)
     rw [PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
-    change 19266319 + 16524 ≤ 27402496
+    change 20328391 + 20196 ≤ 29022496
     norm_num
   · intro column
     apply Expr.VarsBelow.mono _
@@ -113,7 +113,7 @@ theorem inputsBelow
           column)
         PiRLC.v1_1.PublicInputCombination.cell)
     rw [PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
-    change 19282843 + 4590 ≤ 27402496
+    change 20348587 + 4590 ≤ 29022496
     norm_num
   · intro coefficient
     constructor
@@ -128,7 +128,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c0Cell)
       rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 19287433 + 1836 ≤ 27402496
+      change 20353177 + 1836 ≤ 29022496
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
@@ -141,7 +141,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c1Cell)
       rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      change 19287433 + 1836 ≤ 27402496
+      change 20353177 + 1836 ≤ 29022496
       norm_num
   · intro matrix coefficient
     constructor
@@ -156,7 +156,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c0Cell)
       rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 19289269 + 25704 ≤ 27402496
+      change 20355013 + 25704 ≤ 29022496
       norm_num
     · apply Expr.VarsBelow.mono _
         (combinationOutput_varsBelow
@@ -169,7 +169,7 @@ theorem inputsBelow
             coefficient)
           PiRLC.v1_1.RingKCombination.c1Cell)
       rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      change 19289269 + 25704 ≤ 27402496
+      change 20355013 + 25704 ≤ 29022496
       norm_num
   · intro child row lane
     simp only [interface, message, childCommitment, Expr.VarsBelow]

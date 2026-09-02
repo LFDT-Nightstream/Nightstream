@@ -191,6 +191,59 @@ theorem completeness (program : Program)
   apply (program.circuit interface).completeness env offset assumptions
   exact (program.spec_iff interface offset env).mpr specification
 
+/-- The application relation depends only on its declared input, witness, and
+output expressions below the child start. -/
+theorem holds_of_agree_below
+    (program : Program)
+    (interface : Interface program.witnessWordCount)
+    (offset : Nat) (before after : Env)
+    (inputs : InputsBelow interface offset)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (holds : Holds program.step interface offset before) :
+    Holds program.step interface offset after := by
+  unfold Holds inputState witnessValue outputState at holds ⊢
+  have inputEq :
+      List.ofFn (fun index => (interface.input offset index).eval after) =
+        List.ofFn (fun index => (interface.input offset index).eval before) := by
+    apply congrArg List.ofFn
+    funext index
+    exact (interface.input offset index).eval_eq_of_agree_below offset
+      after before (inputs.input index) agrees
+  have witnessEq :
+      List.ofFn (fun index => (interface.witness offset index).eval after) =
+        List.ofFn (fun index => (interface.witness offset index).eval before) := by
+    apply congrArg List.ofFn
+    funext index
+    exact (interface.witness offset index).eval_eq_of_agree_below offset
+      after before (inputs.witness index) agrees
+  have outputEq :
+      List.ofFn (fun index => (interface.output offset index).eval after) =
+        List.ofFn (fun index => (interface.output offset index).eval before) := by
+    apply congrArg List.ofFn
+    funext index
+    exact (interface.output offset index).eval_eq_of_agree_below offset
+      after before (inputs.output index) agrees
+  rw [outputEq, inputEq, witnessEq]
+  exact holds
+
+/-- The selected application relation transports through equality of the
+three values it reads. -/
+theorem holds_of_values_eq
+    (program : Program)
+    (interface : Interface program.witnessWordCount)
+    (offset : Nat) (before after : Env)
+    (inputEq : inputState interface offset before =
+      inputState interface offset after)
+    (witnessEq : witnessValue interface offset before =
+      witnessValue interface offset after)
+    (outputEq : outputState interface offset before =
+      outputState interface offset after)
+    (holds : Holds program.step interface offset before) :
+    Holds program.step interface offset after := by
+  unfold Holds
+  rw [← inputEq, ← witnessEq, ← outputEq]
+  exact holds
+
 /-- Acceptance also proves that the selected step returns the exact four-word
 state required by the Stage 1 state-hash ABI. -/
 theorem step_output_length (program : Program)

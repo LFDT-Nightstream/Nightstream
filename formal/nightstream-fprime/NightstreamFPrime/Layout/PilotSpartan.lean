@@ -42,43 +42,43 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 13692624 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 14722512 := by
   rfl
 
 theorem publicColumnCount_value : publicColumnCount = 274 := by
   rfl
 
-theorem privateColumnCount_value : privateColumnCount = 13692350 := by
+theorem privateColumnCount_value : privateColumnCount = 14722238 := by
   rfl
 
-theorem constantColumn_value : constantColumn = 13692350 := by
+theorem constantColumn_value : constantColumn = 14722238 := by
   rfl
 
-theorem spartanColumnCount_value : spartanColumnCount = 13692625 := by
+theorem spartanColumnCount_value : spartanColumnCount = 14722513 := by
   rfl
 
-theorem priorPublicStart_value : priorPublicStart = 45937 := by
+theorem priorPublicStart_value : priorPublicStart = 49393 := by
   rfl
 
-theorem outputPreimageStart_value : outputPreimageStart = 46207 := by
+theorem outputPreimageStart_value : outputPreimageStart = 49663 := by
   rfl
 
-theorem outputDigestStart_value : outputDigestStart = 92144 := by
+theorem outputDigestStart_value : outputDigestStart = 99056 := by
   rfl
 
-theorem witnessStart_value : witnessStart = 92148 := by
+theorem witnessStart_value : witnessStart = 99060 := by
   rfl
 
-theorem secondPrivateStart_value : secondPrivateStart = 45937 := by
+theorem secondPrivateStart_value : secondPrivateStart = 49393 := by
   rfl
 
-theorem witnessPrivateStart_value : witnessPrivateStart = 91874 := by
+theorem witnessPrivateStart_value : witnessPrivateStart = 98786 := by
   rfl
 
-theorem firstPublicStart_value : firstPublicStart = 13692351 := by
+theorem firstPublicStart_value : firstPublicStart = 14722239 := by
   rfl
 
-theorem secondPublicStart_value : secondPublicStart = 13692621 := by
+theorem secondPublicStart_value : secondPublicStart = 14722509 := by
   rfl
 
 /-- The materialized count is exactly the proved semantic pilot layout count. -/

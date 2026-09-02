@@ -233,7 +233,7 @@ def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 192400
+  interface.baseOffset + 224368
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -274,7 +274,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 192400 + 51504
+  interface.baseOffset + 224368 + 51504
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -602,7 +602,7 @@ def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementAbsorption.circuit (statementAbsorptionInterface interface))
-    192400 192400
+    224368 224368
     (StatementAbsorption.localLength_eq (statementAbsorptionInterface interface))
     (StatementAbsorption.flatConstraints_length
       (statementAbsorptionInterface interface))
@@ -762,7 +762,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : challengeOffset interface offset = offset + 192400 := by
+    (offset : Nat) : challengeOffset interface offset = offset + 224368 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
   rw [statementAbsorptionOffset_eq, FormalCircuit.withConstantFootprint_main,
     StatementAbsorption.localLength_eq]
@@ -1017,6 +1017,13 @@ structure PhaseHolds
     (evalRunning interface offset env)
     (evalFresh interface offset env)
     (evalProof relation interface offset env template)
+  roundPoint : RoundTranscript.evalRoundPoint
+      (roundTranscriptInterface (atOffset interface offset))
+      (roundTranscriptOffset interface offset) env =
+    ((ProductionKey.key relation ajtai).piCcsExecution
+      (evalRunning interface offset env)
+      (evalFresh interface offset env)
+      (evalProof relation interface offset env template)).coins.roundPoint
   outgoingState : StatementAbsorption.evalState env
       (outputBindingFinalState relation interface offset) =
     ((ProductionKey.key relation ajtai).piCcsExecution
@@ -1477,6 +1484,8 @@ theorem spec_implies_phaseHolds
     stateBinding := specification.statementBinding.state
     accepted := (NightstreamFPrime.Spec.Folding.PiCCS.accepted_iff_coverage
       (ProductionKey.key relation ajtai) running fresh proof).mpr coverage
+    roundPoint := by
+      simpa [shared, running, fresh, proof] using roundCoverage.1
     outgoingState := ?_ }
   simpa [shared, running, fresh, proof, evalProof, evalOutput,
     outputBindingFinalState, outputBindingInterface, atOffset] using outgoing

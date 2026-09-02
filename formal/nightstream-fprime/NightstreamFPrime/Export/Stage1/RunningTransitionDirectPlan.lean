@@ -58,7 +58,7 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | output index =>
       have bound := index.isLt
-      change index.val < 45937 at bound
+      change index.val < 49393 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
@@ -80,13 +80,13 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | piDec index =>
       have bound := index.isLt
-      change index.val < 45792 at bound
+      change index.val < 49248 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
   | fresh index =>
       have bound := index.isLt
-      change index.val < 275402 at bound
+      change index.val < 296138 at bound
       rw [sourceColumn, Spartan.sourceColumnCount_eq]
       norm_num [RunningTransitionInputs.phaseOffset]
       omega
@@ -398,7 +398,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 27695989 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -532,8 +532,8 @@ def plan
       Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
-    (plan relation geometry).rowCount = 321303 := by
-  change (RunningTransitionDirectSource.program relation).rowCount = 321303
+    (plan relation geometry).rowCount = 345495 := by
+  change (RunningTransitionDirectSource.program relation).rowCount = 345495
   exact RunningTransitionDirectSource.program_rowCount relation
 
 /-- The compiled transition plan depends on relation shape only. -/

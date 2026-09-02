@@ -327,7 +327,7 @@ def publicSegments : List Segment :=
       NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 27584200
+  rowCount := 29218024
   privateColumnCount :=
     NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
   constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
@@ -545,18 +545,18 @@ theorem Components.ordinaryRows_length (components : Components) :
 /-- Exact total row coverage for any component lists with the production
 counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
-    (arithmeticRows_length : components.arithmeticRows.length = 1379125)
+    (arithmeticRows_length : components.arithmeticRows.length = 1403533)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 7703)
+      components.permutationInvocations.length = 7757)
     (templateRows_length :
       (PilotData.permutationTemplate ()).rows.length = 592)
     (pilotOrdinaryRows_length :
       (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length = 1330)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 13599424)
+      priorChain.witnessLength + outputChain.witnessLength = 14622400)
     (compactRows_length :
-      components.toCircuitPackage.compactRowCount = 8044145) :
+      components.toCircuitPackage.compactRowCount = 8598617) :
     (components.toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       components.toCircuitPackage.permutationInvocations.length *
@@ -567,15 +567,15 @@ theorem Components.rowCoverage (components : Components)
       components.toCircuitPackage.layout.rowCount := by
   have ordinaryFixed :
       components.toCircuitPackage.witnessInstructions.length +
-      components.toCircuitPackage.assertionRows.length = 1380455 := by
+      components.toCircuitPackage.assertionRows.length = 1404863 := by
     calc
       _ = (PilotData.circuitPackage ()).witnessInstructions.length +
           (PilotData.circuitPackage ()).assertionRows.length +
             components.arithmeticRows.length :=
         components.ordinaryRows_length
-      _ = 1330 + 1379125 := by
+      _ = 1330 + 1403533 := by
         rw [pilotOrdinaryRows_length, arithmeticRows_length]
-      _ = 1380455 := by norm_num
+      _ = 1404863 := by norm_num
   rw [components.toCircuitPackage_hashChains,
     components.toCircuitPackage_permutationInvocations,
     components.toCircuitPackage_permutation,
@@ -583,17 +583,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 27584200 from rfl]
+  rw [show physicalLayout.rowCount = 29218024 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          7703 * 592 +
+          7757 * 592 +
           components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
           components.toCircuitPackage.assertionRows.length) := by
       omega
-    _ = 13599424 + 7703 * 592 + 8044145 + 1380455 := by
+    _ = 14622400 + 7757 * 592 + 8598617 + 1404863 := by
       rw [hashChainRows, compactRows_length, ordinaryFixed]
-    _ = 27584200 := by norm_num
+    _ = 29218024 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())

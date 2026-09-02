@@ -113,6 +113,40 @@ theorem applicationSourceRow?_eq_some
       (ApplicationDirectSource.program application fits.package).row exactRows
       index
 
+theorem nextPreimageSourceRow?_eq_some
+    (application : ApplicationProgram)
+    (index : Fin NextPreimageDirectPlan.program.rowCount) :
+    sourceRow application
+        (PerApplicationPackage.nextPreimageRowStart application + index.val) =
+      some (NextPreimageDirectPlan.program.row index) := by
+  let rows := PerApplicationPackageSourceRows.nextPreimageRows application
+  have rowsLength : rows.length = NextPreimageDirectPlan.program.rowCount := by
+    simpa [rows, PerApplicationPackageSourceRows.nextPreimageRows] using
+      NextPreimagePackage.compiledRows_length
+        (PerApplicationPackage.nextPreimageRowStart application)
+  have rowIndices : rows.map Rows.CompiledRow.rowIndex =
+      List.range' (PerApplicationPackage.nextPreimageRowStart application)
+        NextPreimageDirectPlan.program.rowCount := by
+    rw [PerApplicationPackageSourceRows.nextPreimageRows_rowIndices,
+      NextPreimageDirectPlan.program_rowCount]
+  have exactRows : rows.map Rows.CompiledRow.toR1CS =
+      List.ofFn NextPreimageDirectPlan.program.row := by
+    calc
+      _ = NextPreimagePackage.sourceRows := by
+        simpa [rows, PerApplicationPackageSourceRows.nextPreimageRows] using
+          (NextPreimagePackage.compiledRows_toR1CS
+            (PerApplicationPackage.nextPreimageRowStart application)).trans
+              NextPreimagePackage.sourceRows_eq.symm
+      _ = List.ofFn NextPreimageDirectPlan.program.row := by
+        change _ = List.ofFn fun position =>
+          NextPreimageDirectPlan.sourceRows.get position
+        exact (List.ofFn_get _).symm
+  exact PerApplicationPackageSourceRows.indexedPackageSourceRow?_eq_some
+    application rows rowsLength rowIndices NextPreimageDirectPlan.program.row
+    exactRows (fun row => row)
+    (PerApplicationPackageSourceRows.nextPreimagePackageSourceRow?_eq_some
+      application) index
+
 theorem custody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :
     PerApplicationMatrixProgramSemantics.SourceCustody application fits
@@ -127,7 +161,8 @@ theorem custody (application : ApplicationProgram)
     piDecEvalK := ?_
     piDecEvalA := ?_
     runningTransition := ?_
-    application := ?_ }
+    applicationRows := ?_
+    nextPreimage := ?_ }
   · intro index sourceIndex selected
     exact PerApplicationPackageSourceRows.piCcsPackageSourceRow?_eq_some
       application relation index sourceIndex selected
@@ -156,5 +191,7 @@ theorem custody (application : ApplicationProgram)
     exact runningTransitionSourceRow?_eq_some application fits index
   · intro index
     exact applicationSourceRow?_eq_some application fits index
+  · intro index
+    exact nextPreimageSourceRow?_eq_some application index
 
 end NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody

@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 Paper authority: SuperNeo v1.1, Section 7.5, verifier commitment equation
 `c = sum_i b^i c_i`.
 
-Obligation: enforce the fixed-radix recomposition of all 18×54 coefficients
+Obligation: enforce the fixed-radix recomposition of all 22×54 coefficients
 of the typed Ajtai commitment.
 
 Inputs:
@@ -32,10 +32,10 @@ open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 def rowCount : Nat := productionProfile.commitmentWidth
 def coordinateCount : Nat := rowCount * ringDegree
 
-theorem rowCount_eq : rowCount = 18 := by
+theorem rowCount_eq : rowCount = 22 := by
   rfl
 
-theorem coordinateCount_eq : coordinateCount = 972 := by
+theorem coordinateCount_eq : coordinateCount = 1188 := by
   norm_num [coordinateCount, rowCount, productionProfile, ringDegree]
 
 def coordinates (index : Fin coordinateCount) :
@@ -149,10 +149,10 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      972 := by
+      1188 := by
   calc
     _ = coordinateCount := (circuit interface).rowCount_eq offset
-    _ = 972 := coordinateCount_eq
+    _ = 1188 := coordinateCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :

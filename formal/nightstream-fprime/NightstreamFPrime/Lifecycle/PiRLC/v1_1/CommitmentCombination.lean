@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1, equation
 `c = sum_i rho_i c_i`.
 
-This leaf instantiates the generic 17-source Phi81 combination for all 18
+This leaf instantiates the generic 17-source Phi81 combination for all 22
 Ajtai commitment rows. It owns no transcript, public-input, evaluation, or
 output-claim wiring.
 -/
@@ -103,33 +103,33 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
           (evalInputs interface offset env) row) lane
 
 theorem logicalPrivateCount_eq :
-    CombinationFamily.logicalPrivateCount blockCount cellCount = 16524 := by
+    CombinationFamily.logicalPrivateCount blockCount cellCount = 20196 := by
   rw [CombinationFamily.logicalPrivateCount, CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount, blockCount,
     cellCount, productionProfile, ringDegree]
 
 theorem logicalRowCount_eq :
-    CombinationFamily.logicalRowCount blockCount cellCount = 16524 := by
+    CombinationFamily.logicalRowCount blockCount cellCount = 20196 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit (interface : Interface) : FormalCircuit :=
   CombinationFamily.circuit (familyInterface interface)
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 16524 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 20196 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      16524 := by
+      20196 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 16524) := by
+      expression.VarsBelow (offset + 20196) := by
   simpa [circuit, logicalPrivateCount_eq] using
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions

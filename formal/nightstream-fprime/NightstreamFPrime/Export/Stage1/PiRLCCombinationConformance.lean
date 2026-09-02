@@ -352,21 +352,21 @@ theorem sourceRows_imply_invocationRows
 
 theorem commitmentInvocationRows_imply_sourceConstraint
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 18)
+    (sourceLt : source < sourceCount) (blockLt : block < 22)
     (env : Env)
     (holds : R1CS.RowsHold env
       (CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            18 1 1 source block lane.val cell
+            22 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          18 1 1 source block lane.val cell
+          22 1 1 source block lane.val cell
           commitmentValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
-    (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source block
+    (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source block
       cell commitmentValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _
@@ -526,7 +526,7 @@ theorem commitmentFamilyRows_imply_canonical
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
-      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
+      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
       commitmentValueSourceStart env) :
     CombinationFamily.CanonicalHolds
       (productionCommitmentFamilyInterface (logicalWidth := logicalWidth)

@@ -23,6 +23,9 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev FitsTwoPow28 (application : Program) :=
   PerApplicationFixedPoint.FitsTwoPow28 application
 
+abbrev CommitmentSetup (application : Program) :=
+  PerApplicationCanonicalPackage.CommitmentSetup application
+
 abbrev ProofEnvelope (application : Program) :=
   Lifecycle.Stage1.Terminal.ProofEnvelope
     (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -30,34 +33,32 @@ abbrev ProofEnvelope (application : Program) :=
 
 noncomputable def Holds
     (application : Program) (fits : FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope application) : Prop :=
   Lifecycle.Stage1.Terminal.HoldsFor
-    (PerApplicationFixedPoint.relation application fits) ajtai
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai).digest
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verificationKeyBinding fits
+      commitmentSetup).digest
     application statement proof
 
 theorem holds_bottom_iff
     (application : Program) (fits : FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState) :
-    Holds application fits ajtai statement .bottom ↔
+    Holds application fits commitmentSetup statement .bottom ↔
       statement.iteration = 0 ∧ statement.zi = statement.z0 := by
   exact Lifecycle.Stage1.Terminal.holdsFor_bottom_iff
-    (PerApplicationFixedPoint.relation application fits) ajtai
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai).digest
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verificationKeyBinding fits
+      commitmentSetup).digest
     application statement
 
 theorem holds_recursive_iff
     (application : Program) (fits : FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof
       (Running
@@ -73,26 +74,28 @@ theorem holds_recursive_iff
         (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
       slotCount) :
-    Holds application fits ajtai statement (.recursive payload) ↔
+    Holds application fits commitmentSetup statement (.recursive payload) ↔
       RecursiveTerminalTransition
-        (setup (PerApplicationFixedPoint.relation application fits) ajtai
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai
-            ).digest)
+        (setup (PerApplicationFixedPoint.relation application fits)
+          (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+          (PerApplicationCanonicalPackage.verificationKeyBinding fits
+            commitmentSetup).digest)
         (machineFor (PerApplicationFixedPoint.publicFits application)
           application)
         (Lifecycle.Stage1.Terminal.relations
-          (PerApplicationFixedPoint.relation application fits) ajtai)
+          (PerApplicationFixedPoint.relation application fits)
+          (PerApplicationCanonicalPackage.commitmentKey commitmentSetup))
         statement payload := by
   exact Lifecycle.Stage1.Terminal.holdsFor_recursive_iff
-    (PerApplicationFixedPoint.relation application fits) ajtai
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai).digest
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verificationKeyBinding fits
+      commitmentSetup).digest
     application statement payload
 
 theorem relations_iff_terminalHolds
     (application : Program) (fits : FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (commitmentSetup : CommitmentSetup application)
     (running : Running
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -106,21 +109,28 @@ theorem relations_iff_terminalHolds
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application)) :
     (Lifecycle.Stage1.Terminal.relations
-        (PerApplicationFixedPoint.relation application fits) ajtai).runningHolds
+        (PerApplicationFixedPoint.relation application fits)
+        (PerApplicationCanonicalPackage.commitmentKey
+          commitmentSetup)).runningHolds
           functionIndex
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai
-            ).digest running runningWitness ∧
+          (PerApplicationCanonicalPackage.verificationKeyBinding fits
+            commitmentSetup).digest running runningWitness ∧
       (Lifecycle.Stage1.Terminal.relations
-        (PerApplicationFixedPoint.relation application fits) ajtai).freshHolds
+        (PerApplicationFixedPoint.relation application fits)
+        (PerApplicationCanonicalPackage.commitmentKey
+          commitmentSetup)).freshHolds
           functionIndex
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai
-            ).digest fresh freshWitness ↔
+          (PerApplicationCanonicalPackage.verificationKeyBinding fits
+            commitmentSetup).digest fresh freshWitness ↔
       Lifecycle.TerminalHolds
-        (PerApplicationFixedPoint.relation application fits) ajtai running
+        (PerApplicationFixedPoint.relation application fits)
+        (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) running
         runningWitness fresh freshWitness := by
   exact Lifecycle.Stage1.Terminal.relations_iff_terminalHolds
-    (PerApplicationFixedPoint.relation application fits) ajtai
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai).digest
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verificationKeyBinding fits
+      commitmentSetup).digest
     running runningWitness fresh freshWitness
 
 end NightstreamFPrime.Export.Stage1.PerApplicationTerminal

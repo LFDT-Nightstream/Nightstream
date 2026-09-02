@@ -205,7 +205,7 @@ def main
   rfl
 
 def logicalPrivateCount : Nat := 270
-def logicalRowCount : Nat := 7452
+def logicalRowCount : Nat := 7668
 
 structure InputsBelow
     {logicalWidth : Nat}
@@ -496,8 +496,8 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.commitment_recomposition"
-      (commitmentCircuit interface) offset).rowCount = 972 := by
-  change CommitmentRecomposition.coordinateCount = 972
+      (commitmentCircuit interface) offset).rowCount = 1188 := by
+  change CommitmentRecomposition.coordinateCount = 1188
   exact CommitmentRecomposition.coordinateCount_eq
 
 @[simp] private theorem evalKOp_rowCount

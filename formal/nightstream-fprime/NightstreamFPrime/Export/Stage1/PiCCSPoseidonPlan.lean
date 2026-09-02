@@ -22,7 +22,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 
 def invocationCount : Nat := PiCCSActionPayloadBlock.invocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 7550 := by
+@[simp] theorem invocationCount_eq : invocationCount = 7604 := by
   exact PiCCSActionPayloadBlock.invocationCount_eq
 
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
@@ -41,13 +41,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).slotCount = 649300 := by
+    (retainedBlock program).slotCount = 653944 := by
   rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 26621300 := by
+    (retainedBlock program).coordinateCount = 26811704 := by
   rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
 
@@ -289,8 +289,8 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 724800 := by
-  change invocationCount * 94 + bindingRowCount = 724800
+    (plan geometry).rowCount = 729984 := by
+  change invocationCount * 94 + bindingRowCount = 729984
   rw [bindingRowCount, invocationCount_eq]
 
 theorem bindingRowsZero_iff

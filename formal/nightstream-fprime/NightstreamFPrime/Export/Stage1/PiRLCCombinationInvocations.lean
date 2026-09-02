@@ -79,7 +79,7 @@ def evalAValueSourceStart (source block cell : Nat) : Nat :=
     block * 108 + cell
 
 theorem commitmentValueSource_affine (source block cell offset : Nat)
-    (sourceLt : source < sourceCount) (blockLt : block < 18)
+    (sourceLt : source < sourceCount) (blockLt : block < 22)
     (offsetLt : offset < ringDegree) :
     Spartan.sourceToSpartan
         (commitmentValueSourceStart source block cell + offset) =
@@ -998,16 +998,16 @@ theorem invocationOutputRecipe_eq_remappedSourceRecipe
 
 theorem commitmentInvocationOutputRecipe_eq_remappedSourceRecipe
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 18) :
+    (sourceLt : source < sourceCount) (blockLt : block < 22) :
     CompactRows.renameExpr
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            18 1 1 source block lane.val cell
+            22 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
       CompactRows.renameExpr Spartan.sourceToSpartan
-        (sourcePrior PiRLCStarts.commitmentLogicalStart 18 1 source block
+        (sourcePrior PiRLCStarts.commitmentLogicalStart 22 1 source block
             lane.val cell +
           CombinationStep.mulExpr (sourceChallenge source)
             (sourceValue 1 source block cell commitmentValueSourceStart)
@@ -1166,23 +1166,23 @@ theorem invocationRows_eq_remappedSource
 
 theorem commitmentInvocationRows_eq_remappedSource
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 18) :
+    (sourceLt : source < sourceCount) (blockLt : block < 22) :
     CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            18 1 1 source block lane.val cell
+            22 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          18 1 1 source block lane.val cell
+          22 1 1 source block lane.val cell
           commitmentValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
       Spartan.remapRows
         (R1CS.lowerGenericConstraint
-          (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source
+          (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source
             block cell commitmentValueSourceStart lane)
-          (invocationFreshSource PiRLCStarts.commitmentFreshStart 18 1 source
+          (invocationFreshSource PiRLCStarts.commitmentFreshStart 22 1 source
             block lane.val cell)).rows := by
   apply invocationRows_eq_remappedSource
   · exact invocationFreshSource_local _ _ _ _ _ _ _
@@ -1281,7 +1281,7 @@ def familyInvocations (logicalStart rowStart freshStart blockCount cellCount
 def commitmentInvocations : List CompactRowInvocation :=
   familyInvocations PiRLCStarts.commitmentLogicalStart
     PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-    18 1 1 commitmentValueSourceStart
+    22 1 1 commitmentValueSourceStart
 
 def publicInputInvocations : List CompactRowInvocation :=
   familyInvocations PiRLCStarts.publicInputLogicalStart
@@ -1340,7 +1340,7 @@ theorem familyInvocations_length (logicalStart rowStart freshStart blockCount
   simp [familyInvocations, CombinationStep.privateCount]
   ring
 
-theorem commitmentInvocations_length : commitmentInvocations.length = 16524 := by
+theorem commitmentInvocations_length : commitmentInvocations.length = 20196 := by
   rw [commitmentInvocations, familyInvocations_length]
   rfl
 
@@ -1356,16 +1356,16 @@ theorem evalAInvocations_length : evalAInvocations.length = 25704 := by
   rw [evalAInvocations, familyInvocations_length]
   rfl
 
-theorem invocations_length : invocations.length = 48654 := by
+theorem invocations_length : invocations.length = 52326 := by
   simp [invocations, commitmentInvocations_length,
     publicInputInvocations_length, evalKInvocations_length,
     evalAInvocations_length]
 
 
 theorem familyBoundaries_eq :
-    PiRLCStarts.commitmentRowStart + sourceCount * sourceRowCount 18 1 =
+    PiRLCStarts.commitmentRowStart + sourceCount * sourceRowCount 22 1 =
         PiRLCStarts.publicInputRowStart ∧
-    PiRLCStarts.commitmentFreshStart + sourceCount * sourceFreshCount 18 1 =
+    PiRLCStarts.commitmentFreshStart + sourceCount * sourceFreshCount 22 1 =
         PiRLCStarts.publicInputFreshStart ∧
     PiRLCStarts.publicInputRowStart + sourceCount * sourceRowCount 5 1 =
         PiRLCStarts.evalKRowStart ∧

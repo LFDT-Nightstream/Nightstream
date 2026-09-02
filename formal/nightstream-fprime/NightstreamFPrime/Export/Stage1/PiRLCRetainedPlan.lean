@@ -23,9 +23,9 @@ open PiRLCRetainedGeometry
 open PiRLCRetainedInputs
 open PiRLCRetainedPreservation
 
-def rowCount : Nat := 1654236 + 119697
+def rowCount : Nat := 1779084 + 119697
 
-@[simp] theorem rowCount_eq : rowCount = 1773933 := by
+@[simp] theorem rowCount_eq : rowCount = 1898781 := by
   rfl
 
 theorem childRowCount_le {program : Lifecycle.Stage1.Application.Program}
@@ -48,7 +48,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 1773933 := by
+    (plan geometry).rowCount = 1898781 := by
   simp [plan]
 
 /-- The combined plan vanishes exactly when both canonical child plans

@@ -3,7 +3,9 @@ import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Support
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport

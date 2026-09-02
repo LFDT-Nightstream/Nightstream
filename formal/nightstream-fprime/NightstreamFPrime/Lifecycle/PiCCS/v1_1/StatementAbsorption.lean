@@ -159,7 +159,7 @@ private theorem serializePointExpr_length
 private theorem serializeCommitmentExpr_length
     (commitment : Fin productionProfile.commitmentWidth →
       Fin ringDegree → Expr) :
-    (serializeCommitmentExpr commitment).length = 972 := by
+    (serializeCommitmentExpr commitment).length = 1188 := by
   simp [serializeCommitmentExpr, productionProfile, ringDegree]
 
 private theorem serializePublicInputExpr_length {logicalWidth : Nat}
@@ -205,7 +205,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 45897 := by
+    (serializeRunningExpr running).length = 49353 := by
   simp [serializeRunningExpr, blockExpr_length, serializePointExpr_length,
     serializeCommitmentExpr_length, serializePublicInputExpr_length,
     serializeEvaluationExpr_length, productionShape, productionProfile,
@@ -740,7 +740,7 @@ private theorem absorb_recipeCount (input : List Expr) :
     (commitment : Fin productionProfile.commitmentWidth →
       Fin ringDegree → Expr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializeCommitmentExpr commitment)) = 144448 := by
+        (absorbBlock (serializeCommitmentExpr commitment)) = 176416 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializeCommitmentExpr_length]
 
@@ -778,7 +778,7 @@ private theorem runningGroup_recipeCount {logicalWidth : Nat}
       [absorbBlock (serializeCommitmentExpr (running.commitment index)),
         absorbBlock (serializePublicInputExpr (running.publicInput index)),
         absorbBlock (serializeEvaluationExpr (running.evaluation index))] =
-      425056 := by
+      457024 := by
   simp [Formal.recipeCount]
 
 private theorem freshGroup_recipeCount {logicalWidth : Nat}
@@ -789,20 +789,20 @@ private theorem freshGroup_recipeCount {logicalWidth : Nat}
     Formal.recipeCount
       [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
         absorbBlock (serializePublicInputExpr (fresh.publicInput index))] =
-      184704 := by
+      216672 := by
   simp [Formal.recipeCount]
 
 private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 192400 := by
+    Formal.recipeCount (publicInputActions interface offset) = 224368 := by
   let fresh := interface.fresh offset
   have freshCost : Formal.recipeCount
       ((List.finRange productionShape.freshCount).flatMap fun index =>
         [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
           absorbBlock (serializePublicInputExpr (fresh.publicInput index))]) =
-      productionShape.freshCount * 184704 := by
+      productionShape.freshCount * 216672 := by
     apply Formal.recipeCount_flatMap_constant
     intro index _
     exact freshGroup_recipeCount fresh index
@@ -1124,21 +1124,21 @@ def recipeCount {logicalWidth : Nat}
   Formal.recipeCount (actions interface offset)
 
 /-- The fixed profile compiles the digest-only statement prefix to exactly
-192,400 private recipe variables. -/
+224,368 private recipe variables. -/
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 192400 := by
+    recipeCount interface offset = 224368 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 192400 := by
+    (program interface offset).recipes.length = 224368 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 192400
+    (actions interface offset)).recipes.length = 224368
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -1147,7 +1147,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 192400 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 224368 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -1166,7 +1166,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      192400 := by
+      224368 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 

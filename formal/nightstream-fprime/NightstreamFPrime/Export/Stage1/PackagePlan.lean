@@ -155,7 +155,7 @@ def canonicalCombinationBlock : CombinationInvocationBlock where
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentRowStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentFreshStart,
-    18, 1, 1⟩
+    22, 1, 1⟩
   publicInput := ⟨
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputRowStart,

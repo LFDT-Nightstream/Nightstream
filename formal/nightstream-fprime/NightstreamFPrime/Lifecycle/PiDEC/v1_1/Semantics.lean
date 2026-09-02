@@ -90,6 +90,83 @@ def output
     (Formal.outputBindingInterface (Formal.atOffset interface offset))
     (Formal.outputBindingOffset offset) env
 
+/-- The computed PiDEC child family is unchanged when its shared point,
+message values, and verifier-computed public digits are unchanged. -/
+theorem output_eq_of_components
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Formal.Interface logicalWidth publicFits)
+    (offset : Nat) (left right : Env)
+    (pointEq : InputBinding.evalPoint (interface.point offset) left =
+      InputBinding.evalPoint (interface.point offset) right)
+    (commitmentEq : ∀ child row lane,
+      ((interface.message offset child).commitment row lane).eval left =
+        ((interface.message offset child).commitment row lane).eval right)
+    (publicInputEq : ∀ child coordinate,
+      (interface.digit offset child coordinate).eval left =
+        (interface.digit offset child coordinate).eval right)
+    (evaluationEq : ∀ child,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation
+          (interface.message offset child).evaluation left =
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation
+          (interface.message offset child).evaluation right) :
+    output relation interface offset left =
+      output relation interface offset right := by
+  funext child
+  apply output_ext
+  · rfl
+  · funext row lane
+    simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using commitmentEq child row lane
+  · funext coordinate
+    simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using publicInputEq child coordinate
+  · simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using pointEq
+  · exact congrArg (fun value => #[value]) (evaluationEq child)
+  · rfl
+
+/-- Cross-interface form of `output_eq_of_components`. Layout relocation is
+supplied only through exact evaluated component equalities. -/
+theorem output_eq_of_cross_components
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (leftInterface rightInterface : Formal.Interface logicalWidth publicFits)
+    (leftOffset rightOffset : Nat) (left right : Env)
+    (pointEq : InputBinding.evalPoint (leftInterface.point leftOffset) left =
+      InputBinding.evalPoint (rightInterface.point rightOffset) right)
+    (commitmentEq : ∀ child row lane,
+      ((leftInterface.message leftOffset child).commitment row lane).eval left =
+        ((rightInterface.message rightOffset child).commitment row lane).eval
+          right)
+    (publicInputEq : ∀ child coordinate,
+      (leftInterface.digit leftOffset child coordinate).eval left =
+        (rightInterface.digit rightOffset child coordinate).eval right)
+    (evaluationEq : ∀ child,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation
+          (leftInterface.message leftOffset child).evaluation left =
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation
+          (rightInterface.message rightOffset child).evaluation right) :
+    output relation leftInterface leftOffset left =
+      output relation rightInterface rightOffset right := by
+  funext child
+  apply output_ext
+  · rfl
+  · funext row lane
+    simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using commitmentEq child row lane
+  · funext coordinate
+    simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using publicInputEq child coordinate
+  · simpa [output, OutputBinding.evalOutput, Formal.outputBindingInterface,
+      Formal.atOffset] using pointEq
+  · exact congrArg (fun value => #[value]) (evaluationEq child)
+  · rfl
+
 abbrev PhaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -105,6 +182,58 @@ abbrev PhaseHolds
     (PaperAlgebra.evaluationArity ajtai)
     (inputAttempt relation interface offset env).parent
     (output relation interface offset env)
+
+/-- PiDEC acceptance transports only through equality of the exact parent and
+computed child-output family used by the paper verifier. -/
+theorem phaseHolds_of_parent_output_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth publicFits)
+    (offset : Nat) (left right : Env)
+    (parentEq : (inputAttempt relation interface offset left).parent =
+      (inputAttempt relation interface offset right).parent)
+    (outputEq : output relation interface offset left =
+      output relation interface offset right)
+    (phase : PhaseHolds relation ajtai interface offset left) :
+    PhaseHolds relation ajtai interface offset right := by
+  change PiDEC.PaperVerifier.OutputAccepted
+    (PaperAlgebra.piDecAlgebra ajtai)
+    (PaperAlgebra.publicInputSplit ajtai)
+    (PaperAlgebra.evaluationArity ajtai)
+    (inputAttempt relation interface offset right).parent
+    (output relation interface offset right)
+  rw [← parentEq, ← outputEq]
+  exact phase
+
+/-- Cross-interface PiDEC acceptance transport through the exact parent and
+computed child-output family. -/
+theorem phaseHolds_of_cross_parent_output_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (leftInterface rightInterface : Formal.Interface logicalWidth publicFits)
+    (leftOffset rightOffset : Nat) (left right : Env)
+    (parentEq : (inputAttempt relation leftInterface leftOffset left).parent =
+      (inputAttempt relation rightInterface rightOffset right).parent)
+    (outputEq : output relation leftInterface leftOffset left =
+      output relation rightInterface rightOffset right)
+    (phase : PhaseHolds relation ajtai leftInterface leftOffset left) :
+    PhaseHolds relation ajtai rightInterface rightOffset right := by
+  change PiDEC.PaperVerifier.OutputAccepted
+    (PaperAlgebra.piDecAlgebra ajtai)
+    (PaperAlgebra.publicInputSplit ajtai)
+    (PaperAlgebra.evaluationArity ajtai)
+    (inputAttempt relation rightInterface rightOffset right).parent
+    (output relation rightInterface rightOffset right)
+  rw [← parentEq, ← outputEq]
+  exact phase
 
 private theorem evaluationFamily_eq
     {logicalWidth : Nat}

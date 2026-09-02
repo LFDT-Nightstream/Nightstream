@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.AccumulatorPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
 import NightstreamFPrime.Export.Stage1.RunningTransitionPackage
+import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 
 /-!
 Owns deterministic soundness of one generic per-application Stage 1 package.
@@ -165,11 +166,6 @@ theorem packageRows_imply_stepHoldsFor
     (output : Output Digest AppState
       (Running (logicalWidth := Data.logicalWidth)
         (publicFits := Data.publicFits)) slotCount)
-    (piRlcAssumptions :
-      PiRLC.v1_1.Formal.Assumptions relation
-        (Layout.Stage1.PiRLCInputs.interface
-          (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-        Layout.Stage1.PiRLCInputs.phaseOffset (sourceEnv program env))
     (represents : Represents relation ajtai vk program env input output)
     (rows : (PerApplicationPackage.package program).RowsHold env) :
     StepHoldsFor relation ajtai vk program input output := by
@@ -186,7 +182,8 @@ theorem packageRows_imply_stepHoldsFor
     application_eq relation ajtai vk program env input output represents rows
   have accumulator :=
     AccumulatorPackage.circuitPackage_implies_accumulatorHolds relation ajtai vk
-      (PerApplicationPackage.baseEnv program env) baseRows piRlcAssumptions
+      (PerApplicationPackage.baseEnv program env) baseRows
+      (Layout.Stage1.PiRLCInputBounds.assumptions relation (sourceEnv program env))
   change Accumulator.Holds relation ajtai vk
     (Layout.Stage1.AccumulatorInputs.running Data.logicalWidth Data.publicFits
       (sourceEnv program env))

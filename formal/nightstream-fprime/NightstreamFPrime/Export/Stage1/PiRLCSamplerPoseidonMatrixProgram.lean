@@ -21,7 +21,7 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 def piCcsFinalSlotBase : Nat :=
   (PiCCSPoseidonPlan.invocationCount - 1) * 86 + 78
 
-@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 649292 := by
+@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 653936 := by
   norm_num [piCcsFinalSlotBase, PiCCSPoseidonPlan.invocationCount_eq]
 
 def constantAt

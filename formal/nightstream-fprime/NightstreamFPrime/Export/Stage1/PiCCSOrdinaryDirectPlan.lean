@@ -41,7 +41,7 @@ def sourceColumn : Location → Nat
   | .freshPublicInput index => PilotProduction.priorPublicInputStart + index.val
   | .outputInput index => PilotProduction.outputPreimageStart + index.val
   | .expectedContext index => PiCCSInputs.expectedContextStart + index.val
-  | .proofLogical index => PiCCSInputs.proofInputStart + index.val
+  | .proofLogical index => proofLogicalSource index
   | .fresh index => PiCCSArithmetic.initialClaimFreshStart + index.val
 
 theorem sourceSupport (location : Location) :
@@ -92,28 +92,7 @@ theorem sourceSupport (location : Location) :
           PiCCSInputs.expectedContextStart + PiCCSInputs.expectedContextWords
         omega
   | proofLogical index =>
-      have bound := index.isLt
-      by_cases beforeLocal :
-          PiCCSInputs.proofInputStart + index.val < PiCCSInputs.phaseOffset
-      · apply PiCCSOrdinarySourceSupport.external_source
-        apply PiCCSOrdinarySourceSupport.external_proof
-        unfold PiCCSOrdinarySourceSupport.InRange
-        change PiCCSInputs.proofInputStart ≤
-            PiCCSInputs.proofInputStart + index.val ∧
-          PiCCSInputs.proofInputStart + index.val <
-            PiCCSInputs.proofInputStart +
-              (PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart)
-        rw [PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq]
-          at beforeLocal ⊢
-        omega
-      · apply PiCCSOrdinarySourceSupport.local_source
-        · change PiCCSInputs.phaseOffset ≤
-            PiCCSInputs.proofInputStart + index.val
-          omega
-        · change PiCCSInputs.proofInputStart + index.val <
-            PiCCSStarts.outputBindingWitnessStart
-          unfold PiCCSOrdinaryRetainedBlocks.proofLogicalCount at bound
-          omega
+      exact proofLogicalSource_support index
   | fresh index =>
       have bound := index.isLt
       change index.val < 731605 at bound
@@ -193,7 +172,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         encodes.proofLogical]
       apply congrArg source
       apply Fin.ext
-      rfl
+      simp [proofLogicalBlock, Location.sourceColumn]
   | fresh index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
         encodes.fresh]
@@ -226,6 +205,113 @@ structure Located (column : Nat) where
   location : Location
   owns : location.sourceColumn = column
 
+def proofInputLocated {column : Nat}
+    (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
+      proofInputCount column) : Located column :=
+  ⟨.proofLogical (proofInputSlot (rangeIndex inside)), by
+    rw [Location.sourceColumn, proofLogicalSource_proofInput,
+      rangeIndex_source inside]⟩
+
+def transcriptColumnStart : Nat := PiCCSInputs.phaseOffset + 584
+
+def transcriptOffset (column : Nat) : Nat := column - transcriptColumnStart
+
+def transcriptInvocationIndex (column : Nat)
+    (bounded : transcriptOffset column / 592 < transcriptInvocationCount) :
+    Fin transcriptInvocationCount :=
+  ⟨transcriptOffset column / 592, bounded⟩
+
+def transcriptLaneIndex (column : Nat)
+    (bounded : transcriptOffset column % 592 < Spec.Poseidon2.width) :
+    Fin Spec.Poseidon2.width :=
+  ⟨transcriptOffset column % 592, bounded⟩
+
+private theorem transcriptDecoded_source_eq (column : Nat)
+    (lower : transcriptColumnStart ≤ column)
+    (invocationBound : transcriptOffset column / 592 < transcriptInvocationCount)
+    (laneBound : transcriptOffset column % 592 < Spec.Poseidon2.width) :
+    transcriptOutputSource
+        (Fin.encodeProd (transcriptInvocationIndex column invocationBound,
+          transcriptLaneIndex column laneBound)) =
+      column := by
+  rw [transcriptOutputSource_encodeProd]
+  dsimp only [transcriptInvocationIndex, transcriptLaneIndex]
+  have divmod := Nat.mod_add_div (transcriptOffset column) 592
+  unfold transcriptColumnStart at lower
+  unfold transcriptOffset transcriptColumnStart at divmod ⊢
+  omega
+
+structure TranscriptDecoded (column : Nat) where
+  index : Fin transcriptOutputCount
+  source_eq : transcriptOutputSource index = column
+
+def decodeTranscript (column : Nat) : Option (TranscriptDecoded column) :=
+  if lower : transcriptColumnStart ≤ column then
+    if invocationBound :
+        transcriptOffset column / 592 < transcriptInvocationCount then
+      if laneBound : transcriptOffset column % 592 < Spec.Poseidon2.width then
+        some ⟨Fin.encodeProd
+            (transcriptInvocationIndex column invocationBound,
+              transcriptLaneIndex column laneBound),
+          transcriptDecoded_source_eq column lower invocationBound laneBound⟩
+      else
+        none
+    else
+      none
+  else
+    none
+
+theorem decodeTranscript_complete {column : Nat}
+    (inside : PiCCSOrdinarySourceSupport.TranscriptOutput column) :
+    (decodeTranscript column).isSome := by
+  rcases inside with ⟨invocation, lane, equals⟩
+  have invocationBound := invocation.isLt
+  have laneBound := lane.isLt
+  have regroup :
+      PiCCSInputs.phaseOffset + invocation.val * 592 + 584 + lane.val =
+        (PiCCSInputs.phaseOffset + 584) +
+          (invocation.val * 592 + lane.val) := by
+    omega
+  have lower : transcriptColumnStart ≤ column := by
+    unfold transcriptColumnStart
+    rw [equals, regroup]
+    exact Nat.le_add_right _ _
+  have offsetEq : transcriptOffset column = invocation.val * 592 + lane.val := by
+    unfold transcriptOffset transcriptColumnStart
+    rw [equals, regroup, Nat.add_sub_cancel_left]
+  have laneBound592 : lane.val < 592 := by
+    have laneBound8 := laneBound
+    change lane.val < 8 at laneBound8
+    omega
+  have quotientEq : transcriptOffset column / 592 = invocation.val := by
+    rw [offsetEq]
+    omega
+  have remainderEq : transcriptOffset column % 592 = lane.val := by
+    rw [offsetEq]
+    omega
+  have decodedInvocationBound :
+      transcriptOffset column / 592 < transcriptInvocationCount := by
+    rw [quotientEq]
+    exact invocationBound
+  have decodedLaneBound :
+      transcriptOffset column % 592 < Spec.Poseidon2.width := by
+    rw [remainderEq]
+    exact laneBound
+  unfold decodeTranscript
+  rw [dif_pos lower, dif_pos decodedInvocationBound, dif_pos decodedLaneBound]
+  rfl
+
+def ordinaryLogicalLocated {column : Nat}
+    (inside : PiCCSOrdinarySourceSupport.InRange
+      PiCCSStarts.initialClaimLogicalStart ordinaryLogicalCount column) :
+    Located column :=
+  ⟨.proofLogical (ordinaryLogicalSlot (rangeIndex inside)), by
+    rw [Location.sourceColumn, proofLogicalSource_ordinaryLogical]
+    change PiCCSStarts.initialClaimLogicalStart +
+      (column - PiCCSStarts.initialClaimLogicalStart) = column
+    unfold PiCCSOrdinarySourceSupport.InRange at inside
+    omega⟩
+
 def classifySource (column : Nat) : Option (Located column) :=
   if prior : PiCCSOrdinarySourceSupport.InRange
       PilotProduction.priorPreimageStart PilotProduction.stateHashWords column then
@@ -243,41 +329,32 @@ def classifySource (column : Nat) : Option (Located column) :=
       PiCCSInputs.expectedContextStart PiCCSInputs.expectedContextWords column then
     some ⟨.expectedContext (rangeIndex context), by
       rw [Location.sourceColumn, rangeIndex_source context]⟩
-  else if proofLogical : PiCCSOrdinarySourceSupport.InRange
-      PiCCSInputs.proofInputStart
-        PiCCSOrdinaryRetainedBlocks.proofLogicalCount column then
-    some ⟨.proofLogical (rangeIndex proofLogical), by
-      rw [Location.sourceColumn, rangeIndex_source proofLogical]⟩
-  else if fresh : PiCCSOrdinarySourceSupport.InRange
-      PiCCSArithmetic.initialClaimFreshStart
-        PiCCSOrdinaryRetainedBlocks.freshCount column then
-    some ⟨.fresh (rangeIndex fresh), by
-      rw [Location.sourceColumn, rangeIndex_source fresh]⟩
-  else
-    none
+  else if proofInput : PiCCSOrdinarySourceSupport.InRange
+      PiCCSInputs.proofInputStart proofInputCount column then
+    some (proofInputLocated proofInput)
+  else match decodeTranscript column with
+    | some decoded =>
+        some ⟨.proofLogical (transcriptOutputSlot decoded.index), by
+          rw [Location.sourceColumn, proofLogicalSource_transcriptOutput,
+            decoded.source_eq]⟩
+    | none =>
+        if ordinary : PiCCSOrdinarySourceSupport.InRange
+            PiCCSStarts.initialClaimLogicalStart ordinaryLogicalCount column then
+          some (ordinaryLogicalLocated ordinary)
+        else if fresh : PiCCSOrdinarySourceSupport.InRange
+            PiCCSArithmetic.initialClaimFreshStart
+              PiCCSOrdinaryRetainedBlocks.freshCount column then
+          some ⟨.fresh (rangeIndex fresh), by
+            rw [Location.sourceColumn, rangeIndex_source fresh]⟩
+        else
+          none
 
-private theorem externalProof_in_proofLogical {column : Nat}
+private theorem externalProof_in_proofInput {column : Nat}
     (inside : PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
       (PiCCSInputs.phaseOffset - PiCCSInputs.proofInputStart) column) :
     PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
-      PiCCSOrdinaryRetainedBlocks.proofLogicalCount column := by
-  unfold PiCCSOrdinarySourceSupport.InRange at inside ⊢
-  rw [PiCCSInputs.phaseOffset_eq, PiCCSInputs.proofInputStart_eq] at inside
-  rw [PiCCSInputs.proofInputStart_eq,
-    PiCCSOrdinaryRetainedBlocks.proofLogicalCount_eq]
-  omega
-
-private theorem logical_in_proofLogical {column : Nat}
-    (inside : PiCCSInputs.phaseOffset ≤ column ∧
-      column < PiCCSStarts.outputBindingWitnessStart) :
-    PiCCSOrdinarySourceSupport.InRange PiCCSInputs.proofInputStart
-      PiCCSOrdinaryRetainedBlocks.proofLogicalCount column := by
-  unfold PiCCSOrdinarySourceSupport.InRange
-  rw [PiCCSInputs.proofInputStart_eq,
-    PiCCSOrdinaryRetainedBlocks.proofLogicalCount_eq]
-  rw [PiCCSInputs.phaseOffset_eq,
-    PiCCSStarts.outputBindingWitnessStart_eq] at inside
-  omega
+      proofInputCount column := by
+  exact inside
 
 private theorem sourceFresh_inRange {column : Nat}
     (inside : PiCCSStarts.initialClaimFreshStart ≤ column ∧
@@ -317,31 +394,46 @@ theorem classifySource_complete {column : Nat}
   · unfold classifySource
     rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_pos context]
     rfl
-  by_cases proofLogical : PiCCSOrdinarySourceSupport.InRange
-      PiCCSInputs.proofInputStart
-        PiCCSOrdinaryRetainedBlocks.proofLogicalCount column
+  by_cases proofInput : PiCCSOrdinarySourceSupport.InRange
+      PiCCSInputs.proofInputStart proofInputCount column
   · unfold classifySource
     rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-      dif_pos proofLogical]
+      dif_pos proofInput]
     rfl
-  by_cases fresh : PiCCSOrdinarySourceSupport.InRange
-      PiCCSArithmetic.initialClaimFreshStart
-        PiCCSOrdinaryRetainedBlocks.freshCount column
-  · unfold classifySource
-    rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-      dif_neg proofLogical, dif_pos fresh]
-    rfl
-  · exfalso
-    rcases support with (external | logical) | freshSupport
-    · rcases external with priorSupport | publicSupport | outputSupport |
-        contextSupport | proofSupport
-      · exact prior priorSupport
-      · exact freshPublic publicSupport
-      · exact output outputSupport
-      · exact context contextSupport
-      · exact proofLogical (externalProof_in_proofLogical proofSupport)
-    · exact proofLogical (logical_in_proofLogical logical)
-    · exact fresh (sourceFresh_inRange freshSupport)
+  cases decodedEq : decodeTranscript column with
+  | some decoded =>
+      unfold classifySource
+      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
+        dif_neg proofInput, decodedEq]
+      rfl
+  | none =>
+    by_cases ordinary : PiCCSOrdinarySourceSupport.InRange
+        PiCCSStarts.initialClaimLogicalStart ordinaryLogicalCount column
+    · unfold classifySource
+      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
+        dif_neg proofInput, decodedEq, dif_pos ordinary]
+      rfl
+    by_cases fresh : PiCCSOrdinarySourceSupport.InRange
+        PiCCSArithmetic.initialClaimFreshStart
+          PiCCSOrdinaryRetainedBlocks.freshCount column
+    · unfold classifySource
+      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
+        dif_neg proofInput, decodedEq, dif_neg ordinary, dif_pos fresh]
+      rfl
+    · exfalso
+      rcases support with (external | transcriptOrOrdinary) | freshSupport
+      · rcases external with priorSupport | publicSupport | outputSupport |
+          contextSupport | proofSupport
+        · exact prior priorSupport
+        · exact freshPublic publicSupport
+        · exact output outputSupport
+        · exact context contextSupport
+        · exact proofInput (externalProof_in_proofInput proofSupport)
+      · rcases transcriptOrOrdinary with transcriptSupport | ordinarySupport
+        · have complete := decodeTranscript_complete transcriptSupport
+          simp [decodedEq] at complete
+        · exact ordinary ordinarySupport
+      · exact fresh (sourceFresh_inRange freshSupport)
 
 structure Decoded where
   source : Nat

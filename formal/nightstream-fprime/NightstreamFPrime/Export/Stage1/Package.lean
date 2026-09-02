@@ -172,29 +172,29 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 7703 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 7757 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 91874 := by
+theorem proofInputStart_eq : Data.proofInputStart = 98786 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 120946 := by
+theorem witnessStart_eq : Data.witnessStart = 128074 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 27235480 := by
+theorem witnessLength_eq : Data.witnessLength = 28844896 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 27584200 ∧
-      layout.privateColumnCount = 27695710 ∧
-      layout.constantColumn = 27695710 ∧
+    layout.rowCount = 29218024 ∧
+      layout.privateColumnCount = 29336446 ∧
+      layout.constantColumn = 29336446 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 27695989 := by
+      layout.totalColumnCount = 29336725 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -211,11 +211,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 1379125 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 1403533 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 1379125 := by
+    _ = 1403533 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -230,7 +230,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 1380455 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 1404863 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -239,7 +239,7 @@ theorem circuitPackage_ordinary_rows
     _ = 1330 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 1330 + 1379125 := by
+    _ = 1330 + 1403533 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -249,9 +249,9 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 1380455 := by norm_num
+    _ = 1404863 := by norm_num
 
-/-- Construct all 7,550 PiCCS Poseidon2 invocations in their proved private
+/-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/
 theorem complete_piCcsInvocations
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -784,7 +784,7 @@ theorem circuitPackage_piRlcCombinationTemplateSelection :
 
 theorem piRlcCombination_compactRowCount :
     compactRowCountFor PiRLCFirst54Invocations.packageTemplates
-      PiRLCCombinationInvocations.invocations = 7346754 := by
+      PiRLCCombinationInvocations.invocations = 7901226 := by
   exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
     PiRLCFirst54Invocations.packageTemplates
     piRlcPackageTemplates_selectCombination
@@ -827,7 +827,7 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
   commitment : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentLogicalStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentRowStart
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentFreshStart 18 1 1
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentFreshStart 22 1 1
     PiRLCCombinationInvocations.commitmentValueSourceStart env
   publicInput : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart
@@ -1398,8 +1398,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      13599424 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 13599424
+      14622400 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 14622400
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,
@@ -1409,14 +1409,14 @@ private theorem hashChain_rows :
     Spec.Poseidon2.rate]
 
 theorem circuitPackage_compactRowCount :
-    (Data.components ()).toCircuitPackage.compactRowCount = 8044145 := by
+    (Data.components ()).toCircuitPackage.compactRowCount = 8598617 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
     Data.Components.toCircuitPackage_compactRowInvocations,
     Data.compactRowTemplates_eq, Data.compactRowInvocations_eq]
   change compactRowCountFor PiRLCFirst54Invocations.packageTemplates
     (PiRLCFirst54Invocations.invocations ++
-      PiRLCCombinationInvocations.invocations) = 8044145
+      PiRLCCombinationInvocations.invocations) = 8598617
   rw [compactRowCountFor_append,
     PiRLCFirst54Invocations.compactRowCount,
     piRlcCombination_compactRowCount]

@@ -114,11 +114,11 @@ private theorem sharedInputsSource
     Formal.atOffset] using externalInputsSource
 
 private theorem fixedLocal_source (start length : Nat)
-    (phaseLe : PiCCSInputs.phaseOffset ≤ start)
+    (initialLe : PiCCSArithmetic.initialClaimLogicalStart ≤ start)
     (finishLe : start + length ≤ PiCCSStarts.outputBindingWitnessStart) :
     ∀ index, start ≤ index → index < start + length → Source index := by
   intro index lower upper
-  exact local_source index (Nat.le_trans phaseLe lower)
+  exact local_source index (Nat.le_trans initialLe lower)
     (Nat.lt_of_lt_of_le upper finishLe)
 
 private theorem initialProgramLength
@@ -139,12 +139,10 @@ private theorem normProgramLength
   change 2 * ((NormTerminal.coefficientExprs interface offset).length - 1) = 32
   rw [NormTerminal.coefficientExprs_length]
 
-private theorem phase_le_initial :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.initialClaimLogicalStart := by
-  rw [PiCCSInputs.phaseOffset_eq]
-  norm_num [PiCCSArithmetic.initialClaimLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+private theorem initial_le_initial :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.initialClaimLogicalStart :=
+  Nat.le_refl _
 
 private theorem initial_finish_le :
     PiCCSArithmetic.initialClaimLogicalStart + 25918 ≤
@@ -154,11 +152,12 @@ private theorem initial_finish_le :
     PiCCSStarts.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-private theorem phase_le_evalK :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.evalKLogicalStart := by
-  rw [PiCCSInputs.phaseOffset_eq]
+private theorem initial_le_evalK :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.evalKLogicalStart := by
   norm_num [PiCCSArithmetic.evalKLogicalStart, PiCCSStarts.evalKLogicalStart,
     PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
+    PiCCSArithmetic.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
 private theorem evalK_finish_le :
@@ -169,12 +168,12 @@ private theorem evalK_finish_le :
     PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-private theorem phase_le_evalA :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.evalALogicalStart := by
-  rw [PiCCSInputs.phaseOffset_eq]
+private theorem initial_le_evalA :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.evalALogicalStart := by
   norm_num [PiCCSArithmetic.evalALogicalStart, PiCCSStarts.evalALogicalStart,
     PiCCSStarts.evalKLogicalStart, PiCCSStarts.sumcheckLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart,
+    PiCCSStarts.initialClaimLogicalStart, PiCCSArithmetic.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
 private theorem evalA_finish_le :
@@ -186,9 +185,10 @@ private theorem evalA_finish_le :
     PiCCSStarts.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-private theorem phase_le_ccs :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.ccsLogicalStart := by
-  exact Nat.le_trans phase_le_evalA (by
+private theorem initial_le_ccs :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.ccsLogicalStart := by
+  exact Nat.le_trans initial_le_evalA (by
     norm_num [PiCCSArithmetic.ccsLogicalStart, PiCCSStarts.ccsLogicalStart,
       PiCCSArithmetic.evalALogicalStart, PiCCSStarts.evalALogicalStart])
 
@@ -201,9 +201,10 @@ private theorem ccs_finish_le :
     PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-private theorem phase_le_norm :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.normLogicalStart := by
-  exact Nat.le_trans phase_le_ccs (by
+private theorem initial_le_norm :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.normLogicalStart := by
+  exact Nat.le_trans initial_le_ccs (by
     norm_num [PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart,
       PiCCSArithmetic.ccsLogicalStart, PiCCSStarts.ccsLogicalStart])
 
@@ -217,9 +218,10 @@ private theorem norm_finish_le :
     PiCCSStarts.initialClaimLogicalStart,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
-private theorem phase_le_final :
-    PiCCSInputs.phaseOffset ≤ PiCCSArithmetic.finalIdentityLogicalStart := by
-  exact Nat.le_trans phase_le_norm (by
+private theorem initial_le_final :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.finalIdentityLogicalStart := by
+  exact Nat.le_trans initial_le_norm (by
     norm_num [PiCCSArithmetic.finalIdentityLogicalStart,
       PiCCSStarts.finalIdentityLogicalStart,
       PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart])
@@ -304,7 +306,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.initialClaimLogicalStart).recipes.length →
       Source index := by
     rw [initialProgramLength]
-    exact fixedLocal_source _ _ phase_le_initial initial_finish_le
+    exact fixedLocal_source _ _ initial_le_initial initial_finish_le
   have gammaSupport : Horner.KSupported
       (initialInterface.gamma PiCCSArithmetic.initialClaimLogicalStart) Source := by
     simpa [initialInterface, Formal.initialClaimInterface] using transcript.gamma
@@ -363,7 +365,7 @@ theorem emittedConstraints_varsSatisfy
     intro index lower upper
     rw [EvalKTerminal.localLength_eq] at upper
     apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 1836
-      phase_le_evalK evalK_finish_le index lower upper
+      initial_le_evalK evalK_finish_le index lower upper
   have evalKRoundSupport : ∀ coordinate,
       Horner.KSupported
         (evalKInterface.roundPoint PiCCSArithmetic.evalKLogicalStart coordinate)
@@ -402,7 +404,7 @@ theorem emittedConstraints_varsSatisfy
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
     apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 24300
-      phase_le_evalA evalA_finish_le index lower upper
+      initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
         (evalAInterface.roundPoint PiCCSArithmetic.evalALogicalStart coordinate)
@@ -442,7 +444,7 @@ theorem emittedConstraints_varsSatisfy
     intro index lower upper
     rw [Sparse.Owned.localLength_eq] at upper
     apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 2
-      phase_le_ccs ccs_finish_le index lower upper
+      initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported
         ((CcsTerminal.sparseInterface ccsInterface).point
@@ -465,7 +467,7 @@ theorem emittedConstraints_varsSatisfy
         (Horner.Owned.program (NormTerminal.ownedInterface normInterface)
           PiCCSArithmetic.normLogicalStart).recipes.length → Source index := by
     rw [normProgramLength]
-    exact fixedLocal_source _ _ phase_le_norm norm_finish_le
+    exact fixedLocal_source _ _ initial_le_norm norm_finish_le
   have normSourceSupport : ∀ source,
       Horner.KSupported
         (normInterface.sourceAssignment PiCCSArithmetic.normLogicalStart source)
@@ -485,7 +487,7 @@ theorem emittedConstraints_varsSatisfy
       PiCCSArithmetic.finalIdentityLogicalStart ≤ index →
       index < PiCCSArithmetic.finalIdentityLogicalStart +
         FinalIdentity.privateCount → Source index := by
-    exact fixedLocal_source _ _ phase_le_final final_finish_le
+    exact fixedLocal_source _ _ initial_le_final final_finish_le
   have finalRows := FinalIdentity.flatConstraints_varsSatisfy finalInterface
     PiCCSArithmetic.finalIdentityLogicalStart Source
     (by intro coordinate; simpa [finalInterface,

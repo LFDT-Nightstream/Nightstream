@@ -29,7 +29,7 @@ theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
     PoseidonRetainedBlock.laterWitnessStart
-        ⟨7550 + current.val, by
+        ⟨7604 + current.val, by
           rw [PoseidonRetainedBlock.laterInvocationCount_eq]
           have currentLt := current.isLt
           norm_num [PiRLCSamplerInvocations.sourceCount,
@@ -43,10 +43,10 @@ theorem laterWitnessStart_sampler
   rw [List.getElem_append_right]
   · have prefixLength :
         (PiCCSInvocations.invocations Data.logicalWidth
-          Data.publicFits).length = 7550 :=
+          Data.publicFits).length = 7604 :=
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits
     have offsetEq :
-        7550 + current.val -
+        7604 + current.val -
             (PiCCSInvocations.invocations Data.logicalWidth
               Data.publicFits).length = current.val := by
       rw [prefixLength]
@@ -99,7 +99,7 @@ theorem laterWitnessStart_sampler
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)).length :=
-      ⟨7550 + current.val -
+      ⟨7604 + current.val -
           (PiCCSInvocations.invocations Data.logicalWidth
             Data.publicFits).length,
         by omega⟩
@@ -931,7 +931,7 @@ theorem resolvedEnv_selector
         PiRLCProductPlan.basePackage.layout.constantColumn := by
     have sourceLt := source.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        27695710 :=
+        29336446 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [PiRLCSamplerOrdinaryDirectSource.selectorSource,

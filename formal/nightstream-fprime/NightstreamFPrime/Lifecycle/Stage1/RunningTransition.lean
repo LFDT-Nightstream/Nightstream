@@ -25,10 +25,10 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 
-def exactWordCount : Nat := 45897
+def exactWordCount : Nat := 49353
 def stateWordCount : Nat := 4
 def exactPrivateCount : Nat := 1
-def exactRowCount : Nat := 45902
+def exactRowCount : Nat := 49358
 
 abbrev WordIndex := Fin exactWordCount
 abbrev StateIndex := Fin stateWordCount
@@ -460,6 +460,134 @@ structure SpecHolds {logicalWidth : Nat}
     WordsEqualDefault (interface.output offset) env
   recursive : iterationValue interface offset env ≠ 0 →
     WordsEqual (interface.output offset) (interface.recursive offset) env
+
+/-- Running-transition semantics depend only on the declared expressions
+below the child start. -/
+theorem specHolds_of_agree_below
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits)
+    (offset : Nat) (before after : Env)
+    (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have iterationEq : iterationValue interface offset after =
+      iterationValue interface offset before :=
+    Expr.eval_eq_of_agree_below _ offset after before assumptions.iteration
+      agrees
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [← iterationEq]
+      exact afterZero
+    calc
+      (interface.initialState offset index).eval after =
+          (interface.initialState offset index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.initialState index) agrees
+      _ = (interface.currentState offset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (interface.currentState offset index).eval after :=
+        (Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.currentState index) agrees).symm
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [← iterationEq]
+      exact afterZero
+    calc
+      (runningWord (interface.output offset) index).eval after =
+          (runningWord (interface.output offset) index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.output index) agrees
+      _ = defaultWord (logicalWidth := logicalWidth)
+          (publicFits := publicFits) index := specification.base beforeZero index
+  · intro afterNonzero index
+    have beforeNonzero : iterationValue interface offset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [iterationEq, beforeZero]
+    calc
+      (runningWord (interface.output offset) index).eval after =
+          (runningWord (interface.output offset) index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.output index) agrees
+      _ = (runningWord (interface.recursive offset) index).eval before :=
+        specification.recursive beforeNonzero index
+      _ = (runningWord (interface.recursive offset) index).eval after :=
+        (Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.recursive index) agrees).symm
+
+/-- Running-transition semantics transport through equality of every value
+that the branch predicate reads. This is weaker and more exact than requiring
+the complete prefix below the child start to remain unchanged. -/
+theorem specHolds_of_values_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits)
+    (offset : Nat) (before after : Env)
+    (iterationEq : iterationValue interface offset before =
+      iterationValue interface offset after)
+    (initialStateEq : ∀ index,
+      (interface.initialState offset index).eval before =
+        (interface.initialState offset index).eval after)
+    (currentStateEq : ∀ index,
+      (interface.currentState offset index).eval before =
+        (interface.currentState offset index).eval after)
+    (recursiveEq : ∀ index,
+      (runningWord (interface.recursive offset) index).eval before =
+        (runningWord (interface.recursive offset) index).eval after)
+    (outputEq : ∀ index,
+      (runningWord (interface.output offset) index).eval before =
+        (runningWord (interface.output offset) index).eval after)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (interface.initialState offset index).eval after =
+          (interface.initialState offset index).eval before :=
+        (initialStateEq index).symm
+      _ = (interface.currentState offset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (interface.currentState offset index).eval after :=
+        currentStateEq index
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (runningWord (interface.output offset) index).eval after =
+          (runningWord (interface.output offset) index).eval before :=
+        (outputEq index).symm
+      _ = defaultWord (logicalWidth := logicalWidth)
+          (publicFits := publicFits) index :=
+        specification.base beforeZero index
+  · intro afterNonzero index
+    have beforeNonzero : iterationValue interface offset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [← iterationEq]
+      exact beforeZero
+    calc
+      (runningWord (interface.output offset) index).eval after =
+          (runningWord (interface.output offset) index).eval before :=
+        (outputEq index).symm
+      _ = (runningWord (interface.recursive offset) index).eval before :=
+        specification.recursive beforeNonzero index
+      _ = (runningWord (interface.recursive offset) index).eval after :=
+        recursiveEq index
 
 private theorem flatConstraints_assertions (items : List Expr) :
     flatConstraints (items.map .assertZero) = items := by
@@ -898,7 +1026,7 @@ theorem completeness {logicalWidth : Nat}
   simp [exactPrivateCount] at outside
   omega
 
-private theorem runningWord_eval {logicalWidth : Nat}
+theorem runningWord_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
@@ -914,6 +1042,71 @@ private theorem runningWord_eval {logicalWidth : Nat}
   exact (List.getD_map
     (n := index.val) (StatementAbsorption.serializeRunningExpr running)
     (0 : Expr) (Expr.eval env)).symm
+
+/-- Running-transition semantics transport across two interfaces when every
+semantic value read by the branch predicate is equal. Complete running-value
+equalities imply equality of all canonical serialized words. -/
+theorem specHolds_of_cross_values_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (beforeInterface afterInterface : Interface logicalWidth publicFits)
+    (beforeOffset afterOffset : Nat) (before after : Env)
+    (iterationEq : iterationValue beforeInterface beforeOffset before =
+      iterationValue afterInterface afterOffset after)
+    (initialStateEq : ∀ index,
+      (beforeInterface.initialState beforeOffset index).eval before =
+        (afterInterface.initialState afterOffset index).eval after)
+    (currentStateEq : ∀ index,
+      (beforeInterface.currentState beforeOffset index).eval before =
+        (afterInterface.currentState afterOffset index).eval after)
+    (recursiveEq : StatementAbsorption.evalRunning
+        (beforeInterface.recursive beforeOffset) before =
+      StatementAbsorption.evalRunning
+        (afterInterface.recursive afterOffset) after)
+    (outputEq : StatementAbsorption.evalRunning
+        (beforeInterface.output beforeOffset) before =
+      StatementAbsorption.evalRunning
+        (afterInterface.output afterOffset) after)
+    (specification : SpecHolds beforeInterface beforeOffset before) :
+    SpecHolds afterInterface afterOffset after := by
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero :
+        iterationValue beforeInterface beforeOffset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (afterInterface.initialState afterOffset index).eval after =
+          (beforeInterface.initialState beforeOffset index).eval before :=
+        (initialStateEq index).symm
+      _ = (beforeInterface.currentState beforeOffset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (afterInterface.currentState afterOffset index).eval after :=
+        currentStateEq index
+  · intro afterZero index
+    have beforeZero :
+        iterationValue beforeInterface beforeOffset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    have word := specification.base beforeZero index
+    rw [runningWord_eval] at word ⊢
+    rw [← outputEq]
+    exact word
+  · intro afterNonzero index
+    have beforeNonzero :
+        iterationValue beforeInterface beforeOffset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [← iterationEq]
+      exact beforeZero
+    have word := specification.recursive beforeNonzero index
+    rw [runningWord_eval, runningWord_eval] at word ⊢
+    rw [← outputEq, ← recursiveEq]
+    exact word
 
 private theorem serialized_eq_default_of_words {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

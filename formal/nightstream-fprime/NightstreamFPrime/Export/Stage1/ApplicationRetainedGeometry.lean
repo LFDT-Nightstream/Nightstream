@@ -31,10 +31,48 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      266771241 + retainedCoordinateCount application := by
+      264311405 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart outputStart witnessStart inputStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
+  omega
+
+/-- Closed production formula for the only application-dependent retained
+coordinates. The fixed Stage 1 prefix and the eight input/output words account
+for the constant term. -/
+theorem completeLogicalWidth_eq_applicationCounts
+    (application : Lifecycle.Stage1.Application.Program) :
+    completeLogicalWidth application =
+      264311733 +
+        (application.witnessWordCount + localCount application) * 41 := by
+  rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
+    retainedSlotCount_eq]
+  omega
+
+/-- Exact retained-word budget for one application in the owner-selected
+`2^28` carrier. -/
+theorem completeLogicalWidth_le_twoPow28_iff
+    (application : Lifecycle.Stage1.Application.Program) :
+    completeLogicalWidth application ≤
+        2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
+      application.witnessWordCount + localCount application ≤ 100578 := by
+  rw [completeLogicalWidth_eq_applicationCounts]
+  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
+  omega
+
+/-- Exact application-word budget after completing the logical width to whole
+54-coordinate Phi81 blocks. -/
+theorem carrierWidth_le_twoPow28_iff
+    (application : Lifecycle.Stage1.Application.Program) :
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+          (completeLogicalWidth application) ≤
+        2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
+      application.witnessWordCount + localCount application ≤ 100577 := by
+  rw [completeLogicalWidth_eq_applicationCounts]
+  simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+    NightstreamFPrime.Spec.ringDegree,
+    NightstreamFPrime.Lifecycle.cubeVariables]
   omega
 
 /-- One concrete application must separately prove its low-norm retained
@@ -43,6 +81,15 @@ structure FitsTwoPow28
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   complete : completeLogicalWidth application ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables
+
+/-- Construct the retained carrier proof from the small application-only
+word budget. -/
+def fitsTwoPow28OfApplicationCounts
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : application.witnessWordCount + localCount application ≤ 100578) :
+    FitsTwoPow28 application where
+  complete :=
+    (completeLogicalWidth_le_twoPow28_iff application).2 fits
 
 theorem completeLogicalWidth_le_cube
     (application : Lifecycle.Stage1.Application.Program)

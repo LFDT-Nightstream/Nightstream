@@ -215,7 +215,7 @@ private theorem rowDeltas
       R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits),
       R1CS.totalRowCount (evalKConstraints logicalWidth publicFits),
       R1CS.totalRowCount (evalAConstraints logicalWidth publicFits), 0] =
-        [0, 22680, 972, 108, 1512, 0] := by
+        [0, 22680, 1188, 108, 1512, 0] := by
   simpa only [NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowDeltas,
     NightstreamFPrime.Layout.PiDEC.v1_1.childConstraintLists,
     publicConstraints, commitmentConstraints, evalKConstraints,
@@ -235,7 +235,7 @@ theorem publicRowCount
 
 theorem commitmentRowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits) = 972 := by
+    R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits) = 1188 := by
   simpa using congrArg (fun values : List Nat => values.getD 2 0)
     (rowDeltas relation)
 
@@ -253,7 +253,7 @@ theorem evalARowCount
 
 theorem sourceRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 25272 := by
+    (sourceRows logicalWidth publicFits).length = 25488 := by
   simp only [sourceRows, List.length_append, publicRows, commitmentRows,
     evalKRows, evalARows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
@@ -405,7 +405,7 @@ theorem publicRows_length
 
 theorem commitmentRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (commitmentRows logicalWidth publicFits).length = 972 := by
+    (commitmentRows logicalWidth publicFits).length = 1188 := by
   simp only [commitmentRows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact commitmentRowCount relation
@@ -431,7 +431,7 @@ def publicListIndex
 
 def commitmentListIndex
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 972) : Fin (commitmentRows logicalWidth publicFits).length :=
+    (index : Fin 1188) : Fin (commitmentRows logicalWidth publicFits).length :=
   Fin.cast (commitmentRows_length relation).symm index
 
 def evalKListIndex
@@ -451,7 +451,7 @@ def publicProgramRow
 
 def commitmentProgramRow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 972) : R1CS.Row :=
+    (index : Fin 1188) : R1CS.Row :=
   (commitmentRows logicalWidth publicFits).get
     (commitmentListIndex relation index)
 
@@ -511,7 +511,7 @@ theorem publicProgramRow_varsSatisfy
 
 theorem commitmentProgramRow_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 972) :
+    (index : Fin 1188) :
     (commitmentProgramRow relation index).VarsSatisfy Target :=
   commitmentRows_varsSatisfy relation _
     (List.get_mem _ (commitmentListIndex relation index))
@@ -540,7 +540,7 @@ theorem publicProgramRow_bounded
 
 theorem commitmentProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 972) :
+    (index : Fin 1188) :
     SourceCompiler.RowBounded Spartan.spartanColumnCount
       (commitmentProgramRow relation index) :=
   (commitmentProgramRow_varsSatisfy relation index).mono _

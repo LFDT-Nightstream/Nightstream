@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
+import NightstreamFPrime.Export.Stage1.NextPreimageMatrixProgram
 import NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
@@ -13,7 +14,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
 /-!
 Owns the exact compact 14-matrix row program for one Lean-authored
-application. Its twelve children use the same order and geometry projections
+application. Its thirteen children use the same order and geometry projections
 as `PerApplicationProductionPlan.canonical`.
 
 This module selects no package bytes, verification key, or Rust consumer.
@@ -91,6 +92,14 @@ def runningTransitionProgram (application : ApplicationProgram) : Program :=
 def applicationProgram (application : ApplicationProgram) : Program :=
   ApplicationMatrixProgram.matrixProgram (applicationGeometry application)
 
+def nextPreimageProgram (application : ApplicationProgram) : Program :=
+  NextPreimageMatrixProgram.matrixProgram
+    (piCcsOrdinaryGeometry application)
+
+def recursivePublicOutputProgram (application : ApplicationProgram) : Program :=
+  PinMatrixPrograms.recursivePublicOutputProgram
+    (applicationGeometry application)
+
 /-- Compact row program selected by one semantic block opcode. -/
 def blockProgram (application : ApplicationProgram) :
     PerApplicationProductionPlan.BlockKind → Program
@@ -106,6 +115,8 @@ def blockProgram (application : ApplicationProgram) :
   | .piDec => piDecProgram application
   | .runningTransition => runningTransitionProgram application
   | .application => applicationProgram application
+  | .nextPreimage => nextPreimageProgram application
+  | .recursivePublicOutput => recursivePublicOutputProgram application
 
 theorem blockProgram_rowCount (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -118,7 +129,8 @@ theorem blockProgram_rowCount (application : ApplicationProgram)
       pilotPoseidonProgram, piCcsPoseidonProgram, piCcsOrdinaryProgram,
       pilotOrdinaryProgram, pilotDigestBindingProgram, piCcsEndpointProgram,
       samplerPoseidonProgram, samplerOrdinaryProgram, piRlcProgram,
-      piDecProgram, runningTransitionProgram, applicationProgram]
+      piDecProgram, runningTransitionProgram, applicationProgram,
+      nextPreimageProgram, recursivePublicOutputProgram]
 
 /-- Interpret the same ordered tree as a compact matrix program. -/
 def compileMatrix (application : ApplicationProgram) :
@@ -163,9 +175,18 @@ def runningCompleteProgram (application : ApplicationProgram) : Program :=
   (piDecCompleteProgram application).append
     (runningTransitionProgram application)
 
+/-- Running prefix followed by the selected application rows. -/
+def applicationCompleteProgram (application : ApplicationProgram) : Program :=
+  (runningCompleteProgram application).append (applicationProgram application)
+
+def throughNextPreimageProgram (application : ApplicationProgram) : Program :=
+  (applicationCompleteProgram application).append
+    (nextPreimageProgram application)
+
 /-- The one compact matrix program for the selected application. -/
 def matrixProgram (application : ApplicationProgram) : Program :=
-  (runningCompleteProgram application).append (applicationProgram application)
+  (throughNextPreimageProgram application).append
+    (recursivePublicOutputProgram application)
 
 @[simp] theorem compileMatrix_canonical (application : ApplicationProgram) :
     compileMatrix application PerApplicationProductionPlan.canonical =
@@ -186,7 +207,9 @@ def children (application : ApplicationProgram) :
     (.piRlc, piRlcProgram application),
     (.piDec, piDecProgram application),
     (.runningTransition, runningTransitionProgram application),
-    (.application, applicationProgram application)]
+    (.application, applicationProgram application),
+    (.nextPreimage, nextPreimageProgram application),
+    (.recursivePublicOutput, recursivePublicOutputProgram application)]
 
 @[simp] theorem children_kinds (application : ApplicationProgram) :
     (children application).map Prod.fst =
@@ -196,7 +219,9 @@ def children (application : ApplicationProgram) :
 theorem matrixProgram_blocks (application : ApplicationProgram) :
     (matrixProgram application).blocks =
       (children application).flatMap fun child => child.2.blocks := by
-  simp [matrixProgram, runningCompleteProgram, piDecCompleteProgram,
+  simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
+    runningCompleteProgram,
+    piDecCompleteProgram,
     piRlcCompleteProgram, samplerCompleteProgram, samplerPrefixProgram,
     piCcsCompleteProgram, pilotBindingPrefixProgram,
     pilotOrdinaryPrefixProgram, piCcsCoreProgram,
@@ -204,15 +229,19 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      6052978 + (PerApplicationPackage.applicationPlan application).rowCount := by
-  simp [matrixProgram, runningCompleteProgram, piDecCompleteProgram,
+      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+        9 := by
+  simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
+    runningCompleteProgram,
+    piDecCompleteProgram,
     piRlcCompleteProgram, samplerCompleteProgram, samplerPrefixProgram,
     piCcsCompleteProgram, pilotBindingPrefixProgram,
     pilotOrdinaryPrefixProgram, piCcsCoreProgram,
     piCcsPoseidonPrefixProgram, pilotPoseidonProgram, piCcsPoseidonProgram,
     piCcsOrdinaryProgram, pilotOrdinaryProgram, pilotDigestBindingProgram,
     piCcsEndpointProgram, samplerPoseidonProgram, samplerOrdinaryProgram,
-    piRlcProgram, piDecProgram, runningTransitionProgram, applicationProgram]
+    piRlcProgram, piDecProgram, runningTransitionProgram, applicationProgram,
+    nextPreimageProgram, recursivePublicOutputProgram]
 
 theorem matrixProgram_rowCount_eq_structuralPlan
     (application : ApplicationProgram)

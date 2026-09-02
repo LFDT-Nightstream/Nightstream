@@ -225,7 +225,7 @@ private theorem serializeRunning_point_getD_c1
 
 /-- End of the completed pilot source-column interval and start of the
 verifier-owned expected-context words. -/
-def expectedContextStart : Nat := 13692624
+def expectedContextStart : Nat := 14722512
 
 def expectedContextWords : Nat := 4
 
@@ -238,32 +238,32 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 13692624 := by
+theorem expectedContextStart_eq : expectedContextStart = 14722512 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 13692628 := by
+theorem proofInputStart_eq : proofInputStart = 14722516 := by
   rfl
 
 /-- Fixed serialized running-state positions inside the prior preimage. -/
 def runningPointStart : Nat := priorRunningStart + 1
 def runningGroupsStart : Nat := priorRunningStart + 57
-def runningGroupWords : Nat := 2865
-def runningCommitmentWords : Nat := 972
+def runningGroupWords : Nat := 3081
+def runningCommitmentWords : Nat := 1188
 def runningPublicWords : Nat := 270
 def runningEvaluationWords : Nat := 1620
 
 /-- A word position in the fixed serialized running-instance payload. -/
-def priorRunningIndex (index : Fin 45897) :
+def priorRunningIndex (index : Fin 49353) :
     Fin PilotProduction.stateHashWords :=
   ⟨priorRunningStart + index.val, by
     have indexBound := index.isLt
     norm_num [priorRunningStart, PilotProduction.stateHashWords_eq] at *
     omega⟩
 
-@[simp] theorem priorRunningIndex_val (index : Fin 45897) :
+@[simp] theorem priorRunningIndex_val (index : Fin 49353) :
     (priorRunningIndex index).val = priorRunningStart + index.val := by
   rfl
 
@@ -274,14 +274,14 @@ def runningCommitmentStart (source : Nat) : Nat :=
   runningGroupStart source + 1
 
 def runningPublicStart (source : Nat) : Nat :=
-  runningGroupStart source + 974
+  runningGroupStart source + 1190
 
 def runningEvaluationStart (source : Nat) : Nat :=
-  runningGroupStart source + 1245
+  runningGroupStart source + 1461
 
 /-- New proof-input intervals. -/
 def freshCommitmentStart : Nat := proofInputStart
-def freshCommitmentWords : Nat := 972
+def freshCommitmentWords : Nat := 1188
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 560
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
@@ -307,10 +307,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 29072 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 29288 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 13721700 := by
+theorem phaseOffset_eq : phaseOffset = 14751804 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -595,7 +595,7 @@ theorem protocolValues_runningWord
     (priorFixed : PilotProduction.FixedPreimage prior)
     (outputFixed : PilotProduction.FixedPreimage output)
     (digestFixed : digest.length = PilotProduction.digestWords)
-    (index : Fin 45897) :
+    (index : Fin 49353) :
     let values := PilotProduction.protocolValues prior priorPublic output digest
       priorFixed outputFixed digestFixed
     values.priorPreimage (priorRunningIndex index) =
@@ -917,8 +917,8 @@ private theorem coefficient_lt_54
     ringDegree] at bound
   exact bound
 
-private theorem commitmentRow_lt_18
-    (row : Fin productionProfile.commitmentWidth) : row.val < 18 := by
+private theorem commitmentRow_lt_22
+    (row : Fin productionProfile.commitmentWidth) : row.val < 22 := by
   have bound := row.isLt
   norm_num [productionProfile] at bound
   exact bound
@@ -991,7 +991,7 @@ theorem externalInputsBelow
   · intro source row coefficient
     simp only [interface, runningExpr, runningCommitment, Expr.VarsBelow]
     have sourceBound := runningSource_lt_16 source
-    have rowBound := commitmentRow_lt_18 row
+    have rowBound := commitmentRow_lt_22 row
     have coefficientBound := ringCoefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [runningCommitmentStart, runningGroupStart,
@@ -1031,7 +1031,7 @@ theorem externalInputsBelow
   · intro source row coefficient
     simp only [interface, freshExpr, freshCommitment, Expr.VarsBelow]
     have sourceBound := freshSource_lt_1 source
-    have rowBound := commitmentRow_lt_18 row
+    have rowBound := commitmentRow_lt_22 row
     have coefficientBound := ringCoefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [freshCommitmentStart, proofInputStart,
@@ -1042,7 +1042,9 @@ theorem externalInputsBelow
     simp only [interface, freshExpr, freshPublicInput, Expr.VarsBelow]
     have columnBound := publicColumn_lt_270 column
     rw [phaseOffset_eq]
-    change 45937 + column.val < 13721700
+    norm_num [PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart,
+      PilotProduction.stateHashWords_eq]
     omega
   · intro roundIndex coefficient
     change (roundCoefficient roundIndex coefficient).VarsBelow phaseOffset

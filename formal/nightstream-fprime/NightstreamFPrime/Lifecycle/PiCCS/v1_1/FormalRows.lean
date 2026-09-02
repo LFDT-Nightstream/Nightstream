@@ -182,7 +182,7 @@ theorem finalIdentityCircuit_main_eq_rowMain
 
 /-- Relation-free executable start of the initial-claim child. -/
 def initialClaimRowOffset (degreeBound offset : Nat) : Nat :=
-  offset + 192400 + 51504 +
+  offset + 224368 + 51504 +
     productionShape.cubeVariables *
       RoundTranscript.perRoundRecipeCount degreeBound
 
@@ -309,5 +309,82 @@ theorem finalIdentityOffset_eq_finalIdentityRowOffset
   rw [normOffset_eq_normRowOffset, FormalCircuit.withConstantFootprint_main,
     NormTerminal.localLength_eq]
   rfl
+
+/-- Relation-free executable start of the output-binding child. -/
+def outputBindingRowOffset
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) : Nat :=
+  finalIdentityRowOffset interface offset + FinalIdentity.privateCount
+
+theorem outputBindingOffset_eq_outputBindingRowOffset
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) :
+    outputBindingOffset relation interface offset =
+      outputBindingRowOffset interface offset := by
+  unfold outputBindingOffset outputBindingRowOffset nextOffset childLength
+    finalIdentityCircuit
+  rw [finalIdentityOffset_eq_finalIdentityRowOffset,
+    FormalCircuit.withConstantFootprint_main, FinalIdentity.localLength_eq]
+  rfl
+
+/-- Relation-free executable endpoint of the complete PiCCS assembler. -/
+def finalRowOffset
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) : Nat :=
+  outputBindingRowOffset interface offset + 4076512
+
+theorem finalOffset_eq_finalRowOffset
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) :
+    finalOffset relation interface offset = finalRowOffset interface offset := by
+  unfold finalOffset finalRowOffset nextOffset childLength outputBindingCircuit
+  rw [outputBindingOffset_eq_outputBindingRowOffset,
+    FormalCircuit.withConstantFootprint_main, OutputBinding.localLength_eq]
+
+/-- The closed-form endpoint is the phase start plus the aggregate symbolic
+footprint. This proof never inspects a child operation list. -/
+theorem finalRowOffset_eq_add
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) :
+    finalRowOffset interface offset =
+      offset + (4432230 + productionShape.cubeVariables *
+        RoundTranscript.perRoundRecipeCount degreeBound) := by
+  unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
+    normRowOffset ccsRowOffset evalARowOffset evalKRowOffset
+    sumcheckRowOffset initialClaimRowOffset
+  norm_num [FinalIdentity.privateCount, NormTerminal.privateCount,
+    CcsTerminal.privateCount, EvalATerminal.privateCount,
+    EvalKTerminal.privateCount, InitialClaim.privateCount]
+  omega
+
+/-- The production degree-nine PiCCS endpoint advances by exactly 4,581,414
+private variables. -/
+theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) (degreeEq : degreeBound = 9) :
+    finalRowOffset interface offset = offset + 4581414 := by
+  rw [finalRowOffset_eq_add, degreeEq]
+  norm_num [RoundTranscript.perRoundRecipeCount, productionShape,
+    Phi81MatrixSource.phi81Shape, cubeVariables]
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal

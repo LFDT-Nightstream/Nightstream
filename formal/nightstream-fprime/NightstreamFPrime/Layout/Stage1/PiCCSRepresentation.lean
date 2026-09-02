@@ -229,7 +229,7 @@ private theorem serializeRunning_commitment_getD
 private def runningCommitmentPayloadIndex
     (source : Fin productionShape.runningCount)
     (row : Fin productionProfile.commitmentWidth)
-    (coefficient : Fin ringDegree) : Fin 45897 :=
+    (coefficient : Fin ringDegree) : Fin 49353 :=
   ⟨57 + source.val * runningGroupWords +
       (1 + row.val * ringDegree + coefficient.val), by
     have sourceBound := source.isLt
@@ -355,17 +355,17 @@ private theorem serializeRunningGroup_publicInput_getD
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (serializeRunningGroup running source).getD
-        (974 + column.val) 0 =
+        (1190 + column.val) 0 =
       running.publicInputs source column := by
   unfold serializeRunningGroup
   rw [List.getD_append]
   · rw [List.getD_append_right]
     · rw [block_length, serializeCommitment_length]
       have commitmentBlockWords :
-          productionProfile.commitmentWidth * ringDegree + 1 = 973 := by
+          productionProfile.commitmentWidth * ringDegree + 1 = 1189 := by
         norm_num [productionProfile, ringDegree]
       rw [commitmentBlockWords]
-      have shifted : 974 + column.val - 973 = 1 + column.val := by
+      have shifted : 1190 + column.val - 1189 = 1 + column.val := by
         omega
       rw [shifted]
       change
@@ -386,7 +386,7 @@ private theorem serializeRunningGroup_publicInput_getD
         omega
     · rw [block_length, serializeCommitment_length]
       have commitmentBlockWords :
-          productionProfile.commitmentWidth * ringDegree + 1 = 973 := by
+          productionProfile.commitmentWidth * ringDegree + 1 = 1189 := by
         norm_num [productionProfile, ringDegree]
       rw [commitmentBlockWords]
       omega
@@ -406,13 +406,13 @@ private theorem serializeRunning_publicInput_getD
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (serializeRunning (publicFits := publicFits) running).getD
-        (57 + source.val * runningGroupWords + (974 + column.val)) 0 =
+        (57 + source.val * runningGroupWords + (1190 + column.val)) 0 =
       running.publicInputs source column := by
   change
     (block (serializePoint running.point) ++
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
-          (57 + source.val * runningGroupWords + (974 + column.val)) 0 =
+          (57 + source.val * runningGroupWords + (1190 + column.val)) 0 =
       running.publicInputs source column
   rw [List.getD_append_right]
   · rw [block_length, serializePoint_length]
@@ -420,13 +420,13 @@ private theorem serializeRunning_publicInput_getD
       norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
     rw [pointBlockWords]
     have shifted :
-        57 + source.val * runningGroupWords + (974 + column.val) - 57 =
-          source.val * runningGroupWords + (974 + column.val) := by
+        57 + source.val * runningGroupWords + (1190 + column.val) - 57 =
+          source.val * runningGroupWords + (1190 + column.val) := by
       omega
     rw [shifted]
     calc
       _ = (serializeRunningGroup running source).getD
-          (974 + column.val) 0 := by
+          (1190 + column.val) 0 := by
         apply finRange_flatMap_getD
         · exact serializeRunningGroup_length running
         · have columnBound := publicColumn_lt_270 column
@@ -446,8 +446,8 @@ private def runningPublicInputPayloadIndex
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    Fin 45897 :=
-  ⟨57 + source.val * runningGroupWords + (974 + column.val), by
+    Fin 49353 :=
+  ⟨57 + source.val * runningGroupWords + (1190 + column.val), by
     have sourceBound := source.isLt
     have columnBound := publicColumn_lt_270 column
     norm_num [productionShape, productionProfile,
@@ -572,7 +572,7 @@ private theorem serializeRunningGroup_evaluationPrefix_length
     (source : Fin productionShape.runningCount) :
     (block (serializeCommitment (running.commitments source)) ++
       block (serializePublicInput (publicFits := publicFits)
-        (running.publicInputs source))).length = 1244 := by
+        (running.publicInputs source))).length = 1460 := by
   simp [productionProfile, FullShape, fullShape,
     Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
 
@@ -586,14 +586,14 @@ private theorem serializeRunningGroup_evalK_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeRunningGroup running source).getD
-        (1245 + coefficient.val * 2 + component.val) 0 =
+        (1461 + coefficient.val * 2 + component.val) 0 =
       (serializeK ((running.evaluations source).pad coefficient)).getD
         component.val 0 := by
   unfold serializeRunningGroup
   rw [List.getD_append_right]
   · rw [serializeRunningGroup_evaluationPrefix_length]
     have shifted :
-        1245 + coefficient.val * 2 + component.val - 1244 =
+        1461 + coefficient.val * 2 + component.val - 1460 =
           1 + coefficient.val * 2 + component.val := by
       omega
     rw [shifted]
@@ -629,7 +629,7 @@ private theorem serializeRunning_evalK_getD
     (component : Fin 2) :
     (serializeRunning (publicFits := publicFits) running).getD
         (57 + source.val * runningGroupWords +
-          (1245 + coefficient.val * 2 + component.val)) 0 =
+          (1461 + coefficient.val * 2 + component.val)) 0 =
       (serializeK ((running.evaluations source).pad coefficient)).getD
         component.val 0 := by
   change
@@ -637,7 +637,7 @@ private theorem serializeRunning_evalK_getD
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
           (57 + source.val * runningGroupWords +
-            (1245 + coefficient.val * 2 + component.val)) 0 =
+            (1461 + coefficient.val * 2 + component.val)) 0 =
       (serializeK ((running.evaluations source).pad coefficient)).getD
         component.val 0
   rw [List.getD_append_right]
@@ -647,14 +647,14 @@ private theorem serializeRunning_evalK_getD
     rw [pointBlockWords]
     have shifted :
         57 + source.val * runningGroupWords +
-              (1245 + coefficient.val * 2 + component.val) - 57 =
+              (1461 + coefficient.val * 2 + component.val) - 57 =
           source.val * runningGroupWords +
-            (1245 + coefficient.val * 2 + component.val) := by
+            (1461 + coefficient.val * 2 + component.val) := by
       omega
     rw [shifted]
     calc
       _ = (serializeRunningGroup running source).getD
-          (1245 + coefficient.val * 2 + component.val) 0 := by
+          (1461 + coefficient.val * 2 + component.val) 0 := by
         apply finRange_flatMap_getD
         · exact serializeRunningGroup_length running
         · have coefficientBound := coefficient.isLt
@@ -675,9 +675,9 @@ private theorem serializeRunning_evalK_getD
 private def runningEvalKPayloadIndex
     (source : Fin productionShape.runningCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 45897 :=
+    (component : Fin 2) : Fin 49353 :=
   ⟨57 + source.val * runningGroupWords +
-      (1245 + coefficient.val * 2 + component.val), by
+      (1461 + coefficient.val * 2 + component.val), by
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
     have componentBound := component.isLt
@@ -866,7 +866,7 @@ private theorem serializeRunningGroup_evalA_getD
     (coefficient : Fin productionShape.coefficientCount)
     (component : Fin 2) :
     (serializeRunningGroup running source).getD
-        (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+        (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
           component.val) 0 =
       (serializeK
         ((running.evaluations source).matrix matrix coefficient)).getD
@@ -875,8 +875,8 @@ private theorem serializeRunningGroup_evalA_getD
   rw [List.getD_append_right]
   · rw [serializeRunningGroup_evaluationPrefix_length]
     have shifted :
-        1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
-              component.val - 1244 =
+        1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
+              component.val - 1460 =
           1 + (108 + matrix.val * 108 + coefficient.val * 2 +
             component.val) := by
       omega
@@ -918,7 +918,7 @@ private theorem serializeRunning_evalA_getD
     (component : Fin 2) :
     (serializeRunning (publicFits := publicFits) running).getD
         (57 + source.val * runningGroupWords +
-          (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+          (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
             component.val)) 0 =
       (serializeK
         ((running.evaluations source).matrix matrix coefficient)).getD
@@ -928,7 +928,7 @@ private theorem serializeRunning_evalA_getD
       (List.finRange productionShape.runningCount).flatMap
         (serializeRunningGroup running)).getD
           (57 + source.val * runningGroupWords +
-            (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+            (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
               component.val)) 0 =
       (serializeK
         ((running.evaluations source).matrix matrix coefficient)).getD
@@ -940,16 +940,16 @@ private theorem serializeRunning_evalA_getD
     rw [pointBlockWords]
     have shifted :
         57 + source.val * runningGroupWords +
-              (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+              (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
                 component.val) - 57 =
           source.val * runningGroupWords +
-            (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+            (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
               component.val) := by
       omega
     rw [shifted]
     calc
       _ = (serializeRunningGroup running source).getD
-          (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+          (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
             component.val) 0 := by
         apply finRange_flatMap_getD
         · exact serializeRunningGroup_length running
@@ -975,9 +975,9 @@ private def runningEvalAPayloadIndex
     (source : Fin productionShape.runningCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount)
-    (component : Fin 2) : Fin 45897 :=
+    (component : Fin 2) : Fin 49353 :=
   ⟨57 + source.val * runningGroupWords +
-      (1245 + 108 + matrix.val * 108 + coefficient.val * 2 +
+      (1461 + 108 + matrix.val * 108 + coefficient.val * 2 +
         component.val), by
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt

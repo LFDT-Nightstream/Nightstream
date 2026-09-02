@@ -41,6 +41,24 @@ structure FitsTwoPow28
   carrier : Phi81CarrierLayout.carrierWidth (logicalWidth application) ≤
     2 ^ Lifecycle.cubeVariables
 
+/-- Construct every final domain obligation from the three small numerical
+bounds owned by one concrete application. -/
+def fitsTwoPow28OfApplicationBounds
+    (application : Lifecycle.Stage1.Application.Program)
+    (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
+      239217427)
+    (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
+      239098731)
+    (carrierWords : application.witnessWordCount +
+      ApplicationRetainedBlocks.localCount application ≤ 100577) :
+    FitsTwoPow28 application where
+  package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
+    rows columns
+  carrier := by
+    apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
+      application).2
+    exact carrierWords
+
 def geometry (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedGeometry.Geometry application
       (logicalWidth application) where
@@ -94,7 +112,8 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      6052978 + (PerApplicationPackage.applicationPlan application).rowCount := by
+      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+        9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
     (geometry application)

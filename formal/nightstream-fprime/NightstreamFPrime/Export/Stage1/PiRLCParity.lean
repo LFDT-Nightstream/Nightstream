@@ -65,7 +65,9 @@ def inputFamilyValues : List Value :=
 def inputValueWithFamilies (computed : PiCCSNonzero.Computed)
     (families : List Value) : Value :=
   .array ([PiCCSParity.stateValue computed.outgoingState,
-    pointValue computed.verifierRoundPoint] ++ families)
+    pointValue computed.verifierRoundPoint] ++ families ++
+      [PiCCSParity.fieldWordsValue
+        VerifierContext.productionPackageIdentityWords])
 
 def inputValue (computed : PiCCSNonzero.Computed) : Value :=
   inputValueWithFamilies computed inputFamilyValues
@@ -229,7 +231,7 @@ def parityValueIO : IO Value := do
   match Transcript.PiRlcSampler.piRlcChallengesWithState
       computed.outgoingState SourceCount with
   | none =>
-      pure <| .array [.atom 2, input,
+      pure <| .array [.atom 3, input,
         .array [PiCCSParity.boolValue false]]
   | some batch =>
       let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
@@ -250,14 +252,14 @@ def parityValueIO : IO Value := do
       match resultValueFromPartials computed batch inputsAreNonzero
           commitments publicInputs evalKs evalAsByMatrix with
       | some result =>
-          pure <| Value.array [Value.atom 2, input, result]
+          pure <| Value.array [Value.atom 3, input, result]
       | none =>
           throw (IO.userError "incomplete PiRLC indexed partial grid")
 
-/-- Schema 2 adds every indexed left-to-right partial combination. -/
+/-- Schema 3 adds the verifier-owned production package identity. -/
 def parityValue (_ : Unit) : Value :=
   let computed := PiCCSNonzero.compute ()
-  .array [.atom 2, inputValue computed, resultValue computed]
+  .array [.atom 3, inputValue computed, resultValue computed]
 
 def render (_ : Unit) : String := (parityValue ()).render
 

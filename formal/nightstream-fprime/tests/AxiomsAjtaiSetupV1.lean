@@ -1,0 +1,23 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
+
+/-! Axiom audits for the compact ChaCha20 wide-reduction Ajtai setup. -/
+
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.setupIdBytes_length
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.wideCoefficientNat_lt
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.coefficientNat_lt
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityNats_length
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityWords_length
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.verifierRows_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.carrierWidth_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.messageColumns_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.authorityWords_length
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionSeedBytes_length
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionSeedBytes_canonical
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionAuthorityWords_length
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.directProductionAuthorityNats_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.directProductionAuthorityWords_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.verificationKeyBinding_packageIdentity
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.verificationKeyBinding_context
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.verificationKeyDigest_recomputed

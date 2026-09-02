@@ -94,7 +94,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       (parentEvalABlock program).slotCount +
       (proofBlock program).slotCount +
       (logicalBlock program).slotCount +
-      (freshBlock program).slotCount = 66744 := by
+      (freshBlock program).slotCount = 70416 := by
   norm_num [parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
     parentEvalABlock, proofBlock, logicalBlock, freshBlock, sourceFieldBlock,
     freshCount, PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
@@ -113,7 +113,7 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 2736504 := by
+    retainedCoordinateCount program = 2887056 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
     parentEvalABlock, proofBlock, logicalBlock, freshBlock, sourceFieldBlock]

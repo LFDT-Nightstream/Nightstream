@@ -340,14 +340,14 @@ theorem sourceAssignment_at
 
 private theorem priorLastWitnessStart_eq :
     PoseidonRetainedBlock.priorWitnessStart
-      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 6920066 := by rfl
+      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 7438682 := by rfl
 
 private theorem outputLastWitnessStart_eq :
     PoseidonRetainedBlock.outputWitnessStart
-      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 13720042 := by rfl
+      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 14750146 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (6891578 + lane.val) = 6920650 + lane.val := by
+    Spartan.liftPilotColumn (7409978 + lane.val) = 7439266 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -356,7 +356,7 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (13691554 + lane.val) = 13720626 + lane.val := by
+    Spartan.liftPilotColumn (14721442 + lane.val) = 14750730 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -381,7 +381,7 @@ private theorem priorFinalColumn_eq (lane : Fin 4) :
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
-  change 6920066 + (584 + lane.val) = 6920650 + lane.val
+  change 7438682 + (584 + lane.val) = 7439266 + lane.val
   omega
 
 private theorem outputFinalColumn_eq (lane : Fin 4) :
@@ -402,7 +402,7 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
         PilotValues.absorbCount * 592 + 584 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
     liftOutputStateTarget, outputLastWitnessStart_eq]
-  change 13720042 + (584 + lane.val) = 13720626 + lane.val
+  change 14750146 + (584 + lane.val) = 14750730 + lane.val
   omega
 
 private theorem priorFinalColumn_bound (lane : Fin 4) :
@@ -412,9 +412,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      27695989 := Package.circuitPackage_layout_values.2.2.2.2
+      29336725 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 6920066 + (584 + lane.val) < 27695989
+  change 7438682 + (584 + lane.val) < 29336725
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -424,9 +424,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      27695989 := Package.circuitPackage_layout_values.2.2.2.2
+      29336725 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 13720042 + (584 + lane.val) < 27695989
+  change 14750146 + (584 + lane.val) < 29336725
   omega
 
 private theorem priorLastBlock_source

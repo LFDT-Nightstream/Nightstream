@@ -55,16 +55,16 @@ def priorOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rootOffset program
 
 def outputHashOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  priorOffset program + 6799976
+  priorOffset program + 7311464
 
 def piCcsOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  outputHashOffset program + 6799712
+  outputHashOffset program + 7311200
 
 def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piCcsOffset program + 4549446
+  piCcsOffset program + 4581414
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piRlcOffset program + 312222
+  piRlcOffset program + 315894
 
 def runningOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piDecOffset program + 270
@@ -72,22 +72,56 @@ def runningOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
 def applicationOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   runningOffset program + 1
 
-def piCcsInterface :
+def piCcsInterface
+    (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.PiCCS.v1_1.Formal.Interface logicalWidth 9 publicFits :=
-  PiCCSInputs.interface logicalWidth publicFits
+  { PiCCSInputs.interface logicalWidth publicFits with
+    baseOffset := piCcsOffset program }
 
 def piCcsOutputState
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :=
   Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState relation
-    (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+      program)
     (piCcsOffset program)
 
 def piCcsRoundPoint
     (program : Lifecycle.Stage1.Application.Program) :=
   Lifecycle.PiCCS.v1_1.Formal.roundPoint
-    (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (piCcsInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
+      program)
     (piCcsOffset program)
+
+theorem piCcsRoundPoint_eq_challenge
+    (program : Lifecycle.Stage1.Application.Program)
+    (coordinate : Fin productionShape.cubeVariables) :
+    piCcsRoundPoint
+        (logicalWidth := logicalWidth) (publicFits := publicFits) program
+        coordinate =
+      Lifecycle.PiCCS.v1_1.RoundTranscript.challenge
+        (Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface
+          (Lifecycle.PiCCS.v1_1.Formal.atOffset
+            (piCcsInterface
+              (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+            (piCcsOffset program)))
+        (Lifecycle.PiCCS.v1_1.Formal.roundTranscriptOffset
+          (piCcsInterface
+            (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+          (piCcsOffset program)) coordinate := by
+  unfold piCcsRoundPoint Lifecycle.PiCCS.v1_1.Formal.roundPoint
+  have interfaceEq :
+      Lifecycle.PiCCS.v1_1.Formal.atOffset
+          (piCcsInterface
+            (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+          (piCcsOffset program) =
+        piCcsInterface
+          (logicalWidth := logicalWidth) (publicFits := publicFits) program := by
+    rfl
+  rw [← Lifecycle.PiCCS.v1_1.Formal.roundTranscriptStart_atOffset
+    (piCcsInterface
+      (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+    (piCcsOffset program), interfaceEq]
 
 /-- PiRLC reads the exact compact PiCCS transcript outputs. Its statement
 inputs remain the shared external PiCCS output fields. -/
@@ -199,7 +233,7 @@ def interface
     (program : Lifecycle.Stage1.Application.Program) :
     Lifecycle.Stage1.Interface relation program where
   pilot := PilotProduction.interface
-  piCcs := piCcsInterface
+  piCcs := piCcsInterface program
   piRlc := piRlcInterface relation program
   piDec := piDecInterface relation program
   running := runningInterface relation program
@@ -224,6 +258,17 @@ theorem piRlc_point_wiring
     piCcsRoundPoint (logicalWidth := logicalWidth)
       (publicFits := publicFits) program
   simp only [piRlcInterface]
+
+/-- Evaluating the compact PiDEC parent is exactly evaluating the compact
+PiRLC combined output; no copied digest or boundary value intervenes. -/
+theorem piDecParent_eval_eq_piRlcOutput
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Lifecycle.Stage1.Application.Program) (env : Env) :
+    (Lifecycle.PiDEC.v1_1.Semantics.inputAttempt relation
+      (piDecInterface relation program) (piDecOffset program) env).parent =
+      Lifecycle.PiRLC.v1_1.Semantics.evalOutput relation
+        (piRlcInterface relation program) (piRlcOffset program) env := by
+  rfl
 
 theorem piDec_parent_wiring
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -253,9 +298,9 @@ private theorem priorPrivateCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.priorChild relation program (interface relation program)
-      ).privateCount (priorOffset program) = 6799976 := by
+      ).privateCount (priorOffset program) = 7311464 := by
   change Lifecycle.PriorStateHash.logicalPrivateCount
-    PilotProduction.priorInterface (priorOffset program) = 6799976
+    PilotProduction.priorInterface (priorOffset program) = 7311464
   unfold Lifecycle.PriorStateHash.logicalPrivateCount
     Lifecycle.PriorStateHash.hashLength
   rw [PilotProduction.priorInterface_preimage_apply,
@@ -289,9 +334,9 @@ private theorem outputHashPrivateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.outputHashChild relation program
       (interface relation program)).privateCount (outputHashOffset program) =
-      6799712 := by
+      7311200 := by
   change Lifecycle.OutputHash.hashLength PilotProduction.outputInterface
-    (outputHashOffset program) = 6799712
+    (outputHashOffset program) = 7311200
   unfold Lifecycle.OutputHash.hashLength
   rw [PilotProduction.outputInterface_preimage_apply,
     PilotProduction.outputPreimage_chunkCount]
@@ -314,9 +359,9 @@ private theorem piCcsPrivateCount_eq
     (template : Proof (ProductionKey.degreeBound relation)) :
     (Lifecycle.Stage1.piCcsChild relation ajtai program
       (interface relation program) template).privateCount (piCcsOffset program) =
-      4549446 := by
+      4581414 := by
   change Lifecycle.PiCCS.v1_1.Formal.privateCount
-    (ProductionKey.degreeBound relation) = 4549446
+    (ProductionKey.degreeBound relation) = 4581414
   exact Lifecycle.PiCCS.v1_1.Formal.privateCount_eq_of_degreeBound_eq_nine
     _ (ProductionKey.degreeBound_eq relation)
 

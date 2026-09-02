@@ -77,7 +77,7 @@ def plan
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 4993786 := by
+    (plan relation geometry).rowCount = 5310442 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff

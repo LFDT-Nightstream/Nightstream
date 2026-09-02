@@ -215,7 +215,7 @@ private theorem samplerColumn_private (column : Nat)
     (upper : column < PiRLCStarts.commitmentLogicalStart) :
     Spartan.sourceToSpartan column < basePackage.layout.constantColumn := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ column := by
-    have lowerValue : 19002751 ≤ column := by
+    have lowerValue : 20064823 ≤ column := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using lower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -225,7 +225,7 @@ private theorem samplerColumn_private (column : Nat)
   · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
       Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
       Spartan.constantColumn] at sourceLocal ⊢
-    have upperValue : column < 19266319 := by
+    have upperValue : column < 20328391 := by
       simpa [PiRLCStarts.commitmentLogicalStart,
         PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
@@ -246,7 +246,7 @@ private theorem samplerRange_compatible
     CompactRangeCompatible program
       ⟨inputStart, inputCount, Spartan.sourceToSpartan sourceStart, stride⟩ := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 19002751 ≤ sourceStart := by
+    have lowerValue : 20064823 ≤ sourceStart := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -266,7 +266,7 @@ private theorem samplerFreshInterval_private (sourceStart count : Nat)
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 19002751 ≤ sourceStart := by
+    have lowerValue : 20064823 ≤ sourceStart := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -290,7 +290,7 @@ private theorem piRlcFreshInterval_private (sourceStart count : Nat)
     (sourceUpper : sourceStart + count ≤ PiRLCStarts.outputFreshStart) :
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
-  have outputValue : PiRLCStarts.outputFreshStart = 27356704 := by rfl
+  have outputValue : PiRLCStarts.outputFreshStart = 28973248 := by rfl
   rw [outputValue] at sourceUpper
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
     sourceLocal
@@ -466,7 +466,7 @@ private theorem laterPosition_layout
       by_cases slotZero : slot.val = 0
       · simp [PiRLCFirst54Invocations.roundFreshPrefix,
           PiRLCFirst54Invocations.positionFreshPrefix, slotZero]
-        rw [show PiRLCStarts.samplerFreshStart = 19314973 by rfl,
+        rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
           PiRLCStarts.commitmentFreshStart_eq]
         norm_num [PiRLCFirst54Invocations.sourceCount,
           PiRLCFirst54Invocations.roundCount, First54.candidateCount,
@@ -475,7 +475,7 @@ private theorem laterPosition_layout
         omega
       · simp [PiRLCFirst54Invocations.roundFreshPrefix,
           PiRLCFirst54Invocations.positionFreshPrefix, slotZero]
-        rw [show PiRLCStarts.samplerFreshStart = 19314973 by rfl,
+        rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
           PiRLCStarts.commitmentFreshStart_eq]
         norm_num [PiRLCFirst54Invocations.sourceCount,
           PiRLCFirst54Invocations.roundCount, First54.candidateCount,
@@ -515,8 +515,8 @@ private theorem laterPosition_layout
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart
           First54.roundPrivateCount
-        change 19002751 ≤
-          19002751 + source * 15504 + 8528 + round * 109
+        change 20064823 ≤
+          20064823 + source * 15504 + 8528 + round * 109
         omega
       · intro offset offsetLt
         unfold PiRLCFirst54Invocations.previousPositionSourceStart
@@ -524,8 +524,8 @@ private theorem laterPosition_layout
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart
           First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 19002751 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
         norm_num [PiRLCFirst54Invocations.sourceCount,
           PiRLCFirst54Invocations.roundCount, First54.candidateCount,
           First54Step.slotCount, First54ValueStep.outputCount]
@@ -567,7 +567,7 @@ private theorem laterValue_layout
         PiRLCFirst54Invocations.roundFreshPrefix
         PiRLCFirst54Invocations.valueFreshPrefix
         PiRLCFirst54Invocations.positionFreshCount
-      rw [show PiRLCStarts.samplerFreshStart = 19314973 by rfl,
+      rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
         PiRLCStarts.commitmentFreshStart_eq]
       norm_num [PiRLCFirst54Invocations.sourceCount,
         PiRLCFirst54Invocations.roundCount, First54.candidateCount,
@@ -622,16 +622,16 @@ private theorem laterValue_layout
           PiRLCFirst54Invocations.positionSourceStart
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        change 19002751 ≤
-          19002751 + source * 15504 + 8528 + round * 109
+        change 20064823 ≤
+          20064823 + source * 15504 + 8528 + round * 109
         omega
       · intro offset offsetLt
         unfold PiRLCFirst54Invocations.previousPositionSourceStart
           PiRLCFirst54Invocations.positionSourceStart
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 19002751 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
         norm_num [PiRLCFirst54Invocations.sourceCount,
           PiRLCFirst54Invocations.roundCount, First54.candidateCount,
           First54Step.slotCount, First54ValueStep.outputCount]
@@ -642,16 +642,16 @@ private theorem laterValue_layout
           PiRLCFirst54Invocations.valueSourceStart First54.valueOffset
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        change 19002751 ≤
-          19002751 + source * 15504 + 8528 + round * 109 + 55
+        change 20064823 ≤
+          20064823 + source * 15504 + 8528 + round * 109 + 55
         omega
       · intro offset offsetLt
         unfold PiRLCFirst54Invocations.previousValueSourceStart
           PiRLCFirst54Invocations.valueSourceStart First54.valueOffset
           First54.positionOffset PiRLCStarts.selectorLogicalStart
           PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 19002751 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
         norm_num [PiRLCFirst54Invocations.sourceCount,
           PiRLCFirst54Invocations.roundCount, First54.candidateCount,
           First54Step.slotCount, First54ValueStep.outputCount]
@@ -980,8 +980,8 @@ private theorem combination_layout
         unfold PiRLCCombinationInvocations.challengeSourceStart
         rw [PiRLCStarts.challengeWordStart_eq]
         have sourceLt := source.isLt
-        rw [show PiRLCStarts.phaseLogicalStart = 19002751 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 19266319 by rfl]
+        rw [show PiRLCStarts.phaseLogicalStart = 20064823 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
         norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
           at sourceLt offsetLt ⊢
         omega
@@ -994,7 +994,7 @@ private theorem combination_layout
 private theorem commitmentValueRange_compatible
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (block : Fin 18) (cell : Fin 1) :
+    (block : Fin 22) (cell : Fin 1) :
     CompactRangeCompatible program
       { inputStart := PiRLCCombinationTemplates.valueInputStart
         inputCount := ringDegree
@@ -1171,17 +1171,17 @@ private theorem evalAValueRange_compatible
 private theorem commitment_layout
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (block : Fin 18) (lane : Fin ringDegree) (cell : Fin 1) :
+    (block : Fin 22) (lane : Fin ringDegree) (cell : Fin 1) :
     CompactInvocationPrivate program
       (PiRLCCombinationInvocations.invocation
         PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
-        PiRLCStarts.commitmentFreshStart 18 1 1 source.val block.val lane.val
+        PiRLCStarts.commitmentFreshStart 22 1 1 source.val block.val lane.val
         cell.val PiRLCCombinationInvocations.commitmentValueSourceStart)
       (NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
-  · change 20058604 + 17 * (18 * 1 * 8100) ≤ 27356704
+  · change 21124348 + 17 * (22 * 1 * 8100) ≤ 28973248
     norm_num
   · exact commitmentValueRange_compatible program source block cell
 
@@ -1198,7 +1198,7 @@ private theorem publicInput_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
-  · change 22537204 + 17 * (5 * 1 * 8100) ≤ 27356704
+  · change 24153748 + 17 * (5 * 1 * 8100) ≤ 28973248
     norm_num
   · exact publicInputValueRange_compatible program source block cell
 
@@ -1215,7 +1215,7 @@ private theorem evalK_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
-  · change 23225704 + 17 * (1 * 2 * 8100) ≤ 27356704
+  · change 24842248 + 17 * (1 * 2 * 8100) ≤ 28973248
     norm_num
   · exact evalKValueRange_compatible program source block cell
 
@@ -1232,7 +1232,7 @@ private theorem evalA_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
-  · change 23501104 + 17 * (14 * 2 * 8100) ≤ 27356704
+  · change 25117648 + 17 * (14 * 2 * 8100) ≤ 28973248
     norm_num
   · exact evalAValueRange_compatible program source block cell
 
@@ -1384,7 +1384,7 @@ theorem combinationRows
   rcases invocationMember with
       ((commitmentMember | publicInputMember) | evalKMember) | evalAMember
   · exact combinationFamilyRows program PiRLCStarts.commitmentLogicalStart
-      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
+      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
       PiRLCCombinationInvocations.commitmentValueSourceStart
       (fun source block lane cell =>
         commitment_layout program source block lane cell)

@@ -496,7 +496,7 @@ def footprint
       InputsAffine (Formal.statementAbsorptionInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.statementAbsorptionCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 192400
+  physicalRowCount := fun _ => 224368
   freshColumnCount_eq := by
     intro offset
     unfold Formal.statementAbsorptionCircuit
@@ -515,7 +515,7 @@ def footprint
     rw [FormalCircuit.withConstantFootprint_main]
     change R1CS.totalRowCount (flatConstraints
       (opsAt (Formal.statementAbsorptionInterface interface) offset)) =
-        192400
+        224368
     rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.flatConstraints_opsAt]
     rw [R1CS.recipeConstraints_totalRowCount]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.program_recipes_length
@@ -541,7 +541,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.statementAbsorptionCircuit interface).main offset)) =
-        192400 :=
+        224368 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption

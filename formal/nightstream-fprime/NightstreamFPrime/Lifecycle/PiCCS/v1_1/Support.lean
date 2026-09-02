@@ -78,4 +78,63 @@ structure ExternalInputsSupported
       Expr.VarsSatisfy allowed
         ((interface.output offset).matrixCoordinate source matrix coefficient).c1
 
+/-- Caller-input support remains valid when the allowed source predicate is
+enlarged. -/
+theorem ExternalInputsSupported.mono
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {interface : Interface logicalWidth degreeBound publicFits}
+    {offset : Nat} {allowed larger : Nat → Prop}
+    (support : ExternalInputsSupported interface offset allowed)
+    (includes : ∀ index, allowed index → larger index) :
+    ExternalInputsSupported interface offset larger := by
+  refine {
+    priorStateFixed := fun word member => Expr.VarsSatisfy.mono _
+      (support.priorStateFixed word member) includes
+    outputStateFixed := fun word member => Expr.VarsSatisfy.mono _
+      (support.outputStateFixed word member) includes
+    priorStateContext := fun lane => Expr.VarsSatisfy.mono _
+      (support.priorStateContext lane) includes
+    outputStateContext := fun lane => Expr.VarsSatisfy.mono _
+      (support.outputStateContext lane) includes
+    expectedContext := fun lane => Expr.VarsSatisfy.mono _
+      (support.expectedContext lane) includes
+    runningPoint := fun coordinate => ⟨
+      Expr.VarsSatisfy.mono _ (support.runningPoint coordinate).1 includes,
+      Expr.VarsSatisfy.mono _ (support.runningPoint coordinate).2 includes⟩
+    runningCommitment := fun source row coefficient => Expr.VarsSatisfy.mono _
+      (support.runningCommitment source row coefficient) includes
+    runningPublicInput := fun source column => Expr.VarsSatisfy.mono _
+      (support.runningPublicInput source column) includes
+    runningEval_K := fun source coefficient => ⟨
+      Expr.VarsSatisfy.mono _ (support.runningEval_K source coefficient).1
+        includes,
+      Expr.VarsSatisfy.mono _ (support.runningEval_K source coefficient).2
+        includes⟩
+    runningEval_A := fun source matrix coefficient => ⟨
+      Expr.VarsSatisfy.mono _
+        (support.runningEval_A source matrix coefficient).1 includes,
+      Expr.VarsSatisfy.mono _
+        (support.runningEval_A source matrix coefficient).2 includes⟩
+    freshCommitment := fun source row coefficient => Expr.VarsSatisfy.mono _
+      (support.freshCommitment source row coefficient) includes
+    freshPublicInput := fun source column => Expr.VarsSatisfy.mono _
+      (support.freshPublicInput source column) includes
+    roundCoefficient := fun roundIndex coefficient => ⟨
+      Expr.VarsSatisfy.mono _
+        (support.roundCoefficient roundIndex coefficient).1 includes,
+      Expr.VarsSatisfy.mono _
+        (support.roundCoefficient roundIndex coefficient).2 includes⟩
+    outputEval_K := fun source coefficient => ⟨
+      Expr.VarsSatisfy.mono _ (support.outputEval_K source coefficient).1
+        includes,
+      Expr.VarsSatisfy.mono _ (support.outputEval_K source coefficient).2
+        includes⟩
+    outputEval_A := fun source matrix coefficient => ⟨
+      Expr.VarsSatisfy.mono _
+        (support.outputEval_A source matrix coefficient).1 includes,
+      Expr.VarsSatisfy.mono _
+        (support.outputEval_A source matrix coefficient).2 includes⟩ }
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal

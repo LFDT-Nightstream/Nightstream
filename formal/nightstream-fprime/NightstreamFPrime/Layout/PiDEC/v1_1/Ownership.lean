@@ -135,7 +135,7 @@ theorem rowOwners_length_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    (rowOwners relation interface offset).length = 25272 := by
+    (rowOwners relation interface offset).length = 25488 := by
   rw [rowOwners_length,
     physicalRowCount_eq_production relation interface offset inputs]
 

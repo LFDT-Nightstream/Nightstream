@@ -218,6 +218,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputStart_matches_piRlc
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.inputStarts_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.combinationOutput_varsBelow
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.inputsBelow
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.assumptions
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECStarts.phaseStarts_eq
@@ -271,6 +272,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.serializeRunningExpr_varsSatisfy
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.runningWord_varsSatisfy
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraints_varsSatisfy
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.specHolds_of_agree_below
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.spec_serialized_base

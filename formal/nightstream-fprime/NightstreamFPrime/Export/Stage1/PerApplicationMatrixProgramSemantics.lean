@@ -88,7 +88,7 @@ structure SourceCustody (application : ApplicationProgram)
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.publicProgramRow
           (relation application fits) index))
-  piDecCommitment : ∀ index : Fin 972,
+  piDecCommitment : ∀ index : Fin 1188,
     sourceRow (PiDECStarts.commitmentRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.commitmentProgramRow
@@ -110,11 +110,15 @@ structure SourceCustody (application : ApplicationProgram)
       some (PerApplicationSourceProjection.basePackageRow application
         ((RunningTransitionDirectSource.program
           (relation application fits)).row index))
-  application : ∀ index :
+  applicationRows : ∀ index :
       Fin (ApplicationDirectSource.program application fits.package).rowCount,
     sourceRow (PerApplicationPackage.basePackage.layout.rowCount + index.val) =
       some ((ApplicationDirectSource.program application fits.package).row
         index)
+  nextPreimage : ∀ index : Fin NextPreimageDirectPlan.program.rowCount,
+    sourceRow
+        (PerApplicationPackage.nextPreimageRowStart application + index.val) =
+      some (NextPreimageDirectPlan.program.row index)
 
 theorem piCcsPoseidonExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -379,7 +383,47 @@ theorem applicationExact (application : ApplicationProgram)
     DirectApplicationPrefixPlan.applicationPlan] using
       ApplicationMatrixProgram.matrixProgram_row? fits.package
         (PerApplicationMatrixProgram.applicationGeometry application)
-        sourceRow custody.application row
+        sourceRow custody.applicationRows row
+
+theorem nextPreimageExact (application : ApplicationProgram)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (sourceRow : Nat → Option R1CS.Row)
+    (custody : SourceCustody application fits sourceRow) :
+    Exact (PerApplicationMatrixProgram.blockProgram application .nextPreimage)
+      (PerApplicationProductionPlan.BlockKind.nextPreimage.plan application
+        fits) sourceRow := by
+  refine ⟨PerApplicationMatrixProgram.blockProgram_rowCount application fits
+    .nextPreimage, ?_⟩
+  intro row
+  simpa [PerApplicationMatrixProgram.blockProgram,
+    PerApplicationMatrixProgram.nextPreimageProgram,
+    PerApplicationMatrixProgram.piCcsOrdinaryGeometry,
+    PerApplicationMatrixProgram.piDecGeometry,
+    PerApplicationProductionPlan.BlockKind.plan,
+    DirectApplicationPrefixPlan.nextPreimagePlan,
+    DirectApplicationPrefixPlan.piCcsOrdinaryGeometry] using
+      NextPreimageMatrixProgram.matrixProgram_row?
+        (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application)
+        sourceRow custody.nextPreimage row
+
+theorem recursivePublicOutputExact (application : ApplicationProgram)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (sourceRow : Nat → Option R1CS.Row) :
+    Exact (PerApplicationMatrixProgram.blockProgram application
+        .recursivePublicOutput)
+      (PerApplicationProductionPlan.BlockKind.recursivePublicOutput.plan
+        application fits) sourceRow := by
+  refine ⟨PerApplicationMatrixProgram.blockProgram_rowCount application fits
+    .recursivePublicOutput, ?_⟩
+  intro row
+  simpa [PerApplicationMatrixProgram.blockProgram,
+    PerApplicationMatrixProgram.recursivePublicOutputProgram,
+    PerApplicationMatrixProgram.applicationGeometry,
+    PerApplicationProductionPlan.BlockKind.plan,
+    DirectApplicationPrefixPlan.publicOutputPlan] using
+      PinMatrixPrograms.recursivePublicOutputProgram_plan_row?
+        (PerApplicationMatrixProgram.applicationGeometry application)
+        sourceRow row
 
 theorem blockExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -406,6 +450,10 @@ theorem blockExact (application : ApplicationProgram)
   | runningTransition =>
       exact runningTransitionExact application fits sourceRow custody
   | application => exact applicationExact application fits sourceRow custody
+  | nextPreimage =>
+      exact nextPreimageExact application fits sourceRow custody
+  | recursivePublicOutput =>
+      exact recursivePublicOutputExact application fits sourceRow
 
 /-- Any successfully compiled Lean production tree has an exact compact
 matrix interpretation. -/

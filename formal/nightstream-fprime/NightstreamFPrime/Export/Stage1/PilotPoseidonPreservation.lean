@@ -48,9 +48,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27695710 := Package.circuitPackage_layout_values.2.2.1
+      29336446 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      27695989 := Package.circuitPackage_layout_values.2.2.2.2
+      29336725 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -108,10 +108,10 @@ private theorem priorInputLift (index : Fin Data.priorChain.inputLength) :
       Spartan.liftPilotColumn
         (PilotData.priorChain.inputStart + index.val) := by
   have indexBound := index.isLt
-  change index.val < 45937 at indexBound
+  change index.val < 49393 at indexBound
   have lifted := Spartan.liftPilotColumn_add_of_input
     PilotData.priorChain.inputStart index.val (by
-      change 0 + index.val < 91874
+      change 0 + index.val < 98786
       omega)
   unfold Data.priorChain Data.liftPilotChain
   exact lifted.symm
@@ -121,10 +121,10 @@ private theorem outputInputLift (index : Fin Data.outputChain.inputLength) :
       Spartan.liftPilotColumn
         (PilotData.outputChain.inputStart + index.val) := by
   have indexBound := index.isLt
-  change index.val < 45937 at indexBound
+  change index.val < 49393 at indexBound
   have lifted := Spartan.liftPilotColumn_add_of_input
     PilotData.outputChain.inputStart index.val (by
-      change 45937 + index.val < 91874
+      change 49393 + index.val < 98786
       omega)
   unfold Data.outputChain Data.liftPilotChain
   exact lifted.symm
@@ -721,27 +721,27 @@ theorem directDigest_eq_hash
 theorem priorInvocationCount_eq :
     PilotData.priorChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 11485 + 1 = 11486
+  change 12349 + 1 = 12350
   decide
 
 theorem outputInvocationCount_eq :
     PilotData.outputChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 11485 + 1 = 11486
+  change 12349 + 1 = 12350
   decide
 
 private theorem priorChunkCount_eq :
     PilotData.priorChain.absorbCount =
       (PilotData.priorChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 11485 = (45937 + 4 - 1) / 4
+  change 12349 = (49393 + 4 - 1) / 4
   decide
 
 private theorem outputChunkCount_eq :
     PilotData.outputChain.absorbCount =
       (PilotData.outputChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 11485 = (45937 + 4 - 1) / 4
+  change 12349 = (49393 + 4 - 1) / 4
   decide
 
 structure HashFacts {program : Lifecycle.Stage1.Application.Program}

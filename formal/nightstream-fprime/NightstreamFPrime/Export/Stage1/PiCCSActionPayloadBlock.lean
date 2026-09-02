@@ -24,20 +24,20 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Spec
 
-def statementActions : List Formal.Action :=
+def statementActions (_delay : Unit := ()) : List Formal.Action :=
   PiCCSInvocations.statementActions Data.logicalWidth Data.publicFits
 
-def challengeActions : List Formal.Action :=
+def challengeActions (_delay : Unit := ()) : List Formal.Action :=
   ChallengeDerivation.actions
     (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
     PiCCSInvocations.challengeWitnessStart
 
-def roundActions : List Formal.Action :=
+def roundActions (_delay : Unit := ()) : List Formal.Action :=
   RoundTranscript.actions
     (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
     PiCCSInvocations.roundWitnessStart
 
-def outputActions : List Formal.Action :=
+def outputActions (_delay : Unit := ()) : List Formal.Action :=
   PiCCSInvocations.outputActions Data.logicalWidth Data.publicFits
 
 theorem challengeInvocationCount_eq :
@@ -60,7 +60,7 @@ theorem roundInvocationCount_eq :
   exact same.trans (PiCCSInvocations.roundInvocationCount_eq
     Data.logicalWidth Data.publicFits)
 
-def statementKindAt : Fin 325 → PoseidonActionSchedule.Kind :=
+def statementKindAt : Fin 379 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt statementActions <|
     Fin.cast (PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -124,14 +124,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 7550
+def invocationCount : Nat := 7604
 
-@[simp] theorem invocationCount_eq : invocationCount = 7550 := by
+@[simp] theorem invocationCount_eq : invocationCount = 7604 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 30200 := by
+@[simp] theorem payloadCount_eq : payloadCount = 30416 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 
@@ -247,13 +247,13 @@ def block (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem block_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (block program).slotCount = 30200 := by
+    (block program).slotCount = 30416 := by
   rw [block, FieldSuffixBlock.block_slotCount, payloadCount_eq]
 
 @[simp] theorem block_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (block program).coordinateCount = 1238200 := by
-  change payloadCount * 41 = 1238200
+    (block program).coordinateCount = 1247056 := by
+  change payloadCount * 41 = 1247056
   rw [payloadCount_eq]
 
 theorem block_sourceAssignment
@@ -272,7 +272,7 @@ def logicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem logicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    logicalWidth program = 185542820 := by
+    logicalWidth program = 197387720 := by
   rw [logicalWidth, payloadStart, PiRLCPoseidonGeometry.pilotLogicalWidth_eq,
     block_coordinateCount]
 

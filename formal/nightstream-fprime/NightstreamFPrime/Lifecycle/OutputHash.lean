@@ -1,3 +1,4 @@
+import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 import NightstreamFPrime.Lifecycle.Relation
 
@@ -113,6 +114,71 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
         (localLength (Circuit.ops (circuit interface).main offset)) ∧
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   (circuit interface).completeness env offset assumptions specification
+
+/-- Output-hash semantics depend only on the caller-owned expressions below
+the child start. This transports the specification across an earlier sibling
+completion without exposing hash-circuit rows. -/
+theorem specHolds_of_agree_below
+    (interface : Interface) (offset : Nat) (before after : Env)
+    (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have inputEq : Hash.evalList after (interface.preimage offset) =
+      Hash.evalList before (interface.preimage offset) := by
+    unfold Hash.evalList
+    apply List.map_congr_left
+    intro expression member
+    exact expression.eval_eq_of_agree_below offset after before
+      (assumptions.1 expression member) agrees
+  have digestEq :
+      List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+        List.ofFn (fun lane => (interface.digest offset lane).eval before) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.digest offset lane).eval_eq_of_agree_below offset
+      after before (assumptions.2 lane) agrees
+  change List.ofFn (fun lane => (interface.digest offset lane).eval before) =
+    Poseidon2.hash (Hash.evalList before (interface.preimage offset))
+      at specification
+  change List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+    Poseidon2.hash (Hash.evalList after (interface.preimage offset))
+  rw [digestEq, inputEq]
+  exact specification
+
+/-- Output-hash semantics are unchanged when two environments agree on the
+exact caller-selected support of the preimage and digest expressions. -/
+theorem specHolds_of_agree_satisfy
+    (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
+    (before after : Env)
+    (preimageSupport : ∀ expression ∈ interface.preimage offset,
+      expression.VarsSatisfy allowed)
+    (digestSupport : ∀ lane,
+      (interface.digest offset lane).VarsSatisfy allowed)
+    (agrees : ∀ index, allowed index → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have inputEq : Hash.evalList after (interface.preimage offset) =
+      Hash.evalList before (interface.preimage offset) := by
+    unfold Hash.evalList
+    apply List.map_congr_left
+    intro expression member
+    exact expression.eval_eq_of_agree_satisfy allowed after before
+      (preimageSupport expression member) agrees
+  have digestEq :
+      List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+        List.ofFn (fun lane => (interface.digest offset lane).eval before) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.digest offset lane).eval_eq_of_agree_satisfy allowed
+      after before (digestSupport lane) agrees
+  change List.ofFn (fun lane => (interface.digest offset lane).eval before) =
+    Poseidon2.hash (Hash.evalList before (interface.preimage offset))
+      at specification
+  change List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+    Poseidon2.hash (Hash.evalList after (interface.preimage offset))
+  rw [digestEq, inputEq]
+  exact specification
 
 section Relation
 

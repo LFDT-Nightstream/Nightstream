@@ -105,7 +105,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 4672483 := by
+    (plan geometry).rowCount = 4964947 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 

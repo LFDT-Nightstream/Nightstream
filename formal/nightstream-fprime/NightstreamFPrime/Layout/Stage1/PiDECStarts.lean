@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 open NightstreamFPrime.Lifecycle.PiDEC.v1_1
 
 def phaseLogicalStart : Nat := PiDECInputs.phaseOffset
-def phaseRowStart : Nat := 27237625
+def phaseRowStart : Nat := 28847041
 def phaseFreshStart : Nat := phaseLogicalStart + Formal.logicalPrivateCount
 
 def inputLogicalStart : Nat := Formal.inputBindingOffset phaseLogicalStart
@@ -24,7 +24,7 @@ def outputLogicalStart : Nat := Formal.outputBindingOffset phaseLogicalStart
 def inputRowStart : Nat := phaseRowStart
 def publicInputRowStart : Nat := inputRowStart
 def commitmentRowStart : Nat := publicInputRowStart + 22680
-def evalKRowStart : Nat := commitmentRowStart + 972
+def evalKRowStart : Nat := commitmentRowStart + 1188
 def evalARowStart : Nat := evalKRowStart + 108
 def outputRowStart : Nat := evalARowStart + 1512
 
@@ -58,35 +58,35 @@ def recompositionRowStart (source : Nat) : Nat :=
 
 theorem phaseStarts_eq :
     [phaseLogicalStart, phaseRowStart, phaseFreshStart] =
-      [27402496, 27237625, 27402766] := by
+      [29022496, 28847041, 29022766] := by
   rfl
 
 theorem childLogicalStarts_eq :
     [inputLogicalStart, publicInputLogicalStart, commitmentLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [27402496, 27402496, 27402766, 27402766, 27402766, 27402766] := by
+    [29022496, 29022496, 29022766, 29022766, 29022766, 29022766] := by
   rfl
 
 theorem childRowStarts_eq :
     [inputRowStart, publicInputRowStart, commitmentRowStart, evalKRowStart,
       evalARowStart, outputRowStart] =
-    [27237625, 27237625, 27260305, 27261277, 27261385, 27262897] := by
+    [28847041, 28847041, 28869721, 28870909, 28871017, 28872529] := by
   rfl
 
 theorem childFreshStarts_eq :
     [inputFreshStart, publicInputFreshStart, commitmentFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [27402766, 27402766, 27420586, 27420586, 27420586, 27420586] := by
+    [29022766, 29022766, 29040586, 29040586, 29040586, 29040586] := by
   rfl
 
 theorem scalarStarts_eq (source : Nat) :
-    scalarLogicalStart source = 27402496 + source ∧
-      scalarRowStart source = 27237625 + source * 84 ∧
-      scalarFreshStart source = 27402766 + source * 66 := by
+    scalarLogicalStart source = 29022496 + source ∧
+      scalarRowStart source = 28847041 + source * 84 ∧
+      scalarFreshStart source = 29022766 + source * 66 := by
   exact ⟨rfl, rfl, rfl⟩
 
 theorem finalBoundaries_eq :
-    outputRowStart = 27262897 ∧ outputFreshStart = 27420586 := by
+    outputRowStart = 28872529 ∧ outputFreshStart = 29040586 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStarts

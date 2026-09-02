@@ -81,12 +81,12 @@ theorem challengeColumn_eq_first54Value
 
 @[simp] theorem inputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (inputBlock program).slotCount = 48654 := by
+    (inputBlock program).slotCount = 52326 := by
   exact PiRLCProductSchedule.invocationCount_eq
 
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).slotCount = 48654 := by
+    (outputBlock program).slotCount = 52326 := by
   exact PiRLCProductSchedule.invocationCount_eq
 
 theorem inputBlock_source (program : Lifecycle.Stage1.Application.Program)
@@ -105,14 +105,14 @@ theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem inputBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (inputBlock program).coordinateCount = 1994814 := by
-  change PiRLCProductSchedule.invocationCount * 41 = 1994814
+    (inputBlock program).coordinateCount = 2145366 := by
+  change PiRLCProductSchedule.invocationCount * 41 = 2145366
   rw [PiRLCProductSchedule.invocationCount_eq]
 
 @[simp] theorem outputBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).coordinateCount = 1994814 := by
-  change PiRLCProductSchedule.invocationCount * 41 = 1994814
+    (outputBlock program).coordinateCount = 2145366 := by
+  change PiRLCProductSchedule.invocationCount * 41 = 2145366
   rw [PiRLCProductSchedule.invocationCount_eq]
 
 def retainedCoordinateCount
@@ -122,7 +122,7 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 3989628 := by
+    retainedCoordinateCount program = 4290732 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks

@@ -68,9 +68,6 @@ theorem semantics_imply_accumulatorHolds
           (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base))) := by
   let commonEnv := Spartan.pullback
     (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)
-  have piCcsSpec :=
-    DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds relation
-      geometry assignment base groupValue products semantics
   have piCcsPhase :=
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsPhaseHolds relation
       ajtai (AccumulatorInputs.proof relation commonEnv) geometry assignment
@@ -91,8 +88,6 @@ theorem semantics_imply_accumulatorHolds
       ajtai geometry assignment base groupValue products semantics
       piDecAssumptions
   apply AccumulatorSemantics.phases_imply_holds relation ajtai vk commonEnv
-  · simpa [PiCCSInvocations.parentInterface,
-      AccumulatorInputs.piCcsInterface] using piCcsSpec
   · simpa [PiCCSInvocations.parentInterface,
       AccumulatorInputs.piCcsInterface] using piCcsPhase
   · exact piRlcPhase

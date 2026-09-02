@@ -31,7 +31,7 @@ def witnessRange (application : ApplicationProgram) : SourceRange :=
 
 def outputRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (outputBlock application) (outputStart application)
-    45972 Lifecycle.Stage1.Application.stateWordCount 0
+    49428 Lifecycle.Stage1.Application.stateWordCount 0
 
 def localRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (localBlock application) (localStart application)
@@ -45,6 +45,21 @@ def substitution (application : ApplicationProgram) : SourceSubstitution where
 def rowSchedule (application : ApplicationProgram) : IndexSchedule :=
   .rangeList [⟨PerApplicationPackage.basePackage.layout.rowCount,
     (PerApplicationPackage.applicationPlan application).rowCount⟩]
+
+def directRowSchedule (application : ApplicationProgram) : IndexSchedule :=
+  .rangeList [⟨29218024,
+    (PerApplicationPackage.directApplicationPlan application).rowCount⟩]
+
+theorem directRowSchedule_eq_rowSchedule (application : ApplicationProgram) :
+    directRowSchedule application = rowSchedule application := by
+  unfold directRowSchedule rowSchedule
+  rw [PerApplicationPackage.directApplicationPlan_eq_applicationPlan,
+    PerApplicationPackage.basePackage_rowCount_eq]
+
+@[csimp] theorem rowSchedule_eq_directRowSchedule :
+    @rowSchedule = @directRowSchedule := by
+  funext application
+  exact (directRowSchedule_eq_rowSchedule application).symm
 
 @[simp] theorem rowSchedule_count (application : ApplicationProgram) :
     (rowSchedule application).count =

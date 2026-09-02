@@ -1,9 +1,11 @@
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
+import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
 /-!
-Owns the two small explicit pin blocks in the canonical Stage 1 14-matrix
-program: pilot digest custody and PiCCS transcript endpoint custody.
+Owns the three small explicit pin blocks in the canonical Stage 1 14-matrix
+program: pilot digest custody, PiCCS transcript endpoint custody, and the
+recursive public-output binding.
 
 The blocks carry final sparse forms. They do not select package order or
 claim final package integration.
@@ -172,5 +174,76 @@ theorem piCcsEndpointProgram_plan_row?
     PiCCSTranscriptEndpointPlan.plan,
     Layout.ProductionRelation.PinFamilyPlan.plan] using
       piCcsEndpointProgram_row? geometry sourceRow row
+
+def recursivePublicOutput
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    Pin.Block :=
+  Pin.Block.ofSemantic (RecursivePublicOutputPlan.interface geometry)
+
+@[simp] theorem recursivePublicOutput_rowCount
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (recursivePublicOutput geometry).rowCount = 4 := by
+  simp [recursivePublicOutput, RecursivePublicOutputPlan.rowCount]
+
+theorem recursivePublicOutput_row?
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (row : Fin RecursivePublicOutputPlan.rowCount) :
+    (recursivePublicOutput geometry).row? logicalWidth row.val =
+      some (Layout.ProductionRelation.PinFamilyPlan.forms
+        (RecursivePublicOutputPlan.interface geometry) row) := by
+  exact Pin.Block.row?_ofSemantic _ row
+
+def recursivePublicOutputProgram
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    MatrixProgram.Program where
+  blocks := [.pin (recursivePublicOutput geometry)]
+
+@[simp] theorem recursivePublicOutputProgram_rowCount
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (recursivePublicOutputProgram geometry).rowCount = 4 := by
+  rw [show recursivePublicOutputProgram geometry = MatrixProgram.Program.mk
+      [.pin (recursivePublicOutput geometry)] by rfl]
+  rw [MatrixProgram.Program.singleton_rowCount]
+  exact recursivePublicOutput_rowCount geometry
+
+theorem recursivePublicOutputProgram_row?
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (sourceRow : Nat → Option Layout.R1CS.Row)
+    (row : Fin RecursivePublicOutputPlan.rowCount) :
+    (recursivePublicOutputProgram geometry).row?
+        logicalWidth sourceRow row.val =
+      some (Layout.ProductionRelation.PinFamilyPlan.forms
+        (RecursivePublicOutputPlan.interface geometry) row).meaningfulForm := by
+  have bound : row.val <
+      (MatrixProgram.Block.pin (recursivePublicOutput geometry)).rowCount := by
+    change row.val < (recursivePublicOutput geometry).rowCount
+    rw [recursivePublicOutput_rowCount]
+    simpa [RecursivePublicOutputPlan.rowCount_eq] using row.isLt
+  rw [show recursivePublicOutputProgram geometry = MatrixProgram.Program.mk
+      [.pin (recursivePublicOutput geometry)] by rfl]
+  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  change (do
+    let forms ← (recursivePublicOutput geometry).row? logicalWidth row.val
+    pure forms.meaningfulForm) = _
+  rw [recursivePublicOutput_row? geometry row]
+  rfl
+
+theorem recursivePublicOutputProgram_plan_row?
+    {program : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (sourceRow : Nat → Option Layout.R1CS.Row)
+    (row : Fin (RecursivePublicOutputPlan.plan geometry).rowCount) :
+    (recursivePublicOutputProgram geometry).row?
+        logicalWidth sourceRow row.val =
+      some ((RecursivePublicOutputPlan.plan geometry).forms row) := by
+  simpa [RecursivePublicOutputPlan.plan,
+    Layout.ProductionRelation.PinFamilyPlan.plan] using
+      recursivePublicOutputProgram_row? geometry sourceRow row
 
 end NightstreamFPrime.Export.Stage1.PinMatrixPrograms

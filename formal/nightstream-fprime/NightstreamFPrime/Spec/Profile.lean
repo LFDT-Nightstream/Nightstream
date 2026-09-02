@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Relation
 
 /-!
 Owns the one Nightstream Goldilocks production profile: `b = 2`,
-`k_rho = 16`, `B = 2^16`, `η = 81`, `d = 54`, `κ = 18`, quadratic
+`k_rho = 16`, `B = 2^16`, `η = 81`, `d = 54`, `κ = 22`, quadratic
 extension. Every other module reads the profile from here; no module restates
 these values.
 
@@ -41,7 +41,7 @@ def productionProfile : ProductionProfile where
   global := productionGlobalParams
   eta := 81
   ringDegree := ringDegree
-  commitmentWidth := 18
+  commitmentWidth := 22
   extensionDegree := 2
   challengeSetBitsFloor := 125
   freshSources := 1
@@ -65,7 +65,7 @@ theorem production_parameter_values :
     productionProfile.global.bigB = 65536 ∧
     productionProfile.eta = 81 ∧
     productionProfile.ringDegree = 54 ∧
-    productionProfile.commitmentWidth = 18 ∧
+    productionProfile.commitmentWidth = 22 ∧
     productionProfile.extensionDegree = 2 ∧
     productionProfile.challengeSetBitsFloor = 125 ∧
     productionProfile.piRlcInputs = 17 ∧

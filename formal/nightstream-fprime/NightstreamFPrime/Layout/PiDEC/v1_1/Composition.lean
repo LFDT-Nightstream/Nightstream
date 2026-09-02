@@ -255,7 +255,7 @@ private theorem commitmentRows_eq
     (inputs : InputShapes relation interface offset) :
     R1CS.totalRowCount
       (childConstraints (Formal.commitmentCircuit (Formal.atOffset interface offset))
-        (Formal.commitmentOffset offset)) = 972 :=
+        (Formal.commitmentOffset offset)) = 1188 :=
   CommitmentRecomposition.physicalRowCount_eq
     (Formal.commitmentInterface (Formal.atOffset interface offset))
     inputs.commitment (Formal.commitmentOffset offset)
@@ -344,7 +344,7 @@ theorem physicalRowDeltas_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     physicalRowDeltas relation interface offset =
-      [0, 22680, 972, 108, 1512, 0] := by
+      [0, 22680, 1188, 108, 1512, 0] := by
   unfold physicalRowDeltas childConstraintLists
   simp only [List.map_cons, List.map_nil]
   rw [inputRows_eq, publicRows_eq relation interface offset inputs,
@@ -426,11 +426,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 22680, 23652, 23760, 25272, 25272] ∧
+        [0, 22680, 23868, 23976, 25488, 25488] ∧
       cumulativePhysicalColumns relation interface offset =
         [0, 18090, 18090, 18090, 18090, 18090] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 22680, 23652, 23760, 25272, 25272] := by
+        [0, 22680, 23868, 23976, 25488, 25488] := by
   rw [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs,
     cumulativePhysicalColumns,
@@ -455,7 +455,7 @@ theorem totalRowCount_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     R1CS.totalRowCount (logicalConstraints relation interface offset) =
-      25272 := by
+      25488 := by
   rw [totalRowCount_eq_deltas,
     physicalRowDeltas_eq relation interface offset inputs]
   rfl
@@ -478,7 +478,7 @@ def footprint
     (inputs : ∀ offset, InputShapes relation interface offset) :
     R1CS.CircuitFootprint (Formal.circuit relation ajtai interface) where
   freshColumnCount := fun _ => 17820
-  physicalRowCount := fun _ => 25272
+  physicalRowCount := fun _ => 25488
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq relation interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

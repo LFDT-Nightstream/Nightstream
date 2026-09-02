@@ -350,6 +350,23 @@ def productionPlan (program : Lifecycle.Stage1.Application.Program)
   ofProgram program (productionColumns program)
     (Layout.Stage1.ApplicationInputs.localStart program) rowStart
 
+@[simp] theorem productionPlan_rowCount
+    (program : Lifecycle.Stage1.Application.Program) (rowStart : Nat) :
+    (productionPlan program rowStart).rowCount =
+      (compiledRows program (productionColumns program)
+        (Layout.Stage1.ApplicationInputs.localStart program) rowStart).length := by
+  rfl
+
+@[simp] theorem productionPlan_privateCount
+    (program : Lifecycle.Stage1.Application.Program) (rowStart : Nat) :
+    (productionPlan program rowStart).privateCount =
+      localLength (operations program (productionColumns program)
+        (Layout.Stage1.ApplicationInputs.localStart program)) +
+      R1CS.totalFreshCount
+        (constraints program (productionColumns program)
+          (Layout.Stage1.ApplicationInputs.localStart program)) := by
+  rfl
+
 theorem productionPlan_wellFormed
     (program : Lifecycle.Stage1.Application.Program) (rowStart : Nat) :
     (productionPlan program rowStart).WellFormed := by

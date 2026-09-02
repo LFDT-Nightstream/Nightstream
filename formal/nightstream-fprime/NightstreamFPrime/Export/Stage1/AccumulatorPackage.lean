@@ -47,8 +47,6 @@ theorem circuitPackage_implies_accumulatorHolds
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
       (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.output relation
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) := by
-  have piCcsSpec := Package.circuitPackage_implies_piCcsSpecHolds relation env
-    holds
   have piCcsPhase := Package.circuitPackage_implies_piCcsPhaseHolds relation
     ajtai
     (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.proof relation
@@ -61,9 +59,6 @@ theorem circuitPackage_implies_accumulatorHolds
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
   apply NightstreamFPrime.Layout.Stage1.AccumulatorSemantics.phases_imply_holds
     relation ajtai vk (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-  · simpa [PiCCSInvocations.parentInterface,
-      NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface] using
-      piCcsSpec
   · simpa [PiCCSInvocations.parentInterface,
       NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface] using
       piCcsPhase

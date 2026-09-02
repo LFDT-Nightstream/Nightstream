@@ -5,13 +5,14 @@
 **Owner decision.** Accepted: use the digest-only schedule below. The issue
 remains open until every closing condition is proved and executed.
 
-**Problem.** The pilot already recomputes a Poseidon2 digest over the complete
-16-instance running state. PiCCS then absorbs the same running values again
-before deriving `α`, `γ`, and the SumCheck challenges.
+**Historical problem.** The pilot already recomputed a Poseidon2 digest over
+the complete 16-instance running state. PiCCS then absorbed the same running
+values again before deriving `α`, `γ`, and the SumCheck challenges.
 
-`StatementAbsorption.lean` uses 10,298,432 rows. Of these, approximately
-10.1 million process running values already bound by the pilot digest. The
-current joint domain has 5,984,287 points left below `2^25`.
+That schedule used 10,298,432 rows. Approximately 10.1 million processed
+running values already bound by the pilot digest. The accepted digest-only
+schedule now uses 224,368 statement-absorption rows. The concrete application
+has exact joint domain 264,627,486, which is below the approved `2^28` limit.
 
 **Required change.** Initialize the PiCCS transcript from:
 

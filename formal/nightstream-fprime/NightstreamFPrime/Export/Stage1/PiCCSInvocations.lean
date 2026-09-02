@@ -833,14 +833,14 @@ theorem statementInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (statementTrace logicalWidth publicFits).invocations.length = 325 := by
+    (statementTrace logicalWidth publicFits).invocations.length = 379 := by
   rw [statementTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (statementActions logicalWidth publicFits)
   have fixed := StatementAbsorption.recipeCount_eq
     (statementInterface logicalWidth publicFits) statementWitnessStart
   change Formal.recipeCount (statementActions logicalWidth publicFits) =
-    192400 at fixed
+    224368 at fixed
   rw [fixed] at compiled
   omega
 
@@ -913,7 +913,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 7550 := by
+    (invocations logicalWidth publicFits).length = 7604 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -926,7 +926,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 18270868 := by
+theorem invocationCeiling_eq : invocationCeiling = 19332940 := by
   norm_num [invocationCeiling,
     NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
     NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
@@ -943,7 +943,7 @@ theorem invocationCeiling_le_private :
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (statementActions logicalWidth publicFits) = 325 := by
+    invocationCount (statementActions logicalWidth publicFits) = 379 := by
   have count := statementInvocations_length logicalWidth publicFits
   rw [statementTrace, compileActions_invocations_length] at count
   exact count

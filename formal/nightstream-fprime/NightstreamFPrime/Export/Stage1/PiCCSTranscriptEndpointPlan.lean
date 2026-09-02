@@ -277,7 +277,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount
             PiCCSActionPayloadBlock.statementActions - 1) * 592) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.statementActions = 325 := by
+      PiCCSActionPayloadBlock.statementActions = 379 := by
     exact PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
@@ -285,7 +285,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.statementInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (325 - 1) * 592 + 584 =
+      PiCCSInvocations.statementWitnessStart + (379 - 1) * 592 + 584 =
         PiCCSInvocations.challengeWitnessStart - 8 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
@@ -416,36 +416,39 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
       PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at *
   all_goals omega
 
-def proofLogicalIndex (family : Fin familyCount) (notOutput : family.val ≠ 3)
+def endpointTranscriptInvocation (family : Fin familyCount) :
+    Fin PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount :=
+  if family.val = 0 then
+    ⟨378, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+  else if family.val = 1 then
+    ⟨465, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+  else
+    ⟨717, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+
+def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
+    Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
+  Fin.encodeProd (endpointTranscriptInvocation family, lane)
+
+def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
     (lane : Fin laneCount) :
     Fin PiCCSOrdinaryRetainedBlocks.proofLogicalCount :=
-  ⟨endpointColumn family lane - PiCCSInputs.proofInputStart, by
-    have familyBound := family.isLt
-    have laneBound := lane.isLt
-    change lane.val < 8 at laneBound
-    unfold endpointColumn endpointStart familyCount laneCount
-    rw [PiCCSOrdinaryRetainedBlocks.proofLogicalCount_eq,
-      PiCCSInputs.proofInputStart_eq]
-    split <;> try split <;> try split
-    all_goals
-      try simp only [PiCCSInvocations.challengeWitnessStart,
-        PiCCSInvocations.roundWitnessStart]
-    all_goals
-      try simp only [PiCCSStarts.challengeWitnessStart_eq,
-        PiCCSStarts.roundTranscriptWitnessStart_eq]
-    all_goals
-      norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-        PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at *
-    all_goals omega⟩
+  PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot
+    (endpointTranscriptIndex family lane)
 
 @[simp] theorem proofLogicalIndex_source (family : Fin familyCount)
     (notOutput : family.val ≠ 3) (lane : Fin laneCount) :
-    PiCCSInputs.proofInputStart + (proofLogicalIndex family notOutput lane).val =
+    PiCCSOrdinaryRetainedBlocks.proofLogicalSource
+        (proofLogicalIndex family notOutput lane) =
       endpointColumn family lane := by
   have familyBound := family.isLt
   have laneBound := lane.isLt
   change lane.val < 8 at laneBound
-  unfold proofLogicalIndex endpointColumn endpointStart familyCount laneCount
+  unfold proofLogicalIndex
+  rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput]
+  unfold endpointTranscriptIndex
+  rw [PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_encodeProd]
+  unfold endpointTranscriptInvocation endpointColumn endpointStart familyCount
+    laneCount
   split <;> try split <;> try split
   all_goals
     try simp only [PiCCSInvocations.challengeWitnessStart,
@@ -455,8 +458,7 @@ def proofLogicalIndex (family : Fin familyCount) (notOutput : family.val ≠ 3)
       PiCCSStarts.roundTranscriptWitnessStart_eq]
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq,
-      PiCCSInputs.proofInputStart_eq] at *
+      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at *
   all_goals omega
 
 private theorem packageSourceColumn_congr
@@ -541,10 +543,9 @@ theorem sourceForm_eval
             (endpointColumn_lt_source family lane) := by
       calc
         _ = RunningTransitionRetainedBlocks.packageSourceColumn program
-              (PiCCSInputs.proofInputStart +
-                (proofLogicalIndex family output lane).val) (by
-                  rw [proofLogicalIndex_source family output lane]
-                  exact endpointColumn_lt_source family lane) := rfl
+              (PiCCSOrdinaryRetainedBlocks.proofLogicalSource
+                (proofLogicalIndex family output lane))
+              (PiCCSOrdinaryRetainedBlocks.proofLogicalSource_lt _) := rfl
         _ = _ := packageSourceColumn_congr program _ _ _ _
           (proofLogicalIndex_source family output lane)
     rw [sourceEq]
@@ -951,8 +952,8 @@ theorem transcriptEnv_eq_transitionEnv_of_lt
     transcriptEnv program base groupValue products column =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have packageTotal :
-      PiRLCProductPlan.basePackage.layout.totalColumnCount = 27695989 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 27695989
+      PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
+    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound :
       column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
@@ -1038,7 +1039,7 @@ private theorem statementTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (325 - 1) * 592 + 584 =
+      PiCCSInvocations.statementWitnessStart + (379 - 1) * 592 + 584 =
         PiCCSInvocations.challengeWitnessStart - 8 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start

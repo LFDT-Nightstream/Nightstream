@@ -34,6 +34,178 @@ theorem StateSupported.mono {state : EState} {allowed larger : Nat → Prop}
   intro lane
   exact Expr.VarsSatisfy.mono (state lane) (support lane) includes
 
+/-- Prior allowed values plus the eight output lanes of each completed
+Poseidon2 permutation in one contiguous Duplex trace. -/
+def OutputPrefix (allowed : Nat → Prop) (base count index : Nat) : Prop :=
+  allowed index ∨
+    ∃ (invocation : Fin count) (lane : Fin Spec.Poseidon2.width),
+      index = base + invocation.val * 592 + 584 + lane.val
+
+theorem outputPrefix_mono {allowed : Nat → Prop} {base prior later index : Nat}
+    (support : OutputPrefix allowed base prior index) (le : prior ≤ later) :
+    OutputPrefix allowed base later index := by
+  rcases support with support | ⟨invocation, lane, source⟩
+  · exact Or.inl support
+  · exact Or.inr ⟨⟨invocation.val,
+        Nat.lt_of_lt_of_le invocation.isLt le⟩, lane, source⟩
+
+/-- Number of Poseidon2 permutations executed by one Duplex action. -/
+def Action.permutationCount : Action → Nat
+  | .absorb input => (Hash.inputChunks input).length
+  | .squeezeK _ => 2
+
+/-- Number of Poseidon2 permutations executed by a complete Duplex trace. -/
+def permutationCount (actions : List Action) : Nat :=
+  (actions.map Action.permutationCount).sum
+
+theorem recipeCount_eq_permutationCount_mul (actions : List Action) :
+    recipeCount actions = permutationCount actions * 592 := by
+  induction actions with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      unfold recipeCount permutationCount at inductionHypothesis ⊢
+      cases action with
+      | absorb input =>
+          simp [Action.recipeCount,
+            Action.permutationCount, inductionHypothesis, Nat.add_mul]
+      | squeezeK expected =>
+          simp [Action.recipeCount,
+            Action.permutationCount, inductionHypothesis, Nat.add_mul]
+
+private theorem scheduleOutput_outputPrefix_supported
+    (allowed : Nat → Prop) (base count : Nat) :
+    StateSupported (Permutation.scheduleOutput (base + count * 592))
+      (OutputPrefix allowed base (count + 1)) := by
+  intro lane
+  simp only [Permutation.scheduleOutput, Permutation.freshState,
+    Expr.VarsSatisfy]
+  exact Or.inr ⟨⟨count, by omega⟩, lane, rfl⟩
+
+private theorem compileAbsorbWiring_outputPrefix_supported
+    (allowed : Nat → Prop) (base prior : Nat) (state : EState)
+    (blocks : List (List Expr))
+    (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
+    StateSupported
+      (compileAbsorbWiring (base + prior * 592) state blocks).output
+      (OutputPrefix allowed base (prior + blocks.length)) := by
+  induction blocks generalizing prior state with
+  | nil => simpa [compileAbsorbWiring] using stateSupport
+  | cons block blocks inductionHypothesis =>
+      simp only [compileAbsorbWiring, List.length_cons]
+      have nextSupport := scheduleOutput_outputPrefix_supported allowed base prior
+      have tail := inductionHypothesis (prior := prior + 1)
+        (state := Permutation.scheduleOutput (base + prior * 592)) nextSupport
+      rw [show base + prior * 592 + 592 = base + (prior + 1) * 592 by omega]
+      rw [show prior + (blocks.length + 1) = prior + 1 + blocks.length by omega]
+      exact tail
+
+/-- A nonempty absorb chain exposes the fresh output of its last permutation.
+The result depends only on the block count, not on block contents or the
+incoming symbolic state. -/
+theorem compileAbsorbWiring_output_cons
+    (start : Nat) (state : EState) (block : List Expr)
+    (rest : List (List Expr)) :
+    (compileAbsorbWiring start state (block :: rest)).output =
+      Permutation.scheduleOutput (start + rest.length * 592) := by
+  induction rest generalizing start state block with
+  | nil => rfl
+  | cons next rest inductionHypothesis =>
+      rw [compileAbsorbWiring]
+      rw [inductionHypothesis (start := start + 592)
+        (state := Permutation.scheduleOutput start) (block := next)]
+      congr 1
+      simp only [List.length_cons]
+      omega
+
+/-- Every exposed lane of a nonempty absorb chain is allocated at or after
+the chain start. -/
+theorem compileAbsorbWiring_output_supported_from_start
+    (start : Nat) (state : EState) (block : List Expr)
+    (rest : List (List Expr)) :
+    StateSupported (compileAbsorbWiring start state (block :: rest)).output
+      (fun index => start ≤ index) := by
+  rw [compileAbsorbWiring_output_cons]
+  intro lane
+  simp only [Permutation.scheduleOutput, Permutation.freshState,
+    Expr.VarsSatisfy]
+  have laneBound := lane.isLt
+  omega
+
+/-- The recipe-free Duplex projection exposes only the initial allowed
+values and permutation output lanes. Intermediate permutation recipes do not
+escape into samples or the final state. -/
+theorem compileWiring_outputPrefix_supported
+    (allowed : Nat → Prop) (base prior : Nat) (state : EState)
+    (actions : List Action)
+    (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
+    (∀ sample ∈
+        (compileWiring (base + prior * 592) state actions).samples,
+      KSupported sample
+        (OutputPrefix allowed base (prior + permutationCount actions))) ∧
+      StateSupported
+        (compileWiring (base + prior * 592) state actions).output
+        (OutputPrefix allowed base (prior + permutationCount actions)) := by
+  induction actions generalizing prior state with
+  | nil =>
+      constructor
+      · intro sample member
+        simp [compileWiring] at member
+      · simpa [compileWiring, permutationCount] using stateSupport
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          have absorbedSupport := compileAbsorbWiring_outputPrefix_supported
+            allowed base prior state blocks stateSupport
+          have tail := inductionHypothesis (prior := prior + blocks.length)
+            (state :=
+              (compileAbsorbWiring (base + prior * 592) state blocks).output)
+            absorbedSupport
+          simp only [compileWiring]
+          rw [compileAbsorbWiring_next]
+          rw [show base + prior * 592 + blocks.length * 592 =
+              base + (prior + blocks.length) * 592 by omega]
+          have countEq :
+              prior + permutationCount (.absorb input :: actions) =
+                prior + blocks.length + permutationCount actions := by
+            simp [permutationCount, Action.permutationCount, blocks,
+              Nat.add_assoc]
+          rw [countEq]
+          simpa [blocks] using tail
+      | squeezeK expected =>
+          have firstSupport :=
+            scheduleOutput_outputPrefix_supported allowed base prior
+          have secondSupport :=
+            scheduleOutput_outputPrefix_supported allowed base (prior + 1)
+          have tail := inductionHypothesis (prior := prior + 2)
+            (state := Permutation.scheduleOutput
+              (base + prior * 592 + 592)) (by
+                rw [show base + prior * 592 + 592 =
+                  base + (prior + 1) * 592 by omega]
+                exact secondSupport)
+          have countEq :
+              prior + permutationCount (.squeezeK expected :: actions) =
+                prior + 2 + permutationCount actions := by
+            simp [permutationCount, Action.permutationCount, Nat.add_assoc]
+          have startEq : base + prior * 592 + 1184 =
+              base + (prior + 2) * 592 := by omega
+          rw [countEq]
+          simp only [compileWiring]
+          rw [startEq]
+          constructor
+          · intro sample member
+            simp only [List.mem_cons] at member
+            rcases member with rfl | member
+            · constructor
+              · exact Expr.VarsSatisfy.mono (state 0) (stateSupport 0)
+                  (fun index support => outputPrefix_mono support (by omega))
+              · exact Expr.VarsSatisfy.mono
+                  (Permutation.scheduleOutput (base + prior * 592) 0)
+                  (firstSupport 0)
+                  (fun index support => outputPrefix_mono support (by omega))
+            · exact tail.1 sample member
+          · exact tail.2
+
 theorem sampleGetD_supported (samples : List KExpr) (index : Nat)
     (fallback : KExpr) (allowed : Nat → Prop)
     (support : ∀ sample ∈ samples, KSupported sample allowed)

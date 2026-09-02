@@ -22,27 +22,27 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 private theorem samplerLogicalStart_eq :
-    PiRLCStarts.samplerLogicalStart = 19002751 := by
+    PiRLCStarts.samplerLogicalStart = 20064823 := by
   rfl
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 19266319 := by
+    PiRLCStarts.commitmentLogicalStart = 20328391 := by
   rfl
 
 private theorem phaseFreshStart_eq :
-    PiRLCStarts.phaseFreshStart = 19314973 := by
+    PiRLCStarts.phaseFreshStart = 20380717 := by
   exact PiRLCStarts.phaseFreshStart_eq
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 19282843 := by
+    PiRLCStarts.publicInputLogicalStart = 20348587 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 19287433 := by
+    PiRLCStarts.evalKLogicalStart = 20353177 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 19289269 := by
+    PiRLCStarts.evalALogicalStart = 20355013 := by
   rfl
 
 private theorem commitmentValue_beforeSampler
@@ -64,7 +64,7 @@ private theorem commitmentValue_beforeSampler
   rw [samplerLogicalStart_eq]
   unfold PiRLCCombinationInvocations.commitmentValueSourceStart
   change decoded.1.val < 17 at sourceBound
-  change coordinates.1.val < 18 at blockBound
+  change coordinates.1.val < 22 at blockBound
   change lane.val < 54 at laneBound
   split
   · norm_num [PiCCSInputs.freshCommitmentStart,
@@ -200,11 +200,11 @@ private theorem outputColumn_interval
   | commitment =>
       change PiRLCStarts.commitmentLogicalStart ≤
           PiRLCStarts.commitmentLogicalStart + source.val *
-              PiRLCCombinationInvocations.stepSize 18 1 +
+              PiRLCCombinationInvocations.stepSize 22 1 +
             PiRLCCombinationInvocations.logicalIndex 1 block.val lane.val
               cell.val ∧
         PiRLCStarts.commitmentLogicalStart + source.val *
-              PiRLCCombinationInvocations.stepSize 18 1 +
+              PiRLCCombinationInvocations.stepSize 22 1 +
             PiRLCCombinationInvocations.logicalIndex 1 block.val lane.val
               cell.val < PiRLCStarts.phaseFreshStart
       have sourceBound := source.isLt
@@ -212,7 +212,7 @@ private theorem outputColumn_interval
       have laneBound := lane.isLt
       have cellBound := cell.isLt
       change source.val < 17 at sourceBound
-      change block.val < 18 at blockBound
+      change block.val < 22 at blockBound
       change lane.val < 54 at laneBound
       change cell.val < 1 at cellBound
       rw [commitmentLogicalStart_eq, phaseFreshStart_eq]
@@ -451,7 +451,7 @@ private theorem samplerLogicalStart_lt_baseConstant :
     PiRLCStarts.samplerLogicalStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27695710 := by
+      29336446 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [samplerLogicalStart_eq, constant]
   norm_num
@@ -460,7 +460,7 @@ private theorem phaseFreshStart_lt_baseConstant :
     PiRLCStarts.phaseFreshStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27695710 := by
+      29336446 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [phaseFreshStart_eq, constant]
   norm_num

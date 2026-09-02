@@ -1074,7 +1074,7 @@ theorem semanticEnv_logical_eq_baseEnv
       rfl⟩
   have privateBound : column < PiRLCProductPlan.basePackage.layout.constantColumn := by
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        27695710 :=
+        29336446 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     rcases descriptor with ⟨source, round, lane⟩

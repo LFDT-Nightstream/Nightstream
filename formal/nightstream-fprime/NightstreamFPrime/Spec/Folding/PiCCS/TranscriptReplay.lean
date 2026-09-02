@@ -15,9 +15,9 @@ Phase: statement absorption, round-message absorption, and challenge
 derivation through the final SumCheck round. This file emits no rows.
 
 Owns: the typed PiCCS proof-message carrier, the exact projection of its round
-messages into Fiat--Shamir replay, a statement carrier containing the prior
-verifier state and complete public polynomial input, and derivation of every
-alpha/gamma/SumCheck challenge from that statement and those rounds.
+messages into Fiat--Shamir replay, the absorbed replay authority consisting
+of the prior transcript state and those messages, and derivation of every
+alpha/gamma/SumCheck challenge from that authority.
 
 Does not own: hidden semantic assignments or image tables, construction of
 production PiCCS inputs, executable acceptance, terminal checking,
@@ -28,22 +28,21 @@ counts.
 Emits constraints: no.
 
 Authority boundary: the certificate carries no challenges, point, terminal,
-degree, or transcript state. The statement passed to transcript initialization
-contains the prior state and the complete public polynomial input; there is no
-arbitrary caller context beside it. `derive` projects only the round messages;
-the typed output does not affect a challenge. The abstract transcript may
-still ignore or collide on its arguments. Whole-replay challenge/state
-collisions are therefore named below; Poseidon2 refinement and their security
-bounds remain explicit obligations. The NIFS key separately owns the one
-complete `y'` absorption.
+degree, or transcript state. The semantic statement still carries the public
+polynomial input, but the transcript initializer is required to use only its
+prior state. The public input is checked by the semantic verifier and is not
+part of this digest-only replay authority. The abstract transcript may still
+collide on the absorbed prior state and messages. Those exact replay events
+are named below; no probability or concrete-hash reduction is assigned here.
+The NIFS key separately owns the one complete `y'` absorption.
 
 | Protocol | Phase | Family | Mathematical obligation |
 |---|---|---|---|
-| `Pi_CCS` | pre-SumCheck | alpha / gamma | derived by `FiatShamir.derive` from the complete typed statement |
-| `Pi_CCS` | statement | prior state / complete public polynomial input | `Statement`; passed together to transcript initialization |
+| `Pi_CCS` | pre-SumCheck | alpha / gamma | derived from the prior transcript state |
+| `Pi_CCS` | statement | prior state / complete public polynomial input | semantic carrier; only the prior state initializes replay |
 | `Pi_CCS` | verifier input | structure / prior point / public claims / degree | `ProtocolPolynomial.VerifierInput`; degree derives from explicit terms |
 | `Pi_CCS` | SumCheck rounds | messages / challenges | each message is absorbed before its challenge is squeezed |
-| assurance | transcript binding boundary | statement/messages determine challenges and final round state | `TranscriptReplayCollision`, `TranscriptStateCollision` |
+| assurance | transcript binding boundary | prior state/messages determine challenges and final round state | `TranscriptReplayCollision`, `TranscriptStateCollision` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
@@ -70,6 +69,8 @@ structure Oracle
     (State : Type uState)
     (shape : Shape) where
   transcript : FiatShamir.Oracle (Statement Field State shape) Field State shape
+  initialState_is_prior : ∀ statement,
+    transcript.initialState statement = statement.priorState
 
 /-- Complete prover certificate for this semantic phase. It contains values
 and polynomial messages only; all challenges and verifier state are derived. -/
@@ -115,9 +116,48 @@ structure ReplayInput
   statement : Statement Field State shape
   rounds : FiatShamir.Certificate Field shape
 
+/-- Exact material absorbed by the digest-only PiCCS replay. The semantic
+verifier input remains in `ReplayInput.statement.input` and is checked
+separately. -/
+structure ReplayAuthority
+    (Field : Type uField)
+    (State : Type uState)
+    (shape : Shape) where
+  priorState : State
+  rounds : FiatShamir.Certificate Field shape
+
+namespace ReplayAuthority
+
+/-- Replay from the exact prior transcript state. The semantic statement is
+not an input to this function. -/
+def derive
+    {Field : Type uField}
+    {State : Type uState}
+    {shape : Shape}
+    (oracle : Oracle Field State shape)
+    (authority : ReplayAuthority Field State shape) :
+    FiatShamir.DerivedCoins Field State shape :=
+  let stateOracle : FiatShamir.Oracle Unit Field State shape :=
+    { initialState := fun _ => authority.priorState
+      absorbRound := oracle.transcript.absorbRound
+      squeeze := oracle.transcript.squeeze }
+  FiatShamir.derive stateOracle () authority.rounds
+
+end ReplayAuthority
+
 namespace ReplayInput
 
-/-- Replay the generic transcript from this complete typed input. -/
+/-- Remove the semantic verifier input that the transcript does not absorb. -/
+def authority
+    {Field : Type uField}
+    {State : Type uState}
+    {shape : Shape}
+    (input : ReplayInput Field State shape) :
+    ReplayAuthority Field State shape where
+  priorState := input.statement.priorState
+  rounds := input.rounds
+
+/-- Replay from only the absorbed authority of this typed input. -/
 def derive
     {Field : Type uField}
     {State : Type uState}
@@ -125,42 +165,51 @@ def derive
     (oracle : Oracle Field State shape)
     (input : ReplayInput Field State shape) :
     FiatShamir.DerivedCoins Field State shape :=
-  FiatShamir.derive oracle.transcript input.statement input.rounds
+  input.authority.derive oracle
+
+/-- Equal absorbed replay authority gives equal verifier coins and equal
+final state. -/
+theorem derive_eq_of_authority_eq
+    {Field : Type uField}
+    {State : Type uState}
+    {shape : Shape}
+    (oracle : Oracle Field State shape)
+    (left right : ReplayInput Field State shape)
+    (same : left.authority = right.authority) :
+    left.derive oracle = right.derive oracle := by
+  exact congrArg (ReplayAuthority.derive oracle) same
 
 end ReplayInput
 
-/-- Two distinct replay inputs produce the same complete verifier challenge
-view. This catches statement omission, round-message omission, and a squeeze
-operation that ignores its incoming state. Concrete Poseidon2 refinement must
-reduce this event to the corresponding transcript-security assumption. -/
+/-- Two distinct absorbed replay authorities produce the same complete
+verifier challenge view. Changing only the unabsorbed semantic verifier input
+does not create this event. -/
 def TranscriptReplayCollision
     {Field : Type uField}
     {State : Type uState}
     {shape : Shape}
     (oracle : Oracle Field State shape)
     (left right : ReplayInput Field State shape) : Prop :=
-  left ≠ right /\
+  left.authority ≠ right.authority /\
     (left.derive oracle).alpha = (right.derive oracle).alpha /\
     (left.derive oracle).gamma = (right.derive oracle).gamma /\
     (left.derive oracle).roundPoint = (right.derive oracle).roundPoint
 
-/-- Two distinct replay inputs end at the same pre-output transcript state.
-This separately names loss of chaining authority even when some sampled
-challenge differs. -/
+/-- Two distinct absorbed replay authorities end at the same pre-output
+transcript state. This separately names loss of chaining authority even when
+some sampled challenge differs. -/
 def TranscriptStateCollision
     {Field : Type uField}
     {State : Type uState}
     {shape : Shape}
     (oracle : Oracle Field State shape)
     (left right : ReplayInput Field State shape) : Prop :=
-  left ≠ right /\
+  left.authority ≠ right.authority /\
     (left.derive oracle).finalState = (right.derive oracle).finalState
 
-/-- Equal complete verifier challenge views identify one replay input unless
-the exact statement-and-message transcript replay collides. This theorem is
-deterministic; Fiat--Shamir security assigns probability only in the outer
-security composition. -/
-theorem replay_eq_or_challenge_collision
+/-- Equal complete verifier challenge views identify the absorbed replay
+authority unless that exact prior-state-and-message replay collides. -/
+theorem authority_eq_or_challenge_collision
     {Field : Type uField}
     {State : Type uState}
     {shape : Shape}
@@ -172,15 +221,16 @@ theorem replay_eq_or_challenge_collision
       (right.derive oracle).gamma)
     (roundPointEqual : (left.derive oracle).roundPoint =
       (right.derive oracle).roundPoint) :
-    left = right ∨ TranscriptReplayCollision oracle left right := by
+    left.authority = right.authority ∨
+      TranscriptReplayCollision oracle left right := by
   classical
-  by_cases same : left = right
+  by_cases same : left.authority = right.authority
   · exact Or.inl same
   · exact Or.inr ⟨same, alphaEqual, gammaEqual, roundPointEqual⟩
 
-/-- Equal final pre-output transcript states identify one replay input unless
-the exact causal transcript chain collides. -/
-theorem replay_eq_or_state_collision
+/-- Equal final pre-output transcript states identify the absorbed replay
+authority unless the exact causal transcript chain collides. -/
+theorem authority_eq_or_state_collision
     {Field : Type uField}
     {State : Type uState}
     {shape : Shape}
@@ -188,9 +238,10 @@ theorem replay_eq_or_state_collision
     (left right : ReplayInput Field State shape)
     (finalStateEqual : (left.derive oracle).finalState =
       (right.derive oracle).finalState) :
-    left = right ∨ TranscriptStateCollision oracle left right := by
+    left.authority = right.authority ∨
+      TranscriptStateCollision oracle left right := by
   classical
-  by_cases same : left = right
+  by_cases same : left.authority = right.authority
   · exact Or.inl same
   · exact Or.inr ⟨same, finalStateEqual⟩
 

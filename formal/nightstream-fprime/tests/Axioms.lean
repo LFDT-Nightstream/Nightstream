@@ -5,12 +5,9 @@ import tests.AxiomsStage1PiRLCExport
 import tests.AxiomsStage1Accumulator
 import tests.AxiomsStage1Application
 import tests.AxiomsStage1Assembler
-import tests.AxiomsPiRLCTail
-
-/-! Axiom gate. Every exported theorem is audited here with an explicit
-import and an explicit `#print axioms`. The gate fails closed: a theorem whose
-axioms are not exactly the allowed set is a build error. -/
-
+import tests.AxiomsAjtaiSetupV1
+/-! Axiom gate. Every exported theorem has an explicit import and `#print axioms`.
+The gate fails if a theorem uses axioms outside the allowed set. -/
 /-! ## Spec -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
 #audit_axioms NightstreamFPrime.Spec.production_parameter_values
@@ -133,6 +130,7 @@ axioms are not exactly the allowed set is a build error. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsPhaseHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness.rowsZero_implies_stepHoldsFor
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan.BlockKind.plan_rowCount
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan.canonical_kinds
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan.canonicalKinds_rowCount
@@ -210,11 +208,13 @@ axioms are not exactly the allowed set is a build error. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.outputInputRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.freshRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.proofInputRange_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.proofLocalRange_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.transcriptOutputGrid_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.ordinaryLogicalRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_priorInput_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_outputInput_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_proofInput_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_proofLocal_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_transcriptOutput_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_ordinaryLogical_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_fresh_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_freshPublicInput_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram.substitution_expectedContext_form?
@@ -1127,8 +1127,8 @@ axioms are not exactly the allowed set is a build error. -/
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.committed_statement_finalState_identify_or_failure
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.committed_authority_statement_challenges_identify_or_failure
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSSecurity.committed_authority_statement_finalState_identify_or_failure
-#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.replay_eq_or_challenge_collision
-#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.replay_eq_or_state_collision
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.authority_eq_or_challenge_collision
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.authority_eq_or_state_collision
 #audit_axioms NightstreamFPrime.Circuit.Hint.eval_eq_of_agree_below
 #audit_axioms NightstreamFPrime.Circuit.executeHints_agrees_below
 #audit_axioms NightstreamFPrime.Circuit.executeHints_agrees_above

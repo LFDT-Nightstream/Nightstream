@@ -71,7 +71,7 @@ def publicSchedule : IndexSchedule :=
   .rangeList [⟨PiDECStarts.publicInputRowStart, 22680⟩]
 
 def commitmentSchedule : IndexSchedule :=
-  .rangeList [⟨PiDECStarts.commitmentRowStart, 972⟩]
+  .rangeList [⟨PiDECStarts.commitmentRowStart, 1188⟩]
 
 def evalKSchedule : IndexSchedule :=
   .rangeList [⟨PiDECStarts.evalKRowStart, 108⟩]
@@ -82,7 +82,7 @@ def evalASchedule : IndexSchedule :=
 @[simp] theorem publicSchedule_count : publicSchedule.count = 22680 := by
   rfl
 
-@[simp] theorem commitmentSchedule_count : commitmentSchedule.count = 972 := by
+@[simp] theorem commitmentSchedule_count : commitmentSchedule.count = 1188 := by
   rfl
 
 @[simp] theorem evalKSchedule_count : evalKSchedule.count = 108 := by
@@ -156,7 +156,7 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem commitmentProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (commitmentProgram geometry).rowCount = 972 := by
+    (commitmentProgram geometry).rowCount = 1188 := by
   rfl
 
 @[simp] theorem evalKProgram_rowCount
@@ -180,13 +180,13 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem recompositionProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (recompositionProgram geometry).rowCount = 2592 := by
+    (recompositionProgram geometry).rowCount = 2808 := by
   simp [recompositionProgram]
 
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 25272 := by
+    (matrixProgram geometry).rowCount = 25488 := by
   simp [matrixProgram, recompositionProgram, evaluationProgram,
     publicProgram, commitmentProgram, evalKProgram, evalAProgram,
     singletonProgram, publicBlock, commitmentBlock, evalKBlock, evalABlock,

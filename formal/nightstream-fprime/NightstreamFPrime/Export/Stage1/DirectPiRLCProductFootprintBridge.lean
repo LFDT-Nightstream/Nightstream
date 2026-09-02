@@ -15,18 +15,18 @@ theorem invocationCount_eq_canonical :
     invocationCount = PiRLCCombinationInvocations.invocations.length := by
   rw [PiRLCCombinationInvocations.invocations_length, invocationCount_eq]
 
-/-- The old generic R1CS templates used this many rows for the same 53 ring
+/-- The old generic R1CS templates used this many rows for the same 57 ring
 cells across all 17 sources. -/
 def genericRowCount : Nat :=
-  NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount * 53 *
+  NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount * 57 *
     PiRLCCombinationInvocations.laneRowCosts.sum
 
-@[simp] theorem genericRowCount_eq : genericRowCount = 7346754 := by
+@[simp] theorem genericRowCount_eq : genericRowCount = 7901226 := by
   unfold genericRowCount
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount_eq,
     PiRLCCombinationInvocations.laneRowCosts_sum]
 
-@[simp] theorem removedRowCount_eq : genericRowCount - rowCount = 5692518 := by
+@[simp] theorem removedRowCount_eq : genericRowCount - rowCount = 6122142 := by
   rw [genericRowCount_eq, rowCount_eq]
 
 end NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge

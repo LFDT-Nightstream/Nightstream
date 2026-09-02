@@ -1,15 +1,19 @@
 import NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
-import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
+import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
+import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
+import NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment
+import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
 /-!
 Owns the deterministic semantic edge from one self-derived per-application
 matrix plan to the exact verifier-selected HyperNova augmented step.
 
-The representation record contains only typed ABI equalities. The relation,
-application, package identity, verifier-context descriptor, verification-key
-digest, and Ajtai key are fixed before the statement is formed. This module
-does not close package conformance, terminal verification, or security.
+The public theorem decodes all typed ABI values from one canonical raw packet.
+The relation, application, context key, and Ajtai key are fixed before the
+statement is formed. Final package closure must prove that the decoded context
+key is the verifier-owned final verification-key digest. This module does not
+close package conformance, terminal verification, or security.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
@@ -27,20 +31,16 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 
 abbrev Program := Lifecycle.Stage1.Application.Program
+abbrev RawValues := PerApplicationCanonicalAssignment.RawValues
 
 abbrev FitsTwoPow28 (application : Program) :=
   PerApplicationFixedPoint.FitsTwoPow28 application
 
+abbrev CommitmentSetup (application : Program) :=
+  PerApplicationCanonicalPackage.CommitmentSetup application
+
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
-
-def verifierKeyDigest {application : Program}
-    (fits : FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application)) :
-    KeyDigest :=
-  (PerApplicationCanonicalPackage.verificationKeyBinding fits ajtai).digest
 
 def geometry (application : Program) :=
   PerApplicationFixedPoint.geometry application
@@ -80,11 +80,12 @@ private theorem slot_eq_functionIndex (slot : Fin slotCount) :
 /-- Typed meaning of the final direct plan's external values. Every field is
 an ABI equality. No field assumes application correctness, hash correctness,
 NIFS acceptance, or a terminal relation. -/
-structure Represents
+private structure Represents
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
+    (vk : KeyDigest)
     (assignment : PaperLinearAlgebra.Assignment F
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -105,7 +106,7 @@ structure Represents
     PilotProduction.priorInterface PilotProduction.witnessOffset
     (pilotEnv application base)
     (priorHashPreimage
-      (setup (relation application fits) ajtai (verifierKeyDigest fits ajtai))
+      (setup (relation application fits) ajtai vk)
       input)
   priorPublicInput : PriorStateHash.RepresentsPublicInput
     PilotProduction.priorInterface PilotProduction.witnessOffset
@@ -118,7 +119,7 @@ structure Represents
       PilotProduction.witnessOffset)
     (pilotEnv application base)
     (nextHashPreimage
-      (setup (relation application fits) ajtai (verifierKeyDigest fits ajtai))
+      (setup (relation application fits) ajtai vk)
       input output)
   nextDigest : OutputHash.RepresentsDigest PilotProduction.outputInterface
     (Lifecycle.Pilot.outputOffset PilotProduction.interface
@@ -158,8 +159,10 @@ structure Represents
     (commonEnv application assignment base) = input.fresh
   proofInput : AccumulatorInputs.proof (relation application fits)
     (commonEnv application assignment base) = input.nifsProof
-  accumulatorOutput : AccumulatorInputs.output (relation application fits)
-    (commonEnv application assignment base) = output.runningNext functionIndex
+  accumulatorOutputEnv : AccumulatorInputs.output (relation application fits)
+      (commonEnv application assignment base) =
+    AccumulatorInputs.output (relation application fits)
+      (transitionEnv application base)
   runningOutput : PiCCS.v1_1.StatementAbsorption.evalRunning
     (RunningTransitionInputs.outputRunningExpr
       (PerApplicationFixedPoint.logicalWidth application)
@@ -168,14 +171,14 @@ structure Represents
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
 
-/-- Acceptance of the exact self-derived matrix plan forces the fixed
-per-application HyperNova step under the verifier-key digest derived from the
-same package identity and Ajtai key. -/
-theorem rowsZero_implies_stepHoldsFor
+/-- Internal typed-ABI proof. The public theorem below derives every input to
+this lemma from one canonical raw packet and accepted rows. -/
+private theorem representedSemantics_imply_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
+    (vk : KeyDigest)
     (assignment : PaperLinearAlgebra.Assignment F
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -198,23 +201,17 @@ theorem rowsZero_implies_stepHoldsFor
         (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
         (publicFits := PerApplicationFixedPoint.publicFits application))
       slotCount)
-    (represents : Represents application fits ajtai assignment base input output)
-    (piRlcAssumptions : Lifecycle.PiRLC.v1_1.Formal.Assumptions
-      (relation application fits)
-      (PiRLCInputs.interface
-        (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-        (publicFits := PerApplicationFixedPoint.publicFits application))
-      PiRLCInputs.phaseOffset (commonEnv application assignment base))
-    (accepted : (PerApplicationFixedPoint.structuralPlan application fits
-      ).RowsZero assignment) :
+    (represents : Represents application fits ajtai vk assignment base
+      input output)
+    (semantics : DirectApplicationPrefixPlan.Semantics
+      (relation application fits) (geometry application) assignment base
+      groupValue products) :
     StepHoldsFor (relation application fits) ajtai
-      (verifierKeyDigest fits ajtai) application input output := by
-  have semantics := PerApplicationFixedPoint.rowsZero_implies_semantics
-    application fits assignment base groupValue products one encodes accepted
+      vk application input output := by
   have hashSlots := Lifecycle.Pilot.builders_imply_hash_slots
     PilotProduction.interface PilotProduction.witnessOffset
     (pilotEnv application base) (relation application fits) ajtai
-    (verifierKeyDigest fits ajtai) application.step input output
+    vk application.step input output
     semantics.runningPrefix.prior.pilot represents.priorPreimage
     represents.priorPublicInput represents.nextPreimage represents.nextDigest
   have applicationStep : output.zNext =
@@ -239,7 +236,7 @@ theorem rowsZero_implies_stepHoldsFor
       _ = application.step input.zi input.witness := by
         rw [represents.applicationInput, represents.applicationWitness]
   have accumulator : Lifecycle.Stage1.Accumulator.Holds
-      (relation application fits) ajtai (verifierKeyDigest fits ajtai)
+      (relation application fits) ajtai vk
       (AccumulatorInputs.running
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application)
@@ -254,9 +251,11 @@ theorem rowsZero_implies_stepHoldsFor
         (commonEnv application assignment base)) := by
     simpa [commonEnv] using
       DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
-        (relation application fits) ajtai (verifierKeyDigest fits ajtai)
+        (relation application fits) ajtai vk
         (prefixGeometry application) assignment base groupValue products one
-        encodes.runningPrefix semantics.runningPrefix piRlcAssumptions
+        encodes.runningPrefix semantics.runningPrefix
+        (PiRLCInputBounds.assumptions (relation application fits)
+          (commonEnv application assignment base))
   have runningPhysical : RunningTransitionLayout.PhysicalHolds
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application)
@@ -265,7 +264,7 @@ theorem rowsZero_implies_stepHoldsFor
   have runningSpec := RunningTransitionLayout.physical_implies_specHolds
     (relation application fits) (transitionEnv application base) runningPhysical
   change FixedAugmentedTransition
-    (setup (relation application fits) ajtai (verifierKeyDigest fits ajtai))
+    (setup (relation application fits) ajtai vk)
     (machineFor (PerApplicationFixedPoint.publicFits application) application)
     functionIndex input output
   refine ⟨represents.pcNext, applicationStep, ?_, ?_⟩
@@ -300,7 +299,7 @@ theorem rowsZero_implies_stepHoldsFor
         runningPhysical fieldZero
       have defaultOutput : output.runningNext = fun _ =>
           (setup (relation application fits) ajtai
-            (verifierKeyDigest fits ajtai)).defaultRunning := by
+            vk).defaultRunning := by
         funext slot
         have slotEq : slot = functionIndex := slot_eq_functionIndex slot
         subst slot
@@ -317,7 +316,7 @@ theorem rowsZero_implies_stepHoldsFor
               (publicFits := PerApplicationFixedPoint.publicFits application) :=
             runningBase
           _ = (setup (relation application fits) ajtai
-              (verifierKeyDigest fits ajtai)).defaultRunning := rfl
+              vk).defaultRunning := rfl
       exact Or.inl ⟨iterationZero, initialState, defaultOutput⟩
     · have iterationNonzero : input.iteration ≠ 0 :=
         Nat.ne_of_gt iterationPositive
@@ -351,9 +350,17 @@ theorem rowsZero_implies_stepHoldsFor
           (commonEnv application assignment base) =
           RunningTransitionInputs.piDecRunningOutput
             (relation application fits) (transitionEnv application base) :=
-        represents.accumulatorOutput.trans transitionOutput
+        calc
+          AccumulatorInputs.output (relation application fits)
+              (commonEnv application assignment base) =
+            AccumulatorInputs.output (relation application fits)
+              (transitionEnv application base) :=
+            represents.accumulatorOutputEnv
+          _ = RunningTransitionInputs.piDecRunningOutput
+              (relation application fits)
+              (transitionEnv application base) := rfl
       have accumulatorOutput : Lifecycle.Stage1.Accumulator.Holds
-          (relation application fits) ajtai (verifierKeyDigest fits ajtai)
+          (relation application fits) ajtai vk
           (input.running functionIndex) input.fresh input.nifsProof
           (output.runningNext functionIndex) := by
         rw [represents.runningInput, represents.freshInput,
@@ -365,10 +372,8 @@ theorem rowsZero_implies_stepHoldsFor
       have selectedEq : selectedIndex priorPcValid = functionIndex :=
         slot_eq_functionIndex _
       have selectedNifs : Accepts
-          (setup (relation application fits) ajtai
-            (verifierKeyDigest fits ajtai)).nifs
-          ((setup (relation application fits) ajtai
-            (verifierKeyDigest fits ajtai)).verifierKeys
+          (setup (relation application fits) ajtai vk).nifs
+          ((setup (relation application fits) ajtai vk).verifierKeys
               (selectedIndex priorPcValid))
           (input.running (selectedIndex priorPcValid)) input.fresh
           input.nifsProof (output.runningNext (selectedIndex priorPcValid)) := by
@@ -382,5 +387,149 @@ theorem rowsZero_implies_stepHoldsFor
           ((slot_eq_functionIndex slot).trans selectedEq.symm))
       exact Or.inr ⟨priorPcValid, iterationPositive, (by
         simpa [machineFor] using hashSlots.1), selectedNifs, unchanged⟩
+
+/-- One canonical raw assignment and acceptance of the exact self-derived
+matrix plan force the verifier-selected HyperNova step. No caller supplies a
+typed input, typed output, representation record, constant-column fact, or
+retained-block encoding proof. The immediate key is the context key decoded
+from the constrained prior state; final package closure must identify it with
+the verifier-owned final verification-key digest. -/
+theorem rowsZero_implies_stepHoldsFor
+    (application : Program) (fits : FitsTwoPow28 application)
+    (ajtai : AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (raw : RawValues application)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits
+      ).RowsZero raw.assignment) :
+    StepHoldsFor (relation application fits) ajtai
+      (PerApplicationDecodedIO.contextKey raw) application
+      (PerApplicationDecodedIO.input application fits raw)
+      (PerApplicationDecodedIO.output application raw) := by
+  have one := PerApplicationCanonicalAssignment.assignment_one raw
+  have encodes := PerApplicationCanonicalEncodes.encodes raw
+  have semantics := PerApplicationFixedPoint.rowsZero_implies_semantics
+    application fits raw.assignment raw.base raw.groupValue raw.products one
+    encodes accepted
+  have canonical := PerApplicationDecodedIO.semantics_imply_canonicalStates
+    application fits raw semantics
+  have represents : Represents application fits ajtai
+      (PerApplicationDecodedIO.contextKey raw) raw.assignment raw.base
+      (PerApplicationDecodedIO.input application fits raw)
+      (PerApplicationDecodedIO.output application raw) := by
+    refine {
+      priorPreimage := ?_
+      priorPublicInput := ?_
+      nextPreimage := ?_
+      nextDigest := ?_
+      applicationInput := ?_
+      applicationWitness := ?_
+      applicationOutput := ?_
+      iterationZero := ?_
+      initialState := ?_
+      currentState := ?_
+      runningInput := ?_
+      freshInput := ?_
+      proofInput := ?_
+      accumulatorOutputEnv := ?_
+      runningOutput := ?_
+      priorPc := ?_
+      pcNext := ?_ }
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+        PerApplicationDecodedIO.priorHashPreimageRepresents application fits
+          ajtai raw canonical.1
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+        PerApplicationDecodedIO.priorPublicInputRepresents application fits raw
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+        PerApplicationDecodedIO.nextHashPreimageRepresents application fits
+          ajtai raw canonical.2 semantics
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+        PerApplicationDecodedIO.outputDigestRepresents raw
+    · simpa [applicationEnv, PerApplicationDecodedIO.applicationEnv] using
+        PerApplicationDecodedIO.applicationInputRepresents application fits raw
+    · rfl
+    · simpa [applicationEnv, PerApplicationDecodedIO.applicationEnv] using
+        PerApplicationDecodedIO.applicationOutputRepresents application raw
+    · simpa [transitionEnv, PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.iterationZeroRepresents application fits raw
+    · simpa [transitionEnv, PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.initialStateRepresents application fits raw
+    · simpa [transitionEnv, PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.currentStateRepresents application fits raw
+    · simpa [commonEnv, PerApplicationDecodedIO.commonEnv] using
+        PerApplicationDecodedIO.runningInputRepresents application fits raw
+    · rfl
+    · rfl
+    · simpa [commonEnv, transitionEnv, PerApplicationDecodedIO.commonEnv,
+        PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.accumulatorOutputEnvRepresents application fits
+          raw
+    · simpa [transitionEnv, PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.runningOutputRepresents application raw
+    · rfl
+    · rfl
+  exact representedSemantics_imply_stepHoldsFor application fits ajtai
+    (PerApplicationDecodedIO.contextKey raw) raw.assignment raw.base
+    raw.groupValue raw.products one encodes
+    (PerApplicationDecodedIO.input application fits raw)
+    (PerApplicationDecodedIO.output application raw) represents semantics
+
+/-- Accepted final rows force both the augmented step and the exact recursive
+public output exposed by the complete Phi81 assignment. -/
+theorem rowsZero_implies_stepHoldsFor_and_publicOutput
+    (application : Program) (fits : FitsTwoPow28 application)
+    (ajtai : AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (raw : RawValues application)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits
+      ).RowsZero raw.assignment) :
+    StepHoldsFor (relation application fits) ajtai
+        (PerApplicationDecodedIO.contextKey raw) application
+        (PerApplicationDecodedIO.input application fits raw)
+        (PerApplicationDecodedIO.output application raw) ∧
+      Spec.Phi81Relation.projectPublicInput raw.completeAssignment =
+        encHash (publicFits := PerApplicationFixedPoint.publicFits application)
+          (PerApplicationDecodedIO.output application raw).x := by
+  constructor
+  · exact rowsZero_implies_stepHoldsFor application fits ajtai raw accepted
+  · simpa [PerApplicationDecodedIO.output,
+      PerApplicationDecodedIO.outputDigest] using
+      PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
+
+/-- The verifier-owned raw constructor pins the exact final package and key
+digest into the state context. Acceptance therefore forces the augmented step
+under that digest; the prover cannot select the application, package, or key.
+-/
+theorem verifierBoundRowsZero_implies_stepHoldsFor
+    (application : Program) (fits : FitsTwoPow28 application)
+    (commitmentSetup : CommitmentSetup application)
+    (raw : RawValues application)
+    (accepted : (PerApplicationFixedPoint.structuralPlan application fits
+      ).RowsZero
+        (PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw
+          ).assignment) :
+    StepHoldsFor (relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationVerifierBoundAssignment.verificationKeyDigest fits
+        commitmentSetup)
+      application
+      (PerApplicationDecodedIO.input application fits
+        (PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw))
+      (PerApplicationDecodedIO.output application
+        (PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw)) := by
+  let bound := PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw
+  have step := rowsZero_implies_stepHoldsFor application fits
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) bound accepted
+  have one := PerApplicationCanonicalAssignment.assignment_one bound
+  have encodes := PerApplicationCanonicalEncodes.encodes bound
+  have semantics := PerApplicationFixedPoint.rowsZero_implies_semantics
+    application fits bound.assignment bound.base bound.groupValue bound.products
+    one encodes accepted
+  have keyEq :=
+    PerApplicationVerifierBoundAssignment.semantics_imply_contextKey
+      application fits commitmentSetup raw semantics
+  rw [keyEq] at step
+  exact step
 
 end NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness

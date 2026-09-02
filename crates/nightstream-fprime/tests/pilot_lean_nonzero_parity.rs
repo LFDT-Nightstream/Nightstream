@@ -3,7 +3,10 @@
 use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream_fprime::{PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS};
+use nightstream_fprime::{
+    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
@@ -14,7 +17,7 @@ const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 14;
-const RUNNING_GROUP_WORDS: usize = 2_865;
+const RUNNING_GROUP_WORDS: usize = 3_081;
 const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
 
 #[derive(Clone, Deserialize)]
@@ -38,6 +41,13 @@ struct PilotResult {
 fn parity_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-pilot-parity-v1.json")
+}
+
+fn sealed_package_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-fprime/artifacts/\
+         nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+    )
 }
 
 fn parity() -> RawParity {
@@ -177,10 +187,10 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
         let group_start = cursor;
 
         indices.push((format!("source {source} commitment length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 972, "running commitment");
+        expect_prefix(words, &mut cursor, 1_188, "running commitment");
         indices.push((format!("source {source} commitment first word"), cursor));
-        indices.push((format!("source {source} commitment last word"), cursor + 971));
-        cursor += 972;
+        indices.push((format!("source {source} commitment last word"), cursor + 1_187));
+        cursor += 1_188;
 
         indices.push((format!("source {source} public-input length prefix"), cursor));
         expect_prefix(words, &mut cursor, 270, "running public input");
@@ -205,6 +215,28 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
     cursor += 1;
     assert_eq!(cursor, STATE_PREIMAGE_WORDS, "complete preimage parse");
     indices
+}
+
+fn verifier_context(words: &[u64]) -> [u64; DIGEST_WORDS] {
+    let domain_length = b"HyperNova/NIVC/state/v1".len();
+    assert_eq!(words[domain_length], DIGEST_WORDS as u64);
+    words[domain_length + 1..domain_length + 1 + DIGEST_WORDS]
+        .try_into()
+        .expect("four verifier-context words")
+}
+
+#[test]
+fn pilot_fixture_binds_the_sealed_verifier_context() {
+    let bytes = fs::read(sealed_package_path()).expect("Lean-emitted sealed package");
+    let package = load_poseidon2_hash_chain_v1_package(&bytes).expect("verifier-owned production package");
+    let expected = package
+        .production_verifier_binding()
+        .expect("production verifier binding")
+        .verifier_context()
+        .digest();
+    let RawParity(_, input, _) = parity();
+    assert_eq!(verifier_context(&input.0), expected);
+    assert_eq!(verifier_context(&input.2), expected);
 }
 
 #[test]

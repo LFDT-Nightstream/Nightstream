@@ -4,79 +4,91 @@ use nightstream_fprime::PackageSparseMatrix;
 
 use super::{
     actual_row, canonicalize, changed_word, exact_row_accepts, ColumnOwnerSpan, ReferenceLayout, COLUMN_OWNER_SPANS,
-    ROW_OWNER_SPANS,
+    FINAL_COLUMN_OWNER_SPANS, ROW_OWNER_SPANS,
 };
 
 fn pilot_source_to_spartan(column: usize) -> usize {
-    if column < 45_937 {
+    if column < 49_393 {
         column
-    } else if column < 46_207 {
-        13_692_351 + (column - 45_937)
-    } else if column < 92_144 {
-        45_937 + (column - 46_207)
-    } else if column < 92_148 {
-        13_692_621 + (column - 92_144)
+    } else if column < 49_663 {
+        14_722_239 + (column - 49_393)
+    } else if column < 99_056 {
+        49_393 + (column - 49_663)
+    } else if column < 99_060 {
+        14_722_509 + (column - 99_056)
     } else {
-        91_874 + (column - 92_148)
+        98_786 + (column - 99_060)
     }
 }
 
 fn lift_pilot_column(column: usize) -> usize {
-    if column < 91_874 {
+    if column < 98_786 {
         column
-    } else if column < 13_692_350 {
-        column + 29_072
+    } else if column < 14_722_238 {
+        column + 29_288
     } else {
-        27_695_710 + (column - 13_692_350)
+        29_336_446 + (column - 14_722_238)
     }
 }
 
-fn source_to_spartan(column: usize) -> usize {
-    assert!(column < 27_695_988, "Stage 1 source column");
-    if column < 13_692_624 {
+fn source_to_spartan(column: usize, layout: &ReferenceLayout) -> usize {
+    assert!(column < 29_336_724, "Stage 1 source column");
+    let prefix_column = if column < 14_722_512 {
         lift_pilot_column(pilot_source_to_spartan(column))
-    } else if column < 13_692_628 {
-        27_695_985 + (column - 13_692_624)
-    } else if column < 13_721_700 {
-        91_874 + (column - 13_692_628)
+    } else if column < 14_722_516 {
+        29_336_721 + (column - 14_722_512)
+    } else if column < 14_751_804 {
+        98_786 + (column - 14_722_516)
     } else {
-        13_721_422 + (column - 13_721_700)
+        14_751_526 + (column - 14_751_804)
+    };
+    if prefix_column < 29_336_446 {
+        prefix_column
+    } else {
+        prefix_column + (layout.unpadded_constant - 29_336_446)
     }
 }
 
 fn pilot_spartan_to_source(column: usize) -> Option<usize> {
-    if column < 45_937 {
+    if column < 49_393 {
         Some(column)
-    } else if column < 91_874 {
-        Some(46_207 + (column - 45_937))
-    } else if column < 13_692_350 {
-        Some(92_148 + (column - 91_874))
-    } else if column == 13_692_350 {
+    } else if column < 98_786 {
+        Some(49_663 + (column - 49_393))
+    } else if column < 14_722_238 {
+        Some(99_060 + (column - 98_786))
+    } else if column == 14_722_238 {
         None
-    } else if column < 13_692_621 {
-        Some(45_937 + (column - 13_692_351))
-    } else if column < 13_692_625 {
-        Some(92_144 + (column - 13_692_621))
+    } else if column < 14_722_509 {
+        Some(49_393 + (column - 14_722_239))
+    } else if column < 14_722_513 {
+        Some(99_056 + (column - 14_722_509))
     } else {
         None
     }
 }
 
-fn spartan_to_source(column: usize) -> Option<usize> {
-    if column < 91_874 {
+fn spartan_to_source(column: usize, layout: &ReferenceLayout) -> Option<usize> {
+    let column = if column < 29_336_446 {
+        column
+    } else if column < layout.unpadded_constant {
+        return None;
+    } else {
+        29_336_446 + (column - layout.unpadded_constant)
+    };
+    if column < 98_786 {
         pilot_spartan_to_source(column)
-    } else if column < 120_946 {
-        Some(13_692_628 + (column - 91_874))
-    } else if column < 13_721_422 {
-        pilot_spartan_to_source(column - 29_072)
-    } else if column < 27_695_710 {
-        Some(13_721_700 + (column - 13_721_422))
-    } else if column == 27_695_710 {
+    } else if column < 128_074 {
+        Some(14_722_516 + (column - 98_786))
+    } else if column < 14_751_526 {
+        pilot_spartan_to_source(column - 29_288)
+    } else if column < 29_336_446 {
+        Some(14_751_804 + (column - 14_751_526))
+    } else if column == 29_336_446 {
         None
-    } else if column < 27_695_985 {
-        pilot_spartan_to_source(13_692_350 + (column - 27_695_710))
-    } else if column < 27_695_989 {
-        Some(13_692_624 + (column - 27_695_985))
+    } else if column < 29_336_721 {
+        pilot_spartan_to_source(14_722_238 + (column - 29_336_446))
+    } else if column < 29_336_725 {
+        Some(14_722_512 + (column - 29_336_721))
     } else {
         None
     }
@@ -148,12 +160,12 @@ fn find_owned_term(
             let Some(spartan_column) = final_to_spartan(final_column, layout) else {
                 continue;
             };
-            let Some(source_column) = spartan_to_source(spartan_column) else {
+            let Some(source_column) = spartan_to_source(spartan_column, layout) else {
                 continue;
             };
             if owner.columns.start <= source_column && source_column < owner.columns.end {
                 assert_eq!(
-                    source_to_spartan(source_column),
+                    source_to_spartan(source_column, layout),
                     spartan_column,
                     "{} round trip",
                     owner.name
@@ -185,10 +197,46 @@ pub(super) fn column_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)
             } else {
                 source_column - 1
             };
-            let target_column = layout.map_column(source_to_spartan(target_source));
+            let target_column = layout.map_column(source_to_spartan(target_source, layout));
             let actual = actual_row(matrix, row);
             let mut changed = actual.clone();
             changed[term].0 = target_column;
+            changed = canonicalize(changed);
+            assert!(
+                !exact_row_accepts(matrix, row, &changed),
+                "exact comparator accepted {} {side} column mutation",
+                owner.name
+            );
+            checks += 1;
+        }
+        assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
+    }
+
+    for &owner in FINAL_COLUMN_OWNER_SPANS {
+        assert!(owner.rows.start < owner.rows.end, "{} row interval", owner.name);
+        assert!(
+            owner.columns.start < owner.columns.end,
+            "{} column interval",
+            owner.name
+        );
+        let mut applicable_sides = 0;
+        for &(side, matrix) in sides {
+            let selected = (owner.rows.start..owner.rows.end).find_map(|row| {
+                actual_row(matrix, row)
+                    .iter()
+                    .position(|term| owner.columns.start <= term.0 && term.0 < owner.columns.end)
+                    .map(|term| (row, term))
+            });
+            let Some((row, term)) = selected else { continue };
+            applicable_sides += 1;
+            let actual = actual_row(matrix, row);
+            let target = if actual[term].0 + 1 < owner.columns.end {
+                actual[term].0 + 1
+            } else {
+                actual[term].0 - 1
+            };
+            let mut changed = actual.clone();
+            changed[term].0 = target;
             changed = canonicalize(changed);
             assert!(
                 !exact_row_accepts(matrix, row, &changed),

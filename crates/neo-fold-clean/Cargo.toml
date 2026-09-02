@@ -205,6 +205,10 @@ name = "gadgets_f_prime_recursive_manifest"
 path = "tests/gadgets/f_prime_recursive_manifest.rs"
 
 [[test]]
+name = "f_prime_package_production"
+path = "tests/f_prime/package_production.rs"
+
+[[test]]
 name = "gadgets_nifs_compiler_conformance"
 path = "tests/gadgets/nifs_compiler_conformance.rs"
 
@@ -297,10 +301,6 @@ name = "nifs_pi_dec_lean_nonzero_parity"
 path = "tests/nifs/pi_dec_lean_nonzero_parity.rs"
 
 [[test]]
-name = "nifs_package_consumer"
-path = "tests/nifs/package_consumer.rs"
-
-[[test]]
 name = "nifs_fixed"
 path = "tests/nifs/fixed.rs"
 
@@ -355,14 +355,6 @@ path = "tests/f_prime/grouped_phase.rs"
 [[test]]
 name = "f_prime_scheduled_grouped_phase"
 path = "tests/f_prime/scheduled_grouped_phase.rs"
-
-[[test]]
-name = "f_prime_pi_dec_selective_rows"
-path = "tests/f_prime/pi_dec_selective_rows.rs"
-
-[[test]]
-name = "f_prime_pi_dec_source_lean_artifact"
-path = "tests/f_prime/pi_dec_source_lean_artifact.rs"
 
 [[test]]
 name = "system_audit_anchor"
@@ -511,10 +503,6 @@ path = "tests/system/preprocessing_cache_hygiene.rs"
 [[test]]
 name = "system_relation_artifact"
 path = "tests/system/relation_artifact.rs"
-
-[[test]]
-name = "system_r1cs_ivc_terminal"
-path = "tests/system/r1cs_ivc_terminal.rs"
 
 [[test]]
 name = "perf_fibonacci_bits"

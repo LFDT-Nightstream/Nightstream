@@ -1,6 +1,4 @@
-use crate::engine::r1cs_circuit::builder::{
-    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecRadixFourDecompositionAudit, PiDecStrictAudit,
-};
+use crate::engine::r1cs_circuit::builder::{PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit};
 
 fn commitment(audit: &PiDecCommitmentAudit, old_to_new: &[usize]) -> PiDecCommitmentAudit {
     PiDecCommitmentAudit {
@@ -51,7 +49,6 @@ pub(super) fn remap(audits: &[PiDecStrictAudit], old_to_new: &[usize]) -> Vec<Pi
             x_recomposition_rows: audit.x_recomposition_rows.clone(),
             x_canonicality_rows: audit.x_canonicality_rows.clone(),
             first_allocated_column: old_to_new[audit.first_allocated_column],
-            radix: audit.radix,
             parent: claim(&audit.parent, old_to_new),
             children: audit
                 .children
@@ -63,15 +60,6 @@ pub(super) fn remap(audits: &[PiDecStrictAudit], old_to_new: &[usize]) -> Vec<Pi
                 .iter()
                 .copied()
                 .map(remap_pair)
-                .collect(),
-            x_radix_four_decompositions: audit
-                .x_radix_four_decompositions
-                .iter()
-                .map(|trace| PiDecRadixFourDecompositionAudit {
-                    row: trace.row,
-                    value_col: old_to_new[trace.value_col],
-                    limb_cols: trace.limb_cols.map(|col| old_to_new[col]),
-                })
                 .collect(),
         })
         .collect()

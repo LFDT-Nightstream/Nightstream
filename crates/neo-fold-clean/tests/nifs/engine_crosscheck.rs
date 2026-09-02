@@ -6,7 +6,7 @@ use std::{fs, path::PathBuf};
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{
+use neo_fold_clean::frontends::r1cs_f_prime::production::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1ProofInputs,
 };
 use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
@@ -17,25 +17,15 @@ use neo_fold_clean::paper::nifs::{
 use neo_fold_clean::paper::relations::{CeClaim, LaneRanges, LaneScheme};
 use neo_math::{KExtensions, D, F, K};
 use nightstream_fprime::{
-    load, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT,
-    PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT,
+    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
 };
 use p3_field::PrimeCharacteristicRing;
 
-// Validated phase-local Pilot + PiCCS + PiRLC + PiDEC + running-transition
-// package identity.
-// The final Stage 1 package must rerun every gate before replacing it.
-const PACKAGE_IDENTITY: [u64; 4] = [
-    5_326_948_389_888_638_380,
-    15_945_253_772_729_055_182,
-    12_038_831_075_978_321_435,
-    4_066_786_242_110_063_495,
-];
-
 fn package_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-v1.json")
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")
 }
 
 fn parity_path() -> PathBuf {
@@ -214,7 +204,7 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     let expected_outputs = bridge.output_evaluations().clone();
     let running = (0..16)
         .map(|_| CeClaim {
-            c: neo_ajtai::Commitment::zeros(D, 18),
+            c: neo_ajtai::Commitment::zeros(D, 22),
             X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
             r: vec![K::ZERO; PI_CCS_V1_1_ROUND_COUNT],
             eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -227,19 +217,15 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     let parity: serde_json::Value =
         serde_json::from_slice(&fs::read(parity_path()).expect("Lean parity bytes")).expect("Lean parity JSON");
     let parity = parity.as_array().expect("Lean parity tuple");
-    assert_eq!(parity[0].as_u64(), Some(7));
+    assert_eq!(parity[0].as_u64(), Some(8));
     let parity_input = parity[1].as_array().expect("Lean parity input tuple");
-    let authority: Vec<Vec<u64>> =
-        serde_json::from_value(parity_input[11].clone()).expect("Lean verifier-context authority");
-    let package = load(&fs::read(package_path()).expect("Lean package bytes"), PACKAGE_IDENTITY)
-        .expect("verifier-owned Lean package");
-    let verifier_context = package
-        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
-        .expect("package-bound verifier context");
-    assert_eq!(verifier_context.relation_words(), authority[0]);
-    assert_eq!(verifier_context.application_words(), authority[1]);
-    assert_eq!(verifier_context.nifs_key_words(), authority[2]);
-    assert_eq!(verifier_context.commitment_key_words(), authority[3]);
+    let package = load_poseidon2_hash_chain_v1_package(&fs::read(package_path()).expect("Lean package bytes"))
+        .expect("verifier-owned Lean application package");
+    let binding = package
+        .production_verifier_binding()
+        .expect("package-owned verifier binding");
+    assert_eq!(binding.package_identity(), POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
+    let verifier_context = binding.verifier_context().clone();
     let verifier_key_digest = verifier_context.digest().map(F::from_u64);
     let z0 = [F::from_u64(201), F::from_u64(202), F::from_u64(203), F::from_u64(204)];
     let current = [F::from_u64(301), F::from_u64(302), F::from_u64(303), F::from_u64(304)];
@@ -256,7 +242,7 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
     assert_eq!(prior_preimage[34], 4);
     let running_point_words = 2 * PI_CCS_V1_1_ROUND_COUNT;
     assert_eq!(prior_preimage[39], running_point_words as u64);
-    assert_eq!(prior_preimage[40 + running_point_words], 972);
+    assert_eq!(prior_preimage[40 + running_point_words], 1_188);
     assert_eq!(*prior_preimage.last().expect("program counter"), 1);
     let digest = pi_ccs_v1_1_state_hash(&prior_preimage).expect("Lean stateHash replay");
     let prior_public_input = encode_pi_ccs_v1_1_public_input(digest).expect("Lean encHash replay");
@@ -281,6 +267,7 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
         lean_public_input,
     );
     assert_eq!(&lean_preimage[24..28], lean_context);
+    assert_eq!(verifier_context.digest(), lean_context);
 
     let inputs = bridge
         .into_package_inputs(

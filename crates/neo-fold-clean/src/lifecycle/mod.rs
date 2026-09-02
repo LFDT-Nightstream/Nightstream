@@ -294,9 +294,10 @@ pub struct Preprocessing {
     /// This is deliberately stronger than [`Self::f_prime_recursive_link`].
     /// The older image frontend constrains the public link but is not the
     /// authoritative fixed-point relation, so it must remain fail-closed for
-    /// terminal-only multi-chunk verification. Only constructors that compile
-    /// the complete fixed relation (generic `r1cs_f_prime::ivc` or Nebula F')
-    /// may set this capability.
+    /// terminal-only multi-chunk verification. Stage 1 package integration
+    /// does not set this capability until an approved generic backend consumes
+    /// the verifier-owned package. The separate Nebula F' constructor may set
+    /// it for its own relation.
     pub(crate) terminal_induction: bool,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,

@@ -1,10 +1,9 @@
 //! Exact linear-definition discovery for selective lowering.
 //!
-//! The source matrices remain authoritative. PiDEC radix-four metadata only
-//! identifies candidate rows; this module checks every row before it removes
-//! the source value and substitutes two retained signed-unit limbs.
+//! The source matrices remain authoritative. This module checks each exact
+//! linear row before it removes the source value.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::F;
@@ -72,11 +71,6 @@ pub(super) fn find_linear_definitions(
         }
     }
 
-    let radix_four = collect_radix_four_definitions(arm, shared_end, skipped, &mut protected)?;
-    let radix_four_targets = radix_four
-        .iter()
-        .map(|trace| trace.value_col)
-        .collect::<BTreeSet<_>>();
     let mut by_column = vec![None; arm.m];
     let mut entries = Vec::<LinearDefinition>::new();
     for trace in arm.poseidon2_traces() {
@@ -130,23 +124,6 @@ pub(super) fn find_linear_definitions(
 
     let mut row_to_definition = HashMap::<usize, usize>::new();
     let mut target_coefficients = HashMap::<usize, (usize, F)>::new();
-    for trace in &radix_four {
-        if b_state[trace.row] != 1 || c_nonzero[trace.row] {
-            return Err(trace_error("radix-four decomposition is not one exact linear R1CS row"));
-        }
-        let index = entries.len();
-        if by_column[trace.value_col].replace(index).is_some() || row_to_definition.insert(trace.row, index).is_some() {
-            return Err(trace_error(
-                "radix-four decomposition has duplicate row or value ownership",
-            ));
-        }
-        target_coefficients.insert(trace.row, (trace.value_col, F::ONE));
-        entries.push(LinearDefinition {
-            row: Some(trace.row),
-            target: trace.value_col,
-            rhs: Lc::zero(),
-        });
-    }
     for (row, (target, coefficient)) in &candidates {
         if by_column[*target].is_some() {
             continue;
@@ -162,14 +139,12 @@ pub(super) fn find_linear_definitions(
         });
     }
 
-    let mut actual_target_coefficients = HashMap::<usize, F>::new();
     for_each_explicit_term(&arm.a, |row, column, coefficient| {
         let Some(&definition_index) = row_to_definition.get(&row) else {
             return;
         };
         let definition = &mut entries[definition_index];
         if column == definition.target {
-            *actual_target_coefficients.entry(row).or_insert(F::ZERO) += coefficient;
             return;
         }
         let scale = -target_coefficients[&row].1.inverse();
@@ -179,15 +154,10 @@ pub(super) fn find_linear_definitions(
             definition.rhs.terms.push((column, coefficient * scale));
         }
     });
-    validate_radix_four_rows(&radix_four, &entries, &row_to_definition, &actual_target_coefficients)?;
-
     if let Some((target, dependency)) = entries.iter().find_map(|definition| {
         definition.rhs.terms.iter().find_map(|&(column, _)| {
-            let invalid = if radix_four_targets.contains(&definition.target) {
-                column >= directly_eliminated.len() || directly_eliminated[column] || by_column[column].is_some()
-            } else {
-                column >= definition.target || column >= directly_eliminated.len() || directly_eliminated[column]
-            };
+            let invalid =
+                column >= definition.target || column >= directly_eliminated.len() || directly_eliminated[column];
             invalid.then_some((definition.target, column))
         })
     }) {
@@ -196,72 +166,6 @@ pub(super) fn find_linear_definitions(
         )));
     }
     Ok(LinearDefinitions { by_column, entries })
-}
-
-fn collect_radix_four_definitions(
-    arm: &SparseR1cs,
-    shared_end: usize,
-    skipped: &[bool],
-    protected: &mut [bool],
-) -> Result<Vec<crate::engine::r1cs_circuit::builder::PiDecRadixFourDecompositionAudit>, LowNormR1csError> {
-    let mut out = Vec::new();
-    let mut rows = BTreeSet::new();
-    let mut targets = BTreeSet::new();
-    for audit in arm.pi_dec_strict_audits() {
-        if audit.radix != 4 && !audit.x_radix_four_decompositions.is_empty() {
-            return Err(trace_error(
-                "non-radix-four PiDEC audit carries radix-four decompositions",
-            ));
-        }
-        if audit.radix == 4 && audit.x_radix_four_decompositions.is_empty() {
-            return Err(trace_error("radix-four PiDEC audit omits its exact decompositions"));
-        }
-        for &trace in &audit.x_radix_four_decompositions {
-            let [low, high] = trace.limb_cols;
-            if trace.row >= arm.n
-                || skipped[trace.row]
-                || trace.value_col < shared_end
-                || trace.value_col >= arm.m
-                || low == 0
-                || high == 0
-                || low >= arm.m
-                || high >= arm.m
-                || trace.value_col == low
-                || trace.value_col == high
-                || low == high
-                || !rows.insert(trace.row)
-                || !targets.insert(trace.value_col)
-            {
-                return Err(trace_error("radix-four PiDEC decomposition has invalid geometry"));
-            }
-            protected[trace.value_col] = true;
-            protected[low] = true;
-            protected[high] = true;
-            out.push(trace);
-        }
-    }
-    Ok(out)
-}
-
-fn validate_radix_four_rows(
-    traces: &[crate::engine::r1cs_circuit::builder::PiDecRadixFourDecompositionAudit],
-    entries: &[LinearDefinition],
-    row_to_definition: &HashMap<usize, usize>,
-    actual_target_coefficients: &HashMap<usize, F>,
-) -> Result<(), LowNormR1csError> {
-    for trace in traces {
-        let definition = &entries[row_to_definition[&trace.row]];
-        let expected = vec![(trace.limb_cols[0], F::ONE), (trace.limb_cols[1], F::from_u64(2))];
-        if actual_target_coefficients.get(&trace.row) != Some(&F::ONE)
-            || definition.rhs.constant != F::ZERO
-            || definition.rhs.terms != expected
-        {
-            return Err(trace_error(
-                "radix-four PiDEC decomposition row differs from d = low + 2*high",
-            ));
-        }
-    }
-    Ok(())
 }
 
 fn for_each_explicit_term(matrix: &CcsMatrix<F>, mut visit: impl FnMut(usize, usize, F)) {

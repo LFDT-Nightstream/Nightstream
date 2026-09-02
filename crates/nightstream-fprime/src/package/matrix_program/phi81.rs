@@ -304,7 +304,7 @@ fn append_raw_terms(
 ) {
     for source in 0..RING_DEGREE {
         if source <= degree && degree - source < RING_DEGREE {
-            terms.push((left[source].scaled(coefficient), right[degree - source].clone()));
+            terms.push((left[source].clone().scaled(coefficient), right[degree - source].clone()));
         } else {
             terms.push((Form::default(), Form::default()));
         }

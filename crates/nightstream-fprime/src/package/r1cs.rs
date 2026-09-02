@@ -1,10 +1,9 @@
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use wip_spartan::SparseMatrix;
 
 use super::{
     scheduled_witnesses, ColumnRef, CompactRowInvocation, LoadedPackage, PackageError, ScheduledInvocation,
-    ScheduledWitness, SparseCombination, SparseRow, SpartanField, TemplateCombination, TemplateRow, WitnessInstruction,
+    ScheduledWitness, SparseCombination, SparseRow, TemplateCombination, TemplateRow, WitnessInstruction,
 };
 
 /// One canonical sparse matrix derived from the Lean-emitted row program.
@@ -72,16 +71,6 @@ impl PackageSparseMatrix {
             .and_then(|columns| columns.checked_add(public_columns))
             .ok_or(PackageError::Invalid("final matrix column overflow"))?;
         Ok(self)
-    }
-
-    pub(super) fn into_spartan(self) -> Result<SparseMatrix<SpartanField>, PackageError> {
-        let data = self
-            .values
-            .into_iter()
-            .map(SpartanField::from_canonical_u64)
-            .collect();
-        SparseMatrix::from_csr(self.rows, self.columns, data, self.column_indices, self.row_offsets)
-            .map_err(|error| PackageError::Spartan(format!("CSR: {error:?}")))
     }
 }
 
@@ -351,20 +340,6 @@ fn expand_matrix(
         return Err(PackageError::Invalid("expanded physical row count"));
     }
     builder.finish()
-}
-
-pub(super) fn expand_matrices(
-    package: &LoadedPackage,
-) -> Result<
-    (
-        SparseMatrix<SpartanField>,
-        SparseMatrix<SpartanField>,
-        SparseMatrix<SpartanField>,
-    ),
-    PackageError,
-> {
-    let PackageR1cs { a, b, c } = expand_r1cs(package)?;
-    Ok((a.into_spartan()?, b.into_spartan()?, c.into_spartan()?))
 }
 
 fn push_assertion(row: &SparseRow, constant_column: usize, side: MatrixSide, builder: &mut CsrBuilder) {

@@ -13,7 +13,8 @@ use neo_reductions::optimized_engine::optimized_verify_with_trace;
 use neo_reductions::PiCcsProof;
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::{
-    PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
+    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT,
+    PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
@@ -46,7 +47,6 @@ struct RawInput(
     Vec<Vec<[u64; 2]>>,
     Vec<Vec<[u64; 2]>>,
     Vec<Vec<Vec<[u64; 2]>>>,
-    Vec<Vec<u64>>,
     Vec<Vec<u64>>,
     Vec<Vec<u64>>,
 );
@@ -103,15 +103,17 @@ impl PhaseResult {
 }
 
 fn package_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-v1.json")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-fprime/artifacts/\
+         nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+    )
 }
 
 fn package_relation() -> RawRelation {
-    let package: serde_json::Value =
-        serde_json::from_slice(&fs::read(package_path()).expect("Lean package bytes")).expect("Lean package JSON");
-    assert_eq!(package[0].as_u64(), Some(8), "Lean package-plan schema");
-    assert_eq!(package[1][0].as_u64(), Some(7), "Lean static-package schema");
+    let bytes = fs::read(package_path()).expect("Lean package bytes");
+    load_poseidon2_hash_chain_v1_package(&bytes).expect("verifier-owned production package");
+    let package: serde_json::Value = serde_json::from_slice(&bytes).expect("Lean package JSON");
+    assert_eq!(package[1][0].as_u64(), Some(8), "Lean inner-package schema");
     serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple")
 }
 
@@ -490,7 +492,7 @@ struct EngineFixture {
 fn engine_fixture() -> EngineFixture {
     let parity: RawParity = serde_json::from_slice(&fs::read(parity_path()).expect("Lean PiCCS parity bytes"))
         .expect("Lean PiCCS parity JSON");
-    assert_eq!(parity.0, 7, "PiCCS parity schema");
+    assert_eq!(parity.0, 8, "PiCCS parity schema");
     let structure = relation(&package_relation());
     let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-bound Nightstream parameters");
@@ -549,13 +551,20 @@ fn changed_extension(value: K) -> K {
 fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_ccs_result() {
     let parity: RawParity = serde_json::from_slice(&fs::read(parity_path()).expect("Lean PiCCS parity bytes"))
         .expect("Lean PiCCS parity JSON");
-    assert_eq!(parity.0, 7, "PiCCS parity schema");
+    assert_eq!(parity.0, 8, "PiCCS parity schema");
     assert_eq!(parity.1 .0, parity.1 .1, "pilot preimage pair");
     assert_eq!(parity.1 .2, parity.1 .9[2]);
     assert_eq!(parity.1 .3.len(), 4);
     assert_eq!(parity.1 .3.as_slice(), parity.1 .9[0].as_slice());
     assert_eq!(parity.1 .5, parity.1 .9[1]);
-    assert_eq!(parity.1 .11.len(), 4, "verifier-context authority components");
+    let package_bytes = fs::read(package_path()).expect("Lean package bytes");
+    let package = load_poseidon2_hash_chain_v1_package(&package_bytes).expect("verifier-owned production package");
+    let context = package
+        .production_verifier_binding()
+        .expect("fixed production binding")
+        .verifier_context()
+        .digest();
+    assert_eq!(parity.1 .4, context, "final verifier context");
     assert_eq!(parity.1 .7, parity.2 .12, "output Eval_K input/result");
     assert_eq!(parity.1 .8, parity.2 .13, "output Eval_A input/result");
 

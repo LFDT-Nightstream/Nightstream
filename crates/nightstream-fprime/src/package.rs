@@ -5,7 +5,6 @@ use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use wip_spartan::provider::{goldi::F as SpartanField, GoldilocksWhirEngine};
 
 use crate::identity::relation_identifier;
 use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, SparseTerm, WitnessInstruction};
@@ -13,7 +12,7 @@ use crate::witness::{
     execute_witness_batch, validate_witness_batch, validate_witness_batch_order, validate_witness_coverage,
     RawWitnessBatch, WitnessBatch,
 };
-use crate::{ProofRun, WitnessAssignment};
+use crate::WitnessAssignment;
 
 mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
@@ -32,16 +31,16 @@ pub use v1_1::{
     PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD, PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
 mod r1cs;
-use r1cs::expand_matrices;
 pub use r1cs::{PackageR1cs, PackageSparseMatrix};
 mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
-pub use sealed::{load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow};
-mod proving;
-mod source_row;
-pub use proving::{PackageProof, PackageProvingKey, PackageVerifyingKey};
+pub use sealed::{
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedApplicationPlan, LoadedAssignmentPlan,
+    LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
+};
 mod pi_ccs_v1_1_transcript;
+mod source_row;
 pub use pi_ccs_v1_1_transcript::{derive_pi_ccs_v1_1_transcript, PiCcsV1_1Transcript};
 
 pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
@@ -69,11 +68,21 @@ pub enum PackageError {
         expected: [u64; 4],
         computed: [u64; 4],
     },
-    #[error("direct Spartan failure: {0}")]
-    Spartan(String),
+    #[error(
+        "final package identity does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
+    )]
+    ExpectedPackageIdentityMismatch {
+        expected: [u64; 4],
+        computed: [u64; 4],
+    },
+    #[error(
+        "verification-key binding does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
+    )]
+    ExpectedVerificationKeyBindingMismatch {
+        expected: [u64; 4],
+        computed: [u64; 4],
+    },
 }
-
-type SpartanEngine = GoldilocksWhirEngine;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct RawPackage(
@@ -289,6 +298,7 @@ impl ScheduledWitness<'_> {
 pub struct LoadedPackage {
     layout: Layout,
     relation: PackageCcsRelation,
+    terminal: Option<LoadedTerminalLayout>,
     permutation: PermutationTemplate,
     hash_chains: Vec<HashChain>,
     permutation_invocations: Vec<PermutationInvocation>,
@@ -298,6 +308,33 @@ pub struct LoadedPackage {
     witness_instructions: Vec<WitnessInstruction>,
     assertion_rows: Vec<SparseRow>,
     relation_identifier: [u64; 4],
+}
+
+/// Canonical outer-terminal metadata retained from the Lean package.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoadedTerminalLayout {
+    row_start: usize,
+    row_count: usize,
+    running_claim_count: usize,
+    fresh_claim_count: usize,
+}
+
+impl LoadedTerminalLayout {
+    pub fn row_start(&self) -> usize {
+        self.row_start
+    }
+
+    pub fn row_count(&self) -> usize {
+        self.row_count
+    }
+
+    pub fn running_claim_count(&self) -> usize {
+        self.running_claim_count
+    }
+
+    pub fn fresh_claim_count(&self) -> usize {
+        self.fresh_claim_count
+    }
 }
 
 impl LoadedPackage {
@@ -332,6 +369,10 @@ impl LoadedPackage {
 
     pub fn ccs_relation(&self) -> &PackageCcsRelation {
         &self.relation
+    }
+
+    pub fn terminal(&self) -> Option<&LoadedTerminalLayout> {
+        self.terminal.as_ref()
     }
 
     pub fn template_row_count(&self) -> usize {
@@ -688,10 +729,33 @@ fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<Lo
     validate_package_schema(raw, relation_identifier, 7)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LayoutProfile {
+    Prefix,
+    PerApplication,
+}
+
 fn validate_package_schema(
     raw: RawPackage,
     relation_identifier: [u64; 4],
     expected_schema: u64,
+) -> Result<LoadedPackage, PackageError> {
+    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::Prefix)
+}
+
+fn validate_per_application_package_schema(
+    raw: RawPackage,
+    relation_identifier: [u64; 4],
+    expected_schema: u64,
+) -> Result<LoadedPackage, PackageError> {
+    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::PerApplication)
+}
+
+fn validate_package_schema_with_layout(
+    raw: RawPackage,
+    relation_identifier: [u64; 4],
+    expected_schema: u64,
+    layout_profile: LayoutProfile,
 ) -> Result<LoadedPackage, PackageError> {
     let RawPackage(
         schema,
@@ -715,9 +779,9 @@ fn validate_package_schema(
     validate_profile(profile)?;
     validate_poseidon(poseidon)?;
 
-    let layout = validate_layout(layout)?;
+    let layout = validate_layout(layout, layout_profile)?;
     let relation = relation::validate(relation, &layout, expected_schema)?;
-    validate_terminal(&terminal, expected_schema, relation.row_count())?;
+    let terminal = validate_terminal(&terminal, expected_schema, relation.row_count())?;
     let permutation = validate_permutation(permutation)?;
     let hash_chains = chains
         .into_iter()
@@ -737,7 +801,10 @@ fn validate_package_schema(
         .private_segments
         .iter()
         .copied()
-        .filter(|segment| v1_1::is_witness_role(segment.role))
+        .filter(|segment| {
+            v1_1::is_witness_role(segment.role)
+                || (layout_profile == LayoutProfile::PerApplication && segment.role == sealed::APPLICATION_LOCAL_ROLE)
+        })
         .collect::<Vec<_>>();
     let witness_start = witness_segments
         .first()
@@ -828,6 +895,7 @@ fn validate_package_schema(
     Ok(LoadedPackage {
         layout,
         relation,
+        terminal,
         permutation,
         hash_chains,
         permutation_invocations,
@@ -875,30 +943,52 @@ fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
     Ok(())
 }
 
-fn validate_terminal(raw: &[Value], schema: u64, relation_row_count: usize) -> Result<(), PackageError> {
-    let valid = match (schema, raw) {
-        (7, [Value::Number(tag)]) => tag.as_u64() == Some(0),
-        (8, [Value::Number(tag), Value::Array(layout)]) => {
-            tag.as_u64() == Some(1)
-                && matches!(
-                    layout.as_slice(),
-                    [row_start, row_count, running, fresh]
-                        if row_start.as_u64() == Some(0)
-                            && row_count.as_u64()
-                                == u64::try_from(relation_row_count).ok()
-                            && running.as_u64() == Some(16)
-                            && fresh.as_u64() == Some(1)
-                )
+fn validate_terminal(
+    raw: &[Value],
+    schema: u64,
+    relation_row_count: usize,
+) -> Result<Option<LoadedTerminalLayout>, PackageError> {
+    match (schema, raw) {
+        (7, [Value::Number(tag)]) if tag.as_u64() == Some(0) => Ok(None),
+        (8, [Value::Number(tag), Value::Array(layout)]) if tag.as_u64() == Some(1) => {
+            let [row_start, row_count, running, fresh] = layout.as_slice() else {
+                return Err(PackageError::Invalid("pilot terminal option"));
+            };
+            let decoded = LoadedTerminalLayout {
+                row_start: row_start
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                row_count: row_count
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                running_claim_count: running
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                fresh_claim_count: fresh
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+            };
+            if decoded
+                != (LoadedTerminalLayout {
+                    row_start: 0,
+                    row_count: relation_row_count,
+                    running_claim_count: 16,
+                    fresh_claim_count: 1,
+                })
+            {
+                return Err(PackageError::Invalid("pilot terminal option"));
+            }
+            Ok(Some(decoded))
         }
-        _ => false,
-    };
-    if !valid {
-        return Err(PackageError::Invalid("pilot terminal option"));
+        _ => Err(PackageError::Invalid("pilot terminal option")),
     }
-    Ok(())
 }
 
-fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
+fn validate_layout(raw: RawPhysicalLayout, profile: LayoutProfile) -> Result<Layout, PackageError> {
     let RawPhysicalLayout(rows, private, constant, public, total, private_segments, public_segments) = raw;
     let row_count = word_to_usize(rows, "row count")?;
     let private_column_count = word_to_usize(private, "private column count")?;
@@ -920,10 +1010,24 @@ fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
         return Err(PackageError::Invalid("2^28 joint domain"));
     }
 
-    let expected_private_roles = v1_1::private_segment_roles();
-    let private_segments = validate_segments(private_segments, 0, private_column_count, &expected_private_roles)?;
-    v1_1::validate_private_segments(&private_segments)?;
-    let public_segments = validate_segments(public_segments, constant_column + 1, total_column_count, &[4, 5, 10])?;
+    let mut expected_private_roles = v1_1::private_segment_roles();
+    let prefix_segment_count = expected_private_roles.len();
+    let zero_length_suffix = match profile {
+        LayoutProfile::Prefix => 0,
+        LayoutProfile::PerApplication => {
+            expected_private_roles.extend([sealed::APPLICATION_WITNESS_ROLE, sealed::APPLICATION_LOCAL_ROLE]);
+            2
+        }
+    };
+    let private_segments = validate_segments(
+        private_segments,
+        0,
+        private_column_count,
+        &expected_private_roles,
+        zero_length_suffix,
+    )?;
+    v1_1::validate_private_segments(&private_segments[..prefix_segment_count])?;
+    let public_segments = validate_segments(public_segments, constant_column + 1, total_column_count, &[4, 5, 10], 0)?;
     v1_1::validate_public_segments(&public_segments)?;
 
     Ok(Layout {
@@ -942,17 +1046,19 @@ fn validate_segments(
     first: usize,
     end: usize,
     expected_roles: &[u64],
+    zero_length_suffix: usize,
 ) -> Result<Vec<Segment>, PackageError> {
     if raw.len() != expected_roles.len() {
         return Err(PackageError::Invalid("layout segment count"));
     }
     let mut cursor = first;
     let mut segments = Vec::with_capacity(raw.len());
-    for (raw, expected_role) in raw.into_iter().zip(expected_roles) {
+    let zero_length_start = expected_roles.len() - zero_length_suffix;
+    for (ordinal, (raw, expected_role)) in raw.into_iter().zip(expected_roles).enumerate() {
         let RawSegment(role, start, length) = raw;
         let start = word_to_usize(start, "segment start")?;
         let length = word_to_usize(length, "segment length")?;
-        if role != *expected_role || start != cursor || length == 0 {
+        if role != *expected_role || start != cursor || (length == 0 && ordinal < zero_length_start) {
             return Err(PackageError::Invalid("layout segment partition"));
         }
         cursor = cursor

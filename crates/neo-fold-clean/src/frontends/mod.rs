@@ -9,8 +9,8 @@
 //! A frontend produces `CcsInstance`s; the IVC core folds them. The proof
 //! contract depends on the frontend:
 //!
-//! - `r1cs_f_prime` and `nebula` synthesize the authoritative encoded F'
-//!   relation. Their terminal verifier checks the Construction-2 induction.
+//! - `r1cs_f_prime` loads the verifier-owned Lean Stage 1 package. `nebula`
+//!   owns its separate memory-checking relation.
 //! - `direct_ccs` folds caller-supplied application relations. It proves CCS
 //!   satisfaction and NIFS continuity, but it does not assert that each input
 //!   is an encoded F' step. Multi-chunk direct-CCS verification therefore

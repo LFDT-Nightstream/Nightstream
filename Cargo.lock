@@ -1498,6 +1498,7 @@ dependencies = [
 name = "nightstream-fprime"
 version = "0.1.0"
 dependencies = [
+ "neo-ajtai",
  "neo-ccs",
  "neo-transcript",
  "p3-field 0.5.3",
@@ -1506,7 +1507,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "wip-spartan",
 ]
 
 [[package]]

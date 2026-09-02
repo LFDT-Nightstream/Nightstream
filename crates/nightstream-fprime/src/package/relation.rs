@@ -159,12 +159,20 @@ pub(super) fn validate(raw: RawCcsRelation, layout: &Layout, schema: u64) -> Res
                     .checked_add(*exponent)
                     .ok_or(PackageError::Invalid("CCS polynomial degree overflow"))
             })?;
-            if total_degree > degree_bound {
+            if total_degree >= degree_bound {
                 return Err(PackageError::Invalid("CCS polynomial degree bound"));
             }
             Ok(PackagePolynomialTerm { coefficient, exponents })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let exact_degree_bound = terms
+        .iter()
+        .map(|term| term.exponents.iter().sum::<usize>())
+        .max()
+        .and_then(|degree| degree.checked_add(1));
+    if exact_degree_bound != Some(degree_bound) {
+        return Err(PackageError::Invalid("CCS polynomial strict degree bound"));
+    }
 
     Ok(PackageCcsRelation {
         row_count,

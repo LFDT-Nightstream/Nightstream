@@ -2,16 +2,13 @@
 //!
 //! Owns only the field-for-field conversion from native prover messages to
 //! the package input types, canonical lifecycle serialization, and the
-//! application-side execution of the verifier-owned package. It does not
-//! define a relation or accept caller-selected public values.
-
-use std::sync::Arc;
+//! verifier-owned package input construction. It does not define, load, prove,
+//! or verify a relation.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::{KExtensions, F, K};
 use nightstream_fprime::{
-    load, LoadedPackage, PackageError, PackageProof, PackageProvingKey, PackageVerifyingKey,
-    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext, PiDecV1_1PackageInputs, ProofRun,
+    PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
     PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
     PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
@@ -33,104 +30,6 @@ pub enum PiCcsV1_1PackageBridgeError {
     Shape(&'static str),
     #[error(transparent)]
     Package(#[from] PackageError),
-}
-
-/// Application-side prover for one identity-checked Lean package.
-pub struct PiCcsV1_1PackageProver {
-    package: Arc<LoadedPackage>,
-    key: PackageProvingKey,
-    verifier_context: PiCcsV1_1VerifierContext,
-}
-
-/// Application-side verifier for the same identity-checked Lean package.
-pub struct PiCcsV1_1PackageVerifier {
-    package: Arc<LoadedPackage>,
-    key: PackageVerifyingKey,
-    verifier_context: PiCcsV1_1VerifierContext,
-}
-
-/// Direct proof for the loaded v1_1 package.
-pub struct PiCcsV1_1PackageProof {
-    proof: PackageProof,
-}
-
-/// Load one canonical package, bind its expected identity, and prepare its
-/// direct prover and verifier keys.
-pub fn load_pi_ccs_v1_1_package(
-    bytes: &[u8],
-    expected_identity: [u64; 4],
-    commitment_key_words: &[u64],
-) -> Result<(PiCcsV1_1PackageProver, PiCcsV1_1PackageVerifier), PiCcsV1_1PackageBridgeError> {
-    let package = Arc::new(load(bytes, expected_identity)?);
-    let verifier_context = package.derive_pi_ccs_v1_1_verifier_context(commitment_key_words)?;
-    let (proving_key, verifying_key) = package.setup()?;
-    Ok((
-        PiCcsV1_1PackageProver {
-            package: Arc::clone(&package),
-            key: proving_key,
-            verifier_context: verifier_context.clone(),
-        },
-        PiCcsV1_1PackageVerifier {
-            package,
-            key: verifying_key,
-            verifier_context,
-        },
-    ))
-}
-
-impl PiCcsV1_1PackageProver {
-    /// Execute the Lean-emitted witness program for the complete current
-    /// package prefix and prove its exact rows.
-    pub fn prove(
-        &self,
-        pi_ccs: &PiCcsV1_1PackageInputs,
-        pi_dec: &PiDecV1_1PackageInputs,
-    ) -> Result<PiCcsV1_1PackageProof, PiCcsV1_1PackageBridgeError> {
-        let encoded = self.package.encode_stage1_v1_1_inputs(pi_ccs, pi_dec)?;
-        let assignment = self
-            .package
-            .execute_witness(encoded.private_values(), encoded.public_values())?;
-        Ok(PiCcsV1_1PackageProof {
-            proof: self.package.prove(&self.key, &assignment)?,
-        })
-    }
-
-    pub fn relation_identifier(&self) -> [u64; 4] {
-        self.package.relation_identifier()
-    }
-
-    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
-        &self.verifier_context
-    }
-
-    pub fn matrix_stats(&self) -> ProofRun {
-        self.key.matrix_stats()
-    }
-}
-
-impl PiCcsV1_1PackageVerifier {
-    /// Verify against public values supplied by the verifier, not by the
-    /// proof object.
-    pub fn verify(
-        &self,
-        proof: &PiCcsV1_1PackageProof,
-        expected_public: &[u64],
-    ) -> Result<(), PiCcsV1_1PackageBridgeError> {
-        if expected_public.len() < 4 || expected_public[expected_public.len() - 4..] != self.verifier_context.digest() {
-            return Err(PiCcsV1_1PackageBridgeError::Shape("verifier context public input"));
-        }
-        Ok(self
-            .package
-            .verify(&self.key, &proof.proof, expected_public)?)
-    }
-
-    pub fn relation_identifier(&self) -> [u64; 4] {
-        self.package.relation_identifier()
-    }
-
-    pub fn verifier_context(&self) -> &PiCcsV1_1VerifierContext {
-        &self.verifier_context
-    }
 }
 
 /// Exact PiCCS-owned part of one Lean package assignment.

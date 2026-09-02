@@ -47,7 +47,7 @@ fn production_params_match_lean_m1_profile() {
     assert_eq!(pp.max_fresh_count(), 287);
     assert_eq!(pp.eta(), 81);
     assert_eq!(pp.d(), 54);
-    assert_eq!(pp.kappa(), 18);
+    assert_eq!(pp.kappa(), 22);
     assert_eq!(pp.extension_degree(), 2);
     assert_eq!(pp.lambda(), 125);
 }

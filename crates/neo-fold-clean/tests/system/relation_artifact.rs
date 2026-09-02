@@ -10,17 +10,11 @@ use std::process::Command;
 
 use neo_ccs::Mat;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::R1csIvcPreprocessing;
-use neo_fold_clean::Params;
-use neo_fold_clean::{
-    RelationArtifactError, VerifierKeyRelationArtifact, R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID,
-    R1CS_F_PRIME_PROFILE_ID,
-};
+use neo_fold_clean::{RelationArtifactError, VerifierKeyRelationArtifact};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs};
 
 fn preprocessing() -> neo_fold_clean::Preprocessing {
     let mut a = Mat::zero(1, D, F::ZERO);
@@ -407,28 +401,4 @@ fn canonical_object(values: &Map<String, Value>) -> String {
             .collect::<Vec<_>>()
             .join(",")
     )
-}
-
-#[test]
-#[ignore = "materializes the full R1CS F-prime fixed-point relation"]
-fn r1cs_f_prime_reference_key_has_the_selected_relation_artifact_profile() {
-    assert_eq!(R1CS_F_PRIME_CONTRACT_ID, "nightstream-superneo-v1");
-    assert_eq!(R1CS_F_PRIME_PROFILE_ID, "nightstream-superneo-fprime-v1");
-    assert_eq!(R1CS_F_PRIME_COMPILER_ID, "neo-fold-clean/r1cs-fprime-fixed-point-v1");
-    let app = one_product_r1cs();
-    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let params = Params::for_ccs_shape(9_148_066, 14_391_108, 13, 8).expect("reference relation parameters");
-    let prep = R1csIvcPreprocessing::new_seeded(params, app, plan, 17).expect("reference R1CS F-prime key");
-    let receipt = prep
-        .relation_artifact_receipt()
-        .expect("selected relation artifact profile");
-
-    assert_eq!(receipt.logical_rows(), 9_148_066);
-    assert_eq!(receipt.assignment_fields(), 14_391_108);
-    assert_eq!(receipt.padded_rows(), 1 << 24);
-    assert_eq!(receipt.row_variables(), 24);
-    assert_eq!(receipt.public_field_width(), Some(270));
-    assert_eq!(receipt.semantic_matrix_count(), 13);
-    assert_eq!(receipt.joint_matrix_count(), 14);
-    assert_eq!(receipt.polynomial_degree(), 8);
 }

@@ -26,12 +26,12 @@ pub const PI_CCS_V1_1_COEFFICIENT_COUNT: usize = 54;
 pub const PI_CCS_V1_1_MATRIX_COUNT: usize = 14;
 pub const PI_CCS_V1_1_ROUND_COUNT: usize = 28;
 pub const PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT: usize = 10;
-pub const PI_CCS_V1_1_STATE_PREIMAGE_WORDS: usize = 45_937;
+pub const PI_CCS_V1_1_STATE_PREIMAGE_WORDS: usize = 49_393;
 pub const PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS: usize = 270;
-pub const PI_CCS_V1_1_FRESH_COMMITMENT_WORDS: usize = 972;
+pub const PI_CCS_V1_1_FRESH_COMMITMENT_WORDS: usize = 1_188;
 pub const PI_CCS_V1_1_VERIFIER_CONTEXT_WORDS: usize = 4;
 pub const PI_DEC_V1_1_CHILD_COUNT: usize = 16;
-pub const PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD: usize = 972;
+pub const PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD: usize = 1_188;
 pub const PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD: usize = PI_CCS_V1_1_COEFFICIENT_COUNT;
 pub const PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD: usize = PI_CCS_V1_1_MATRIX_COUNT;
 pub const PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD: usize = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
@@ -46,7 +46,7 @@ const PI_DEC_EVAL_A_WORDS: usize =
     PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD * PI_CCS_V1_1_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_V1_1_CHILD_COUNT * PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD;
 const PI_DEC_WITNESS_WORDS: usize = 18_090;
-const RUNNING_TRANSITION_WITNESS_WORDS: usize = 275_402;
+const RUNNING_TRANSITION_WITNESS_WORDS: usize = 296_138;
 
 pub(super) fn private_segment_roles() -> Vec<u64> {
     let mut roles = Vec::with_capacity(10 + 2 * PI_CCS_V1_1_SOURCE_COUNT);
@@ -72,7 +72,10 @@ pub(super) fn private_segment_roles() -> Vec<u64> {
 }
 
 pub(super) fn is_witness_role(role: u64) -> bool {
-    role == WITNESS_ROLE || role == PI_DEC_WITNESS_ROLE || role == RUNNING_TRANSITION_WITNESS_ROLE
+    role == WITNESS_ROLE
+        || role == PI_DEC_WITNESS_ROLE
+        || role == RUNNING_TRANSITION_WITNESS_ROLE
+        || role == super::sealed::APPLICATION_LOCAL_ROLE
 }
 
 pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), PackageError> {
@@ -303,7 +306,7 @@ impl PiDecV1_1PackageInputs {
         &self.child_public_inputs
     }
 
-    fn append_private_values(&self, values: &mut Vec<u64>) {
+    pub(super) fn append_private_values(&self, values: &mut Vec<u64>) {
         for commitment in &self.child_commitments {
             values.extend_from_slice(commitment);
         }
@@ -333,6 +336,13 @@ pub struct PiCcsV1_1EncodedInputs {
 }
 
 impl PiCcsV1_1EncodedInputs {
+    pub(super) fn from_parts(private_values: Vec<u64>, public_values: Vec<u64>) -> Self {
+        Self {
+            private_values,
+            public_values,
+        }
+    }
+
     pub fn private_values(&self) -> &[u64] {
         &self.private_values
     }
@@ -358,7 +368,7 @@ impl LoadedPackage {
         &self,
         inputs: &PiCcsV1_1PackageInputs,
     ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
-        if inputs.verifier_context.package_identity() != self.relation_identifier {
+        if inputs.verifier_context.structural_identifier() != self.relation_identifier {
             return Err(PackageError::Invalid("PiCCS v1_1 verifier-context package identity"));
         }
         let pi_ccs_input_count = self

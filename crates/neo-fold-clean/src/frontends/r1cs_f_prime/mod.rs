@@ -1,10 +1,11 @@
-//! Authoritative recursive R1CS F' relation and its low-norm lowering.
+//! Lean-package Stage 1 boundary and legacy R1CS F' diagnostics.
 //!
-//! The public lifecycle is [`ivc`]. The remaining modules own relation
-//! construction, selective lowering, audit artifacts, and terminal Spartan
-//! verification.
+//! [`production`] is the only production Stage 1 relation boundary. The
+//! remaining modules own legacy relation construction, selective-lowering
+//! diagnostics, audit artifacts, and terminal Spartan verification.
 
 mod grouped_phase;
+#[doc(hidden)]
 pub mod ivc;
 pub mod lean_manifest;
 pub mod lean_native_ccs_manifest;
@@ -13,7 +14,7 @@ mod linked_overlay;
 pub mod lowering;
 pub mod native_ccs;
 pub mod nebula_combined_ccs;
-mod relation_artifact;
+pub mod production;
 mod selective;
 mod selective_audit;
 mod selective_census;
@@ -48,16 +49,20 @@ pub use lowering::{
 };
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
-pub use relation_artifact::{R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID, R1CS_F_PRIME_PROFILE_ID};
+pub use production::Poseidon2HashChainV1Package;
 pub(crate) use selective::{
     audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_compiler_with_shared_bit_prefix,
     audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix,
-    audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment,
     prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
-    project_rows_with_complete_source_provenance_with_alignment, PreparedSelectiveLowNormR1cs, SelectiveLowNormShape,
+    project_rows_with_complete_source_provenance_with_alignment, PreparedSelectiveLowNormR1cs,
     SelectiveLowNormShapeSummary,
+};
+#[cfg(test)]
+pub(crate) use selective::{
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,

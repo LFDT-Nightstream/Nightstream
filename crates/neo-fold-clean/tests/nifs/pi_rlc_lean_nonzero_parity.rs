@@ -9,7 +9,10 @@ use neo_fold_clean::paper::{params::Params, relations::ajtai_rlc_mixer};
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::{api, common::RotRho, engines::paper_exact_engine};
 use neo_transcript::Poseidon2Transcript;
-use nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT;
+use nightstream_fprime::{
+    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT,
+    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +21,6 @@ const SOURCE_COUNT: usize = 17;
 const MATRIX_COUNT: usize = 14;
 const COEFFICIENT_COUNT: usize = 54;
 const PUBLIC_INPUT_WORDS: usize = 270;
-
 type Claim = CeClaim<Commitment, F, K>;
 
 #[derive(Deserialize)]
@@ -32,6 +34,7 @@ struct RawInput(
     Vec<Vec<u64>>,
     Vec<Vec<[u64; 2]>>,
     Vec<Vec<Vec<[u64; 2]>>>,
+    [u64; 4],
 );
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -97,8 +100,10 @@ fn pi_ccs_artifact_path() -> PathBuf {
 }
 
 fn package_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-v1.json")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-fprime/artifacts/\
+         nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+    )
 }
 
 fn field(word: u64) -> F {
@@ -222,10 +227,18 @@ fn expected_partial_claim(input: &RawInput, partial: &RawPartial) -> Claim {
 }
 
 fn relation() -> CcsStructure<F> {
-    let package: serde_json::Value =
-        serde_json::from_slice(&fs::read(package_path()).expect("Lean package bytes")).expect("Lean package JSON");
-    assert_eq!(package[0].as_u64(), Some(8), "Lean package-plan schema");
-    assert_eq!(package[1][0].as_u64(), Some(7), "Lean static-package schema");
+    let bytes = fs::read(package_path()).expect("Lean package bytes");
+    let loaded = load_poseidon2_hash_chain_v1_package(&bytes).expect("verifier-owned production package");
+    assert_eq!(
+        loaded
+            .production_verifier_binding()
+            .expect("fixed production binding")
+            .package_identity(),
+        POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY
+    );
+    let package: serde_json::Value = serde_json::from_slice(&bytes).expect("Lean package JSON");
+    assert_eq!(package[0].as_u64(), Some(5), "Lean sealed-package schema");
+    assert_eq!(package[1][0].as_u64(), Some(8), "Lean inner-package schema");
     let raw: RawRelation = serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple");
     assert_eq!(raw.2, ROUND_COUNT as u64);
     let active_rows = usize::try_from(raw.0).expect("relation rows");
@@ -427,7 +440,8 @@ fn assert_handoff_matches_pi_ccs() {
 fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result() {
     assert_handoff_matches_pi_ccs();
     let Artifact(schema, input, result) = artifact();
-    assert_eq!(schema, 2);
+    assert_eq!(schema, 3);
+    assert_eq!(input.6, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
     assert_eq!(result.0, 1, "Lean PiRLC acceptance");
     assert_eq!(result.1.len(), SOURCE_COUNT);
     assert!(result.1.iter().all(|rho| rho.len() == D));
@@ -565,7 +579,8 @@ fn bump_word(word: &mut u64) {
 #[test]
 fn both_engines_detect_every_indexed_pi_rlc_family_mutation() {
     let Artifact(schema, input, result) = artifact();
-    assert_eq!(schema, 2);
+    assert_eq!(schema, 3);
+    assert_eq!(input.6, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
     assert_eq!(result.8.len(), SOURCE_COUNT);
     let structure = relation();
     let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())

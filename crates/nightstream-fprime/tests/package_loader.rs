@@ -1,21 +1,25 @@
 use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    derive_pi_ccs_v1_1_transcript, load, CcsMatrixSource, LoadedPackage, PackageError, PiCcsV1_1OutputEvaluations,
-    PiCcsV1_1PackageInputs, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS,
-    PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT,
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
+    derive_pi_ccs_v1_1_transcript, load, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LoadedPackage,
+    PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs,
+    PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
+    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_SOURCE_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, PI_DEC_V1_1_CHILD_COUNT,
+    PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD,
+    PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
+use p3_field::PrimeField64;
 use serde_json::{json, Value};
 
 // Lean-emitted Pilot + PiCCS + PiRLC + PiDEC + running-transition package
 // identity. Phase conformance remains open until every required gate passes
 // on these bytes.
 const EXPECTED_IDENTITY: [u64; 4] = [
-    5_326_948_389_888_638_380,
-    15_945_253_772_729_055_182,
-    12_038_831_075_978_321_435,
-    4_066_786_242_110_063_495,
+    5_598_780_946_789_064_029,
+    15_355_422_093_920_338_696,
+    10_729_673_706_357_134_548,
+    3_502_763_498_223_293_662,
 ];
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -26,6 +30,14 @@ fn artifact_path() -> PathBuf {
 
 fn artifact_bytes() -> Vec<u8> {
     fs::read(artifact_path()).expect("run formal/nightstream-fprime/scripts/validate.sh emit first")
+}
+
+fn sealed_artifact_bytes() -> Vec<u8> {
+    fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    )
+    .expect("run formal/nightstream-fprime/scripts/validate.sh emit-poseidon2-hash-chain-v1 first")
 }
 
 fn artifact_value() -> Value {
@@ -107,18 +119,18 @@ fn lean_emitted_stage1_package_loads_with_verifier_owned_identity() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
 
     assert_eq!(package.relation_identifier(), EXPECTED_IDENTITY);
-    assert_eq!(package.row_count(), 27_584_200);
-    assert_eq!(package.private_column_count(), 27_695_710);
-    assert_eq!(package.private_input_count(), 166_738);
+    assert_eq!(package.row_count(), 29_218_024);
+    assert_eq!(package.private_column_count(), 29_336_446);
+    assert_eq!(package.private_input_count(), 177_322);
     assert_eq!(package.public_column_count(), 278);
-    assert_eq!(package.total_column_count(), 27_695_989);
+    assert_eq!(package.total_column_count(), 29_336_725);
     assert_eq!(package.template_row_count(), 592);
-    assert_eq!(package.permutation_invocation_count(), 7_703);
+    assert_eq!(package.permutation_invocation_count(), 7_757);
     assert_eq!(package.compact_template_count(), 326);
-    assert_eq!(package.compact_invocation_count(), 167_246);
+    assert_eq!(package.compact_invocation_count(), 170_918);
     assert_eq!(
         package.witness_instruction_count() + package.assertion_row_count(),
-        1_380_455
+        1_404_863
     );
 }
 
@@ -196,6 +208,90 @@ fn lean_emitted_package_exports_exact_v1_1_ccs_relation() {
 }
 
 #[test]
+fn sealed_package_builds_the_package_owned_logical_relation_header() {
+    let package =
+        load_poseidon2_hash_chain_v1_package(&sealed_artifact_bytes()).expect("verifier-owned production package");
+    let relation = package.ccs_relation();
+    let header = package
+        .ccs_structure_header()
+        .expect("Lean-owned logical CCS header");
+
+    assert_eq!(
+        package.logical_public_input_count(),
+        PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+    );
+    assert!(header.is_verifier_artifact_header());
+    assert_eq!(header.n, relation.row_count());
+    assert_eq!(header.m, relation.column_count());
+    assert_eq!(header.t(), relation.matrix_sources().len());
+    assert_eq!(header.max_degree() as usize + 1, relation.degree_bound());
+    assert_eq!(header.f.terms().len(), relation.terms().len());
+    for (actual, expected) in header.f.terms().iter().zip(relation.terms()) {
+        assert_eq!(actual.coeff.as_canonical_u64(), expected.coefficient());
+        assert_eq!(
+            actual
+                .exps
+                .iter()
+                .copied()
+                .map(|value| value as usize)
+                .collect::<Vec<_>>(),
+            expected.exponents(),
+        );
+    }
+}
+
+#[test]
+fn sealed_stage1_encoder_appends_the_exact_application_witness() {
+    let package =
+        load_poseidon2_hash_chain_v1_package(&sealed_artifact_bytes()).expect("verifier-owned production package");
+    let binding = package
+        .production_verifier_binding()
+        .expect("fixed production verifier binding");
+    let output_evaluations = PiCcsV1_1OutputEvaluations::new(
+        vec![vec![[0, 0]; PI_CCS_V1_1_COEFFICIENT_COUNT]; PI_CCS_V1_1_SOURCE_COUNT],
+        vec![vec![vec![[0, 0]; PI_CCS_V1_1_COEFFICIENT_COUNT]; PI_CCS_V1_1_MATRIX_COUNT]; PI_CCS_V1_1_SOURCE_COUNT],
+    )
+    .expect("zero output evaluations");
+    let mut prior_public_input = vec![0; PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS];
+    prior_public_input[0] = 1;
+    let pi_ccs = PiCcsV1_1PackageInputs::new(
+        vec![0; PI_CCS_V1_1_STATE_PREIMAGE_WORDS],
+        vec![0; PI_CCS_V1_1_STATE_PREIMAGE_WORDS],
+        vec![0; PI_CCS_V1_1_FRESH_COMMITMENT_WORDS],
+        vec![vec![[0, 0]; PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_1_ROUND_COUNT],
+        output_evaluations,
+        prior_public_input,
+        [0; 4],
+        binding.verifier_context().clone(),
+    )
+    .expect("zero PiCCS inputs");
+    let pi_dec = PiDecV1_1PackageInputs::new(
+        vec![vec![0; PI_DEC_V1_1_COMMITMENT_WORDS_PER_CHILD]; PI_DEC_V1_1_CHILD_COUNT],
+        vec![vec![[0, 0]; PI_DEC_V1_1_EVAL_K_VALUES_PER_CHILD]; PI_DEC_V1_1_CHILD_COUNT],
+        vec![
+            vec![vec![[0, 0]; PI_CCS_V1_1_COEFFICIENT_COUNT]; PI_DEC_V1_1_EVAL_A_MATRICES_PER_CHILD];
+            PI_DEC_V1_1_CHILD_COUNT
+        ],
+        vec![vec![0; PI_DEC_V1_1_PUBLIC_INPUT_WORDS_PER_CHILD]; PI_DEC_V1_1_CHILD_COUNT],
+    )
+    .expect("zero PiDEC inputs");
+    let message = [11, 12, 13, 14];
+    let encoded = package
+        .encode_stage1_v1_1_inputs(&pi_ccs, &pi_dec, &message)
+        .expect("complete typed Stage 1 inputs");
+
+    assert_eq!(encoded.private_values().len(), package.private_input_count());
+    assert!(encoded.private_values().ends_with(&message));
+    assert_eq!(encoded.public_values().len(), package.public_input_count());
+    assert!(package
+        .encode_stage1_v1_1_inputs(&pi_ccs, &pi_dec, &message[..3])
+        .is_err());
+    assert!(package
+        .encode_stage1_v1_1_inputs(&pi_ccs, &pi_dec, &[GOLDILOCKS_MODULUS, 0, 0, 0])
+        .is_err());
+}
+
+#[test]
 fn lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
     let mut expected_eval_k = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT);
@@ -244,7 +340,7 @@ fn lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
 fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     let parity: Value = serde_json::from_slice(&pi_ccs_parity_bytes()).expect("Lean PiCCS parity vector");
     let parity = parity.as_array().expect("PiCCS parity tuple");
-    assert_eq!(parity[0].as_u64(), Some(7));
+    assert_eq!(parity[0].as_u64(), Some(8));
     let input = parity[1].as_array().expect("PiCCS input tuple");
     let result = parity[2].as_array().expect("PiCCS result tuple");
     let state_preimage: Vec<u64> = serde_json::from_value(input[0].clone()).expect("prior preimage");
@@ -258,7 +354,6 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     let expected_eval_a: Vec<Vec<Vec<[u64; 2]>>> = serde_json::from_value(input[8].clone()).expect("output Eval_A");
     let public: Vec<Vec<u64>> = serde_json::from_value(input[9].clone()).expect("public statement blocks");
     let verifier: Vec<Vec<u64>> = serde_json::from_value(input[10].clone()).expect("verifier input blocks");
-    let authority: Vec<Vec<u64>> = serde_json::from_value(input[11].clone()).expect("verifier context authority");
     let alpha: Vec<[u64; 2]> = serde_json::from_value(result[1].clone()).expect("alpha");
     let gamma: [u64; 2] = serde_json::from_value(result[2].clone()).expect("gamma");
     let round_point: Vec<[u64; 2]> = serde_json::from_value(result[6].clone()).expect("round point");
@@ -288,15 +383,13 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     assert_eq!(actual.round_point(), round_point);
     assert_eq!(actual.outgoing_state(), outgoing_state);
 
-    let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package load");
-    assert_eq!(authority.len(), 4);
+    let package =
+        load_poseidon2_hash_chain_v1_package(&sealed_artifact_bytes()).expect("verifier-owned production package");
     let derived_context = package
-        .derive_pi_ccs_v1_1_verifier_context(&authority[3])
-        .expect("package-bound verifier context");
-    assert_eq!(derived_context.relation_words(), authority[0]);
-    assert_eq!(derived_context.application_words(), authority[1]);
-    assert_eq!(derived_context.nifs_key_words(), authority[2]);
-    assert_eq!(derived_context.commitment_key_words(), authority[3]);
+        .production_verifier_binding()
+        .expect("fixed production binding")
+        .verifier_context()
+        .clone();
     assert_eq!(derived_context.digest(), verifier_context);
     let output_evaluations = PiCcsV1_1OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("nonzero output evaluations");

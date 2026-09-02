@@ -5,6 +5,7 @@
 
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
+use rayon::prelude::*;
 use serde_json::Value;
 
 use super::{PackageError, GOLDILOCKS_MODULUS};
@@ -29,8 +30,11 @@ pub(super) struct Entry {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct Form {
-    pub(super) entries: Vec<Entry>,
+pub(super) enum Form {
+    #[default]
+    Empty,
+    One(Entry),
+    Many(Vec<Entry>),
 }
 
 impl Form {
@@ -38,9 +42,15 @@ impl Form {
         if coefficient == Goldilocks::ZERO {
             Self::default()
         } else {
-            Self {
-                entries: vec![Entry { column, coefficient }],
-            }
+            Self::One(Entry { column, coefficient })
+        }
+    }
+
+    fn from_canonical_entries(mut entries: Vec<Entry>) -> Self {
+        match entries.len() {
+            0 => Self::Empty,
+            1 => Self::One(entries.pop().expect("one form entry")),
+            _ => Self::Many(entries),
         }
     }
 
@@ -61,12 +71,64 @@ impl Form {
                 combined.push(entry);
             }
         }
-        Self { entries: combined }
+        Self::from_canonical_entries(combined)
+    }
+
+    pub(super) fn entries(&self) -> &[Entry] {
+        match self {
+            Self::Empty => &[],
+            Self::One(entry) => std::slice::from_ref(entry),
+            Self::Many(entries) => entries,
+        }
+    }
+
+    pub(super) fn into_entries(self) -> Vec<Entry> {
+        match self {
+            Self::Empty => Vec::new(),
+            Self::One(entry) => vec![entry],
+            Self::Many(entries) => entries,
+        }
     }
 
     pub(super) fn append(self, other: Self) -> Self {
-        let mut left = self.entries.into_iter().peekable();
-        let mut right = other.entries.into_iter().peekable();
+        let (left, right) = match (self, other) {
+            (Self::Empty, other) => return other,
+            (form, Self::Empty) => return form,
+            (Self::One(left), Self::One(right)) => {
+                return match left.column.cmp(&right.column) {
+                    std::cmp::Ordering::Less => Self::Many(vec![left, right]),
+                    std::cmp::Ordering::Greater => Self::Many(vec![right, left]),
+                    std::cmp::Ordering::Equal => Self::singleton(left.column, left.coefficient + right.coefficient),
+                };
+            }
+            (Self::Many(mut left), Self::Many(right))
+                if left.last().expect("nonempty form").column < right.first().expect("nonempty form").column =>
+            {
+                left.extend(right);
+                return Self::Many(left);
+            }
+            (Self::Many(left), Self::Many(mut right))
+                if right.last().expect("nonempty form").column < left.first().expect("nonempty form").column =>
+            {
+                right.extend(left);
+                return Self::Many(right);
+            }
+            (Self::Many(mut entries), Self::One(entry))
+                if entries.last().expect("nonempty form").column < entry.column =>
+            {
+                entries.push(entry);
+                return Self::Many(entries);
+            }
+            (Self::One(entry), Self::Many(mut entries))
+                if entries.last().expect("nonempty form").column < entry.column =>
+            {
+                entries.push(entry);
+                return Self::Many(entries);
+            }
+            (left, right) => (left.into_entries(), right.into_entries()),
+        };
+        let mut left = left.into_iter().peekable();
+        let mut right = right.into_iter().peekable();
         let mut entries = Vec::with_capacity(left.len() + right.len());
         while let (Some(left_entry), Some(right_entry)) = (left.peek(), right.peek()) {
             match left_entry.column.cmp(&right_entry.column) {
@@ -91,23 +153,21 @@ impl Form {
         }
         entries.extend(left);
         entries.extend(right);
-        Self { entries }
+        Self::from_canonical_entries(entries)
     }
 
-    pub(super) fn scaled(&self, scalar: Goldilocks) -> Self {
+    pub(super) fn scaled(mut self, scalar: Goldilocks) -> Self {
         if scalar == Goldilocks::ZERO {
             return Self::default();
         }
-        Self {
-            entries: self
-                .entries
-                .iter()
-                .map(|entry| Entry {
-                    column: entry.column,
-                    coefficient: scalar * entry.coefficient,
-                })
-                .collect(),
+        for entry in match &mut self {
+            Self::Empty => &mut [],
+            Self::One(entry) => std::slice::from_mut(entry),
+            Self::Many(entries) => entries,
+        } {
+            entry.coefficient *= scalar;
         }
+        self
     }
 }
 
@@ -216,7 +276,7 @@ impl RetainedBlock {
             });
             weight *= radix;
         }
-        Ok(Form { entries })
+        Ok(Form::from_canonical_entries(entries))
     }
 
     pub(super) fn external_form(
@@ -803,6 +863,26 @@ impl Block {
             Self::Poseidon(block) => block.row(logical_width, ordinal),
         }
     }
+
+    fn visit_rows(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
+        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if let Self::Poseidon(block) = self {
+            return block.visit_rows(logical_width, start, end, visit);
+        }
+        if start > end || end > self.row_count()? {
+            return Err(PackageError::Invalid("matrix block row range"));
+        }
+        for ordinal in start..end {
+            visit(self.row(logical_width, ordinal, source_row)?)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -829,6 +909,66 @@ impl MatrixProgram {
             block.validate(source_limit)?;
         }
         Ok(())
+    }
+
+    pub(super) fn validate_all_rows(
+        &self,
+        logical_width: usize,
+        source_row: &(impl Fn(usize) -> Result<SourceRow, PackageError> + Sync),
+    ) -> Result<[u64; MEANINGFUL_PORTS], PackageError> {
+        const ROWS_PER_CHUNK: usize = 4_096;
+
+        let mut chunks = Vec::new();
+        for block in &self.blocks {
+            let count = block.row_count()?;
+            let mut start = 0;
+            while start < count {
+                let end = start.saturating_add(ROWS_PER_CHUNK).min(count);
+                chunks.push((block, start, end));
+                start = end;
+            }
+        }
+
+        chunks
+            .into_par_iter()
+            .try_fold(
+                || [0u64; MEANINGFUL_PORTS],
+                |mut counts, (block, start, end)| {
+                    block.visit_rows(logical_width, start, end, source_row, |forms| {
+                        for (matrix, form) in forms.iter().enumerate() {
+                            let mut previous = None;
+                            for entry in form.entries() {
+                                if entry.column >= logical_width
+                                    || entry.coefficient == Goldilocks::ZERO
+                                    || previous.is_some_and(|previous| previous >= entry.column)
+                                {
+                                    return Err(PackageError::Invalid("non-canonical logical matrix row"));
+                                }
+                                previous = Some(entry.column);
+                            }
+                            counts[matrix] = counts[matrix]
+                                .checked_add(
+                                    u64::try_from(form.entries().len())
+                                        .map_err(|_| PackageError::Invalid("logical matrix nonzero count"))?,
+                                )
+                                .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
+                        }
+                        Ok(())
+                    })?;
+                    Ok(counts)
+                },
+            )
+            .try_reduce(
+                || [0u64; MEANINGFUL_PORTS],
+                |mut left, right| {
+                    for (left, right) in left.iter_mut().zip(right) {
+                        *left = left
+                            .checked_add(right)
+                            .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
+                    }
+                    Ok(left)
+                },
+            )
     }
 
     pub(super) fn row(
@@ -863,7 +1003,11 @@ pub(super) fn external_layer(state: &[Form]) -> Result<Vec<Form>, PackageError> 
             };
             let mut form = Form::default();
             for (offset, coefficient) in coefficients.into_iter().enumerate() {
-                form = form.append(state[base + offset].scaled(Goldilocks::from_u64(coefficient)));
+                form = form.append(
+                    state[base + offset]
+                        .clone()
+                        .scaled(Goldilocks::from_u64(coefficient)),
+                );
             }
             blocks.push(form);
         }
@@ -882,7 +1026,7 @@ pub(super) fn external_layer(state: &[Form]) -> Result<Vec<Form>, PackageError> 
 
 pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), PackageError> {
     if form
-        .entries
+        .entries()
         .iter()
         .any(|entry| entry.column >= logical_width)
     {

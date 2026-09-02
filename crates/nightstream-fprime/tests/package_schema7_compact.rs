@@ -4,10 +4,10 @@ use nightstream_fprime::{load, PackageError};
 use serde_json::{json, Value};
 
 const EXPECTED_IDENTITY: [u64; 4] = [
-    5_326_948_389_888_638_380,
-    15_945_253_772_729_055_182,
-    12_038_831_075_978_321_435,
-    4_066_786_242_110_063_495,
+    5_598_780_946_789_064_029,
+    15_355_422_093_920_338_696,
+    10_729_673_706_357_134_548,
+    3_502_763_498_223_293_662,
 ];
 
 const PI_DEC_COMMITMENTS_ROLE: u64 = 11;
@@ -84,7 +84,7 @@ fn schema8_plan_places_schema7_compact_fields_at_the_lean_owned_positions() {
 fn schema8_plan_expands_every_compact_invocation_with_exact_coverage() {
     let package = load(&artifact_bytes(), EXPECTED_IDENTITY).expect("strict package-plan load");
     assert_eq!(package.compact_template_count(), 326);
-    assert_eq!(package.compact_invocation_count(), 167_246);
+    assert_eq!(package.compact_invocation_count(), 170_918);
 }
 
 #[test]

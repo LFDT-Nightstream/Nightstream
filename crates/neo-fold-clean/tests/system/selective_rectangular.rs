@@ -4,28 +4,21 @@
 mod support;
 
 use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun};
-use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_stage;
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{BalancedTernaryOpeningTraceEntry, Lc, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::R1csIvcRelation;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, LowNormR1csError,
     SelectiveEmittedRowFamily, SelectiveRewriteKind, SelectiveSourceRowDisposition, SparseR1cs,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
-use neo_fold_clean::paper::f_prime::stage as fprime_stage;
-use neo_fold_clean::paper::nifs::circuit::stage as nifs_stage;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
     enforce_commit_fields, SIS_DIGEST_COMPRESSION_CONFIG,
 };
-use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
-use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs, tiny_params};
 
 #[test]
 fn selective_poseidon_lowering_is_rectangular_and_binds_alignment_tail() {
@@ -239,249 +232,6 @@ fn selective_f_prime_public_carrier_precedes_selectors() {
             assert!(!relation.is_satisfied(&tampered));
         }
     }
-}
-
-#[test]
-fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
-    let app = one_product_r1cs();
-    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let audit = R1csIvcRelation::audit_fixed_point_shape(&tiny_params(), &app.into(), &plan)
-        .expect("audit active fixed-point shape");
-
-    let width = audit.width();
-    assert_eq!(
-        audit
-            .rounds()
-            .iter()
-            .map(|round| {
-                (
-                    round.input.rows,
-                    round.input.columns,
-                    round.output.rows,
-                    round.output.columns,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![
-            (2, 270, 7_113_380, 12_223_656),
-            (7_113_380, 12_223_656, 7_143_950, 12_678_066),
-            (7_143_950, 12_678_066, 7_143_950, 12_678_066),
-        ],
-        "the selected one-joint production shape must stabilize at the measured fixed point",
-    );
-    assert_eq!(width.total_coordinates, 12_678_064);
-    assert_eq!(width.branch_start, 311);
-    assert_eq!(width.shared_private_coordinates, 0);
-    assert_eq!(
-        width
-            .arms
-            .iter()
-            .map(|arm| {
-                (
-                    arm.branch_source_columns,
-                    arm.eliminated_columns,
-                    arm.retained_coordinates_before_aliases,
-                    arm.decomposition_aliases,
-                    arm.equality_aliases,
-                    arm.branch_coordinates,
-                    arm.derived_product_sums,
-                    arm.derived_coordinates,
-                    arm.total_branch_coordinates,
-                    arm.traces.poseidon2_permutations,
-                    arm.traces.poseidon2_coordinates,
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![
-            (14_261, 11_631, 82_111, 448, 0, 81_663, 0, 0, 81_663, 22, 77_828),
-            (
-                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
-                3_222_262,
-            ),
-            (
-                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
-                3_222_262,
-            ),
-        ],
-        "each selector-disjoint arm must retain the measured compressed-width profile",
-    );
-    let terminal_round = audit.rounds().last().expect("terminal fixed-point round");
-    assert_eq!(
-        terminal_round.output.public_input_len,
-        F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN
-    );
-    assert_eq!(terminal_round.output.public_input_len % D, 0);
-    assert!(terminal_round.output.columns >= terminal_round.output.public_input_len);
-    assert_eq!(terminal_round.output.polynomial.arity(), 13);
-    let output_digest = audit.pi_ccs_output_digest();
-    let output_profile = output_digest.profile();
-    assert_eq!(output_profile.source_count(), 15);
-    assert_eq!(output_profile.matrix_count(), 14);
-    assert_eq!(output_profile.output_field_count(), 23_033);
-    let output_sis = output_digest.sis();
-    assert_eq!(output_sis.primary().block().word_starts().len(), 23_033);
-    assert_eq!(output_sis.primary().input_columns().len(), 23_033);
-    assert_eq!(output_sis.primary().output_columns().len(), 2 * D);
-    assert_eq!(output_sis.compression().block().word_starts().len(), 2 * D);
-    assert_eq!(
-        output_sis.compression().input_columns(),
-        output_sis.primary().output_columns()
-    );
-    assert_eq!(output_sis.compression().output_columns().len(), D);
-    let output_prefix = output_digest.envelope_prefix();
-    assert_eq!(output_prefix.columns().len(), 10);
-    assert_eq!(output_prefix.values().len(), 10);
-    assert_eq!(output_prefix.values()[8], F::from_u64(23_033));
-    assert_eq!(output_prefix.values()[9], F::from_u64(2));
-    assert_eq!(output_prefix.rows().end, output_digest.hash().row_start);
-    assert_eq!(output_digest.hash().input_cols.len(), 64);
-    assert_eq!(output_digest.hash().rounds.len(), 17);
-    assert_eq!(
-        output_digest.hash().input_cols,
-        output_prefix
-            .columns()
-            .iter()
-            .chain(output_sis.compression().output_columns())
-            .copied()
-            .collect::<Vec<_>>()
-    );
-
-    let source_stages = audit.source_arm_physical_stages();
-    assert_eq!(source_stages.len(), terminal_round.arms.len());
-    for (arm, (stages, shape)) in source_stages.iter().zip(&terminal_round.arms).enumerate() {
-        assert!(!stages.is_empty(), "fixed-point arm {arm} omitted physical provenance");
-        let expected_root = if arm == 0 {
-            fprime_stage::BASE_ROOT
-        } else {
-            fprime_stage::RECURSIVE_ROOT
-        };
-        assert_eq!(stages[0].path(), expected_root, "fixed-point arm {arm} root");
-
-        let mut next_row = 0usize;
-        for stage in stages {
-            assert_eq!(
-                stage.row_start(),
-                next_row,
-                "fixed-point arm {arm} has a row gap or overlap"
-            );
-            assert!(
-                stage.row_end() >= stage.row_start(),
-                "fixed-point arm {arm} has a reversed range"
-            );
-            next_row = stage.row_end();
-
-            let path = stage.path();
-            let allowed = if arm == 0 {
-                fprime_stage::BASE_ALL.contains(&path)
-            } else {
-                fprime_stage::RECURSIVE_ALL.contains(&path)
-                    || pi_ccs_stage::ALL.contains(&path)
-                    || pi_rlc_stage::LIFECYCLE_ALL.contains(&path)
-                    || pi_rlc_stage::ALL.contains(&path)
-                    || pi_rlc_challenge_stage::ALL.contains(&path)
-                    || nifs_stage::ALL.contains(&path)
-            };
-            assert!(allowed, "fixed-point arm {arm} contains undeclared stage {path}");
-        }
-        assert_eq!(
-            next_row, shape.rows,
-            "fixed-point arm {arm} does not cover all source rows"
-        );
-    }
-    let stage_census = |arm: usize, path: &str| {
-        let occurrences = source_stages[arm]
-            .iter()
-            .enumerate()
-            .filter_map(|(occurrence, stage)| (stage.path() == path).then_some((occurrence, stage)))
-            .collect::<Vec<_>>();
-        assert!(occurrences.len() <= 1, "arm {arm} repeats accumulator leaf {path}");
-        occurrences.first().map(|(occurrence, stage)| {
-            let emitted = audit
-                .rows()
-                .emitted_runs()
-                .iter()
-                .filter(|run| run.arm() == Some(arm) && run.source_stage_occurrence() == Some(*occurrence))
-                .map(|run| run.emitted_rows().len())
-                .sum::<usize>();
-            (*occurrence, stage.rows().len(), emitted)
-        })
-    };
-    let accumulator_stage_census = (0..source_stages.len())
-        .map(|arm| {
-            (
-                arm,
-                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS),
-                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE),
-            )
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        accumulator_stage_census,
-        vec![
-            (0, None, None),
-            (1, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
-            (2, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
-        ],
-        "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
-    );
-    let layout = audit.layout();
-    assert_eq!(layout.logical_public_input_len(), F_PRIME_PUBLIC_INPUT_LEN);
-    assert_eq!(layout.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
-    assert!(layout.public_padding_columns().iter().copied().eq(257..270));
-    assert_eq!(layout.selector_columns(), &[270, 271, 272]);
-    assert!(layout
-        .private_alignment_padding_columns()
-        .iter()
-        .copied()
-        .eq(273..311));
-    assert_eq!(layout.branch_columns().start, 311);
-
-    let same_polynomial = |left: &neo_ccs::SparsePoly<F>, right: &neo_ccs::SparsePoly<F>| {
-        left.arity() == right.arity()
-            && left.terms().len() == right.terms().len()
-            && left
-                .terms()
-                .iter()
-                .zip(right.terms())
-                .all(|(left, right)| left.coeff == right.coeff && left.exps == right.exps)
-    };
-    for adjacent in audit.rounds().windows(2) {
-        assert_eq!(adjacent[0].output.rows, adjacent[1].input.rows);
-        assert_eq!(adjacent[0].output.columns, adjacent[1].input.columns);
-        assert_eq!(adjacent[0].output.public_input_len, adjacent[1].input.public_input_len);
-        assert!(same_polynomial(
-            &adjacent[0].output.polynomial,
-            &adjacent[1].input.polynomial
-        ));
-    }
-}
-
-#[test]
-#[ignore = "materializes the complete 7.1M-row by 12.7M-column fixed-point fixture; run explicitly after compiler changes"]
-fn active_fixed_point_materializes_after_accumulator_ce_compression() {
-    let app = one_product_r1cs();
-    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let relation = R1csIvcRelation::compile_fixed_point(&tiny_params(), &app.into(), &plan)
-        .expect("materialize SIS-compressed active fixed point");
-
-    let structure = relation.structure();
-    assert_eq!(structure.n, 7_143_950);
-    assert_eq!(structure.m, 12_678_066);
-    assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
-    assert_eq!(structure.t(), 13);
-    assert_eq!(structure.matrices.len(), 13);
-
-    let audit = relation.compilation_audit();
-    assert_eq!(audit.rounds().len(), 3);
-    assert_eq!(audit.width().total_coordinates, 12_678_064);
-    assert_eq!(audit.layout().total_columns(), structure.m);
-    assert_eq!(audit.rows().total_rows(), structure.n);
-    let terminal = audit
-        .rounds()
-        .last()
-        .expect("materialized terminal fixed-point round");
-    assert_eq!(terminal.output.rows, structure.n);
-    assert_eq!(terminal.output.columns, structure.m);
 }
 
 #[test]

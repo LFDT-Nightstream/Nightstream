@@ -1,8 +1,8 @@
 //! Indexed compiler for strict PiDEC public-X rows.
 //!
 //! The program owns only two equation families: radix recomposition and the
-//! uniform-sign canonical child split for radix two or radix four. Its row
-//! and column costs are derived from the typed plan; no production-sized
+//! uniform-sign canonical child split for the fixed radix-two profile. Its
+//! row and column costs are derived from the typed plan; no production-sized
 //! assignment or row census is materialized.
 
 use std::collections::BTreeSet;
@@ -16,8 +16,6 @@ use super::{CanonicalSparseRow, Lc, Var};
 
 const CONSTANT_COLUMN: usize = 0;
 const CENTERED_SIGN_ROWS: usize = 2;
-const RADIX_FOUR_LIMBS: usize = 2;
-const RADIX_FOUR_ROWS_PER_CHILD: usize = 3;
 
 /// Shape of the strict public-X lowering.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,38 +23,21 @@ pub struct PiDecCanonicalXPlan {
     x_rows: usize,
     active_columns: usize,
     child_count: usize,
-    radix: u32,
 }
 
 impl PiDecCanonicalXPlan {
     pub fn new(x_rows: usize, active_columns: usize, child_count: usize) -> Result<Self, &'static str> {
-        Self::new_with_radix(x_rows, active_columns, child_count, 2)
-    }
-
-    pub fn new_with_radix(
-        x_rows: usize,
-        active_columns: usize,
-        child_count: usize,
-        radix: u32,
-    ) -> Result<Self, &'static str> {
         if x_rows == 0 || active_columns == 0 || child_count == 0 {
             return Err("PiDEC canonical-X plan dimensions must be nonzero");
-        }
-        if !matches!(radix, 2 | 4) {
-            return Err("PiDEC canonical-X plan supports only radix two or four");
         }
         let logical_coordinates = x_rows
             .checked_mul(active_columns)
             .ok_or("PiDEC canonical-X plan overflows usize")?;
-        let rows_per_child = if radix == 2 { 1 } else { RADIX_FOUR_ROWS_PER_CHILD };
-        let limbs_per_child = if radix == 2 { 0 } else { RADIX_FOUR_LIMBS };
         let rows_per_coordinate = child_count
-            .checked_mul(rows_per_child)
-            .and_then(|rows| rows.checked_add(CENTERED_SIGN_ROWS))
+            .checked_add(CENTERED_SIGN_ROWS)
             .ok_or("PiDEC canonical-X plan overflows usize")?;
         let columns_per_coordinate = child_count
-            .checked_mul(1 + limbs_per_child)
-            .and_then(|columns| columns.checked_add(CENTERED_SIGN_ROWS))
+            .checked_add(CENTERED_SIGN_ROWS)
             .and_then(|columns| columns.checked_add(1))
             .ok_or("PiDEC canonical-X plan overflows usize")?;
         logical_coordinates
@@ -68,7 +49,6 @@ impl PiDecCanonicalXPlan {
             x_rows,
             active_columns,
             child_count,
-            radix,
         })
     }
 
@@ -84,26 +64,6 @@ impl PiDecCanonicalXPlan {
         self.child_count
     }
 
-    pub fn radix(self) -> u32 {
-        self.radix
-    }
-
-    pub fn limbs_per_child(self) -> usize {
-        if self.radix == 2 {
-            0
-        } else {
-            RADIX_FOUR_LIMBS
-        }
-    }
-
-    pub fn canonicality_rows_per_child(self) -> usize {
-        if self.radix == 2 {
-            1
-        } else {
-            RADIX_FOUR_ROWS_PER_CHILD
-        }
-    }
-
     pub fn logical_coordinates(self) -> usize {
         self.x_rows * self.active_columns
     }
@@ -113,7 +73,7 @@ impl PiDecCanonicalXPlan {
     }
 
     pub fn canonicality_rows(self) -> usize {
-        self.logical_coordinates() * (self.child_count * self.canonicality_rows_per_child() + CENTERED_SIGN_ROWS)
+        self.logical_coordinates() * (self.child_count + CENTERED_SIGN_ROWS)
     }
 
     pub fn total_rows(self) -> usize {
@@ -121,8 +81,7 @@ impl PiDecCanonicalXPlan {
     }
 
     pub fn canonical_column_count(self) -> usize {
-        1 + self.logical_coordinates()
-            * (1 + self.child_count + CENTERED_SIGN_ROWS + self.child_count * self.limbs_per_child())
+        1 + self.logical_coordinates() * (1 + self.child_count + CENTERED_SIGN_ROWS)
     }
 
     /// Row-major coordinate consumed by the emitter.
@@ -163,48 +122,15 @@ impl CanonicalLayout {
     fn product(self, active_index: usize) -> Option<usize> {
         self.sign(active_index).map(|column| column + 1)
     }
-
-    fn limb_first(self) -> usize {
-        self.trace_first() + CENTERED_SIGN_ROWS * self.plan.logical_coordinates()
-    }
-
-    fn limb(self, child: usize, limb: usize, active_index: usize) -> Option<usize> {
-        (child < self.plan.child_count()
-            && limb < self.plan.limbs_per_child()
-            && active_index < self.plan.logical_coordinates())
-        .then_some(
-            self.limb_first()
-                + (child * self.plan.limbs_per_child() + limb) * self.plan.logical_coordinates()
-                + active_index,
-        )
-    }
 }
 
 /// Unique semantic owner of one row in the indexed program.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PiDecCanonicalXRowOwner {
-    Recomposition {
-        active_index: usize,
-    },
-    SignProduct {
-        active_index: usize,
-    },
-    SignZero {
-        active_index: usize,
-    },
-    ChildDigit {
-        active_index: usize,
-        child: usize,
-    },
-    RadixFourLimb {
-        active_index: usize,
-        child: usize,
-        limb: usize,
-    },
-    RadixFourReconstruction {
-        active_index: usize,
-        child: usize,
-    },
+    Recomposition { active_index: usize },
+    SignProduct { active_index: usize },
+    SignZero { active_index: usize },
+    ChildDigit { active_index: usize, child: usize },
 }
 
 /// Pure indexed binary public-X compiler.
@@ -242,10 +168,6 @@ impl PiDecCanonicalXProgram {
         CanonicalLayout { plan: self.plan }.product(active_index)
     }
 
-    pub fn limb_canonical_column(self, child: usize, limb: usize, active_index: usize) -> Option<usize> {
-        CanonicalLayout { plan: self.plan }.limb(child, limb, active_index)
-    }
-
     pub fn owner(self, relative_row: usize) -> Option<PiDecCanonicalXRowOwner> {
         let logical = self.plan.logical_coordinates();
         if relative_row < logical {
@@ -257,8 +179,7 @@ impl PiDecCanonicalXProgram {
         if canonical_row >= self.plan.canonicality_rows() {
             return None;
         }
-        let rows_per_coordinate =
-            self.plan.child_count() * self.plan.canonicality_rows_per_child() + CENTERED_SIGN_ROWS;
+        let rows_per_coordinate = self.plan.child_count() + CENTERED_SIGN_ROWS;
         let active_index = canonical_row / rows_per_coordinate;
         let coordinate_row = canonical_row % rows_per_coordinate;
         if coordinate_row == 0 {
@@ -268,21 +189,10 @@ impl PiDecCanonicalXProgram {
             return Some(PiDecCanonicalXRowOwner::SignZero { active_index });
         }
         let child_row = coordinate_row - CENTERED_SIGN_ROWS;
-        if self.plan.radix() == 2 {
-            return Some(PiDecCanonicalXRowOwner::ChildDigit {
-                active_index,
-                child: child_row,
-            });
-        }
-        let child = child_row / RADIX_FOUR_ROWS_PER_CHILD;
-        match child_row % RADIX_FOUR_ROWS_PER_CHILD {
-            limb @ 0..=1 => Some(PiDecCanonicalXRowOwner::RadixFourLimb {
-                active_index,
-                child,
-                limb,
-            }),
-            _ => Some(PiDecCanonicalXRowOwner::RadixFourReconstruction { active_index, child }),
-        }
+        Some(PiDecCanonicalXRowOwner::ChildDigit {
+            active_index,
+            child: child_row,
+        })
     }
 
     pub fn row_at(self, relative_row: usize) -> Option<CanonicalSparseRow> {
@@ -305,21 +215,6 @@ impl PiDecCanonicalXProgram {
                 layout.child(child, active_index)?,
                 layout.sign(active_index)?,
             )),
-            PiDecCanonicalXRowOwner::RadixFourLimb {
-                active_index,
-                child,
-                limb,
-            } => Some(child_digit_row(
-                layout.limb(child, limb, active_index)?,
-                layout.sign(active_index)?,
-            )),
-            PiDecCanonicalXRowOwner::RadixFourReconstruction { active_index, child } => {
-                Some(radix_four_reconstruction_row(
-                    layout.child(child, active_index)?,
-                    layout.limb(child, 0, active_index)?,
-                    layout.limb(child, 1, active_index)?,
-                ))
-            }
         }
     }
 
@@ -330,7 +225,7 @@ impl PiDecCanonicalXProgram {
         }
         let mut combination = Lc::zero();
         let mut weight = F::ONE;
-        let radix = F::from_u64(self.plan.radix() as u64);
+        let radix = F::from_u64(2);
         for &child in children {
             combination.add_term(Var::from_column_for_trace(child), weight);
             weight *= radix;
@@ -349,50 +244,13 @@ impl PiDecCanonicalXProgram {
         product: usize,
         children: &[usize],
     ) -> Option<CanonicalSparseRow> {
-        if self.plan.radix() != 2
-            || children.len() != self.plan.child_count()
-            || relative_row >= self.plan.child_count() + CENTERED_SIGN_ROWS
-        {
+        if children.len() != self.plan.child_count() || relative_row >= self.plan.child_count() + CENTERED_SIGN_ROWS {
             return None;
         }
         match relative_row {
             0 => Some(sign_product_row(sign, product)),
             1 => Some(sign_zero_row(sign, product)),
             child_row => Some(child_digit_row(children[child_row - CENTERED_SIGN_ROWS], sign)),
-        }
-    }
-
-    pub fn canonicality_row_radix_four(
-        self,
-        relative_row: usize,
-        sign: usize,
-        product: usize,
-        children: &[usize],
-        limbs: &[[usize; RADIX_FOUR_LIMBS]],
-    ) -> Option<CanonicalSparseRow> {
-        let rows = self.plan.child_count() * RADIX_FOUR_ROWS_PER_CHILD + CENTERED_SIGN_ROWS;
-        if self.plan.radix() != 4
-            || children.len() != self.plan.child_count()
-            || limbs.len() != self.plan.child_count()
-            || relative_row >= rows
-        {
-            return None;
-        }
-        match relative_row {
-            0 => Some(sign_product_row(sign, product)),
-            1 => Some(sign_zero_row(sign, product)),
-            child_row => {
-                let child_row = child_row - CENTERED_SIGN_ROWS;
-                let child = child_row / RADIX_FOUR_ROWS_PER_CHILD;
-                match child_row % RADIX_FOUR_ROWS_PER_CHILD {
-                    limb @ 0..=1 => Some(child_digit_row(limbs[child][limb], sign)),
-                    _ => Some(radix_four_reconstruction_row(
-                        children[child],
-                        limbs[child][0],
-                        limbs[child][1],
-                    )),
-                }
-            }
         }
     }
 }
@@ -416,15 +274,6 @@ fn child_digit_row(digit: usize, sign: usize) -> CanonicalSparseRow {
     let digit = Var::from_column_for_trace(digit);
     let right = Lc::from_var(digit).add_scaled(&Lc::from_var(Var::from_column_for_trace(sign)), -F::ONE);
     canonical_sparse_row(&(Lc::from_var(digit), right, Lc::zero()))
-}
-
-fn radix_four_reconstruction_row(digit: usize, low: usize, high: usize) -> CanonicalSparseRow {
-    let mut combination = Lc::from_var(Var::from_column_for_trace(low));
-    combination.add_term(Var::from_column_for_trace(high), F::from_u64(2));
-    canonical_sparse_row(&equality_constraint_row(
-        &Lc::from_var(Var::from_column_for_trace(digit)),
-        &combination,
-    ))
 }
 
 /// Bijection from the program's compact canonical columns to live builder

@@ -68,6 +68,124 @@ impl Block {
         }
     }
 
+    pub(super) fn visit_rows(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if start > end || end > self.row_count()? {
+            return Err(PackageError::Invalid("Poseidon2 matrix row range"));
+        }
+        if start == end {
+            return Ok(());
+        }
+        if self.one_column >= logical_width {
+            return Err(PackageError::Invalid("Poseidon2 matrix one column"));
+        }
+        if self.retained.kind() != RetainedKind::Field {
+            return Err(PackageError::Invalid("Poseidon2 retained kind"));
+        }
+        let expected_slots = checked_mul(
+            self.invocation_count,
+            SBOX_ROWS_PER_INVOCATION,
+            "Poseidon2 retained slot count",
+        )?;
+        if self.retained.slot_count() != expected_slots || !self.retained.fits(logical_width)? {
+            return Err(PackageError::Invalid("Poseidon2 retained geometry"));
+        }
+
+        let first_invocation = start / ROWS_PER_INVOCATION;
+        let last_invocation = (end - 1) / ROWS_PER_INVOCATION;
+        for invocation in first_invocation..=last_invocation {
+            let invocation_start = checked_mul(invocation, ROWS_PER_INVOCATION, "Poseidon2 matrix row")?;
+            let local_start = start
+                .saturating_sub(invocation_start)
+                .min(ROWS_PER_INVOCATION);
+            let local_end = end
+                .saturating_sub(invocation_start)
+                .min(ROWS_PER_INVOCATION);
+            self.visit_invocation_rows(logical_width, invocation, local_start, local_end, &mut visit)?;
+        }
+        Ok(())
+    }
+
+    fn visit_invocation_rows(
+        &self,
+        logical_width: usize,
+        invocation: usize,
+        local_start: usize,
+        local_end: usize,
+        visit: &mut impl FnMut(RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        let constants = constants();
+        let input = self
+            .input
+            .state(logical_width, self.one_column, invocation)?;
+        let mut state = to_state(external_layer(&input)?);
+        let slot_base = checked_mul(invocation, SBOX_ROWS_PER_INVOCATION, "Poseidon2 retained slot")?;
+        let mut next_sbox = 0usize;
+
+        for round in &constants.initial {
+            let mut outputs = empty_state();
+            for lane in 0..WIDTH {
+                let output = self.retained.form(
+                    logical_width,
+                    checked_add(slot_base, next_sbox, "Poseidon2 retained slot")?,
+                )?;
+                if (local_start..local_end).contains(&next_sbox) {
+                    let row_input =
+                        add_constant(state[lane].clone(), self.one_column, Goldilocks::from_u64(round[lane]));
+                    visit(sbox_ports(self.one_column, row_input, output.clone()))?;
+                }
+                outputs[lane] = output;
+                next_sbox += 1;
+            }
+            state = to_state(external_layer(&outputs)?);
+        }
+
+        for constant in &constants.internal {
+            let output = self.retained.form(
+                logical_width,
+                checked_add(slot_base, next_sbox, "Poseidon2 retained slot")?,
+            )?;
+            if (local_start..local_end).contains(&next_sbox) {
+                let row_input = add_constant(state[0].clone(), self.one_column, Goldilocks::from_u64(*constant));
+                visit(sbox_ports(self.one_column, row_input, output.clone()))?;
+            }
+            state[0] = output;
+            state = internal_layer(&state, &constants.diag);
+            next_sbox += 1;
+        }
+
+        for round in &constants.terminal {
+            let mut outputs = empty_state();
+            for lane in 0..WIDTH {
+                let output = self.retained.form(
+                    logical_width,
+                    checked_add(slot_base, next_sbox, "Poseidon2 retained slot")?,
+                )?;
+                if (local_start..local_end).contains(&next_sbox) {
+                    let row_input =
+                        add_constant(state[lane].clone(), self.one_column, Goldilocks::from_u64(round[lane]));
+                    visit(sbox_ports(self.one_column, row_input, output.clone()))?;
+                }
+                outputs[lane] = output;
+                next_sbox += 1;
+            }
+            state = to_state(external_layer(&outputs)?);
+        }
+
+        for lane in 0..WIDTH {
+            let local_row = SBOX_ROWS_PER_INVOCATION + lane;
+            if (local_start..local_end).contains(&local_row) {
+                visit(pin_ports(self.one_column, state[lane].clone()))?;
+            }
+        }
+        Ok(())
+    }
+
     fn sbox_row(&self, logical_width: usize, invocation: usize, target: usize) -> Result<RowForms, PackageError> {
         let constants = constants();
         let input = self
@@ -174,6 +292,7 @@ fn internal_layer(state: &[Form; WIDTH], diagonal: &[u64; WIDTH]) -> [Form; WIDT
     let sum = state.iter().cloned().fold(Form::default(), Form::append);
     std::array::from_fn(|lane| {
         state[lane]
+            .clone()
             .scaled(Goldilocks::from_u64(diagonal[lane]))
             .append(sum.clone())
     })
@@ -184,5 +303,13 @@ fn sbox_ports(one_column: usize, input: Form, output: Form) -> RowForms {
     row[1] = Form::singleton(one_column, Goldilocks::ONE);
     row[4] = output;
     row[5] = input;
+    row
+}
+
+fn pin_ports(one_column: usize, output: Form) -> RowForms {
+    let difference = output.clone().append(output.scaled(-Goldilocks::ONE));
+    let mut row = empty_row();
+    row[1] = Form::singleton(one_column, Goldilocks::ONE);
+    row[4] = difference;
     row
 }

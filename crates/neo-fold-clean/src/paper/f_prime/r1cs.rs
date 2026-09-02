@@ -2,9 +2,9 @@
 //! Hypernova §6.3 / SuperNeo Construction 2.
 //!
 //! Two internal branch emitters mirror the paper's case split. They are not
-//! independently foldable public relations; the production caller combines
-//! them into one selector-controlled implementation language in the
-//! authoritative `frontends::r1cs_f_prime::ivc` relation.
+//! independently foldable public relations. They remain internal helpers for
+//! the separate Nebula frontend. Stage 1 production uses the Lean-authored
+//! package and does not assemble these branches in Rust.
 //!
 //! Owns: the base and recursive Construction-2 branch emitters and their
 //! state/accumulator/public-link outputs.

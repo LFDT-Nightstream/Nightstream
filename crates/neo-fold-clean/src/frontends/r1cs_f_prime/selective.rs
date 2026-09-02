@@ -71,8 +71,11 @@ pub use projected_rows::{
     SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
+pub(crate) use shape::SelectiveLowNormShapeSummary;
+#[cfg(test)]
 pub(crate) use shape::{
-    audit_multi_branch_selective_low_norm_shape_with_alignment, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
 };
 #[doc(hidden)]
 pub use shape::{is_canonical_selective_low_norm_polynomial, selective_polynomial};

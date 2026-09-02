@@ -9,6 +9,7 @@ license = "Apache-2.0"
 workspace = true
 
 [dependencies]
+neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
 neo-transcript = { path = "../neo-transcript" }
 p3-field = { workspace = true }
@@ -17,7 +18,6 @@ rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-wip-spartan = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -70,7 +70,7 @@ fn source_row(index: usize) -> Result<SourceRow, PackageError> {
 
 fn entries(program: &MatrixProgram, row: usize, matrix: usize) -> Vec<(usize, u64)> {
     program.row(6_000, row, &source_row).expect("matrix row")[matrix]
-        .entries
+        .entries()
         .iter()
         .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
         .collect()
@@ -156,6 +156,27 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
 }
 
 #[test]
+fn linear_poseidon_visitor_matches_every_random_access_row() {
+    let program = MatrixProgram::decode(&encoded_program()).expect("matrix program");
+    let block = match &program.blocks[3] {
+        Block::Poseidon(block) => block,
+        _ => panic!("fixture Poseidon2 block"),
+    };
+    let row_count = block.row_count().expect("Poseidon2 row count");
+    let expected = (0..row_count)
+        .map(|row| block.row(6_000, row).expect("random-access row"))
+        .collect::<Vec<_>>();
+    let mut visited = Vec::new();
+    block
+        .visit_rows(6_000, 0, row_count, |row| {
+            visited.push(row);
+            Ok(())
+        })
+        .expect("linear Poseidon2 rows");
+    assert_eq!(visited, expected);
+}
+
+#[test]
 fn malformed_matrix_programs_fail_closed() {
     assert!(matches!(
         MatrixProgram::decode(&json!([[9, []]])),
@@ -206,7 +227,7 @@ fn mapped_source_projection_recovers_the_lean_source_column() {
         .expect("projected ordinary row");
     assert_eq!(
         row[2]
-            .entries
+            .entries()
             .iter()
             .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
             .collect::<Vec<_>>(),

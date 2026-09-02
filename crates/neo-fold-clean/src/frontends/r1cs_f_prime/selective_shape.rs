@@ -20,13 +20,18 @@
 use std::collections::BTreeMap;
 
 use neo_ccs::{SparsePoly, Term};
-use neo_math::{D, F};
+#[cfg(test)]
+use neo_math::D;
+use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
+#[cfg(test)]
 use super::super::lowering::LowNormR1csError;
+#[cfg(test)]
+use super::{prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs};
 use super::{
-    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_CHUNK_CLASS_SELECTORS,
-    CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
+    A, B, BIT, C, CANON_CHUNK_CLASS_SELECTORS, CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT,
+    SELECTIVE_ARITY,
 };
 
 type BorrowMonomial = [u32; 4];
@@ -115,6 +120,7 @@ fn fixed_two_trit_borrow_relation(bound: usize) -> BorrowPolynomial {
     relation
 }
 
+#[cfg(test)]
 pub(crate) struct SelectiveLowNormShape {
     pub rows: usize,
     pub columns: usize,
@@ -149,6 +155,7 @@ impl SelectiveLowNormShapeSummary {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -164,6 +171,7 @@ pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
     arms: &[SparseR1cs],
     shared_private_fields: usize,

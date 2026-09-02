@@ -38,8 +38,7 @@ pub use compact_poseidon_audit::{
 };
 
 pub use super::decider_audit::{
-    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecRadixFourDecompositionAudit, PiDecStrictAudit,
-    TerminalCeClaimAudit,
+    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit, TerminalCeClaimAudit,
 };
 use super::encoding_trace::{
     AcceptanceTraceEntry, BalancedTernaryOpeningTraceEntry, CanonicalU64TraceEntry, FirstAcceptedSelectionTraceEntry,

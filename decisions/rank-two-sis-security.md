@@ -12,14 +12,16 @@ They must not be confused with the main SuperNeo witness commitment.
 
 ## SuperNeo
 
-The selected main commitment uses `κ = 18`. The SuperNeo paper does not
+The selected main commitment originally used `κ = 18`. The SuperNeo paper does not
 define a rank-two profile for Nightstream's auxiliary protocol-binding maps.
 See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md) and the
 [Nightstream commitment profile](../protocol-contract/src/normative/50-nightstream-profile.md).
 
 ## Decision
 
-The main witness commitment remains `κ = 18`. An auxiliary
+The main witness commitment now uses `κ = 22` under the superseding
+[`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md)
+decision. An auxiliary
 protocol-binding SIS map may use `κ = 2` only if:
 
 - its source fields use the [canonical 41-trit opening](41-trit-encoding.md);

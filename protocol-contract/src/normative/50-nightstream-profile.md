@@ -15,18 +15,18 @@ Decision: NSD-DOMAIN-001 and NSD-ENCODING-001.
 
 ### NS-SHAPE-LOGICAL — Selected logical shape
 
-The verifier-key relation artifact MUST supply the exact positive logical row
-count and the exact full committed assignment width `m` for `z=x||w`, with
-`m` a multiple of 54 and at most 16,777,206 fields, or 310,689 complete Phi81
-ring columns. The first 270 fields are `x`. The profile has one fresh claim
-and 16 running claims. Source order MUST be fresh claim 0 followed by running
-claims 0 through 15. A proof-supplied shape MUST NOT select these values.
+The verifier-key relation artifact MUST contain exactly 6,377,555 logical
+rows. Its full committed carrier for `z=x||w` MUST contain 264,627,486 fields,
+or 4,900,509 complete Phi81 ring columns. The first 270 fields are `x`. The
+profile has one fresh claim and 16 running claims. Source order MUST be fresh
+claim 0 followed by running claims 0 through 15. A proof-supplied shape MUST
+NOT select these values.
 
 Decision: NSD-DOMAIN-001 and NSD-CARRIER-001.
 
 ### NS-SHAPE-PADDING — Common row-cube injection
 
-The verifier MUST use a 24-variable Boolean row cube. Logical relation rows
+The verifier MUST use a 28-variable Boolean row cube. Logical relation rows
 and assignment coordinates MUST occupy their zero-based prefixes in
 little-endian Boolean index order. Every unused relation row and every cube
 position after the assignment prefix MUST be zero.
@@ -71,16 +71,19 @@ Decision: NSD-SPLIT-001.
 
 ### NS-COMMITMENT-PROFILE — Ajtai commitment key
 
-The v1 commitment MUST have `kappa=18` rows and exactly `m/54` message columns
-in `R_F`, where `m` comes from the verifier-key relation artifact. It MUST use
-`c_a=sum_j A_(a,j)z_j` as a left matrix-vector product. Setup MUST use
-`nightstream-ajtai-chacha8-setup-par-v1` from
-`src/profile/ajtai-setup-v1.toml`: derive row and fixed-size chunk seeds in
-order, then fill matrix entries in row, column, coefficient order. For each
-ring entry, read 54 little-endian `u64` values before replacement sampling;
-rejected values are replaced in coefficient order. A transpose, blinding
-column, commitment randomness, or affine term is not part of v1. The verifier
-key MUST bind the 32-byte setup seed, dimensions, setup ID, and 18-ring
-commitment encoding through a recomputed Poseidon2 digest.
+The v1 commitment MUST have `kappa=22` rows and exactly 4,900,509 message
+columns in `R_F`. It MUST use `c_a=sum_j A_(a,j)z_j` as a left matrix-vector
+product. Setup MUST use `nightstream-ajtai-chacha20-wide256-v1` with the
+verifier-owned seed
+`fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702`.
+One RFC-8439 ChaCha20 block MUST be indexed by nonce
+`row_u32_le || block_u64_le` and counter `lane_u32`. The first 256 output
+bits MUST be interpreted as one little-endian integer and reduced modulo the
+Goldilocks prime. There is no rejection, retry, fallback, materialized full
+key, transpose, blinding column, commitment randomness, or affine term. The
+verification key MUST bind the seed, dimensions, setup ID, 256-bit reduction
+rule, and 22-ring commitment encoding through the recomputed Poseidon2
+verifier context. The selected post-allowance Module-SIS estimate is about
+110 bits; this estimate is not a formal theorem.
 
 Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.

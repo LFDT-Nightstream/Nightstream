@@ -95,14 +95,14 @@ pub mod goldilocks_paper_b2 {
 
 /// Nightstream Goldilocks production parameters with binary decomposition.
 ///
-/// This profile keeps the field, ring, commitment, sampler, and extension
-/// parameters from the SuperNeo Goldilocks reference, but selects the
-/// Nightstream production exponent `k_rho = 16` and `B = 2^16`.
+/// This profile keeps the field, ring, sampler, and extension parameters from
+/// the SuperNeo Goldilocks reference, but selects the Nightstream production
+/// module rank `κ = 22`, exponent `k_rho = 16`, and `B = 2^16`.
 pub mod nightstream_goldilocks_k16 {
     pub const Q: u64 = super::goldilocks_paper_b2::Q;
     pub const ETA: usize = super::goldilocks_paper_b2::ETA;
     pub const D: usize = super::goldilocks_paper_b2::D;
-    pub const KAPPA: u32 = super::goldilocks_paper_b2::KAPPA;
+    pub const KAPPA: u32 = 22;
     pub const M: u64 = super::goldilocks_paper_b2::M;
     pub const B_BASE: u32 = 2;
     pub const K_RHO: u32 = 16;

@@ -16,6 +16,7 @@ mod memory;
 mod memory_check;
 pub mod poseidon2;
 mod r1cs;
+mod range_check;
 mod relation;
 
 pub use audit::{
@@ -45,5 +46,9 @@ pub use poseidon2::{
 pub use r1cs::{
     ConstraintCatalog, ConstraintTag, R1csBuildError, R1csBuilder, R1csRelation, R1csRow, R1csSide, TaggedR1csBuilder,
     TaggedR1csRow,
+};
+pub use range_check::{
+    decomposition_bit_count, range_checked_variable_widths, RangeCheckAssignmentError, RangeCheckBitFamily,
+    RangeCheckLayout, RangeCheckLayoutError,
 };
 pub use relation::{ApplicationRelation, ApplicationRelationError};

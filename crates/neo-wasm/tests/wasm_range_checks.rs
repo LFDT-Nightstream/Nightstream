@@ -1,5 +1,6 @@
 mod common;
 
+use neo_application::decomposition_bit_count;
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
@@ -16,11 +17,7 @@ use p3_field::PrimeCharacteristicRing;
 fn expected_aux_bits() -> usize {
     column_families()
         .chain(AUX_COLUMN_FAMILIES.iter())
-        .map(|family| match family.width {
-            ColumnWidth::Boolean | ColumnWidth::Field => 0,
-            ColumnWidth::Byte => 8,
-            ColumnWidth::U32 => 32,
-        } * family.len)
+        .map(|family| decomposition_bit_count(family.width) * family.len)
         .sum()
 }
 
@@ -69,11 +66,7 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
     let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
 
     for family in column_families().chain(AUX_COLUMN_FAMILIES.iter()) {
-        let bit_count = match family.width {
-            ColumnWidth::Boolean | ColumnWidth::Field => 0,
-            ColumnWidth::Byte => 8,
-            ColumnWidth::U32 => 32,
-        };
+        let bit_count = decomposition_bit_count(family.width);
 
         for column in family.start..family.end() {
             if bit_count == 0 {

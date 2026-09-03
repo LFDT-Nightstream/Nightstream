@@ -1,57 +1,27 @@
-//! Range-check pass: enforces each column's declared [`ColumnWidth`] with
+//! Range-check pass: enforces each column's declared
+//! [`neo_application::ColumnWidth`] with
 //! explicit R1CS rows.
 //!
-//! This adds cosntraints after the base CCS, by looping over all the columns
+//! This adds constraints after the base CCS, by looping over all the columns
 //! and deriving the constraints from its declared type.
 //!
 //! Also provides the function to compute the corresponding witness assignment.
 
-use crate::layout::{ColumnWidth, COL_ONE};
-use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
-use crate::witness_layout::{
-    declared_witness_column_families, range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH,
-};
+use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmTaggedR1csBuilder};
+use crate::witness_layout::range_check_layout;
 use neo_math::F;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::ops::Range;
 
 /// Aux bit columns backing one declared byte/u32 column in the extended
 /// witness. Boolean and field columns have no separate decomposition.
 pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
-    range_bit_region(column).map(|region| region.start..region.end())
+    range_check_layout().bit_columns_for(column)
 }
 
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
-pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder<'_>) {
-    for family in declared_witness_column_families() {
-        for column in family.start..family.end() {
-            let tag = WasmConstraintTag::new(family.name, WasmConstraintScope::Always);
-            match family.width {
-                ColumnWidth::Field => {}
-                ColumnWidth::Boolean => {
-                    b.with_tag(tag, |b| {
-                        b.push_boolean(column);
-                    });
-                }
-                ColumnWidth::Byte | ColumnWidth::U32 => {
-                    let region = range_bit_region(column).expect("decomposed column has a range-bit region");
-                    b.with_tag(tag, |b| {
-                        for bit in region.start..region.end() {
-                            b.push_boolean(bit);
-                        }
-                        b.push_row(
-                            (region.start..region.end())
-                                .enumerate()
-                                .map(|(i, bit)| (bit, F::from_u64(1u64 << i))),
-                            [(COL_ONE, F::ONE)],
-                            [(column, F::ONE)],
-                        );
-                    });
-                }
-            }
-        }
-    }
+pub(crate) fn push_range_check_rows(builder: &mut WasmTaggedR1csBuilder<'_>) {
+    range_check_layout().push_constraints(builder, WasmConstraintScope::Always);
 }
 
 /// Compute (or refresh) the aux bit columns from the declared columns.
@@ -62,23 +32,7 @@ pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// gets its low bits written as-is, leaving the recomposition row unsatisfiable
 /// — the CCS failure then carries the column's name via the row tag.
 pub fn write_range_check_bits(witness: &mut Vec<F>) {
-    assert!(
-        witness.len() == RANGE_BITS.start || witness.len() == RANGE_CHECKED_WITNESS_WIDTH,
-        "witness length {} is neither the base width {} nor the range-checked width {}",
-        witness.len(),
-        RANGE_BITS.start,
-        RANGE_CHECKED_WITNESS_WIDTH,
-    );
-    witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
-    for family in declared_witness_column_families() {
-        for column in family.start..family.end() {
-            let Some(region) = range_bit_region(column) else {
-                continue;
-            };
-            let value = witness[column].as_canonical_u64();
-            for (i, bit) in (region.start..region.end()).enumerate() {
-                witness[bit] = F::from_u64((value >> i) & 1);
-            }
-        }
-    }
+    range_check_layout()
+        .assign_bits(witness)
+        .unwrap_or_else(|error| panic!("{error}"));
 }

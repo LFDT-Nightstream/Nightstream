@@ -125,7 +125,12 @@ fn build_demo_zero_test_circuit() -> DemoCircuit {
                 is_zero: *is_zero,
             }
         }
-        GadgetDescriptor::ConditionalSelect { .. } => {
+        GadgetDescriptor::ConditionalSelect { .. }
+        | GadgetDescriptor::Pow7 { .. }
+        | GadgetDescriptor::Poseidon2FullRound12 { .. }
+        | GadgetDescriptor::Poseidon2PartialPair12 { .. }
+        | GadgetDescriptor::Poseidon2Permutation12 { .. }
+        | GadgetDescriptor::EventCommitment { .. } => {
             panic!("the Lean demo expects a zero-test occurrence");
         }
     };

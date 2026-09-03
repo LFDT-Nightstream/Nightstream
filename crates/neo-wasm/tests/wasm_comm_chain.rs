@@ -137,6 +137,22 @@ fn ccs_rejects_forged_perm_round_output() {
     }
 }
 
+/// Gadget auxiliary assignment must not repair a bad semantic state supplied
+/// by the trace normalizer.
+#[test]
+fn ccs_rejects_trace_with_forged_perm_state_after() {
+    let trace = two_event_trace();
+    let original = perm_rows(&trace)
+        .into_iter()
+        .next()
+        .expect("permutation row");
+    let mut corrupted = (*original).clone();
+    corrupted.state_after.event_absorb.perm_state[0] ^= 1;
+
+    let witness = build_witness_vector(&corrupted);
+    common::assert_rejected(&witness, "trace row with a forged permutation state");
+}
+
 /// The absorb row's entry state is pinned to `[chain | evbuf]`: forging a
 /// buffer word out from under the absorb is CCS-rejected.
 #[test]

@@ -37,11 +37,8 @@ neo-reductions = { path = "../neo-reductions" }
 neo-transcript = { path = "../neo-transcript" }
 ff = { workspace = true, features = ["derive"] }
 futures = "0.3"
-once_cell = { workspace = true }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
-p3-poseidon2 = { workspace = true }
-p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 serde = { workspace = true }

@@ -1,9 +1,8 @@
 //! In-circuit host-event chain gadget: constrains `HostEventPerm` rows to
 //! advance the width-12 Poseidon2 block absorb one round-row at a time, and
 //! binds the absorb buffer to host-event gather rows. The protocol constants
-//! and the native round decomposition live
-//! in [`crate::comm_chain`]; every linear map here is probed from those
-//! functions, so the circuit cannot drift from the native chain.
+//! and the reusable round gadgets live in `neo-application`, so the circuit
+//! and native commitment share one protocol definition.
 //!
 //! Row schedule per absorbed block (position one-hot `COL_PERM_POS*`):
 //! positions 0-3 initial full rounds (0 also absorbs `[chain | evbuf]`
@@ -46,12 +45,13 @@ use super::super::layout::{
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
 use super::host_event;
-use crate::comm_chain::{
-    perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
-    perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
-};
+use crate::comm_chain::{COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW};
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
-use neo_application::{define_column_region, ZeroTest};
+use neo_application::poseidon2::external_matrix;
+use neo_application::{
+    define_column_region, Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialPair12,
+    Poseidon2PartialPairChoice, ZeroTest,
+};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -143,29 +143,33 @@ pub(super) const fn host_call_params_col() -> usize {
     GHC_PARAMS
 }
 
-/// Dense 12×12 matrix of the external (`mds_light`) linear layer, probed
-/// from the native implementation.
-pub(crate) fn external_matrix() -> [[F; 12]; 12] {
-    matrix_of(perm_external_linear)
-}
-
-/// Dense 12×12 matrix of the internal (`1 + diag(v)`) linear layer, probed
-/// from the native implementation.
-pub(crate) fn internal_matrix() -> [[F; 12]; 12] {
-    matrix_of(perm_internal_linear)
-}
-
-fn matrix_of(apply: fn(&mut [F; 12])) -> [[F; 12]; 12] {
-    let mut m = [[F::ZERO; 12]; 12];
-    for col in 0..12 {
-        let mut basis = [F::ZERO; 12];
-        basis[col] = F::ONE;
-        apply(&mut basis);
-        for (row, value) in basis.iter().enumerate() {
-            m[row][col] = *value;
-        }
+fn full_round_gadget() -> Poseidon2FullRound12<8> {
+    Poseidon2FullRound12 {
+        choices: [
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[0], 0),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[1], 1),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[2], 2),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[3], 3),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW], 4),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 1], 5),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 2], 6),
+            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 3], 7),
+        ],
+        state_before: COL_PERM_STATE_BEFORE,
+        state_after: COL_PERM_STATE_AFTER,
+        powers: core::array::from_fn(|lane| core::array::from_fn(|power| FULL_ROUND_POWERS[4 * lane + power])),
     }
-    m
+}
+
+fn partial_pair_gadget() -> Poseidon2PartialPair12<11> {
+    Poseidon2PartialPair12 {
+        choices: core::array::from_fn(|pair| {
+            Poseidon2PartialPairChoice::for_pair(PERM_POSITION[PERM_PARTIAL_FIRST_ROW + pair], pair)
+        }),
+        state_before: COL_PERM_STATE_BEFORE,
+        state_after: COL_PERM_STATE_AFTER,
+        powers: PARTIAL_ROUND_POWERS,
+    }
 }
 
 /// Gate terms that are 1 exactly on `HostEventPerm` rows: `perm_pending`
@@ -919,111 +923,20 @@ fn push_absorb_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-/// Full-round rows: `state_after = M_ext · sbox(state_before + RC[pos])`,
-/// with the S-box powers in unconditional mult rows over `COL_PERM_FULL_T*`
-/// and the round constants blended in through the position one-hot.
+/// Full-round rows share one selectable round gadget across the eight full
+/// positions. The position one-hot chooses the constants and activates the
+/// output rows; power assignments remain canonical on every trace row.
 fn push_full_round_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let me = external_matrix();
-    let full_positions: Vec<usize> = (0..COMM_CHAIN_PERM_ROWS)
-        .filter(|&p| perm_row_is_full_round(p))
-        .collect();
-
     b.with_tag(host_event("host event perm full round"), |b| {
-        for lane in 0..12 {
-            // x = state_before[lane] + sum_pos P_pos * RC[pos][lane]
-            let x_terms: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[lane], F::ONE))
-                .chain(
-                    full_positions
-                        .iter()
-                        .map(|&pos| (PERM_POSITION[pos], perm_full_round_constants(pos)[lane])),
-                )
-                .collect();
-            let t = |i: usize| FULL_ROUND_POWERS[4 * lane + i];
-            b.push_row(x_terms.clone(), x_terms.clone(), [(t(0), F::ONE)]);
-            b.push_row([(t(0), F::ONE)], [(t(0), F::ONE)], [(t(1), F::ONE)]);
-            b.push_row([(t(1), F::ONE)], [(t(0), F::ONE)], [(t(2), F::ONE)]);
-            b.push_row([(t(2), F::ONE)], x_terms, [(t(3), F::ONE)]);
-        }
-        // Gated round output: state_after = M_ext · [t3 per lane].
-        let gate: Vec<(usize, F)> = full_positions
-            .iter()
-            .map(|&pos| (PERM_POSITION[pos], F::ONE))
-            .collect();
-        for lane in 0..12 {
-            let mut terms = vec![(COL_PERM_STATE_AFTER[lane], F::ONE)];
-            for (k, coeff) in me[lane].iter().enumerate() {
-                terms.push((FULL_ROUND_POWERS[4 * k + 3], -*coeff));
-            }
-            b.push_row(gate.clone(), terms, []);
-        }
+        full_round_gadget().push_constraints_assuming_preconstrained_selectors(b);
     });
 }
 
-/// Partial-pair rows: two internal rounds. Round a S-boxes lane 0 into
-/// `U3`, round b S-boxes the mixed lane 0 into `U7`, and the gated output
-/// rows apply the composed internal linear layers.
+/// Partial-pair rows similarly share one selectable two-round gadget across
+/// the eleven partial positions.
 fn push_partial_pair_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let mi = internal_matrix();
-    let partial_positions: Vec<usize> = (PERM_PARTIAL_FIRST_ROW..PERM_TERMINAL_FIRST_ROW).collect();
-
-    // Linear forms over [U3, state_before[1..12]] for the state after round
-    // a: t'_i = MI[i][0]·U3 + sum_{j>=1} MI[i][j]·SB_j.
-    let u = |i: usize| PARTIAL_ROUND_POWERS[i];
-
     b.with_tag(host_event("host event perm partial pair"), |b| {
-        // Round a S-box input: x_a = SB_0 + selected RC.
-        let x_a: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[0], F::ONE))
-            .chain(
-                partial_positions
-                    .iter()
-                    .map(|&pos| (PERM_POSITION[pos], perm_partial_round_constants(pos).0)),
-            )
-            .collect();
-        b.push_row(x_a.clone(), x_a.clone(), [(u(0), F::ONE)]);
-        b.push_row([(u(0), F::ONE)], [(u(0), F::ONE)], [(u(1), F::ONE)]);
-        b.push_row([(u(1), F::ONE)], [(u(0), F::ONE)], [(u(2), F::ONE)]);
-        b.push_row([(u(2), F::ONE)], x_a, [(u(3), F::ONE)]);
-
-        // Round b S-box input: x_b = t'_0 + selected RC.
-        let mut x_b: Vec<(usize, F)> = vec![(u(3), mi[0][0])];
-        for j in 1..12 {
-            x_b.push((COL_PERM_STATE_BEFORE[j], mi[0][j]));
-        }
-        x_b.extend(
-            partial_positions
-                .iter()
-                .map(|&pos| (PERM_POSITION[pos], perm_partial_round_constants(pos).1)),
-        );
-        b.push_row(x_b.clone(), x_b.clone(), [(u(4), F::ONE)]);
-        b.push_row([(u(4), F::ONE)], [(u(4), F::ONE)], [(u(5), F::ONE)]);
-        b.push_row([(u(5), F::ONE)], [(u(4), F::ONE)], [(u(6), F::ONE)]);
-        b.push_row([(u(6), F::ONE)], x_b, [(u(7), F::ONE)]);
-
-        // Gated output: state_after = MI · [U7 | t'_1..11], with t' expanded
-        // over [U3, SB_1..11].
-        let gate: Vec<(usize, F)> = partial_positions
-            .iter()
-            .map(|&pos| (PERM_POSITION[pos], F::ONE))
-            .collect();
-        for lane in 0..12 {
-            let mut coeff_u3 = F::ZERO;
-            let mut coeff_sb = [F::ZERO; 12];
-            for j in 1..12 {
-                coeff_u3 += mi[lane][j] * mi[j][0];
-                for k in 1..12 {
-                    coeff_sb[k] += mi[lane][j] * mi[j][k];
-                }
-            }
-            let mut terms = vec![
-                (COL_PERM_STATE_AFTER[lane], F::ONE),
-                (u(7), -mi[lane][0]),
-                (u(3), -coeff_u3),
-            ];
-            for (k, coeff) in coeff_sb.iter().enumerate().skip(1) {
-                terms.push((COL_PERM_STATE_BEFORE[k], -*coeff));
-            }
-            b.push_row(gate.clone(), terms, []);
-        }
+        partial_pair_gadget().push_constraints_assuming_preconstrained_selectors(b);
     });
 }
 
@@ -1097,7 +1010,6 @@ pub fn write_turn_entry_guard_witness(wit: &mut [F]) {
 pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
     let before = trace.state_before.event_absorb;
-    let sb: [F; 12] = before.perm_state.map(F::from_u64);
 
     let pos = trace
         .row_kind
@@ -1107,38 +1019,8 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[PERM_POSITION[pos]] = F::ONE;
     }
 
-    // Full-round S-box powers: x = state_before[lane] + selected RC.
-    for lane in 0..12 {
-        let rc = pos
-            .filter(|&p| perm_row_is_full_round(p))
-            .map(|p| perm_full_round_constants(p)[lane])
-            .unwrap_or(F::ZERO);
-        let x = sb[lane] + rc;
-        let t = |power| FULL_ROUND_POWERS[4 * lane + power];
-        wit[t(0)] = x * x;
-        wit[t(1)] = wit[t(0)] * wit[t(0)];
-        wit[t(2)] = wit[t(1)] * wit[t(0)];
-        wit[t(3)] = wit[t(2)] * x;
-    }
-
-    // Partial-pair S-box powers: round a on lane 0, internal mix, round b.
-    let (rc_a, rc_b) = pos
-        .filter(|&p| !perm_row_is_full_round(p))
-        .map(perm_partial_round_constants)
-        .unwrap_or((F::ZERO, F::ZERO));
-    let x_a = sb[0] + rc_a;
-    wit[PARTIAL_ROUND_POWERS[0]] = x_a * x_a;
-    wit[PARTIAL_ROUND_POWERS[1]] = wit[PARTIAL_ROUND_POWERS[0]] * wit[PARTIAL_ROUND_POWERS[0]];
-    wit[PARTIAL_ROUND_POWERS[2]] = wit[PARTIAL_ROUND_POWERS[1]] * wit[PARTIAL_ROUND_POWERS[0]];
-    wit[PARTIAL_ROUND_POWERS[3]] = wit[PARTIAL_ROUND_POWERS[2]] * x_a;
-    let mut mixed = sb;
-    mixed[0] = wit[PARTIAL_ROUND_POWERS[3]];
-    perm_internal_linear(&mut mixed);
-    let x_b = mixed[0] + rc_b;
-    wit[PARTIAL_ROUND_POWERS[4]] = x_b * x_b;
-    wit[PARTIAL_ROUND_POWERS[5]] = wit[PARTIAL_ROUND_POWERS[4]] * wit[PARTIAL_ROUND_POWERS[4]];
-    wit[PARTIAL_ROUND_POWERS[6]] = wit[PARTIAL_ROUND_POWERS[5]] * wit[PARTIAL_ROUND_POWERS[4]];
-    wit[PARTIAL_ROUND_POWERS[7]] = wit[PARTIAL_ROUND_POWERS[6]] * x_b;
+    full_round_gadget().assign_auxiliaries(wit);
+    partial_pair_gadget().assign_auxiliaries(wit);
 
     // Host-event gather one-hots and staged value.
     if trace.row_kind.is_host_event_gather() {

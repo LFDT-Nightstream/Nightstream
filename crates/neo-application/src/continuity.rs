@@ -1,6 +1,9 @@
-//! Ordered declarations of application state carried between consecutive steps.
+//! Ordered declarations and diagnostic replay of application state carried
+//! between consecutive steps.
 
 use std::collections::BTreeMap;
+
+use neo_math::F;
 
 use crate::ColumnRegistry;
 
@@ -108,6 +111,99 @@ impl ContinuityCatalog {
     pub const fn link_count(&self) -> usize {
         self.link_count
     }
+}
+
+/// Check every declared continuity link between adjacent witness rows.
+///
+/// This is diagnostic replay, not a substitute for emitting the corresponding
+/// relation or backend constraints.
+pub fn check_continuity_rows(catalog: &ContinuityCatalog, witness_rows: &[Vec<F>]) -> Result<(), ContinuityCheckError> {
+    for (boundary, rows) in witness_rows.windows(2).enumerate() {
+        let previous = &rows[0];
+        let next = &rows[1];
+        for (group_index, group) in catalog.groups().iter().enumerate() {
+            for (link_index, link) in group.links.iter().enumerate() {
+                let previous_value = read_column(
+                    previous,
+                    boundary,
+                    group_index,
+                    group.name,
+                    link_index,
+                    link.previous_step_column,
+                )?;
+                let next_value = read_column(
+                    next,
+                    boundary + 1,
+                    group_index,
+                    group.name,
+                    link_index,
+                    link.next_step_column,
+                )?;
+                if previous_value != next_value {
+                    return Err(ContinuityCheckError::Mismatch {
+                        boundary,
+                        group: group_index,
+                        group_name: group.name,
+                        link: link_index,
+                        previous_step_column: link.previous_step_column,
+                        next_step_column: link.next_step_column,
+                        previous_value,
+                        next_value,
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_column(
+    witness: &[F],
+    row: usize,
+    group: usize,
+    group_name: &'static str,
+    link: usize,
+    column: usize,
+) -> Result<F, ContinuityCheckError> {
+    witness
+        .get(column)
+        .copied()
+        .ok_or(ContinuityCheckError::MissingColumn {
+            row,
+            group,
+            group_name,
+            link,
+            column,
+            actual_width: witness.len(),
+        })
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum ContinuityCheckError {
+    #[error(
+        "continuity group {group} ({group_name:?}) link {link} references column {column}, but witness row {row} has width {actual_width}"
+    )]
+    MissingColumn {
+        row: usize,
+        group: usize,
+        group_name: &'static str,
+        link: usize,
+        column: usize,
+        actual_width: usize,
+    },
+    #[error(
+        "continuity mismatch across boundary {boundary} in group {group} ({group_name:?}) link {link}: previous column {previous_step_column} is {previous_value}, next column {next_step_column} is {next_value}"
+    )]
+    Mismatch {
+        boundary: usize,
+        group: usize,
+        group_name: &'static str,
+        link: usize,
+        previous_step_column: usize,
+        next_step_column: usize,
+        previous_value: F,
+        next_value: F,
+    },
 }
 
 fn validate_column(

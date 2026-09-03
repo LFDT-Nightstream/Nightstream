@@ -1,73 +1,32 @@
-//! Host-event commitment chain: the hash that binds host-call events into an
-//! incrementally carried digest, shared bit-for-bit with external interaction
-//! verifiers (the Starstream interleaving proof's `LedgerEffectsCommitment`).
+//! Wasm host-event extraction and diagnostic replay for the shared event
+//! commitment protocol.
 //!
-//! Owns the chain-update permutation and its protocol constants. Does not own
-//! the event bindings (which host import maps to which discriminant/arg slots)
-//! or the circuit gadget enforcing the update in CCS rows.
-//!
-//! Protocol constants (must match `starstream-interleaving-proof`):
-//! - Poseidon2 over Goldilocks, width 12, S-box x^7, 4+4 full / 22 partial
-//!   rounds, as instantiated by p3-goldilocks 0.5.3
-//!   `default_goldilocks_poseidon2_12()` (Grain LFSR round constants:
-//!   field_type=1, alpha=7, n=64, t=12, R_F=8, R_P=22).
-//! - Chain update = compression: permute `[prev_4 | discriminant | args_7]`,
-//!   truncate to 4 lanes, feed-forward add the matching input lanes.
+//! The exact Poseidon2 parameters and compression live in `neo-application`;
+//! this module owns only wasm's event-block interpretation and trace checks.
 
 use crate::ir::{WasmBuildError, WasmVmStep};
-use once_cell::sync::Lazy;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{
-    default_goldilocks_poseidon2_12, Goldilocks, Poseidon2Goldilocks, GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL,
-    GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_INITIAL, GOLDILOCKS_POSEIDON2_RC_12_INTERNAL, MATRIX_DIAG_12_GOLDILOCKS,
+use p3_goldilocks::Goldilocks;
+
+use neo_application::event_commitment::{self, EVENT_COMMITMENT_BLOCK_WIDTH, EVENT_COMMITMENT_STATE_WIDTH};
+use neo_application::poseidon2::{
+    self, POSEIDON2_GROUPED_ROUNDS, POSEIDON2_HALF_FULL_ROUNDS, POSEIDON2_PARTIAL_PAIRS, POSEIDON2_WIDTH,
 };
-use p3_poseidon2::{matmul_internal, mds_light_permutation, MDSMat4};
-use p3_symmetric::Permutation;
 
 /// Field elements carried as the chain state (and emitted as the digest).
-pub const COMM_CHAIN_STATE_LEN: usize = 4;
+pub const COMM_CHAIN_STATE_LEN: usize = EVENT_COMMITMENT_STATE_WIDTH;
 /// Fixed argument slots absorbed per event, after the discriminant.
-pub const COMM_CHAIN_EVENT_ARGS: usize = 7;
+pub const COMM_CHAIN_EVENT_ARGS: usize = EVENT_COMMITMENT_BLOCK_WIDTH - 1;
 
 /// Initial state of the host-event commitment chain.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct CommChainState([Goldilocks; COMM_CHAIN_STATE_LEN]);
-
-impl CommChainState {
-    pub const fn new(lanes: [Goldilocks; COMM_CHAIN_STATE_LEN]) -> Self {
-        Self(lanes)
-    }
-
-    pub const fn into_lanes(self) -> [Goldilocks; COMM_CHAIN_STATE_LEN] {
-        self.0
-    }
-
-    pub fn canonical_u64(self) -> [u64; COMM_CHAIN_STATE_LEN] {
-        self.0.map(|lane| lane.as_canonical_u64())
-    }
-
-    pub fn from_canonical_u64(lanes: [u64; COMM_CHAIN_STATE_LEN]) -> Result<Self, WasmBuildError> {
-        if let Some(idx) = lanes.iter().position(|&lane| lane >= Goldilocks::ORDER_U64) {
-            return Err(WasmBuildError::Trace(format!(
-                "comm-chain lane {idx} is not a canonical field element"
-            )));
-        }
-        Ok(Self(lanes.map(Goldilocks::from_u64)))
-    }
-}
-
-static PERM12: Lazy<Poseidon2Goldilocks<12>> = Lazy::new(default_goldilocks_poseidon2_12);
+pub use neo_application::event_commitment::EventCommitmentState as CommChainState;
 
 /// Fold event blocks from the supplied initial commitment state.
 pub fn fold_event_blocks(
     initial_state: CommChainState,
     blocks: &[[Goldilocks; COMM_CHAIN_BLOCK_WORDS]],
 ) -> CommChainState {
-    let mut chain = initial_state.0;
-    for block in blocks {
-        chain = commit_event(chain, block[0], core::array::from_fn(|i| block[1 + i]));
-    }
-    CommChainState(chain)
+    event_commitment::fold_blocks(initial_state, blocks)
 }
 
 /// Absorb one host event into the chain: `H([prev | discriminant | args])`.
@@ -76,17 +35,14 @@ pub fn commit_event(
     discriminant: Goldilocks,
     args: [Goldilocks; COMM_CHAIN_EVENT_ARGS],
 ) -> [Goldilocks; COMM_CHAIN_STATE_LEN] {
-    let mut state = [Goldilocks::ZERO; 12];
-    state[..COMM_CHAIN_STATE_LEN].copy_from_slice(&prev);
-    state[COMM_CHAIN_STATE_LEN] = discriminant;
-    state[COMM_CHAIN_STATE_LEN + 1..].copy_from_slice(&args);
-
-    let permuted = PERM12.permute(state);
-    core::array::from_fn(|i| permuted[i] + state[i])
+    let mut block = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
+    block[0] = discriminant;
+    block[1..].copy_from_slice(&args);
+    event_commitment::commit_block(prev, block)
 }
 
 /// Words absorbed per chain block (discriminant slot + arg slots).
-pub const COMM_CHAIN_BLOCK_WORDS: usize = 1 + COMM_CHAIN_EVENT_ARGS;
+pub const COMM_CHAIN_BLOCK_WORDS: usize = EVENT_COMMITMENT_BLOCK_WIDTH;
 
 /// Trace attribution accompanying an absorbed block.
 ///
@@ -138,66 +94,34 @@ pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
 
 /// Circuit rows per absorbed block: 4 initial full rounds, 11 partial-pair
 /// rows (2 internal rounds each), 4 terminal full rounds.
-pub const COMM_CHAIN_PERM_ROWS: usize = 19;
+pub const COMM_CHAIN_PERM_ROWS: usize = POSEIDON2_GROUPED_ROUNDS;
 /// Row positions `0..PERM_PARTIAL_FIRST_ROW` are the initial full rounds.
-pub const PERM_PARTIAL_FIRST_ROW: usize = 4;
+pub const PERM_PARTIAL_FIRST_ROW: usize = POSEIDON2_HALF_FULL_ROUNDS;
 /// Row positions `PERM_TERMINAL_FIRST_ROW..COMM_CHAIN_PERM_ROWS` are the
 /// terminal full rounds.
-pub const PERM_TERMINAL_FIRST_ROW: usize = 15;
+pub const PERM_TERMINAL_FIRST_ROW: usize = POSEIDON2_HALF_FULL_ROUNDS + POSEIDON2_PARTIAL_PAIRS;
 
 /// Is circuit row position `pos` a full (external) round row?
-pub fn perm_row_is_full_round(pos: usize) -> bool {
+fn perm_row_is_full_round(pos: usize) -> bool {
     pos < PERM_PARTIAL_FIRST_ROW || pos >= PERM_TERMINAL_FIRST_ROW
 }
 
-/// External round constants for full-round row position `pos`.
-pub fn perm_full_round_constants(pos: usize) -> &'static [Goldilocks; 12] {
-    if pos < PERM_PARTIAL_FIRST_ROW {
-        &GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_INITIAL[pos]
-    } else {
-        &GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL[pos - PERM_TERMINAL_FIRST_ROW]
-    }
-}
-
-/// Internal round constants `(first, second)` for partial-pair row position `pos`.
-pub fn perm_partial_round_constants(pos: usize) -> (Goldilocks, Goldilocks) {
-    let pair = pos - PERM_PARTIAL_FIRST_ROW;
-    (
-        GOLDILOCKS_POSEIDON2_RC_12_INTERNAL[2 * pair],
-        GOLDILOCKS_POSEIDON2_RC_12_INTERNAL[2 * pair + 1],
-    )
-}
-
 /// The external (`mds_light`) linear layer of the chain permutation.
-pub fn perm_external_linear(state: &mut [Goldilocks; 12]) {
-    mds_light_permutation(state, &MDSMat4);
-}
-
-/// The internal (`1 + diag(v)`) linear layer of the chain permutation.
-pub fn perm_internal_linear(state: &mut [Goldilocks; 12]) {
-    matmul_internal(state, MATRIX_DIAG_12_GOLDILOCKS);
-}
-
-fn sbox(x: Goldilocks) -> Goldilocks {
-    let x2 = x * x;
-    let x4 = x2 * x2;
-    x4 * x2 * x
+pub fn perm_external_linear(state: &mut [Goldilocks; POSEIDON2_WIDTH]) {
+    poseidon2::external_linear(state);
 }
 
 /// Apply the circuit row at position `pos` to a permutation state.
-pub fn perm_row_transition(pos: usize, state: &mut [Goldilocks; 12]) {
+pub fn perm_row_transition(pos: usize, state: &mut [Goldilocks; POSEIDON2_WIDTH]) {
     if perm_row_is_full_round(pos) {
-        let rc = perm_full_round_constants(pos);
-        for (lane, rc) in state.iter_mut().zip(rc) {
-            *lane = sbox(*lane + *rc);
-        }
-        perm_external_linear(state);
+        let round = if pos < PERM_PARTIAL_FIRST_ROW {
+            pos
+        } else {
+            pos - POSEIDON2_PARTIAL_PAIRS
+        };
+        poseidon2::apply_full_round(round, state);
     } else {
-        let (rc_a, rc_b) = perm_partial_round_constants(pos);
-        for rc in [rc_a, rc_b] {
-            state[0] = sbox(state[0] + rc);
-            perm_internal_linear(state);
-        }
+        poseidon2::apply_partial_pair(pos - PERM_PARTIAL_FIRST_ROW, state);
     }
 }
 
@@ -213,16 +137,16 @@ pub fn perm_row_transition(pos: usize, state: &mut [Goldilocks; 12]) {
 pub fn perm_row_checkpoints(
     prev: [Goldilocks; COMM_CHAIN_STATE_LEN],
     words: [Goldilocks; COMM_CHAIN_BLOCK_WORDS],
-) -> [[Goldilocks; 12]; COMM_CHAIN_PERM_ROWS + 1] {
-    let mut state = [Goldilocks::ZERO; 12];
+) -> [[Goldilocks; POSEIDON2_WIDTH]; COMM_CHAIN_PERM_ROWS + 1] {
+    let mut state = [Goldilocks::ZERO; POSEIDON2_WIDTH];
     state[..COMM_CHAIN_STATE_LEN].copy_from_slice(&prev);
     state[COMM_CHAIN_STATE_LEN..].copy_from_slice(&words);
-    perm_external_linear(&mut state);
+    poseidon2::apply_initial_linear(&mut state);
 
-    let mut checkpoints = [[Goldilocks::ZERO; 12]; COMM_CHAIN_PERM_ROWS + 1];
-    for pos in 0..COMM_CHAIN_PERM_ROWS {
-        checkpoints[pos] = state;
-        perm_row_transition(pos, &mut state);
+    let mut checkpoints = [[Goldilocks::ZERO; POSEIDON2_WIDTH]; COMM_CHAIN_PERM_ROWS + 1];
+    for (position, checkpoint) in checkpoints[..COMM_CHAIN_PERM_ROWS].iter_mut().enumerate() {
+        *checkpoint = state;
+        perm_row_transition(position, &mut state);
     }
     checkpoints[COMM_CHAIN_PERM_ROWS] = state;
     checkpoints

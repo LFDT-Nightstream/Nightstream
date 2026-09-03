@@ -32,15 +32,15 @@ fn every_selector_column_is_declared_boolean() {
     // annotation, the booleanity row is silently omitted and per-opcode
     // gating becomes unsound (a prover can split a selector's "1" across
     // canceling field values). This test pins that contract.
-    use neo_wasm::layout::{named_column_family, ColumnWidth, SELECTOR_COLS};
+    use neo_wasm::layout::{named_column_family, SELECTOR_COLS};
 
     let undeclared: Vec<&'static str> = SELECTOR_COLS
         .iter()
         .filter(|&&col| {
-            named_column_family(col)
+            !named_column_family(col)
                 .expect("declared selector column")
                 .width
-                != ColumnWidth::Boolean
+                .is_boolean()
         })
         .map(|&col| {
             named_column_family(col)

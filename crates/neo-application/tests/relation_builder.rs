@@ -20,6 +20,8 @@ neo_application::define_column_region! {
     columns: [
         MACRO_FLAG: Boolean => "test flag",
         MACRO_BYTES: [Byte; 3] => "test bytes",
+        MACRO_TWO_BITS: (Bits(2)) => "test two-bit value",
+        MACRO_NIBBLES: [(Bits(4)); 2] => "test nibbles",
     ]
 }
 
@@ -69,12 +71,17 @@ fn test_columns() -> ColumnRegistry {
 
 #[test]
 fn exported_macro_declares_contiguous_indices_and_families() {
-    assert_eq!(MACRO_TEST_WIDTH, 4);
+    assert_eq!(MACRO_TEST_WIDTH, 7);
     assert_eq!(MACRO_FLAG, 0);
     assert_eq!(MACRO_BYTES, [1, 2, 3]);
+    assert_eq!(MACRO_TWO_BITS, 4);
+    assert_eq!(MACRO_NIBBLES, [5, 6]);
     assert_eq!(MACRO_TEST_FAMILIES[1].start, 1);
     assert_eq!(MACRO_TEST_FAMILIES[1].len, 3);
     assert_eq!(MACRO_TEST_FAMILIES[1].width, ColumnWidth::Byte);
+    assert_eq!(MACRO_TEST_FAMILIES[2].width, ColumnWidth::Bits(2));
+    assert_eq!(MACRO_TEST_FAMILIES[3].len, 2);
+    assert_eq!(MACRO_TEST_FAMILIES[3].width, ColumnWidth::Bits(4));
 
     let registry = ColumnRegistry::new(MACRO_TEST_FAMILIES.iter().copied()).expect("valid generated registry");
     assert_eq!(registry.column_count(), MACRO_TEST_WIDTH);
@@ -90,7 +97,37 @@ fn exported_macro_declares_contiguous_indices_and_families() {
         registry.family_for_column(3).map(|family| family.name),
         Some("MACRO_BYTES")
     );
-    assert_eq!(registry.family_for_column(4), None);
+    assert_eq!(
+        registry.family_for_column(4).map(|family| family.name),
+        Some("MACRO_TWO_BITS")
+    );
+    assert_eq!(
+        registry.family_for_column(6).map(|family| family.name),
+        Some("MACRO_NIBBLES")
+    );
+    assert_eq!(registry.family_for_column(7), None);
+}
+
+#[test]
+fn column_registry_rejects_invalid_custom_bit_widths() {
+    for bits in [0, 64] {
+        let error = ColumnRegistry::new([ColumnFamilySpec {
+            region: "invalid",
+            start: 0,
+            len: 1,
+            name: "INVALID_BITS",
+            role: "invalid custom-width value",
+            width: ColumnWidth::Bits(bits),
+        }])
+        .expect_err("custom widths outside 1..=63 must be rejected");
+        assert_eq!(
+            error,
+            ColumnRegistryError::InvalidBitWidth {
+                name: "INVALID_BITS",
+                bits,
+            }
+        );
+    }
 }
 
 #[test]

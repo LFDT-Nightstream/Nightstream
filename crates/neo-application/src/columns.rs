@@ -13,7 +13,16 @@ pub enum ColumnWidth {
     Boolean,
     Byte,
     U32,
+    /// An unsigned value represented by exactly this many bits.
+    /// Explicit Goldilocks decomposition supports widths `1..=63`.
+    Bits(u8),
     Field,
+}
+
+impl ColumnWidth {
+    pub const fn is_boolean(self) -> bool {
+        matches!(self, Self::Boolean | Self::Bits(1))
+    }
 }
 
 /// Declares one contiguous family of witness columns with a shared value width.
@@ -41,6 +50,7 @@ impl ColumnFamilySpec {
 ///
 /// Scalar entries name their intrinsic width directly. Families use Rust's
 /// `[width; length]` array notation and generate arrays of absolute indices.
+/// Custom bit widths use `(Bits(n))` and `[(Bits(n)); length]` respectively.
 #[macro_export]
 macro_rules! define_column_region {
     (
@@ -84,6 +94,9 @@ macro_rules! define_column_region {
     (@declare $index_vis:vis, $idx:expr; $name:ident, $column_width:ident) => {
         $index_vis const $name: usize = $idx;
     };
+    (@declare $index_vis:vis, $idx:expr; $name:ident, (Bits($bits:expr))) => {
+        $index_vis const $name: usize = $idx;
+    };
     (@declare $index_vis:vis, $idx:expr; $name:ident, [$column_width:ident; $len:expr]) => {
         $index_vis const $name: [usize; $len] = {
             let mut indices = [0; $len];
@@ -95,12 +108,29 @@ macro_rules! define_column_region {
             indices
         };
     };
+    (@declare $index_vis:vis, $idx:expr; $name:ident, [(Bits($bits:expr)); $len:expr]) => {
+        $index_vis const $name: [usize; $len] = {
+            let mut indices = [0; $len];
+            let mut i = 0;
+            while i < $len {
+                indices[i] = $idx + i;
+                i += 1;
+            }
+            indices
+        };
+    };
     (@start $name:ident, $column_width:ident) => { $name };
+    (@start $name:ident, (Bits($bits:expr))) => { $name };
     (@start $name:ident, [$column_width:ident; $len:expr]) => { $name[0] };
+    (@start $name:ident, [(Bits($bits:expr)); $len:expr]) => { $name[0] };
     (@len $column_width:ident) => { 1usize };
+    (@len (Bits($bits:expr))) => { 1usize };
     (@len [$column_width:ident; $len:expr]) => { $len };
+    (@len [(Bits($bits:expr)); $len:expr]) => { $len };
     (@width $column_width:ident) => { $crate::ColumnWidth::$column_width };
+    (@width (Bits($bits:expr))) => { $crate::ColumnWidth::Bits($bits) };
     (@width [$column_width:ident; $len:expr]) => { $crate::ColumnWidth::$column_width };
+    (@width [(Bits($bits:expr)); $len:expr]) => { $crate::ColumnWidth::Bits($bits) };
 }
 
 /// Complete, ordered ownership map for an application witness vector.
@@ -128,6 +158,14 @@ impl ColumnRegistry {
             }
             if family.len == 0 {
                 return Err(ColumnRegistryError::EmptyFamily { name: family.name });
+            }
+            if let ColumnWidth::Bits(bits) = family.width {
+                if bits == 0 || bits > 63 {
+                    return Err(ColumnRegistryError::InvalidBitWidth {
+                        name: family.name,
+                        bits,
+                    });
+                }
             }
             if !names.insert(family.name) {
                 return Err(ColumnRegistryError::DuplicateName { name: family.name });
@@ -184,6 +222,8 @@ pub enum ColumnRegistryError {
     EmptyName { start: usize },
     #[error("column family `{name}` must contain at least one column")]
     EmptyFamily { name: &'static str },
+    #[error("column family `{name}` has custom bit width {bits}; expected 1..=63")]
+    InvalidBitWidth { name: &'static str, bits: u8 },
     #[error("column family name `{name}` is declared more than once")]
     DuplicateName { name: &'static str },
     #[error("column family `{name}` starts at {actual_start}, expected {expected_start}")]

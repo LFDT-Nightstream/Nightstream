@@ -115,7 +115,7 @@ impl<Id: Eq> MemoryCatalog<Id> {
                     let family = columns
                         .family_for_column(column)
                         .expect("the preceding bounds check guarantees a column family");
-                    if family.width != ColumnWidth::Boolean {
+                    if !family.width.is_boolean() {
                         return Err(MemoryCatalogError::ActivationNotBoolean {
                             memory: memory_index,
                             port: port_index,

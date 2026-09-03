@@ -79,8 +79,8 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
     sanity_check_trace_with_bindings(trace, artifacts, &bindings)
 }
 
-/// Run lookup, memory, and commitment-chain checks with the bindings that
-/// produced `trace`.
+/// Run lookup, continuity, memory, and commitment-chain checks with the
+/// bindings that produced `trace`.
 pub fn sanity_check_trace_with_bindings(
     trace: &[WasmVmStep],
     artifacts: &WasmProgramArtifacts,
@@ -94,6 +94,8 @@ pub fn sanity_check_trace_with_bindings(
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
+    neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses)
+        .unwrap_or_else(|err| panic!("continuity rejected trace: {err}"));
     let mut preload = preload_from_program_artifacts(artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
     sanity_check_memory_rows(layout, &witnesses, &preload)

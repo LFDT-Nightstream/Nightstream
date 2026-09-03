@@ -1,8 +1,10 @@
 use neo_application::{
-    ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityCatalogError, ContinuityGroup,
-    ContinuityLink, MemoryCatalog, MemoryCatalogError, MemoryKind, MemoryPortActivation, MemoryPortKind,
-    MemoryPortSpec, MemorySpec,
+    check_continuity_rows, ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityCatalogError,
+    ContinuityCheckError, ContinuityGroup, ContinuityLink, MemoryCatalog, MemoryCatalogError, MemoryKind,
+    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
 };
+use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
 
 const ACTIVE: usize = 0;
 const ADDRESS: usize = 1;
@@ -267,6 +269,58 @@ fn continuity_catalog_preserves_flattened_link_order() {
                 next_step_column: ADDRESS,
             },
         ]
+    );
+}
+
+#[test]
+fn continuity_checker_replays_adjacent_witness_rows() {
+    let columns = test_columns();
+    let catalog = ContinuityCatalog::new(
+        [ContinuityGroup {
+            name: "state",
+            role: "carry state across steps",
+            links: vec![ContinuityLink {
+                previous_step_column: STATE_AFTER,
+                next_step_column: STATE_BEFORE,
+            }],
+        }],
+        &columns,
+    )
+    .expect("valid continuity declarations");
+
+    let mut rows = vec![vec![F::ZERO; columns.column_count()]; 3];
+    rows[0][STATE_AFTER] = F::from_u64(7);
+    rows[1][STATE_BEFORE] = F::from_u64(7);
+    rows[1][STATE_AFTER] = F::from_u64(9);
+    rows[2][STATE_BEFORE] = F::from_u64(9);
+    check_continuity_rows(&catalog, &rows).expect("adjacent state must be continuous");
+
+    rows[2][STATE_BEFORE] = F::from_u64(10);
+    assert_eq!(
+        check_continuity_rows(&catalog, &rows).expect_err("mismatched adjacent state must fail"),
+        ContinuityCheckError::Mismatch {
+            boundary: 1,
+            group: 0,
+            group_name: "state",
+            link: 0,
+            previous_step_column: STATE_AFTER,
+            next_step_column: STATE_BEFORE,
+            previous_value: F::from_u64(9),
+            next_value: F::from_u64(10),
+        }
+    );
+
+    rows[1].truncate(STATE_BEFORE);
+    assert_eq!(
+        check_continuity_rows(&catalog, &rows).expect_err("missing continuity endpoint must fail cleanly"),
+        ContinuityCheckError::MissingColumn {
+            row: 1,
+            group: 0,
+            group_name: "state",
+            link: 0,
+            column: STATE_BEFORE,
+            actual_width: STATE_BEFORE,
+        }
     );
 }
 

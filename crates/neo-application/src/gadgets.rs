@@ -7,12 +7,59 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::{ConstraintTag, TaggedR1csBuilder};
 
-fn evaluate_linear_expression<const N: usize>(expression: &[(usize, F); N], assignment: &[F]) -> F {
+fn evaluate_linear_expression(expression: &[(usize, F)], assignment: &[F]) -> F {
     expression
         .iter()
         .fold(F::ZERO, |value, &(column, coefficient)| {
             value + assignment[column] * coefficient
         })
+}
+
+pub(crate) fn push_pow7_expression<Owner: Clone>(
+    builder: &mut TaggedR1csBuilder<'_, Owner>,
+    expression: &[(usize, F)],
+    powers: [usize; 4],
+) {
+    let [x2, x4, x6, x7] = powers;
+    builder.push_row(expression.iter().copied(), expression.iter().copied(), [(x2, F::ONE)]);
+    builder.push_row([(x2, F::ONE)], [(x2, F::ONE)], [(x4, F::ONE)]);
+    builder.push_row([(x4, F::ONE)], [(x2, F::ONE)], [(x6, F::ONE)]);
+    builder.push_row([(x6, F::ONE)], expression.iter().copied(), [(x7, F::ONE)]);
+}
+
+pub(crate) fn assign_pow7_expression(expression: &[(usize, F)], powers: [usize; 4], assignment: &mut [F]) {
+    let x = evaluate_linear_expression(expression, assignment);
+    let [x2, x4, x6, x7] = powers;
+    assignment[x2] = x * x;
+    assignment[x4] = assignment[x2] * assignment[x2];
+    assignment[x6] = assignment[x2] * assignment[x4];
+    assignment[x7] = assignment[x6] * x;
+}
+
+/// Constrains four auxiliary columns to `x²`, `x⁴`, `x⁶`, and `x⁷` for a
+/// linear field expression `x`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pow7<const N: usize = 1> {
+    pub expression: [(usize, F); N],
+    pub powers: [usize; 4],
+}
+
+impl<const N: usize> Pow7<N> {
+    pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
+        let first_row = builder.next_row_index();
+        push_pow7_expression(builder, &self.expression, self.powers);
+        builder.record_gadget(
+            GadgetDescriptor::Pow7 {
+                expression: self.expression.to_vec(),
+                powers: self.powers,
+            },
+            first_row,
+        );
+    }
+
+    pub fn assign(&self, assignment: &mut [F]) {
+        assign_pow7_expression(&self.expression, self.powers, assignment);
+    }
 }
 
 /// Columns participating in the relation `is_zero = (expression == 0)`.
@@ -151,6 +198,10 @@ impl<const N: usize> ConditionalSelect<N> {
 /// Machine-readable semantics retained for one shared gadget invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
+    Pow7 {
+        expression: Vec<(usize, F)>,
+        powers: [usize; 4],
+    },
     ZeroTest {
         expression: Vec<(usize, F)>,
         inverse: usize,
@@ -163,6 +214,31 @@ pub enum GadgetDescriptor {
         rhs: usize,
         output: usize,
         delta: usize,
+    },
+    Poseidon2FullRound12 {
+        choices: Vec<(usize, usize)>,
+        state_before: [usize; 12],
+        state_after: [usize; 12],
+        powers: Vec<[usize; 4]>,
+    },
+    Poseidon2PartialPair12 {
+        choices: Vec<(usize, usize)>,
+        state_before: [usize; 12],
+        state_after: [usize; 12],
+        powers: [usize; 8],
+    },
+    Poseidon2Permutation12 {
+        input: [usize; 12],
+        output: [usize; 12],
+        auxiliary_start: usize,
+        auxiliary_len: usize,
+    },
+    EventCommitment {
+        previous: [usize; 4],
+        block: [usize; 8],
+        output: [usize; 4],
+        auxiliary_start: usize,
+        auxiliary_len: usize,
     },
 }
 

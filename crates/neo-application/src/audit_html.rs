@@ -293,6 +293,14 @@ fn terms(terms: &[(usize, F)]) -> Vec<TermRecord> {
 
 fn format_gadget_role(role: GadgetColumnRole) -> String {
     match role {
+        GadgetColumnRole::Pow7Expression {
+            term_index,
+            coefficient,
+        } => format!(
+            "x^7 expression term {term_index}, coefficient {}",
+            to_balanced_i128(coefficient)
+        ),
+        GadgetColumnRole::Pow7Power { exponent } => format!("x^{exponent} power"),
         GadgetColumnRole::ZeroTestExpression {
             term_index,
             coefficient,
@@ -314,6 +322,25 @@ fn format_gadget_role(role: GadgetColumnRole) -> String {
         GadgetColumnRole::ConditionalSelectRhs => "conditional-select rhs".to_owned(),
         GadgetColumnRole::ConditionalSelectOutput => "conditional-select output".to_owned(),
         GadgetColumnRole::ConditionalSelectDelta => "conditional-select delta".to_owned(),
+        GadgetColumnRole::Poseidon2RoundSelector { choice_index } => {
+            format!("Poseidon2 round selector {choice_index}")
+        }
+        GadgetColumnRole::Poseidon2RoundStateBefore { lane } => format!("Poseidon2 round input lane {lane}"),
+        GadgetColumnRole::Poseidon2RoundStateAfter { lane } => format!("Poseidon2 round output lane {lane}"),
+        GadgetColumnRole::Poseidon2RoundPower { index } => format!("Poseidon2 round power {index}"),
+        GadgetColumnRole::Poseidon2PermutationInput { lane } => format!("Poseidon2 permutation input lane {lane}"),
+        GadgetColumnRole::Poseidon2PermutationOutput { lane } => {
+            format!("Poseidon2 permutation output lane {lane}")
+        }
+        GadgetColumnRole::Poseidon2PermutationAuxiliary { offset } => {
+            format!("Poseidon2 permutation auxiliary {offset}")
+        }
+        GadgetColumnRole::EventCommitmentPrevious { lane } => format!("event commitment previous lane {lane}"),
+        GadgetColumnRole::EventCommitmentBlock { word } => format!("event commitment block word {word}"),
+        GadgetColumnRole::EventCommitmentOutput { lane } => format!("event commitment output lane {lane}"),
+        GadgetColumnRole::EventCommitmentAuxiliary { offset } => {
+            format!("event commitment auxiliary {offset}")
+        }
     }
 }
 

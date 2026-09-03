@@ -16,6 +16,9 @@ audit-html = ["dep:serde", "dep:serde_json"]
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { path = "../neo-math" }
 p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }

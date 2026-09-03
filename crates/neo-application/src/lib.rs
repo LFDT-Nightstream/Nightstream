@@ -26,7 +26,10 @@ pub use audit::{
 #[cfg(feature = "audit-html")]
 pub use audit_html::render_column_audit_html;
 pub use columns::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
-pub use continuity::{ContinuityCatalog, ContinuityCatalogError, ContinuityGroup, ContinuityLink};
+pub use continuity::{
+    check_continuity_rows, ContinuityCatalog, ContinuityCatalogError, ContinuityCheckError, ContinuityGroup,
+    ContinuityLink,
+};
 pub use event_commitment::{EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS};
 pub use gadgets::{ConditionalSelect, GadgetDescriptor, GadgetOccurrence, Pow7, ZeroTest};
 pub use memory::{

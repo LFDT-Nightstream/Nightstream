@@ -44,6 +44,8 @@ impl<'a, Owner> R1csColumnOccurrence<'a, Owner> {
 /// Semantic role played by a column in one retained shared gadget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GadgetColumnRole {
+    Pow7Expression { term_index: usize, coefficient: F },
+    Pow7Power { exponent: u8 },
     ZeroTestExpression { term_index: usize, coefficient: F },
     ZeroTestInverse,
     ZeroTestIsZero,
@@ -53,6 +55,17 @@ pub enum GadgetColumnRole {
     ConditionalSelectRhs,
     ConditionalSelectOutput,
     ConditionalSelectDelta,
+    Poseidon2RoundSelector { choice_index: usize },
+    Poseidon2RoundStateBefore { lane: usize },
+    Poseidon2RoundStateAfter { lane: usize },
+    Poseidon2RoundPower { index: usize },
+    Poseidon2PermutationInput { lane: usize },
+    Poseidon2PermutationOutput { lane: usize },
+    Poseidon2PermutationAuxiliary { offset: usize },
+    EventCommitmentPrevious { lane: usize },
+    EventCommitmentBlock { word: usize },
+    EventCommitmentOutput { lane: usize },
+    EventCommitmentAuxiliary { offset: usize },
 }
 
 /// One semantic gadget role involving the queried column.
@@ -134,6 +147,20 @@ fn index_gadget_occurrence<'a, Owner>(
     };
 
     match occurrence.descriptor() {
+        GadgetDescriptor::Pow7 { expression, powers } => {
+            for (term_index, &(column, coefficient)) in expression.iter().enumerate() {
+                push(
+                    column,
+                    GadgetColumnRole::Pow7Expression {
+                        term_index,
+                        coefficient,
+                    },
+                );
+            }
+            for (&column, exponent) in powers.iter().zip([2, 4, 6, 7]) {
+                push(column, GadgetColumnRole::Pow7Power { exponent });
+            }
+        }
         GadgetDescriptor::ZeroTest {
             expression,
             inverse,
@@ -173,6 +200,86 @@ fn index_gadget_occurrence<'a, Owner>(
             push(*rhs, GadgetColumnRole::ConditionalSelectRhs);
             push(*output, GadgetColumnRole::ConditionalSelectOutput);
             push(*delta, GadgetColumnRole::ConditionalSelectDelta);
+        }
+        GadgetDescriptor::Poseidon2FullRound12 {
+            choices,
+            state_before,
+            state_after,
+            powers,
+        } => {
+            for (choice_index, &(selector, _)) in choices.iter().enumerate() {
+                push(selector, GadgetColumnRole::Poseidon2RoundSelector { choice_index });
+            }
+            for (lane, &column) in state_before.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundStateBefore { lane });
+            }
+            for (lane, &column) in state_after.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundStateAfter { lane });
+            }
+            for (index, &column) in powers.iter().flatten().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundPower { index });
+            }
+        }
+        GadgetDescriptor::Poseidon2PartialPair12 {
+            choices,
+            state_before,
+            state_after,
+            powers,
+        } => {
+            for (choice_index, &(selector, _)) in choices.iter().enumerate() {
+                push(selector, GadgetColumnRole::Poseidon2RoundSelector { choice_index });
+            }
+            for (lane, &column) in state_before.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundStateBefore { lane });
+            }
+            for (lane, &column) in state_after.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundStateAfter { lane });
+            }
+            for (index, &column) in powers.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2RoundPower { index });
+            }
+        }
+        GadgetDescriptor::Poseidon2Permutation12 {
+            input,
+            output,
+            auxiliary_start,
+            auxiliary_len,
+        } => {
+            for (lane, &column) in input.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2PermutationInput { lane });
+            }
+            for (lane, &column) in output.iter().enumerate() {
+                push(column, GadgetColumnRole::Poseidon2PermutationOutput { lane });
+            }
+            for offset in 0..*auxiliary_len {
+                push(
+                    auxiliary_start + offset,
+                    GadgetColumnRole::Poseidon2PermutationAuxiliary { offset },
+                );
+            }
+        }
+        GadgetDescriptor::EventCommitment {
+            previous,
+            block,
+            output,
+            auxiliary_start,
+            auxiliary_len,
+        } => {
+            for (lane, &column) in previous.iter().enumerate() {
+                push(column, GadgetColumnRole::EventCommitmentPrevious { lane });
+            }
+            for (word, &column) in block.iter().enumerate() {
+                push(column, GadgetColumnRole::EventCommitmentBlock { word });
+            }
+            for (lane, &column) in output.iter().enumerate() {
+                push(column, GadgetColumnRole::EventCommitmentOutput { lane });
+            }
+            for offset in 0..*auxiliary_len {
+                push(
+                    auxiliary_start + offset,
+                    GadgetColumnRole::EventCommitmentAuxiliary { offset },
+                );
+            }
         }
     }
 }

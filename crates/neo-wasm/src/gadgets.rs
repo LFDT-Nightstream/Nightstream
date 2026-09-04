@@ -9,7 +9,7 @@ pub(crate) fn push_gated_linear_zero<const N: usize>(
     selector: usize,
     terms: [(usize, F); N],
 ) {
-    b.push_row([(selector, F::ONE)], terms, []);
+    b.push_gated_linear_zero(selector, terms);
 }
 
 /// Enforce `(Σ gate_cols) · (word - Σ_{i<4} bytes[i] · 2^(8i)) = 0`.

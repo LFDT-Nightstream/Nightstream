@@ -182,6 +182,42 @@ fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
 }
 
 #[test]
+fn gated_linear_zero_only_enforces_the_expression_when_active() {
+    let columns = test_columns();
+    let mut builder = R1csBuilder::new(columns.column_count(), 1, ONE).expect("valid builder layout");
+    builder.with_tag(ConstraintTag::new("gated equality", Owner::Transition), |b| {
+        b.push_boolean(BIT);
+        b.push_gated_linear_zero(BIT, [(PRODUCT, F::ONE), (FACTOR, -F::ONE)]);
+    });
+
+    let relation = ApplicationRelation::new(builder.build().expect("valid R1CS relation"), columns)
+        .expect("complete application relation");
+    let public = [F::ONE];
+
+    check_ccs_rowwise_zero(
+        relation.r1cs().structure(),
+        &public,
+        &[F::ZERO, F::from_u64(7), F::from_u64(6)],
+    )
+    .expect("an inactive gate leaves the expression unconstrained");
+    check_ccs_rowwise_zero(
+        relation.r1cs().structure(),
+        &public,
+        &[F::ONE, F::from_u64(7), F::from_u64(7)],
+    )
+    .expect("an active gate accepts a zero expression");
+    assert!(
+        check_ccs_rowwise_zero(
+            relation.r1cs().structure(),
+            &public,
+            &[F::ONE, F::from_u64(7), F::from_u64(6)],
+        )
+        .is_err(),
+        "an active gate must reject a nonzero expression"
+    );
+}
+
+#[test]
 fn rejects_ambiguous_layouts_and_out_of_range_terms() {
     let layout_error = ColumnRegistry::new([
         ColumnFamilySpec {

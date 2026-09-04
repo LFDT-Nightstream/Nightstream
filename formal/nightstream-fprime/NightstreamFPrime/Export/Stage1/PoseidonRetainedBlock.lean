@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.DirectPoseidonFootprint
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
+import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 
 /-!
@@ -45,6 +46,17 @@ def totalInvocationCount : Nat := pilotInvocationCount + laterInvocationCount
     basePackage.permutationInvocations.length = laterInvocationCount := by
   unfold basePackage PerApplicationPackage.basePackage laterInvocationCount
   exact Package.circuitPackage_permutation_invocations
+
+theorem basePackage_permutationInvocations_eq :
+    basePackage.permutationInvocations = Data.permutationInvocations () := by
+  unfold basePackage PerApplicationPackage.basePackage
+  exact Data.circuitPackage_permutationInvocations.trans
+    Data.components_permutationInvocations
+
+@[simp] theorem data_permutationInvocations_length :
+    (Data.permutationInvocations ()).length = laterInvocationCount := by
+  rw [← basePackage_permutationInvocations_eq]
+  exact basePackage_permutationInvocations_length
 
 theorem laterInvocationCount_eq_reference :
     laterInvocationCount = laterInvocationCountReference () := by
@@ -97,6 +109,44 @@ def laterWitnessStart (invocation : Fin laterInvocationCount) : Nat :=
   let index : Fin basePackage.permutationInvocations.length :=
     ⟨invocation.val, by simpa [laterInvocationCount] using invocation.isLt⟩
   (basePackage.permutationInvocations.get index).witnessStart
+
+/-- Delayed random-access view of the canonical later witness-start schedule. -/
+def laterWitnessStartsArray (_delay : Unit := ()) : Array Nat :=
+  (PermutationPlan.canonicalWitnessStarts ()).toArray
+
+@[simp] theorem laterWitnessStartsArray_size :
+    (laterWitnessStartsArray ()).size = laterInvocationCount := by
+  rw [laterWitnessStartsArray, List.size_toArray,
+    PermutationPlan.canonicalWitnessStarts_materializes, List.length_map]
+  exact data_permutationInvocations_length
+
+/-- Allocation-bounded executable lookup for the canonical witness start. -/
+@[inline] def directLaterWitnessStart
+    (invocation : Fin laterInvocationCount) : Nat :=
+  ((laterWitnessStartsArray ())[invocation.val]'(by
+    simpa using invocation.isLt))
+
+/-- Random access returns the exact list-selected canonical witness start. -/
+theorem directLaterWitnessStart_eq_laterWitnessStart
+    (invocation : Fin laterInvocationCount) :
+    directLaterWitnessStart invocation = laterWitnessStart invocation := by
+  change
+    ((PermutationPlan.canonicalWitnessStarts ()).toArray[invocation.val]'(by
+      rw [List.size_toArray,
+        PermutationPlan.canonicalWitnessStarts_materializes, List.length_map,
+        data_permutationInvocations_length]
+      exact invocation.isLt)) =
+    (basePackage.permutationInvocations[invocation.val]'(by
+      simpa [laterInvocationCount] using invocation.isLt)).witnessStart
+  simp only [List.getElem_toArray,
+    PermutationPlan.canonicalWitnessStarts_materializes, List.getElem_map,
+    basePackage_permutationInvocations_eq]
+
+/-- Compiled retained-slot emission uses the proved random-access lookup. -/
+@[csimp] theorem laterWitnessStart_eq_directLaterWitnessStart :
+    @laterWitnessStart = @directLaterWitnessStart := by
+  funext invocation
+  exact (directLaterWitnessStart_eq_laterWitnessStart invocation).symm
 
 theorem laterWitnessStart_bound (invocation : Fin laterInvocationCount) :
     laterWitnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤

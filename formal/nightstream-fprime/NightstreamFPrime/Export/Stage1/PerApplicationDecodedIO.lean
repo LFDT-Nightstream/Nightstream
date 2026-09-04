@@ -124,7 +124,7 @@ def outputState {application : Program} (raw : RawValues application) : Nat → 
   fun word => transitionEnv raw (PilotProduction.outputPreimageStart + word)
 
 /-- The context key carried by the raw state. Final package closure must prove
-that this value is the verifier-owned final verification-key digest. -/
+that this value is the verifier-owned canonical verifier-context digest. -/
 def contextKey {application : Program} (raw : RawValues application) : KeyDigest :=
   StateDecoder.keyDigest (priorState raw)
 

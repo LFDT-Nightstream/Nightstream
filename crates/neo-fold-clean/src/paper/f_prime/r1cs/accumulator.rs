@@ -41,6 +41,7 @@ pub(super) fn enforce_nifs_output_acc_digest(
 /// Terminal-fold entrypoint for the same profile-aware codec. The terminal
 /// caller owns its row-family boundary, so this variant preserves the terminal
 /// terminal stage layout instead of adding recursive-F' stage markers.
+#[cfg(test)]
 pub(crate) fn enforce_terminal_output_acc_digest(
     builder: &mut R1csBuilder,
     base: u32,

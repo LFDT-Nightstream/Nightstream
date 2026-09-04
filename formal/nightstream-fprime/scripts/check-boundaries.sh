@@ -119,5 +119,92 @@ for module in "${!module_path[@]}"; do
   fi
 done
 
+# 10. The superseded Rust PiCCS/F' circuit is private diagnostic code. Once
+# PiCCS rows reached the sealed package, no public constructor or registered
+# integration target may reopen that native relation or an unapproved backend.
+RUST_ROOT="$ROOT/../../crates/neo-fold-clean"
+while IFS=: read -r file pattern; do
+  if grep -nE "$pattern" "$RUST_ROOT/$file"; then
+    fail "public superseded Rust F' authority in $file"
+  fi
+done <<'EOF'
+src/lifecycle/mod.rs:^[[:space:]]*pub fn nifs_v_circuit_config\b
+src/paper/reductions/pi_ccs_circuit/verifier.rs:^[[:space:]]*pub fn enforce_pi_ccs(_with_matrix_digest_wires)?\b
+src/paper/nifs/circuit/mod.rs:^[[:space:]]*pub fn enforce_nifs_v_circuit_with_transcript
+src/paper/f_prime/r1cs.rs:^[[:space:]]*pub fn enforce_f_prime_recursive_step_circuit
+EOF
+
+require_test_only_module() {
+  local file="$1"
+  local declaration="$2"
+  if ! awk -v declaration="$declaration" '
+    previous == "#[cfg(test)]" && $0 == declaration { found = 1 }
+    { previous = $0 }
+    END { exit found ? 0 : 1 }
+  ' "$RUST_ROOT/$file"; then
+    fail "$declaration is not test-only in $file"
+  fi
+}
+
+require_test_only_module src/engine/mod.rs "pub mod decider;"
+require_test_only_module src/frontends/r1cs_f_prime/mod.rs "pub mod native_ccs;"
+require_test_only_module src/frontends/r1cs_f_prime/mod.rs "pub mod nebula_combined_ccs;"
+require_test_only_module src/frontends/r1cs_f_prime/terminal_r1cs/mod.rs "mod lifecycle;"
+
+if grep -nE '^[[:space:]]*pub mod f_prime;' \
+  "$RUST_ROOT/src/frontends/nebula/mod.rs"; then
+  fail "unfinished Stage 2 F' lifecycle is public"
+fi
+if ! grep -qxF 'pub(crate) mod f_prime;' \
+  "$RUST_ROOT/src/frontends/nebula/mod.rs"; then
+  fail "unfinished Stage 2 F' lifecycle is not crate-private"
+fi
+
+if ! grep -qxF 'autotests = false' "$RUST_ROOT/Cargo.toml"; then
+  fail "Stage 2 F' auto-discovered integration tests are not disabled"
+fi
+
+if grep -nF 'terminal_link_rows_export' \
+  "$RUST_ROOT/tests/system/formal_conformance.rs"; then
+  fail "retired terminal-link row exporter remains in the aggregate test"
+fi
+
+while IFS= read -r retired_test; do
+  if grep -nF "path = \"$retired_test\"" "$RUST_ROOT/Cargo.toml"; then
+    fail "retired private-authority test remains registered: $retired_test"
+  fi
+done <<'EOF'
+tests/gadgets/ce_continuity.rs
+tests/gadgets/f_prime_base_state_lean_artifact.rs
+tests/gadgets/f_prime_state_link_lean_artifact.rs
+tests/gadgets/f_prime_terminal_link_lean_artifact.rs
+tests/gadgets/nebula_recursive_arm_lean_artifact.rs
+tests/nebula/f_prime.rs
+tests/nebula/streaming_claim_replay.rs
+tests/nebula/streaming_claim_replay_linked_overlay.rs
+tests/nebula/streaming_lifecycle_profile.rs
+tests/nebula/streaming_lifecycle_semantic_link.rs
+tests/nebula/streaming_pi_ccs_round_relation.rs
+tests/nebula/streaming_pi_rlc_family_b2_k16.rs
+tests/nebula/streaming_pi_rlc_family_public.rs
+tests/nebula/streaming_pi_rlc_family_relation.rs
+tests/nebula/streaming_pi_rlc_family_replay.rs
+tests/nebula/streaming_pi_rlc_phase_envelope.rs
+tests/nebula/streaming_pi_rlc_poseidon_call_layout.rs
+tests/nebula/streaming_pi_rlc_poseidon_provenance.rs
+tests/nebula/streaming_prelude_relation.rs
+tests/nebula/streaming_prior_state_replay_artifact.rs
+tests/nebula/streaming_prior_state_replay_relation.rs
+tests/nebula/streaming_program.rs
+tests/nebula/streaming_state_envelope.rs
+tests/nebula/streaming_terminal_profile.rs
+tests/system/formal_conformance/terminal_link_rows_export.rs
+EOF
+
+if grep -nE '^name = "(gadgets_f_prime_recursive_manifest|gadgets_nifs_compiler_conformance|reductions_nifs_v_transcript|f_prime_r1cs|system_decider_r1cs|system_lean_native_ccs_manifest|perf_fibonacci_bits|perf_lowered_nifs_v)"$' \
+  "$RUST_ROOT/Cargo.toml"; then
+  fail "retired native F' integration target remains registered"
+fi
+
 if (( status == 0 )); then echo "[boundary] all checks passed"; fi
 exit $status

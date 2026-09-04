@@ -94,6 +94,35 @@ def sourceRunsFor (application : ProgramApplication)
     (kind : BlockKind) : List AffineRuns.Run :=
   AffineRuns.compress (sourceIndices application kind)
 
+/-- Allocation-bounded executable source-run construction. The selected
+block is retained once while its source indices are scanned from right to
+left. -/
+@[inline] def directSourceRunsFor (application : ProgramApplication)
+    (kind : BlockKind) : List AffineRuns.Run :=
+  let selected := entry application kind
+  let payloadPrefix :=
+    PiCCSActionPayloadBlock.prefixSourceWidth application
+  AffineRuns.compressIndexedTR fun slot : Fin selected.block.slotCount =>
+    let value := (selected.block.source slot).val
+    match kind with
+    | .piCcsPayload =>
+        value - payloadPrefix
+    | _ => value
+
+/-- The allocation-bounded source scan emits the exact canonical run list. -/
+theorem directSourceRunsFor_eq_sourceRunsFor
+    (application : ProgramApplication) (kind : BlockKind) :
+    directSourceRunsFor application kind = sourceRunsFor application kind := by
+  rw [directSourceRunsFor, AffineRuns.compressIndexedTR_eq_compress_ofFn]
+  unfold sourceRunsFor sourceIndices sourceIndex
+  cases kind <;> rfl
+
+/-- Compiled package emission uses the proved allocation-bounded scan. -/
+@[csimp] theorem sourceRunsFor_eq_directSourceRunsFor :
+    @sourceRunsFor = @directSourceRunsFor := by
+  funext application kind
+  exact (directSourceRunsFor_eq_sourceRunsFor application kind).symm
+
 theorem sourceIndices_length (application : ProgramApplication)
     (kind : BlockKind) :
     (sourceIndices application kind).length =
@@ -153,6 +182,34 @@ def BlockPlan.ofKind (application : ProgramApplication)
     slotCount := (entry application kind).block.slotCount
     sourceDomain := sourceDomainOf kind
     sourceRuns := sourceRunsFor application kind }
+
+@[simp] theorem BlockPlan.ofKind_slotKind
+    (application : ProgramApplication) (kind : BlockKind) :
+    (BlockPlan.ofKind application kind).slotKind =
+      (entry application kind).block.kind := by
+  rfl
+
+@[simp] theorem BlockPlan.ofKind_slotCount
+    (application : ProgramApplication) (kind : BlockKind) :
+    (BlockPlan.ofKind application kind).slotCount =
+      (entry application kind).block.slotCount := by
+  rfl
+
+/-- An opcode selects fixed block geometry. Raw values change only its source
+values. -/
+theorem entry_block_eq_expand (application : ProgramApplication)
+    (raw : RawValues application) (kind : BlockKind) :
+    (entry application kind).block = (kind.expand raw).block := by
+  rfl
+
+theorem entry_geometry_eq_expand (application : ProgramApplication)
+    (raw : RawValues application) (kind : BlockKind) :
+    (entry application kind).block.kind = (kind.expand raw).block.kind ∧
+      (entry application kind).block.slotCount =
+        (kind.expand raw).block.slotCount := by
+  have blockEq := entry_block_eq_expand application raw kind
+  exact ⟨congrArg (fun block => block.kind) blockEq,
+    congrArg (fun block => block.slotCount) blockEq⟩
 
 theorem BlockPlan.ofKind_sourceRuns_count
     (application : ProgramApplication) (kind : BlockKind) :

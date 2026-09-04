@@ -265,6 +265,18 @@ def applicationSource
     lt_of_lt_of_le column.isLt
       (applicationSourceWidth_le_baseSourceWidth application)⟩
 
+/-- The application-prefix view is the total physical-base environment at
+every application source column. -/
+@[simp] theorem applicationSource_eq_sourceEnv
+    (application : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (column : Fin (ApplicationRetainedBlocks.sourceWidth application)) :
+    applicationSource application base column =
+      SourceCompiler.sourceEnv base column.val := by
+  unfold applicationSource SourceCompiler.sourceEnv
+  rw [dif_pos (lt_of_lt_of_le column.isLt
+    (applicationSourceWidth_le_baseSourceWidth application))]
+
 structure Encodes
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}

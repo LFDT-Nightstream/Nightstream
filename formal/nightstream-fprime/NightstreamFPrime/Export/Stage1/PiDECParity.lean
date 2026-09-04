@@ -146,12 +146,12 @@ def transitionRunning (fixture : PiDECNonzero.Fixture) : Running
 def transitionOutputPreimage (fixture : PiDECNonzero.Fixture) : HashPreimage
     (logicalWidth := VerifierContext.candidateLogicalWidth)
     (publicFits := VerifierContext.candidatePublicFits) where
-  verifierKeys := PiCCSNonzero.statePreimage.verifierKeys
-  iteration := PiCCSNonzero.statePreimage.iteration
-  z0 := PiCCSNonzero.statePreimage.z0
-  current := PiCCSNonzero.statePreimage.current
+  verifierKeys := fun _ => PiCCSNonzero.stateVerifierKey ()
+  iteration := 7
+  z0 := PiCCSNonzero.stateZ0
+  current := PiCCSNonzero.stateCurrent
   running := fun _ => transitionRunning fixture
-  pc := PiCCSNonzero.statePreimage.pc
+  pc := 1
 
 def transitionOutputPreimageWords (fixture : PiDECNonzero.Fixture) : List F :=
   serializePreimage (publicFits := VerifierContext.candidatePublicFits)

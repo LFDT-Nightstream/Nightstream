@@ -21,23 +21,20 @@ def outputCurrent : AppState :=
   [field 401, field 402, field 403, field 404]
 
 def outputPreimage : HashPreimage
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) where
-  verifierKeys := fun _ => stateVerifierKey
-  iteration := 8
-  z0 := stateZ0
-  current := outputCurrent
-  running := fun _ => running
-  pc := 1
+    (logicalWidth := fixtureLogicalWidth)
+    (publicFits := fixturePublicFits) :=
+  { statePreimage (stateVerifierKey ()) with
+    iteration := 8
+    current := outputCurrent }
 
 def outputPreimageWords : List F :=
-  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+  serializePreimage (publicFits := fixturePublicFits)
     outputPreimage
 
 def priorDigest : Digest := stateDigest ()
 
 def outputDigest : Digest :=
-  stateHash (publicFits := VerifierContext.candidatePublicFits) outputPreimage
+  stateHash (publicFits := fixturePublicFits) outputPreimage
 
 def publicValues : List F := statePublicInputWords () ++ outputDigest
 

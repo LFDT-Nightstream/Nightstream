@@ -170,11 +170,17 @@ theorem kindAt_wellFormed (invocation : Fin invocationCount) :
   · exact PoseidonActionSchedule.kinds_wellFormed roundActions _ round
   · exact PoseidonActionSchedule.kinds_wellFormed outputActions _ output
 
-def selectedBlock (invocation : Fin invocationCount) : List Expr :=
-  match kindAt invocation with
+def selectedBlockForKind : PoseidonActionSchedule.Kind → List Expr
   | .absorb block => block
   | .squeezeFirst expected => [expected.c0, expected.c1]
   | .squeezeSecond => []
+
+def selectedBlock (invocation : Fin invocationCount) : List Expr :=
+  selectedBlockForKind (kindAt invocation)
+
+def payloadExprForKind (kind : PoseidonActionSchedule.Kind)
+    (lane : Fin Spec.Poseidon2.rate) : Expr :=
+  (selectedBlockForKind kind).getD lane.val 0
 
 /-- One exact rate-lane payload. `getD` is the canonical absorb padding rule. -/
 def payloadExpr (invocation : Fin invocationCount)

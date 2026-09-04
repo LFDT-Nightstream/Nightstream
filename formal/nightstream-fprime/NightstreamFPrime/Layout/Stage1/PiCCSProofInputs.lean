@@ -7,7 +7,7 @@ source and one canonical encoding.
 
 Inputs:
 - one fresh Ajtai commitment;
-- 25 degree-nine SumCheck coefficient vectors;
+- 28 degree-nine SumCheck coefficient vectors;
 - separate output `Eval_K` and `Eval_A` families.
 
 Outputs:
@@ -430,7 +430,7 @@ theorem eval_roundMessage
   funext coefficient
   exact eval_roundCoefficient values roundIndex coefficient
 
-/-- All 25 symbolic round messages evaluate to the typed proof values. -/
+/-- All 28 symbolic round messages evaluate to the typed proof values. -/
 theorem eval_rounds (values : ExternalValues) :
     (fun roundIndex =>
       (roundMessage roundIndex).semanticPolynomial (loadExternal values)) =

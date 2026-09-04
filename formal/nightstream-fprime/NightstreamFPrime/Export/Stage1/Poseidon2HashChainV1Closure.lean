@@ -4,7 +4,8 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 /-!
 Owns the concrete deterministic and security closure for the verifier-owned
 `Poseidon2HashChainV1` package. The application, recursive fit, Ajtai setup,
-package identity, and verification-key digest are fixed definitions. The only
+package identity, verifier-context digest, and full verification-key binding
+are fixed definitions. The only
 external premise used by the deterministic Lean reduction is the low-norm
 invertibility boundary used by SuperNeo's strong-set extraction argument.
 The final quantitative claim remains conditional on the owner-recorded
@@ -42,7 +43,9 @@ theorem rowsZero_implies_stepHoldsFor
         Poseidon2HashChainV1Package.application
         Poseidon2HashChainV1Package.fits)
       Poseidon2HashChainV1Setup.productionAjtaiKey
-      Poseidon2HashChainV1Setup.verificationKeyBinding.digest
+      (PerApplicationCanonicalPackage.verifierContextDigest
+        Poseidon2HashChainV1Package.fits
+        Poseidon2HashChainV1Setup.productionSetup)
       Poseidon2HashChainV1Package.application
       (PerApplicationDecodedIO.input
         Poseidon2HashChainV1Package.application
@@ -75,7 +78,9 @@ theorem rowsZero_implies_base_or_securityOutcome
           Poseidon2HashChainV1Package.application
           Poseidon2HashChainV1Package.fits)
         Poseidon2HashChainV1Setup.productionAjtaiKey
-        Poseidon2HashChainV1Setup.verificationKeyBinding.digest
+        (PerApplicationCanonicalPackage.verifierContextDigest
+          Poseidon2HashChainV1Package.fits
+          Poseidon2HashChainV1Setup.productionSetup)
         Poseidon2HashChainV1Package.application input output ∧
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
@@ -130,7 +135,7 @@ theorem expectedBindingAndRowsZero_implies_securityOrCollision
        StepHoldsFor
             (PerApplicationFixedPoint.relation claimedProgram claimedFits)
             (PerApplicationCanonicalPackage.commitmentKey claimedSetup)
-            (PerApplicationSecurity.verificationKeyDigest
+            (PerApplicationSecurity.verifierContextDigest
               claimedFits claimedSetup)
             claimedProgram input output ∧
           (input.iteration = 0 ∨

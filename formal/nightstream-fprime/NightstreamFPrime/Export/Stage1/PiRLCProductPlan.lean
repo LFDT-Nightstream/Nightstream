@@ -231,6 +231,13 @@ def baseColumn (program : Lifecycle.Stage1.Application.Program)
     PiRLCProductSchedule.invocationCount
       (mappedPackageColumn program column bound)
 
+theorem baseColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    (baseColumn program column bound).val < baseSourceWidth program := by
+  unfold baseColumn ProductRetainedBlock.baseColumn
+  exact (mappedPackageColumn program column bound).isLt
+
 def challengeColumn (program : Lifecycle.Stage1.Application.Program)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     Fin (sourceWidth program) :=
@@ -241,6 +248,16 @@ def valueColumn (program : Lifecycle.Stage1.Application.Program)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     Fin (sourceWidth program) :=
   baseColumn program (descriptor.valueColumn lane)
+    (valueColumn_lt_basePackage descriptor lane)
+
+theorem valueColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (lane : Fin ringDegree) :
+    (valueColumn program descriptor lane).val < baseSourceWidth program := by
+  unfold valueColumn
+  exact baseColumn_val_lt_baseSourceWidth program
+    (descriptor.valueColumn lane)
     (valueColumn_lt_basePackage descriptor lane)
 
 def outputColumn (program : Lifecycle.Stage1.Application.Program)

@@ -217,12 +217,12 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
     indices
 }
 
-fn verifier_context(words: &[u64]) -> [u64; DIGEST_WORDS] {
+fn verifier_context_digest(words: &[u64]) -> [u64; DIGEST_WORDS] {
     let domain_length = b"HyperNova/NIVC/state/v1".len();
     assert_eq!(words[domain_length], DIGEST_WORDS as u64);
     words[domain_length + 1..domain_length + 1 + DIGEST_WORDS]
         .try_into()
-        .expect("four verifier-context words")
+        .expect("four verifier-context digest words")
 }
 
 #[test]
@@ -235,8 +235,8 @@ fn pilot_fixture_binds_the_sealed_verifier_context() {
         .verifier_context()
         .digest();
     let RawParity(_, input, _) = parity();
-    assert_eq!(verifier_context(&input.0), expected);
-    assert_eq!(verifier_context(&input.2), expected);
+    assert_eq!(verifier_context_digest(&input.0), expected);
+    assert_eq!(verifier_context_digest(&input.2), expected);
 }
 
 #[test]

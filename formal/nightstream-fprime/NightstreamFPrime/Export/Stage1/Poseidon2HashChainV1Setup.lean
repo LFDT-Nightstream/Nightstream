@@ -113,15 +113,18 @@ theorem directProductionAuthorityWords_eq :
   rw [directProductionAuthorityNats_eq]
   rfl
 
-def packageIdentity : Lifecycle.VerifierContext.Digest4 :=
+def packageIdentity (_delay : Unit := ()) :
+    Lifecycle.VerifierContext.Digest4 :=
   PerApplicationCanonicalPackage.packageIdentity
     Poseidon2HashChainV1Package.fits productionSetup
 
-def verifierContextDescriptor : Lifecycle.VerifierContext.Descriptor :=
+def verifierContextDescriptor (_delay : Unit := ()) :
+    Lifecycle.VerifierContext.Descriptor :=
   PerApplicationCanonicalPackage.verifierContextDescriptor
     Poseidon2HashChainV1Package.fits productionSetup
 
-def verificationKeyBinding : Lifecycle.Stage1.VerificationKey.Binding :=
+def verificationKeyBinding (_delay : Unit := ()) :
+    Lifecycle.Stage1.VerificationKey.Binding :=
   PerApplicationCanonicalPackage.verificationKeyBinding
     Poseidon2HashChainV1Package.fits productionSetup
 

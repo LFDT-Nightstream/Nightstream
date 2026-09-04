@@ -18,7 +18,7 @@ use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest};
 use crate::paper::f_prime::r1cs::{f_prime_public_input_link_matches, FPrimePublicInputLayout};
 use crate::paper::relations::{CcsClaim, CeClaim, Structure};
 
-use super::super::LeanNebulaCombinedPreprocessing;
+use crate::frontends::r1cs_f_prime::nebula_combined_ccs::LeanNebulaCombinedPreprocessing;
 
 use super::{
     compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, compile_terminal_r1cs,

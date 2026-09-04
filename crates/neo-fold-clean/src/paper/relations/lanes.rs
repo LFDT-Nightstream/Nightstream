@@ -84,6 +84,7 @@ impl LaneScheme {
     /// Reuse the same lane commitment matrices at new full-witness column
     /// offsets. The lane widths are immutable because they are the module
     /// dimensions; only their placement inside a composed assignment moves.
+    #[allow(dead_code)]
     pub(crate) fn remap_ranges(&self, ranges: LaneRanges) -> Result<Self, LaneSchemeError> {
         validate_ranges(&ranges)?;
         if ranges.ops.len() != self.ranges.ops.len()

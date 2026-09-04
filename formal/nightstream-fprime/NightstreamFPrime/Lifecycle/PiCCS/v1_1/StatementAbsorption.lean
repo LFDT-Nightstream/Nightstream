@@ -892,8 +892,8 @@ def Assumptions {logicalWidth : Nat}
     (offset : Nat) (_env : Env) : Prop :=
   Formal.ActionsBelow offset (actions interface offset)
 
-/-- Named semantic predicate: the exact Poseidon2 trace of all 54 statement
-absorptions reaches the declared output state. -/
+/-- Named semantic predicate: the exact Poseidon2 trace of all four
+statement-absorption actions reaches the declared output state. -/
 def SpecHolds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

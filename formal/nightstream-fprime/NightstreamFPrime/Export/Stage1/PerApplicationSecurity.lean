@@ -67,10 +67,10 @@ def selectedRunning {program : Program} {fits : FitsTwoPow28 program}
     (input : StepInput program fits) :=
   input.running functionIndex
 
-def verificationKeyDigest {program : Program}
+def verifierContextDigest {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program) : KeyDigest :=
-  (verificationKeyBinding fits commitmentSetup).digest
+  PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
 
 /-- Exact prior-state hash preimage selected by this package and the actual
 HyperNova input. -/
@@ -84,7 +84,7 @@ noncomputable def replayState {program : Program}
   priorHashPreimage
     (Lifecycle.setup (PerApplicationFixedPoint.relation program fits)
       (commitmentKey commitmentSetup)
-      (verificationKeyDigest fits commitmentSetup)) input
+      (verifierContextDigest fits commitmentSetup)) input
 
 /-- Exact PiCCS statement and round-message replay selected by the canonical
 package key and the actual NIFS proof. No transcript field is caller-owned. -/
@@ -400,11 +400,11 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
     (step : Lifecycle.StepHoldsFor
       (PerApplicationFixedPoint.relation program fits)
       (commitmentKey commitmentSetup)
-      (verificationKeyDigest fits commitmentSetup) program input output) :
+      (verifierContextDigest fits commitmentSetup) program input output) :
     Lifecycle.StepHoldsFor
         (PerApplicationFixedPoint.relation program fits)
         (commitmentKey commitmentSetup)
-        (verificationKeyDigest fits commitmentSetup) program input output /\
+        (verifierContextDigest fits commitmentSetup) program input output /\
       (input.iteration = 0 \/
         (0 < input.iteration /\
           Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome
@@ -416,7 +416,7 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
   change FixedAugmentedTransition
     (Lifecycle.setup (PerApplicationFixedPoint.relation program fits)
       (commitmentKey commitmentSetup)
-      (verificationKeyDigest fits commitmentSetup))
+      (verifierContextDigest fits commitmentSetup))
     (Lifecycle.machineFor (PerApplicationFixedPoint.publicFits program) program)
     functionIndex input output at step
   rcases step.2.2.2 with base | recursive
@@ -443,7 +443,7 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
 /-- Acceptance of the verifier-bound canonical matrix plan reaches the full
 per-application security boundary without a caller-owned semantic premise.
 The base branch performs no extraction. The recursive branch uses the exact
-application, package-derived verification-key digest, relation, Ajtai key,
+application, canonical verifier-context digest, relation, Ajtai key,
 raw assignment, and NIFS proof constrained by those rows. -/
 theorem verifierBoundRowsZero_implies_base_or_securityOutcome
     {program : Program} (fits : FitsTwoPow28 program)
@@ -461,7 +461,7 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
     Lifecycle.StepHoldsFor
         (PerApplicationFixedPoint.relation program fits)
         (commitmentKey commitmentSetup)
-        (verificationKeyDigest fits commitmentSetup) program input output ∧
+        (verifierContextDigest fits commitmentSetup) program input output ∧
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
           Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome
@@ -586,7 +586,7 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
        Lifecycle.StepHoldsFor
             (PerApplicationFixedPoint.relation claimedProgram claimedFits)
             (commitmentKey claimedSetup)
-            (verificationKeyDigest claimedFits claimedSetup)
+            (verifierContextDigest claimedFits claimedSetup)
             claimedProgram input output ∧
           (input.iteration = 0 ∨
             (0 < input.iteration ∧

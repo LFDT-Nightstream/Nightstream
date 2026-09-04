@@ -12,7 +12,7 @@ matrix plan to the exact verifier-selected HyperNova augmented step.
 The public theorem decodes all typed ABI values from one canonical raw packet.
 The relation, application, context key, and Ajtai key are fixed before the
 statement is formed. Final package closure must prove that the decoded context
-key is the verifier-owned final verification-key digest. This module does not
+key is the verifier-owned canonical verifier-context digest. This module does not
 close package conformance, terminal verification, or security.
 -/
 
@@ -393,7 +393,7 @@ matrix plan force the verifier-selected HyperNova step. No caller supplies a
 typed input, typed output, representation record, constant-column fact, or
 retained-block encoding proof. The immediate key is the context key decoded
 from the constrained prior state; final package closure must identify it with
-the verifier-owned final verification-key digest. -/
+the verifier-owned canonical verifier-context digest. -/
 theorem rowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
@@ -497,9 +497,9 @@ theorem rowsZero_implies_stepHoldsFor_and_publicOutput
       PerApplicationDecodedIO.outputDigest] using
       PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
 
-/-- The verifier-owned raw constructor pins the exact final package and key
-digest into the state context. Acceptance therefore forces the augmented step
-under that digest; the prover cannot select the application, package, or key.
+/-- The verifier-owned raw constructor pins the exact canonical context digest
+into the state. Acceptance therefore forces the augmented step under that
+digest; the prover cannot select the application, package, or static authority.
 -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
@@ -511,7 +511,7 @@ theorem verifierBoundRowsZero_implies_stepHoldsFor
           ).assignment) :
     StepHoldsFor (relation application fits)
       (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-      (PerApplicationVerifierBoundAssignment.verificationKeyDigest fits
+      (PerApplicationVerifierBoundAssignment.verifierContextDigest fits
         commitmentSetup)
       application
       (PerApplicationDecodedIO.input application fits

@@ -195,6 +195,76 @@ def Block.format : Format Block where
     intro value
     cases value <;> simp [Format.decode_encode]
 
+/-! ## Exact witness-start projection -/
+
+/-- Consecutive final-layout witness starts for one compiled action trace. -/
+private def sequentialWitnessStarts : Nat → Nat → List Nat
+  | _witnessStart, 0 => []
+  | witnessStart, count + 1 =>
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan witnessStart ::
+        sequentialWitnessStarts (witnessStart + 592) count
+
+private theorem sequentialWitnessStarts_add
+    (witnessStart left right : Nat) :
+    sequentialWitnessStarts witnessStart (left + right) =
+      sequentialWitnessStarts witnessStart left ++
+        sequentialWitnessStarts (witnessStart + left * 592) right := by
+  induction left generalizing witnessStart with
+  | zero => simp [sequentialWitnessStarts]
+  | succ left inductionHypothesis =>
+      simp only [Nat.succ_add, sequentialWitnessStarts, List.cons_append]
+      rw [inductionHypothesis]
+      rw [show witnessStart + 592 + left * 592 =
+        witnessStart + Nat.succ left * 592 by omega]
+
+private theorem compileBlocks_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (blocks : List (List Expr)) :
+    (Invocations.compileBlocks phase rowStart witnessStart state blocks).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart blocks.length := by
+  induction blocks generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons block blocks inductionHypothesis =>
+      simp only [Invocations.compileBlocks, List.map_cons,
+        Invocations.invocation_witnessStart, List.length_cons,
+        sequentialWitnessStarts]
+      rw [inductionHypothesis
+        (rowStart := rowStart + 592)
+        (witnessStart := witnessStart + 592)
+        (state := Invocations.permutationOutput witnessStart)]
+
+private theorem compileActions_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Formal.Action) :
+    (Invocations.compileActions phase rowStart witnessStart state actions).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart
+        (Invocations.invocationCount actions) := by
+  induction actions generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          simp only [Invocations.compileActions, List.map_append]
+          rw [compileBlocks_witnessStarts, inductionHypothesis,
+            Invocations.compileBlocks_witnessNext]
+          simp only [Invocations.invocationCount,
+            Invocations.Action.invocationCount, List.map_cons, List.sum_cons]
+          exact (sequentialWitnessStarts_add witnessStart
+            (Hash.inputChunks input).length
+            ((actions.map Invocations.Action.invocationCount).sum)).symm
+      | squeezeK expected =>
+          simp only [Invocations.compileActions, List.map_cons,
+            Invocations.invocation_witnessStart]
+          rw [inductionHypothesis]
+          simp only [Invocations.invocationCount,
+            Invocations.Action.invocationCount, List.map_cons, List.sum_cons]
+          rw [sequentialWitnessStarts_add witnessStart 2
+            ((actions.map Invocations.Action.invocationCount).sum)]
+          simp only [sequentialWitnessStarts, List.cons_append,
+            List.nil_append]
+
 /-! ## Canonical PiCCS blocks -/
 
 def statementBlock (_unit : Unit) : ActionBlock :=
@@ -316,6 +386,26 @@ theorem piCcsBlocks_expand :
     List.append_nil, statementBlock_expand, challengeBlock_expand,
     roundBlock_expand, outputBlock_expand]
   simp only [List.append_assoc]
+
+/-- Lightweight exact witness-start schedule for all four PiCCS packets. -/
+def piCcsWitnessStarts (_unit : Unit) : List Nat :=
+  sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 379 ++
+    sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 87 ++
+    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 252 ++
+    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 6886
+
+theorem piCcsWitnessStarts_materializes :
+    piCcsWitnessStarts () =
+      (PiCCSInvocations.invocations Data.logicalWidth Data.publicFits).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold piCcsWitnessStarts PiCCSInvocations.invocations
+  simp only [List.map_append, PiCCSInvocations.statementTrace,
+    PiCCSInvocations.challengeTrace, PiCCSInvocations.roundTrace,
+    PiCCSInvocations.outputTrace, compileActions_witnessStarts]
+  rw [PiCCSInvocations.statementInvocationCount_eq,
+    PiCCSInvocations.challengeInvocationCount_eq,
+    PiCCSInvocations.roundInvocationCount_eq,
+    PiCCSInvocations.outputInvocationCount_eq]
 
 /-! ## Canonical PiRLC sampler blocks -/
 
@@ -608,6 +698,18 @@ theorem samplerWitnessStartAt_materializes :
           (publicFits := Data.publicFits)).map
             (fun invocation => invocation.witnessStart) := by
       rw [piRlcSamplerBlocks_expand]
+
+/-- Lightweight exact witness-start schedule for every non-pilot invocation. -/
+def canonicalWitnessStarts (_unit : Unit) : List Nat :=
+  piCcsWitnessStarts () ++ List.ofFn samplerWitnessStartAt
+
+theorem canonicalWitnessStarts_materializes :
+    canonicalWitnessStarts () =
+      (Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold canonicalWitnessStarts
+  rw [Data.permutationInvocations_eq, List.map_append,
+    piCcsWitnessStarts_materializes, samplerWitnessStartAt_materializes]
 
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcSamplerBlocks ()

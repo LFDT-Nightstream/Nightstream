@@ -452,7 +452,7 @@ impl Preprocessing {
     /// and PiCCS header are derived from the same params, structure, and
     /// matrix cache used by native proving, so recursive frontends do not
     /// reconstruct protocol metadata through a parallel path.
-    pub fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
+    pub(crate) fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
         Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
             pi_ccs: crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig {
                 params: &self.params,

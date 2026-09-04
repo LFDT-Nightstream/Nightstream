@@ -66,6 +66,10 @@ def componentDomain (component : Nat) : List F :=
     Poseidon2.ofNat 118, Poseidon2.ofNat 49, Poseidon2.ofNat 95,
     Poseidon2.ofNat 49, Poseidon2.ofNat component]
 
+@[simp] theorem componentDomain_length (component : Nat) :
+    (componentDomain component).length = 32 := by
+  rfl
+
 def framed (words : List F) : List F := Poseidon2.ofNat words.length :: words
 
 def componentDigest (component : Nat) (words : List F) : Digest4 :=

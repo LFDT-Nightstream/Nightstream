@@ -306,6 +306,14 @@ impl<Owner: Clone> TaggedR1csBuilder<'_, Owner> {
         self
     }
 
+    /// Enforce `gate * linear_expression = 0`.
+    ///
+    /// This does not constrain `gate` itself; callers using it as a selector
+    /// must separately ensure that the gate column is Boolean.
+    pub fn push_gated_linear_zero(&mut self, gate: usize, terms: impl IntoIterator<Item = (usize, F)>) -> &mut Self {
+        self.push_row([(gate, F::ONE)], terms, [])
+    }
+
     pub fn push_boolean(&mut self, column: usize) -> &mut Self {
         self.inner.push_boolean(self.tag.clone(), column);
         self

@@ -4,6 +4,7 @@ edition = { workspace = true }
 version = { workspace = true }
 authors = { workspace = true }
 license = "Apache-2.0"
+autotests = false
 
 [lints]
 workspace = true
@@ -61,72 +62,16 @@ bincode     = { workspace = true }
 #   - `perf/`        ↔ perf-only snapshots
 
 [[test]]
+name = "streaming_claim_digest_poseidon_witnesses"
+path = "tests/streaming_claim_digest_poseidon_witnesses.rs"
+
+[[test]]
+name = "streaming_pi_rlc_family_digest_poseidon_witness"
+path = "tests/streaming_pi_rlc_family_digest_poseidon_witness.rs"
+
+[[test]]
 name = "gadgets_r1cs_builder"
 path = "tests/gadgets/r1cs_builder.rs"
-
-[[test]]
-name = "nebula_streaming_claim_replay"
-path = "tests/nebula/streaming_claim_replay.rs"
-
-[[test]]
-name = "nebula_streaming_claim_replay_linked_overlay"
-path = "tests/nebula/streaming_claim_replay_linked_overlay.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_family_replay"
-path = "tests/nebula/streaming_pi_rlc_family_replay.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_family_relation"
-path = "tests/nebula/streaming_pi_rlc_family_relation.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_poseidon_provenance"
-path = "tests/nebula/streaming_pi_rlc_poseidon_provenance.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_poseidon_call_layout"
-path = "tests/nebula/streaming_pi_rlc_poseidon_call_layout.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_family_b2_k16"
-path = "tests/nebula/streaming_pi_rlc_family_b2_k16.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_family_public"
-path = "tests/nebula/streaming_pi_rlc_family_public.rs"
-
-[[test]]
-name = "nebula_streaming_pi_rlc_phase_envelope"
-path = "tests/nebula/streaming_pi_rlc_phase_envelope.rs"
-
-[[test]]
-name = "nebula_streaming_lifecycle_semantic_link"
-path = "tests/nebula/streaming_lifecycle_semantic_link.rs"
-
-[[test]]
-name = "nebula_streaming_state_envelope"
-path = "tests/nebula/streaming_state_envelope.rs"
-
-[[test]]
-name = "nebula_streaming_prelude_relation"
-path = "tests/nebula/streaming_prelude_relation.rs"
-
-[[test]]
-name = "nebula_streaming_prior_state_replay_relation"
-path = "tests/nebula/streaming_prior_state_replay_relation.rs"
-
-[[test]]
-name = "nebula_streaming_prior_state_replay_artifact"
-path = "tests/nebula/streaming_prior_state_replay_artifact.rs"
-
-[[test]]
-name = "nebula_streaming_lifecycle_profile"
-path = "tests/nebula/streaming_lifecycle_profile.rs"
-
-[[test]]
-name = "nebula_streaming_terminal_profile"
-path = "tests/nebula/streaming_terminal_profile.rs"
 
 [[test]]
 name = "f_prime_scheduled_linked_overlay"
@@ -161,10 +106,6 @@ name = "gadgets_f_prime_counter_lean_artifact"
 path = "tests/gadgets/f_prime_counter_lean_artifact.rs"
 
 [[test]]
-name = "gadgets_nebula_recursive_arm_lean_artifact"
-path = "tests/gadgets/nebula_recursive_arm_lean_artifact.rs"
-
-[[test]]
 name = "gadgets_nebula_program_binding_lean_artifact"
 path = "tests/gadgets/nebula_program_binding_lean_artifact.rs"
 
@@ -173,24 +114,8 @@ name = "gadgets_f_prime_encoding_lean_artifact"
 path = "tests/gadgets/f_prime_encoding_lean_artifact.rs"
 
 [[test]]
-name = "gadgets_f_prime_terminal_link_lean_artifact"
-path = "tests/gadgets/f_prime_terminal_link_lean_artifact.rs"
-
-[[test]]
-name = "gadgets_f_prime_state_link_lean_artifact"
-path = "tests/gadgets/f_prime_state_link_lean_artifact.rs"
-
-[[test]]
-name = "gadgets_f_prime_base_state_lean_artifact"
-path = "tests/gadgets/f_prime_base_state_lean_artifact.rs"
-
-[[test]]
 name = "gadgets_f_prime_chunk_digest_lean_artifact"
 path = "tests/gadgets/f_prime_chunk_digest_lean_artifact.rs"
-
-[[test]]
-name = "gadgets_ce_continuity"
-path = "tests/gadgets/ce_continuity.rs"
 
 [[test]]
 name = "gadgets_poseidon2_lean_artifact"
@@ -201,16 +126,8 @@ name = "gadgets_f_prime_base_program_lean_artifact"
 path = "tests/gadgets/f_prime_base_program_lean_artifact.rs"
 
 [[test]]
-name = "gadgets_f_prime_recursive_manifest"
-path = "tests/gadgets/f_prime_recursive_manifest.rs"
-
-[[test]]
 name = "f_prime_package_production"
 path = "tests/f_prime/package_production.rs"
-
-[[test]]
-name = "gadgets_nifs_compiler_conformance"
-path = "tests/gadgets/nifs_compiler_conformance.rs"
 
 [[test]]
 name = "gadgets_pi_rlc_projection_boundary"
@@ -255,10 +172,6 @@ path = "tests/reductions/ccs_native_poseidon.rs"
 [[test]]
 name = "reductions_accumulator_sis"
 path = "tests/reductions/accumulator_sis.rs"
-
-[[test]]
-name = "reductions_nifs_v_transcript"
-path = "tests/reductions/nifs_v_transcript.rs"
 
 [[test]]
 name = "reductions_redteam_commitment_encoding"
@@ -325,10 +238,6 @@ name = "f_prime_nebula_lane_circuit"
 path = "tests/f_prime/nebula_lane_circuit.rs"
 
 [[test]]
-name = "f_prime_r1cs"
-path = "tests/f_prime/r1cs.rs"
-
-[[test]]
 name = "f_prime_source_image"
 path = "tests/f_prime/source_image.rs"
 
@@ -387,10 +296,6 @@ path = "tests/system/lifecycle_redteam.rs"
 [[test]]
 name = "system_formal_conformance"
 path = "tests/system/formal_conformance.rs"
-
-[[test]]
-name = "system_decider_r1cs"
-path = "tests/system/decider_r1cs.rs"
 
 [[test]]
 name = "system_ring_action_projection"
@@ -473,10 +378,6 @@ name = "system_lean_canonical_manifest"
 path = "tests/system/lean_canonical_manifest.rs"
 
 [[test]]
-name = "system_lean_native_ccs_manifest"
-path = "tests/system/lean_native_ccs_manifest.rs"
-
-[[test]]
 name = "system_r1cs_stage_provenance"
 path = "tests/system/r1cs_stage_provenance.rs"
 
@@ -505,10 +406,6 @@ name = "system_relation_artifact"
 path = "tests/system/relation_artifact.rs"
 
 [[test]]
-name = "perf_fibonacci_bits"
-path = "tests/perf/fibonacci_bits.rs"
-
-[[test]]
 name = "perf_ring_action_low_norm_prototype"
 path = "tests/perf/ring_action_low_norm_prototype.rs"
 
@@ -529,24 +426,12 @@ name = "nebula_application"
 path = "tests/nebula/application.rs"
 
 [[test]]
-name = "nebula_f_prime"
-path = "tests/nebula/f_prime.rs"
-
-[[test]]
-name = "nebula_streaming_program"
-path = "tests/nebula/streaming_program.rs"
-
-[[test]]
 name = "nebula_pi_rlc_family_selective_ccs"
 path = "tests/nebula/pi_rlc_family_selective_ccs.rs"
 
 [[test]]
 name = "nebula_pi_ccs_round_selective_ccs"
 path = "tests/nebula/pi_ccs_round_selective_ccs.rs"
-
-[[test]]
-name = "nebula_streaming_pi_ccs_round_relation"
-path = "tests/nebula/streaming_pi_ccs_round_relation.rs"
 
 [[test]]
 name = "nebula_adv"
@@ -579,7 +464,3 @@ path = "tests/nebula/stack.rs"
 [[test]]
 name = "perf_nebula"
 path = "tests/perf/nebula.rs"
-
-[[test]]
-name = "perf_lowered_nifs_v"
-path = "tests/perf/lowered_nifs_v.rs"

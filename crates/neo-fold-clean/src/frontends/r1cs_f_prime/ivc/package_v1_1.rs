@@ -150,7 +150,7 @@ impl PiCcsV1_1ProofInputs {
 /// Serialize the exact Lean `HashPreimage` for the fixed v1_1 profile.
 #[allow(clippy::too_many_arguments)]
 pub fn serialize_pi_ccs_v1_1_state_preimage(
-    verifier_key_digest: [F; 4],
+    verifier_context_digest: [F; 4],
     iteration: u64,
     z0: [F; 4],
     current: [F; 4],
@@ -176,7 +176,10 @@ pub fn serialize_pi_ccs_v1_1_state_preimage(
 
     let mut words = Vec::with_capacity(PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     words.extend_from_slice(&STATE_DOMAIN_TAG);
-    push_block(&mut words, &verifier_key_digest.map(|value| value.as_canonical_u64()));
+    push_block(
+        &mut words,
+        &verifier_context_digest.map(|value| value.as_canonical_u64()),
+    );
     words.push(iteration);
     push_block(&mut words, &z0.map(|value| value.as_canonical_u64()));
     push_block(&mut words, &current.map(|value| value.as_canonical_u64()));

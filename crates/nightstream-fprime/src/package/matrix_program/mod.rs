@@ -872,8 +872,10 @@ impl Block {
         source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
         mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
     ) -> Result<(), PackageError> {
-        if let Self::Poseidon(block) = self {
-            return block.visit_rows(logical_width, start, end, visit);
+        match self {
+            Self::Poseidon(block) => return block.visit_rows(logical_width, start, end, visit),
+            Self::Phi81(block) => return block.visit_rows(logical_width, start, end, visit),
+            _ => {}
         }
         if start > end || end > self.row_count()? {
             return Err(PackageError::Invalid("matrix block row range"));
@@ -907,6 +909,54 @@ impl MatrixProgram {
     pub(super) fn validate(&self, source_limit: usize) -> Result<(), PackageError> {
         for block in &self.blocks {
             block.validate(source_limit)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn visit_rows(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
+        mut visit: impl FnMut(usize, RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        let row_count = self.row_count()?;
+        if start > end || end > row_count {
+            return Err(PackageError::Invalid("matrix program row range"));
+        }
+
+        let mut block_start = 0usize;
+        let mut next = start;
+        for block in &self.blocks {
+            let block_end = checked_add(block_start, block.row_count()?, "matrix program block end")?;
+            if start < block_end && block_start < end {
+                let local_start = start.max(block_start) - block_start;
+                let local_end = end.min(block_end) - block_start;
+                let expected_start = checked_add(block_start, local_start, "matrix program visit start")?;
+                let expected_end = checked_add(block_start, local_end, "matrix program visit end")?;
+                if next != expected_start {
+                    return Err(PackageError::Invalid("non-contiguous matrix program visit"));
+                }
+                block.visit_rows(logical_width, local_start, local_end, source_row, |forms| {
+                    if next >= expected_end {
+                        return Err(PackageError::Invalid("extra matrix program row"));
+                    }
+                    let ordinal = next;
+                    visit(ordinal, forms)?;
+                    next = next
+                        .checked_add(1)
+                        .ok_or(PackageError::Invalid("matrix program visit ordinal"))?;
+                    Ok(())
+                })?;
+                if next != expected_end {
+                    return Err(PackageError::Invalid("missing matrix program row"));
+                }
+            }
+            block_start = block_end;
+        }
+        if block_start != row_count || next != end {
+            return Err(PackageError::Invalid("incomplete matrix program visit"));
         }
         Ok(())
     }
@@ -971,6 +1021,7 @@ impl MatrixProgram {
             )
     }
 
+    #[cfg(test)]
     pub(super) fn row(
         &self,
         logical_width: usize,

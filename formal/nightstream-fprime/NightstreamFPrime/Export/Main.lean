@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PackagePlan
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
-import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
@@ -900,6 +900,87 @@ def writePerApplicationInnerPackage
       shift.program)))
   writeByte handle 93
 
+/-- Stream the exact `ApplicationPackage.Plan.format` field order without
+constructing duplicate codec trees for its application-sized row lists. -/
+def writeApplicationPackagePlan (handle : IO.FS.Handle)
+    (plan : Stage1.ApplicationPackage.Plan) : IO Unit := do
+  writeByte handle 91
+  writeValue handle (.atom plan.schemaVersion)
+  comma handle
+  writeValue handle (.atom plan.witnessWordCount)
+  comma handle
+  writeList handle nat plan.inputColumns
+  comma handle
+  writeList handle nat plan.witnessColumns
+  comma handle
+  writeList handle nat plan.outputColumns
+  comma handle
+  writeValue handle (.atom plan.privateStart)
+  comma handle
+  writeValue handle (.atom plan.privateCount)
+  comma handle
+  writeValue handle (.atom plan.rowStart)
+  comma handle
+  writeValue handle (.atom plan.rowCount)
+  comma handle
+  writeList handle Package.HashChain.format plan.hashChains
+  comma handle
+  writeListWith handle (TypedWriter.writePermutationInvocation handle)
+    plan.permutationInvocations
+  comma handle
+  writeListWith handle (writeCompactRowTemplate handle)
+    plan.compactRowTemplates
+  comma handle
+  writeListWith handle (TypedWriter.writeCompactRowInvocation handle)
+    plan.compactRowInvocations
+  comma handle
+  writeListWith handle (TypedWriter.writeWitnessBatch handle)
+    plan.witnessBatches
+  comma handle
+  writeListWith handle (TypedWriter.writeWitnessInstruction handle)
+    plan.witnessInstructions
+  comma handle
+  writeListWith handle (TypedWriter.writeSparseRow handle) plan.assertionRows
+  writeByte handle 93
+
+/-- Stream the assignment-transport codec fields without constructing the
+30,420 expression codec trees. Field order and child codecs are exactly those
+of `PerApplicationAssignmentTransport.Plan.format`. -/
+def writePerApplicationAssignmentTransport
+    (program : Lifecycle.Stage1.Application.Program)
+    (handle : IO.FS.Handle) : IO Unit := do
+  writeByte handle 91
+  writeValue handle
+    (.atom Stage1.PerApplicationAssignmentTransport.schema)
+  comma handle
+  writeValue handle
+    (Stage1.PerApplicationAssignmentBlocks.format.encode
+      (Stage1.PerApplicationAssignmentBlocks.canonical program))
+  comma handle
+  writeValue handle
+    (Stage1.PerApplicationAssignmentTransport.Phi81GroupRecipe.format.encode
+      Stage1.PerApplicationAssignmentTransport.phi81GroupRecipe)
+  comma handle
+  writeValue handle
+    (Stage1.PerApplicationAssignmentTransport.First54ProductRecipe.format.encode
+      Stage1.PerApplicationAssignmentTransport.first54ProductRecipe)
+  comma handle
+  writeValue handle
+    (Stage1.PerApplicationAssignmentPlan.BlockKind.format.encode
+      .piCcsPayload)
+  comma handle
+  writeListWith handle (TypedWriter.writeExpr handle)
+    (Stage1.PerApplicationAssignmentTransport.materializedPayloadExpressions
+      program)
+  comma handle
+  writeValue handle
+    (Stage1.PerApplicationAssignmentPlan.BlockKind.format.encode
+      .pilotOutputDigest)
+  comma handle
+  writeListWith handle (TypedWriter.writeExpr handle)
+    (Stage1.PerApplicationAssignmentTransport.outputDigestExpressions program)
+  writeByte handle 93
+
 /-- Stream the exact `sealedPackageValue` field order without constructing its
 artifact-sized codec tree. The selected application remains a Lean value; no
 runtime field selects its rows or layout. -/
@@ -924,10 +1005,9 @@ def writePerApplicationSealedPackage
   writeValue handle (MatrixProgram.Program.format.encode
     (Stage1.PerApplicationMatrixProgram.matrixProgram program))
   comma handle
-  writeValue handle (Stage1.ApplicationPackage.Plan.format.encode application)
+  writeApplicationPackagePlan handle application
   comma handle
-  writeValue handle (Stage1.PerApplicationAssignmentPlan.format.encode
-    Stage1.PerApplicationAssignmentPlan.canonicalKinds)
+  writePerApplicationAssignmentTransport program handle
   comma handle
   writeValue handle (MatrixProgram.IndexRange.format.encode
     (Stage1.PerApplicationCanonicalPackage.nextPreimageRange program))

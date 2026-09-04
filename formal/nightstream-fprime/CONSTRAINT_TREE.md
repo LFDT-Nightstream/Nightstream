@@ -17,17 +17,20 @@ paper formula
 Status on this cut:
 
 - Pilot: validated candidate; status open on the current identity.
-- PiCCS: all phase-local gates are green; formally **status open** under the
-  owner decision until the final fixed-point edge and final-identity rerun.
-- PiRLC: validated candidate; status open until an external reviewer approves
-  this exact source and artifact cut.
-- PiDEC: phase-local work is owner-authorized and all local gates below are
-  green; status open until exact external review.
+- PiCCS: the final-identity compiler and executable conformance gates are
+  green. It remains formally **status open** until an independent reviewer
+  approves this exact source and artifact cut.
+- PiRLC: retained candidate only. Its identity-dependent fixture was not
+  regenerated after the current PiCCS state-binding update. Work remains
+  frozen until PiCCS is conformance-closed.
+- PiDEC: retained candidate only. Its identity-dependent fixture is not
+  evidence for the current PiCCS handoff and was not regenerated.
 - Running-instance branch: compiler and phase-local conformance gates are
   green; status open as part of the cumulative package cut.
 - Accumulator: the zero-row SuperNeo verifier composition and canonical
-  package edge are kernel-checked; status open until the final package
-  identity and fixed-point gates are rerun.
+  package edge, final package identity, and recursive fixed point are
+  kernel-checked; status open as part of the cumulative package cut and its
+  exact external review.
 - Application: the verifier-owned per-application `Program`, zero-copy
   four-word state layout, direct canonical lowering, plan identity,
   verifier-context component, verification-key binding preimage, and
@@ -42,13 +45,20 @@ Status on this cut:
   package-row-to-`StepHoldsFor` theorem are kernel-checked. The concrete
   application, recursive fixed point, final `2^28` proof, deterministic
   closure, security-or-collision theorem, sealed package, and terminal
-  metadata exist. The sole logical parent `FormalCircuit`, its complete
-  physical preservation, setup parity, package-only Rust lifecycle, and exact
+  metadata, sole logical parent `FormalCircuit`, complete physical
+  preservation, and setup parity exist and pass their focused gates. The
+  package-only Rust lifecycle, downstream current-cut reruns, and exact
   external review remain open.
 
-The official external review approves the package cut before the zero-row
-accumulator source additions. The Fable review is older. Both remain evidence,
-not approval of this current source cut. No status below treats them as such.
+The first 2026-09-04 independent Linux review rejected its cut because a
+compressed Rust PiCCS path was reachable, its source fingerprint was not
+reproducible, current audit comments were stale, and the retired loader suite
+was red. A second review of manifest `f8697af3...` confirmed those repairs but
+found a separate public route through the unapproved Nebula F′ prototype. This
+working cut makes that Stage 2 module crate-private and keeps its dependent
+integration targets inactive. It remains unapproved until an independent
+reviewer checks its new exact manifest. No status below treats either rejected
+review as approval.
 
 ## Fixed profile and semantic authority
 
@@ -71,8 +81,11 @@ Goldilocks profile is:
 | Public-input words | 270 |
 
 `Eval_K` is the separate Pad family. `Eval_A` is the separate 14-matrix
-family. No v1.0 Pad-as-matrix-zero encoding is present. Transcript, state,
-package-identity, and verifier-context binding use Poseidon2 only.
+family. No v1.0 Pad-as-matrix-zero encoding is present on the canonical Lean
+path or a normal-build public F′ path. The retired compressed Rust emitter is
+crate-private reference code. Its unapproved Stage 2 caller is also
+crate-private and is not a production API. Transcript, state, package-identity,
+and verifier-context binding use Poseidon2 only.
 
 The public digest encoding is exact `encHash`:
 
@@ -92,8 +105,10 @@ in the canonical Boolean-row order; matrix slot 13 and every padding row are
 zero by construction. `Plan.matrixVectorAt_matrix` proves that each matrix
 image equals its sparse row-form evaluation. `ProductionRelation.polynomial_zeroImages`
 proves that the fixed 74-term polynomial accepts the all-zero padding rows.
-The phase compiler still must construct the complete low-norm plan before
-these matrices can replace the current package relation metadata.
+`PerApplicationStructuralPlan.structuralPlan` constructs the complete
+low-norm plan. `PerApplicationMatrixProgramSemantics.matrixProgramExact`
+proves that the canonical matrix program implements its exact 14 row forms.
+These matrices are the relation in the current sealed package.
 
 ## Logical phase hierarchy
 
@@ -116,10 +131,10 @@ Lifecycle/Stage1/VerificationKey.lean        ✓ acyclic key binding preimage
 Lifecycle/Stage1/Terminal.lean               ✓ outer terminal semantics
 Export/Stage1/TerminalPackage.lean           ✓ zero-row terminal metadata
 Lifecycle/Stage1/Interface.lean              ✓ symbolic child interfaces
-Lifecycle/Stage1/Formal.lean                 △ order, footprint, soundness
+Lifecycle/Stage1/Formal.lean                 ✓ sole seven-child FormalCircuit
 Layout/Stage1/AssemblerInputs.lean           ✓ compact cross-phase wiring
-Layout/Stage1/AssemblerSoundness.lean        △ deterministic relation composition
-Layout/Stage1/Preservation.lean              ○ final physical preservation
+Layout/Stage1/AssemblerSoundness.lean        ✓ deterministic relation composition
+Layout/Stage1/PreservationClosure.lean       ✓ final physical preservation
 ```
 
 PiCCS leaf ownership:
@@ -190,7 +205,7 @@ The authoritative ledgers are:
 | Through running-instance branch | 29,218,024 | 29,336,724 |
 | Final application package | 29,225,729 | 29,344,425 |
 
-The final recursive relation has 6,377,555 structural rows and logical width
+The final recursive relation has 6,377,559 structural rows and logical width
 264,627,433. Its Φ81 carrier width, and therefore its exact joint domain, is
 264,627,486. This is below `2^28 = 268,435,456` with 3,807,970 points of
 headroom. The outer terminal metadata adds no row or column.
@@ -200,7 +215,7 @@ headroom. The outer terminal metadata adds no row or column.
 | Final sealed package value | Exact value |
 |---|---:|
 | Physical rows | 29,225,729 |
-| Logical relation rows | 6,377,555 |
+| Logical relation rows | 6,377,559 |
 | Logical relation columns | 264,627,433 |
 | Private columns / constant source index | 29,344,146 |
 | Public columns | 278 |
@@ -217,59 +232,66 @@ headroom. The outer terminal metadata adds no row or column.
 The verifier-owned identities are:
 
 ```text
-structural = [12361274004522005101, 16152982874305751731,
-              1678681406509731088, 132363367961763188]
-package    = [13741043116079060421, 5674518528429785720,
-              11166766960909880549, 9224649085053790129]
-context    = [10416656309336468580, 11453309885101557621,
-              6231848007073348033, 891737494100938774]
-vk         = [17821258025285015024, 16394839360284581327,
-              1628867512508252830, 9450997652215229796]
+structural = [16811687277879400436, 860456718252016362,
+              16809159788790180735, 11447255358434504088]
+package    = [5272192602150446227, 11110764831345399822,
+              12712750146236044807, 13354028730245635118]
+context    = [1980942344823989826, 5434686752167889125,
+              1771901317533452586, 10480267795687330756]
+vk         = [7060461157808352439, 12469274673870775826,
+              13276126990617570414, 14803309506206887238]
 ```
 
-No external reviewer has approved a source fingerprint for this cut.
+No external reviewer has approved a source fingerprint for this cut. The
+reviewer can reproduce the exact cut with:
+
+```bash
+python3 scripts/fprime_stage1_review_manifest.py check \
+  FPRIME_STAGE1_REVIEW_MANIFEST.json
+sha256sum FPRIME_STAGE1_REVIEW_MANIFEST.json
+```
+
+The canonical manifest covers Git HEAD, current tracked and untracked source,
+tests, configuration, owner inputs, paper inputs, executable file modes, and
+the six required artifacts below. It hashes raw worktree bytes in two matching
+passes and rejects missing inputs, scoped tracked deletions, symlinked inputs,
+Git-LFS pointers, or concurrent changes. The manifest is review metadata. It
+is not a protocol digest or verifier authority.
 
 SHA-256 identifies bytes only:
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| Current prefix plan | 93,823,057 | `1e3b40436b9e3fe8eee846bcb6d5c0161717157bf6250e0a843253fc0f61116d` |
-| Final sealed package | 121,734,708 | `8c18ad3ad107d872514c06ca335bea8bc53594cc8ac987a0047c38c15c37de84` |
-| Pilot parity | 697,379 | `5c0925eb8864d81ab80235dad796457f91cb2063253688f57159ed5029dac251` |
-| PiCCS parity | 1,642,578 | `c5640faaab5612a463f92b6e15fb171f553c051be6040cbbc1129944dc786a5d` |
-| PiRLC parity | 1,136,741 | `13656f3d450dc377cd7b6768d7663356c5452a5e3bd2970187627450c1b08e94` |
-| PiDEC parity | 1,653,850 | `fc7c325c2388e5e1e97d98f90c69f97831b59977939103437c6973a17b16fa8f` |
-| PiRLC sampler parity | 9,202 | `e1ee42037d7750725c9442d7693b93eb60dd56c5507577370d4f06e65aad88a3` |
-| Application and terminal-layout parity | 842,081 | `b3e636e926560fc0c6bc71852d6364ac301dfaffcafede92ed6a7a4ac2ba6b9b` |
+| Final sealed package | 126,436,452 | `1b0c9977724998b4b261001d503899439eedc9427d04950f00b4da5bf442427b` |
+| Separate expanded package | 117,391,937 | `952a21ddca40e6223c7f8a0696ee5716eea741e6d6352a6b4e14cad1c634ef21` |
+| Package-binding parity | 1,611 | `20e14acdcbe4e5df79a2eb1dce2a506c2ef458451b476cd1eaddfa17f7b59275` |
+| PiCCS parity | 1,642,619 | `6406418a687884a68437f902d23bba7ab5e535c26961f0ad0b88a32e94f5e0e7` |
+| PiCCS ownership | 1,649 | `9577bab3983538562d756a7d1458ba61549ae044400300466b097e9444b3d964` |
+| Ajtai setup parity | 903 | `2279463a3b76aa273626d2028b62d4cb4d1ad30da945db723347050ec08cba51` |
+
+The Pilot, PiRLC, PiDEC, sampler, application, and terminal parity artifacts
+were not regenerated for this PiCCS-only cut. They are not current-cut
+evidence.
 
 ## Exact conformance evidence
 
 Lean evidence on this cut:
 
-- `validate.sh static`: all boundary checks passed.
-- full `NightstreamFPrime` root passed on the current cut in 9 seconds.
-- `tests/AxiomsStage1Accumulator.lean`: all 18 new theorem roots passed in
-  3 seconds with only `propext`, `Classical.choice`, and `Quot.sound`.
+- `validate.sh all` passed the boundary checks, full `NightstreamFPrime` and
+  `NightstreamFPrimeTests` builds, and every axiom target on this cut.
 - `AccumulatorSemantics.phases_imply_holds` proves that the complete
   PiCCS → PiRLC → PiDEC verifier graph equals `Accumulator.Holds`.
 - `AccumulatorPackage.circuitPackage_implies_accumulatorHolds` derives that
   result from the unchanged canonical package rows.
-- `validate.sh axioms`: 3,342 jobs passed in 9 seconds. Audited theorems use
-  only `propext`, `Classical.choice`, and `Quot.sound`; the production strong
-  set and complete-fork extraction roots are included.
-- the phase-local Stage 1 parent validates in 3 seconds after explicit
-  Poseidon and PiCCS footprint metadata replaced the default executable list
-  reductions; the rejected first check exceeded 86 seconds and 25.5 GB RSS;
-- the focused application-and-terminal parity file passed in 3 seconds and
-  emitted its schema-2 fixture in 33 seconds;
-- forced compact package emission improved from a 7.16-second baseline median
-  to 5.78 seconds with `LEAN_NUM_THREADS=10`, a 19.3% reduction;
-- forced expanded emission improved from a 9.11-second baseline median to
-  7.39 seconds, an 18.9% reduction. Every baseline and final output was
-  byte-identical to the checked artifact. No reliable compile-time reduction
-  was established.
-- all five dependent phase parity fixtures and the independent sampler
-  fixture were regenerated from the same locked Lean source.
+- `Lifecycle.Stage1.circuit` is the sole seven-child parent;
+  `Lifecycle.Stage1.soundness` and `Lifecycle.Stage1.circuit_coverage` prove
+  its parent result and exact child coverage.
+- `PreservationClosure.physical_implies_compactSpec` and
+  `PreservationClosure.physical_implies_stepHoldsFor` connect all physical
+  rows to the exact Stage 1 semantics.
+- `PerApplicationMatrixProgramSemantics.matrixProgramExact` and the
+  `Poseidon2HashChainV1MatrixRows` theorems connect the final package program
+  to all 14 Lean-authored matrices, including zero slot 13 and padding.
 - CI is configured to run `formal/nightstream-fprime/scripts/validate.sh all`.
   No remote CI run is claimed on this cut.
 
@@ -281,49 +303,54 @@ emitter uses `LEAN_NUM_THREADS=10` and writes one canonical order.
 
 Rust evidence on this cut:
 
-- exact final-package matrix conformance: 1/1 on the final sealed identity;
-- exact final matrix nonzeros `A/B/C`:
-  `[93,701,820, 39,358,148, 28,868,018]`;
-- independent assignment evaluation: all 29,225,729 physical rows and the
-  padded zero domain passed;
-- current-cut owner-family mutation counts are open because the prefix
-  conformance support still pins the superseded identity and κ=18 column map;
-- strict package loader: 14/14 on the current prefix artifact;
-- compact-plan loader: 10/10 in 36.69 seconds;
-- pilot parity and mutations: 3/3 in 20.72 seconds;
-- complete PiCCS Lean / PaperExact / optimized parity: 4/4 in 3.76 seconds;
-- complete indexed PiRLC parity and handoff: 3/3 in 2.34 seconds;
-- complete PiDEC Lean / PaperExact / optimized parity: 3/3 in 33.10 seconds;
-- PiRLC sampler parity and fail-closed decoding: 2/2;
-- final nonzero assignment, independent evaluator, exact matrices,
-  application mutations, and terminal-layout comparison: 1/1 in 47.71
-  seconds;
-- the final-identity NIFS engine cross-check passed its focused nonzero test;
-- Poseidon2 Lean vectors: 2/2;
-- the full `nightstream-fprime` aggregate remains red because
-  `package_matrix_conformance` still pins the superseded prefix identity in
-  `check_package_conformance/support.rs`. This is not a semantic failure, but
-  it is an open gate.
+- exact final 14-matrix equality passed all 6,377,559 logical rows. The
+  per-matrix nonzero census is
+  `[33616548, 4650801, 80774495, 97721533, 315532725, 1535263390,
+  33006078, 1726758, 32220219, 30971178, 30233769, 31133970,
+  30392685, 0]`;
+- the independent PiCCS evaluator passed all 19,936,967 cumulative physical
+  prefix rows and all 3,864,823 final Lean logical prefix rows;
+- physical mutations rejected for 12/12 row owners, 12/12 nonempty column
+  owners, and 3/3 public segments. Statement binding and the SumCheck chain
+  are the two proved zero-width column owners and have no assignment column
+  to mutate;
+- complete nonzero PiCCS Lean / `paper_exact` / optimized parity and
+  rejection coverage passed 5/5. The fifth test distinguishes a valid-shaped
+  terminal-identity `Ok(false)` result from malformed-output `Err` results;
+- the final-identity NIFS engine cross-check, transcript replay, missing
+  `Eval_A` rejection, κ=22 setup parity, strict logical-relation header,
+  matrix-identity mutations, and production-binding mutations passed their
+  focused current-cut targets;
+- the complete package-loader target uses only the current sealed package and
+  passes all eight structural, encoding, transcript, and rejection tests.
 
 The matrix comparator expands the Lean plan independently and compares every
-final A/B/C row, column index, canonical coefficient, constant placement, and
-public mapping. The assignment evaluator does not call the matrix builder,
-row expander, witness generator, or package constraint evaluator.
+entry of all 14 final low-norm matrices: row order, column index, canonical
+coefficient, constant placement, and public mapping. The intermediate
+physical R1CS A/B/C rows are a separate lowering check and are not this final
+matrix evidence. The logical assignment evaluator does not call the matrix
+builder, row expander, witness generator, or package constraint evaluator.
 
-The package consumer is a test bridge. It is not the final production
-lifecycle, and its direct package proof is not evidence that Rust implements
-the Lean relation. The semantic, matrix, assignment, and parity gates above
-provide that evidence.
+`Poseidon2HashChainV1Package` is the only normal-build public Stage 1 relation
+boundary. It loads the allowlisted package and exposes only its Lean-authored
+header, rows, binding, and witness program. The older compressed Stage 1
+emitter, native constructors, decider, and Spartan lifecycle are unavailable
+in normal builds. The package boundary has no proof-backend entrypoint because
+no backend is approved. Its package loading is not evidence that Rust
+implements the Lean relation; the semantic, matrix, assignment, and parity
+gates above provide that evidence.
 
-Superseded native v1.0 and radix-four test targets were removed from Cargo and
-the tree. They are recoverable from Git. Their required v1.1 properties are
-covered by the exact phase and package gates above. Current tests that still
-serve a v1.1 contract were migrated to separate `Eval_K` / `Eval_A` and the
-canonical nonempty running accumulator.
+Superseded native v1.0 and radix-four integration targets are unregistered.
+The compressed Stage 1 modules remain crate-private reference code and have no
+normal-build public caller. Their only retained non-test consumer is the
+crate-private, unapproved Stage 2 F′ prototype. Integration targets that need
+that prototype's former public API are inactive, but their source remains for
+future Stage 2 work. Current tests that serve the Stage 1 v1.1 contract use
+separate `Eval_K` / `Eval_A` and the canonical nonempty running accumulator.
 
 ## Open authority and assembly edges
 
-PiCCS must remain status open until this exact edge exists:
+The current Lean cut contains this authority edge:
 
 ```text
 final canonical package
@@ -337,23 +364,20 @@ final canonical package
 
 The accepted per-application-package decision requires the verifier to pin or
 allowlist one final identity. `Poseidon2HashChainV1` is selected, its final
-identity is pinned, and the complete prefix-preservation chain is proved.
+identity is pinned, the complete prefix-preservation chain is proved, and the
+PiCCS gates above were rerun. PiCCS remains status open until the independent
+exact-cut review approves this evidence.
 
 The remaining owner-ordered work is:
 
-1. retain the verifier-derived PiCCS round point in the phase contract, use it
-   to finish the sole Stage 1 `FormalCircuit`, and prove its physical
-   preservation;
-2. complete Lean-Rust parity for the exact κ=22 Ajtai setup artifact;
-3. refresh the remaining prefix conformance identity pin and rerun the full
-   Rust aggregate;
-4. make the validated sealed package the only reachable Rust production relation
-   and remove the alternate radix relation;
-5. rerun all exact-cut reviews and every PiCCS, PiRLC, PiDEC, application,
-   terminal-layout, matrix,
-   assignment, parity, and mutation gate on the final package identity;
-6. after separate owner approval of a production backend, execute the final
-   production `prove → verify` obligation.
+1. obtain independent review of this exact PiCCS source and artifact cut;
+2. after PiCCS is conformance-closed, regenerate its exact PiRLC handoff and
+   resume PiRLC work in owner order;
+3. conformance-close PiRLC, PiDEC, application, and terminal evidence on one
+   unchanged final package cut;
+4. after separate owner approval of a production backend, connect that backend
+   only to `Poseidon2HashChainV1Package` and execute the final production
+   `prove → verify` obligation.
 
 No backend is authorized on this cut. Backend acceptance cannot replace any
 semantic or conformance gate in this file.

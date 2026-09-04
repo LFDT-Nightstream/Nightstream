@@ -226,10 +226,10 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
         .expect("package-owned verifier binding");
     assert_eq!(binding.package_identity(), POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
     let verifier_context = binding.verifier_context().clone();
-    let verifier_key_digest = verifier_context.digest().map(F::from_u64);
+    let verifier_context_digest = binding.verifier_context().digest().map(F::from_u64);
     let z0 = [F::from_u64(201), F::from_u64(202), F::from_u64(203), F::from_u64(204)];
     let current = [F::from_u64(301), F::from_u64(302), F::from_u64(303), F::from_u64(304)];
-    let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_key_digest, 7, z0, current, &running, 1)
+    let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_context_digest, 7, z0, current, &running, 1)
         .expect("canonical Lean prior-state preimage");
     assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(
@@ -256,7 +256,8 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
 
     let lean_preimage: Vec<u64> = serde_json::from_value(parity_input[0].clone()).expect("Lean state preimage");
     let lean_digest: [u64; 4] = serde_json::from_value(parity_input[3].clone()).expect("Lean state digest");
-    let lean_context: [u64; 4] = serde_json::from_value(parity_input[4].clone()).expect("Lean verifier context");
+    let lean_verifier_context: [u64; 4] =
+        serde_json::from_value(parity_input[4].clone()).expect("Lean verifier-context digest");
     let lean_public_input: Vec<u64> = serde_json::from_value(parity_input[2].clone()).expect("Lean state public input");
     assert_eq!(
         pi_ccs_v1_1_state_hash(&lean_preimage).expect("Lean preimage replay"),
@@ -266,8 +267,8 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
         encode_pi_ccs_v1_1_public_input(lean_digest).expect("Lean public-input replay"),
         lean_public_input,
     );
-    assert_eq!(&lean_preimage[24..28], lean_context);
-    assert_eq!(verifier_context.digest(), lean_context);
+    assert_eq!(&lean_preimage[24..28], lean_verifier_context);
+    assert_eq!(binding.verifier_context().digest(), lean_verifier_context);
 
     let inputs = bridge
         .into_package_inputs(

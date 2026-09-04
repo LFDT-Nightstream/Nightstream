@@ -252,7 +252,7 @@ fn accumulator_digest_inputs(claim: &CeClaimWires) -> AccumulatorCeClaimDigestIn
 // ── Public entry ──────────────────────────────────────────────────────────
 
 /// Enforce the selected PiCCS verifier on top of `transcript`.
-pub fn enforce_pi_ccs(
+pub(crate) fn enforce_pi_ccs(
     builder: &mut R1csBuilder,
     transcript: &mut TranscriptGadget,
     cfg: &PiCcsVerifierConfig<'_>,
@@ -263,7 +263,7 @@ pub fn enforce_pi_ccs(
 
 /// Folded-F' entrypoint. The header is verifier-key advice, so its values
 /// do not become constants in a relation that ultimately verifies itself.
-pub fn enforce_pi_ccs_with_matrix_digest_wires(
+pub(crate) fn enforce_pi_ccs_with_matrix_digest_wires(
     builder: &mut R1csBuilder,
     transcript: &mut TranscriptGadget,
     cfg: &PiCcsVerifierConfig<'_>,

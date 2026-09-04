@@ -3,8 +3,9 @@ import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 /-!
 Owns the outer terminal verifier for one verifier-selected application
-package. The relation, application, Ajtai key, package identity, and
-verification-key digest are the same values used by the recursive step.
+package. The relation, application, Ajtai key, and verifier-context digest are
+the same values used by the recursive step. The full verification-key digest
+remains a separate package binding.
 
 The terminal verifier adds no matrix row. It checks all running CE openings
 and the fresh CCS opening against the self-derived relation.
@@ -39,8 +40,8 @@ noncomputable def Holds
   Lifecycle.Stage1.Terminal.HoldsFor
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits
-      commitmentSetup).digest
+    (PerApplicationCanonicalPackage.verifierContextDigest fits
+      commitmentSetup)
     application statement proof
 
 theorem holds_bottom_iff
@@ -52,8 +53,8 @@ theorem holds_bottom_iff
   exact Lifecycle.Stage1.Terminal.holdsFor_bottom_iff
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits
-      commitmentSetup).digest
+    (PerApplicationCanonicalPackage.verifierContextDigest fits
+      commitmentSetup)
     application statement
 
 theorem holds_recursive_iff
@@ -78,8 +79,8 @@ theorem holds_recursive_iff
       RecursiveTerminalTransition
         (setup (PerApplicationFixedPoint.relation application fits)
           (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits
-            commitmentSetup).digest)
+          (PerApplicationCanonicalPackage.verifierContextDigest fits
+            commitmentSetup))
         (machineFor (PerApplicationFixedPoint.publicFits application)
           application)
         (Lifecycle.Stage1.Terminal.relations
@@ -89,8 +90,8 @@ theorem holds_recursive_iff
   exact Lifecycle.Stage1.Terminal.holdsFor_recursive_iff
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits
-      commitmentSetup).digest
+    (PerApplicationCanonicalPackage.verifierContextDigest fits
+      commitmentSetup)
     application statement payload
 
 theorem relations_iff_terminalHolds
@@ -113,15 +114,15 @@ theorem relations_iff_terminalHolds
         (PerApplicationCanonicalPackage.commitmentKey
           commitmentSetup)).runningHolds
           functionIndex
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits
-            commitmentSetup).digest running runningWitness ∧
+          (PerApplicationCanonicalPackage.verifierContextDigest fits
+            commitmentSetup) running runningWitness ∧
       (Lifecycle.Stage1.Terminal.relations
         (PerApplicationFixedPoint.relation application fits)
         (PerApplicationCanonicalPackage.commitmentKey
           commitmentSetup)).freshHolds
           functionIndex
-          (PerApplicationCanonicalPackage.verificationKeyBinding fits
-            commitmentSetup).digest fresh freshWitness ↔
+          (PerApplicationCanonicalPackage.verifierContextDigest fits
+            commitmentSetup) fresh freshWitness ↔
       Lifecycle.TerminalHolds
         (PerApplicationFixedPoint.relation application fits)
         (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) running
@@ -129,8 +130,8 @@ theorem relations_iff_terminalHolds
   exact Lifecycle.Stage1.Terminal.relations_iff_terminalHolds
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-    (PerApplicationCanonicalPackage.verificationKeyBinding fits
-      commitmentSetup).digest
+    (PerApplicationCanonicalPackage.verifierContextDigest fits
+      commitmentSetup)
     running runningWitness fresh freshWitness
 
 end NightstreamFPrime.Export.Stage1.PerApplicationTerminal

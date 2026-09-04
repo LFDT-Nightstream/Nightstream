@@ -1,4 +1,5 @@
-import NightstreamFPrime.Export.Stage1.VerifierContextCandidate
+import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
+import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
@@ -19,6 +20,23 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
+abbrev fixtureLogicalWidth : Nat :=
+  PerApplicationFixedPoint.logicalWidth
+    Poseidon2HashChainV1Package.application
+
+abbrev fixturePublicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth fixtureLogicalWidth :=
+  PerApplicationFixedPoint.publicFits
+    Poseidon2HashChainV1Package.application
+
+abbrev FixturePublicInput :=
+  PaperAlgebra.PublicInput
+    (logicalWidth := fixtureLogicalWidth)
+    (publicFits := fixturePublicFits)
+
+abbrev FixtureFresh :=
+  Fresh PaperAlgebra.Commitment FixturePublicInput productionShape
+
 def field (value : Nat) : F := Poseidon2.ofNat (value + 1)
 
 def extension (low high : Nat) : K :=
@@ -26,8 +44,8 @@ def extension (low high : Nat) : K :=
 
 def running : Running K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := fixtureLogicalWidth)
+      (publicFits := fixturePublicFits))
     productionShape where
   point := {
     coordinates := List.ofFn fun coordinate :
@@ -51,11 +69,27 @@ def running : Running K PaperAlgebra.Commitment
           matrix.val * 10_000 + coefficient.val)
   }
 
-def stateVerifierKey : KeyDigest :=
-  VerifierContext.productionContextWords
+def stateVerifierKey (_delay : Unit := ()) : KeyDigest :=
+  let structural :=
+    PerApplicationCanonicalPackage.structuralPackageIdentityFast
+      Poseidon2HashChainV1Package.application
+      Poseidon2HashChainV1Package.fits
+  (PerApplicationCanonicalPackage.verifierContextDescriptorFromStructural
+    Poseidon2HashChainV1Package.fits
+    Poseidon2HashChainV1Setup.productionSetup
+    structural).digest4.toList
 
-theorem stateVerifierKey_length : stateVerifierKey.length = 4 := by
-  rfl
+theorem stateVerifierKey_eq_productionContext :
+    stateVerifierKey () =
+      PerApplicationCanonicalPackage.verifierContextDigest
+        Poseidon2HashChainV1Package.fits
+        Poseidon2HashChainV1Setup.productionSetup := by
+  unfold stateVerifierKey PerApplicationCanonicalPackage.verifierContextDigest
+  simp only [PerApplicationCanonicalPackage.structuralPackageIdentityFast_eq,
+    PerApplicationCanonicalPackage.verifierContextDescriptorFromStructural_canonical]
+
+theorem stateVerifierKey_length : (stateVerifierKey ()).length = 4 := by
+  exact Lifecycle.VerifierContext.Digest4.toList_length _
 
 def stateZ0 : AppState :=
   [field 201, field 202, field 203, field 204]
@@ -63,43 +97,47 @@ def stateZ0 : AppState :=
 def stateCurrent : AppState :=
   [field 301, field 302, field 303, field 304]
 
-def statePreimage : HashPreimage
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) where
-  verifierKeys := fun _ => stateVerifierKey
+def statePreimage (vk : KeyDigest := stateVerifierKey ()) : HashPreimage
+    (logicalWidth := fixtureLogicalWidth)
+    (publicFits := fixturePublicFits) where
+  verifierKeys := fun _ => vk
   iteration := 7
   z0 := stateZ0
   current := stateCurrent
   running := fun _ => running
   pc := 1
 
-def statePreimageWords (_ : Unit) : List F :=
-  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
-    statePreimage
+def statePreimageWords (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : List F :=
+  serializePreimage (publicFits := fixturePublicFits)
+    (statePreimage vk)
 
-def stateDigest (_ : Unit) : Digest :=
-  stateHash (publicFits := VerifierContext.candidatePublicFits) statePreimage
+def stateDigest (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : Digest :=
+  stateHash (publicFits := fixturePublicFits) (statePreimage vk)
 
-def lifecyclePublicInput : PaperAlgebra.PublicInput
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) :=
-  fun column => encHash (publicFits := VerifierContext.candidatePublicFits)
-    (stateDigest ()) column
+def lifecyclePublicInputFromDigest (digest : Digest) : FixturePublicInput :=
+  fun column => encHash (publicFits := fixturePublicFits)
+    digest column
 
-def statePublicInputWords (_ : Unit) : List F :=
-  List.ofFn lifecyclePublicInput
+def lifecyclePublicInput (vk : KeyDigest := stateVerifierKey ()) :
+    FixturePublicInput :=
+  lifecyclePublicInputFromDigest (stateDigest () vk)
+
+def statePublicInputWords (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : List F :=
+  List.ofFn (lifecyclePublicInput vk)
 
 def freshCommitment : PaperAlgebra.Commitment :=
   fun row coefficient =>
     field (30_000_000 + row.val * ringDegree + coefficient.val)
 
-def fresh : Fresh PaperAlgebra.Commitment
-    (PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
-    productionShape where
+def freshFromPublicInput (publicInput : FixturePublicInput) : FixtureFresh where
   commitments := fun _ => freshCommitment
-  publicInputs := fun _ => lifecyclePublicInput
+  publicInputs := fun _ => publicInput
+
+def fresh (vk : KeyDigest := stateVerifierKey ()) : FixtureFresh :=
+  freshFromPublicInput (lifecyclePublicInput vk)
 
 def verifierInput : ProtocolPolynomial.VerifierInput K productionShape where
   constraintPolynomial :=
@@ -240,13 +278,18 @@ theorem assembleTerminalFast_eq_paper
     SignedJointIdentity.gammaTerm
   simp only [powerFast_eq_power]
 
-def publicState (_ : Unit) : Transcript.State :=
+def publicStateFromFresh (freshValue : FixtureFresh) : Transcript.State :=
   ProductionKey.absorbPublicInput
     (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
-    running fresh
+    running freshValue
 
-def statementState (_ : Unit) : Transcript.State :=
-  publicState ()
+def publicState (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : Transcript.State :=
+  publicStateFromFresh (fresh vk)
+
+def statementState (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : Transcript.State :=
+  publicState () vk
 
 def addCopies : Nat → K → K
   | 0, _ => K.zero
@@ -365,10 +408,10 @@ structure TranscriptCore where
   verifierRoundResult : List K × Transcript.State
   verifierRoundPoint : CubePoint K productionShape.cubeVariables
 
-def transcriptCore (_ : Unit) : TranscriptCore :=
+def transcriptCoreFromState (state : Transcript.State) : TranscriptCore :=
   let preSumcheck :=
     NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
-      Transcript.piCcsOracle.transcript (statementState ())
+      Transcript.piCcsOracle.transcript state
   let initialClaim := initialClaimFast preSumcheck.gamma
   let roundTrace := buildRoundTrace preSumcheck initialClaim
   let verifierRoundResult :=
@@ -387,6 +430,10 @@ def transcriptCore (_ : Unit) : TranscriptCore :=
     roundTrace
     verifierRoundResult
     verifierRoundPoint }
+
+def transcriptCore (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : TranscriptCore :=
+  transcriptCoreFromState (statementState () vk)
 
 def terminalForTarget (core : TranscriptCore) (target : K) : K :=
   let message := outputMessage (outputWithTarget target)
@@ -418,25 +465,89 @@ def solveTarget (core : TranscriptCore) : K :=
   K.mul (K.sub core.roundTrace.claim terminalZero)
     (inverseExtension (K.sub terminalOne terminalZero))
 
-def solvedTarget : K := solveTarget (transcriptCore ())
+structure FixtureStatement where
+  stateKey : KeyDigest
+  preimageWords : List F
+  digest : Digest
+  publicInput : FixturePublicInput
+  freshValue : FixtureFresh
+  publicState : Transcript.State
+  preimageWords_eq : preimageWords = statePreimageWords () stateKey
+  digest_eq : digest = stateDigest () stateKey
+  publicInput_eq : publicInput = lifecyclePublicInput stateKey
+  freshValue_eq : freshValue = fresh stateKey
+  publicState_eq : publicState = PiCCSNonzero.publicState () stateKey
 
-def output : FullOutputCoordinates.FullOutput K productionShape :=
-  outputWithTarget solvedTarget
+/-- Compute and retain the one state digest used by every fixture view. The
+proof fields bind each retained value to the unchanged semantic definition. -/
+def fixtureStatement (vk : KeyDigest) : FixtureStatement :=
+  let preimageWords := statePreimageWords () vk
+  let digest := Poseidon2.hash preimageWords
+  let publicInput := lifecyclePublicInputFromDigest digest
+  let freshValue := freshFromPublicInput publicInput
+  let publicState := publicStateFromFresh freshValue
+  {
+    stateKey := vk
+    preimageWords := preimageWords
+    digest := digest
+    publicInput := publicInput
+    freshValue := freshValue
+    publicState := publicState
+    preimageWords_eq := by rfl
+    digest_eq := by rfl
+    publicInput_eq := by rfl
+    freshValue_eq := by rfl
+    publicState_eq := by rfl
+  }
+
+structure FixtureBase where
+  statement : FixtureStatement
+  core : TranscriptCore
+  core_eq : core = transcriptCore () statement.stateKey
+  output : FullOutputCoordinates.FullOutput K productionShape
+  message : ProtocolPolynomial.OutputMessage K productionShape
+
+/-- Build the one key-dependent transcript and solved output shared by the
+pure and parallel fixture evaluators. -/
+def fixtureBase (vk : KeyDigest) : FixtureBase :=
+  let statement := fixtureStatement vk
+  let core := transcriptCoreFromState statement.publicState
+  let fixtureOutput := outputWithTarget (solveTarget core)
+  {
+    statement := statement
+    core := core
+    core_eq := by
+      calc
+        core = transcriptCoreFromState statement.publicState := rfl
+        _ = transcriptCoreFromState
+            (PiCCSNonzero.publicState () statement.stateKey) :=
+          congrArg transcriptCoreFromState statement.publicState_eq
+        _ = transcriptCore () statement.stateKey := rfl
+    output := fixtureOutput
+    message := outputMessage fixtureOutput
+  }
+
+/-- Lazy compatibility projection for dependent fixture modules. -/
+def output (vk : KeyDigest := stateVerifierKey ()) :
+    FullOutputCoordinates.FullOutput K productionShape :=
+  (fixtureBase vk).output
 
 def proofMessagesNonzero (trace : RoundTrace) : Bool :=
   trace.rounds.all fun polynomial =>
     polynomial.coefficients.all fun value => decide (value ≠ K.zero)
 
-def outputEval_KNonzero : Bool :=
+def outputEval_KNonzero
+    (fixtureOutput : FullOutputCoordinates.FullOutput K productionShape) : Bool :=
   (List.finRange productionShape.sourceCount).all fun source =>
     (List.finRange productionShape.coefficientCount).all fun coefficient =>
-      decide (output.padCoordinate source coefficient ≠ K.zero)
+      decide (fixtureOutput.padCoordinate source coefficient ≠ K.zero)
 
-def outputEval_ANonzero : Bool :=
+def outputEval_ANonzero
+    (fixtureOutput : FullOutputCoordinates.FullOutput K productionShape) : Bool :=
   (List.finRange productionShape.sourceCount).all fun source =>
     (List.finRange productionShape.matrixCount).all fun matrix =>
       (List.finRange productionShape.coefficientCount).all fun coefficient =>
-        decide (output.matrixCoordinate source matrix coefficient ≠ K.zero)
+        decide (fixtureOutput.matrixCoordinate source matrix coefficient ≠ K.zero)
 
 def freshCommitmentNonzero : Bool :=
   (List.finRange productionProfile.commitmentWidth).all fun row =>
@@ -444,10 +555,12 @@ def freshCommitmentNonzero : Bool :=
       decide (freshCommitment row coefficient ≠ 0)
 
 structure Computed where
+  statement : FixtureStatement
   preSumcheck : FiatShamir.PreSumcheck K Transcript.State productionShape
   roundTrace : RoundTrace
   verifierRoundResult : List K × Transcript.State
   verifierRoundPoint : CubePoint K productionShape.cubeVariables
+  output : FullOutputCoordinates.FullOutput K productionShape
   initialClaim : K
   padTerminal : K
   matrixTerminal : K
@@ -458,49 +571,26 @@ structure Computed where
   accepted : Bool
   proofMessagesNonzero : Bool
 
-/-- Evaluate the complete fixture with one shared transcript and round trace. -/
-def compute (_ : Unit) : Computed :=
-  let preSumcheck :=
-    NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
-      Transcript.piCcsOracle.transcript (statementState ())
-  let initialClaim := initialClaimFast preSumcheck.gamma
-  let roundTrace := buildRoundTrace preSumcheck initialClaim
-  let verifierRoundResult :=
-    FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
-      (fun index => (roundTrace.round index).toMessage) preSumcheck.state
-        (canonicalFinIndices productionShape.cubeVariables)
-  let verifierRoundPoint : CubePoint K productionShape.cubeVariables := {
-    coordinates := verifierRoundResult.1
-    dimension := by
-      dsimp only [verifierRoundResult]
-      rw [FiatShamir.deriveRoundsFrom_values_length,
-        canonicalFinIndices_length]
-  }
-  let message := outputMessage output
-  let padTerminal :=
-    padTerminalFast preSumcheck.gamma verifierRoundPoint message
-  let matrixTerminal :=
-    matrixTerminalFast preSumcheck.gamma verifierRoundPoint message
-  let ccsTerminal :=
-    ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
-      preSumcheck.gamma message
-  let normTerminal :=
-    ProtocolPolynomial.normAtMessage extensionOps preSumcheck.gamma message
+private def finishComputed (base : FixtureBase)
+    (padTerminal matrixTerminal ccsTerminal normTerminal : K)
+    (outgoingState : Transcript.State)
+    (proofMessagesAreNonzero : Bool) : Computed :=
+  let core := base.core
   let verifierTerminal :=
-    assembleTerminalFast preSumcheck.alpha preSumcheck.gamma verifierRoundPoint
-      padTerminal matrixTerminal ccsTerminal normTerminal
-  let outgoingState :=
-    ProductionKey.absorbFullOutput verifierRoundResult.2 output
+    assembleTerminalFast core.preSumcheck.alpha core.preSumcheck.gamma
+      core.verifierRoundPoint padTerminal matrixTerminal ccsTerminal normTerminal
   let accepted :=
     NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.checkChain
-      extensionOps.toOps initialClaim (List.ofFn roundTrace.round)
-        verifierRoundResult.1 verifierTerminal
+      extensionOps.toOps core.initialClaim (List.ofFn core.roundTrace.round)
+        core.verifierRoundResult.1 verifierTerminal
   {
-    preSumcheck := preSumcheck
-    roundTrace := roundTrace
-    verifierRoundResult := verifierRoundResult
-    verifierRoundPoint := verifierRoundPoint
-    initialClaim := initialClaim
+    statement := base.statement
+    preSumcheck := core.preSumcheck
+    roundTrace := core.roundTrace
+    verifierRoundResult := core.verifierRoundResult
+    verifierRoundPoint := core.verifierRoundPoint
+    output := base.output
+    initialClaim := core.initialClaim
     padTerminal := padTerminal
     matrixTerminal := matrixTerminal
     ccsTerminal := ccsTerminal
@@ -508,8 +598,28 @@ def compute (_ : Unit) : Computed :=
     verifierTerminal := verifierTerminal
     outgoingState := outgoingState
     accepted := accepted
-    proofMessagesNonzero := proofMessagesNonzero roundTrace
+    proofMessagesNonzero := proofMessagesAreNonzero
   }
+
+/-- Evaluate the complete fixture with one shared transcript and round trace. -/
+def compute (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : Computed :=
+  let base := fixtureBase vk
+  let core := base.core
+  let padTerminal :=
+    padTerminalFast core.preSumcheck.gamma core.verifierRoundPoint base.message
+  let matrixTerminal :=
+    matrixTerminalFast core.preSumcheck.gamma core.verifierRoundPoint base.message
+  let ccsTerminal :=
+    ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
+      core.preSumcheck.gamma base.message
+  let normTerminal :=
+    ProtocolPolynomial.normAtMessage extensionOps core.preSumcheck.gamma
+      base.message
+  let outgoingState :=
+    ProductionKey.absorbFullOutput core.verifierRoundResult.2 base.output
+  finishComputed base padTerminal matrixTerminal ccsTerminal normTerminal
+    outgoingState (proofMessagesNonzero core.roundTrace)
 
 private abbrev ComputedTask (Alpha : Type) :=
   Task (Except IO.Error Alpha)
@@ -526,40 +636,30 @@ private def preparedComputedValue {Alpha : Type}
 
 /-- Evaluate the same fixture record as `compute`, but schedule the independent
 terminal formulas and outgoing-state absorption on separate native tasks. -/
-def computeIO : IO Computed := do
-  let preSumcheck :=
-    NightstreamFPrime.Spec.Folding.PiCCS.Transcript.deriveFromState
-      Transcript.piCcsOracle.transcript (statementState ())
-  let initialClaim := initialClaimFast preSumcheck.gamma
-  let roundTrace := buildRoundTrace preSumcheck initialClaim
-  let verifierRoundResult :=
-    FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
-      (fun index => (roundTrace.round index).toMessage) preSumcheck.state
-        (canonicalFinIndices productionShape.cubeVariables)
-  let verifierRoundPoint : CubePoint K productionShape.cubeVariables := {
-    coordinates := verifierRoundResult.1
-    dimension := by
-      dsimp only [verifierRoundResult]
-      rw [FiatShamir.deriveRoundsFrom_values_length,
-        canonicalFinIndices_length]
-  }
-  let message := outputMessage output
+def computeIO (vk : KeyDigest := stateVerifierKey ()) : IO Computed := do
+  let base := fixtureBase vk
+  let core := base.core
+  let preSumcheck := core.preSumcheck
+  let roundTrace := core.roundTrace
+  let verifierRoundResult := core.verifierRoundResult
+  let verifierRoundPoint := core.verifierRoundPoint
   let padTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepareComputedValue fun _ =>
-      padTerminalFast preSumcheck.gamma verifierRoundPoint message)
+      padTerminalFast preSumcheck.gamma verifierRoundPoint base.message)
   let matrixTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepareComputedValue fun _ =>
-      matrixTerminalFast preSumcheck.gamma verifierRoundPoint message)
+      matrixTerminalFast preSumcheck.gamma verifierRoundPoint base.message)
   let ccsTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepareComputedValue fun _ =>
       ProtocolPolynomial.ccsAtMessage extensionOps verifierInput
-        preSumcheck.gamma message)
+        preSumcheck.gamma base.message)
   let normTerminalTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepareComputedValue fun _ =>
-      ProtocolPolynomial.normAtMessage extensionOps preSumcheck.gamma message)
+      ProtocolPolynomial.normAtMessage extensionOps preSumcheck.gamma
+        base.message)
   let outgoingStateTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepareComputedValue fun _ =>
-      ProductionKey.absorbFullOutput verifierRoundResult.2 output)
+      ProductionKey.absorbFullOutput verifierRoundResult.2 base.output)
   let proofMessagesNonzeroTask ←
     IO.asTask (prio := Task.Priority.dedicated)
       (prepareComputedValue fun _ => proofMessagesNonzero roundTrace)
@@ -567,37 +667,17 @@ def computeIO : IO Computed := do
   let matrixTerminal ← preparedComputedValue matrixTerminalTask
   let ccsTerminal ← preparedComputedValue ccsTerminalTask
   let normTerminal ← preparedComputedValue normTerminalTask
-  let verifierTerminal :=
-    assembleTerminalFast preSumcheck.alpha preSumcheck.gamma verifierRoundPoint
-      padTerminal matrixTerminal ccsTerminal normTerminal
   let outgoingState ← preparedComputedValue outgoingStateTask
   let proofMessagesNonzero ←
     preparedComputedValue proofMessagesNonzeroTask
-  let accepted :=
-    NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.checkChain
-      extensionOps.toOps initialClaim (List.ofFn roundTrace.round)
-        verifierRoundResult.1 verifierTerminal
-  pure {
-    preSumcheck := preSumcheck
-    roundTrace := roundTrace
-    verifierRoundResult := verifierRoundResult
-    verifierRoundPoint := verifierRoundPoint
-    initialClaim := initialClaim
-    padTerminal := padTerminal
-    matrixTerminal := matrixTerminal
-    ccsTerminal := ccsTerminal
-    normTerminal := normTerminal
-    verifierTerminal := verifierTerminal
-    outgoingState := outgoingState
-    accepted := accepted
-    proofMessagesNonzero := proofMessagesNonzero
-  }
+  pure (finishComputed base padTerminal matrixTerminal ccsTerminal normTerminal
+    outgoingState proofMessagesNonzero)
 
 def Computed.proofValues (computed : Computed) :
     PiCCSProofInputs.ProofValues where
   freshCommitment := freshCommitment
   roundCoefficient := computed.roundTrace.roundCoefficient
-  outputEval_K := output.padCoordinate
-  outputEval_A := output.matrixCoordinate
+  outputEval_K := computed.output.padCoordinate
+  outputEval_A := computed.output.matrixCoordinate
 
 end NightstreamFPrime.Export.Stage1.PiCCSNonzero

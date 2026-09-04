@@ -52,10 +52,10 @@ def candidatePackageIdentityWords : List F :=
 /-- Final verifier-owned identity of the canonical
 `Poseidon2HashChainV1` package under the approved indexed Ajtai setup. -/
 def productionPackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨14715010765054236145, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨2785364480572687531, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨13125420619761893675, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨2341830514818296126, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨5272192602150446227, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨11110764831345399822, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨12712750146236044807, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨13354028730245635118, by norm_num [F, goldilocksModulus]⟩
 
 def productionPackageIdentityWords : List F :=
   productionPackageIdentity.toList
@@ -64,10 +64,10 @@ def productionPackageIdentityWords : List F :=
 application, NIFS key description, and approved indexed Ajtai setup. This is
 fixture input; `PerApplicationCanonicalPackage` owns its authority recipe. -/
 def productionContextDigest : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨16645910989757723079, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨12253730763395394590, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨9553146821867740835, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨381369392357003375, by norm_num [F, goldilocksModulus]⟩
+  c0 := ⟨1980942344823989826, by norm_num [F, goldilocksModulus]⟩
+  c1 := ⟨5434686752167889125, by norm_num [F, goldilocksModulus]⟩
+  c2 := ⟨1771901317533452586, by norm_num [F, goldilocksModulus]⟩
+  c3 := ⟨10480267795687330756, by norm_num [F, goldilocksModulus]⟩
 
 def productionContextWords : List F :=
   productionContextDigest.toList

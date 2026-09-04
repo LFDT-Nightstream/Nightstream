@@ -14,6 +14,8 @@ use crate::witness::{
 };
 use crate::WitnessAssignment;
 
+mod assignment_transport;
+pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
 mod matrix_program;
@@ -36,7 +38,7 @@ mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
 pub use sealed::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedApplicationPlan, LoadedAssignmentPlan,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedApplicationPlan,
     LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
 };
 mod pi_ccs_v1_1_transcript;

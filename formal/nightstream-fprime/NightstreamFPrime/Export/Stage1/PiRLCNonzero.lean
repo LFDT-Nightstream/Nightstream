@@ -40,10 +40,21 @@ def sampled (_ : Unit) : Option (Transcript.PiRlcSampler.Batch SourceCount) :=
 def inputCommitment (source : Fin SourceCount) : PaperAlgebra.Commitment :=
   Fin.addCases fresh.commitments running.commitments (sourceIndex source)
 
+/-- The downstream fixture still uses the fixed 270-coordinate candidate
+carrier. This view evaluates the same key-bound PiCCS digest in that carrier;
+the logical-width proof does not change any serialized coordinate. -/
+def candidateFreshPublicInput :
+    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits) :=
+  fun column => encHash (publicFits := VerifierContext.candidatePublicFits)
+    (stateDigest () (stateVerifierKey ())) column
+
 def inputPublicInput (source : Fin SourceCount) :
     PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
       (publicFits := VerifierContext.candidatePublicFits) :=
-  Fin.addCases fresh.publicInputs running.publicInputs (sourceIndex source)
+  Fin.addCases (fun _ => candidateFreshPublicInput)
+    (fun runningSource column => field (runningSource.val + column.val))
+    (sourceIndex source)
 
 def inputEvaluation (source : Fin SourceCount) : Evaluation where
   pad := fun coefficient => output.padCoordinate (sourceIndex source) coefficient
@@ -61,8 +72,16 @@ def combinedCommitment (challenges : Fin SourceCount → RingF) :
 def combinedPublicInput (challenges : Fin SourceCount → RingF) :
     PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
       (publicFits := VerifierContext.candidatePublicFits) :=
+  let digest := stateDigest () (stateVerifierKey ())
+  let inputs := fun source =>
+    Fin.addCases
+      (fun _ column =>
+        encHash (publicFits := VerifierContext.candidatePublicFits)
+          digest column)
+      (fun runningSource column => field (runningSource.val + column.val))
+      (sourceIndex source)
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
-    challenges inputPublicInput
+    challenges inputs
 
 def combinedEvaluation (challenges : Fin SourceCount → RingF) : Evaluation :=
   PaperAlgebra.combineEvaluationFamily challenges inputEvaluation

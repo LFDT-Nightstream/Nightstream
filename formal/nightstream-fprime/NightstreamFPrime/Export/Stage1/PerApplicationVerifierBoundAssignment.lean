@@ -4,8 +4,9 @@ import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
 /-!
 Owns the verifier-side binding of the four recursive context words in one
 per-application raw assignment. The caller supplies all ordinary raw values;
-this module overwrites the context interval with the final verification-key
-digest derived from the exact package, application, and Ajtai key.
+this module overwrites the context interval with the verifier-context digest
+derived from the exact package, application, and Ajtai key. The full
+verification-key digest remains a separate package binding.
 
 This module does not select a concrete production application or close final
 package conformance.
@@ -33,13 +34,12 @@ abbrev CommitmentSetup (application : Program) :=
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
 
-/-- Exact four-word identifier read by the recursive NIFS verifier. -/
-def verificationKeyDigest {application : Program}
+/-- Exact four-word verifier-context digest carried by recursive state. -/
+def verifierContextDigest {application : Program}
     (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application) :
     KeyDigest :=
-  (PerApplicationCanonicalPackage.verificationKeyBinding fits
-    commitmentSetup).digest
+  PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
 
 /-- First final-package column of the four verifier-context words. -/
 def contextTargetStart (application : Program) : Nat :=
@@ -63,7 +63,7 @@ def bind {application : Program} (fits : FitsTwoPow28 application)
     (raw : RawValues application) : RawValues application :=
   { raw with
     base := bindContextBase application
-      (verificationKeyDigest fits commitmentSetup) raw.base }
+      (verifierContextDigest fits commitmentSetup) raw.base }
 
 private theorem expectedContextSource
     (lane : Fin 4) : PiCCSOrdinarySourceSupport.Source
@@ -119,7 +119,7 @@ private theorem boundBase_expectedContext
         (PiRLCProductPlan.shiftedPackageColumn application
           (Spartan.expectedContextPublicStart + lane.val)
           (expectedContextTargetBound lane)) =
-      (verificationKeyDigest fits commitmentSetup).getD lane.val 0 := by
+      (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
   have shifted := shiftedExpectedContext application lane
   change (if _inside : contextTargetStart application ≤
         PerApplicationPackage.shiftColumn application
@@ -127,15 +127,15 @@ private theorem boundBase_expectedContext
       PerApplicationPackage.shiftColumn application
           (Spartan.expectedContextPublicStart + lane.val) <
         contextTargetStart application + 4 then
-      (verificationKeyDigest fits commitmentSetup).getD
+      (verifierContextDigest fits commitmentSetup).getD
         (PerApplicationPackage.shiftColumn application
           (Spartan.expectedContextPublicStart + lane.val) -
             contextTargetStart application) 0
     else raw.base _) =
-      (verificationKeyDigest fits commitmentSetup).getD lane.val 0
+      (verifierContextDigest fits commitmentSetup).getD lane.val 0
   rw [dif_pos]
   · apply congrArg (fun index =>
-      (verificationKeyDigest fits commitmentSetup).getD index 0)
+      (verifierContextDigest fits commitmentSetup).getD index 0)
     change PerApplicationPackage.shiftColumn application
         (Spartan.expectedContextPublicStart + lane.val) -
           contextTargetStart application = lane.val
@@ -156,15 +156,15 @@ theorem transitionExpectedContext
     (raw : RawValues application) (lane : Fin 4) :
     PerApplicationDecodedIO.transitionEnv (bind fits commitmentSetup raw)
         (PiCCSInputs.expectedContextStart + lane.val) =
-      (verificationKeyDigest fits commitmentSetup).getD lane.val 0 := by
+      (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
   unfold PerApplicationDecodedIO.transitionEnv Spartan.pullback
   rw [Spartan.sourceToSpartan_expectedContext lane]
   unfold RunningTransitionDirectPlan.transitionEnv
   rw [dif_pos (expectedContextTargetBound lane)]
   exact boundBase_expectedContext fits commitmentSetup raw lane
 
-/-- Accepted rows bind the decoded state context to the exact final
-per-application verification-key digest. -/
+/-- Accepted rows bind the decoded state context to the exact canonical
+per-application verifier-context digest. -/
 theorem semantics_imply_contextKey
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)
@@ -176,7 +176,7 @@ theorem semantics_imply_contextKey
       (bind fits commitmentSetup raw).groupValue
       (bind fits commitmentSetup raw).products) :
     PerApplicationDecodedIO.contextKey (bind fits commitmentSetup raw) =
-      verificationKeyDigest fits commitmentSetup := by
+      verifierContextDigest fits commitmentSetup := by
   let bound := bind fits commitmentSetup raw
   have piCcs :=
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
@@ -188,9 +188,10 @@ theorem semantics_imply_contextKey
     StateDecoder.slice
   apply List.ext_get
   · simpa [PilotProduction.digestWords, PilotValues.digestWords,
-      verificationKeyDigest] using
-      (Lifecycle.Stage1.VerificationKey.Binding.digest_length
-        (PerApplicationCanonicalPackage.verificationKeyBinding fits
+      verifierContextDigest,
+      PerApplicationCanonicalPackage.verifierContextDigest] using
+      (Lifecycle.VerifierContext.Digest4.toList_length
+        (PerApplicationCanonicalPackage.verifierContextDescriptor fits
           commitmentSetup)).symm
   · intro index leftBound rightBound
     let lane : Fin 4 := ⟨index, by simpa using leftBound⟩
@@ -203,7 +204,7 @@ theorem semantics_imply_contextKey
     rw [← custody] at expected
     have stateValue : PerApplicationDecodedIO.priorState bound
         (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
-      (verificationKeyDigest fits commitmentSetup).getD lane.val 0 := by
+      (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
       calc
         PerApplicationDecodedIO.priorState bound
             (Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart + lane.val) =
@@ -219,10 +220,10 @@ theorem semantics_imply_contextKey
             PiCCSInputs.priorStateWord,
             Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
             PiCCSInputs.expectedContext] using row
-        _ = (verificationKeyDigest fits commitmentSetup).getD lane.val 0 :=
+        _ = (verifierContextDigest fits commitmentSetup).getD lane.val 0 :=
           expected
     have rightGet := List.getD_eq_get
-      (verificationKeyDigest fits commitmentSetup) 0
+      (verifierContextDigest fits commitmentSetup) 0
       ⟨index, rightBound⟩
     simpa [lane] using stateValue.trans rightGet
 

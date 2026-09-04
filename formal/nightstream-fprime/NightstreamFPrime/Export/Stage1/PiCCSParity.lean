@@ -42,36 +42,54 @@ def roundMessagesValue (computed : Computed) : Value :=
       extensionValue
         (computed.roundTrace.roundCoefficient roundIndex coefficient)))
 
-def outputEval_KValue : Value :=
+def outputEval_KValue (computed : Computed := compute ()) : Value :=
   .array ((List.finRange productionShape.sourceCount).map fun source =>
     .array ((List.finRange productionShape.coefficientCount).map fun coefficient =>
-      extensionValue (output.padCoordinate source coefficient)))
+      extensionValue (computed.output.padCoordinate source coefficient)))
 
-def outputEval_AValue : Value :=
+def outputEval_AValue (computed : Computed := compute ()) : Value :=
   .array ((List.finRange productionShape.sourceCount).map fun source =>
     .array ((List.finRange productionShape.matrixCount).map fun matrix =>
       .array ((List.finRange productionShape.coefficientCount).map fun coefficient =>
-        extensionValue (output.matrixCoordinate source matrix coefficient))))
+        extensionValue
+          (computed.output.matrixCoordinate source matrix coefficient))))
 
 def outputCommitment :
     Fin (productionShape.freshCount + productionShape.runningCount) →
       PaperAlgebra.Commitment :=
-  Fin.addCases fresh.commitments running.commitments
+  Fin.addCases (fun _ => freshCommitment) running.commitments
 
-def outputPublicInput :
+def outputPublicInput (vk : KeyDigest) :
     Fin (productionShape.freshCount + productionShape.runningCount) →
       PaperAlgebra.PublicInput
-        (logicalWidth := VerifierContext.candidateLogicalWidth)
-        (publicFits := VerifierContext.candidatePublicFits) :=
-  Fin.addCases fresh.publicInputs running.publicInputs
+        (logicalWidth := fixtureLogicalWidth)
+        (publicFits := fixturePublicFits) :=
+  Fin.addCases (fresh vk).publicInputs running.publicInputs
 
 def outputCommitmentsValue : Value :=
   .array ((List.finRange productionShape.sourceCount).map fun source =>
     fieldWordsValue (serializeCommitment (outputCommitment source)))
 
-def outputPublicInputsValue : Value :=
+def outputPublicInputsValue (vk : KeyDigest := stateVerifierKey ()) : Value :=
   .array ((List.finRange productionShape.sourceCount).map fun source =>
-    fieldWordsValue (serializePublicInput (outputPublicInput source)))
+    fieldWordsValue (serializePublicInput (outputPublicInput vk source)))
+
+def outputPublicInputFromFresh (freshValue : FixtureFresh) :
+    Fin (productionShape.freshCount + productionShape.runningCount) →
+      FixturePublicInput :=
+  Fin.addCases freshValue.publicInputs running.publicInputs
+
+def outputPublicInputsValueFromFresh (freshValue : FixtureFresh) : Value :=
+  .array ((List.finRange productionShape.sourceCount).map fun source =>
+    fieldWordsValue
+      (serializePublicInput (outputPublicInputFromFresh freshValue source)))
+
+theorem outputPublicInputsValueFromFresh_eq
+    (statement : FixtureStatement) :
+    outputPublicInputsValueFromFresh statement.freshValue =
+      outputPublicInputsValue statement.stateKey := by
+  rw [statement.freshValue_eq]
+  rfl
 
 def roundStatesValue (computed : Computed) : Value :=
   .array (computed.roundTrace.states.map stateValue)
@@ -87,27 +105,28 @@ def terminalComponentsValue (computed : Computed) : Value :=
 def assuranceValue (computed : Computed) : Value :=
   .array [boolValue freshCommitmentNonzero,
     boolValue computed.proofMessagesNonzero,
-    boolValue outputEval_KNonzero,
-    boolValue outputEval_ANonzero]
+    boolValue (outputEval_KNonzero computed.output),
+    boolValue (outputEval_ANonzero computed.output)]
 
 /-- Caller-owned input and proof tuple.
 
 Order: prior preimage, output preimage, prior public input, output digest,
-verifier context, fresh commitment, round messages, output `Eval_K`, output
+verifier-context digest, fresh commitment, round messages, output `Eval_K`, output
 `Eval_A`, complete digest-only transcript blocks, semantic verifier-input
-blocks. The production verifier recomputes the context from the canonical
+blocks. The production verifier recomputes the key digest from the canonical
 sealed package and fixed setup; the fixture does not duplicate that authority. -/
 def inputValue (computed : Computed) : Value :=
-  .array [fieldWordsValue (statePreimageWords ()),
-    fieldWordsValue (statePreimageWords ()),
-    fieldWordsValue (statePublicInputWords ()),
-    fieldWordsValue (stateDigest ()),
-    fieldWordsValue stateVerifierKey,
+  .array [fieldWordsValue computed.statement.preimageWords,
+    fieldWordsValue computed.statement.preimageWords,
+    fieldWordsValue (List.ofFn computed.statement.publicInput),
+    fieldWordsValue computed.statement.digest,
+    fieldWordsValue computed.statement.stateKey,
     fieldWordsValue (serializeCommitment freshCommitment),
     roundMessagesValue computed,
-    outputEval_KValue,
-    outputEval_AValue,
-    fieldBlocksValue (ProductionKey.publicInputBlocks running fresh),
+    outputEval_KValue computed,
+    outputEval_AValue computed,
+    fieldBlocksValue
+      (ProductionKey.publicInputBlocks running computed.statement.freshValue),
     fieldBlocksValue (Transcript.verifierInputBlocks verifierInput)]
 
 /-- Complete verifier result tuple.
@@ -129,18 +148,27 @@ def resultValue (computed : Computed) : Value :=
     extensionWordsValue computed.roundTrace.claims,
     terminalComponentsValue computed,
     outputCommitmentsValue,
-    outputPublicInputsValue,
-    outputEval_KValue,
-    outputEval_AValue,
+    outputPublicInputsValueFromFresh computed.statement.freshValue,
+    outputEval_KValue computed,
+    outputEval_AValue computed,
     stateValue computed.outgoingState,
     assuranceValue computed]
 
 /-- Schema 8 binds the context through the separately loaded canonical
 production package and removes the old fixture-owned authority duplicate. -/
-def parityValue (_ : Unit) : Value :=
-  let computed := compute ()
+private def parityValueFrom (computed : Computed) : Value :=
   .array [.atom 8, inputValue computed, resultValue computed]
 
-def render (_ : Unit) : String := (parityValue ()).render
+def parityValue (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : Value :=
+  parityValueFrom (compute () vk)
+
+/-- Schedule independent fixture calculations before deterministic emission. -/
+def parityValueIO (vk : KeyDigest := stateVerifierKey ()) : IO Value := do
+  pure (parityValueFrom (← computeIO vk))
+
+def render (_ : Unit)
+    (vk : KeyDigest := stateVerifierKey ()) : String :=
+  (parityValue () vk).render
 
 end NightstreamFPrime.Export.Stage1.PiCCSParity

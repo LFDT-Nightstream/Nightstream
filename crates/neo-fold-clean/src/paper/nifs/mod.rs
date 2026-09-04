@@ -59,6 +59,9 @@
 //! This module selects one complete implementation and composes it.
 
 mod backend;
+// The recursive circuit is retained only for private diagnostics until the
+// sealed v1.1 package replaces it.
+#[allow(dead_code, unused_imports)]
 pub mod circuit;
 mod crosscheck;
 mod fixed;

@@ -1,4 +1,6 @@
 import NightstreamFPrime.Export.Codec
+import Mathlib.Data.List.Basic
+import Mathlib.Data.List.OfFn
 
 /-!
 Owns a small canonical affine-run codec for verifier-owned index streams.
@@ -45,23 +47,80 @@ theorem expand_length (runs : List Run) :
     (expand runs).length = (runs.map Run.count).sum := by
   simp [expand]
 
+/-- Add one value to the front of an already compressed suffix. -/
+def prepend (value : Nat) : List Run → List Run
+  | [] => [Run.single value]
+  | run :: runs =>
+      if run.count = 1 then
+        if value ≤ run.first then
+          ⟨value, run.first - value, 2⟩ :: runs
+        else
+          Run.single value :: run :: runs
+      else if value + run.step = run.first then
+        ⟨value, run.step, run.count + 1⟩ :: runs
+      else
+        Run.single value :: run :: runs
+
 /-- Greedy canonical compression from right to left. A decreasing boundary
 starts a new run because the encoded step is a natural number. -/
 def compress : List Nat → List Run
   | [] => []
-  | value :: rest =>
-      match compress rest with
-      | [] => [Run.single value]
-      | run :: runs =>
-          if run.count = 1 then
-            if value ≤ run.first then
-              ⟨value, run.first - value, 2⟩ :: runs
-            else
-              Run.single value :: run :: runs
-          else if value + run.step = run.first then
-            ⟨value, run.step, run.count + 1⟩ :: runs
-          else
-            Run.single value :: run :: runs
+  | value :: rest => prepend value (compress rest)
+
+theorem compress_eq_foldr_prepend (indices : List Nat) :
+    compress indices = indices.foldr prepend [] := by
+  induction indices with
+  | nil => rfl
+  | cons value rest inductionHypothesis =>
+      simp [compress, inductionHypothesis]
+
+/-- Allocation-bounded executable compression for an indexed source. It
+visits indices from right to left and retains only the compressed runs. -/
+@[inline] def compressIndexedTR {count : Nat}
+    (source : Fin count → Nat) : List Run :=
+  go count (Nat.le_refl count) []
+where
+  go : (remaining : Nat) → remaining ≤ count → List Run → List Run
+    | 0, _, runs => runs
+    | next + 1, hle, runs =>
+        go next (Nat.le_trans (Nat.le_succ next) hle)
+          (prepend
+            (source ⟨next,
+              Nat.lt_of_lt_of_le (Nat.lt_succ_self next) hle⟩)
+            runs)
+
+private def indexedPrefix {count : Nat} (source : Fin count → Nat)
+    {remaining : Nat} (hle : remaining ≤ count) : Fin remaining → Nat :=
+  fun index =>
+    source ⟨index.val, Nat.lt_of_lt_of_le index.isLt hle⟩
+
+private theorem compressIndexedTR_go_eq {count : Nat}
+    (source : Fin count → Nat) :
+    ∀ (remaining : Nat) (hle : remaining ≤ count) (runs : List Run),
+      compressIndexedTR.go source remaining hle runs =
+        (List.ofFn (indexedPrefix source hle)).foldr prepend runs := by
+  intro remaining
+  induction remaining with
+  | zero =>
+      intro hle runs
+      rfl
+  | succ next inductionHypothesis =>
+      intro hle runs
+      rw [compressIndexedTR.go,
+        inductionHypothesis
+          (Nat.le_trans (Nat.le_succ next) hle)]
+      rw [List.ofFn_succ', List.concat_eq_append, List.foldr_concat]
+      rfl
+
+/-- The bounded executable emits the exact canonical run list, not only an
+extensionally equivalent source stream. -/
+theorem compressIndexedTR_eq_compress_ofFn {count : Nat}
+    (source : Fin count → Nat) :
+    compressIndexedTR source = compress (List.ofFn source) := by
+  rw [compressIndexedTR,
+    compressIndexedTR_go_eq source count (Nat.le_refl count) []]
+  rw [compress_eq_foldr_prepend]
+  rfl
 
 @[simp] theorem Run.expand_single (value : Nat) :
     (Run.single value).expand = [value] := by
@@ -92,16 +151,17 @@ theorem expand_compress (indices : List Nat) :
       rw [compress]
       cases compressedEq : compress rest with
       | nil =>
+          rw [prepend]
           have restEmpty : rest = [] := by
             rw [compressedEq] at inductionHypothesis
             simpa [expand] using inductionHypothesis.symm
           subst rest
           rfl
       | cons run runs =>
+          rw [prepend]
           have tail : run.expand ++ List.flatMap Run.expand runs = rest := by
             rw [compressedEq] at inductionHypothesis
             simpa [expand] using inductionHypothesis
-          simp only
           by_cases one : run.count = 1
           · rw [if_pos one]
             by_cases ordered : value ≤ run.first

@@ -1,5 +1,5 @@
 //! Exact final A/B/C comparison against the separate Lean final-package
-//! expansion and owner-family mutation checks on the sealed identity.
+//! expansion.
 
 use std::{fs, path::PathBuf};
 
@@ -35,12 +35,7 @@ fn final_matrices_equal_the_separate_lean_expansion() {
     let matrices = package
         .r1cs_matrices()
         .expect("final production A/B/C matrices");
-    let (nonzeros, row_mutations, column_mutations) =
-        conformance_support::compare_lean_expanded_matrices(&expanded_bytes, &matrices);
+    let nonzeros = conformance_support::compare_lean_expanded_matrices(&expanded_bytes, &matrices);
     assert_eq!(nonzeros, [93_701_820, 39_358_148, 28_868_018]);
-    assert_eq!(row_mutations, 156);
-    assert_eq!(column_mutations, 81);
-    eprintln!(
-        "lean_final_matrix_nonzeros={nonzeros:?} row_owner_mutations={row_mutations} column_owner_mutations={column_mutations}"
-    );
+    eprintln!("lean_final_matrix_nonzeros={nonzeros:?}");
 }

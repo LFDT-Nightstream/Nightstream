@@ -13,7 +13,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.PerApplicationEmitterFixture"]
+roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.PerApplicationEmitterFixture"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -64,4 +64,14 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "emitPoseidon2HashChainV1Parity"
 root = "NightstreamFPrime.Export.Poseidon2HashChainV1ParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPoseidon2HashChainV1BindingParity"
+root = "NightstreamFPrime.Export.Poseidon2HashChainV1BindingParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiCCSOwnershipAudit"
+root = "NightstreamFPrime.Export.PiCCSOwnershipAuditMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

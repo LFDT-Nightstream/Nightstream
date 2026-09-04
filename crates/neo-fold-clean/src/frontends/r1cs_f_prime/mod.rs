@@ -12,7 +12,9 @@ pub mod lean_native_ccs_manifest;
 pub mod lean_nebula_combined_manifest;
 mod linked_overlay;
 pub mod lowering;
+#[cfg(test)]
 pub mod native_ccs;
+#[cfg(test)]
 pub mod nebula_combined_ccs;
 pub mod production;
 mod selective;
@@ -47,8 +49,6 @@ pub use lowering::{
     LowNormEncoderArtifactError, LowNormEncoderArtifactLimits, LowNormEncoderArtifactReceipt, LowNormR1cs,
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs, VerifiedLowNormEncoderArtifact,
 };
-pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
-pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
 pub use production::Poseidon2HashChainV1Package;
 pub(crate) use selective::{
     audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix,
@@ -58,11 +58,6 @@ pub(crate) use selective::{
     prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
     project_rows_with_complete_source_provenance_with_alignment, PreparedSelectiveLowNormR1cs,
     SelectiveLowNormShapeSummary,
-};
-#[cfg(test)]
-pub(crate) use selective::{
-    audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
@@ -105,11 +100,7 @@ pub use selective_selector_coverage::{
     SelectiveSelectorOwnerGateRun, SelectiveSelectorPolynomialTerm, SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
-pub use terminal_r1cs::{
-    compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, finish_combined_with_spartan,
-    finish_with_spartan, verify_combined_spartan, verify_spartan, TerminalR1csError, TerminalSpartanProof,
-    TerminalSpartanStatement,
-};
+pub use terminal_r1cs::{compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, TerminalR1csError};
 
 use thiserror::Error;
 

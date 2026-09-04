@@ -156,22 +156,6 @@ impl SelectiveLowNormShapeSummary {
 }
 
 #[cfg(test)]
-pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
-    arms: &[SparseR1cs],
-    shared_private_fields: usize,
-    modulus: usize,
-    residue: usize,
-) -> Result<SelectiveLowNormShape, LowNormR1csError> {
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
-        arms,
-        shared_private_fields,
-        shared_private_fields,
-        modulus,
-        residue,
-    )
-}
-
-#[cfg(test)]
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
     arms: &[SparseR1cs],
     shared_private_fields: usize,

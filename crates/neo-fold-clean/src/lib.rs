@@ -114,10 +114,8 @@ pub use lifecycle::{
 };
 
 pub use frontends::r1cs_f_prime::{
-    finish_combined_with_spartan, finish_with_spartan, verify_combined_spartan, verify_spartan, LeanNativeCcsError,
-    LeanNativeCcsManifest, LeanNativeCcsPreprocessing, LeanNebulaCombinedError, LeanNebulaCombinedManifest,
-    LeanNebulaCombinedPreprocessing, NebulaCombinedEmission, Poseidon2HashChainV1Package, TerminalR1csError,
-    TerminalSpartanProof, TerminalSpartanStatement,
+    LeanNativeCcsManifest, LeanNebulaCombinedManifest, NebulaCombinedEmission, Poseidon2HashChainV1Package,
+    TerminalR1csError,
 };
 pub use lifecycle::{FoldSchedule, ScheduleError};
 pub use paper::construction2::{

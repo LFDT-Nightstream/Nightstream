@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
-import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
 import NightstreamFPrime.Export.StreamingIdentity
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
@@ -270,7 +270,7 @@ def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 
 /-- Schema of the canonical per-application package envelope. The inner
 `CircuitPackage` and application plan keep their own schema versions. -/
-def sealedPackageSchema : Nat := 5
+def sealedPackageSchema : Nat := 6
 
 /-- One prefix-free authority value that carries the physical circuit package,
 the exact compact 14-matrix program, the exact Lean-authored application plan,
@@ -286,8 +286,8 @@ def sealedPackageValue (program : Program)
       (PerApplicationMatrixProgram.matrixProgram program),
     ApplicationPackage.Plan.format.encode
       (PerApplicationPackage.applicationPlan program),
-    PerApplicationAssignmentPlan.format.encode
-      PerApplicationAssignmentPlan.canonicalKinds,
+    PerApplicationAssignmentTransport.Plan.format.encode
+      (PerApplicationAssignmentTransport.canonical program),
     MatrixProgram.IndexRange.format.encode (nextPreimageRange program),
     .atom logicalPublicInputCount]
 
@@ -320,8 +320,8 @@ theorem sealedPackageValue_exact (program : Program)
         (PerApplicationMatrixProgram.matrixProgram program),
       ApplicationPackage.Plan.format.encode
         (PerApplicationPackage.applicationPlan program),
-      PerApplicationAssignmentPlan.format.encode
-        PerApplicationAssignmentPlan.canonicalKinds,
+      PerApplicationAssignmentTransport.Plan.format.encode
+        (PerApplicationAssignmentTransport.canonical program),
       MatrixProgram.IndexRange.format.encode
         (nextPreimageRange program),
       .atom logicalPublicInputCount] := by
@@ -341,6 +341,8 @@ theorem sealedPackageValue_components
         PerApplicationMatrixProgram.matrixProgram rightProgram ∧
       PerApplicationPackage.applicationPlan leftProgram =
         PerApplicationPackage.applicationPlan rightProgram ∧
+      PerApplicationAssignmentTransport.canonical leftProgram =
+        PerApplicationAssignmentTransport.canonical rightProgram ∧
       nextPreimageRange leftProgram = nextPreimageRange rightProgram := by
   have packageEncoded := congrArg (fun value =>
     match value with
@@ -359,6 +361,12 @@ theorem sealedPackageValue_components
     | .array (_schema :: _package :: _matrix :: encodedApplication ::
         _assignment :: _nextPreimage :: _publicInputCount :: []) =>
         encodedApplication
+    | _ => .array []) same
+  have assignmentEncoded := congrArg (fun value =>
+    match value with
+    | .array (_schema :: _package :: _matrix :: _application ::
+        encodedAssignment :: _nextPreimage :: _publicInputCount :: []) =>
+        encodedAssignment
     | _ => .array []) same
   have nextPreimageEncoded := congrArg (fun value =>
     match value with
@@ -380,10 +388,17 @@ theorem sealedPackageValue_components
           congrArg ApplicationPackage.Plan.format.decode applicationEncoded
         simpa [sealedPackageValue,
           ApplicationPackage.Plan.format.decode_encode] using decoded
-      · have decoded :=
-          congrArg MatrixProgram.IndexRange.format.decode nextPreimageEncoded
-        simpa [sealedPackageValue,
-          MatrixProgram.IndexRange.format.decode_encode] using decoded
+      · constructor
+        · have decoded := congrArg
+              PerApplicationAssignmentTransport.Plan.format.decode
+              assignmentEncoded
+          simpa [sealedPackageValue,
+            PerApplicationAssignmentTransport.Plan.format.decode_encode] using
+              decoded
+        · have decoded :=
+            congrArg MatrixProgram.IndexRange.format.decode nextPreimageEncoded
+          simpa [sealedPackageValue,
+            MatrixProgram.IndexRange.format.decode_encode] using decoded
 
 theorem structuralPackageIdentity_recomputed (program : Program)
     (fits : FitsTwoPow28 program) :
@@ -501,12 +516,48 @@ def verifierContextDescriptor {program : Program}
     VerifierContext.Descriptor :=
   VerifierContext.descriptor (authority fits setup)
 
+/-- Canonical four-word verifier-context digest carried by recursive and
+terminal state preimages. The full verification-key digest remains the
+separate package-and-context binding defined below. -/
+def verifierContextDigest {program : Program}
+    (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program) : KeyDigest :=
+  (verifierContextDescriptor fits setup).digest4.toList
+
 def verifierContextDescriptorFromStructural {program : Program}
     (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
     (structural : VerifierContext.Digest4) :
     VerifierContext.Descriptor :=
   VerifierContext.descriptor
     (authorityFromStructural fits setup structural)
+
+/-- Construct the verifier context from a separately recomputed application
+component digest. The caller must prove that digest against the complete
+application authority stream. -/
+def verifierContextDescriptorFromStructuralAndApplicationDigest
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program)
+    (structural applicationDigest : VerifierContext.Digest4) :
+    VerifierContext.Descriptor where
+  relation := VerifierContext.componentDigest 1
+    (relationAuthorityWordsFromStructural program fits structural)
+  application := applicationDigest
+  nifsKey := VerifierContext.componentDigest 3
+    (nifsKeyWordsFromStructural fits setup structural)
+  commitmentKey := VerifierContext.componentDigest 4
+    (commitmentKeyWords setup)
+
+@[simp] theorem
+    verifierContextDescriptorFromStructuralAndApplicationDigest_canonical
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    verifierContextDescriptorFromStructuralAndApplicationDigest fits setup
+        structural
+        (VerifierContext.componentDigest 2
+          (applicationAuthorityWords program)) =
+      verifierContextDescriptorFromStructural fits setup structural := by
+  rfl
 
 @[simp] theorem verifierContextDescriptorFromStructural_canonical
     {program : Program} (fits : FitsTwoPow28 program)
@@ -573,17 +624,22 @@ def packageIdentity {program : Program} (fits : FitsTwoPow28 program)
   VerifierContext.Digest4.ofList
     (Poseidon2.hash (packageIdentityPreimage fits setup))
 
-def packageIdentityFromStructural {program : Program}
-    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
-    (structural : VerifierContext.Digest4) :
+private def packageIdentityFromParts
+    (structural : VerifierContext.Digest4)
+    (context : VerifierContext.Descriptor) :
     VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (Poseidon2.hash
       (packageIdentityDomain ++
         VerifierContext.framed structural.toList ++
-        VerifierContext.framed
-          (verifierContextDescriptorFromStructural
-            fits setup structural).serialize))
+        VerifierContext.framed context.serialize))
+
+def packageIdentityFromStructural {program : Program}
+    (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    VerifierContext.Digest4 :=
+  packageIdentityFromParts structural
+    (verifierContextDescriptorFromStructural fits setup structural)
 
 @[simp] theorem packageIdentityFromStructural_canonical {program : Program}
     (fits : FitsTwoPow28 program) (setup : CommitmentSetup program) :
@@ -603,9 +659,40 @@ def verificationKeyBindingFromStructural {program : Program}
     (fits : FitsTwoPow28 program) (setup : CommitmentSetup program)
     (structural : VerifierContext.Digest4) :
     Lifecycle.Stage1.VerificationKey.Binding :=
-  Lifecycle.Stage1.VerificationKey.ofAuthority
-    (packageIdentityFromStructural fits setup structural)
-    (authorityFromStructural fits setup structural)
+  let authority := authorityFromStructural fits setup structural
+  let context := VerifierContext.descriptor authority
+  {
+    packageIdentity := packageIdentityFromParts structural context
+    context := context
+  }
+
+/-- Construct the complete binding from independently recomputed structural
+and application identities. Both remain evidence only after their raw
+authority streams are checked. -/
+def verificationKeyBindingFromStructuralAndApplicationDigest
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program)
+    (structural applicationDigest : VerifierContext.Digest4) :
+    Lifecycle.Stage1.VerificationKey.Binding :=
+  let context :=
+    verifierContextDescriptorFromStructuralAndApplicationDigest fits setup
+      structural applicationDigest
+  {
+    packageIdentity := packageIdentityFromParts structural context
+    context := context
+  }
+
+@[simp] theorem
+    verificationKeyBindingFromStructuralAndApplicationDigest_canonical
+    {program : Program} (fits : FitsTwoPow28 program)
+    (setup : CommitmentSetup program)
+    (structural : VerifierContext.Digest4) :
+    verificationKeyBindingFromStructuralAndApplicationDigest fits setup
+        structural
+        (VerifierContext.componentDigest 2
+          (applicationAuthorityWords program)) =
+      verificationKeyBindingFromStructural fits setup structural := by
+  rfl
 
 @[simp] theorem verificationKeyBindingFromStructural_canonical
     {program : Program} (fits : FitsTwoPow28 program)

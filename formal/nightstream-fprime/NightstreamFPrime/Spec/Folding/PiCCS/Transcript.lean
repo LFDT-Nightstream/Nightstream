@@ -12,7 +12,7 @@ Inputs:
 Outputs:
 - `α` in canonical cube-coordinate order;
 - `γ`;
-- the state after all 25 labelled squeezes.
+- the state after all 28 labelled squeezes.
 
 Parent coverage:
 - the pre-SumCheck prefix of `PiCCS.Coverage.transcript`.

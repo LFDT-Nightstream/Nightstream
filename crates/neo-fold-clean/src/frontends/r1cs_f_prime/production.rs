@@ -4,6 +4,8 @@
 //! matrix evaluator and witness program to a generic proof backend. It does
 //! not accept a caller-selected relation, application, identity, or key.
 
+use std::ops::Range;
+
 use nightstream_fprime::{
     load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, LogicalMatrixRow, PackageError,
     PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding, WitnessAssignment,
@@ -48,14 +50,18 @@ impl Poseidon2HashChainV1Package {
         self.binding.verification_key_digest()
     }
 
-    /// Matrix-content-free header paired with [`Self::matrix_row`].
+    /// Matrix-content-free header paired with [`Self::visit_matrix_rows`].
     pub fn structure(&self) -> &Structure {
         &self.structure
     }
 
-    /// Decode one exact Lean-authored logical matrix row.
-    pub fn matrix_row(&self, ordinal: usize) -> Result<LogicalMatrixRow, PackageError> {
-        self.package.matrix_row(ordinal)
+    /// Visit exact Lean-authored logical matrix rows in ascending order.
+    pub fn visit_matrix_rows(
+        &self,
+        rows: Range<usize>,
+        visit: impl FnMut(usize, LogicalMatrixRow) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        self.package.visit_matrix_rows(rows, visit)
     }
 
     /// Execute the only witness program accepted by this production package.

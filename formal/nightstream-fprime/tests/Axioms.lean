@@ -156,11 +156,6 @@ The gate fails if a theorem uses axioms outside the allowed set. -/
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Ordinary.compileTerms?_eq_compileTerms
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Ordinary.compileCombination?_eq_compileCombination
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Ordinary.compileRow?_eq_compileRow
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.IndexSchedule.singleton_index?
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.IndexRange.indices_eq_range'
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.IndexRange.indices_length
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.IndexSchedule.indices_length
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.IndexSchedule.index?_eq_getElem?
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Ordinary.Block.row?_eq_compileRow
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Pin.Block.ofSemantic_rowCount
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Pin.Block.row?_ofSemantic
@@ -1497,3 +1492,8 @@ The gate fails if a theorem uses axioms outside the allowed set. -/
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination.totalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination.physical_implies_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.allPort_coefficient_eq_logicalRelation_matrix
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_form_empty
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_matrix_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.padding_matrix_coefficient_zero

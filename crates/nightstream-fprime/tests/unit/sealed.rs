@@ -47,17 +47,83 @@ fn application_plan() -> Value {
 }
 
 #[test]
-fn assignment_plan_accepts_only_the_lean_owned_order() {
-    let canonical = (0..ASSIGNMENT_BLOCK_KIND_COUNT as u8).collect::<Vec<_>>();
+fn assignment_transport_accepts_only_the_lean_owned_order() {
+    const PHYSICAL_WIDTH: usize = 60_000;
+    const LOGICAL_PUBLIC_WIDTH: usize = 270;
+    const PAYLOAD_VALUES: usize = 30_416;
+    const PHI81_INVOCATIONS: usize = 52_326;
+    const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * 33;
+    const FIRST54_PRODUCTS: usize = 1_088;
+
+    let product_source_start = PHYSICAL_WIDTH + PHI81_GROUP_VALUES;
+    let mut logical_width = LOGICAL_PUBLIC_WIDTH;
+    let blocks = (0..crate::package::assignment_transport::BLOCK_COUNT)
+        .map(|opcode| {
+            let (kind, slot_count, source_first) = match opcode {
+                3 => (2, PHI81_GROUP_VALUES, PHYSICAL_WIDTH),
+                4 => (0, FIRST54_PRODUCTS, 0),
+                5 => (2, FIRST54_PRODUCTS, 0),
+                7 => (2, 58_752, 0),
+                8 => (2, FIRST54_PRODUCTS, product_source_start),
+                9 => (2, PHI81_INVOCATIONS, 0),
+                13 => (2, PAYLOAD_VALUES, 0),
+                31 => (2, 4, 0),
+                _ => (0, 0, 0),
+            };
+            let source_domain = match opcode {
+                13 => 1,
+                41..=44 => 2,
+                _ => 0,
+            };
+            logical_width += slot_count * if kind == 2 { 41 } else { 1 };
+            let runs = if slot_count == 0 {
+                Vec::new()
+            } else {
+                vec![json!([source_first, usize::from(slot_count > 1), slot_count])]
+            };
+            json!([opcode, kind, slot_count, source_domain, runs])
+        })
+        .collect::<Vec<_>>();
+    let payload_expressions = (0..PAYLOAD_VALUES)
+        .map(|_| json!([0, 0]))
+        .collect::<Vec<_>>();
+    let mut transport = json!([
+        1,
+        blocks,
+        [
+            54,
+            27,
+            81,
+            106,
+            3,
+            162,
+            5,
+            33,
+            [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]],
+            7,
+            3402,
+            3456,
+            2,
+            9,
+            3
+        ],
+        [FIRST54_PRODUCTS, 4, 5, 8],
+        13,
+        payload_expressions,
+        31,
+        [[0, 0], [0, 1], [0, 2], [0, 3]]
+    ]);
+
     let plan =
-        decode_assignment_plan(canonical.iter().copied().map(u64::from).collect()).expect("canonical assignment plan");
+        crate::package::assignment_transport::decode(&transport, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width)
+            .expect("canonical assignment transport");
+    let canonical = (0..crate::package::assignment_transport::BLOCK_COUNT as u8).collect::<Vec<_>>();
     assert_eq!(plan.kind_codes(), canonical.as_slice());
 
-    let mut changed = canonical.into_iter().map(u64::from).collect::<Vec<_>>();
-    changed[17] = 18;
+    transport[1][17][0] = json!(18);
     assert!(matches!(
-        decode_assignment_plan(changed),
-        Err(PackageError::Invalid("assignment transport plan"))
+        crate::package::assignment_transport::decode(&transport, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width,),
+        Err(PackageError::Invalid("assignment block order"))
     ));
 }
 

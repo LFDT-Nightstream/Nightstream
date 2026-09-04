@@ -9,7 +9,7 @@ circuit.
 
 The running instance reuses its exact serialization in the pilot prior-state
 preimage. The fresh public input reuses the pilot public-input columns. Only
-the fresh commitment, 26 degree-nine SumCheck messages, and separate output
+the fresh commitment, 28 degree-nine SumCheck messages, and separate output
 `Eval_K`/`Eval_A` families allocate new proof-input columns.
 
 No equality row is added at this boundary. The following PiCCS allocation

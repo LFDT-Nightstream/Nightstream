@@ -5,17 +5,21 @@
 //! production verifier path, which must also bind the commitment setup and
 //! verification key.
 
+use std::ops::Range;
+
 use neo_ccs::{poly::SparsePoly, poly::Term, CcsStructure};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::matrix_program::{MatrixProgram, MEANINGFUL_PORTS};
+use super::assignment_transport;
+use super::matrix_program::{MatrixProgram, RowForms, MEANINGFUL_PORTS};
 use super::{
-    relation_identifier, validate_per_application_package_schema, Layout, LoadedPackage, LoadedTerminalLayout,
-    PackageError, PackageR1cs, PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs,
-    PiDecV1_1PackageInputs, RawPackage, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+    relation_identifier, validate_per_application_package_schema, Layout, LoadedAssignmentPlan, LoadedPackage,
+    LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_1EncodedInputs,
+    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, RawPackage,
+    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::identity::{
     stage1_verifier_binding, value_preimage_words, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
@@ -24,11 +28,10 @@ use crate::identity::{
 use crate::Stage1VerifierBinding;
 use crate::WitnessAssignment;
 
-const SEALED_PACKAGE_SCHEMA: u64 = 5;
+const SEALED_PACKAGE_SCHEMA: u64 = 6;
 const INNER_PACKAGE_SCHEMA: u64 = 8;
 const MATRIX_COUNT: usize = 14;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
-const ASSIGNMENT_BLOCK_KIND_COUNT: usize = 45;
 const APPLICATION_STATE_WORDS: usize = 4;
 const NEXT_PREIMAGE_ROW_COUNT: usize = 5;
 pub(super) const APPLICATION_WITNESS_ROLE: u64 = 17;
@@ -38,7 +41,7 @@ const CIRCUIT_WITNESS_INSTRUCTIONS: usize = 11;
 const CIRCUIT_ASSERTION_ROWS: usize = 12;
 
 #[derive(Debug, Deserialize)]
-struct RawSealedPackage(u64, RawPackage, Value, Value, Vec<u64>, RawRowRange, u64);
+struct RawSealedPackage(u64, RawPackage, Value, Value, Value, RawRowRange, u64);
 
 #[derive(Debug, Deserialize)]
 struct RawRowRange(u64, u64);
@@ -126,24 +129,32 @@ impl LoadedApplicationPlan {
     }
 }
 
-/// Lean-authored order for transporting retained source blocks into the
-/// canonical assignment. Codes are private data from the sealed package, not
-/// a Rust-selected circuit schedule.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LoadedAssignmentPlan {
-    kind_codes: [u8; ASSIGNMENT_BLOCK_KIND_COUNT],
-}
-
-impl LoadedAssignmentPlan {
-    pub fn kind_codes(&self) -> &[u8; ASSIGNMENT_BLOCK_KIND_COUNT] {
-        &self.kind_codes
-    }
-}
-
 impl LogicalMatrixRow {
     pub fn matrix(&self, slot: usize) -> Option<&[LogicalMatrixEntry]> {
         self.matrices.get(slot).map(Vec::as_slice)
     }
+}
+
+fn logical_matrix_row(forms: RowForms) -> Result<LogicalMatrixRow, PackageError> {
+    let mut matrices = forms
+        .into_iter()
+        .map(|form| {
+            form.into_entries()
+                .into_iter()
+                .map(|entry| LogicalMatrixEntry {
+                    column: entry.column,
+                    coefficient: entry.coefficient.as_canonical_u64(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    debug_assert_eq!(matrices.len(), MEANINGFUL_PORTS);
+    matrices.push(Vec::new());
+    Ok(LogicalMatrixRow {
+        matrices: matrices
+            .try_into()
+            .map_err(|_| PackageError::Invalid("logical matrix port count"))?,
+    })
 }
 
 /// A structurally identity-bound per-application package. Final production
@@ -273,12 +284,40 @@ impl LoadedPerApplicationPackage {
         self.circuit.execute_witness(private_inputs, public_values)
     }
 
+    /// Lower one package-produced physical witness through the exact
+    /// Lean-authored final-assignment transport retained by this package.
+    pub fn execute_logical_assignment(&self, physical: &WitnessAssignment) -> Result<LogicalAssignment, PackageError> {
+        self.assignment_plan.execute(&self.circuit.layout, physical)
+    }
+
     /// Encode the typed PiCCS input through this verifier-owned package.
+    ///
+    /// The generic prefix validates the caller's package context. This final
+    /// application package replaces the public context slot with the digest
+    /// recomputed from the complete production package binding.
     pub fn encode_pi_ccs_v1_1_inputs(
         &self,
         inputs: &PiCcsV1_1PackageInputs,
     ) -> Result<PiCcsV1_1EncodedInputs, PackageError> {
-        self.circuit.encode_pi_ccs_v1_1_inputs(inputs)
+        let encoded = self.circuit.encode_pi_ccs_v1_1_inputs(inputs)?;
+        let mut public_values = encoded.public_values().to_vec();
+        let verifier_context = self
+            .production_verifier_binding()?
+            .verifier_context()
+            .digest();
+        let context_start = public_values
+            .len()
+            .checked_sub(verifier_context.len())
+            .ok_or(PackageError::Invalid("Stage 1 verifier-context public slot"))?;
+        let context_end = context_start + verifier_context.len();
+        public_values
+            .get_mut(context_start..context_end)
+            .ok_or(PackageError::Invalid("Stage 1 verifier-context public slot"))?
+            .copy_from_slice(&verifier_context);
+        Ok(PiCcsV1_1EncodedInputs::from_parts(
+            encoded.private_values().to_vec(),
+            public_values,
+        ))
     }
 
     /// Encode every caller-owned Stage 1 input in the exact package order.
@@ -295,7 +334,7 @@ impl LoadedPerApplicationPackage {
         {
             return Err(PackageError::Invalid("application witness"));
         }
-        let encoded = self.circuit.encode_pi_ccs_v1_1_inputs(pi_ccs)?;
+        let encoded = self.encode_pi_ccs_v1_1_inputs(pi_ccs)?;
         let mut private_values = encoded.private_values().to_vec();
         pi_dec.append_private_values(&mut private_values);
         private_values.extend_from_slice(application_witness);
@@ -347,36 +386,24 @@ impl LoadedPerApplicationPackage {
         Ok(counts)
     }
 
-    /// Decode one live Lean matrix-program row. Boolean rows after
-    /// `row_count()` are the zero padding defined by Lean and are not stored.
-    pub fn matrix_row(&self, ordinal: usize) -> Result<LogicalMatrixRow, PackageError> {
-        if ordinal >= self.row_count() {
-            return Err(PackageError::Invalid("logical matrix row ordinal"));
+    /// Visit an active logical-row range in ascending Lean-authored order.
+    /// Boolean rows after `row_count()` are implicit zero padding and are not
+    /// accepted by this active-row interface.
+    pub fn visit_matrix_rows(
+        &self,
+        rows: Range<usize>,
+        mut visit: impl FnMut(usize, LogicalMatrixRow) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if rows.start > rows.end || rows.end > self.row_count() {
+            return Err(PackageError::Invalid("logical matrix row range"));
         }
-        let forms = self
-            .matrix_program
-            .row(self.logical_column_count(), ordinal, &|source| {
-                self.circuit.source_row(source)
-            })?;
-        let mut matrices = forms
-            .into_iter()
-            .map(|form| {
-                form.into_entries()
-                    .into_iter()
-                    .map(|entry| LogicalMatrixEntry {
-                        column: entry.column,
-                        coefficient: entry.coefficient.as_canonical_u64(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        debug_assert_eq!(matrices.len(), MEANINGFUL_PORTS);
-        matrices.push(Vec::new());
-        Ok(LogicalMatrixRow {
-            matrices: matrices
-                .try_into()
-                .map_err(|_| PackageError::Invalid("logical matrix port count"))?,
-        })
+        self.matrix_program.visit_rows(
+            self.logical_column_count(),
+            rows.start,
+            rows.end,
+            &|source| self.circuit.source_row(source),
+            |ordinal, forms| visit(ordinal, logical_matrix_row(forms)?),
+        )
     }
 }
 
@@ -433,7 +460,6 @@ pub fn load_per_application_package(
     }
     let next_preimage_rows = decode_next_preimage_range(raw_next_preimage, &circuit.layout)?;
     let application = decode_application_plan(&raw_application, &circuit_value, &circuit.layout, &next_preimage_rows)?;
-    let assignment_plan = decode_assignment_plan(raw_assignment_plan)?;
     validate_next_preimage_assertion_suffix(&circuit_value, &next_preimage_rows)?;
     let logical_public_input_count = usize::try_from(raw_logical_public_input_count)
         .map_err(|_| PackageError::Invalid("logical public input count"))?;
@@ -442,6 +468,12 @@ pub fn load_per_application_package(
     {
         return Err(PackageError::Invalid("logical public input count"));
     }
+    let assignment_plan = assignment_transport::decode(
+        &raw_assignment_plan,
+        circuit.layout.total_column_count,
+        logical_public_input_count,
+        circuit.relation.column_count(),
+    )?;
 
     Ok(LoadedPerApplicationPackage {
         circuit,
@@ -454,20 +486,6 @@ pub fn load_per_application_package(
         relation_value_words,
         application_words,
     })
-}
-
-fn decode_assignment_plan(raw: Vec<u64>) -> Result<LoadedAssignmentPlan, PackageError> {
-    if raw.len() != ASSIGNMENT_BLOCK_KIND_COUNT {
-        return Err(PackageError::Invalid("assignment transport plan"));
-    }
-    let mut kind_codes = [0_u8; ASSIGNMENT_BLOCK_KIND_COUNT];
-    for (index, code) in raw.into_iter().enumerate() {
-        if code != index as u64 {
-            return Err(PackageError::Invalid("assignment transport plan"));
-        }
-        kind_codes[index] = code as u8;
-    }
-    Ok(LoadedAssignmentPlan { kind_codes })
 }
 
 /// Load the sole verifier-owned Stage 1 package for
@@ -686,3 +704,7 @@ fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageErr
 #[cfg(test)]
 #[path = "../../tests/unit/sealed.rs"]
 mod sealed_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/pi_ccs_prefix_assignment.rs"]
+mod pi_ccs_prefix_assignment_tests;

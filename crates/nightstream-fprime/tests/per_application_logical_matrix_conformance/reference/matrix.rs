@@ -175,7 +175,7 @@ impl SourceSubstitution {
         })
     }
 
-    fn form(&self, logical_width: usize, source: usize) -> Result<Form> {
+    pub(super) fn form(&self, logical_width: usize, source: usize) -> Result<Form> {
         let mut selected = None;
         for candidate in self
             .ranges

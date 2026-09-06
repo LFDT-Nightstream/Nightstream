@@ -66,7 +66,7 @@ impl Relation {
         }
         let fields = exact_array(&raw, 6, "CCS relation")?;
         if word(&fields[0], "CCS row count")? != 6_377_559
-            || word(&fields[1], "CCS column count")? != 256_532_147
+            || word(&fields[1], "CCS column count")? != 254_260_583
             || word(&fields[2], "CCS cube variables")? != 28
             || array(&fields[3], "CCS matrix sources")?
                 .iter()

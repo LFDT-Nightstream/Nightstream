@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
-The transport keeps the existing 38 retained block plans and adds only the
+The transport keeps the existing 33 retained block plans and adds only the
 recipes that cannot be recovered from their source runs: Phi81 group totals,
 First54 accepted-symbol products, PiCCS payload expressions, and the four
 verifier-owned output-digest words.
@@ -66,7 +66,7 @@ structure Phi81GroupRecipe where
   challengeSlotBase : Nat
   challengeSourceStride : Nat
   challengeShift : Nat
-  valueBlock : BlockKind
+  valueSources : List AffineRuns.Run
   groupOutputBlock : BlockKind
 deriving Repr, DecidableEq
 
@@ -85,14 +85,14 @@ def Phi81GroupRecipe.format : Format Phi81GroupRecipe where
     .atom recipe.challengeSlotBase,
     .atom recipe.challengeSourceStride,
     .atom recipe.challengeShift,
-    BlockKind.format.encode recipe.valueBlock,
+    AffineRuns.format.encode recipe.valueSources,
     BlockKind.format.encode recipe.groupOutputBlock]
   decode
     | .array [.atom ringDegree, .atom middleDegree, .atom foldOffset,
         .atom twiceCutoff, .atom rawConvolutionCount, .atom rawTermCount,
         .atom groupWidth, .atom groupCount, familyShapes, challengeBlock,
         .atom challengeSlotBase, .atom challengeSourceStride,
-        .atom challengeShift, valueBlock, groupOutputBlock] => do
+        .atom challengeShift, valueSources, groupOutputBlock] => do
       pure {
         ringDegree,
         middleDegree,
@@ -108,14 +108,14 @@ def Phi81GroupRecipe.format : Format Phi81GroupRecipe where
         challengeSlotBase,
         challengeSourceStride,
         challengeShift,
-        valueBlock := ← BlockKind.format.decode valueBlock,
+        valueSources := ← AffineRuns.format.decode valueSources,
         groupOutputBlock := ← BlockKind.format.decode groupOutputBlock }
     | _ => .error "invalid Phi81 assignment group recipe"
   decode_encode := by
     intro recipe
     cases recipe
     simp only [(Codec.list Phi81FamilyShape.format).decode_encode,
-      BlockKind.format.decode_encode]
+      BlockKind.format.decode_encode, AffineRuns.decode_encode]
     rfl
 
 /-- The four fixed product families in semantic order. -/
@@ -125,9 +125,37 @@ def phi81FamilyShapes : List Phi81FamilyShape :=
   , ⟨17, 1, 2⟩
   , ⟨17, 14, 2⟩ ]
 
+/-- Physical source columns used to construct the shared PiRLC operand values. -/
+def phi81ValueSources (program : Program) : List AffineRuns.Run :=
+  AffineRuns.compress <| List.ofFn fun invocation :
+      Fin PiRLCProductSchedule.invocationCount =>
+    let descriptor := PiRLCProductSchedule.descriptor invocation
+    (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
+
+def directPhi81ValueSources (program : Program) : List AffineRuns.Run :=
+  AffineRuns.compressIndexedTR fun invocation :
+      Fin PiRLCProductSchedule.invocationCount =>
+    let descriptor := PiRLCProductSchedule.descriptor invocation
+    (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
+
+@[csimp] theorem phi81ValueSources_eq_direct :
+    phi81ValueSources = directPhi81ValueSources := by
+  funext program
+  exact (AffineRuns.compressIndexedTR_eq_compress_ofFn _).symm
+
+theorem phi81ValueSources_at (program : Program)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    AffineRuns.sourceAt (phi81ValueSources program) invocation.val =
+      (PiRLCProductPlan.valueColumn program
+        (PiRLCProductSchedule.descriptor invocation)
+        (PiRLCProductSchedule.descriptor invocation).lane).val := by
+  rw [AffineRuns.sourceAt_eq_expand_getD, phi81ValueSources,
+    AffineRuns.expand_compress]
+  exact Lifecycle.PriorStateHash.ofFn_getD _ invocation 0
+
 /-- The complete generic Phi81 recipe. No per-invocation expressions are
 materialized. -/
-def phi81GroupRecipe : Phi81GroupRecipe where
+def phi81GroupRecipe (program : Program) : Phi81GroupRecipe where
   ringDegree := 54
   middleDegree := 27
   foldOffset := 81
@@ -141,7 +169,7 @@ def phi81GroupRecipe : Phi81GroupRecipe where
   challengeSlotBase := 3402
   challengeSourceStride := 3456
   challengeShift := 2
-  valueBlock := .productInput
+  valueSources := phi81ValueSources program
   groupOutputBlock := .productGroup
 
 /-- Compact executable recipe for the 1,088 shared First54 products. -/
@@ -274,7 +302,7 @@ def Plan.format : Format Plan where
 
 def canonical (program : Program) : Plan where
   blocks := PerApplicationAssignmentBlocks.canonical program
-  phi81 := phi81GroupRecipe
+  phi81 := phi81GroupRecipe program
   first54 := first54ProductRecipe
   payloadBlock := .piCcsPayload
   payloadExpressions := materializedPayloadExpressions program
@@ -286,7 +314,7 @@ def canonical (program : Program) : Plan where
   materializedPayloadExpressions_eq program
 
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 38 := by
+    (canonical program).blocks.length = 33 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

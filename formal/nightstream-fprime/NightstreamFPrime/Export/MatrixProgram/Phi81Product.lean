@@ -6,7 +6,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep
 /-!
 Owns the generic compact opcode for an invocation-major family of direct
 Phi81 product rows. The wire data fixes the family order and all retained
-blocks. A consumer decodes that data; it does not select a Stage 1 schedule.
+operands. A consumer decodes that data; it does not select a Stage 1 schedule.
 
 This module does not select concrete PiRLC families or package rows.
 -/
@@ -173,7 +173,7 @@ structure Block where
   challenge : RetainedBlock
   challengeSlotStart : Nat
   challengeSourceStride : Nat
-  input : RetainedBlock
+  input : SourceSubstitution
   output : RetainedBlock
   group : RetainedBlock
 deriving Repr, DecidableEq
@@ -185,7 +185,7 @@ def Block.format : Format Block where
     RetainedBlock.format.encode block.challenge,
     .atom block.challengeSlotStart,
     .atom block.challengeSourceStride,
-    RetainedBlock.format.encode block.input,
+    SourceSubstitution.format.encode block.input,
     RetainedBlock.format.encode block.output,
     RetainedBlock.format.encode block.group]
   decode
@@ -198,7 +198,7 @@ def Block.format : Format Block where
         challenge := ← RetainedBlock.format.decode challenge
         challengeSlotStart
         challengeSourceStride
-        input := ← RetainedBlock.format.decode input
+        input := ← SourceSubstitution.format.decode input
         output := ← RetainedBlock.format.decode output
         group := ← RetainedBlock.format.decode group }
     | _ => .error "invalid Phi81 product block"
@@ -208,7 +208,7 @@ def Block.format : Format Block where
     simp only
     rw [(list Family.format).decode_encode,
       RetainedBlock.format.decode_encode,
-      RetainedBlock.format.decode_encode,
+      SourceSubstitution.format.decode_encode,
       RetainedBlock.format.decode_encode,
       RetainedBlock.format.decode_encode]
     rfl

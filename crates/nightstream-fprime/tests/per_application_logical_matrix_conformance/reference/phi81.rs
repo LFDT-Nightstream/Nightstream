@@ -2,6 +2,7 @@
 
 use serde_json::Value;
 
+use super::matrix::SourceSubstitution;
 use super::{
     checked_add, checked_mul, decode_list, empty_row, exact_array, word, Field, Form, Result, RetainedBlock, RowForms,
 };
@@ -88,7 +89,7 @@ pub struct Block {
     challenge: RetainedBlock,
     challenge_slot_start: usize,
     challenge_source_stride: usize,
-    input: RetainedBlock,
+    input: SourceSubstitution,
     output: RetainedBlock,
     group: RetainedBlock,
 }
@@ -102,14 +103,14 @@ impl Block {
             challenge: RetainedBlock::decode(&fields[2])?,
             challenge_slot_start: word(&fields[3], "Phi81 challenge slot start")?,
             challenge_source_stride: word(&fields[4], "Phi81 challenge source stride")?,
-            input: RetainedBlock::decode(&fields[5])?,
+            input: SourceSubstitution::decode(&fields[5], logical_width)?,
             output: RetainedBlock::decode(&fields[6])?,
             group: RetainedBlock::decode(&fields[7])?,
         };
         if block.one_column != 0 || block.one_column >= logical_width {
             return Err("Phi81 one column is not logical column zero".into());
         }
-        for retained in [&block.challenge, &block.input, &block.output, &block.group] {
+        for retained in [&block.challenge, &block.output, &block.group] {
             retained.validate(logical_width)?;
         }
         Ok(block)

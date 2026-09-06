@@ -1453,36 +1453,42 @@ pinned. PiCCS remains status open until the valid nonzero parity, complete produ
 assignment and mutation gates above pass, followed by independent review of
 that exact source and artifact cut.
 
+A baseline raw-assignment mutation exposed a parent-wiring defect: clearing
+retained PiRLC groups, inputs, and outputs left all 6,377,559 rows satisfied
+while PiDEC parents differed. The independent reproduction took 32.345 s.
+This is a row-assignment finding, not an accepted cryptographic proof or a
+full `StepHoldsFor` counterexample.
+
+The shared-value repair uses the existing PiCCS forms as PiRLC operands and
+final PiRLC output slots as all four PiDEC parent forms. It removes five
+allocations and adds no copy rows: 33 blocks, 254,260,583 logical coordinates,
+and 254,260,620 carrier coordinates. The Ajtai width is 4,708,530; its seed,
+rank 22, b = 2, k_rho = 16, and 2^28 domain remain fixed. The new structural
+identity is `[1352583345059716010,9598835915300462087,5906199803585532789,8386299545873102921]`.
+`ActualPiRLCValues.selectedRowsAndPublic_imply_sums` derives the full recurrence
+from arbitrary accepted selected rows and the actual public marker. The four
+`PiDECValueWiring.parent*_form_eq_output` identities select the final 17-source
+sums without an honest-witness premise. The full Lean build and axiom gate pass.
+All fourteen matrices and the new-context base assignment pass independent
+Rust checks. A nonzero arbitrary assignment passes all rows; clearing PiRLC
+products or PiDEC children fails at rows 4,100,086 and 5,998,950. Its old caller
+context is not proof evidence for the new package. Exact source/package
+identities, commands, timings, and limits are in
+`/tmp/nightstream-stage1-wiring-p6ZygF/REPAIR_STATUS.md`. Production pins remain
+unchanged. These results are diagnostics; PiCCS remains Conformance-open.
+
 The remaining owner-ordered work is:
 
-An independent raw-assignment mutation exposes a failed parent-wiring gate.
-Zeroing retained `productGroup`, `productInput`, and `productOutput` blocks
-leaves all 6,377,559 canonical rows satisfied, while 2,934 PiDEC parent values
-differ from the product-output values with the same physical source labels.
-Public inputs, phase proof, package, and identity stay fixed. The commitment
-claim was not checked, and no full `StepHoldsFor` counterexample is claimed.
-`pi_ccs_opening_values::external_rows_reject_detached_pi_rlc_product_blocks`
-fails on this case (82.294 s). Shared source labels and canonical witness
-generation do not enforce equality on arbitrary accepted assignments.
-
-1. repair the retained PiCCS/PiRLC/PiDEC form wiring exposed by this regression,
-   then finish the remaining arbitrary-assignment connections and current axiom
-   checks; preserve the current candidate matrix, base-assignment, and
-   detached-application evidence while its source, inputs, and identity
-   remain unchanged;
-2. preserve the completed independent opening and mutation gates for the
-   current nonzero PiCCS fixture; finish the required phase proof connections,
-   then obtain
-   independent review of that
-   exact source and artifact cut; rerun every affected gate, including valid
-   nonzero results and cumulative handoffs, before any identity re-pin;
+1. finish the recursive PiDEC/output and canonical selected-context connections;
+   obtain independent review and approved checks on the exact repaired cut;
+2. regenerate valid nonzero PiCCS opening, result, assignment, mutation, and
+   cumulative handoff evidence for the new identity before any identity re-pin;
 3. after PiCCS is conformance-closed, regenerate its exact PiRLC handoff and
-   resume PiRLC work in owner order;
+   resume the frozen PiRLC InputBinding work only in owner order;
 4. conformance-close PiRLC, PiDEC, application, and terminal evidence on one
    unchanged final package cut;
 5. after separate owner approval of a production backend, connect that backend
-   only to `Poseidon2HashChainV1Package` and execute the final production
-   `prove → verify` obligation.
+   only to `Poseidon2HashChainV1Package` and execute `prove → verify`.
 
 No backend is authorized on this cut. Backend acceptance cannot replace any
 semantic or conformance gate in this file.

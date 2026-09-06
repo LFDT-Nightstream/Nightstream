@@ -71,7 +71,7 @@ use reference::{
 };
 
 const EXPECTED_ACTIVE_ROWS: usize = 6_377_559;
-const EXPECTED_LOGICAL_COLUMNS: usize = 256_532_147;
+const EXPECTED_LOGICAL_COLUMNS: usize = 254_260_583;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
 const EXPECTED_PHYSICAL_ROWS: usize = 29_225_729;

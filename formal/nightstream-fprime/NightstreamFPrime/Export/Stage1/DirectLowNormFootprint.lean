@@ -51,7 +51,7 @@ def throughPiRLCProductSourcesCoordinates
 
 @[simp] theorem throughPiRLCProductSourcesCoordinates_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    throughPiRLCProductSourcesCoordinates program = 192090168 := by
+    throughPiRLCProductSourcesCoordinates program = 189944802 := by
   simp [throughPiRLCProductSourcesCoordinates]
 
 theorem throughPiRLCProductSourcesCoordinates_le_cube

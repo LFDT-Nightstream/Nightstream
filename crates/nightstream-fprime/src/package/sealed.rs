@@ -264,10 +264,12 @@ impl LoadedPerApplicationPackage {
     }
 
     /// Recompute the complete final package and verification-key binding
-    /// from this identity-checked package and the fixed production setup.
+    /// from this identity-checked package, its carrier width, and the fixed
+    /// production setup seed and rank.
     pub fn production_verifier_binding(&self) -> Result<Stage1VerifierBinding, PackageError> {
         stage1_verifier_binding(
             self.structural_identifier,
+            self.logical_column_count(),
             &self.relation_value_words,
             &self.application_words,
         )

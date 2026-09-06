@@ -108,8 +108,6 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.productBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (PiRLCRetainedGeometry.productInputBlock application)
-      raw.retainedSource
   , Canonical.ofBlock (PiRLCRetainedGeometry.productOutputBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiRLCPoseidonGeometry.priorInputBlock application)
@@ -152,14 +150,6 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (PilotOrdinaryRetainedBlocks.outputDigestBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (PiDECRetainedBlocks.parentCommitmentBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiDECRetainedBlocks.parentPublicInputBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiDECRetainedBlocks.parentEvalKBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiDECRetainedBlocks.parentEvalABlock application)
-      raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.logicalBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.freshBlock application)
@@ -178,7 +168,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 38 := by
+    (raw : RawValues application) : raw.schedule.length = 33 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -201,10 +191,6 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiRLCSamplerOrdinaryRetainedGeometry.prefixLogicalWidth
     PiDECRetainedGeometry.completeLogicalWidth PiDECRetainedGeometry.freshStart
     PiDECRetainedGeometry.logicalStart
-    PiDECRetainedGeometry.parentEvalAStart
-    PiDECRetainedGeometry.parentEvalKStart
-    PiDECRetainedGeometry.parentPublicInputStart
-    PiDECRetainedGeometry.parentCommitmentStart
     PiDECRetainedGeometry.prefixLogicalWidth
     PilotOrdinaryRetainedGeometry.completeLogicalWidth
     PilotOrdinaryRetainedGeometry.outputDigestStart
@@ -231,7 +217,6 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiRLCPoseidonGeometry.priorInputStart
     PiRLCRetainedGeometry.prefixLogicalWidth
     PiRLCRetainedGeometry.productOutputStart
-    PiRLCRetainedGeometry.productInputStart
     PiRLCRetainedGeometry.first54ProductStart
     PiRLCRetainedGeometry.valueStart PiRLCRetainedGeometry.positionStart
     PiRLCRetainedGeometry.symbolStart PiRLCRetainedGeometry.rejectStart

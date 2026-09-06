@@ -1,6 +1,6 @@
 //! Poseidon2 identity binding for the canonical Lean-emitted package.
 
-use neo_ajtai::nightstream_fprime_setup::production_authority_words;
+use neo_ajtai::nightstream_fprime_setup::{authority_words, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -176,10 +176,13 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
 
 pub(super) fn stage1_verifier_binding(
     structural_identifier: [u64; 4],
+    logical_columns: usize,
     relation_value_words: &[u64],
     application_words: &[u64],
 ) -> Result<Stage1VerifierBinding, PackageError> {
-    let commitment_key_words = production_authority_words();
+    let message_columns = u64::try_from(logical_columns.div_ceil(54))
+        .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
+    let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
     validate_context_words(relation_value_words)?;
     validate_context_words(application_words)?;
     validate_context_words(&commitment_key_words)?;

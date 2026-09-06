@@ -19,13 +19,13 @@ open NightstreamFPrime.Layout.ProductionRelation
 invocation-major PiRLC product plan. -/
 theorem matrixProgram_plan_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (global : Fin (PiRLCProductPlan.plan
-      (PiRLCRetainedInputs.productInputs geometry)).rowCount) :
+      (inputs geometry)).rowCount) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PiRLCProductPlan.plan
-        (PiRLCRetainedInputs.productInputs geometry)).forms global) := by
+        (inputs geometry)).forms global) := by
   change Fin (PiRLCProductSchedule.invocationCount * 34) at global
   simpa [PiRLCProductPlan.plan, Phi81ProductFamilyPlan.plan,
     ProductionRelation.Plan.indexed] using

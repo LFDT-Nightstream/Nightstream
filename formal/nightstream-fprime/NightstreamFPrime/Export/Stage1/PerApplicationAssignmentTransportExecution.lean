@@ -58,12 +58,12 @@ theorem canonicalRawValues_groupValue_eq_honestGroupValue
     (group : Fin 33) :
     (canonicalRawValues program base).groupValue invocation group =
       PiRLCProductPlan.honestGroupValue
-        (PiRLCRetainedInputs.productInputs
-          (PerApplicationCanonicalEncodes.retainedGeometry program))
+        (PiRLCProductMatrixProgram.inputs
+          (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry program))
         (canonicalRawValues program base).assignment invocation group := by
   change
     PerApplicationAssignmentTransportProducts.phi81GroupValue
-        phi81GroupRecipe program base invocation group.val = _
+        (phi81GroupRecipe program) program base invocation group.val = _
   exact
     PerApplicationAssignmentTransportProducts.canonical_phi81GroupValue_eq_honestGroupValue
       (canonicalRawValues program base) invocation group
@@ -81,63 +81,17 @@ theorem canonicalRawValues_products_eq_honestProducts
     PerApplicationAssignmentTransportProducts.canonical_first54ProductValue_eq_honestProducts
       (canonicalRawValues program base) candidate
 
-/-- Direct point lookup in a serialized affine-run stream. -/
-private def runSource : List AffineRuns.Run → Nat → Nat
-  | [], _ => 0
-  | run :: rest, slot =>
-      if slot < run.count then
-        run.first + run.step * slot
-      else
-        runSource rest (slot - run.count)
-
-private theorem affineValues_getD_of_lt (first step count slot : Nat)
-    (inside : slot < count) :
-    (AffineRuns.values first step count).getD slot 0 =
-      first + step * slot := by
-  induction count generalizing first slot with
-  | zero => omega
-  | succ count inductionHypothesis =>
-      cases slot with
-      | zero => simp [AffineRuns.values]
-      | succ slot =>
-          simp only [AffineRuns.values, List.getD_cons_succ]
-          rw [inductionHypothesis (first := first + step)
-            (slot := slot) (by omega)]
-          ring
-
-/-- Direct run lookup is the pointwise meaning of affine-run expansion. -/
-private theorem runSource_eq_expand_getD
-    (runs : List AffineRuns.Run) (slot : Nat) :
-    runSource runs slot = (AffineRuns.expand runs).getD slot 0 := by
-  induction runs generalizing slot with
-  | nil => rfl
-  | cons run rest inductionHypothesis =>
-      change
-        (if slot < run.count then run.first + run.step * slot
-          else runSource rest (slot - run.count)) =
-        (run.expand ++ AffineRuns.expand rest).getD slot 0
-      by_cases inside : slot < run.count
-      · rw [if_pos inside, List.getD_append]
-        · simpa [AffineRuns.Run.expand] using
-            (affineValues_getD_of_lt run.first run.step run.count slot inside).symm
-        · simpa using inside
-      · have after : run.expand.length ≤ slot := by
-          simpa using Nat.le_of_not_gt inside
-        rw [if_neg inside,
-          List.getD_append_right _ _ _ _ after]
-        simpa using inductionHypothesis (slot := slot - run.count)
-
 /-- Canonical run lookup selects the exact Lean-owned source index. -/
 private theorem canonical_runSource (program : Program) (kind : BlockKind)
     (slot : Nat)
     (bound :
       slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount) :
-    runSource
+    AffineRuns.sourceAt
         (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind).sourceRuns
         slot =
       PerApplicationAssignmentBlocks.sourceIndex program kind
         ⟨slot, bound⟩ := by
-  rw [runSource_eq_expand_getD]
+  rw [AffineRuns.sourceAt_eq_expand_getD]
   change
     (AffineRuns.expand
       (PerApplicationAssignmentBlocks.sourceRunsFor program kind)).getD
@@ -221,7 +175,7 @@ private def blockSlotValue (program : Program) (plan : Plan)
   if _covered :
       (block.sourceRuns.map AffineRuns.Run.count).sum = block.slotCount then
     domainValue program plan raw block.sourceDomain
-      (runSource block.sourceRuns slot.val)
+      (AffineRuns.sourceAt block.sourceRuns slot.val)
   else
     0
 
@@ -400,7 +354,7 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 38 function-valued
+/-- Interpret the serialized block order. The list has 33 function-valued
 entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=

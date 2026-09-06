@@ -34,7 +34,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      256216447 + retainedCoordinateCount application := by
+      253944883 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -46,7 +46,7 @@ application input/output words already belong to that prefix. -/
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      256216447 +
+      253944883 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
@@ -57,7 +57,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 298024 := by
+      application.witnessWordCount + localCount application ≤ 353428 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -69,7 +69,7 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 298023 := by
+      application.witnessWordCount + localCount application ≤ 353427 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
@@ -88,7 +88,7 @@ structure FitsTwoPow28
 word budget. -/
 def fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 298024) :
+    (fits : application.witnessWordCount + localCount application ≤ 353428) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits

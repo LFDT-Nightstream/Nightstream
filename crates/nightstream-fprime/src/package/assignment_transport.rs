@@ -11,7 +11,7 @@ use crate::WitnessAssignment;
 use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
 
 const TRANSPORT_SCHEMA: usize = 1;
-pub(super) const BLOCK_COUNT: usize = 38;
+pub(super) const BLOCK_COUNT: usize = 33;
 const FIELD_COORDINATES: usize = 41;
 const PAYLOAD_VALUE_COUNT: usize = 30_416;
 const OUTPUT_DIGEST_WORDS: usize = 4;
@@ -26,9 +26,8 @@ const FIRST54_REJECT_BLOCK: usize = 4;
 const FIRST54_SYMBOL_BLOCK: usize = 5;
 const FIRST54_VALUE_BLOCK: usize = 7;
 const FIRST54_PRODUCT_BLOCK: usize = 8;
-const PRODUCT_INPUT_BLOCK: usize = 9;
-const PAYLOAD_BLOCK: usize = 13;
-const OUTPUT_DIGEST_BLOCK: usize = 27;
+const PAYLOAD_BLOCK: usize = 12;
+const OUTPUT_DIGEST_BLOCK: usize = 26;
 
 /// Lean-authored block order for the final logical assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -255,6 +254,68 @@ struct BlockPlan {
     runs: Vec<Run>,
 }
 
+fn decode_source_runs(value: &Value, expected_count: usize, domain_width: usize) -> Result<Vec<Run>, PackageError> {
+    let run_values = value
+        .as_array()
+        .ok_or(PackageError::Invalid("assignment source runs"))?;
+    let mut runs = Vec::with_capacity(run_values.len());
+    let mut covered = 0usize;
+    for value in run_values {
+        let fields = exact_array(value, 3, "assignment source run")?;
+        let first = word(&fields[0], "assignment source run first")?;
+        let step = word(&fields[1], "assignment source run step")?;
+        let count = word(&fields[2], "assignment source run count")?;
+        if count == 0 || (count == 1 && step != 0) {
+            return Err(PackageError::Invalid("noncanonical assignment source run"));
+        }
+        let last = first
+            .checked_add(
+                step.checked_mul(count - 1)
+                    .ok_or(PackageError::Invalid("assignment source run overflow"))?,
+            )
+            .ok_or(PackageError::Invalid("assignment source run overflow"))?;
+        if last >= domain_width {
+            return Err(PackageError::Invalid("assignment source domain bound"));
+        }
+        covered = covered
+            .checked_add(count)
+            .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
+        runs.push(Run {
+            first,
+            step,
+            count,
+            last,
+        });
+    }
+    if covered != expected_count {
+        return Err(PackageError::Invalid("assignment source run coverage"));
+    }
+    validate_canonical_run_boundaries(&runs)?;
+
+    Ok(runs)
+}
+
+fn source_run_at(runs: &[Run], slot: usize) -> Result<usize, PackageError> {
+    let mut run_start = 0usize;
+    for run in runs {
+        let run_end = run_start
+            .checked_add(run.count)
+            .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
+        if slot < run_end {
+            return run
+                .first
+                .checked_add(
+                    run.step
+                        .checked_mul(slot - run_start)
+                        .ok_or(PackageError::Invalid("assignment source run overflow"))?,
+                )
+                .ok_or(PackageError::Invalid("assignment source run overflow"));
+        }
+        run_start = run_end;
+    }
+    Err(PackageError::Invalid("assignment source run coverage"))
+}
+
 impl BlockPlan {
     fn decode(
         value: &Value,
@@ -272,7 +333,7 @@ impl BlockPlan {
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
             PAYLOAD_BLOCK => SourceDomain::Payload,
-            36..=37 => SourceDomain::Physical,
+            31..=32 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -284,42 +345,7 @@ impl BlockPlan {
             SourceDomain::Physical => physical_width,
         };
 
-        let run_values = fields[4]
-            .as_array()
-            .ok_or(PackageError::Invalid("assignment source runs"))?;
-        let mut runs = Vec::with_capacity(run_values.len());
-        let mut covered = 0usize;
-        for value in run_values {
-            let fields = exact_array(value, 3, "assignment source run")?;
-            let first = word(&fields[0], "assignment source run first")?;
-            let step = word(&fields[1], "assignment source run step")?;
-            let count = word(&fields[2], "assignment source run count")?;
-            if count == 0 || (count == 1 && step != 0) {
-                return Err(PackageError::Invalid("noncanonical assignment source run"));
-            }
-            let last = first
-                .checked_add(
-                    step.checked_mul(count - 1)
-                        .ok_or(PackageError::Invalid("assignment source run overflow"))?,
-                )
-                .ok_or(PackageError::Invalid("assignment source run overflow"))?;
-            if last >= domain_width {
-                return Err(PackageError::Invalid("assignment source domain bound"));
-            }
-            covered = covered
-                .checked_add(count)
-                .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
-            runs.push(Run {
-                first,
-                step,
-                count,
-                last,
-            });
-        }
-        if covered != slot_count {
-            return Err(PackageError::Invalid("assignment source run coverage"));
-        }
-        validate_canonical_run_boundaries(&runs)?;
+        let runs = decode_source_runs(&fields[4], slot_count, domain_width)?;
 
         Ok(Self {
             opcode,
@@ -334,24 +360,7 @@ impl BlockPlan {
         if slot >= self.slot_count {
             return Err(PackageError::Invalid("assignment block source slot"));
         }
-        let mut run_start = 0usize;
-        for run in &self.runs {
-            let run_end = run_start
-                .checked_add(run.count)
-                .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
-            if slot < run_end {
-                return run
-                    .first
-                    .checked_add(
-                        run.step
-                            .checked_mul(slot - run_start)
-                            .ok_or(PackageError::Invalid("assignment source run overflow"))?,
-                    )
-                    .ok_or(PackageError::Invalid("assignment source run overflow"));
-            }
-            run_start = run_end;
-        }
-        Err(PackageError::Invalid("assignment source run coverage"))
+        source_run_at(&self.runs, slot)
     }
 
     fn sources(&self) -> impl Iterator<Item = Result<usize, PackageError>> + '_ {
@@ -472,12 +481,12 @@ struct Phi81Recipe {
     challenge_slot_base: usize,
     challenge_source_stride: usize,
     challenge_shift: u64,
-    value_block: usize,
+    value_sources: Vec<Run>,
     group_output_block: usize,
 }
 
 impl Phi81Recipe {
-    fn decode(value: &Value) -> Result<Self, PackageError> {
+    fn decode(value: &Value, physical_width: usize) -> Result<Self, PackageError> {
         let fields = exact_array(value, 15, "Phi81 assignment recipe")?;
         let expected_constants = [54, 27, 81, 106, 3, 162, 5, PHI81_GROUPS];
         let constants = fields[..8]
@@ -522,19 +531,9 @@ impl Phi81Recipe {
             word(&fields[10], "Phi81 challenge slot base")?,
             word(&fields[11], "Phi81 challenge source stride")?,
             word(&fields[12], "Phi81 challenge shift")?,
-            word(&fields[13], "Phi81 value block")?,
             word(&fields[14], "Phi81 group output block")?,
         ];
-        if selectors
-            != [
-                FIRST54_VALUE_BLOCK,
-                3_402,
-                3_456,
-                2,
-                PRODUCT_INPUT_BLOCK,
-                PRODUCT_GROUP_BLOCK,
-            ]
-        {
+        if selectors != [FIRST54_VALUE_BLOCK, 3_402, 3_456, 2, PRODUCT_GROUP_BLOCK] {
             return Err(PackageError::Invalid("Phi81 assignment selectors"));
         }
         Ok(Self {
@@ -551,8 +550,8 @@ impl Phi81Recipe {
             challenge_slot_base: selectors[1],
             challenge_source_stride: selectors[2],
             challenge_shift: selectors[3] as u64,
-            value_block: selectors[4],
-            group_output_block: selectors[5],
+            value_sources: decode_source_runs(&fields[13], first_invocation, physical_width)?,
+            group_output_block: selectors[4],
         })
     }
 
@@ -566,7 +565,6 @@ impl Phi81Recipe {
 
     fn validate(&self, blocks: &[BlockPlan], physical_width: usize) -> Result<(), PackageError> {
         let challenge = block(blocks, self.challenge_block)?;
-        let value = block(blocks, self.value_block)?;
         let output = block(blocks, self.group_output_block)?;
 
         let invocation_count = self.invocation_count()?;
@@ -576,8 +574,6 @@ impl Phi81Recipe {
 
         challenge.require_physical_sources(physical_width)?;
         challenge.require_field_count(58_752)?;
-        value.require_physical_sources(physical_width)?;
-        value.require_field_count(invocation_count)?;
         output.require_field_count(group_value_count)?;
         output.require_exact_range(physical_width, group_value_count)?;
 
@@ -602,7 +598,8 @@ impl Phi81Recipe {
             .and_then(|slot| slot.checked_add(final_lane))
             .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?;
         challenge.source(final_challenge_slot)?;
-        value.source(
+        source_run_at(
+            &self.value_sources,
             invocation_count
                 .checked_sub(1)
                 .ok_or(PackageError::Invalid("Phi81 invocation count"))?,
@@ -677,7 +674,7 @@ pub(super) fn decode(
         return Err(PackageError::Invalid("assignment transport schema version"));
     }
 
-    let phi81 = Phi81Recipe::decode(&fields[2])?;
+    let phi81 = Phi81Recipe::decode(&fields[2], physical_width)?;
     let first54 = First54Recipe::decode(&fields[3])?;
     let group_value_count = phi81
         .invocation_count()?
@@ -878,7 +875,6 @@ fn derive_phi81_groups(
 ) -> Result<Vec<u64>, PackageError> {
     let recipe = &transport.phi81;
     let challenge = transport.block(recipe.challenge_block)?;
-    let value = transport.block(recipe.value_block)?;
     let output = transport.block(recipe.group_output_block)?;
     let invocation_count = recipe.invocation_count()?;
     let expected_count = invocation_count
@@ -949,7 +945,10 @@ fn derive_phi81_groups(
                                 let value_lane = degree - convolution_source;
                                 let value_slot =
                                     family.invocation(recipe.ring_degree, source, block_index, value_lane, cell)?;
-                                let product = mul_mod(shifted_challenge, raw_block_value(value, value_slot, physical)?);
+                                let product = mul_mod(
+                                    shifted_challenge,
+                                    physical.value(source_run_at(&recipe.value_sources, value_slot)?)?,
+                                );
                                 sum = add_mod(sum, if negative { neg_mod(product) } else { product });
                             }
                             groups.push(sum);

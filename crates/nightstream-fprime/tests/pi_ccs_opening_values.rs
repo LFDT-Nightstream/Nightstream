@@ -377,7 +377,7 @@ fn check_positive_opening(sources: OpeningSources) {
         if detached_products {
             assert!(
                 results.iter().any(Result::is_err),
-                "canonical rows accepted detached PiRLC product inputs, intermediates and outputs"
+                "canonical rows accepted detached PiRLC product intermediates and outputs"
             );
             println!(
                 "independent_detached_pi_rlc_products=rejected elapsed={:?}",
@@ -476,6 +476,7 @@ fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
     let package: Value = serde_json::from_slice(bytes).expect("raw Lean package");
     let mut offset = package[6].as_u64().expect("logical public width") as usize;
     let blocks = package[4][1].as_array().expect("Lean assignment blocks");
+    assert_eq!(blocks.len(), 33, "shared-value assignment layout");
     let mut changed = 0;
     for (index, block) in blocks.iter().enumerate() {
         assert_eq!(block[0], json!(index), "canonical block order");
@@ -485,8 +486,9 @@ fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
             _ => panic!("unsupported slot kind"),
         };
         let end = offset + width * block[2].as_u64().expect("slot count") as usize;
-        // PerApplicationAssignmentPlan: productGroup, productInput, productOutput.
-        if matches!(index, 3 | 9 | 10) {
+        // PerApplicationAssignmentPlan: productGroup and productOutput.
+        // Product operands are the preserved PiCCS owner coordinates.
+        if matches!(index, 3 | 9) {
             assert_eq!(width, 41, "field-encoded PiRLC product block");
             let values = &mut carrier[offset..end];
             let block_changes = values.iter().filter(|&&value| value != 0).count();

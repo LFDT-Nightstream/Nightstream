@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use super::{
     checked_add, checked_mul, decode_list, empty_row, exact_array, usize_atom, Form, PackageError, RetainedBlock,
-    RowForms,
+    RowForms, SourceSubstitution,
 };
 
 const RING_DEGREE: usize = 54;
@@ -98,7 +98,7 @@ pub(super) struct Block {
     challenge: RetainedBlock,
     challenge_slot_start: usize,
     challenge_source_stride: usize,
-    input: RetainedBlock,
+    input: SourceSubstitution,
     output: RetainedBlock,
     group: RetainedBlock,
 }
@@ -112,7 +112,7 @@ impl Block {
             challenge: RetainedBlock::decode(&fields[2])?,
             challenge_slot_start: usize_atom(&fields[3], "Phi81 challenge slot start")?,
             challenge_source_stride: usize_atom(&fields[4], "Phi81 challenge source stride")?,
-            input: RetainedBlock::decode(&fields[5])?,
+            input: SourceSubstitution::decode(&fields[5])?,
             output: RetainedBlock::decode(&fields[6])?,
             group: RetainedBlock::decode(&fields[7])?,
         })

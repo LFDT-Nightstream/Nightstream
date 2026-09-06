@@ -74,7 +74,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  256216447 +
+  253944883 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :

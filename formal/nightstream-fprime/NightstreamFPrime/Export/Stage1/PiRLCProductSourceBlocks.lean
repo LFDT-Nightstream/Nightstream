@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductPlan
 import NightstreamFPrime.Layout.LowNormBlock
 
 /-!
-Owns the retained input and accumulator-output blocks used by the direct
-PiRLC product plan. Challenge coefficients reuse the final First54 value
-slots; group outputs remain owned by `ProductRetainedBlock`.
+Owns the retained accumulator-output block used by the direct PiRLC product
+plan. Challenge coefficients reuse the final First54 value slots; group
+outputs remain owned by `ProductRetainedBlock`.
 
 This module does not construct the complete Stage 1 retained assignment.
 -/
@@ -19,14 +19,6 @@ open NightstreamFPrime.Layout.Stage1
 
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCProductPlan.sourceWidth program
-
-def inputBlock (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) where
-  kind := .field
-  slotCount := PiRLCProductSchedule.invocationCount
-  source := fun invocation =>
-    let descriptor := PiRLCProductSchedule.descriptor invocation
-    PiRLCProductPlan.valueColumn program descriptor descriptor.lane
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) where
@@ -69,32 +61,15 @@ theorem challengeColumn_eq_first54Value
     First54.candidateCount, PiRLCFirst54DirectSchedule.roundCount,
     PiRLCFirst54Invocations.roundCount, ringDegree] at sourceBound laneBound ⊢
 
-@[simp] theorem inputBlock_kind
-    (program : Lifecycle.Stage1.Application.Program) :
-    (inputBlock program).kind = .field := by
-  rfl
-
 @[simp] theorem outputBlock_kind
     (program : Lifecycle.Stage1.Application.Program) :
     (outputBlock program).kind = .field := by
   rfl
 
-@[simp] theorem inputBlock_slotCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (inputBlock program).slotCount = 52326 := by
-  exact PiRLCProductSchedule.invocationCount_eq
-
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
     (outputBlock program).slotCount = 52326 := by
   exact PiRLCProductSchedule.invocationCount_eq
-
-theorem inputBlock_source (program : Lifecycle.Stage1.Application.Program)
-    (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    (inputBlock program).source invocation =
-      let descriptor := PiRLCProductSchedule.descriptor invocation
-      PiRLCProductPlan.valueColumn program descriptor descriptor.lane := by
-  rfl
 
 theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
@@ -102,12 +77,6 @@ theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
       PiRLCProductPlan.outputColumn program
         (PiRLCProductSchedule.descriptor invocation) := by
   rfl
-
-@[simp] theorem inputBlock_coordinateCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (inputBlock program).coordinateCount = 2145366 := by
-  change PiRLCProductSchedule.invocationCount * 41 = 2145366
-  rw [PiRLCProductSchedule.invocationCount_eq]
 
 @[simp] theorem outputBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -117,12 +86,11 @@ theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
 
 def retainedCoordinateCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  (inputBlock program).coordinateCount +
-    (outputBlock program).coordinateCount
+  (outputBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 4290732 := by
+    retainedCoordinateCount program = 2145366 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks

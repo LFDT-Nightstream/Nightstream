@@ -139,20 +139,6 @@ theorem productGroupBlock_source
     ProductRetainedBlock.block, PiRLCFirst54DirectPlan.prefixColumn,
     PiRLCProductPlan.groupColumn, FieldSuffixBlock.baseColumn]
 
-theorem productInputBlock_source
-    (program : Lifecycle.Stage1.Application.Program)
-    (descriptor : PiRLCProductSchedule.Descriptor)
-    (lane : Fin ringDegree) :
-    (productInputBlock program).source
-        (descriptor.withLane lane).invocation =
-      PiRLCFirst54DirectPlan.prefixColumn program
-        (PiRLCProductPlan.valueColumn program descriptor lane) := by
-  apply Fin.ext
-  simp [productInputBlock, LowNormBlock.Block.lift,
-    PiRLCProductSourceBlocks.inputBlock,
-    PiRLCFirst54DirectPlan.prefixColumn, PiRLCProductPlan.valueColumn,
-    FieldSuffixBlock.baseColumn]
-
 theorem productOutputBlock_source
     (program : Lifecycle.Stage1.Application.Program)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
@@ -196,22 +182,25 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
   first54Product : (PiRLCFirst54RetainedBlocks.productBlock program).EncodesAt
     (first54ProductStart program) (first54ProductFits geometry) assignment
       (sourceAssignment program base groupValue products)
-  productInput : (productInputBlock program).EncodesAt
-    (productInputStart program) (productInputFits geometry) assignment
-      (sourceAssignment program base groupValue products)
   productOutput : (productOutputBlock program).EncodesAt
     (productOutputStart program) (productOutputFits geometry) assignment
       (sourceAssignment program base groupValue products)
 
 theorem productInputs_preserves
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (valuePreserves : ∀ invocation,
+      (values invocation).eval assignment =
+        PiRLCProductPlan.baseEnv program base
+          ((PiRLCProductSchedule.descriptor invocation).valueColumn
+            (PiRLCProductSchedule.descriptor invocation).lane))
     (encodes : Encodes geometry assignment base groupValue products) :
-    PiRLCProductPlan.Preserves (productInputs geometry)
+    PiRLCProductPlan.Preserves (productInputs values geometry)
       assignment base groupValue := by
   refine
     { challenge := ?_
@@ -235,14 +224,10 @@ theorem productInputs_preserves
     rw [sourceAssignment_package]
     rw [← PiRLCProductSourceBlocks.challengeColumn_eq_first54Value]
   · intro invocation lane
-    let descriptor := PiRLCProductSchedule.descriptor invocation
-    change
-      ((productInputBlock program).form
-        (productInputStart program) (productInputFits geometry)
-          (descriptor.withLane lane).invocation).eval assignment = _
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.productInput]
-    rw [productInputBlock_source]
-    rw [sourceAssignment_valueColumn]
+    have value := valuePreserves
+      ((PiRLCProductSchedule.descriptor invocation).withLane lane).invocation
+    simpa only [PiRLCProductSchedule.descriptor_invocation,
+      PiRLCProductSchedule.Descriptor.withLane_valueColumn] using value
   · intro invocation
     let descriptor := PiRLCProductSchedule.descriptor invocation
     unfold PiRLCProductPlan.priorForm productInputs

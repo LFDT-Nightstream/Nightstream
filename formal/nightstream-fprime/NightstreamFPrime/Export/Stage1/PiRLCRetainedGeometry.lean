@@ -75,10 +75,6 @@ def productGroupBlock (program : Lifecycle.Stage1.Application.Program) :
   (ProductRetainedBlock.block (PiRLCProductPlan.baseSourceWidth program)
     PiRLCProductSchedule.invocationCount).lift (productSourceFits program)
 
-def productInputBlock (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) :=
-  (PiRLCProductSourceBlocks.inputBlock program).lift (productSourceFits program)
-
 def productOutputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   (PiRLCProductSourceBlocks.outputBlock program).lift (productSourceFits program)
@@ -114,24 +110,21 @@ def first54ProductStart (program : Lifecycle.Stage1.Application.Program) : Nat :
   valueStart program +
     (PiRLCFirst54RetainedBlocks.valueBlock program).coordinateCount
 
-def productInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+def productOutputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   first54ProductStart program +
     (PiRLCFirst54RetainedBlocks.productBlock program).coordinateCount
-
-def productOutputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  productInputStart program + (productInputBlock program).coordinateCount
 
 def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   productOutputStart program + (productOutputBlock program).coordinateCount
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 192090438 := by
-  unfold prefixLogicalWidth productOutputStart productInputStart
+    prefixLogicalWidth program = 189945072 := by
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
     priorPoseidonBlock outputPoseidonBlock laterPoseidonBlock productGroupBlock
-    productInputBlock productOutputBlock PoseidonRetainedBlock.priorBlock
+    productOutputBlock PoseidonRetainedBlock.priorBlock
     PoseidonRetainedBlock.outputBlock PoseidonRetainedBlock.laterBlock
   simp only [LowNormBlock.Block.lift_coordinateCount]
   rw [Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount]
@@ -143,7 +136,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 /-- The prefix owns a fixed number of coordinates. Reading its width does
 not need the selected application's source-domain size or circuit. -/
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  192090438
+  189945072
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by
@@ -177,7 +170,7 @@ def priorPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     priorPoseidonStart program + (priorPoseidonBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart laterPoseidonStart outputPoseidonStart
   omega
@@ -187,7 +180,7 @@ def outputPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     outputPoseidonStart program +
         (outputPoseidonBlock program).coordinateCount ≤ logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart laterPoseidonStart
   omega
@@ -197,7 +190,7 @@ def laterPoseidonFits {program : Lifecycle.Stage1.Application.Program}
     laterPoseidonStart program + (laterPoseidonBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart
   omega
@@ -207,7 +200,7 @@ def productGroupFits {program : Lifecycle.Stage1.Application.Program}
     productGroupStart program + (productGroupBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
   omega
 
@@ -217,7 +210,7 @@ def rejectFits {program : Lifecycle.Stage1.Application.Program}
         (PiRLCFirst54RetainedBlocks.rejectBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart
   omega
 
@@ -227,7 +220,7 @@ def symbolFits {program : Lifecycle.Stage1.Application.Program}
         (PiRLCFirst54RetainedBlocks.symbolBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart
   omega
 
@@ -237,7 +230,7 @@ def positionFits {program : Lifecycle.Stage1.Application.Program}
         (PiRLCFirst54RetainedBlocks.positionBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart
   omega
 
@@ -247,7 +240,7 @@ def valueFits {program : Lifecycle.Stage1.Application.Program}
         (PiRLCFirst54RetainedBlocks.valueBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
+  unfold prefixLogicalWidth productOutputStart
     first54ProductStart
   omega
 
@@ -255,14 +248,6 @@ def first54ProductFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     first54ProductStart program +
         (PiRLCFirst54RetainedBlocks.productBlock program).coordinateCount ≤
-      logicalWidth := by
-  apply Nat.le_trans _ geometry.prefixFits
-  unfold prefixLogicalWidth productOutputStart productInputStart
-  omega
-
-def productInputFits {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    productInputStart program + (productInputBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.prefixFits
   unfold prefixLogicalWidth productOutputStart

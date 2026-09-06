@@ -29,9 +29,10 @@ def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
 def prefixPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  DirectPrefixPlan.plan payloadForms (prefixGeometry geometry)
+  DirectPrefixPlan.plan payloadForms values (prefixGeometry geometry)
 
 def transitionPlan
     {program : Lifecycle.Stage1.Application.Program}
@@ -50,8 +51,9 @@ theorem rowCount_le
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (prefixPlan payloadForms geometry).rowCount + (transitionPlan relation geometry).rowCount ≤
+    (prefixPlan payloadForms values geometry).rowCount + (transitionPlan relation geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [prefixPlan, DirectPrefixPlan.plan_rowCount, transitionPlan,
     RunningTransitionDirectPlan.plan_rowCount]
@@ -64,10 +66,11 @@ def plan
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (prefixPlan payloadForms geometry)
-    (transitionPlan relation geometry) (rowCount_le relation payloadForms geometry)
+  ProductionRelation.Plan.append (prefixPlan payloadForms values geometry)
+    (transitionPlan relation geometry) (rowCount_le relation payloadForms values geometry)
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program}
@@ -76,8 +79,9 @@ def plan
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms geometry).rowCount = 5310442 := by
+    (plan relation payloadForms values geometry).rowCount = 5310442 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -87,24 +91,26 @@ theorem rowsZero_iff
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    (plan relation payloadForms geometry).RowsZero assignment ↔
-      (prefixPlan payloadForms geometry).RowsZero assignment ∧
+    (plan relation payloadForms values geometry).RowsZero assignment ↔
+      (prefixPlan payloadForms values geometry).RowsZero assignment ∧
         (transitionPlan relation geometry).RowsZero assignment := by
   exact ProductionRelation.Plan.append_rowsZero_iff _ _
-    (rowCount_le relation payloadForms geometry) assignment
+    (rowCount_le relation payloadForms values geometry) assignment
 
 structure Encodes
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  prior : DirectPrefixPlan.Encodes payloadForms (prefixGeometry geometry) assignment
+  prior : DirectPrefixPlan.Encodes payloadForms values (prefixGeometry geometry) assignment
     base groupValue products
   transition : RunningTransitionRetainedGeometry.Encodes geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
@@ -154,6 +160,7 @@ theorem rowsZero_implies_semantics
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -161,13 +168,13 @@ theorem rowsZero_implies_semantics
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes payloadForms geometry assignment base groupValue products)
-    (rowsZero : (plan relation payloadForms geometry).RowsZero assignment) :
+    (encodes : Encodes payloadForms values geometry assignment base groupValue products)
+    (rowsZero : (plan relation payloadForms values geometry).RowsZero assignment) :
     Semantics relation payloadForms geometry assignment base groupValue products := by
-  have children := (rowsZero_iff relation payloadForms geometry assignment).mp rowsZero
+  have children := (rowsZero_iff relation payloadForms values geometry assignment).mp rowsZero
   refine ⟨?_, ?_⟩
   · exact DirectPrefixPlan.rowsZero_implies_semantics
-      payloadForms (prefixGeometry geometry) assignment base groupValue products
+      payloadForms values (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.prior children.1
   · exact (RunningTransitionDirectPlan.rowsZero_iff_physical
       relation geometry assignment base groupValue products one

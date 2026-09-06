@@ -825,7 +825,7 @@ theorem processMatrixProgramWith_eq_processValueWith {State : Type}
     (PerApplicationAssignmentBlocks.canonical program)
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentTransport.Phi81GroupRecipe.format.encode
-      PerApplicationAssignmentTransport.phi81GroupRecipe) state
+      (PerApplicationAssignmentTransport.phi81GroupRecipe program)) state
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentTransport.First54ProductRecipe.format.encode
       PerApplicationAssignmentTransport.first54ProductRecipe) state

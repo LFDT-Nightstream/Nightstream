@@ -12,12 +12,12 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
 const TRANSPORT_SCHEMA: usize = 1;
-const BLOCK_COUNT: usize = 38;
+const BLOCK_COUNT: usize = 33;
 const PHYSICAL_COLUMNS: usize = 29_344_425;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 256_532_147;
-const CARRIER_WIDTH: usize = 256_532_184;
+const LOGICAL_WIDTH: usize = 254_260_583;
+const CARRIER_WIDTH: usize = 254_260_620;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PAYLOAD_VALUES: usize = 30_416;
@@ -111,6 +111,58 @@ struct BlockPlan {
     runs: Vec<Run>,
 }
 
+fn decode_runs(value: &Value, expected_count: usize) -> Result<Vec<Run>> {
+    let mut end = 0usize;
+    let runs = array(value, "assignment source runs")?
+        .iter()
+        .map(|run| {
+            let fields = exact_array(run, 3, "assignment source run")?;
+            let first = word(&fields[0], "assignment source run first")?;
+            let step = word(&fields[1], "assignment source run step")?;
+            let count = word(&fields[2], "assignment source run count")?;
+            if count == 0 || (count == 1 && step != 0) {
+                return Err("noncanonical assignment source run".into());
+            }
+            first
+                .checked_add(
+                    step.checked_mul(count - 1)
+                        .ok_or_else(|| "assignment source run offset overflow".to_string())?,
+                )
+                .ok_or_else(|| "assignment source run value overflow".to_string())?;
+            end = end
+                .checked_add(count)
+                .ok_or_else(|| "assignment source run count overflow".to_string())?;
+            Ok(Run {
+                first,
+                step,
+                count,
+                end,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if end != expected_count {
+        return Err(format!(
+            "assignment source runs cover {end} slots, expected {expected_count}"
+        ));
+    }
+    Ok(runs)
+}
+
+fn source_at(runs: &[Run], slot: usize) -> Result<usize> {
+    let position = runs.partition_point(|run| run.end <= slot);
+    let run = runs
+        .get(position)
+        .ok_or_else(|| "assignment source-run gap".to_string())?;
+    let run_start = run.end - run.count;
+    run.first
+        .checked_add(
+            run.step
+                .checked_mul(slot - run_start)
+                .ok_or_else(|| "assignment source offset overflow".to_string())?,
+        )
+        .ok_or_else(|| "assignment source value overflow".to_string())
+}
+
 impl BlockPlan {
     fn decode(value: &Value, expected_opcode: usize) -> Result<Self> {
         let fields = exact_array(value, 5, "assignment block plan")?;
@@ -124,46 +176,14 @@ impl BlockPlan {
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            13 => SourceDomain::Payload,
-            36..=37 => SourceDomain::Physical,
+            12 => SourceDomain::Payload,
+            31..=32 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
             return Err(format!("assignment block {opcode} uses the wrong source domain"));
         }
-        let mut end = 0usize;
-        let runs = array(&fields[4], "assignment source runs")?
-            .iter()
-            .map(|run| {
-                let fields = exact_array(run, 3, "assignment source run")?;
-                let first = word(&fields[0], "assignment source run first")?;
-                let step = word(&fields[1], "assignment source run step")?;
-                let count = word(&fields[2], "assignment source run count")?;
-                if count == 0 || (count == 1 && step != 0) {
-                    return Err("noncanonical assignment source run".into());
-                }
-                first
-                    .checked_add(
-                        step.checked_mul(count - 1)
-                            .ok_or_else(|| "assignment source run offset overflow".to_string())?,
-                    )
-                    .ok_or_else(|| "assignment source run value overflow".to_string())?;
-                end = end
-                    .checked_add(count)
-                    .ok_or_else(|| "assignment source run count overflow".to_string())?;
-                Ok(Run {
-                    first,
-                    step,
-                    count,
-                    end,
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        if end != slot_count {
-            return Err(format!(
-                "assignment block {opcode} source runs cover {end} slots, expected {slot_count}"
-            ));
-        }
+        let runs = decode_runs(&fields[4], slot_count)?;
         Ok(Self {
             opcode,
             kind,
@@ -177,19 +197,7 @@ impl BlockPlan {
         if slot >= self.slot_count {
             return Err(format!("assignment block {} slot {slot} is out of range", self.opcode));
         }
-        let position = self.runs.partition_point(|run| run.end <= slot);
-        let run = self
-            .runs
-            .get(position)
-            .ok_or_else(|| format!("assignment block {} has a source-run gap", self.opcode))?;
-        let run_start = run.end - run.count;
-        run.first
-            .checked_add(
-                run.step
-                    .checked_mul(slot - run_start)
-                    .ok_or_else(|| "assignment source offset overflow".to_string())?,
-            )
-            .ok_or_else(|| "assignment source value overflow".to_string())
+        source_at(&self.runs, slot)
     }
 
     fn sources(&self) -> impl Iterator<Item = Result<usize>> + '_ {
@@ -244,7 +252,7 @@ struct Phi81Plan {
     challenge_slot_base: usize,
     challenge_source_stride: usize,
     challenge_shift: u64,
-    value_opcode: usize,
+    value_sources: Vec<Run>,
     group_opcode: usize,
 }
 
@@ -285,13 +293,21 @@ impl Phi81Plan {
         if first_invocation != PHI81_INVOCATIONS {
             return Err("unexpected Phi81 invocation count".into());
         }
-        let tail = fields[9..]
+        let tail = fields[9..13]
             .iter()
+            .chain([&fields[14]])
             .enumerate()
             .map(|(index, value)| word(value, &format!("Phi81 selector {index}")))
             .collect::<Result<Vec<_>>>()?;
-        if tail != [7, 3402, 3456, 2, 9, 3] {
+        if tail != [7, 3402, 3456, 2, 3] {
             return Err("unexpected Phi81 assignment selectors".into());
+        }
+        let value_sources = decode_runs(&fields[13], PHI81_INVOCATIONS)?;
+        if value_sources
+            .iter()
+            .any(|run| run.first + run.step * (run.count - 1) >= PHYSICAL_COLUMNS)
+        {
+            return Err("Phi81 operand source is outside the physical assignment".into());
         }
         Ok(Self {
             families,
@@ -299,8 +315,8 @@ impl Phi81Plan {
             challenge_slot_base: tail[1],
             challenge_source_stride: tail[2],
             challenge_shift: tail[3] as u64,
-            value_opcode: tail[4],
-            group_opcode: tail[5],
+            value_sources,
+            group_opcode: tail[4],
         })
     }
 }
@@ -354,7 +370,7 @@ impl Transport {
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
         let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "payload block opcode")? != 13 || word(&fields[6], "output-digest block opcode")? != 27 {
+        if word(&fields[4], "payload block opcode")? != 12 || word(&fields[6], "output-digest block opcode")? != 26 {
             return Err("unexpected derived assignment block selector".into());
         }
         let payload_expressions = exact_array(&fields[5], PAYLOAD_VALUES, "payload expressions")?.to_vec();
@@ -887,7 +903,6 @@ fn raw_block_value(block: &BlockPlan, slot: usize, physical: &Physical<'_>) -> R
 fn derive_phi81_groups(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
     let plan = &transport.phi81;
     let challenge = transport.block(plan.challenge_opcode)?;
-    let value = transport.block(plan.value_opcode)?;
     let output = transport.block(plan.group_opcode)?;
     if output.slot_count != PHI81_GROUP_VALUES {
         return Err("Phi81 group-output block has the wrong slot count".into());
@@ -926,7 +941,10 @@ fn derive_phi81_groups(transport: &Transport, physical: &Physical<'_>) -> Result
                                 let shifted_challenge = sub_mod(challenge_value, plan.challenge_shift);
                                 let value_lane = degree - convolution_source;
                                 let value_slot = family.invocation(source, block, value_lane, cell)?;
-                                let product = mul_mod(shifted_challenge, raw_block_value(value, value_slot, physical)?);
+                                let product = mul_mod(
+                                    shifted_challenge,
+                                    physical.value(source_at(&plan.value_sources, value_slot)?)?,
+                                );
                                 sum = add_mod(sum, if sign < 0 { neg_mod(product) } else { product });
                             }
                             groups.push(sum);
@@ -976,7 +994,7 @@ fn validate_derived_block_sources(
             return Err("first54 product source map does not select the derived value".into());
         }
     }
-    let payload = transport.block(13)?;
+    let payload = transport.block(12)?;
     if payload.slot_count != PAYLOAD_VALUES {
         return Err("payload block has the wrong slot count".into());
     }
@@ -985,7 +1003,7 @@ fn validate_derived_block_sources(
             return Err("payload source map does not select the derived value".into());
         }
     }
-    let digest = transport.block(27)?;
+    let digest = transport.block(26)?;
     if digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }

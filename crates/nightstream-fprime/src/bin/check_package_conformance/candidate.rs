@@ -112,14 +112,10 @@ fn require_words(actual: &[u64], expected: &[u64], label: &str) {
     }
 }
 
-fn setup_authority_words() -> Vec<u64> {
+fn setup_authority_words(message_columns: u64) -> Vec<u64> {
     let mut authority = vec![SETUP_ID.len() as u64];
     authority.extend(words(SETUP_ID));
-    authority.extend([
-        PRODUCTION_VERIFIER_ROWS,
-        PRODUCTION_MESSAGE_COLUMNS,
-        PRODUCTION_SEED.len() as u64,
-    ]);
+    authority.extend([PRODUCTION_VERIFIER_ROWS, message_columns, PRODUCTION_SEED.len() as u64]);
     authority.extend(PRODUCTION_SEED.map(u64::from));
     authority
 }
@@ -133,7 +129,7 @@ pub fn check_sparse_commitment(path: &Path) {
     assert_eq!(schema, 1);
     require_words(
         &authority,
-        &setup_authority_words(),
+        &setup_authority_words(PRODUCTION_MESSAGE_COLUMNS),
         "Lean sparse-commitment raw authority",
     );
     assert_eq!(authority.len(), 73);
@@ -200,11 +196,11 @@ impl Candidate {
         assert_eq!(setup_id, SETUP_ID);
         assert_eq!(seed, PRODUCTION_SEED);
         let carrier_blocks = package.logical_column_count().div_ceil(54);
-        assert_eq!(
-            u64::try_from(carrier_blocks).expect("carrier block count"),
-            PRODUCTION_MESSAGE_COLUMNS
+        require_words(
+            &authority,
+            &setup_authority_words(u64::try_from(carrier_blocks).expect("carrier block count")),
+            "Lean raw Ajtai authority",
         );
-        require_words(&authority, &setup_authority_words(), "Lean raw Ajtai authority");
         assert_eq!(authority.len(), 73);
 
         let sealed: Value = serde_json::from_slice(&bytes).expect("candidate raw authority");

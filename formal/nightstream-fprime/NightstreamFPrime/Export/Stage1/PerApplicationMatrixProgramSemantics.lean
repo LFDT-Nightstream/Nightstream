@@ -177,9 +177,11 @@ theorem piRlcExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
     DirectPiRLCSamplerCompletePrefixPlan.piRlcPlan,
-    DirectPiDECPrefixPlan.piRlcPlan, DirectPrefixPlan.piRlcPlan] using
+    DirectPiDECPrefixPlan.piRlcPlan, DirectPrefixPlan.piRlcPlan,
+    DirectPiDECPrefixPlan.piRlcValues, PiRLCProductMatrixProgram.prefixGeometry,
+    PerApplicationMatrixProgram.piCcsOrdinaryGeometry] using
       PiRLCMatrixProgram.matrixProgram_row?
-        (PerApplicationMatrixProgram.piRlcGeometry application) sourceRow row
+        (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application) sourceRow row
 
 theorem pilotDigestBindingExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

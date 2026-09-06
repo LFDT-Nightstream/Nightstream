@@ -53,9 +53,10 @@ def samplerPlan {program : Lifecycle.Stage1.Application.Program}
 
 def piRlcPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  PiRLCRetainedPlan.plan (prefixGeometry geometry)
+  PiRLCRetainedPlan.plan values (prefixGeometry geometry)
 
 theorem pilotPiCcsRowCount_le
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -94,8 +95,9 @@ def poseidonPlan {program : Lifecycle.Stage1.Application.Program}
 theorem totalRowCount_le
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (poseidonPlan payloadForms geometry).rowCount + (piRlcPlan geometry).rowCount ≤
+    (poseidonPlan payloadForms geometry).rowCount + (piRlcPlan values geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   simp [poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
@@ -104,29 +106,32 @@ theorem totalRowCount_le
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (poseidonPlan payloadForms geometry) (piRlcPlan geometry)
-    (totalRowCount_le payloadForms geometry)
+  ProductionRelation.Plan.append (poseidonPlan payloadForms geometry) (piRlcPlan values geometry)
+    (totalRowCount_le payloadForms values geometry)
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan payloadForms geometry).rowCount = 4964947 := by
+    (plan payloadForms values geometry).rowCount = 4964947 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 
 theorem rowsZero_iff
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    (plan payloadForms geometry).RowsZero assignment ↔
+    (plan payloadForms values geometry).RowsZero assignment ↔
       (pilotPlan geometry).RowsZero assignment ∧
         (piCcsPlan payloadForms geometry).RowsZero assignment ∧
           (samplerPlan geometry).RowsZero assignment ∧
-            (piRlcPlan geometry).RowsZero assignment := by
+            (piRlcPlan values geometry).RowsZero assignment := by
   rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [poseidonPlan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [pilotPiCcsPlan, ProductionRelation.Plan.append_rowsZero_iff]
@@ -160,6 +165,7 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -167,6 +173,11 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   retained : PiRLCRetainedPreservation.Encodes
     (prefixGeometry geometry) assignment base groupValue products
+  piRlcValues : ∀ invocation,
+    (values invocation).eval assignment =
+      PiRLCProductPlan.baseEnv program base
+        ((PiRLCProductSchedule.descriptor invocation).valueColumn
+          (PiRLCProductSchedule.descriptor invocation).lane)
   pilotPriorInput :
     (PiRLCPoseidonGeometry.priorInputBlock program).EncodesAt
       (PiRLCPoseidonGeometry.priorInputStart program)
@@ -187,16 +198,17 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
 theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
-    (encodes : Encodes payloadForms geometry assignment base groupValue products)
-    (rowsZero : (plan payloadForms geometry).RowsZero assignment) :
+    (encodes : Encodes payloadForms values geometry assignment base groupValue products)
+    (rowsZero : (plan payloadForms values geometry).RowsZero assignment) :
     Semantics payloadForms geometry assignment base groupValue products := by
-  have children := (rowsZero_iff payloadForms geometry assignment).mp rowsZero
+  have children := (rowsZero_iff payloadForms values geometry assignment).mp rowsZero
   let prefixAssignment := PiRLCRetainedPreservation.sourceAssignment
     program base groupValue products
   have piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
@@ -219,7 +231,7 @@ theorem rowsZero_implies_semantics
   · exact PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
       geometry assignment one children.2.2.1
   · exact PiRLCRetainedPlan.rowsZero_implies_semantics
-      (prefixGeometry geometry) assignment base groupValue products one
-        encodes.retained children.2.2.2
+      values (prefixGeometry geometry) assignment base groupValue products one
+        encodes.piRlcValues encodes.retained children.2.2.2
 
 end NightstreamFPrime.Export.Stage1.DirectPrefixPlan

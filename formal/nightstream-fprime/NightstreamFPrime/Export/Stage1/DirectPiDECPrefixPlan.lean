@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectRunningPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
+import NightstreamFPrime.Export.Stage1.PiRLCValueWiring
 import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
@@ -77,6 +78,13 @@ def piCcsPayload
     PiCCSPoseidonPlan.Payload logicalWidth :=
   PiCCSPayloadWiring.form (piCcsOrdinaryGeometry geometry)
 
+/-- PiRLC consumes the same retained values as the PiCCS parent. -/
+def piRlcValues
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
+    PiRLCRetainedInputs.Values logicalWidth :=
+  PiRLCValueWiring.form (piCcsOrdinaryGeometry geometry)
+
 def pilotPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
@@ -126,7 +134,7 @@ def piRlcPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  DirectPrefixPlan.piRlcPlan (poseidonGeometry geometry)
+  DirectPrefixPlan.piRlcPlan (piRlcValues geometry) (poseidonGeometry geometry)
 
 def piDecPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -519,7 +527,7 @@ structure Encodes
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  running : DirectRunningPrefixPlan.Encodes (piCcsPayload geometry) (runningGeometry geometry) assignment
+  running : DirectRunningPrefixPlan.Encodes (piCcsPayload geometry) (piRlcValues geometry) (runningGeometry geometry) assignment
     base groupValue products
   pilotOrdinary : PilotOrdinaryDirectPlan.Encodes
     (pilotOrdinaryGeometry geometry) assignment base groupValue products
@@ -578,12 +586,12 @@ theorem rowsZero_implies_semantics
     pilotOrdinaryRows, pilotBindingRows, piCcsEndpointRows, samplerRows,
     piRlcRows, piDecRows, transitionRows⟩
   have directPrefixRows :
-      (DirectPrefixPlan.plan (piCcsPayload geometry) (poseidonGeometry geometry)).RowsZero assignment := by
-    apply (DirectPrefixPlan.rowsZero_iff (piCcsPayload geometry) (poseidonGeometry geometry)
+      (DirectPrefixPlan.plan (piCcsPayload geometry) (piRlcValues geometry) (poseidonGeometry geometry)).RowsZero assignment := by
+    apply (DirectPrefixPlan.rowsZero_iff (piCcsPayload geometry) (piRlcValues geometry) (poseidonGeometry geometry)
       assignment).mpr
     exact ⟨pilotRows, piCcsPoseidonRows, samplerRows, piRlcRows⟩
   have prior := DirectPrefixPlan.rowsZero_implies_semantics
-      (piCcsPayload geometry) (poseidonGeometry geometry) assignment base groupValue products one
+      (piCcsPayload geometry) (piRlcValues geometry) (poseidonGeometry geometry) assignment base groupValue products one
       encodes.running.prior directPrefixRows
   have pilotOne : assignment
       (PilotOrdinaryDirectPlan.oneColumn

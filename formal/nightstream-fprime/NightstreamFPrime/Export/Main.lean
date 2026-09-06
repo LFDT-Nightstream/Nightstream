@@ -959,7 +959,7 @@ def writePerApplicationAssignmentTransport
   comma handle
   writeValue handle
     (Stage1.PerApplicationAssignmentTransport.Phi81GroupRecipe.format.encode
-      Stage1.PerApplicationAssignmentTransport.phi81GroupRecipe)
+      (Stage1.PerApplicationAssignmentTransport.phi81GroupRecipe program))
   comma handle
   writeValue handle
     (Stage1.PerApplicationAssignmentTransport.First54ProductRecipe.format.encode

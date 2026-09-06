@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
+import NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 
 /-!
 Owns the compact matrix-program block for the four canonical PiRLC Phi81
@@ -50,21 +51,34 @@ def challengeSlotStart : Nat := 63 * 54
 /-- Distance between final First54 value rows of adjacent sources. -/
 def challengeSourceStride : Nat := 64 * 54
 
+def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
+    PiRLCRetainedGeometry.Geometry program logicalWidth :=
+  PiCCSPoseidonPlan.prefixGeometry <|
+    RunningTransitionRetainedGeometry.poseidonGeometry <|
+      PiCCSOrdinaryRetainedGeometry.prefixGeometry geometry
+
+def inputs {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
+    PiRLCProductPlan.Inputs program logicalWidth :=
+  PiRLCRetainedInputs.productInputs (PiRLCValueWiring.form geometry)
+    (prefixGeometry geometry)
+
 /-- One compact product-family block over the canonical retained assignment. -/
 def block {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     MatrixProgram.Phi81Product.Block where
   families := families
-  oneColumn := (PiRLCRetainedGeometry.oneColumn geometry).val
+  oneColumn := (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).val
   challenge := MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCFirst54RetainedBlocks.valueBlock program)
     (PiRLCRetainedGeometry.valueStart program)
   challengeSlotStart := challengeSlotStart
   challengeSourceStride := challengeSourceStride
-  input := MatrixProgram.RetainedBlock.ofSemantic
-    (PiRLCRetainedGeometry.productInputBlock program)
-    (PiRLCRetainedGeometry.productInputStart program)
+  input := PiRLCValueMatrixProgram.substitution program
   output := MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCRetainedGeometry.productOutputBlock program)
     (PiRLCRetainedGeometry.productOutputStart program)
@@ -74,20 +88,20 @@ def block {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem block_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (block geometry).rowCount = 1779084 := by
   norm_num [block, MatrixProgram.Phi81Product.Block.rowCount,
     MatrixProgram.Phi81Product.Block.invocationCount]
 
 def matrixProgram {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program where
   blocks := [.phi81Product (block geometry)]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (matrixProgram geometry).rowCount = 1779084 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.phi81Product (block geometry)] by rfl]

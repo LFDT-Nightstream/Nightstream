@@ -338,7 +338,7 @@ def logicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem logicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    logicalWidth program = 197387720 := by
+    logicalWidth program = 195242354 := by
   rw [logicalWidth, payloadStart, PiRLCPoseidonGeometry.pilotLogicalWidth_eq,
     block_coordinateCount]
 

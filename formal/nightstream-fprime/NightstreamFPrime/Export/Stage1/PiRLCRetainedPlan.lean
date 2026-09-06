@@ -29,8 +29,9 @@ def rowCount : Nat := 1779084 + 119697
   rfl
 
 theorem childRowCount_le {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (PiRLCProductPlan.plan (productInputs geometry)).rowCount +
+    {logicalWidth : Nat} (values : Values logicalWidth)
+    (geometry : Geometry program logicalWidth) :
+    (PiRLCProductPlan.plan (productInputs values geometry)).rowCount +
         (PiRLCFirst54DirectPlan.plan (first54Inputs geometry)).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [PiRLCProductPlan.plan_rowCount,
@@ -39,29 +40,32 @@ theorem childRowCount_le {program : Lifecycle.Stage1.Application.Program}
 
 /-- Product rows followed by First54 rows in one canonical direct plan. -/
 def plan {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    {logicalWidth : Nat} (values : Values logicalWidth)
+    (geometry : Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.append
-    (PiRLCProductPlan.plan (productInputs geometry))
+    (PiRLCProductPlan.plan (productInputs values geometry))
     (PiRLCFirst54DirectPlan.plan (first54Inputs geometry))
-    (childRowCount_le geometry)
+    (childRowCount_le values geometry)
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 1898781 := by
+    {logicalWidth : Nat} (values : Values logicalWidth)
+    (geometry : Geometry program logicalWidth) :
+    (plan values geometry).rowCount = 1898781 := by
   simp [plan]
 
 /-- The combined plan vanishes exactly when both canonical child plans
 vanish. -/
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    {logicalWidth : Nat} (values : Values logicalWidth)
+    (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    (plan geometry).RowsZero assignment ↔
-      (PiRLCProductPlan.plan (productInputs geometry)).RowsZero assignment ∧
+    (plan values geometry).RowsZero assignment ↔
+      (PiRLCProductPlan.plan (productInputs values geometry)).RowsZero assignment ∧
         (PiRLCFirst54DirectPlan.plan
           (first54Inputs geometry)).RowsZero assignment := by
   exact ProductionRelation.Plan.append_rowsZero_iff _ _
-    (childRowCount_le geometry) assignment
+    (childRowCount_le values geometry) assignment
 
 /-- Exact semantic content forced by the combined direct PiRLC plan. -/
 structure Semantics (program : Lifecycle.Stage1.Application.Program)
@@ -76,24 +80,30 @@ structure Semantics (program : Lifecycle.Stage1.Application.Program)
 every First54 transition. -/
 theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
+    (valuePreserves : ∀ invocation,
+      (values invocation).eval assignment =
+        PiRLCProductPlan.baseEnv program base
+          ((PiRLCProductSchedule.descriptor invocation).valueColumn
+            (PiRLCProductSchedule.descriptor invocation).lane))
     (encodes : Encodes geometry assignment base groupValue products)
-    (rowsZero : (plan geometry).RowsZero assignment) :
+    (rowsZero : (plan values geometry).RowsZero assignment) :
     Semantics program base := by
-  have children := (rowsZero_iff geometry assignment).mp rowsZero
-  have productPreserves := productInputs_preserves geometry assignment base
-    groupValue products encodes
+  have children := (rowsZero_iff values geometry assignment).mp rowsZero
+  have productPreserves := productInputs_preserves values geometry assignment base
+    groupValue products valuePreserves encodes
   have first54Preserves := first54Inputs_preserves geometry assignment base
     groupValue products one encodes
   refine ⟨?_, ?_⟩
   · intro invocation
     exact PiRLCProductPlan.rowsZero_implies_sourceConstraint
-      (productInputs geometry) assignment base groupValue one
+      (productInputs values geometry) assignment base groupValue one
         productPreserves children.1 invocation
   · intro source
     exact PiRLCFirst54DirectPlan.rowsZero_implies_sourceHolds
@@ -104,21 +114,27 @@ theorem rowsZero_implies_semantics
 every combined direct PiRLC row vanish. -/
 theorem semantics_implies_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (one : assignment (oneColumn geometry) = 1)
+    (valuePreserves : ∀ invocation,
+      (values invocation).eval assignment =
+        PiRLCProductPlan.baseEnv program base
+          ((PiRLCProductSchedule.descriptor invocation).valueColumn
+            (PiRLCProductSchedule.descriptor invocation).lane))
     (encodes : Encodes geometry assignment base
       (PiRLCProductPlan.honestGroupValue
-        (productInputs geometry) assignment)
+        (productInputs values geometry) assignment)
       (PiRLCFirst54DirectPlan.honestProducts program base))
     (semantics : Semantics program base) :
-    (plan geometry).RowsZero assignment := by
-  apply (rowsZero_iff geometry assignment).mpr
+    (plan values geometry).RowsZero assignment := by
+  apply (rowsZero_iff values geometry assignment).mpr
   constructor
   · exact PiRLCProductPlan.sourceConstraints_imply_rowsZero
-      (productInputs geometry) assignment base one
-        (productInputs_preserves geometry assignment base _ _ encodes)
+      (productInputs values geometry) assignment base one
+        (productInputs_preserves values geometry assignment base _ _ valuePreserves encodes)
         semantics.product
   · exact PiRLCFirst54DirectPlan.sourceHolds_imply_rowsZero
       (first54Inputs geometry) assignment base one
@@ -129,23 +145,30 @@ theorem semantics_implies_rowsZero
 the direct PiRLC semantics. -/
 theorem rowsZero_iff_semantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (one : assignment (oneColumn geometry) = 1)
+    (valuePreserves : ∀ invocation,
+      (values invocation).eval assignment =
+        PiRLCProductPlan.baseEnv program base
+          ((PiRLCProductSchedule.descriptor invocation).valueColumn
+            (PiRLCProductSchedule.descriptor invocation).lane))
     (encodes : Encodes geometry assignment base
       (PiRLCProductPlan.honestGroupValue
-        (productInputs geometry) assignment)
+        (productInputs values geometry) assignment)
       (PiRLCFirst54DirectPlan.honestProducts program base)) :
-    (plan geometry).RowsZero assignment ↔ Semantics program base := by
+    (plan values geometry).RowsZero assignment ↔ Semantics program base := by
   constructor
-  · exact rowsZero_implies_semantics geometry assignment base _ _ one encodes
-  · exact semantics_implies_rowsZero geometry assignment base one encodes
+  · exact rowsZero_implies_semantics values geometry assignment base _ _ one valuePreserves encodes
+  · exact semantics_implies_rowsZero values geometry assignment base one valuePreserves encodes
 
 /-- Combined zero rows retain the established high-level First54 sampler
 relation for every canonical source. -/
 theorem rowsZero_implies_relationHolds
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -154,7 +177,7 @@ theorem rowsZero_implies_relationHolds
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue
       (PiRLCFirst54DirectPlan.honestProducts program base))
-    (rowsZero : (plan geometry).RowsZero assignment)
+    (rowsZero : (plan values geometry).RowsZero assignment)
     (source : Fin PiRLCFirst54DirectSchedule.sourceCount)
     (assumptions : First54.Assumptions
       (Sampler.selectorInterface interface coordinate
@@ -166,7 +189,7 @@ theorem rowsZero_implies_relationHolds
         (PiRLCFirst54DirectBridge.samplerStart source))
       (PiRLCFirst54DirectBridge.selectorStart source)
       (PiRLCFirst54DirectPlan.baseEnv program base) := by
-  have children := (rowsZero_iff geometry assignment).mp rowsZero
+  have children := (rowsZero_iff values geometry assignment).mp rowsZero
   exact PiRLCFirst54DirectBridge.rowsZero_implies_relationHolds
     (first54Inputs geometry) assignment base interface coordinate one
       (first54Inputs_preserves geometry assignment base groupValue _ one encodes)

@@ -5,7 +5,8 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 Owns the seven exact source intervals retained by the nonempty PiDEC rows:
 four parent outputs, the proof input, the logical split cells, and the R1CS
 fresh interval. The proof view reuses the running-transition allocation;
-the other six views allocate coordinates.
+the four parent views reuse PiRLC outputs. Only logical and fresh views
+allocate coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
@@ -83,12 +84,8 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    (parentCommitmentBlock program).slotCount +
-      (parentPublicInputBlock program).slotCount +
-      (parentEvalKBlock program).slotCount +
-      (parentEvalABlock program).slotCount +
-      (logicalBlock program).slotCount +
-      (freshBlock program).slotCount = 21168 := by
+            (logicalBlock program).slotCount +
+      (freshBlock program).slotCount = 18090 := by
   norm_num [parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
     parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock,
     freshCount, PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
@@ -97,16 +94,12 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
     Nat :=
-  (parentCommitmentBlock program).coordinateCount +
-    (parentPublicInputBlock program).coordinateCount +
-    (parentEvalKBlock program).coordinateCount +
-    (parentEvalABlock program).coordinateCount +
-    (logicalBlock program).coordinateCount +
+          (logicalBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 867888 := by
+    retainedCoordinateCount program = 741690 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
     parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock]

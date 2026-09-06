@@ -81,7 +81,7 @@ def samplerOrdinaryProgram (application : ApplicationProgram) : Program :=
     (samplerGeometry application)
 
 def piRlcProgram (application : ApplicationProgram) : Program :=
-  PiRLCMatrixProgram.matrixProgram (piRlcGeometry application)
+  PiRLCMatrixProgram.matrixProgram (piCcsOrdinaryGeometry application)
 
 def piDecProgram (application : ApplicationProgram) : Program :=
   PiDECMatrixProgram.matrixProgram (piDecGeometry application)

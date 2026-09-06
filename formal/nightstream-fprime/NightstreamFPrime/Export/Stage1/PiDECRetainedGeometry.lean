@@ -2,7 +2,8 @@ import NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 
 /-!
-Owns the no-gap placement of six PiDEC blocks after the pilot ordinary prefix.
+Owns the two PiDEC allocations after the pilot ordinary prefix.
+The four parent views share the final PiRLC output coordinates.
 The proof view shares the earlier running-transition PiDEC coordinates.
 -/
 
@@ -15,27 +16,31 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PilotOrdinaryRetainedGeometry.completeLogicalWidth program
 
+def parentCommitmentSlot : Nat := 16 * 22 * 54
+
+def parentPublicInputSlot : Nat := 17 * 22 * 54 + 16 * 5 * 54
+
+def parentEvalKSlot : Nat := 17 * (22 + 5) * 54 + 16 * 54 * 2
+
+def parentEvalASlot : Nat := 17 * (22 + 5 + 2) * 54 + 16 * 14 * 54 * 2
+
 def parentCommitmentStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  prefixLogicalWidth program
+  PiRLCRetainedGeometry.productOutputStart program + parentCommitmentSlot * 41
 
 def parentPublicInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  parentCommitmentStart program +
-    (PiDECRetainedBlocks.parentCommitmentBlock program).coordinateCount
+  PiRLCRetainedGeometry.productOutputStart program + parentPublicInputSlot * 41
 
 def parentEvalKStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  parentPublicInputStart program +
-    (PiDECRetainedBlocks.parentPublicInputBlock program).coordinateCount
+  PiRLCRetainedGeometry.productOutputStart program + parentEvalKSlot * 41
 
 def parentEvalAStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  parentEvalKStart program +
-    (PiDECRetainedBlocks.parentEvalKBlock program).coordinateCount
+  PiRLCRetainedGeometry.productOutputStart program + parentEvalASlot * 41
 
 def proofStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   RunningTransitionRetainedGeometry.piDecStart program
 
 def logicalStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  parentEvalAStart program +
-    (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount
+  prefixLogicalWidth program
 
 def freshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   logicalStart program +
@@ -46,10 +51,9 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 247227935 := by
+    completeLogicalWidth program = 244956371 := by
   simp only [completeLogicalWidth, freshStart, logicalStart,
-    parentEvalAStart, parentEvalKStart, parentPublicInputStart,
-    parentCommitmentStart, prefixLogicalWidth]
+    prefixLogicalWidth]
   rw [PilotOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   have count := PiDECRetainedBlocks.retainedCoordinateCount_eq program
   unfold PiDECRetainedBlocks.retainedCoordinateCount at count
@@ -70,9 +74,7 @@ def pilotOrdinaryGeometry {program : Lifecycle.Stage1.Application.Program}
     PilotOrdinaryRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
     apply Nat.le_trans _ geometry.completeFits
-    unfold completeLogicalWidth freshStart logicalStart
-      parentEvalAStart parentEvalKStart parentPublicInputStart
-      parentCommitmentStart prefixLogicalWidth
+    unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
     omega
 
 def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
@@ -86,14 +88,22 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiCCSOrdinaryRetainedGeometry.oneColumn (prefixGeometry geometry)
 
+def piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCRetainedGeometry.Geometry program logicalWidth :=
+  PiCCSPoseidonPlan.prefixGeometry <|
+    PiCCSOrdinaryRetainedGeometry.poseidonGeometry (prefixGeometry geometry)
+
 def parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     parentCommitmentStart program +
         (PiDECRetainedBlocks.parentCommitmentBlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  unfold completeLogicalWidth freshStart logicalStart parentEvalAStart
-    parentEvalKStart parentPublicInputStart parentCommitmentStart
+  have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
+  change PiRLCRetainedGeometry.productOutputStart program + 52326 * 41 ≤
+    logicalWidth at fits
+  change PiRLCRetainedGeometry.productOutputStart program + 19008 * 41 +
+    1188 * 41 ≤ logicalWidth
   omega
 
 def parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
@@ -101,9 +111,11 @@ def parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
     parentPublicInputStart program +
         (PiDECRetainedBlocks.parentPublicInputBlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  unfold completeLogicalWidth freshStart logicalStart parentEvalAStart
-    parentEvalKStart parentPublicInputStart
+  have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
+  change PiRLCRetainedGeometry.productOutputStart program + 52326 * 41 ≤
+    logicalWidth at fits
+  change PiRLCRetainedGeometry.productOutputStart program + 24516 * 41 +
+    270 * 41 ≤ logicalWidth
   omega
 
 def parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
@@ -111,9 +123,11 @@ def parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
     parentEvalKStart program +
         (PiDECRetainedBlocks.parentEvalKBlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  unfold completeLogicalWidth freshStart logicalStart parentEvalAStart
-    parentEvalKStart
+  have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
+  change PiRLCRetainedGeometry.productOutputStart program + 52326 * 41 ≤
+    logicalWidth at fits
+  change PiRLCRetainedGeometry.productOutputStart program + 26514 * 41 +
+    108 * 41 ≤ logicalWidth
   omega
 
 def parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
@@ -121,8 +135,11 @@ def parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
     parentEvalAStart program +
         (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  unfold completeLogicalWidth freshStart logicalStart parentEvalAStart
+  have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
+  change PiRLCRetainedGeometry.productOutputStart program + 52326 * 41 ≤
+    logicalWidth at fits
+  change PiRLCRetainedGeometry.productOutputStart program + 50814 * 41 +
+    1512 * 41 ≤ logicalWidth
   omega
 
 def proofFits {program : Lifecycle.Stage1.Application.Program}

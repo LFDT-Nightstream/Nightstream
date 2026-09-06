@@ -205,6 +205,157 @@ fn base_step_assignment_satisfies_every_canonical_row() {
     check_base_assignment(package, sealed, bytes, expanded);
 }
 
+// The caller packet supplies a nonzero row assignment. This test does not
+// treat that packet as a proof for the candidate's verifier context.
+#[test]
+#[ignore = "external nonzero assignment and shared-value mutations; run under the 300-second cap"]
+fn external_pi_rlc_value_wiring_rejects_detached_values() {
+    use std::io::Read;
+
+    #[derive(Deserialize)]
+    struct Inputs {
+        package: PathBuf,
+        structural_identity: [u64; 4],
+        caller_fixture: PathBuf,
+    }
+
+    let started = Instant::now();
+    let mut input = String::new();
+    std::io::stdin()
+        .read_to_string(&mut input)
+        .expect("external paths");
+    let inputs: Inputs = serde_json::from_str(&input).expect("external assignment inputs");
+    let sealed = fs::read(inputs.package).expect("candidate package");
+    let package = nightstream_fprime::load_per_application_package(&sealed, inputs.structural_identity)
+        .expect("selected candidate identity");
+    let Fixture(schema, context, private, public, _) =
+        serde_json::from_slice(&fs::read(inputs.caller_fixture).expect("nonzero caller fixture"))
+            .expect("caller fixture schema");
+    assert_eq!(schema, 1);
+    assert!(private.iter().chain(&public).all(|&value| value < MODULUS));
+    let binding = package
+        .production_verifier_binding()
+        .expect("candidate binding");
+    println!(
+        "caller_context_matches_candidate={} scope=arbitrary_assignment_rows",
+        context == binding.verifier_context().digest()
+    );
+    let physical = package
+        .execute_witness(&private, &public)
+        .expect("caller witness");
+    let original = package
+        .execute_logical_assignment(&physical)
+        .expect("logical transport");
+    let independent = logical_reference::assignment::LogicalAssignment::decode(
+        &sealed,
+        physical.private_values(),
+        physical.public_values(),
+    )
+    .expect("independent nonzero assignment transport");
+    assert_eq!(original.balanced_values(), independent.balanced_values());
+    assert!(original
+        .balanced_values()
+        .iter()
+        .all(|value| (-1..=1).contains(value)));
+    assert_eq!(original.balanced_values()[0], 1);
+    drop(independent);
+    drop(physical);
+    drop(package);
+
+    let raw: serde_json::Value = serde_json::from_slice(&sealed).expect("raw assignment plan");
+    let blocks = raw[4][1].as_array().expect("assignment blocks");
+    assert_eq!(blocks.len(), 33, "no product-input or PiDEC-parent copies");
+    let mut offset = raw[6].as_u64().expect("logical public width") as usize;
+    let mut ranges = Vec::with_capacity(blocks.len());
+    for (index, block) in blocks.iter().enumerate() {
+        assert_eq!(block[0].as_u64(), Some(index as u64));
+        let width = match block[1].as_u64().expect("slot kind") {
+            0 | 1 => 1,
+            2 => 41,
+            _ => panic!("unsupported slot kind"),
+        };
+        let end = offset + width * block[2].as_u64().expect("slot count") as usize;
+        ranges.push(offset..end);
+        offset = end;
+    }
+    assert_eq!(offset, original.len());
+    drop(raw);
+
+    let artifact = logical_reference::source::SourcePackage::decode(&sealed).expect("independent source");
+    let program = logical_reference::matrix::MatrixProgram::decode(
+        &artifact.matrix_program,
+        &artifact.sources,
+        artifact.logical_columns,
+        artifact.logical_rows,
+    )
+    .expect("independent row program");
+    let relation = logical_reference::relation::Relation::decode(&sealed).expect("independent CCS polynomial");
+    let evaluate = |values: &[i8], start| {
+        logical_reference::evaluation::verify_satisfaction_range_with(
+            &program,
+            &artifact.sources,
+            &relation,
+            start,
+            artifact.logical_rows,
+            |column| match values.get(column).copied() {
+                Some(-1) => Ok(-logical_reference::Field::ONE),
+                Some(0) => Ok(logical_reference::Field::ZERO),
+                Some(1) => Ok(logical_reference::Field::ONE),
+                Some(_) => Err(format!("unbounded coordinate {column}")),
+                None => Err(format!("missing coordinate {column}")),
+            },
+        )
+    };
+    assert_eq!(evaluate(original.balanced_values(), 0), Ok(artifact.logical_rows));
+    println!(
+        "nonzero_control_rows={} elapsed={:?}",
+        artifact.logical_rows,
+        started.elapsed()
+    );
+
+    // A nonzero residual in the affected suffix proves rejection. The full
+    // control above checks every row; derive this suffix from the emitted
+    // Phi81 opcode to avoid repeating the preceding phase scan under the cap.
+    let mut start = 0;
+    let mut product_starts = Vec::new();
+    for (end, opcode) in program.block_ends().zip(program.block_opcodes()) {
+        if opcode == 3 {
+            product_starts.push(start);
+        }
+        start = end;
+    }
+    let [product_start] = product_starts.as_slice() else {
+        panic!("one canonical PiRLC product block");
+    };
+
+    // PiRLC product groups/output and the shared PiDEC/running child proof.
+    for (label, selected) in [("PiRLC products", &[3usize, 9][..]), ("PiDEC children", &[15usize][..])] {
+        let mut changed = original.balanced_values().to_vec();
+        for &block in selected {
+            let range = ranges[block].clone();
+            let nonzero = changed[range.clone()]
+                .iter()
+                .filter(|&&value| value != 0)
+                .count();
+            assert!(nonzero > 0, "{label} block {block} must be nonzero in the control");
+            changed[range.clone()].fill(0);
+            println!("cleared_block={block} coordinates={range:?} nonzero={nonzero}");
+        }
+        let failure = evaluate(&changed, *product_start).expect_err("shared-value mutation must fail a canonical row");
+        let (row, residual) = failure
+            .strip_prefix("logical relation failed at row ")
+            .and_then(|value| value.split_once(": "))
+            .expect("rejection must be a nonzero row residual");
+        assert!(row.parse::<usize>().expect("row index") < artifact.logical_rows);
+        let residual = residual.parse::<u64>().expect("field residual");
+        assert!(residual > 0 && residual < MODULUS);
+        println!(
+            "shared_value_rejection={label} {failure} elapsed={:?}",
+            started.elapsed()
+        );
+    }
+}
+
 fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> Fixture {
     let Fixture(schema, context, private, public, expected) =
         serde_json::from_slice(bytes).expect("base-step fixture schema");
@@ -657,11 +808,11 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
     assert_eq!(checked, APPLICATION_ROW_END - APPLICATION_ROW_START);
 
-    // ApplicationRetainedGeometry.witnessStart = 256216447 on this identity.
+    // ApplicationRetainedGeometry.witnessStart = 253944883 on this identity.
     // Keep every prefix/hash/public coordinate unchanged and replace only
     // the application witness/local block family. Input/output coordinates
     // belong to the preserved pilot preimage blocks.
-    const APPLICATION_START: usize = 256_216_447;
+    const APPLICATION_START: usize = 253_944_883;
     let mut detached = original.balanced_values().to_vec();
     detached[APPLICATION_START..].copy_from_slice(&changed.balanced_values()[APPLICATION_START..]);
     assert_eq!(

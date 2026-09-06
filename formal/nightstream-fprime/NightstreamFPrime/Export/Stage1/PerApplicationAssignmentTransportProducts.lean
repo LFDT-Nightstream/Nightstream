@@ -7,7 +7,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 Owns the value-level interpreter for the two compact derived-product recipes
 in the per-application assignment transport. The interpreter reads only the
 physical base assignment. It does not construct retained coordinates or the
-final 38-block assignment.
+final 33-block assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
@@ -24,6 +24,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PerApplicationAssignmentPlan
 
 abbrev Program := Lifecycle.Stage1.Application.Program
+
+variable {program : Program}
 
 /-- The physical-base assignment read by every derived-product recipe. -/
 abbrev BaseValues (program : Program) :=
@@ -73,7 +75,7 @@ def invocationIndex (recipe : Phi81GroupRecipe)
 
 @[simp] private theorem canonical_familyShape
     (family : PiRLCProductSchedule.Family) :
-    familyShape phi81GroupRecipe family =
+    familyShape (phi81GroupRecipe program) family =
       match family with
       | .commitment => ⟨17, 22, 1⟩
       | .publicInput => ⟨17, 5, 1⟩
@@ -81,76 +83,17 @@ def invocationIndex (recipe : Phi81GroupRecipe)
       | .evalA => ⟨17, 14, 2⟩ := by
   cases family <;> rfl
 
-/-- Numeric value of one source-major local invocation. This is the one
-flattening law shared by the recipe and the existing wire descriptor. -/
-private theorem encodeProd_indexOf_val {blockCount cellCount : Nat}
-    (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (block : Fin blockCount) (lane : Fin ringDegree)
-    (cell : Fin cellCount) :
-    (Fin.encodeProd
-      (source, CombinationStep.indexOf block lane cell)).val =
-      source.val * blockCount * ringDegree * cellCount +
-        block.val * ringDegree * cellCount +
-          lane.val * cellCount + cell.val := by
-  change CombinationStep.privateCount blockCount cellCount * source.val +
-      (CombinationStep.indexOf block lane cell).val = _
-  rw [PiRLCCombinationInvocations.indexOf_val]
-  unfold CombinationStep.privateCount
-    PiRLCCombinationInvocations.logicalIndex
-  ring
-
-/-- The compact recipe assigns every coordinate the same flat invocation as
-the authoritative PiRLC schedule. -/
+/-- The assignment recipe uses the authoritative flat product index. -/
 private theorem canonical_invocationIndex
     (descriptor : PiRLCProductSchedule.Descriptor) :
-    invocationIndex phi81GroupRecipe descriptor = descriptor.invocation.val := by
-  calc
-    invocationIndex phi81GroupRecipe descriptor =
-        (PiRLCProductMatrixProgram.wireDescriptor descriptor).invocation := by
-      rcases descriptor with ⟨family, source, block, lane, cell⟩
-      cases family
-      · change PiRLCProductMatrixProgram.commitmentOffset +
-            source.val * 22 * 54 * 1 + block.val * 54 * 1 +
-              lane.val * 1 + cell.val =
-          PiRLCProductMatrixProgram.commitmentOffset +
-            (Fin.encodeProd
-              (source, CombinationStep.indexOf block lane cell)).val
-        rw [encodeProd_indexOf_val]
-        simp only [PiRLCProductSchedule.Family.blockCount,
-          PiRLCProductSchedule.Family.cellCount, ringDegree]
-        ring
-      · change PiRLCProductMatrixProgram.publicInputOffset +
-            source.val * 5 * 54 * 1 + block.val * 54 * 1 +
-              lane.val * 1 + cell.val =
-          PiRLCProductMatrixProgram.publicInputOffset +
-            (Fin.encodeProd
-              (source, CombinationStep.indexOf block lane cell)).val
-        rw [encodeProd_indexOf_val]
-        simp only [PiRLCProductSchedule.Family.blockCount,
-          PiRLCProductSchedule.Family.cellCount, ringDegree]
-        ring
-      · change PiRLCProductMatrixProgram.evalKOffset +
-            source.val * 1 * 54 * 2 + block.val * 54 * 2 +
-              lane.val * 2 + cell.val =
-          PiRLCProductMatrixProgram.evalKOffset +
-            (Fin.encodeProd
-              (source, CombinationStep.indexOf block lane cell)).val
-        rw [encodeProd_indexOf_val]
-        simp only [PiRLCProductSchedule.Family.blockCount,
-          PiRLCProductSchedule.Family.cellCount, ringDegree]
-        ring
-      · change PiRLCProductMatrixProgram.evalAOffset +
-            source.val * 14 * 54 * 2 + block.val * 54 * 2 +
-              lane.val * 2 + cell.val =
-          PiRLCProductMatrixProgram.evalAOffset +
-            (Fin.encodeProd
-              (source, CombinationStep.indexOf block lane cell)).val
-        rw [encodeProd_indexOf_val]
-        simp only [PiRLCProductSchedule.Family.blockCount,
-          PiRLCProductSchedule.Family.cellCount, ringDegree]
-        ring
-    _ = descriptor.invocation.val :=
-      PiRLCProductMatrixProgram.wireDescriptor_invocation descriptor
+    invocationIndex (phi81GroupRecipe program) descriptor = descriptor.invocation.val := by
+  rw [PiRLCProductSchedule.Descriptor.invocation_val]
+  rcases descriptor with ⟨family, source, block, lane, cell⟩
+  cases family <;>
+    simp only [invocationIndex, familyOffset, canonical_familyShape, shapeInvocationCount,
+      PiRLCProductSchedule.Family.blockCount, PiRLCProductSchedule.Family.cellCount,
+      show (phi81GroupRecipe program).ringDegree = 54 from rfl]
+  all_goals omega
 
 /-- Read one compact block source from the physical base. An invalid slot or
 a source outside the physical base evaluates to zero; the sealed decoder
@@ -188,41 +131,14 @@ coefficient lane. -/
 private theorem canonical_challengeSlot
     (source : Fin PiRLCCombinationInvocations.sourceCount)
     (lane : Fin ringDegree) :
-    phi81GroupRecipe.challengeSlotBase +
-        source.val * phi81GroupRecipe.challengeSourceStride + lane.val =
+    (phi81GroupRecipe program).challengeSlotBase +
+        source.val * (phi81GroupRecipe program).challengeSourceStride + lane.val =
       (PiRLCFirst54DirectSchedule.valueIndex
         (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).val := by
   simpa [phi81GroupRecipe,
     PiRLCProductMatrixProgram.challengeSlotStart,
     PiRLCProductMatrixProgram.challengeSourceStride] using
       PiRLCProductMatrixProgram.challengeSlot_eq source lane
-
-/-- Product-input block slots use the same invocation-major source column as
-the product plan. -/
-private theorem productInput_sourceIndex (program : Program)
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    PerApplicationAssignmentBlocks.sourceIndex program .productInput
-        descriptor.invocation =
-      (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val := by
-  unfold PerApplicationAssignmentBlocks.sourceIndex
-    PerApplicationAssignmentBlocks.entry
-    PerApplicationAssignmentBlocks.zeroRaw
-    PerApplicationAssignmentPlan.BlockKind.expand
-    PerApplicationCanonicalAssignment.Canonical.ofBlock
-    CanonicalBlockAssignment.ofBlock
-  change ((PiRLCRetainedGeometry.productInputBlock program).source
-    descriptor.invocation).val = _
-  calc
-    _ = ((PiRLCProductSourceBlocks.inputBlock program).source
-        descriptor.invocation).val := by
-      simpa [PiRLCRetainedGeometry.productInputBlock] using
-        (LowNormBlock.Block.lift_source_val
-          (PiRLCProductSourceBlocks.inputBlock program)
-          (PiRLCRetainedGeometry.productSourceFits program)
-          descriptor.invocation)
-    _ = _ := by
-      rw [PiRLCProductSourceBlocks.inputBlock_source,
-        PiRLCProductSchedule.descriptor_invocation]
 
 /-- The retained First54 value block exposes its physical package source at
 the same value descriptor. -/
@@ -357,83 +273,6 @@ private theorem canonical_first54Value_read
     _ = PiRLCFirst54DirectPlan.outputValue program raw.base descriptor := by
       simpa [PiRLCFirst54DirectPlan.valueOutputForm,
         PiRLCRetainedInputs.first54Inputs] using preserves.outputValue descriptor
-
-private theorem canonical_productInput_read
-    {program : Program}
-    (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    baseBlockValue program raw.base .productInput descriptor.invocation.val =
-      PiRLCProductPlan.baseEnv program raw.base
-        (descriptor.valueColumn descriptor.lane) := by
-  have slotBound : descriptor.invocation.val <
-      (PerApplicationAssignmentBlocks.entry program
-        .productInput).block.slotCount := by
-    change descriptor.invocation.val < PiRLCProductSchedule.invocationCount
-    exact descriptor.invocation.isLt
-  have sourceIndexEq :
-      PerApplicationAssignmentBlocks.sourceIndex program .productInput
-          ⟨descriptor.invocation.val, slotBound⟩ =
-        (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val := by
-    simpa only using productInput_sourceIndex program descriptor
-  have sourceBound :
-      PerApplicationAssignmentBlocks.sourceIndex program .productInput
-          ⟨descriptor.invocation.val, slotBound⟩ <
-        PiRLCProductPlan.baseSourceWidth program := by
-    rw [sourceIndexEq]
-    exact PiRLCProductPlan.valueColumn_val_lt_baseSourceWidth program
-      descriptor descriptor.lane
-  have sourceEq :
-      PiRLCRetainedPreservation.baseSourceColumn program
-          ⟨PerApplicationAssignmentBlocks.sourceIndex program .productInput
-            ⟨descriptor.invocation.val, slotBound⟩, sourceBound⟩ =
-        (PerApplicationAssignmentBlocks.entry program
-          .productInput).block.source
-            ⟨descriptor.invocation.val, slotBound⟩ := by
-    apply Fin.ext
-    rfl
-  let geometry := PerApplicationCanonicalEncodes.retainedGeometry program
-  have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
-  have preserves := PiRLCRetainedPreservation.productInputs_preserves
-    geometry raw.assignment raw.base raw.groupValue raw.products encodes
-  have withLaneSelf : descriptor.withLane descriptor.lane = descriptor := by
-    rcases descriptor with ⟨family, source, block, lane, cell⟩
-    rfl
-  calc
-    baseBlockValue program raw.base .productInput descriptor.invocation.val =
-      raw.base
-        ⟨PerApplicationAssignmentBlocks.sourceIndex program .productInput
-          ⟨descriptor.invocation.val, slotBound⟩, sourceBound⟩ :=
-      baseBlockValue_eq_source program raw.base .productInput _ slotBound
-        sourceBound
-    _ =
-      raw.retainedSource
-        ((PerApplicationAssignmentBlocks.entry program
-          .productInput).block.source
-            ⟨descriptor.invocation.val, slotBound⟩) := by
-      unfold PerApplicationCanonicalAssignment.RawValues.retainedSource
-      rw [← sourceEq]
-      exact (PiRLCRetainedPreservation.sourceAssignment_base program raw.base
-        raw.groupValue raw.products ⟨_, sourceBound⟩).symm
-    _ = ((PiRLCRetainedGeometry.productInputBlock program).form
-          (PiRLCRetainedGeometry.productInputStart program)
-          (PiRLCRetainedGeometry.productInputFits geometry)
-          descriptor.invocation).eval raw.assignment := by
-      symm
-      simpa [PerApplicationAssignmentBlocks.entry,
-        PerApplicationAssignmentBlocks.zeroRaw,
-        PerApplicationAssignmentPlan.BlockKind.expand,
-        PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using
-          (LowNormBlock.Block.form_eval
-            (PiRLCRetainedGeometry.productInputBlock program)
-            (PiRLCRetainedGeometry.productInputStart program)
-            (PiRLCRetainedGeometry.productInputFits geometry) raw.assignment
-            raw.retainedSource encodes.productInput descriptor.invocation)
-    _ = PiRLCProductPlan.baseEnv program raw.base
-        (descriptor.valueColumn descriptor.lane) := by
-      simpa [PiRLCProductPlan.valueForm, PiRLCRetainedInputs.productInputs,
-        withLaneSelf] using
-          preserves.value descriptor.invocation descriptor.lane
 
 private theorem canonical_first54Reject_read
     {program : Program}
@@ -618,8 +457,9 @@ def valueRing (recipe : Phi81GroupRecipe) (program : Program)
     (base : BaseValues program) (descriptor : PiRLCProductSchedule.Descriptor) :
     RingF :=
   fun lane =>
-    baseBlockValue program base recipe.valueBlock
-      (invocationIndex recipe (descriptor.withLane lane))
+    SourceCompiler.sourceEnv base <|
+      AffineRuns.sourceAt recipe.valueSources
+        (invocationIndex recipe (descriptor.withLane lane))
 
 /-- One raw convolution in source order. -/
 def rawTermValues (recipe : Phi81GroupRecipe) (coefficient : F)
@@ -646,13 +486,13 @@ def termValues (recipe : Phi81GroupRecipe) (left right : RingF)
 
 @[simp] private theorem canonical_termValues_length (left right : RingF)
     (lane : Fin ringDegree) :
-    (termValues phi81GroupRecipe left right lane).length = 162 := by
+    (termValues (phi81GroupRecipe program) left right lane).length = 162 := by
   simp [termValues, phi81GroupRecipe]
 
 @[simp] private theorem canonical_groups_length (left right : RingF)
     (lane : Fin ringDegree) :
     (ProductSumPlan.groups
-      (termValues phi81GroupRecipe left right lane)).length = 33 := by
+      (termValues (phi81GroupRecipe program) left right lane)).length = 33 := by
   rfl
 
 /-- Evaluate one retained five-term group without constructing any matrix row
@@ -693,7 +533,7 @@ terms, in the same source order. -/
 private theorem canonical_rawTermValues_eq_eval {logicalWidth : Nat}
     (coefficient : F) (left right : Phi81ProductPlan.State logicalWidth)
     (degree : Nat) (assignment : Assignment F logicalWidth) :
-    rawTermValues phi81GroupRecipe coefficient
+    rawTermValues (phi81GroupRecipe program) coefficient
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right) degree =
       (Phi81ProductPlan.rawTerms coefficient left right degree).map
@@ -711,21 +551,21 @@ private theorem canonical_rawTermValues_eq_eval {logicalWidth : Nat}
 private theorem canonical_termValues_eq_eval {logicalWidth : Nat}
     (left right : Phi81ProductPlan.State logicalWidth)
     (lane : Fin ringDegree) (assignment : Assignment F logicalWidth) :
-    termValues phi81GroupRecipe
+    termValues (phi81GroupRecipe program)
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right) lane =
       (Phi81ProductPlan.terms left right lane).map
         (ProductSumPlan.Term.eval assignment) := by
   unfold termValues Phi81ProductPlan.terms
   change
-    (rawTermValues phi81GroupRecipe 1
+    (rawTermValues (phi81GroupRecipe program) 1
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right) lane.val ++
-      rawTermValues phi81GroupRecipe (-1)
+      rawTermValues (phi81GroupRecipe program) (-1)
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right)
         (lane.val + if lane.val < 27 then 54 else 27) ++
-      rawTermValues phi81GroupRecipe
+      rawTermValues (phi81GroupRecipe program)
         (if lane.val + 81 ≤ 106 then 1 else 0)
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right) (lane.val + 81)) = _
@@ -750,7 +590,7 @@ private theorem canonical_ringGroupValue_eq_groupTotal {logicalWidth : Nat}
     (left right : Phi81ProductPlan.State logicalWidth)
     (lane : Fin ringDegree) (assignment : Assignment F logicalWidth)
     (group : Fin 33) :
-    ringGroupValue phi81GroupRecipe
+    ringGroupValue (phi81GroupRecipe program)
         (Phi81ProductPlan.evalState assignment left)
         (Phi81ProductPlan.evalState assignment right) lane group.val =
       ProductSumPlan.groupTotal assignment
@@ -781,26 +621,29 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
     (raw : PerApplicationCanonicalAssignment.RawValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
     (group : Fin 33) :
-    phi81GroupValue phi81GroupRecipe program raw.base invocation group.val =
+    phi81GroupValue (phi81GroupRecipe program) program raw.base invocation group.val =
       PiRLCProductPlan.honestGroupValue
-        (PiRLCRetainedInputs.productInputs
-          (PerApplicationCanonicalEncodes.retainedGeometry program))
+        (PiRLCProductMatrixProgram.inputs
+          (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry program))
         raw.assignment invocation group := by
   let geometry := PerApplicationCanonicalEncodes.retainedGeometry program
-  let inputs := PiRLCRetainedInputs.productInputs geometry
+  let values := PiRLCValueWiring.form
+    (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry program)
+  let inputs := PiRLCRetainedInputs.productInputs values geometry
   let descriptor := PiRLCProductSchedule.descriptor invocation
   have one : raw.assignment inputs.oneColumn = 1 := by
     exact PerApplicationCanonicalAssignment.assignment_one raw
   have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
   have preserves := PiRLCRetainedPreservation.productInputs_preserves
-    geometry raw.assignment raw.base raw.groupValue raw.products encodes
+    values geometry raw.assignment raw.base raw.groupValue raw.products
+      (PerApplicationCanonicalEncodes.productValuesPreserve raw) encodes
   have challengeRead :
-      challengeRing phi81GroupRecipe program raw.base descriptor =
+      challengeRing (phi81GroupRecipe program) program raw.base descriptor =
         PiRLCProductPlan.challengeRing program raw.base descriptor := by
     funext lane
     unfold challengeRing PiRLCProductPlan.challengeRing
     dsimp only [phi81GroupRecipe]
-    have slotEq := canonical_challengeSlot descriptor.source lane
+    have slotEq := canonical_challengeSlot (program := program) descriptor.source lane
     dsimp only [phi81GroupRecipe] at slotEq
     rw [slotEq]
     rw [canonical_first54Value_read raw
@@ -812,18 +655,21 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
       descriptor lane]
     rfl
   have valueRead :
-      valueRing phi81GroupRecipe program raw.base descriptor =
+      valueRing (phi81GroupRecipe program) program raw.base descriptor =
         PiRLCProductPlan.valueRing program raw.base descriptor := by
     funext lane
     unfold valueRing PiRLCProductPlan.valueRing
-    change
-      baseBlockValue program raw.base .productInput
-          (invocationIndex phi81GroupRecipe (descriptor.withLane lane)) =
-        PiRLCProductPlan.baseEnv program raw.base
-          (descriptor.valueColumn lane)
     rw [canonical_invocationIndex]
-    rw [canonical_productInput_read raw (descriptor.withLane lane)]
-    rw [PiRLCProductSchedule.Descriptor.withLane_valueColumn]
+    conv_lhs =>
+      arg 2
+      arg 1
+      dsimp only [phi81GroupRecipe]
+    rw [phi81ValueSources_at,
+      PiRLCProductSchedule.descriptor_invocation]
+    simp only [PiRLCProductPlan.valueColumn,
+      PiRLCProductSchedule.Descriptor.withLane_valueColumn]
+    rw [PiRLCProductPlan.baseEnv_valueColumn]
+    exact SourceCompiler.sourceEnv_at raw.base _
   have challengeStateEval :
       Phi81ProductPlan.evalState raw.assignment
           (PiRLCProductPlan.challengeState inputs invocation) =
@@ -845,19 +691,19 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
     funext lane
     exact preserves.value invocation lane
   have challengeEq :
-      challengeRing phi81GroupRecipe program raw.base descriptor =
+      challengeRing (phi81GroupRecipe program) program raw.base descriptor =
         Phi81ProductPlan.evalState raw.assignment
           (PiRLCProductPlan.challengeState inputs invocation) :=
     challengeRead.trans challengeStateEval.symm
   have valueEq :
-      valueRing phi81GroupRecipe program raw.base descriptor =
+      valueRing (phi81GroupRecipe program) program raw.base descriptor =
         Phi81ProductPlan.evalState raw.assignment
           (PiRLCProductPlan.valueState inputs invocation) :=
     valueRead.trans valueStateEval.symm
   unfold phi81GroupValue
-  change ringGroupValue phi81GroupRecipe
-      (challengeRing phi81GroupRecipe program raw.base descriptor)
-      (valueRing phi81GroupRecipe program raw.base descriptor)
+  change ringGroupValue (phi81GroupRecipe program)
+      (challengeRing (phi81GroupRecipe program) program raw.base descriptor)
+      (valueRing (phi81GroupRecipe program) program raw.base descriptor)
       descriptor.lane group.val = _
   rw [challengeEq, valueEq]
   simpa [PiRLCProductPlan.honestGroupValue,

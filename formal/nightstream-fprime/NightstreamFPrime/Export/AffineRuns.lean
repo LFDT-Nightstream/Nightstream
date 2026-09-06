@@ -1,6 +1,8 @@
 import NightstreamFPrime.Export.Codec
 import Mathlib.Data.List.Basic
 import Mathlib.Data.List.OfFn
+import Mathlib.Data.List.GetD
+import Mathlib.Tactic.Ring
 
 /-!
 Owns a small canonical affine-run codec for verifier-owned index streams.
@@ -196,5 +198,52 @@ def format : Format (List Run) := Codec.list Run.format
 theorem decode_encode (runs : List Run) :
     format.decode (format.encode runs) = .ok runs :=
   format.decode_encode runs
+
+/-- Direct point lookup in a serialized affine-run stream. -/
+def sourceAt : List AffineRuns.Run → Nat → Nat
+  | [], _ => 0
+  | run :: rest, slot =>
+      if slot < run.count then
+        run.first + run.step * slot
+      else
+        sourceAt rest (slot - run.count)
+
+private theorem affineValues_getD_of_lt (first step count slot : Nat)
+    (inside : slot < count) :
+    (AffineRuns.values first step count).getD slot 0 =
+      first + step * slot := by
+  induction count generalizing first slot with
+  | zero => omega
+  | succ count inductionHypothesis =>
+      cases slot with
+      | zero => simp [AffineRuns.values]
+      | succ slot =>
+          simp only [AffineRuns.values, List.getD_cons_succ]
+          rw [inductionHypothesis (first := first + step)
+            (slot := slot) (by omega)]
+          ring
+
+/-- Direct run lookup is the pointwise meaning of affine-run expansion. -/
+theorem sourceAt_eq_expand_getD
+    (runs : List AffineRuns.Run) (slot : Nat) :
+    sourceAt runs slot = (AffineRuns.expand runs).getD slot 0 := by
+  induction runs generalizing slot with
+  | nil => rfl
+  | cons run rest inductionHypothesis =>
+      change
+        (if slot < run.count then run.first + run.step * slot
+          else sourceAt rest (slot - run.count)) =
+        (run.expand ++ AffineRuns.expand rest).getD slot 0
+      by_cases inside : slot < run.count
+      · rw [if_pos inside, List.getD_append]
+        · simpa [AffineRuns.Run.expand] using
+            (affineValues_getD_of_lt run.first run.step run.count slot inside).symm
+        · simpa using inside
+      · have after : run.expand.length ≤ slot := by
+          simpa using Nat.le_of_not_gt inside
+        rw [if_neg inside,
+          List.getD_append_right _ _ _ _ after]
+        simpa using inductionHypothesis (slot := slot - run.count)
+
 
 end NightstreamFPrime.Export.AffineRuns

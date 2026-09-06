@@ -118,10 +118,6 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (PiCCSActionPayloadBlock.block application)
       raw.payloadSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.stateBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.outputBlock application)
-      raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.roundC0Block application)
       raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.roundC1Block application)
@@ -129,10 +125,6 @@ def schedule {application : Program} (raw : RawValues application) :
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.piDecBlock application)
       raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.freshBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiCCSOrdinaryRetainedBlocks.priorInputBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiCCSOrdinaryRetainedBlocks.outputInputBlock application)
       raw.retainedSource
   , Canonical.ofBlock
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock application)
@@ -168,8 +160,6 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.parentEvalABlock application)
       raw.retainedSource
-  , Canonical.ofBlock (PiDECRetainedBlocks.proofBlock application)
-      raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.logicalBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.freshBlock application)
@@ -180,11 +170,7 @@ def schedule {application : Program} (raw : RawValues application) :
   , Canonical.ofBlock
       (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (ApplicationRetainedBlocks.inputBlock application)
-      raw.applicationSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.witnessBlock application)
-      raw.applicationSource
-  , Canonical.ofBlock (ApplicationRetainedBlocks.outputBlock application)
       raw.applicationSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.localBlock application)
       raw.applicationSource ]
@@ -192,7 +178,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 45 := by
+    (raw : RawValues application) : raw.schedule.length = 38 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -208,15 +194,13 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
   unfold PerApplicationFixedPoint.logicalWidth
     ApplicationRetainedGeometry.completeLogicalWidth
     ApplicationRetainedGeometry.localStart
-    ApplicationRetainedGeometry.outputStart
     ApplicationRetainedGeometry.witnessStart
-    ApplicationRetainedGeometry.inputStart
     PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth
     PiRLCSamplerOrdinaryRetainedGeometry.freshStart
     PiRLCSamplerOrdinaryRetainedGeometry.logicalStart
     PiRLCSamplerOrdinaryRetainedGeometry.prefixLogicalWidth
     PiDECRetainedGeometry.completeLogicalWidth PiDECRetainedGeometry.freshStart
-    PiDECRetainedGeometry.logicalStart PiDECRetainedGeometry.proofStart
+    PiDECRetainedGeometry.logicalStart
     PiDECRetainedGeometry.parentEvalAStart
     PiDECRetainedGeometry.parentEvalKStart
     PiDECRetainedGeometry.parentPublicInputStart
@@ -235,16 +219,12 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiCCSOrdinaryRetainedGeometry.outputLastStart
     PiCCSOrdinaryRetainedGeometry.priorLastStart
     PiCCSOrdinaryRetainedGeometry.freshPublicInputStart
-    PiCCSOrdinaryRetainedGeometry.outputInputStart
-    PiCCSOrdinaryRetainedGeometry.priorInputStart
     PiCCSOrdinaryRetainedGeometry.prefixLogicalWidth
     RunningTransitionRetainedGeometry.completeLogicalWidth
     RunningTransitionRetainedGeometry.freshStart
     RunningTransitionRetainedGeometry.piDecStart
     RunningTransitionRetainedGeometry.roundC1Start
     RunningTransitionRetainedGeometry.roundC0Start
-    RunningTransitionRetainedGeometry.outputStart
-    RunningTransitionRetainedGeometry.stateStart
     PiCCSActionPayloadBlock.logicalWidth PiCCSActionPayloadBlock.payloadStart
     PiRLCPoseidonGeometry.pilotLogicalWidth
     PiRLCPoseidonGeometry.outputInputStart

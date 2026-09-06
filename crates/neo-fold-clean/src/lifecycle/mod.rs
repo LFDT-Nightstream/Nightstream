@@ -226,12 +226,15 @@ pub enum Error {
 /// The verifier does not know which Ajtai setup the prover used internally.
 /// It fixes this context locally and accepts only proofs that verify under
 /// these params/setup. Proofs must never carry or choose params/setup.
+/// Bound setup and policy are read-only to callers. Construct a new context
+/// to select a different setup or public-input policy.
+#[doc = include_str!("../../tests/preprocessing_read_only.md")]
 #[derive(Clone)]
 pub struct Preprocessing {
-    pub params: Params,
+    pub(crate) params: Params,
     structure: std::sync::Arc<Structure>,
-    pub log: AjtaiSModule,
-    pub vk: VerifierKey,
+    pub(crate) log: AjtaiSModule,
+    pub(crate) vk: VerifierKey,
     pub(crate) mix_rhos_commits: RlcMixer,
     pub(crate) combine_b_pows: DecMixer,
     /// Nebula memory-checking plan context: the lane-commitment
@@ -243,7 +246,7 @@ pub struct Preprocessing {
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level". The digest uses an explicit presence tag.
-    pub public_input_len: Option<usize>,
+    pub(crate) public_input_len: Option<usize>,
     /// Verifier-owned initial app/VM semantic-state digest.
     ///
     /// Absorbed into [`vk_fs_digest`] at preprocess time so every
@@ -323,6 +326,22 @@ pub struct Preprocessing {
 }
 
 impl Preprocessing {
+    pub fn params(&self) -> &Params {
+        &self.params
+    }
+
+    pub fn commitment_scheme(&self) -> &AjtaiSModule {
+        &self.log
+    }
+
+    pub fn verifier_key(&self) -> &VerifierKey {
+        &self.vk
+    }
+
+    pub fn public_input_len(&self) -> Option<usize> {
+        self.public_input_len
+    }
+
     pub fn structure(&self) -> &Structure {
         self.structure.as_ref()
     }
@@ -452,14 +471,14 @@ impl Preprocessing {
     /// and PiCCS header are derived from the same params, structure, and
     /// matrix cache used by native proving, so recursive frontends do not
     /// reconstruct protocol metadata through a parallel path.
-    pub(crate) fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
-        Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
+    pub(crate) fn nifs_v_circuit_config(&self) -> crate::paper::nifs::circuit::NifsVCircuitConfig<'_> {
+        crate::paper::nifs::circuit::NifsVCircuitConfig {
             pi_ccs: crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig {
                 params: &self.params,
                 structure: self.structure.as_ref().into(),
                 matrix_digest: self.pi_ccs_header_bundle,
             },
-        })
+        }
     }
 
     /// Low-level Π_RLC commitment action fixed by preprocessing.
@@ -503,9 +522,8 @@ impl Preprocessing {
         Ok(())
     }
 
-    /// Check that mutable preprocessing policy still matches the key derived
-    /// at preprocessing time.
-    pub fn validate_verifier_key_binding(&self) -> Result<(), Error> {
+    /// Check that internal policy changes still match the derived key.
+    pub(crate) fn validate_verifier_key_binding(&self) -> Result<(), Error> {
         let expected = VerifierKey::derive_from_structure_digest(
             &self.params,
             &self.structure_digest,

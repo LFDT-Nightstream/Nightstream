@@ -30,12 +30,20 @@ private theorem roundC0Grid_values (program : ApplicationProgram) :
     (roundC0Grid program).sourceStart = 15031534 ∧
       (roundC0Grid program).majorCount = 28 ∧
       (roundC0Grid program).majorSourceStride = 5328 := by
+  simp only [roundC0Grid, PiCCSTranscriptOutputForms.pointGrid,
+    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
+    PiCCSTranscriptOutputForms.pointSourceStart,
+    Fin.val_zero, Nat.zero_mul, Nat.add_zero]
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem roundC1Grid_values (program : ApplicationProgram) :
     (roundC1Grid program).sourceStart = 15032126 ∧
       (roundC1Grid program).majorCount = 28 ∧
       (roundC1Grid program).majorSourceStride = 5328 := by
+  simp only [roundC1Grid, PiCCSTranscriptOutputForms.pointGrid,
+    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
+    PiCCSTranscriptOutputForms.pointSourceStart,
+    Fin.val_one, Nat.one_mul]
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem piDecRange_values (program : ApplicationProgram) :
@@ -187,20 +195,9 @@ theorem roundC0Grid_form?
               RunningTransitionInputs.roundSampleC0Offset)) =
       some ((RunningTransitionDirectPlan.Location.roundC0 coordinate).form
         geometry) := by
-  rw [roundC0Target]
-  simpa [roundC0Grid, RunningTransitionDirectPlan.Location.form] using
-    (SourceGrid.form?_ofSemantic (roundC0Block program) (roundC0Start program)
-      (Spartan.sourceToSpartan roundC0SourceStart)
-      productionShape.cubeVariables RunningTransitionInputs.roundStride
-      1 1 1 0 1 0 (roundC0Fits geometry)
-      (by norm_num [RunningTransitionInputs.roundStride]) (by norm_num)
-      coordinate ⟨0, by omega⟩ ⟨0, by omega⟩
-      (by norm_num [RunningTransitionInputs.roundStride]) (by norm_num)
-      (by
-        have bound := coordinate.isLt
-        change coordinate.val < 28 at bound
-        simpa only [Nat.zero_add, Nat.mul_one, Nat.mul_zero, Nat.add_zero,
-          roundC0Block_slotCount] using bound))
+  rw [← PiCCSTranscriptOutputForms.pointSource_c0]
+  exact PiCCSTranscriptOutputForms.pointGrid_form? (poseidonGeometry geometry)
+    coordinate 0
 
 theorem roundC1Grid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -213,20 +210,9 @@ theorem roundC1Grid_form?
               RunningTransitionInputs.roundSampleC1Offset)) =
       some ((RunningTransitionDirectPlan.Location.roundC1 coordinate).form
         geometry) := by
-  rw [roundC1Target]
-  simpa [roundC1Grid, RunningTransitionDirectPlan.Location.form] using
-    (SourceGrid.form?_ofSemantic (roundC1Block program) (roundC1Start program)
-      (Spartan.sourceToSpartan roundC1SourceStart)
-      productionShape.cubeVariables RunningTransitionInputs.roundStride
-      1 1 1 0 1 0 (roundC1Fits geometry)
-      (by norm_num [RunningTransitionInputs.roundStride]) (by norm_num)
-      coordinate ⟨0, by omega⟩ ⟨0, by omega⟩
-      (by norm_num [RunningTransitionInputs.roundStride]) (by norm_num)
-      (by
-        have bound := coordinate.isLt
-        change coordinate.val < 28 at bound
-        simpa only [Nat.zero_add, Nat.mul_one, Nat.mul_zero, Nat.add_zero,
-          roundC1Block_slotCount] using bound))
+  rw [← PiCCSTranscriptOutputForms.pointSource_c1]
+  exact PiCCSTranscriptOutputForms.pointGrid_form? (poseidonGeometry geometry)
+    coordinate 1
 
 theorem piDecRange_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -258,11 +244,23 @@ theorem freshRange_form?
 
 private theorem roundC0MappedStart (program : ApplicationProgram) :
     Spartan.sourceToSpartan roundC0SourceStart = 15031534 := by
-  exact (roundC0Grid_values program).1
+  simpa only [roundC0Grid, PiCCSTranscriptOutputForms.pointGrid,
+    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
+    PiCCSTranscriptOutputForms.pointSourceStart, roundC0SourceStart,
+    Fin.val_zero, Nat.zero_mul, Nat.add_zero] using (roundC0Grid_values program).1
 
 private theorem roundC1MappedStart (program : ApplicationProgram) :
     Spartan.sourceToSpartan roundC1SourceStart = 15032126 := by
-  exact (roundC1Grid_values program).1
+  have address : PiCCSTranscriptOutputForms.pointSourceStart + (1 : Fin 2).val * 592 =
+      roundC1SourceStart := by
+    unfold PiCCSTranscriptOutputForms.pointSourceStart roundC1SourceStart
+    norm_num [RunningTransitionInputs.roundSampleC0Offset,
+      RunningTransitionInputs.roundSampleC1Offset]
+  have selected := (roundC1Grid_values program).1
+  simp only [roundC1Grid, PiCCSTranscriptOutputForms.pointGrid,
+    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic] at selected
+  rw [address] at selected
+  exact selected
 
 private theorem piDecMappedStart (program : ApplicationProgram) :
     Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart =
@@ -318,6 +316,7 @@ private theorem roundC1Grid_form?_none_at_roundC0
               previous.val * (roundC1Grid program).majorSourceStride +
               4736 * (roundC1Grid program).minorSourceStride + 0 =
           15031534 + coordinate.val * 5328 := by
+      rw [(roundC1Grid_values program).1, (roundC1Grid_values program).2.2]
       change 15032126 + (coordinate.val - 1) * 5328 + 4736 * 1 + 0 =
         15031534 + coordinate.val * 5328
       omega
@@ -364,6 +363,7 @@ private theorem roundC0Grid_form?_none_at_roundC1
             major.val * (roundC0Grid program).majorSourceStride +
             592 * (roundC0Grid program).minorSourceStride + 0 =
         15032126 + coordinate.val * 5328 := by
+    rw [(roundC0Grid_values program).1, (roundC0Grid_values program).2.2]
     change 15031534 + coordinate.val * 5328 + 592 * 1 + 0 =
       15032126 + coordinate.val * 5328
     omega

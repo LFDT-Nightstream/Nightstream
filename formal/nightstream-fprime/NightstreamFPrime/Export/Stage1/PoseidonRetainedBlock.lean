@@ -53,6 +53,21 @@ theorem basePackage_permutationInvocations_eq :
   exact Data.circuitPackage_permutationInvocations.trans
     Data.components_permutationInvocations
 
+/-- Every selected package invocation satisfies the canonical Poseidon2
+template when the package rows hold. The invocation list remains opaque. -/
+theorem invocation_holds (env : NightstreamFPrime.Circuit.Env)
+    (rows : basePackage.RowsHold env)
+    (index : Fin basePackage.permutationInvocations.length) :
+    PermutationInvocationHolds (PilotData.circuitPackage ())
+      (basePackage.permutationInvocations.get index) env := by
+  let invocation := basePackage.permutationInvocations.get index
+  have selected := rows.2.1 invocation (List.get_mem _ index)
+  unfold PermutationInvocationHolds at selected ⊢
+  change ∀ row ∈ (Data.circuitPackage ()).permutation.rows,
+    (instantiateInvocationRow invocation row).Holds env at selected
+  rw [Data.circuitPackage_permutation] at selected
+  simpa only [PilotData.circuitPackage] using selected
+
 @[simp] theorem data_permutationInvocations_length :
     (Data.permutationInvocations ()).length = laterInvocationCount := by
   rw [← basePackage_permutationInvocations_eq]

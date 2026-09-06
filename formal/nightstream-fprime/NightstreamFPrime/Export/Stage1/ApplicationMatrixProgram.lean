@@ -4,8 +4,9 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 
 /-!
 Owns the compact matrix program for one verifier-selected Stage 1
-application. Lean fixes its four retained source intervals and the exact
-application-row suffix of the canonical package.
+application. Lean maps the input/output sources into the actual pilot
+preimages and retains only witness/local suffix values. The application row
+order is unchanged.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
@@ -21,17 +22,20 @@ abbrev FitsTwoPow28 (application : ApplicationProgram) :=
   PerApplicationPackage.FitsTwoPow28 application
 
 def inputRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (inputBlock application) (inputStart application)
+  SourceRange.ofSemantic (PiRLCPoseidonGeometry.priorInputBlock application)
+    (PiRLCPoseidonGeometry.priorInputStart application)
     ApplicationInputs.currentWordStart Lifecycle.Stage1.Application.stateWordCount
-    0
+    ApplicationInputs.currentWordStart
 
 def witnessRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (witnessBlock application) (witnessStart application)
     ApplicationInputs.witnessStart application.witnessWordCount 0
 
 def outputRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (outputBlock application) (outputStart application)
-    49428 Lifecycle.Stage1.Application.stateWordCount 0
+  SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock application)
+    (PiRLCPoseidonGeometry.outputInputStart application)
+    49428 Lifecycle.Stage1.Application.stateWordCount
+    ApplicationInputs.currentWordStart
 
 def localRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (localBlock application) (localStart application)

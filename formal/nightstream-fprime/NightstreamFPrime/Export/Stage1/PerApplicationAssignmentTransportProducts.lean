@@ -7,7 +7,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 Owns the value-level interpreter for the two compact derived-product recipes
 in the per-application assignment transport. The interpreter reads only the
 physical base assignment. It does not construct retained coordinates or the
-final 45-block assignment.
+final 38-block assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts

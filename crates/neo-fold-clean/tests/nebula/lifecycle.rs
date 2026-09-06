@@ -46,7 +46,7 @@ fn wide_preprocessing() -> Preprocessing {
 }
 
 fn lane_scheme(prep: &Preprocessing) -> LaneScheme {
-    LaneScheme::from_seeds(prep.params.kappa() as usize, LANE_COLS, [0xA7; 32], [0x7A; 32]).expect("scheme")
+    LaneScheme::from_seeds(prep.params().kappa() as usize, LANE_COLS, [0xA7; 32], [0x7A; 32]).expect("scheme")
 }
 
 /// Deterministic lane bits for one step: the tail 3·54 slots of `z`.
@@ -74,7 +74,8 @@ fn precommit(prep: &Preprocessing, scheme: &LaneScheme) -> (Vec<LaneCommitments<
         let mut z = vec![F::ZERO; M];
         z[26 * D..].copy_from_slice(&lane_bits(step));
         let inst =
-            CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, M_IN).expect("dummy");
+            CcsInstance::from_low_norm_assignment(prep.params(), prep.commitment_scheme(), prep.structure(), &z, M_IN)
+                .expect("dummy");
         advs.push(scheme.commit(&inst.witness.Z).expect("lane commit"));
     }
     let mem = digest::nebula_chain_mem_header();
@@ -131,7 +132,8 @@ fn step_instance(prep: &Preprocessing, gamma: [K; 2], step: u64, adv: &LaneCommi
     z[1..1 + bits.len()].copy_from_slice(&bits);
     z[26 * D..].copy_from_slice(&lane_bits(step));
     let mut inst =
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, M_IN).expect("instance");
+        CcsInstance::from_low_norm_assignment(prep.params(), prep.commitment_scheme(), prep.structure(), &z, M_IN)
+            .expect("instance");
     inst.claim.adv = Some(adv.clone());
     inst
 }
@@ -143,7 +145,7 @@ fn derive_gamma(prep: &Preprocessing, audit: &UncompressedAudit, d_pre: [[F; 4];
     let mut lane = state.nebula.clone().expect("nebula chain carries a lane");
     lane.open_segment(
         prep.nebula().expect("config"),
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         state.z_i,
         state.acc_digest,
         d_pre,

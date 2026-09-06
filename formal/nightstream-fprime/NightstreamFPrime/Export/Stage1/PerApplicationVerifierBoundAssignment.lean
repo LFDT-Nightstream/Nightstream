@@ -158,10 +158,19 @@ theorem transitionExpectedContext
         (PiCCSInputs.expectedContextStart + lane.val) =
       (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
   unfold PerApplicationDecodedIO.transitionEnv Spartan.pullback
-  rw [Spartan.sourceToSpartan_expectedContext lane]
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos (expectedContextTargetBound lane)]
-  exact boundBase_expectedContext fits commitmentSetup raw lane
+  rw [RunningTransitionDirectPlan.transitionEnv_of_outside application
+    (bind fits commitmentSetup raw).base _
+    (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
+      (expectedContextSource lane)) (Or.inl (by
+        rw [PiCCSInputs.expectedContextStart_eq, PiCCSInputs.phaseOffset_eq]
+        have bound := lane.isLt
+        omega)), Spartan.sourceToSpartan_expectedContext lane]
+  unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv
+  exact (SourceCompiler.sourceEnv_at _
+    (PiRLCProductPlan.shiftedPackageColumn application
+      (Spartan.expectedContextPublicStart + lane.val)
+      (expectedContextTargetBound lane))).trans
+    (boundBase_expectedContext fits commitmentSetup raw lane)
 
 /-- Accepted rows bind the decoded state context to the exact canonical
 per-application verifier-context digest. -/

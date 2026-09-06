@@ -66,7 +66,7 @@ impl Relation {
         }
         let fields = exact_array(&raw, 6, "CCS relation")?;
         if word(&fields[0], "CCS row count")? != 6_377_559
-            || word(&fields[1], "CCS column count")? != 264_627_433
+            || word(&fields[1], "CCS column count")? != 256_532_147
             || word(&fields[2], "CCS cube variables")? != 28
             || array(&fields[3], "CCS matrix sources")?
                 .iter()
@@ -119,12 +119,15 @@ impl Relation {
 
     pub fn evaluate(&self, matrix_values: &[Field; MATRIX_COUNT]) -> Field {
         self.terms.iter().fold(Field::ZERO, |sum, term| {
-            let product = matrix_values
-                .iter()
-                .zip(term.exponents)
-                .fold(term.coefficient, |product, (value, exponent)| {
-                    product * pow(*value, exponent)
-                });
+            let mut product = term.coefficient;
+            for (value, exponent) in matrix_values.iter().zip(term.exponents) {
+                if product == Field::ZERO {
+                    break;
+                }
+                if exponent != 0 {
+                    product *= pow(*value, exponent);
+                }
+            }
             sum + product
         })
     }

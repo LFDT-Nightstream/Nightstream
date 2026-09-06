@@ -48,7 +48,7 @@ def parityValue : Value :=
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
         1 32768 17,
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
-        21 4900508 53],
+        21 4750595 53],
     natListValue Poseidon2HashChainV1SetupAuthority.authorityNats]
 
 end NightstreamFPrime.Export.Stage1.AjtaiSetupV1Parity

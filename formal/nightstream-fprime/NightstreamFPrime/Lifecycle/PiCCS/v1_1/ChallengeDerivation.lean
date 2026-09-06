@@ -353,6 +353,19 @@ def alphaSchedule (interface : Interface) (offset : Nat) :
     ((layoutProgram interface offset).samples.take
       productionShape.cubeVariables)
 
+/-- The same labelled samples without constructing Poseidon2 recipes. -/
+def alphaScheduleFast (interface : Interface) (offset : Nat) :
+    List (FiatShamir.ChallengeLabel productionShape × KExpr) :=
+  (FiatShamir.alphaLabels productionShape).zip
+    ((layoutWiring interface offset).samples.take
+      productionShape.cubeVariables)
+
+@[csimp] theorem alphaSchedule_eq_alphaScheduleFast :
+    @alphaSchedule = @alphaScheduleFast := by
+  funext interface offset
+  unfold alphaSchedule alphaScheduleFast
+  rw [layoutWiring_samples_eq]
+
 /-- Exact action order: every `α` coordinate, then `γ`. -/
 def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
   scheduleActions (alphaSchedule interface offset) ++

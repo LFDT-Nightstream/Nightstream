@@ -905,12 +905,10 @@ fn artifact_path(name: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(format!("{}{GENERATED_REL_DIR}/{name}", env!("CARGO_MANIFEST_DIR")))
 }
 
-fn compare_or_write_expected(artifact: &RenderedArtifact, drifted: &mut Vec<String>) {
+fn record_artifact_drift(artifact: &RenderedArtifact, drifted: &mut Vec<String>) {
     let path = artifact_path(&artifact.name);
     if std::fs::read_to_string(&path).ok().as_deref() != Some(artifact.contents.as_str()) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, &artifact.contents).expect("write expected prior-state replay artifact");
-        drifted.push(expected.display().to_string());
+        drifted.push(path.display().to_string());
     }
 }
 
@@ -919,25 +917,10 @@ fn production_prior_state_replay_compact_source_artifacts_match_committed_files(
     let artifacts = render_artifacts();
     let mut drifted = Vec::new();
     for artifact in &artifacts {
-        compare_or_write_expected(artifact, &mut drifted);
+        record_artifact_drift(artifact, &mut drifted);
     }
     assert!(
         drifted.is_empty(),
         "compact prior-state replay source artifacts drifted; inspect and deliberately regenerate: {drifted:#?}"
     );
-}
-
-#[test]
-#[ignore = "deliberately replaces reviewed generated prior-state replay source artifacts"]
-fn regenerate_production_prior_state_replay_compact_source_artifacts() {
-    for artifact in render_artifacts() {
-        let path = artifact_path(&artifact.name);
-        std::fs::write(&path, artifact.contents).expect("write reviewed prior-state replay artifact");
-        let expected = path.with_extension("lean.expected");
-        match std::fs::remove_file(expected) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => panic!("remove reviewed expected prior-state replay artifact: {error}"),
-        }
-    }
 }

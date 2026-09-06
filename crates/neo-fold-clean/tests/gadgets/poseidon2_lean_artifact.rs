@@ -287,8 +287,6 @@ fn lean_poseidon2_permutation_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != rendered {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, rendered).expect("write expected Poseidon2 Lean artifact");
-        panic!("generated Lean Poseidon2 artifact drifted. Wrote {expected_path}; review and regenerate intentionally");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

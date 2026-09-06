@@ -70,8 +70,7 @@ def entry (application : ProgramApplication) (kind : BlockKind) :
 
 def sourceDomainOf : BlockKind → SourceDomain
   | .piCcsPayload => .piCcsPayload
-  | .applicationInput | .applicationWitness | .applicationOutput |
-      .applicationLocal => .physicalBase
+  | .applicationWitness | .applicationLocal => .physicalBase
   | _ => .retained
 
 /-- Exact normalized source index selected by one retained slot. Payload
@@ -222,7 +221,7 @@ def canonical (application : ProgramApplication) : List BlockPlan :=
   canonicalKinds.map (BlockPlan.ofKind application)
 
 @[simp] theorem canonical_length (application : ProgramApplication) :
-    (canonical application).length = 45 := by
+    (canonical application).length = 38 := by
   simp [canonical]
 
 theorem canonical_opcodes (application : ProgramApplication) :

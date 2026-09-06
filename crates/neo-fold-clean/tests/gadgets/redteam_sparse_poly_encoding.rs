@@ -230,15 +230,21 @@ fn pi_ccs_rejects_zero_row_padding_when_f_zero_is_nonzero() {
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
     let prep = preprocess(params, structure, Some(D)).expect("preprocessing");
-    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
-        .expect("valid assignment on all three real rows");
+    let fresh = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &assignment,
+        D,
+    )
+    .expect("valid assignment on all three real rows");
     let mut prover_transcript = Transcript::session();
     let result = pi_ccs::prove(
         &mut prover_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         vec![fresh],
         &RunningInstance::default(),
     );

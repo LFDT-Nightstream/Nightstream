@@ -28,7 +28,8 @@ theorem physicalExpr_eval_sourceEnv (program : Program)
     (expression : Expr) :
     (physicalExpr program expression).eval (SourceCompiler.sourceEnv source) =
       expression.eval (PiCCSActionPayloadBlock.packageEnv program source) := by
-  rw [physicalExpr, CompactRows.renameExpr_eval]
+  rw [physicalExpr, CompactRows.renameExpr_eval,
+    PermutationOutput.Readout.rewriteExpr_eval, CompactRows.renameExpr_eval]
   rfl
 
 /-- Pointwise lookup of one mapped PiCCS payload expression does not expand
@@ -107,11 +108,6 @@ private theorem packageEnv_outputDigest_eq_pilot
     unfold NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     rw [if_pos pilotBound]
   rw [← sourceMap]
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos (PiCCSPoseidonPreservation.sourceToSpartan_lt_basePackage
-    column sourceBound)]
-  apply congrArg raw.base
-  apply Fin.ext
   rfl
 
 /-- Pointwise lookup of one mapped output-digest expression does not expand

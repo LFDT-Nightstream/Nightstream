@@ -59,8 +59,8 @@
 //! This module selects one complete implementation and composes it.
 
 mod backend;
-// The recursive circuit is retained only for private diagnostics until the
-// sealed v1.1 package replaces it.
+// Legacy circuit API used by native frontends and constraint conformance
+// tests. Stage 1 uses the separate Lean package boundary.
 #[allow(dead_code, unused_imports)]
 pub mod circuit;
 mod crosscheck;

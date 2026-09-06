@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 /-!
 Owns 32 zero-pin rows that bind the four direct PiCCS transcript endpoint
 states to the exact lifecycle compiler variables. The first three endpoints
-reuse the proof-logical retained block. The output endpoint uses its dedicated
+read the actual retained output forms. The output endpoint uses its dedicated
 eight-field retained block.
 
 This module does not assemble the other PiCCS leaves.
@@ -488,10 +488,8 @@ def sourceForm {program : Lifecycle.Stage1.Application.Program}
       (PiCCSOrdinaryRetainedGeometry.outputEndpointStart program)
       (PiCCSOrdinaryRetainedGeometry.outputEndpointFits geometry) lane
   else
-    (PiCCSOrdinaryRetainedBlocks.proofLogicalBlock program).form
-      (PiCCSOrdinaryRetainedGeometry.proofLogicalStart program)
-      (PiCCSOrdinaryRetainedGeometry.proofLogicalFits geometry)
-      (proofLogicalIndex family output lane)
+    (PiCCSOrdinaryDirectPlan.Location.proofLogical
+      (proofLogicalIndex family output lane)).form geometry
 
 theorem sourceForm_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -517,8 +515,7 @@ theorem sourceForm_eval
       exact output
     subst family
     rw [sourceForm, dif_pos (by rfl)]
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _
-      encoding.outputEndpoint]
+    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputEndpoint]
     have sourceEq :
         (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock program).source lane =
           RunningTransitionRetainedBlocks.packageSourceColumn program
@@ -526,33 +523,18 @@ theorem sourceForm_eval
             (endpointColumn_lt_source outputFamily lane) := by
       apply Fin.ext
       rfl
-    rw [sourceEq]
-    unfold RunningTransitionRetainedBlocks.packageSourceColumn
-    rw [PiRLCRetainedPreservation.sourceAssignment_base]
-    apply congrArg base
-    apply Fin.ext
-    rfl
-  · rw [sourceForm, dif_neg output]
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _
-      encoding.proofLogical]
-    have sourceEq :
-        (PiCCSOrdinaryRetainedBlocks.proofLogicalBlock program).source
-            (proofLogicalIndex family output lane) =
-          RunningTransitionRetainedBlocks.packageSourceColumn program
-            (endpointColumn family lane)
-            (endpointColumn_lt_source family lane) := by
-      calc
-        _ = RunningTransitionRetainedBlocks.packageSourceColumn program
-              (PiCCSOrdinaryRetainedBlocks.proofLogicalSource
-                (proofLogicalIndex family output lane))
-              (PiCCSOrdinaryRetainedBlocks.proofLogicalSource_lt _) := rfl
-        _ = _ := packageSourceColumn_congr program _ _ _ _
-          (proofLogicalIndex_source family output lane)
-    rw [sourceEq]
-    unfold RunningTransitionRetainedBlocks.packageSourceColumn
-    rw [PiRLCRetainedPreservation.sourceAssignment_base]
-    apply congrArg base
-    apply Fin.ext
+    rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+    exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
+      (endpointColumn outputFamily lane) (endpointColumn_lt_source outputFamily lane) (by
+        right
+        norm_num [endpointColumn, endpointStart, outputFamily,
+          PiCCSInputs.phaseOffset_eq,
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+          PiCCSStarts.logicalFreshBase] <;> omega)).symm
+  · rw [sourceForm, dif_neg output,
+      PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
+        groupValue products encoding]
+    rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, proofLogicalIndex_source]
     rfl
 
 def bindingForm {program : Lifecycle.Stage1.Application.Program}
@@ -939,9 +921,9 @@ def transcriptEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Env :=
-  PerApplicationPackage.baseEnv program <| SourceCompiler.sourceEnv <|
-    PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products
+  PiCCSTranscriptReadout.env <|
+    PerApplicationPackage.baseEnv program <| SourceCompiler.sourceEnv <|
+      PiRLCRetainedPreservation.sourceAssignment program base groupValue products
 
 theorem transcriptEnv_eq_transitionEnv_of_lt
     (program : Lifecycle.Stage1.Application.Program)
@@ -951,40 +933,8 @@ theorem transcriptEnv_eq_transitionEnv_of_lt
     (column : Nat) (bound : column < Spartan.spartanColumnCount) :
     transcriptEnv program base groupValue products column =
       RunningTransitionDirectPlan.transitionEnv program base column := by
-  have packageTotal :
-      PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
-    exact Package.circuitPackage_layout_values.2.2.2.2
-  have packageBound :
-      column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-    rw [packageTotal]
-    simpa [Spartan.spartanColumnCount_eq] using bound
-  have shiftedPrefix :
-      PerApplicationPackage.shiftColumn program column <
-        PiCCSActionPayloadBlock.prefixSourceWidth program := by
-    unfold PiCCSActionPayloadBlock.prefixSourceWidth
-      PiRLCRetainedGeometry.sourceWidth
-      PiRLCFirst54DirectPlan.sourceWidth
-      PiRLCFirst54DirectPlan.prefixSourceWidth
-      PiRLCProductPlan.sourceWidth ProductRetainedBlock.sourceWidth
-      FieldSuffixBlock.sourceWidth
-    have shiftedBase := PiRLCProductPlan.shiftColumn_lt_baseSourceWidth
-      program column packageBound
-    omega
-  have shiftedRetained :
-      PerApplicationPackage.shiftColumn program column <
-        PiRLCRetainedGeometry.sourceWidth program := shiftedPrefix
-  unfold transcriptEnv RunningTransitionDirectPlan.transitionEnv
-    PerApplicationPackage.baseEnv SourceCompiler.sourceEnv
-  rw [dif_pos shiftedRetained, dif_pos packageBound]
-  rw [show
-      (⟨PerApplicationPackage.shiftColumn program column, shiftedRetained⟩ :
-        Fin (PiRLCRetainedGeometry.sourceWidth program)) =
-        PiRLCRetainedPreservation.baseSourceColumn program
-          (PiRLCProductPlan.shiftedPackageColumn program column packageBound) by
-    apply Fin.ext
-    rfl]
-  rw [PiRLCRetainedPreservation.sourceAssignment_base]
+  exact PiCCSPoseidonPreservation.readout_sourceAssignment
+    program base groupValue products column bound
 
 private theorem zeroState_eq_evalZero (env : Env) :
     Spec.Poseidon2.zeroState =
@@ -1387,56 +1337,53 @@ private theorem outputInitialState_eq_roundFinalState_of_shape
     (PiCCSInvocations.roundTrace_state_matches relationLogicalWidth
       relationPublicFits)
 
-theorem traces_and_rowsZero_imply_transcriptSpecs
+theorem traces_and_endpoints_imply_transcriptSpecs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (ordinaryGeometry :
-      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (one : assignment
-      (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
-    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
-      assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+    (env : Env)
     (traces : PiCCSTranscriptDirectSemantics.Traces poseidonGeometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
-    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
-    PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits
-      (transcriptEnv program base groupValue products) := by
-  have statementEndpoint := endpointState_eq_finalEval poseidonGeometry
-    ordinaryGeometry assignment base groupValue products one encoding rowsZero
-    statementFamily
+      (Spartan.pullback env))
+    (endpoints : ∀ family,
+      PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+          (endpointInvocation family) =
+        List.ofFn fun lane : Fin laneCount =>
+          Spartan.pullback env (endpointColumn family lane)) :
+    PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits env := by
+  have endpointFinal (family : Fin familyCount) (finalState : Layer.EState)
+      (finalEndpoint : ∀ lane : Fin laneCount,
+        finalState lane = Expr.var (endpointColumn family lane)) :
+      PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+          (endpointInvocation family) =
+        List.ofFn (Layer.evalState (Spartan.pullback env) finalState) := by
+    rw [endpoints family]
+    apply congrArg List.ofFn
+    funext lane
+    unfold Layer.evalState
+    rw [finalEndpoint lane]
+    rfl
+  have statementEndpoint := endpointFinal statementFamily
     (StatementAbsorption.finalState
       (PiCCSInvocations.statementInterface relationLogicalWidth
         relationPublicFits) PiCCSInvocations.statementWitnessStart)
     (statementFinalState_endpoint_of_shape relationLogicalWidth
       relationPublicFits)
-  have challengeEndpoint := endpointState_eq_finalEval poseidonGeometry
-    ordinaryGeometry assignment base groupValue products one encoding rowsZero
-    challengeFamily
+  have challengeEndpoint := endpointFinal challengeFamily
     (ChallengeDerivation.finalState
       (PiCCSInvocations.challengeInterface relationLogicalWidth
         relationPublicFits) PiCCSInvocations.challengeWitnessStart)
     (challengeFinalState_endpoint_of_shape relationLogicalWidth
       relationPublicFits)
-  have roundEndpoint := endpointState_eq_finalEval poseidonGeometry
-    ordinaryGeometry assignment base groupValue products one encoding rowsZero
-    roundFamily
+  have roundEndpoint := endpointFinal roundFamily
     (RoundTranscript.finalState
       (PiCCSInvocations.roundInterface relationLogicalWidth
         relationPublicFits) PiCCSInvocations.roundWitnessStart)
     (roundFinalState_endpoint_of_shape relationLogicalWidth
       relationPublicFits)
-  have outputEndpoint := endpointState_eq_finalEval poseidonGeometry
-    ordinaryGeometry assignment base groupValue products one encoding rowsZero
-    outputFamily
+  have outputEndpoint := endpointFinal outputFamily
     (OutputBinding.finalState
       (PiCCSInvocations.outputInterface relationLogicalWidth
         relationPublicFits) PiCCSInvocations.outputWitnessStart)
@@ -1454,37 +1401,30 @@ theorem traces_and_rowsZero_imply_transcriptSpecs
   · unfold StatementAbsorption.SpecHolds
     have trace := traces.statement
     rw [statementEndpoint] at trace
-    rw [zeroState_eq_evalZero
-      (PiCCSActionPayloadBlock.packageEnv program
-        (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products))] at trace
-    simpa [transcriptEnv, PiCCSActionPayloadBlock.packageEnv,
-      PiCCSActionPayloadBlock.statementActions,
+    rw [zeroState_eq_evalZero (Spartan.pullback env)] at trace
+    simpa [PiCCSActionPayloadBlock.statementActions,
       PiCCSInvocations.statementActions] using trace
   · apply ChallengeDerivation.trace_implies_specHolds
     have trace := traces.challenge
     rw [statementEndpoint, challengeEndpoint] at trace
     rw [← PiCCSInvocations.challengeInitialState_eq_statementFinalState
       relationLogicalWidth relationPublicFits] at trace
-    simpa [transcriptEnv, PiCCSActionPayloadBlock.packageEnv,
-      PiCCSActionPayloadBlock.challengeActions] using trace
+    simpa [PiCCSActionPayloadBlock.challengeActions] using trace
   · apply (RoundTranscript.trace_iff_specHolds
       (PiCCSInvocations.roundInterface relationLogicalWidth relationPublicFits)
       PiCCSInvocations.roundWitnessStart
-      (Spartan.pullback (transcriptEnv program base groupValue products))).mp
+      (Spartan.pullback env)).mp
     have trace := traces.rounds
     rw [challengeEndpoint, roundEndpoint] at trace
     rw [← roundInitialState_eq_challengeFinalState_of_shape
       relationLogicalWidth relationPublicFits] at trace
-    simpa [transcriptEnv, PiCCSActionPayloadBlock.packageEnv,
-      PiCCSActionPayloadBlock.roundActions] using trace
+    simpa [PiCCSActionPayloadBlock.roundActions] using trace
   · apply OutputBinding.trace_implies_specHolds
     have trace := traces.output
     rw [roundEndpoint, outputEndpoint] at trace
     rw [← outputInitialState_eq_roundFinalState_of_shape
       relationLogicalWidth relationPublicFits] at trace
-    simpa [transcriptEnv, PiCCSActionPayloadBlock.packageEnv,
-      PiCCSActionPayloadBlock.outputActions,
+    simpa [PiCCSActionPayloadBlock.outputActions,
       PiCCSInvocations.outputActions] using trace
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan

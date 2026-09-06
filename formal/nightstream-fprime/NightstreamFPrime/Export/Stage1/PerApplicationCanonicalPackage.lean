@@ -74,7 +74,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  264311733 +
+  256216447 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :
@@ -92,6 +92,17 @@ theorem directRecursiveRelation_eq_recursiveRelation
     directRecursiveRelation program = recursiveRelation program fits := by
   unfold directRecursiveRelation recursiveRelation
   rw [directStructuralRowCount_eq program fits, directLogicalWidth_eq]
+
+private def recursiveRelationFast (program : Program)
+    (_fits : FitsTwoPow28 program) : CcsRelation :=
+  directRecursiveRelation program
+
+/-- Native metadata evaluation uses the proved direct counts without building
+the complete structural row plan. -/
+@[csimp] theorem recursiveRelation_eq_recursiveRelationFast :
+    @recursiveRelation = @recursiveRelationFast := by
+  funext program fits
+  exact (directRecursiveRelation_eq_recursiveRelation program fits).symm
 
 /-- One canonical physical row program and one exact recursive relation. -/
 def replaceRelation (source : CircuitPackage) (relation : CcsRelation) :

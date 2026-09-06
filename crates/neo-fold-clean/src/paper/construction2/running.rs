@@ -102,8 +102,9 @@ impl RunningInstance {
         }
     }
 
-    /// Sanity: each claim has a witness on the prover side; both empty on the verifier side.
-    pub fn shape_ok(&self) -> bool {
+    /// Check that each prover claim has a witness and the required parent authority.
+    /// A nonempty verifier-only carrier from `claims_only` fails this check.
+    pub fn prover_shape_is_valid(&self) -> bool {
         self.claims.len() == self.witnesses.len()
             && if self.claims.is_empty() {
                 self.parent_authority.is_none()

@@ -1,20 +1,15 @@
-//! Shared Stage 2 field-R1CS shape helpers.
-//!
-//! Owns the application and semantic-state wiring reused by the Nebula
-//! frontend. It is not a Stage 1 production relation.
-//!
-//! Does not own: paper semantics, selective low-norm lowering, or permission to
-//! remove any emitted row.
-//!
-//! | Stage path | Mathematical obligation | Rust owner |
-//! |---|---|---|
-//! | `fprime.{base,recursive}.finalize.application` | Derive the application semantic digest | `enforce_semantic_digests` |
-//! | `fprime.{base,recursive}.finalize.semantic_links` | Bind application semantics to the transition output | `bind_semantic_state` |
+//! Application digest values and constraints for the memory frontend.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::R1csIvcError;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum SemanticStateError {
+    #[error("packed public-input variable z[{index}] is not Boolean (got {value:?})")]
+    PackedPublicInputNotBit { index: usize, value: F },
+}
 use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
 use crate::frontends::f_prime::recursive_plan::{
     semantic_state_app_public_header, semantic_state_field_header, RecursiveStepImagePlan,
@@ -31,7 +26,10 @@ pub(crate) struct SemanticValues {
     pub output: Option<[F; 4]>,
 }
 
-pub(crate) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -> Result<SemanticValues, R1csIvcError> {
+pub(crate) fn semantic_values(
+    plan: &RecursiveStepImagePlan,
+    assignment: &[F],
+) -> Result<SemanticValues, SemanticStateError> {
     let Some(state) = plan.state_x_out.as_ref() else {
         return Ok(SemanticValues {
             input: None,
@@ -66,7 +64,7 @@ fn semantic_state_digest_for_assignment(assignment: &[F], indices: &[usize]) -> 
 fn app_public_semantic_preimage_for_assignment(
     plan: &RecursiveStepImagePlan,
     assignment: &[F],
-) -> Result<Vec<F>, R1csIvcError> {
+) -> Result<Vec<F>, SemanticStateError> {
     let Some(state) = plan.state_x_out.as_ref() else {
         return Ok(Vec::new());
     };
@@ -91,7 +89,7 @@ fn app_public_semantic_preimage_for_assignment(
                 packed |= 1 << bit;
                 continue;
             }
-            return Err(R1csIvcError::PackedPublicInputNotBit { index, value });
+            return Err(SemanticStateError::PackedPublicInputNotBit { index, value });
         }
         preimage.push(F::from_u64(packed));
     }
@@ -99,7 +97,7 @@ fn app_public_semantic_preimage_for_assignment(
 }
 
 pub(crate) fn digest_mode(plan: &RecursiveStepImagePlan) -> StateXOutDigestMode {
-    let mode = super::super::semantic_state_mode_for_plan(plan);
+    let mode = crate::frontends::r1cs_f_prime::semantic_state_mode_for_plan(plan);
     match mode {
         SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
         SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
@@ -116,7 +114,7 @@ pub(crate) fn enforce_semantic_digests(
     plan: &RecursiveStepImagePlan,
     assignment: &[F],
     app_vars: &[Var],
-) -> Result<SemanticWires, R1csIvcError> {
+) -> Result<SemanticWires, SemanticStateError> {
     let Some(state) = plan.state_x_out.as_ref() else {
         return Ok(SemanticWires {
             input: None,

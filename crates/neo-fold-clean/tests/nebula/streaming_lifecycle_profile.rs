@@ -347,20 +347,8 @@ fn lifecycle_base_verifier_key_artifact_is_current() {
     let path = base_verifier_key_artifact_path();
     let rendered = render_base_verifier_key_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected base verifier-key artifact");
-        panic!(
-            "base verifier-key Lean artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("base verifier-key Lean artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_lifecycle_base_verifier_key_artifact() {
-    std::fs::write(base_verifier_key_artifact_path(), render_base_verifier_key_artifact())
-        .expect("write generated base verifier-key artifact");
 }
 
 fn recursive_verifier_key_artifact_path() -> PathBuf {
@@ -373,23 +361,11 @@ fn lifecycle_recursive_verifier_key_artifact_is_current() {
     let path = recursive_verifier_key_artifact_path();
     let rendered = render_recursive_verifier_key_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected recursive verifier-key artifact");
         panic!(
             "recursive verifier-key Lean artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_lifecycle_recursive_verifier_key_artifact() {
-    std::fs::write(
-        recursive_verifier_key_artifact_path(),
-        render_recursive_verifier_key_artifact(),
-    )
-    .expect("write generated recursive verifier-key artifact");
 }
 
 #[test]

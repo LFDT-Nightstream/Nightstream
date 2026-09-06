@@ -288,7 +288,7 @@ fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
         state_x_out_digest_mode: context
             .application
             .map_or(StateXOutDigestMode::Stateless, |application| {
-                crate::frontends::r1cs_f_prime::ivc::shape::digest_mode(application.recursive_plan())
+                super::semantic_state::digest_mode(application.recursive_plan())
             }),
     }
 }
@@ -331,13 +331,13 @@ fn shape_application_assignment(application: Option<&NebulaApplication>) -> Vec<
 fn application_semantic_values(
     application: Option<&NebulaApplication>,
     assignment: &[F],
-) -> Result<crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues, NebulaFPrimeRelationError> {
+) -> Result<super::semantic_state::SemanticValues, NebulaFPrimeRelationError> {
     match application {
-        Some(application) => Ok(crate::frontends::r1cs_f_prime::ivc::shape::semantic_values(
+        Some(application) => Ok(super::semantic_state::semantic_values(
             application.recursive_plan(),
             assignment,
         )?),
-        None => Ok(crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues {
+        None => Ok(super::semantic_state::SemanticValues {
             input: None,
             output: None,
         }),

@@ -4,12 +4,15 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT,
     PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
+
+#[path = "support/pi_ccs_parent.rs"]
+mod pi_ccs_parent;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PRIOR_PUBLIC_WORDS: usize = 270;
@@ -23,10 +26,10 @@ const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawResult(Vec<u64>, Vec<u64>, Vec<u64>, Vec<[u64; 3]>, Vec<u64>);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawParity(u64, RawInput, RawResult);
 
 #[derive(Debug, PartialEq, Eq)]
@@ -240,8 +243,46 @@ fn pilot_fixture_binds_the_sealed_verifier_context() {
 }
 
 #[test]
+fn pilot_fixture_has_valid_zero_running_openings() {
+    let RawParity(_, input, _) = parity();
+    check_zero_running_openings(&input);
+}
+
+fn check_zero_running_openings(input: &RawInput) {
+    for words in [&input.0, &input.2] {
+        let mut cursor = 39;
+        expect_prefix(words, &mut cursor, RUNNING_POINT_WORDS, "running point");
+        assert!(words[cursor..cursor + RUNNING_POINT_WORDS]
+            .iter()
+            .all(|word| *word == 0));
+        cursor += RUNNING_POINT_WORDS;
+
+        // The zero carrier has norm below b = 2. Its linear commitment,
+        // public projection, and separate Pad/matrix evaluations are zero.
+        for source in 0..RUNNING_COUNT {
+            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 1_620)] {
+                expect_prefix(words, &mut cursor, length, family);
+                assert!(
+                    words[cursor..cursor + length].iter().all(|word| *word == 0),
+                    "source {source} {family} must match the zero opening",
+                );
+                cursor += length;
+            }
+        }
+        assert_eq!(
+            cursor + 1,
+            words.len(),
+            "only the program counter follows the running claims"
+        );
+    }
+}
+
+#[test]
 fn rust_recomputation_matches_complete_lean_pilot_result() {
-    let RawParity(schema, input, expected) = parity();
+    check_complete_result(parity());
+}
+
+fn check_complete_result(RawParity(schema, input, expected): RawParity) {
     assert_eq!(schema, 1, "pilot parity schema");
 
     let actual = verify_pilot(&input).expect("valid nonzero pilot fixture");
@@ -261,6 +302,11 @@ fn rust_recomputation_matches_complete_lean_pilot_result() {
 #[test]
 fn pilot_rejects_every_authoritative_preimage_family_mutation() {
     let RawParity(_, input, _) = parity();
+    check_preimage_mutations(&input);
+}
+
+fn check_preimage_mutations(input: &RawInput) -> usize {
+    let mut checked = 0;
     for output_preimage in [false, true] {
         let words = if output_preimage { &input.2 } else { &input.0 };
         for (family, index) in fixture_mutation_indices(words) {
@@ -276,14 +322,19 @@ fn pilot_rejects_every_authoritative_preimage_family_mutation() {
                 "{} preimage mutation must reject: {family}",
                 if output_preimage { "output" } else { "prior" },
             );
+            checked += 1;
         }
     }
+    checked
 }
 
 #[test]
 fn pilot_rejects_every_public_value_and_malformed_encoding() {
     let RawParity(_, input, _) = parity();
+    check_public_mutations(&input);
+}
 
+fn check_public_mutations(input: &RawInput) {
     for column in 0..PRIOR_PUBLIC_WORDS {
         let mut mutated = input.clone();
         mutated.1[column] = changed_word(mutated.1[column]);
@@ -335,7 +386,80 @@ fn pilot_rejects_every_public_value_and_malformed_encoding() {
     long_digest.3.push(0);
     assert!(verify_pilot(&long_digest).is_err());
 
-    let mut noncanonical_public = input;
+    let mut noncanonical_public = input.clone();
     noncanonical_public.1[0] = GOLDILOCKS_MODULUS;
     assert!(verify_pilot(&noncanonical_public).is_err());
+}
+
+#[derive(Deserialize)]
+struct ExternalPilot {
+    package: PathBuf,
+    structural_identity: [u64; 4],
+    pilot_fixture: PathBuf,
+    base_fixture: PathBuf,
+    phase_input: PathBuf,
+    lean_result: PathBuf,
+}
+
+#[test]
+#[ignore = "requires external candidate paths as JSON on stdin; run under the 300-second cap"]
+fn external_current_pilot_and_positive_pi_ccs_prior() {
+    let paths: ExternalPilot = serde_json::from_reader(std::io::stdin().lock()).expect("external pilot paths");
+    let bytes = fs::read(paths.package).expect("external Lean package");
+    let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
+    let expected_context = package
+        .production_verifier_binding()
+        .expect("selected binding")
+        .verifier_context()
+        .digest();
+    let pilot: RawParity = serde_json::from_slice(&fs::read(paths.pilot_fixture).expect("current Lean pilot"))
+        .expect("current pilot schema");
+    assert_eq!(verifier_context_digest(&pilot.1 .0), expected_context);
+    assert_eq!(verifier_context_digest(&pilot.1 .2), expected_context);
+    check_zero_running_openings(&pilot.1);
+    check_complete_result(pilot.clone());
+    let standalone_mutations = check_preimage_mutations(&pilot.1);
+    check_public_mutations(&pilot.1);
+
+    let base: serde_json::Value = serde_json::from_slice(&fs::read(paths.base_fixture).expect("checked base fixture"))
+        .expect("base fixture JSON");
+    let phase: serde_json::Value =
+        serde_json::from_slice(&fs::read(paths.phase_input).expect("positive PiCCS input")).expect("PiCCS input JSON");
+    let lean: serde_json::Value =
+        serde_json::from_slice(&fs::read(paths.lean_result).expect("positive Lean result")).expect("Lean result JSON");
+    assert_eq!(base[0], 1);
+    assert_eq!(phase[0], 2);
+    assert_eq!(lean[0], 1);
+    assert_eq!(lean[1], phase, "same positive serialized input and proof");
+    assert_eq!(lean[5][0], 1, "positive Lean acceptance");
+    assert_eq!(base[1], serde_json::json!(expected_context));
+    assert_eq!(
+        phase[2], base[4][2],
+        "fresh public projection of the checked base opening"
+    );
+    let private: Vec<u64> = serde_json::from_value(base[2].clone()).expect("base witness words");
+    let base_output = private[STATE_PREIMAGE_WORDS..2 * STATE_PREIMAGE_WORDS].to_vec();
+    let prior = pi_ccs_parent::with_running(&base_output, &phase[6]);
+    let input = RawInput(
+        prior,
+        serde_json::from_value(phase[2].clone()).expect("positive prior public input"),
+        base_output,
+        serde_json::from_value(base[4][1].clone()).expect("checked base output digest"),
+    );
+    assert_eq!(verifier_context_digest(&input.0), expected_context);
+    println!(
+        "pi_ccs_parent_prior_digest={:?} fresh_public_digest={:?}",
+        hash_preimage(&input.0).expect("canonical schema-2 parent preimage"),
+        input.3,
+    );
+    let actual = verify_pilot(&input).expect("positive PiCCS prefix hash binding");
+    assert_eq!(actual.prior_digest, actual.output_digest);
+    let positive_mutations = check_preimage_mutations(&input);
+    check_public_mutations(&input);
+    println!(
+        "current_pilot_results=passed standalone_preimage_mutations={standalone_mutations} \
+         positive_prefix_preimage_mutations={positive_mutations} \
+         public_mutations_per_input=274 malformed_per_input=9 \
+         prior_point_limbs_per_preimage={RUNNING_POINT_WORDS}"
+    );
 }

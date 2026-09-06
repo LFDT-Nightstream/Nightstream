@@ -63,6 +63,57 @@ def form {application : Lifecycle.Stage1.Application.Program}
   | .localValues index => (localBlock application).form
       (localStart application) (localFits geometry) index
 
+def preimageWord (index : Lifecycle.Stage1.Application.StateIndex) :
+    Fin PilotValues.stateHashWords :=
+  ⟨Layout.Stage1.ApplicationInputs.currentWordStart + index.val, by
+    have bound := index.isLt
+    norm_num [Layout.Stage1.ApplicationInputs.currentWordStart,
+      Lifecycle.Stage1.Application.stateWordCount,
+      PilotValues.stateHashWords, PilotValues.stateHashBaseWords] at bound ⊢
+    omega⟩
+
+/-- Application input wires are the actual prior-hash preimage forms for every
+assignment. No representation premise or copy row supplies this equality. -/
+theorem input_form_eq_pilot
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry application logicalWidth)
+    (index : Lifecycle.Stage1.Application.StateIndex) :
+    (Location.input index).form geometry =
+      (PiRLCPoseidonGeometry.priorInputBlock application).form
+        (PiRLCPoseidonGeometry.priorInputStart application)
+        (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
+        (preimageWord index) := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · have viewWidth : (inputBlock application).kind.width = 41 := by rfl
+    have pilotWidth :
+        (PiRLCPoseidonGeometry.priorInputBlock application).kind.width = 41 := by rfl
+    simp only [viewWidth, pilotWidth, inputStart, preimageWord,
+      Layout.Stage1.ApplicationInputs.currentWordStart]
+    omega
+
+/-- Application output wires are the actual output-hash preimage forms for
+every assignment. This is the parent-owned application-to-hash connection. -/
+theorem output_form_eq_pilot
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry application logicalWidth)
+    (index : Lifecycle.Stage1.Application.StateIndex) :
+    (Location.output index).form geometry =
+      (PiRLCPoseidonGeometry.outputInputBlock application).form
+        (PiRLCPoseidonGeometry.outputInputStart application)
+        (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
+        (preimageWord index) := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · have viewWidth : (outputBlock application).kind.width = 41 := by rfl
+    have pilotWidth :
+        (PiRLCPoseidonGeometry.outputInputBlock application).kind.width = 41 := by rfl
+    simp only [viewWidth, pilotWidth, outputStart, preimageWord,
+      Layout.Stage1.ApplicationInputs.currentWordStart]
+    omega
+
 theorem form_eval {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)

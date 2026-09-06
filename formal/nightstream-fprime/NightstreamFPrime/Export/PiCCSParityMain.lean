@@ -1,35 +1,11 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiCCSParity
 
-open NightstreamFPrime.Lifecycle.VerifierContext
-open NightstreamFPrime.Spec
-
 private def usage : String :=
   "usage: emitPiCCSParity <vk0> <vk1> <vk2> <vk3> <output-path>"
 
-private def parseVerifierKeyWord (label word : String) : Except String F := do
-  if word.isEmpty || word.length > 20 ||
-      !(word.toList.all Char.isDigit) then
-    throw s!"invalid verifier-key word {label}: expected decimal UInt64"
-  let some value := word.toNat?
-    | throw s!"invalid verifier-key word {label}: expected decimal UInt64"
-  if _ : value < UInt64.size then
-    if canonical : value < goldilocksModulus then
-      pure ⟨value, canonical⟩
-    else
-      throw s!"invalid verifier-key word {label}: not a canonical Goldilocks element"
-  else
-    throw s!"invalid verifier-key word {label}: expected decimal UInt64"
-
-private def parseVerifierKey (w0 w1 w2 w3 : String) : Except String Digest4 := do
-  let c0 ← parseVerifierKeyWord "vk0" w0
-  let c1 ← parseVerifierKeyWord "vk1" w1
-  let c2 ← parseVerifierKeyWord "vk2" w2
-  let c3 ← parseVerifierKeyWord "vk3" w3
-  pure { c0, c1, c2, c3 }
-
 private def run (w0 w1 w2 w3 path : String) : IO UInt32 := do
-  match parseVerifierKey w0 w1 w2 w3 with
+  match NightstreamFPrime.Export.ParityEmitter.parseVerifierKey w0 w1 w2 w3 with
   | .error error =>
       IO.eprintln error
       pure 2

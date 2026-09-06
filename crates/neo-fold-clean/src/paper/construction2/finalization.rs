@@ -254,10 +254,7 @@ fn prove_final_fold_with_nifs_prover(
 fn strip_running_witnesses(running: &RunningInstance) -> RunningInstance {
     RunningInstance {
         claims: running.claims.clone(),
-        // Wire-compatible empty placeholders: zero-shape `Mat`s carry no data,
-        // satisfy `RunningInstance::shape_ok()` semantically only if `claims`
-        // is empty. The verifier path does not invoke `shape_ok` on this
-        // value, so empty `witnesses` is the right snapshot here.
+        // The verifier needs claims and parent authority, but no witnesses.
         witnesses: Vec::new(),
         parent_authority: running.parent_authority.clone(),
     }

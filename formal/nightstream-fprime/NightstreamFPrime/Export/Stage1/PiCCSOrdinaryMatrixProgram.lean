@@ -23,7 +23,8 @@ open PiCCSOrdinaryRetainedGeometry
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def priorInputRange (program : Program) : SourceRange :=
-  SourceRange.ofSemantic (priorInputBlock program) (priorInputStart program)
+  SourceRange.ofSemantic (PiRLCPoseidonGeometry.priorInputBlock program)
+    (PiRLCPoseidonGeometry.priorInputStart program)
     (Spartan.sourceToSpartan PilotProduction.priorPreimageStart)
     PilotProduction.stateHashWords 0
 
@@ -45,11 +46,13 @@ theorem priorInputRange_form?
     exact bound
   rw [Spartan.sourceToSpartan_add_of_pilotPriorPrivate
     PilotProduction.priorPreimageStart index.val upper]
-  simpa [priorInputRange, PiCCSOrdinaryDirectPlan.Location.form] using
-    (SourceRange.form?_ofSemantic (priorInputBlock program)
-      (priorInputStart program)
+  rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot]
+  simpa only [priorInputRange, Nat.zero_add] using
+    (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.priorInputBlock program)
+      (PiRLCPoseidonGeometry.priorInputStart program)
       (Spartan.sourceToSpartan PilotProduction.priorPreimageStart)
-      PilotProduction.stateHashWords 0 (priorInputFits geometry)
+      PilotProduction.stateHashWords 0
+      (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
       (by rfl) index)
 
 def freshPublicInputRange (program : Program) : SourceRange :=
@@ -151,7 +154,8 @@ private theorem sourceToSpartan_outputInput_add
       omega)
 
 def outputInputRange (program : Program) : SourceRange :=
-  SourceRange.ofSemantic (outputInputBlock program) (outputInputStart program)
+  SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock program)
+    (PiRLCPoseidonGeometry.outputInputStart program)
     (Spartan.sourceToSpartan PilotProduction.outputPreimageStart)
     PilotProduction.stateHashWords 0
 
@@ -165,11 +169,13 @@ theorem outputInputRange_form?
       some ((PiCCSOrdinaryDirectPlan.Location.outputInput index).form
         geometry) := by
   rw [sourceToSpartan_outputInput_add]
-  simpa [outputInputRange, PiCCSOrdinaryDirectPlan.Location.form] using
-    (SourceRange.form?_ofSemantic (outputInputBlock program)
-      (outputInputStart program)
+  rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot]
+  simpa only [outputInputRange, Nat.zero_add] using
+    (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.outputInputBlock program)
+      (PiRLCPoseidonGeometry.outputInputStart program)
       (Spartan.sourceToSpartan PilotProduction.outputPreimageStart)
-      PilotProduction.stateHashWords 0 (outputInputFits geometry)
+      PilotProduction.stateHashWords 0
+      (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
       (by rfl) index)
 
 def freshRange (program : Program) : SourceRange :=
@@ -232,8 +238,8 @@ theorem proofInputRange_form?
     omega
   rw [Spartan.sourceToSpartan_add_of_proofInput
     PiCCSInputs.proofInputStart index.val lower upper]
-  simpa [proofInputRange, proofInputIndex,
-    PiCCSOrdinaryDirectPlan.Location.form] using
+  rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
+  simpa only [proofInputRange, proofInputSlot, Nat.zero_add] using
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
       (Spartan.sourceToSpartan PiCCSInputs.proofInputStart)
@@ -246,9 +252,7 @@ theorem proofInputRange_form?
 def transcriptOutputSourceStart : Nat := PiCCSInputs.phaseOffset + 584
 
 def transcriptOutputGrid (program : Program) : SourceGrid :=
-  SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan transcriptOutputSourceStart)
-    transcriptInvocationCount 592 1 8 8 proofInputCount 8 8
+  PiCCSTranscriptOutputForms.transcriptGrid program
 
 theorem transcriptOutputGrid_form?
     {program : Program} {logicalWidth : Nat}
@@ -258,75 +262,18 @@ theorem transcriptOutputGrid_form?
         (Spartan.sourceToSpartan (transcriptOutputSource index)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (transcriptOutputSlot index)).form geometry) := by
+  rw [PiCCSOrdinaryDirectPlan.Location.form_transcriptOutput]
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
-  have laneBound := decoded.2.isLt
-  change decoded.2.val < 8 at laneBound
-  let lane : Fin 8 := ⟨decoded.2.val, laneBound⟩
-  let minor : Fin 1 := ⟨0, by omega⟩
-  have sourceEq :
-      Spartan.sourceToSpartan (transcriptOutputSource index) =
-        Spartan.sourceToSpartan transcriptOutputSourceStart +
-          decoded.1.val * 592 + decoded.2.val := by
-    unfold transcriptOutputSource
-    change Spartan.sourceToSpartan
-        (PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val) = _
-    calc
-      _ = Spartan.sourceToSpartan
-          (transcriptOutputSourceStart +
-            (decoded.1.val * 592 + decoded.2.val)) := by
-          apply congrArg Spartan.sourceToSpartan
-          unfold transcriptOutputSourceStart
-          omega
-      _ = _ := by
-        have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
-          transcriptOutputSourceStart
-          (decoded.1.val * 592 + decoded.2.val) (by
-            norm_num [transcriptOutputSourceStart,
-              Spartan.piCcsPhaseOffset, PiCCSInputs.phaseOffset_eq])
-        simpa only [Nat.add_assoc] using mapped
-  have direct := SourceGrid.form?_ofSemantic
-    (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan transcriptOutputSourceStart)
-    transcriptInvocationCount 592 1 8 8 proofInputCount 8 8
-    (proofLogicalFits geometry) (by omega) (by omega)
-    decoded.1 minor lane (by omega) laneBound (by
-      have invocationBound : decoded.1.val < 718 := by
-        simpa only [transcriptInvocationCount_eq] using decoded.1.isLt
-      have laneNumeric : lane.val < 8 := lane.isLt
-      change proofInputCount + decoded.1.val * 8 + minor.val * 8 + lane.val <
-        proofLogicalCount
-      rw [proofInputCount_eq, proofLogicalCount_eq]
-      omega)
-  have encodedEq := congrArg Fin.val (Fin.encodeProd_decodeProd index)
-  have slotEq :
-      proofInputCount + decoded.1.val * 8 + minor.val * 8 + lane.val =
-        (transcriptOutputSlot index).val := by
-    have flattened : decoded.1.val * 8 + decoded.2.val = index.val := by
-      simpa [decoded, Fin.encodeProd, Nat.mul_comm, Spec.Poseidon2.width] using
-        encodedEq
-    change proofInputCount + decoded.1.val * 8 + 0 * 8 + decoded.2.val =
-      proofInputCount + index.val
+  have sourceEq : transcriptOutputSource index =
+      PiCCSTranscriptOutputForms.transcriptSource decoded.1 decoded.2 := by
+    unfold transcriptOutputSource PiCCSTranscriptOutputForms.transcriptSource
+      PiCCSTranscriptOutputForms.transcriptSourceStart
+    change PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val = _
     omega
-  dsimp only [minor, lane] at direct
-  simp only [Nat.zero_mul, Nat.add_zero] at direct
   rw [sourceEq]
-  change (SourceGrid.ofSemantic (proofLogicalBlock program)
-      (proofLogicalStart program)
-      (Spartan.sourceToSpartan transcriptOutputSourceStart)
-      transcriptInvocationCount 592 1 8 8 proofInputCount 8 8).form?
-      logicalWidth
-      (Spartan.sourceToSpartan transcriptOutputSourceStart +
-        decoded.1.val * 592 + decoded.2.val) =
-    some ((proofLogicalBlock program).form (proofLogicalStart program)
-      (proofLogicalFits geometry) (transcriptOutputSlot index))
-  convert direct using 1
-  apply congrArg some
-  apply congrArg (fun slot : Fin proofLogicalCount =>
-    (proofLogicalBlock program).form (proofLogicalStart program)
-      (proofLogicalFits geometry) slot)
-  apply Fin.ext
-  simpa only [Nat.zero_mul, Nat.add_zero] using slotEq.symm
+  exact PiCCSTranscriptOutputForms.transcriptGrid_form? (poseidonGeometry geometry)
+    decoded.1 decoded.2
 
 def ordinaryLogicalRangeCount : Nat := ordinaryLogicalCount
 
@@ -353,8 +300,8 @@ theorem ordinaryLogicalRange_form?
       norm_num [Spartan.piCcsPhaseOffset,
         PiCCSStarts.initialClaimLogicalStart,
         PiCCSStarts.roundTranscriptWitnessStart_eq])]
-  simpa [ordinaryLogicalRange, ordinaryLogicalIndex,
-    PiCCSOrdinaryDirectPlan.Location.form] using
+  rw [ordinaryLogicalIndex, PiCCSOrdinaryDirectPlan.Location.form_ordinaryLogical]
+  simpa only [ordinaryLogicalRange, ordinaryLogicalSlot] using
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
       (Spartan.sourceToSpartan PiCCSStarts.initialClaimLogicalStart)
@@ -448,8 +395,10 @@ private theorem transcriptGridValues (program : Program) :
       (transcriptOutputGrid program).majorSourceStride = 592 ∧
       (transcriptOutputGrid program).minorCount = 1 ∧
       (transcriptOutputGrid program).minorSourceStride = 8 := by
-  norm_num [transcriptOutputGrid, SourceGrid.ofSemantic,
-    transcriptOutputSourceStart, transcriptInvocationCount_eq,
+  norm_num [transcriptOutputGrid, PiCCSTranscriptOutputForms.transcriptGrid,
+    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
+    PiCCSTranscriptOutputForms.transcriptSourceStart,
+    PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
     Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
     Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
     Spartan.piCcsLocalStart, PiCCSInputs.phaseOffset_eq]
@@ -1199,7 +1148,7 @@ theorem substitution_agrees_on_target
     ⟨decoded, found, mapped⟩
   change (substitution program).form? logicalWidth column.val =
     some (match PiCCSOrdinaryDirectPlan.classifyTarget column.val with
-      | none => .empty
+      | none => PiCCSOrdinaryDirectPlan.endpointForm geometry column
       | some value => value.location.form geometry)
   rw [found]
   have target :

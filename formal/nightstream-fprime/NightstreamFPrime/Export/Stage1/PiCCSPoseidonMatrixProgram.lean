@@ -1,9 +1,10 @@
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
+import NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
 
 /-!
 Owns the compact matrix program for the complete PiCCS Poseidon2 block. Lean
-supplies one action tag per invocation, the retained payload and S-box blocks,
+supplies one action tag per invocation, parent affine words and retained S-boxes,
 and the squeeze-binding pin rows.
 
 This module does not select PiCCS actions or close package conformance.
@@ -63,26 +64,28 @@ theorem directTag_lookup
 
 def directBindingForm
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (invocation : Fin PiCCSPoseidonPlan.invocationCount)
     (component : Fin 2) : SparseForm logicalWidth :=
   match (directTags ()).tag? invocation.val with
   | some .squeezeFirst =>
       SparseForm.add
-        (PiCCSPoseidonPlan.payloadForm geometry invocation
+        (PiCCSPoseidonPlan.payloadForm (PiCCSPayloadWiring.form geometry) invocation
           ⟨component.val, Nat.lt_trans component.isLt (by
             norm_num [Spec.Poseidon2.width])⟩)
         (SparseForm.scale (-1)
-          (PiCCSPoseidonPlan.bindingActual geometry invocation component))
+          (PiCCSPoseidonPlan.bindingActual
+          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry) invocation component))
   | _ => .empty
 
 theorem directBindingForm_eq_bindingForm
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (invocation : Fin PiCCSPoseidonPlan.invocationCount)
     (component : Fin 2) :
     directBindingForm geometry invocation component =
-      PiCCSPoseidonPlan.bindingForm geometry invocation component := by
+      PiCCSPoseidonPlan.bindingForm (PiCCSPayloadWiring.form geometry)
+      (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry) invocation component := by
   unfold directBindingForm PiCCSPoseidonPlan.bindingForm
   rw [directTag_lookup]
   unfold tagAt invocationTag
@@ -90,9 +93,9 @@ theorem directBindingForm_eq_bindingForm
 
 def directBindingInterface
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     PinFamilyPlan.Interface logicalWidth PiCCSPoseidonPlan.bindingRowCount where
-  oneColumn := PiCCSPoseidonPlan.oneColumn geometry
+  oneColumn := PiCCSOrdinaryRetainedGeometry.oneColumn geometry
   value := fun row =>
     let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 2 :=
       Fin.decodeProd row
@@ -100,12 +103,13 @@ def directBindingInterface
 
 theorem directBindingInterface_eq_bindingInterface
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     directBindingInterface geometry =
-      PiCCSPoseidonPlan.bindingInterface geometry := by
+      PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
+      (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry) := by
   unfold directBindingInterface PiCCSPoseidonPlan.bindingInterface
   apply congrArg
-    (PinFamilyPlan.Interface.mk (PiCCSPoseidonPlan.oneColumn geometry))
+    (PinFamilyPlan.Interface.mk (PiCCSOrdinaryRetainedGeometry.oneColumn geometry))
   funext row
   exact directBindingForm_eq_bindingForm geometry
     (Fin.decodeProd row).1 (Fin.decodeProd row).2
@@ -118,32 +122,31 @@ def previousRule (program : Program) : PoseidonInput.Rule where
 
 def payloadRule (program : Program) : PoseidonInput.Rule where
   region := ⟨0, 7604, 0, 4⟩
-  term := .taggedRetained
-    (RetainedBlock.ofSemantic (PiCCSActionPayloadBlock.block program)
-      (PiCCSActionPayloadBlock.payloadStart program))
-    tags .absorb 0 4 1
+  term := .taggedAffine (PiCCSPayloadMatrix.table ())
+    (PiCCSOrdinaryMatrixProgram.substitution program) tags .absorb 4
 
 def inputProgram (program : Program) : PoseidonInput.Program where
   rules := [previousRule program, payloadRule program]
 
 def poseidonBlock {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     Poseidon.Block :=
   Poseidon.Block.ofSemantic (PiCCSPoseidonPlan.schedule program)
     (PiCCSPoseidonPlan.retainedStart program)
-    (PiCCSPoseidonPlan.oneColumn geometry) (inputProgram program)
+    (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
 
 def bindingBlock {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) : Pin.Block :=
-  Pin.Block.ofSemantic (PiCCSPoseidonPlan.bindingInterface geometry)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) : Pin.Block :=
+  Pin.Block.ofSemantic (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
+      (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
 
 def directBindingBlock {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) : Pin.Block :=
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) : Pin.Block :=
   Pin.Block.ofSemantic (directBindingInterface geometry)
 
 theorem directBindingBlock_eq_bindingBlock
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     directBindingBlock geometry = bindingBlock geometry := by
   unfold directBindingBlock bindingBlock
   rw [directBindingInterface_eq_bindingInterface]
@@ -155,13 +158,13 @@ theorem directBindingBlock_eq_bindingBlock
 
 /-- PiCCS permutation rows precede the squeeze-binding rows. -/
 def matrixProgram {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program where
   blocks := [.poseidon (poseidonBlock geometry), .pin (bindingBlock geometry)]
 
 @[simp] theorem poseidonBlock_rowCount
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (poseidonBlock geometry).rowCount = 714776 := by
   calc
     (poseidonBlock geometry).rowCount =
@@ -169,25 +172,26 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
       exact Poseidon.Block.ofSemantic_rowCount
         (PiCCSPoseidonPlan.schedule program)
         (PiCCSPoseidonPlan.retainedStart program)
-        (PiCCSPoseidonPlan.oneColumn geometry) (inputProgram program)
+        (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
     _ = 714776 := by
       norm_num [PiCCSPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem bindingBlock_rowCount
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (bindingBlock geometry).rowCount = 15208 := by
   calc
     (bindingBlock geometry).rowCount = PiCCSPoseidonPlan.bindingRowCount := by
       exact Pin.Block.ofSemantic_rowCount
-        (PiCCSPoseidonPlan.bindingInterface geometry)
+        (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
+      (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
     _ = 15208 := by
       norm_num [PiCCSPoseidonPlan.bindingRowCount,
         PiCCSPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
-    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (matrixProgram geometry).rowCount = 729984 := by
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.poseidon (poseidonBlock geometry), .pin (bindingBlock geometry)] by

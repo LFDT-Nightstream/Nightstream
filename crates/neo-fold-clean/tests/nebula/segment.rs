@@ -38,7 +38,7 @@ fn two_segment_chain_with_memory_continuity_verifies() {
     assert!(lane.is_closed());
     assert_eq!(lane.seg_idx, 2, "two segments closed");
     assert_eq!(lane.ts, 8, "4 ops per segment, ts never resets");
-    let max_fresh = prep.params.max_fresh_count().max(1);
+    let max_fresh = prep.params().max_fresh_count().max(1);
     let n = 2usize; // fixture steps per segment
     let chunks_per_segment = n.div_ceil(max_fresh);
     assert_eq!(
@@ -245,9 +245,14 @@ fn mid_segment_chain(prep: &Preprocessing, plan: &NebulaPlan, trace: &SegmentTra
         fs_cells: &trace.fs_cells[..params.b_scan],
     };
     let (z, _) = plan.circuit().witness(&gammas, &data).expect("witness");
-    let mut instance =
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, plan.circuit().m_in())
-            .expect("instance");
+    let mut instance = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &z,
+        plan.circuit().m_in(),
+    )
+    .expect("instance");
     instance.claim.adv = Some(advs[0].clone());
     let audit = lifecycle::extend_nebula_open(prep, audit, vec![instance], d_pre).expect("first chunk");
 

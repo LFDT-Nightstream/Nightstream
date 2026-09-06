@@ -5,7 +5,8 @@ open NightstreamFPrime.Lifecycle.VerifierContext
 open NightstreamFPrime.Spec
 
 private def usage : String :=
-  "usage: emitPoseidon2HashChainV1BindingParity <id0> <id1> <id2> <id3> <relation0> <relation1> <relation2> <relation3> <application0> <application1> <application2> <application3> <nifs0> <nifs1> <nifs2> <nifs3> <commitment0> <commitment1> <commitment2> <commitment3> <output-path>"
+  "usage: emitPoseidon2HashChainV1BindingParity <output-path> (canonical source)\n" ++
+  "   or: emitPoseidon2HashChainV1BindingParity <id0> <id1> <id2> <id3> <relation0> <relation1> <relation2> <relation3> <application0> <application1> <application2> <application3> <nifs0> <nifs1> <nifs2> <nifs3> <commitment0> <commitment1> <commitment2> <commitment3> <output-path> (component replay)"
 
 private def parseDigestWord (label word : String) : Except String F := do
   if word.isEmpty || word.length > 20 ||
@@ -56,6 +57,11 @@ private def run
 
 def main (arguments : List String) : IO UInt32 :=
   match arguments with
+  | [path] | ["--", path] =>
+      NightstreamFPrime.Export.ParityEmitter.runIO
+        "emitted_poseidon2_hash_chain_v1_canonical_binding"
+        (NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity.canonicalParityValueIO ())
+        [path]
   | [i0, i1, i2, i3, r0, r1, r2, r3, a0, a1, a2, a3,
       n0, n1, n2, n3, c0, c1, c2, c3, path] =>
       run i0 i1 i2 i3 r0 r1 r2 r3 a0 a1 a2 a3 n0 n1 n2 n3

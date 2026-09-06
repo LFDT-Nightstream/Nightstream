@@ -448,6 +448,25 @@ impl SourceSubstitution {
         }
         selected.ok_or(PackageError::Invalid("missing matrix source substitution"))
     }
+
+    fn compile_combination(
+        &self,
+        logical_width: usize,
+        one_column: usize,
+        combination: &SourceCombination,
+    ) -> Result<Form, PackageError> {
+        if one_column >= logical_width {
+            return Err(PackageError::Invalid("matrix affine one column"));
+        }
+        let mut form = Form::singleton(one_column, combination.constant);
+        for term in &combination.terms {
+            form = form.append(
+                self.form(logical_width, term.column)?
+                    .scaled(term.coefficient),
+            );
+        }
+        Ok(form)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -534,6 +553,22 @@ impl IndexSchedule {
 pub(super) struct SourceCombination {
     pub(super) constant: Goldilocks,
     pub(super) terms: Vec<Entry>,
+}
+
+impl SourceCombination {
+    fn decode(value: &Value) -> Result<Self, PackageError> {
+        let fields = exact_array(value, 2, "affine source form")?;
+        Ok(Self {
+            constant: field_atom(&fields[0], "affine source constant")?,
+            terms: decode_list(&fields[1], |value| {
+                let term = exact_array(value, 2, "affine source term")?;
+                Ok(Entry {
+                    column: usize_atom(&term[0], "affine source column")?,
+                    coefficient: field_atom(&term[1], "affine source coefficient")?,
+                })
+            })?,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -664,21 +699,6 @@ impl OrdinaryBlock {
         self.rows.validate(source_limit)
     }
 
-    fn compile_combination(&self, logical_width: usize, combination: &SourceCombination) -> Result<Form, PackageError> {
-        if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("ordinary one column"));
-        }
-        let mut form = Form::singleton(self.one_column, combination.constant);
-        for term in &combination.terms {
-            form = form.append(
-                self.substitution
-                    .form(logical_width, term.column)?
-                    .scaled(term.coefficient),
-            );
-        }
-        Ok(form)
-    }
-
     fn row(
         &self,
         logical_width: usize,
@@ -692,9 +712,15 @@ impl OrdinaryBlock {
         let source = self.projection.row(&source_row(source_index)?)?;
         let mut row = empty_row();
         row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
-        row[2] = self.compile_combination(logical_width, &source.a)?;
-        row[3] = self.compile_combination(logical_width, &source.b)?;
-        row[4] = self.compile_combination(logical_width, &source.c)?;
+        row[2] = self
+            .substitution
+            .compile_combination(logical_width, self.one_column, &source.a)?;
+        row[3] = self
+            .substitution
+            .compile_combination(logical_width, self.one_column, &source.b)?;
+        row[4] = self
+            .substitution
+            .compile_combination(logical_width, self.one_column, &source.c)?;
         Ok(row)
     }
 }

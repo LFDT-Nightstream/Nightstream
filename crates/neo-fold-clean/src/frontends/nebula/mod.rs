@@ -27,10 +27,13 @@
 
 pub mod application;
 pub mod circuit;
-// Stage 2 is not approved. Keep its current prototype available to crate tests
-// without treating its inactive public re-exports as production API.
+// Keep the Stage 2 assembly private; expose only the existing WASM integration types.
 #[allow(dead_code, unused_imports)]
 pub(crate) mod f_prime;
+pub use f_prime::{
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
+    VerifiedNebulaFPrimeEncoderArtifact,
+};
 pub mod fingerprint;
 pub mod layout;
 pub mod plan;

@@ -97,6 +97,7 @@ mod heap;
 pub mod lifecycle;
 pub mod paper;
 pub mod relation_artifact;
+pub mod stage1;
 
 // ── Public lifecycle re-exports. Keep this surface small. ─────────────────
 
@@ -114,8 +115,7 @@ pub use lifecycle::{
 };
 
 pub use frontends::r1cs_f_prime::{
-    LeanNativeCcsManifest, LeanNebulaCombinedManifest, NebulaCombinedEmission, Poseidon2HashChainV1Package,
-    TerminalR1csError,
+    LeanNativeCcsManifest, LeanNebulaCombinedManifest, NebulaCombinedEmission, TerminalR1csError,
 };
 pub use lifecycle::{FoldSchedule, ScheduleError};
 pub use paper::construction2::{
@@ -124,3 +124,4 @@ pub use paper::construction2::{
 pub use paper::params::Params;
 pub use paper::relations::{CcsInstance, CcsWitness, CeClaim, DecMixer, RlcMixer, Structure};
 pub use relation_artifact::{RelationArtifactError, RelationArtifactReceipt, VerifierKeyRelationArtifact};
+pub use stage1::Poseidon2HashChainV1Package;

@@ -50,7 +50,7 @@ def fitsTwoPow28OfApplicationBounds
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
       239098731)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 100577) :
+      ApplicationRetainedBlocks.localCount application ≤ 298023) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns

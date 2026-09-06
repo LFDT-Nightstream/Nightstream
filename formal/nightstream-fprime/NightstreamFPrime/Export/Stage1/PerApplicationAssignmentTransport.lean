@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
-The transport keeps the existing 45 retained block plans and adds only the
+The transport keeps the existing 38 retained block plans and adds only the
 recipes that cannot be recovered from their source runs: Phi81 group totals,
 First54 accepted-symbol products, PiCCS payload expressions, and the four
 verifier-owned output-digest words.
@@ -179,14 +179,11 @@ def first54ProductRecipe : First54ProductRecipe where
   symbolBlock := .first54Symbol
   outputBlock := .first54Product
 
-/-- Map an original Stage 1 source column to the final physical package
-assignment. This is the same two-step pullback used by the Lean semantics. -/
-def physicalColumn (program : Program) (column : Nat) : Nat :=
-  PerApplicationPackage.shiftColumn program
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column)
-
 def physicalExpr (program : Program) (expression : Expr) : Expr :=
-  CompactRows.renameExpr (physicalColumn program) expression
+  CompactRows.renameExpr (PerApplicationPackage.shiftColumn program) <|
+    PermutationOutput.Readout.rewriteExpr PiCCSTranscriptReadout.phaseStart
+      NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
+        CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan expression
 
 /-- Invocation-major, rate-lane-major PiCCS payload recipes. -/
 def payloadExpressions (program : Program) : List Expr :=
@@ -198,72 +195,16 @@ def payloadExpressions (program : Program) : List Expr :=
   rw [payloadExpressions, List.length_ofFn]
   exact PiCCSActionPayloadBlock.payloadCount_eq
 
-/-- Materialize each action expansion once. In particular, the PiCCS output
-absorb is chunked once instead of once per random payload lookup. -/
-def materializedPayloadKinds (_delay : Unit := ()) :
-    List PoseidonActionSchedule.Kind :=
-  PoseidonActionSchedule.kinds PiCCSActionPayloadBlock.statementActions ++
-    (PoseidonActionSchedule.kinds PiCCSActionPayloadBlock.challengeActions ++
-      (PoseidonActionSchedule.kinds PiCCSActionPayloadBlock.roundActions ++
-        PoseidonActionSchedule.kinds PiCCSActionPayloadBlock.outputActions))
-
-theorem materializedPayloadKinds_eq :
-    materializedPayloadKinds () =
-      List.ofFn PiCCSActionPayloadBlock.kindAt := by
-  simpa only [materializedPayloadKinds] using
-    PiCCSActionPayloadBlock.kindAt_materializes.symm
-
-/-- Linear-time payload materialization for the package emitter. -/
+/-- Apply the physical source map to the canonical ordered payload words. -/
 def materializedPayloadExpressions (program : Program) : List Expr :=
-  List.flatten <| (materializedPayloadKinds ()).map fun kind =>
-    List.ofFn fun lane : Fin Spec.Poseidon2.rate =>
-      physicalExpr program
-        (PiCCSActionPayloadBlock.payloadExprForKind kind lane)
+  (PiCCSActionPayloadBlock.materializedPayloadExpressions ()).map
+    (physicalExpr program)
 
-private theorem ofFn_decodeProd_eq_nested {Alpha : Type}
-    (m n : Nat) (value : Fin m → Fin n → Alpha) :
-    List.ofFn (fun index : Fin (m * n) =>
-      let decoded : Fin m × Fin n := Fin.decodeProd index
-      value decoded.1 decoded.2) =
-      List.flatten (List.ofFn fun outer : Fin m =>
-        List.ofFn fun inner : Fin n => value outer inner) := by
-  rw [List.ofFn_mul]
-  apply congrArg List.flatten
-  apply congrArg List.ofFn
-  funext outer
-  apply congrArg List.ofFn
-  funext inner
-  let combined : Fin (m * n) :=
-    ⟨outer.val * n + inner.val, by
-      calc
-        outer.val * n + inner.val < (outer.val + 1) * n := by
-          simpa [Nat.add_mul] using
-            Nat.add_lt_add_left inner.isLt (outer.val * n)
-        _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
-  change value (Fin.decodeProd combined).1 (Fin.decodeProd combined).2 =
-    value outer inner
-  have combined_eq : combined = Fin.encodeProd (outer, inner) := by
-    apply Fin.ext
-    simp [combined, Fin.encodeProd, Nat.mul_comm]
-  rw [combined_eq, Fin.decodeProd_encodeProd]
-
-/-- The emitter's linear materialization is exactly the canonical
-random-access payload-expression list. -/
 theorem materializedPayloadExpressions_eq (program : Program) :
     materializedPayloadExpressions program = payloadExpressions program := by
-  unfold materializedPayloadExpressions
-  rw [materializedPayloadKinds_eq]
-  rw [← List.ofFn_comp']
-  symm
-  unfold payloadExpressions
-  simpa only [PiCCSActionPayloadBlock.payloadCount,
-    PiCCSActionPayloadBlock.payloadExpression,
-    PiCCSActionPayloadBlock.payloadExpr] using
-    (ofFn_decodeProd_eq_nested PiCCSActionPayloadBlock.invocationCount
-      Spec.Poseidon2.rate
-      (fun invocation lane => physicalExpr program
-        (PiCCSActionPayloadBlock.payloadExprForKind
-          (PiCCSActionPayloadBlock.kindAt invocation) lane)))
+  rw [materializedPayloadExpressions,
+    PiCCSActionPayloadBlock.materializedPayloadExpressions_eq, ← List.ofFn_comp']
+  rfl
 
 /-- The exact four constrained Pilot output-digest expressions. -/
 def outputDigestExpression (program : Program) (lane : Fin 4) : Expr :=
@@ -336,12 +277,16 @@ def canonical (program : Program) : Plan where
   phi81 := phi81GroupRecipe
   first54 := first54ProductRecipe
   payloadBlock := .piCcsPayload
-  payloadExpressions := payloadExpressions program
+  payloadExpressions := materializedPayloadExpressions program
   outputDigestBlock := .pilotOutputDigest
   outputDigestExpressions := outputDigestExpressions program
 
+@[simp] theorem canonical_payloadExpressions (program : Program) :
+    (canonical program).payloadExpressions = payloadExpressions program :=
+  materializedPayloadExpressions_eq program
+
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 45 := by
+    (canonical program).blocks.length = 38 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

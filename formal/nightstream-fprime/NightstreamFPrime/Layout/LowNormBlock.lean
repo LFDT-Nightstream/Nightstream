@@ -234,6 +234,35 @@ def form {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
   RetainedSlot.recomposeForms <| List.ofFn fun coordinate =>
     SparseForm.singleton (block.column start fits slot coordinate) 1
 
+/-- Blocks with the same slot encoding at the same physical coordinates
+have the same form, independently of their source views. -/
+theorem form_eq_of_coordinates
+    {leftSourceWidth rightSourceWidth logicalWidth : Nat}
+    (left : LowNormBlock.Block leftSourceWidth)
+    (right : LowNormBlock.Block rightSourceWidth)
+    (leftStart rightStart : Nat)
+    (leftFits : leftStart + left.coordinateCount ≤ logicalWidth)
+    (rightFits : rightStart + right.coordinateCount ≤ logicalWidth)
+    (leftSlot : Fin left.slotCount) (rightSlot : Fin right.slotCount)
+    (kindEq : left.kind = right.kind)
+    (offsetEq : leftStart + leftSlot.val * left.kind.width =
+      rightStart + rightSlot.val * right.kind.width) :
+    left.form leftStart leftFits leftSlot =
+      right.form rightStart rightFits rightSlot := by
+  cases left with
+  | mk leftKind leftCount leftSource =>
+    cases right with
+    | mk rightKind rightCount rightSource =>
+      cases kindEq
+      unfold LowNormBlock.Block.form
+      apply congrArg RetainedSlot.recomposeForms
+      apply congrArg List.ofFn
+      funext coordinate
+      apply congrArg (fun column => SparseForm.singleton column (1 : F))
+      apply Fin.ext
+      simpa only [LowNormBlock.Block.column, LowNormBlock.Block.coordinateOffset,
+        Nat.add_assoc] using congrArg (fun value => value + coordinate.val) offsetEq
+
 /-- Direct block forms reconstruct the exact retained source value. -/
 theorem form_eval {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
     (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)

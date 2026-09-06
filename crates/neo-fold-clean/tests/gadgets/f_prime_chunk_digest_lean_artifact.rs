@@ -310,18 +310,14 @@ fn lean_chunk_digest_artifact_matches_committed_files() {
     let rendered_main = render_main(&honest, &row_hash, &witness_hash);
     let mut drifted = Vec::new();
     if std::fs::read_to_string(&main_path).unwrap_or_default() != rendered_main {
-        let expected = format!("{main_path}.expected");
-        std::fs::write(&expected, rendered_main).expect("write expected chunk main artifact");
-        drifted.push(expected);
+        drifted.push(main_path.clone());
     }
 
     for (index, shard) in honest.definitions.chunks(SHARD_SIZE).enumerate() {
         let path = artifact_path(&format!("{SHARD_REL_PREFIX}{index}.lean"));
         let rendered = render_shard(index, shard);
         if std::fs::read_to_string(&path).unwrap_or_default() != rendered {
-            let expected = format!("{path}.expected");
-            std::fs::write(&expected, rendered).expect("write expected chunk definition shard");
-            drifted.push(expected);
+            drifted.push(path);
         }
     }
 

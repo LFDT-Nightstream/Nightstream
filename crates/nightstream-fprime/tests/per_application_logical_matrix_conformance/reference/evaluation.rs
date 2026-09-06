@@ -8,8 +8,8 @@ use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
 pub const ACTIVE_ROWS: usize = 6_377_559;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 264_627_433;
-pub const CARRIER_WIDTH: usize = 264_627_486;
+pub const LOGICAL_WIDTH: usize = 256_532_147;
+pub const CARRIER_WIDTH: usize = 256_532_184;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -114,7 +114,7 @@ pub fn evaluate(
         ));
     }
     let mut next = 0usize;
-    let mut assignment_mutations = [None; 45];
+    let mut assignment_mutations = [None; 38];
     let mut matrix_mutations = [None; MATRIX_COUNT - 1];
     let mut public_bit_mutations = [None; 256];
     let mut zero_slot_mutation_rejected = false;
@@ -318,7 +318,7 @@ fn evaluate_row_with(row: &RowForms, value_at: &mut impl FnMut(usize) -> Field) 
     values
 }
 
-fn evaluate_row_with_result(
+pub fn evaluate_row_with_result(
     row: &RowForms,
     value_at: &mut impl FnMut(usize) -> Result<Field>,
 ) -> Result<[Field; MATRIX_COUNT]> {

@@ -5,9 +5,10 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Owns one deterministic, valid, nonzero SuperNeo v1.1 PiCCS conformance
-fixture. Lean computes every verifier coin from the complete public statement
-and the causal round messages. This file does not define a second verifier.
+Owns a deterministic nonzero SuperNeo v1.1 verifier-result fixture.
+Its source openings and matrix evaluations are synthetic; it does not
+establish valid-input phase conformance. Lean computes every verifier coin
+from the public statement and the causal round messages.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNonzero

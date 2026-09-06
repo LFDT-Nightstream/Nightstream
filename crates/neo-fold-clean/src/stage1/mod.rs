@@ -13,7 +13,9 @@ use nightstream_fprime::{
 
 use crate::paper::relations::Structure;
 
-pub use super::ivc::{
+mod inputs;
+
+pub use inputs::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
     PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs,
 };

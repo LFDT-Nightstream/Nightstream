@@ -16,6 +16,12 @@ pub enum PiCcsError {
     #[error("Transcript error: {0}")]
     TranscriptError(String),
 
+    #[error("prover backend `{backend}` failed: {reason}")]
+    BackendFailure {
+        backend: &'static str,
+        reason: String,
+    },
+
     #[error("Protocol error: {0}")]
     ProtocolError(String),
 }

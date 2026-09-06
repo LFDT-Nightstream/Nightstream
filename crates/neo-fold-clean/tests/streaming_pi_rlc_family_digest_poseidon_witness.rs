@@ -122,18 +122,6 @@ fn streaming_pi_rlc_family_digest_poseidon_witness_artifact_is_current() {
     let path = generated_artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected PiRLC family-digest witness artifact");
-        panic!(
-            "PiRLC family-digest witness artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("frozen Lean reference differs: {path:?}");
     }
-}
-
-#[test]
-#[ignore = "explicit deterministic artifact regeneration"]
-fn regenerate_streaming_pi_rlc_family_digest_poseidon_witness_artifact() {
-    std::fs::write(generated_artifact_path(), render_artifact())
-        .expect("write generated PiRLC family-digest witness artifact");
 }

@@ -29,7 +29,7 @@ pub fn toy_preprocessing_unfixed_public_input_len() -> Preprocessing {
 
 pub fn toy_instance(prep: &Preprocessing, _seed: u64) -> CcsInstance {
     let z = vec![F::ZERO; prep.structure().m];
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
+    CcsInstance::from_low_norm_assignment(prep.params(), prep.commitment_scheme(), prep.structure(), &z, D)
         .expect("toy low-norm CCS instance")
 }
 

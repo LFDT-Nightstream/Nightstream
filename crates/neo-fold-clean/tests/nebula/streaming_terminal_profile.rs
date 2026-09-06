@@ -1125,11 +1125,9 @@ fn terminal_full_x_out_context_artifact_is_current() {
     let rendered = render_terminal_full_x_out_context(build_streaming_terminal_audit_fixture());
     let path = terminal_full_x_out_context_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected full XOut context artifact");
         panic!(
             "terminal full XOut context artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
 }
@@ -1140,21 +1138,11 @@ fn terminal_full_phase_semantic_artifact_is_current() {
     let rendered = render_terminal_full_phase_semantic(build_streaming_terminal_audit_fixture());
     let path = terminal_full_phase_semantic_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected full phase-semantic artifact");
         panic!(
             "terminal full phase-semantic artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_full_phase_semantic_artifact() {
-    let rendered = render_terminal_full_phase_semantic(build_streaming_terminal_audit_fixture());
-    std::fs::write(terminal_full_phase_semantic_artifact_path(), rendered)
-        .expect("write terminal full phase-semantic artifact");
 }
 
 #[test]
@@ -1163,21 +1151,11 @@ fn terminal_full_nebula_state_digest_artifact_is_current() {
     let rendered = render_terminal_full_nebula_state_digest(build_streaming_terminal_audit_fixture());
     let path = terminal_full_nebula_state_digest_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected full Nebula-state-digest artifact");
         panic!(
             "terminal full Nebula-state-digest artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_full_nebula_state_digest_artifact() {
-    let rendered = render_terminal_full_nebula_state_digest(build_streaming_terminal_audit_fixture());
-    std::fs::write(terminal_full_nebula_state_digest_artifact_path(), rendered)
-        .expect("write terminal full Nebula-state-digest artifact");
 }
 
 #[test]
@@ -1186,21 +1164,11 @@ fn terminal_full_program_binding_artifact_is_current() {
     let rendered = streaming_terminal_program_binding_artifact::render(build_streaming_terminal_audit_fixture());
     let path = streaming_terminal_program_binding_artifact::artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected full program-binding artifact");
         panic!(
             "terminal full program-binding artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_full_program_binding_artifact() {
-    let rendered = streaming_terminal_program_binding_artifact::render(build_streaming_terminal_audit_fixture());
-    std::fs::write(streaming_terminal_program_binding_artifact::artifact_path(), rendered)
-        .expect("write terminal full program-binding artifact");
 }
 
 #[test]
@@ -1209,29 +1177,8 @@ fn terminal_full_finalizer_artifact_is_current() {
     let rendered = streaming_terminal_finalizer_artifact::render(build_streaming_terminal_audit_fixture());
     let path = streaming_terminal_finalizer_artifact::artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected full finalizer artifact");
-        panic!(
-            "terminal full finalizer artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("terminal full finalizer artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_full_finalizer_artifact() {
-    let rendered = streaming_terminal_finalizer_artifact::render(build_streaming_terminal_audit_fixture());
-    std::fs::write(streaming_terminal_finalizer_artifact::artifact_path(), rendered)
-        .expect("write terminal full finalizer artifact");
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_full_x_out_context_artifact() {
-    let rendered = render_terminal_full_x_out_context(build_streaming_terminal_audit_fixture());
-    std::fs::write(terminal_full_x_out_context_artifact_path(), rendered)
-        .expect("write terminal full XOut context artifact");
 }
 
 #[test]
@@ -1240,20 +1187,8 @@ fn terminal_source_binding_artifact_is_current() {
     let rendered = render_terminal_source_binding(build_streaming_terminal_audit_fixture());
     let path = terminal_source_binding_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected source-binding artifact");
-        panic!(
-            "terminal source-binding artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("terminal source-binding artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_source_binding_artifact() {
-    let rendered = render_terminal_source_binding(build_streaming_terminal_audit_fixture());
-    std::fs::write(terminal_source_binding_artifact_path(), rendered).expect("write terminal source-binding artifact");
 }
 
 #[test]
@@ -1262,21 +1197,11 @@ fn terminal_profile_selection_artifact_is_current() {
     let rendered = render_terminal_profile_selection(build_streaming_terminal_audit_fixture());
     let path = terminal_profile_selection_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected profile-selection artifact");
         panic!(
             "terminal profile-selection artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_profile_selection_artifact() {
-    let rendered = render_terminal_profile_selection(build_streaming_terminal_audit_fixture());
-    std::fs::write(terminal_profile_selection_artifact_path(), rendered)
-        .expect("write terminal profile-selection artifact");
 }
 
 #[test]
@@ -1286,21 +1211,8 @@ fn terminal_profile_artifact_is_current() {
     let rendered = render_terminal_profile(&fixture.profile);
     let path = terminal_profile_artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected terminal profile artifact");
-        panic!("terminal profile Lean artifact drifted; inspect {}", expected.display());
+        panic!("terminal profile Lean artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_profile_artifact() {
-    let fixture = build_streaming_terminal_audit_fixture();
-    std::fs::write(
-        terminal_profile_artifact_path(),
-        render_terminal_profile(&fixture.profile),
-    )
-    .expect("write generated terminal profile artifact");
 }
 
 #[test]
@@ -1471,9 +1383,7 @@ fn terminal_x_out_first_poseidon2_leaf_artifacts_are_current() {
     let mut drifted = Vec::new();
     for (path, rendered) in streaming_terminal_x_out_hash_artifact::first_leaf_artifacts(&fixture) {
         if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-            let expected = path.with_extension("lean.expected");
-            std::fs::write(&expected, rendered).expect("write expected first terminal Poseidon2 leaf artifact");
-            drifted.push(expected);
+            drifted.push(path);
         }
     }
     if !drifted.is_empty() {
@@ -1489,37 +1399,12 @@ fn terminal_x_out_first_poseidon2_leaf_artifacts_are_current() {
 }
 
 #[test]
-#[ignore = "deliberately writes reviewed first terminal Poseidon2 leaf artifacts"]
-fn regenerate_terminal_x_out_first_poseidon2_leaf_artifacts() {
-    let fixture = build_streaming_terminal_audit_fixture();
-    for (path, rendered) in streaming_terminal_x_out_hash_artifact::first_leaf_artifacts(&fixture) {
-        std::fs::write(path, rendered).expect("write first terminal Poseidon2 leaf artifact");
-    }
-}
-
-#[test]
 #[ignore = "exact recursive-terminal XOut public-hash artifact"]
 fn terminal_x_out_public_hash_artifact_is_current() {
     let fixture = build_streaming_terminal_audit_fixture();
     let rendered = streaming_terminal_x_out_hash_artifact::render(&fixture);
     let path = streaming_terminal_x_out_hash_artifact::artifact_path();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected terminal XOut public-hash artifact");
-        panic!(
-            "terminal XOut public-hash artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("terminal XOut public-hash artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_terminal_x_out_public_hash_artifact() {
-    let fixture = build_streaming_terminal_audit_fixture();
-    std::fs::write(
-        streaming_terminal_x_out_hash_artifact::artifact_path(),
-        streaming_terminal_x_out_hash_artifact::render(&fixture),
-    )
-    .expect("write terminal XOut public-hash artifact");
 }

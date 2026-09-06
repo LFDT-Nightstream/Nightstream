@@ -153,13 +153,13 @@ impl SourceGrid {
 }
 
 #[derive(Clone, Debug)]
-struct SourceSubstitution {
+pub(super) struct SourceSubstitution {
     ranges: Vec<SourceRange>,
     grids: Vec<SourceGrid>,
 }
 
 impl SourceSubstitution {
-    fn decode(value: &Value, logical_width: usize) -> Result<Self> {
+    pub(super) fn decode(value: &Value, logical_width: usize) -> Result<Self> {
         let fields = exact_array(value, 2, "matrix source substitution")?;
         Ok(Self {
             ranges: decode_list(
@@ -194,6 +194,25 @@ impl SourceSubstitution {
             }
         }
         selected.ok_or_else(|| "missing matrix source substitution".into())
+    }
+
+    pub(super) fn compile(
+        &self,
+        logical_width: usize,
+        one_column: usize,
+        combination: &SourceCombination,
+    ) -> Result<Form> {
+        if one_column >= logical_width {
+            return Err("affine constant column is out of range".into());
+        }
+        let mut form = Form::singleton(one_column, combination.constant);
+        for entry in &combination.terms {
+            form = form.append(
+                self.form(logical_width, entry.column)?
+                    .scaled(entry.coefficient),
+            );
+        }
+        Ok(form)
     }
 }
 
@@ -402,21 +421,6 @@ impl OrdinaryBlock {
         self.rows.count()
     }
 
-    fn compile(&self, logical_width: usize, combination: &SourceCombination) -> Result<Form> {
-        if self.one_column >= logical_width {
-            return Err("ordinary one column is out of range".into());
-        }
-        let mut form = Form::singleton(self.one_column, combination.constant);
-        for entry in &combination.terms {
-            form = form.append(
-                self.substitution
-                    .form(logical_width, entry.column)?
-                    .scaled(entry.coefficient),
-            );
-        }
-        Ok(form)
-    }
-
     fn row(&self, logical_width: usize, ordinal: usize, sources: &SourcePackage) -> Result<RowForms> {
         let source_index = self
             .rows
@@ -425,9 +429,15 @@ impl OrdinaryBlock {
         let source = self.projection.row(&sources.row(source_index)?)?;
         let mut row = empty_row();
         row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[2] = self.compile(logical_width, &source.a)?;
-        row[3] = self.compile(logical_width, &source.b)?;
-        row[4] = self.compile(logical_width, &source.c)?;
+        row[2] = self
+            .substitution
+            .compile(logical_width, self.one_column, &source.a)?;
+        row[3] = self
+            .substitution
+            .compile(logical_width, self.one_column, &source.b)?;
+        row[4] = self
+            .substitution
+            .compile(logical_width, self.one_column, &source.c)?;
         Ok(row)
     }
 }

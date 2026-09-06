@@ -140,6 +140,16 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rw [ProductRetainedBlock.block_coordinateCount]
   simp
 
+/-- The prefix owns a fixed number of coordinates. Reading its width does
+not need the selected application's source-domain size or circuit. -/
+def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
+  192090438
+
+@[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
+    @prefixLogicalWidth = @directPrefixLogicalWidth := by
+  funext program
+  exact prefixLogicalWidth_eq program
+
 theorem prefixLogicalWidth_le_cube
     (program : Lifecycle.Stage1.Application.Program) :
     prefixLogicalWidth program ≤

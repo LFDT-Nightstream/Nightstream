@@ -6,6 +6,7 @@
 
 use rayon::prelude::*;
 use serde::{de::IgnoredAny, Deserialize};
+use std::ops::Range;
 
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 
@@ -33,10 +34,10 @@ struct RawPoseidonSchedule(u64, u64, IgnoredAny, IgnoredAny, IgnoredAny, Ignored
 #[derive(Deserialize)]
 struct RawLayout(u64, u64, u64, u64, u64, IgnoredAny, IgnoredAny);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawTemplate(u64, u64, u64, Vec<RawTemplateRow>);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawTemplateRow(
     u64,
     RawTemplateCombination,
@@ -44,13 +45,13 @@ struct RawTemplateRow(
     RawTemplateCombination,
 );
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawTemplateCombination(u64, Vec<RawTemplateTerm>);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawTemplateTerm(RawColumnRef, u64);
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct RawColumnRef(u64, u64);
 
 #[derive(Deserialize)]
@@ -131,17 +132,31 @@ struct Assignment<'a> {
     public_values: &'a [u64],
     constant_column: usize,
     total_columns: usize,
+    unavailable_private: Option<Range<usize>>,
+    changed_column: Option<usize>,
 }
 
 impl Assignment<'_> {
     fn value(&self, column: usize) -> u64 {
         assert!(column < self.total_columns, "canonical assignment column");
-        if column < self.constant_column {
+        assert!(
+            !self
+                .unavailable_private
+                .as_ref()
+                .is_some_and(|range| range.contains(&column)),
+            "canonical assignment reads an unavailable private column",
+        );
+        let value = if column < self.constant_column {
             self.private_values[column]
         } else if column == self.constant_column {
             1
         } else {
             self.public_values[column - self.constant_column - 1]
+        };
+        if self.changed_column == Some(column) {
+            (value + 1) % GOLDILOCKS_MODULUS
+        } else {
+            value
         }
     }
 }
@@ -287,6 +302,14 @@ fn template_side(row: &RawTemplateRow, side: Side) -> &RawTemplateCombination {
     }
 }
 
+fn template_side_mut(row: &mut RawTemplateRow, side: Side) -> &mut RawTemplateCombination {
+    match side {
+        Side::A => &mut row.1,
+        Side::B => &mut row.2,
+        Side::C => &mut row.3,
+    }
+}
+
 fn event_value(
     event: Event<'_>,
     template_ordinal: usize,
@@ -421,6 +444,8 @@ pub fn evaluate_canonical_assignment(
         public_values,
         constant_column: word(raw.3 .2),
         total_columns: word(raw.3 .4),
+        unavailable_private: None,
+        changed_column: None,
     };
     assert_eq!(private_values.len(), assignment.constant_column);
     assert_eq!(public_values.len(), word(raw.3 .3));
@@ -497,6 +522,8 @@ pub fn evaluate_pi_ccs_prefix_assignment(
         public_values,
         constant_column: word(raw.3 .2),
         total_columns: word(raw.3 .4),
+        unavailable_private: None,
+        changed_column: None,
     };
     assert_eq!(private_values.len(), PI_CCS_PRIVATE_END);
     assert!(PI_CCS_PRIVATE_END < assignment.constant_column);
@@ -575,4 +602,219 @@ pub fn evaluate_pi_ccs_prefix_assignment(
     })?;
 
     Ok(PI_CCS_ROW_END)
+}
+
+#[derive(Debug)]
+pub struct PilotAssignmentReport {
+    pub rows: usize,
+    pub public_mutations: usize,
+    pub generated_mutations: usize,
+    pub row_mutations: usize,
+    pub column_mutations: usize,
+}
+
+fn pilot_hash_row_mutations(raw: &RawPackage, assignment: &Assignment<'_>) -> (usize, usize) {
+    let mut row_mutations = 0;
+    let mut column_mutations = 0;
+    for chain in &raw.6 {
+        // Each owner starts with the first row of its first hash invocation.
+        let event = Event::Permutation {
+            row_start: word(chain.1),
+            invocation: Invocation::Hash { chain, ordinal: 0 },
+        };
+        let holds = |template: &RawTemplate| {
+            let [a, b, c] = [Side::A, Side::B, Side::C].map(|side| {
+                event_value(
+                    event,
+                    0,
+                    template,
+                    side,
+                    word(raw.2 .1),
+                    word(raw.5 .1),
+                    word(raw.5 .2),
+                    assignment,
+                )
+            });
+            mul_mod(a, b) == c
+        };
+        assert!(holds(&raw.5), "pilot hash owner {} original row", chain.0);
+
+        let mut changed = raw.5.clone();
+        changed.3[0].3 .0 = add_mod(changed.3[0].3 .0, 1);
+        assert!(!holds(&changed), "pilot hash owner {} canonical row mutation", chain.0);
+        row_mutations += 1;
+        println!(
+            "pilot physical owner {}: row {} C constant mutation rejected",
+            chain.0, chain.1
+        );
+
+        let mut rejected = false;
+        'sides: for side in [Side::A, Side::B, Side::C] {
+            for (term_index, term) in template_side(&raw.5 .3[0], side).1.iter().enumerate() {
+                // These are the exact input and local column domains in the
+                // decoded permutation schema, not a sample of assignment data.
+                for replacement in (0..word(raw.5 .0))
+                    .map(|lane| RawColumnRef(0, lane as u64))
+                    .chain((0..word(raw.5 .1)).map(|lane| RawColumnRef(1, lane as u64)))
+                {
+                    if (replacement.0, replacement.1) == (term.0 .0, term.0 .1) {
+                        continue;
+                    }
+                    let mut changed = raw.5.clone();
+                    template_side_mut(&mut changed.3[0], side).1[term_index].0 = replacement.clone();
+                    if !holds(&changed) {
+                        println!(
+                            "pilot physical owner {}: row {} column ({}, {}) -> ({}, {}) rejected",
+                            chain.0, chain.1, term.0 .0, term.0 .1, replacement.0, replacement.1
+                        );
+                        rejected = true;
+                        column_mutations += 1;
+                        break 'sides;
+                    }
+                }
+            }
+        }
+        assert!(
+            rejected,
+            "pilot hash owner {} has no effective canonical column mutation",
+            chain.0
+        );
+    }
+    (row_mutations, column_mutations)
+}
+
+fn evaluate_event_range(
+    raw: &RawPackage,
+    schedule: &[Event<'_>],
+    assignment: &Assignment<'_>,
+    range: Range<usize>,
+) -> Result<usize, usize> {
+    let first = schedule.partition_point(|event| event.row_start() + event_row_count(*event, raw) <= range.start);
+    let end = schedule.partition_point(|event| event.row_start() < range.end);
+    schedule[first..end].par_iter().try_for_each(|&event| {
+        let start = range.start.saturating_sub(event.row_start());
+        let end = (range.end - event.row_start()).min(event_row_count(event, raw));
+        for ordinal in start..end {
+            let [a, b, c] = [Side::A, Side::B, Side::C].map(|side| {
+                event_value(
+                    event,
+                    ordinal,
+                    &raw.5,
+                    side,
+                    word(raw.2 .1),
+                    word(raw.5 .1),
+                    word(raw.5 .2),
+                    assignment,
+                )
+            });
+            if mul_mod(a, b) != c {
+                return Err(event.row_start() + ordinal);
+            }
+        }
+        Ok(())
+    })?;
+    Ok(range.len())
+}
+
+/// Check every canonical pilot row on the standalone pilot assignment.
+/// The proof-input gap, private suffix, and non-pilot public context are
+/// unavailable. Mutations use the same raw evaluator and exact binding rows.
+pub fn evaluate_pilot_assignment(
+    bytes: &[u8],
+    private_values: &[u64],
+    public_values: &[u64],
+) -> Result<PilotAssignmentReport, usize> {
+    // PilotProduction.physicalRowCountValue_eq and PilotValues fix the
+    // rows. Stage1.sourceToSpartan relocates the pilot private boundary.
+    const PILOT_ROW_END: usize = 14_623_730;
+    const PILOT_PRIVATE_END: usize = 14_751_526;
+    const PILOT_PUBLIC_COUNT: usize = 274;
+    let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical pilot raw-package decode");
+    assert_eq!(raw.0, 8, "canonical pilot raw-package schema");
+    assert_eq!(raw.3 .1, raw.3 .2, "canonical private/constant boundary");
+    assert_eq!((raw.2 .0, raw.2 .1, raw.2 .6, raw.2 .7), (8, 4, 592, 584));
+    assert_eq!((raw.5 .0, raw.5 .1, raw.5 .2), (8, 592, 584));
+    assert_eq!(private_values.len(), PILOT_PRIVATE_END);
+    assert_eq!(public_values.len(), word(raw.3 .3));
+    assert_eq!(public_values.len(), PILOT_PUBLIC_COUNT + 4);
+    assert_eq!(word(raw.3 .4), word(raw.3 .2) + 1 + public_values.len());
+    assert!(private_values
+        .iter()
+        .chain(public_values)
+        .all(|value| *value < GOLDILOCKS_MODULUS));
+    assert_eq!(raw.6.len(), 2, "pilot hash-owner count");
+    let prior = &raw.6[0];
+    let output = &raw.6[1];
+    assert_eq!(
+        (prior.0, prior.1, prior.3, prior.4, prior.5),
+        (1, 0, 0, 49_393, 128_074)
+    );
+    assert_eq!((output.0, output.1, output.3, output.4), (2, 7_312_526, 49_393, 49_393));
+    assert_eq!(word(output.1 + output.2), PILOT_ROW_END);
+    let binding_rows = [
+        word(prior.1 + prior.6)..word(output.1),
+        word(output.1 + output.6)..PILOT_ROW_END,
+    ];
+
+    let schedule = events(&raw);
+    let mut row_cursor = 0;
+    for &event in &schedule {
+        assert_eq!(event.row_start(), row_cursor, "canonical raw row schedule");
+        row_cursor += event_row_count(event, &raw);
+    }
+    assert_eq!(row_cursor, word(raw.3 .0), "canonical raw row coverage");
+    let suffix = schedule.partition_point(|event| event.row_start() < PILOT_ROW_END);
+    assert_eq!(schedule[suffix].row_start(), PILOT_ROW_END, "first PiCCS assertion row");
+    assert_eq!(
+        schedule[suffix - 1].row_start() + event_row_count(schedule[suffix - 1], &raw),
+        PILOT_ROW_END
+    );
+
+    let mut assignment = Assignment {
+        private_values,
+        public_values: &public_values[..PILOT_PUBLIC_COUNT],
+        constant_column: word(raw.3 .2),
+        total_columns: word(raw.3 .4),
+        unavailable_private: Some(98_786..128_074),
+        changed_column: None,
+    };
+    let rows = evaluate_event_range(&raw, &schedule, &assignment, 0..PILOT_ROW_END)?;
+    println!("independent pilot physical rows: {rows}");
+    let (row_mutations, column_mutations) = pilot_hash_row_mutations(&raw, &assignment);
+
+    let mut public_mutations = 0;
+    for public in 0..PILOT_PUBLIC_COUNT {
+        assignment.changed_column = Some(assignment.constant_column + 1 + public);
+        let owner = usize::from(public >= PILOT_PUBLIC_COUNT - word(raw.2 .1));
+        assert!(
+            evaluate_event_range(&raw, &schedule, &assignment, binding_rows[owner].clone()).is_err(),
+            "pilot public word {public} mutation must reject",
+        );
+        public_mutations += 1;
+    }
+
+    let mut generated_mutations = 0;
+    for (owner, chain) in raw.6.iter().enumerate() {
+        assignment.changed_column = Some(word(chain.5));
+        assert!(
+            evaluate_event_range(&raw, &schedule, &assignment, word(chain.1)..word(chain.1) + 1).is_err(),
+            "pilot hash owner {owner} first generated value mutation must reject",
+        );
+        generated_mutations += 1;
+        for lane in 0..word(raw.2 .1) {
+            assignment.changed_column = Some(word(chain.5) + word(chain.7) * word(raw.5 .1) + word(raw.5 .2) + lane);
+            assert!(
+                evaluate_event_range(&raw, &schedule, &assignment, binding_rows[owner].clone()).is_err(),
+                "pilot hash owner {owner} generated digest lane {lane} mutation must reject",
+            );
+            generated_mutations += 1;
+        }
+    }
+    Ok(PilotAssignmentReport {
+        rows,
+        public_mutations,
+        generated_mutations,
+        row_mutations,
+        column_mutations,
+    })
 }

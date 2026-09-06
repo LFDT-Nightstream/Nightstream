@@ -45,12 +45,12 @@ private theorem evalALogicalStart_eq :
     PiRLCStarts.evalALogicalStart = 20355013 := by
   rfl
 
-private theorem commitmentValue_beforeSampler
+private theorem commitmentValue_beforeTranscript
     (index : Fin
       (PiRLCProductSchedule.Family.invocationCount .commitment))
     (lane : Fin ringDegree) :
     (PiRLCProductSchedule.familyDescriptor .commitment index).valueColumn lane <
-      PiRLCStarts.samplerLogicalStart := by
+      PiCCSInputs.phaseOffset := by
   let decoded : Fin PiRLCCombinationInvocations.sourceCount ×
       Fin (PiRLCProductSchedule.Family.privateCount .commitment) :=
     Fin.decodeProd index
@@ -60,8 +60,8 @@ private theorem commitmentValue_beforeSampler
   have laneBound := lane.isLt
   change PiRLCCombinationInvocations.commitmentValueSourceStart decoded.1.val
       coordinates.1.val coordinates.2.2.val + lane.val <
-    PiRLCStarts.samplerLogicalStart
-  rw [samplerLogicalStart_eq]
+    PiCCSInputs.phaseOffset
+  rw [PiCCSInputs.phaseOffset_eq]
   unfold PiRLCCombinationInvocations.commitmentValueSourceStart
   change decoded.1.val < 17 at sourceBound
   change coordinates.1.val < 22 at blockBound
@@ -79,12 +79,12 @@ private theorem commitmentValue_beforeSampler
       PilotProduction.stateHashWords_eq, ringDegree]
     omega
 
-private theorem publicInputValue_beforeSampler
+private theorem publicInputValue_beforeTranscript
     (index : Fin
       (PiRLCProductSchedule.Family.invocationCount .publicInput))
     (lane : Fin ringDegree) :
     (PiRLCProductSchedule.familyDescriptor .publicInput index).valueColumn lane <
-      PiRLCStarts.samplerLogicalStart := by
+      PiCCSInputs.phaseOffset := by
   let decoded : Fin PiRLCCombinationInvocations.sourceCount ×
       Fin (PiRLCProductSchedule.Family.privateCount .publicInput) :=
     Fin.decodeProd index
@@ -94,8 +94,8 @@ private theorem publicInputValue_beforeSampler
   have laneBound := lane.isLt
   change PiRLCCombinationInvocations.publicInputValueSourceStart decoded.1.val
       coordinates.1.val coordinates.2.2.val + lane.val <
-    PiRLCStarts.samplerLogicalStart
-  rw [samplerLogicalStart_eq]
+    PiCCSInputs.phaseOffset
+  rw [PiCCSInputs.phaseOffset_eq]
   unfold PiRLCCombinationInvocations.publicInputValueSourceStart
   change decoded.1.val < 17 at sourceBound
   change coordinates.1.val < 5 at blockBound
@@ -113,11 +113,11 @@ private theorem publicInputValue_beforeSampler
       PilotProduction.stateHashWords_eq, ringDegree]
     omega
 
-private theorem evalKValue_beforeSampler
+private theorem evalKValue_beforeTranscript
     (index : Fin (PiRLCProductSchedule.Family.invocationCount .evalK))
     (lane : Fin ringDegree) :
     (PiRLCProductSchedule.familyDescriptor .evalK index).valueColumn lane <
-      PiRLCStarts.samplerLogicalStart := by
+      PiCCSInputs.phaseOffset := by
   let decoded : Fin PiRLCCombinationInvocations.sourceCount ×
       Fin (PiRLCProductSchedule.Family.privateCount .evalK) :=
     Fin.decodeProd index
@@ -127,8 +127,8 @@ private theorem evalKValue_beforeSampler
   have laneBound := lane.isLt
   change PiRLCCombinationInvocations.evalKValueSourceStart decoded.1.val
       coordinates.1.val coordinates.2.2.val + lane.val * 2 <
-    PiRLCStarts.samplerLogicalStart
-  rw [samplerLogicalStart_eq]
+    PiCCSInputs.phaseOffset
+  rw [PiCCSInputs.phaseOffset_eq]
   change decoded.1.val < 17 at sourceBound
   change coordinates.2.2.val < 2 at cellBound
   change lane.val < 54 at laneBound
@@ -140,11 +140,11 @@ private theorem evalKValue_beforeSampler
     ringDegree]
   omega
 
-private theorem evalAValue_beforeSampler
+private theorem evalAValue_beforeTranscript
     (index : Fin (PiRLCProductSchedule.Family.invocationCount .evalA))
     (lane : Fin ringDegree) :
     (PiRLCProductSchedule.familyDescriptor .evalA index).valueColumn lane <
-      PiRLCStarts.samplerLogicalStart := by
+      PiCCSInputs.phaseOffset := by
   let decoded : Fin PiRLCCombinationInvocations.sourceCount ×
       Fin (PiRLCProductSchedule.Family.privateCount .evalA) :=
     Fin.decodeProd index
@@ -155,8 +155,8 @@ private theorem evalAValue_beforeSampler
   have laneBound := lane.isLt
   change PiRLCCombinationInvocations.evalAValueSourceStart decoded.1.val
       coordinates.1.val coordinates.2.2.val + lane.val * 2 <
-    PiRLCStarts.samplerLogicalStart
-  rw [samplerLogicalStart_eq]
+    PiCCSInputs.phaseOffset
+  rw [PiCCSInputs.phaseOffset_eq]
   change decoded.1.val < 17 at sourceBound
   change coordinates.1.val < 14 at blockBound
   change coordinates.2.2.val < 2 at cellBound
@@ -169,25 +169,25 @@ private theorem evalAValue_beforeSampler
     ringDegree]
   omega
 
-private theorem scheduledValue_beforeSampler
+private theorem scheduledValue_beforeTranscript
     (invocation : Fin PiRLCProductSchedule.invocationCount)
     (lane : Fin ringDegree) :
     (PiRLCProductSchedule.descriptor invocation).valueColumn lane <
-      PiRLCStarts.samplerLogicalStart := by
+      PiCCSInputs.phaseOffset := by
   unfold PiRLCProductSchedule.descriptor
   refine Fin.addCases (fun index => ?_) (fun remaining => ?_) invocation
-  · simpa using commitmentValue_beforeSampler index lane
+  · simpa using commitmentValue_beforeTranscript index lane
   · refine Fin.addCases (fun index => ?_) (fun remaining => ?_) remaining
-    · simpa using publicInputValue_beforeSampler index lane
+    · simpa using publicInputValue_beforeTranscript index lane
     · refine Fin.addCases (fun index => ?_) (fun index => ?_) remaining
-      · simpa using evalKValue_beforeSampler index lane
-      · simpa using evalAValue_beforeSampler index lane
+      · simpa using evalKValue_beforeTranscript index lane
+      · simpa using evalAValue_beforeTranscript index lane
 
-private theorem valueColumn_beforeSampler
+private theorem valueColumn_beforeTranscript
     (descriptor : PiRLCProductSchedule.Descriptor)
     (lane : Fin ringDegree) :
-    descriptor.valueColumn lane < PiRLCStarts.samplerLogicalStart := by
-  have scheduled := scheduledValue_beforeSampler descriptor.invocation lane
+    descriptor.valueColumn lane < PiCCSInputs.phaseOffset := by
+  have scheduled := scheduledValue_beforeTranscript descriptor.invocation lane
   rw [PiRLCProductSchedule.descriptor_invocation] at scheduled
   exact scheduled
 
@@ -504,7 +504,11 @@ theorem semanticEnv_valueColumn_eq_baseEnv
         (descriptor.valueColumn lane) =
       PiRLCProductPlan.baseEnv program base
         (descriptor.valueColumn lane) := by
-  have before := valueColumn_beforeSampler descriptor lane
+  have beforeTranscript := valueColumn_beforeTranscript descriptor lane
+  have before : descriptor.valueColumn lane < PiRLCStarts.samplerLogicalStart :=
+    lt_of_lt_of_le beforeTranscript (by
+      rw [PiCCSInputs.phaseOffset_eq, samplerLogicalStart_eq]
+      omega)
   have privateBound : descriptor.valueColumn lane <
       PiRLCProductPlan.basePackage.layout.constantColumn :=
     lt_trans before samplerLogicalStart_lt_baseConstant
@@ -512,7 +516,7 @@ theorem semanticEnv_valueColumn_eq_baseEnv
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
     geometry assignment base before]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base _
-    privateBound).symm
+    privateBound (Or.inl beforeTranscript)).symm
 
 /-- Every direct product output lies in the unclaimed product interval and
 therefore has the same canonical transition value in both environments. -/
@@ -534,7 +538,13 @@ theorem semanticEnv_outputColumn_eq_baseEnv
   rw [semanticEnv_source_eq_transitionEnv_of_productInterval geometry
     assignment base interval.1 interval.2]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base _
-    privateBound).symm
+    privateBound (by
+      right
+      have lower := interval.1
+      rw [commitmentLogicalStart_eq] at lower
+      rw [PiCCSInputs.phaseOffset_eq,
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+      omega)).symm
 
 /-- Every nonzero-source prior product output lies in the same unclaimed
 product interval in both environments. -/
@@ -557,7 +567,13 @@ theorem semanticEnv_priorColumn_eq_baseEnv
   rw [semanticEnv_source_eq_transitionEnv_of_productInterval geometry
     assignment base interval.1 interval.2]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base _
-    privateBound).symm
+    privateBound (by
+      right
+      have lower := interval.1
+      rw [commitmentLogicalStart_eq] at lower
+      rw [PiCCSInputs.phaseOffset_eq,
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+      omega)).symm
 
 private theorem challengeExpr_evalRing_eq
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

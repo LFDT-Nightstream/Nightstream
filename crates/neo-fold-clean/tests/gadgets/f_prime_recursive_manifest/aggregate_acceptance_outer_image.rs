@@ -123,15 +123,11 @@ fn recursive_aggregate_acceptance_lean_outer_image_matches_sparse_production() {
         let path = repo_root().join(&file.relative_path);
         let committed = std::fs::read_to_string(&path).unwrap_or_default();
         if committed != file.contents {
-            let expected = path.with_extension("lean.expected");
-            std::fs::create_dir_all(expected.parent().expect("outer-image artifact parent"))
-                .expect("create outer-image artifact directory");
-            std::fs::write(&expected, &file.contents).expect("write outer-image artifact candidate");
             drifted.push(file.relative_path);
         }
     }
     assert!(
         drifted.is_empty(),
-        "recursive aggregate-acceptance Lean artifact drifted; inspect and deliberately promote: {drifted:?}",
+        "recursive aggregate-acceptance Lean artifact drifted; frozen reference differs: {drifted:?}",
     );
 }

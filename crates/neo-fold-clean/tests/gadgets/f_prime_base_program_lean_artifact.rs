@@ -77,7 +77,7 @@ fn bit_carrier_r1cs() -> R1cs {
 
 fn pi_ccs_config(prep: &neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'_> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -88,7 +88,7 @@ fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
         nifs: NifsVCircuitConfig {
             pi_ccs: pi_ccs_config(prep),
         },
-        b: prep.params.b(),
+        b: prep.params().b(),
         transcript_label: TRANSCRIPT_LABEL,
         public_input_layout: FPrimePublicInputLayout::plain(),
         nebula: None,
@@ -120,9 +120,9 @@ fn base_state(chunk_count: u64) -> FPrimeStateIn {
 
 fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
     let m_in = prep
-        .public_input_len
+        .public_input_len()
         .expect("artifact fixture pins public input width");
-    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
+    let running = RunningInstance::canonical_zero(prep.params(), prep.structure(), m_in, LaneCommitmentMode::Plain)
         .expect("construct canonical base accumulator");
     AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
@@ -419,11 +419,9 @@ fn render_poseidon_hashes(base: &BuiltBase) -> String {
     )
 }
 
-fn compare_or_write_expected(path: &std::path::Path, rendered: &str, drifted: &mut Vec<String>) {
+fn record_artifact_drift(path: &std::path::Path, rendered: &str, drifted: &mut Vec<String>) {
     if std::fs::read_to_string(path).ok().as_deref() != Some(rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected Lean artifact");
-        drifted.push(expected.display().to_string());
+        drifted.push(path.display().to_string());
     }
 }
 
@@ -462,15 +460,15 @@ fn lean_base_program_artifact_matches_committed_files() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let mut drifted = Vec::new();
     let main_path = std::path::PathBuf::from(format!("{manifest_dir}{ARTIFACT_REL_PATH}"));
-    compare_or_write_expected(&main_path, &render_main(&base, &row_hash, &witness_hash), &mut drifted);
+    record_artifact_drift(&main_path, &render_main(&base, &row_hash, &witness_hash), &mut drifted);
     for (index, shard) in base.program.instructions.chunks(SHARD_SIZE).enumerate() {
         let path = std::path::PathBuf::from(format!("{manifest_dir}{SHARD_REL_PREFIX}{index}.lean"));
-        compare_or_write_expected(&path, &render_shard(index, shard), &mut drifted);
+        record_artifact_drift(&path, &render_shard(index, shard), &mut drifted);
     }
     let poseidon_path = std::path::PathBuf::from(format!("{manifest_dir}{POSEIDON_CALLS_REL_PATH}"));
-    compare_or_write_expected(&poseidon_path, &render_poseidon_calls(&base), &mut drifted);
+    record_artifact_drift(&poseidon_path, &render_poseidon_calls(&base), &mut drifted);
     let poseidon_hashes_path = std::path::PathBuf::from(format!("{manifest_dir}{POSEIDON_HASHES_REL_PATH}"));
-    compare_or_write_expected(&poseidon_hashes_path, &render_poseidon_hashes(&base), &mut drifted);
+    record_artifact_drift(&poseidon_hashes_path, &render_poseidon_hashes(&base), &mut drifted);
     assert!(
         drifted.is_empty(),
         "generated Lean base-program artifacts drifted: {drifted:?}"

@@ -261,7 +261,13 @@ theorem semanticEnv_eq_baseEnv
   unfold Spartan.pullback PiRLCSamplerRetainedCustody.semanticEnv
   rw [ordinaryNone, stateNone]
   exact (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base
-    (selectorColumn source inner) privateBound).symm
+    (selectorColumn source inner) privateBound (by
+      right
+      norm_num [selectorColumn, PiCCSInputs.phaseOffset_eq,
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+        PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
+        PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
+        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] <;> omega)).symm
 
 def positionInner (descriptor : PiRLCFirst54DirectSchedule.Position) : Nat :=
   8528 + descriptor.candidate.round.val * 109 + descriptor.slot.val

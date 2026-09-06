@@ -85,9 +85,7 @@ fn assert_selector_coverage_artifact_matches_committed(coverage: &SelectiveSelec
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTOR_COVERAGE_ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write reviewed selector-coverage artifact");
-        panic!("selector-coverage Lean fixture drifted; wrote {expected}. Inspect it and promote it explicitly");
+        panic!("selector-coverage Lean fixture drifted; reference: {path}");
     }
 }
 
@@ -446,9 +444,7 @@ fn assert_grouped_product_rewrite_artifact_matches_committed(
     );
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write reviewed grouped-product artifact");
-        panic!("grouped-product Lean fixture drifted; wrote {expected}. Inspect it and promote it explicitly");
+        panic!("grouped-product Lean fixture drifted; reference: {path}");
     }
 }
 
@@ -511,9 +507,7 @@ fn assert_selector_row_artifact_matches_committed(artifact: &SelectiveRowArtifac
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTOR_ROW_ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write reviewed selective-row artifact");
-        panic!("selective-row Lean fixture drifted; wrote {expected}. Inspect it and promote it explicitly");
+        panic!("selective-row Lean fixture drifted; reference: {path}");
     }
 }
 
@@ -615,9 +609,7 @@ fn assert_carrier_270_artifact_matches_committed(
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), CARRIER_270_ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write reviewed carrier-270 artifact");
-        panic!("selective carrier-270 Lean artifact drifted; wrote {expected}. Inspect it and promote it explicitly");
+        panic!("selective carrier-270 Lean artifact drifted; reference: {path}");
     }
 }
 

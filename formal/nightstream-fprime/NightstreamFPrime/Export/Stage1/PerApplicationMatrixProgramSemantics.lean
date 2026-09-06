@@ -132,11 +132,11 @@ theorem piCcsPoseidonExact (application : ApplicationProgram)
   intro row
   simpa [PerApplicationMatrixProgram.blockProgram,
     PerApplicationMatrixProgram.piCcsPoseidonProgram,
-    PerApplicationMatrixProgram.poseidonGeometry,
+    PerApplicationMatrixProgram.piCcsOrdinaryGeometry,
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan] using
       PiCCSPoseidonMatrixProgram.matrixProgram_row?
-        (PerApplicationMatrixProgram.poseidonGeometry application)
+        (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application)
         sourceRow row
 
 theorem samplerPoseidonExact (application : ApplicationProgram)

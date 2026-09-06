@@ -575,14 +575,12 @@ fn assert_leaf_artifacts_match_committed(
     for (relative_path, artifact) in rendered {
         let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), relative_path);
         if artifact != std::fs::read_to_string(&path).unwrap_or_default() {
-            let expected = format!("{path}.expected");
-            std::fs::write(&expected, artifact).expect("write reviewed Poseidon2 leaf artifact shard");
-            drifted.push(expected);
+            drifted.push(path);
         }
     }
     if !drifted.is_empty() {
         panic!(
-            "production PiRLC Poseidon2 leaf artifacts drifted; wrote {}",
+            "production PiRLC Poseidon2 leaf artifacts drifted; reference: {}",
             drifted.join(", ")
         );
     }

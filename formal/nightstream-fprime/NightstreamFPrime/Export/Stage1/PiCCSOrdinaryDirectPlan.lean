@@ -127,58 +127,230 @@ def form {program : Lifecycle.Stage1.Application.Program}
       (outputInputStart program) (outputInputFits geometry) index
   | .expectedContext index => (expectedContextBlock program).form
       (expectedContextStart program) (expectedContextFits geometry) index
-  | .proofLogical index => (proofLogicalBlock program).form
-      (proofLogicalStart program) (proofLogicalFits geometry) index
+  | .proofLogical index =>
+      if proof : index.val < proofInputCount then
+        (proofLogicalBlock program).form
+          (proofLogicalStart program) (proofLogicalFits geometry) index
+      else if transcript : index.val < proofInputCount + transcriptOutputCount then
+        let slot : Fin transcriptOutputCount := ⟨index.val - proofInputCount, by omega⟩
+        let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
+          Fin.decodeProd slot
+        PiCCSTranscriptOutputForms.transcriptForm (poseidonGeometry geometry)
+          decoded.1 decoded.2
+      else
+        (proofLogicalBlock program).form
+          (proofLogicalStart program) (proofLogicalFits geometry) index
   | .fresh index => (freshBlock program).form
       (freshStart program) (freshFits geometry) index
 
-/-- Every selected form reconstructs the nested source coordinate for the
-exact pre-Spartan column owned by the location. -/
+/-- PiCCS framing and input checks read the actual prior-hash preimage for
+every assignment. This equality has no encoding or representation premise. -/
+theorem priorInput_form_eq_pilot
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin PilotProduction.stateHashWords) :
+    (Location.priorInput index).form geometry =
+      (PiRLCPoseidonGeometry.priorInputBlock program).form
+        (PiRLCPoseidonGeometry.priorInputStart program)
+        (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)) index := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · have viewWidth : (priorInputBlock program).kind.width = 41 := by rfl
+    have pilotWidth :
+        (PiRLCPoseidonGeometry.priorInputBlock program).kind.width = 41 := by rfl
+    simp only [priorInputStart, viewWidth, pilotWidth]
+
+/-- PiCCS framing and next-preimage checks read the actual output-hash
+preimage for every assignment, without a second retained copy. -/
+theorem outputInput_form_eq_pilot
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin PilotProduction.stateHashWords) :
+    (Location.outputInput index).form geometry =
+      (PiRLCPoseidonGeometry.outputInputBlock program).form
+        (PiRLCPoseidonGeometry.outputInputStart program)
+        (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)) index := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · have viewWidth : (outputInputBlock program).kind.width = 41 := by rfl
+    have pilotWidth :
+        (PiRLCPoseidonGeometry.outputInputBlock program).kind.width = 41 := by rfl
+    simp only [outputInputStart, viewWidth, pilotWidth]
+
+/-- Proof input slots retain their original field form. -/
+theorem form_proofInput {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (index : Fin proofInputCount) :
+    (Location.proofLogical (proofInputSlot index)).form geometry =
+      (proofLogicalBlock program).form (proofLogicalStart program)
+        (proofLogicalFits geometry) (proofInputSlot index) := by
+  simp only [form, proofInputSlot, dif_pos index.isLt]
+
+/-- Every transcript output slot is the actual retained Poseidon2 output. -/
+theorem form_transcriptOutput {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (index : Fin transcriptOutputCount) :
+    (Location.proofLogical (transcriptOutputSlot index)).form geometry =
+      let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
+        Fin.decodeProd index
+      PiCCSTranscriptOutputForms.transcriptForm (poseidonGeometry geometry)
+        decoded.1 decoded.2 := by
+  have notProof : ¬proofInputCount + index.val < proofInputCount := by omega
+  have transcript : proofInputCount + index.val < proofInputCount + transcriptOutputCount := by
+    have bound := index.isLt
+    omega
+  simp only [form, transcriptOutputSlot, dif_neg notProof, dif_pos transcript,
+    Nat.add_sub_cancel_left]
+
+/-- Ordinary logical slots retain their original field form. -/
+theorem form_ordinaryLogical {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (index : Fin ordinaryLogicalCount) :
+    (Location.proofLogical (ordinaryLogicalSlot index)).form geometry =
+      (proofLogicalBlock program).form (proofLogicalStart program)
+        (proofLogicalFits geometry) (ordinaryLogicalSlot index) := by
+  have notProof : ¬proofInputCount + transcriptOutputCount + index.val < proofInputCount := by
+    omega
+  have notTranscript :
+      ¬proofInputCount + transcriptOutputCount + index.val <
+        proofInputCount + transcriptOutputCount := by omega
+  simp only [form, ordinaryLogicalSlot, dif_neg notProof, dif_neg notTranscript]
+
+/-- Every selected form reads the same computed package environment. -/
 theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (source : Fin (sourceWidth program) → F)
-    (encodes : Encodes geometry assignment source) (location : Location) :
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+    (location : Location) :
     (location.form geometry).eval assignment =
-      source (RunningTransitionRetainedBlocks.packageSourceColumn program
-        location.sourceColumn location.sourceColumn_lt) := by
+      RunningTransitionDirectPlan.transitionEnv program base
+        (Spartan.sourceToSpartan location.sourceColumn) := by
   cases location with
   | priorInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.priorInput]
-      apply congrArg source
-      apply Fin.ext
-      rfl
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.priorInput]
+      have sourceEq : (priorInputBlock program).source index =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (Location.priorInput index).sourceColumn (Location.priorInput index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+      apply Eq.symm
+      apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
+      have indexBound : index.val < 49393 := index.isLt
+      left
+      norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSInputs.phaseOffset_eq] <;> omega
   | freshPublicInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.freshPublicInput]
-      apply congrArg source
-      apply Fin.ext
-      rfl
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.freshPublicInput]
+      have sourceEq : (freshPublicInputBlock program).source index =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (Location.freshPublicInput index).sourceColumn (Location.freshPublicInput index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+      apply Eq.symm
+      apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.freshPublicInput index).sourceColumn_lt
+      have indexBound : index.val < 270 := index.isLt
+      left
+      norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSInputs.phaseOffset_eq] <;> omega
   | outputInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.outputInput]
-      apply congrArg source
-      apply Fin.ext
-      rfl
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.outputInput]
+      have sourceEq : (outputInputBlock program).source index =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (Location.outputInput index).sourceColumn (Location.outputInput index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+      apply Eq.symm
+      apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
+      have indexBound : index.val < 49393 := index.isLt
+      left
+      norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSInputs.phaseOffset_eq] <;> omega
   | expectedContext index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.expectedContext]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | proofLogical index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.proofLogical]
-      apply congrArg source
-      apply Fin.ext
-      simp [proofLogicalBlock, Location.sourceColumn]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.expectedContext]
+      have sourceEq : (expectedContextBlock program).source index =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (Location.expectedContext index).sourceColumn (Location.expectedContext index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+      apply Eq.symm
+      apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.expectedContext index).sourceColumn_lt
+      have indexBound := index.isLt
+      left
+      norm_num [sourceColumn, PiCCSInputs.expectedContextStart_eq,
+        PiCCSInputs.expectedContextWords, PiCCSInputs.phaseOffset_eq] at indexBound ⊢
+      omega
   | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.fresh]
-      apply congrArg source
-      apply Fin.ext
-      rfl
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
+      have sourceEq : (freshBlock program).source index =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (Location.fresh index).sourceColumn (Location.fresh index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+      apply Eq.symm
+      apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.fresh index).sourceColumn_lt
+      right
+      unfold sourceColumn PiCCSArithmetic.initialClaimFreshStart
+        PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
+        PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
+        PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
+      rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+      norm_num [PiCCSInputs.phaseOffset_eq] <;> omega
+  | proofLogical index =>
+      by_cases proof : index.val < proofInputCount
+      · rw [form, dif_pos proof,
+          LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
+        change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+            (RunningTransitionRetainedBlocks.packageSourceColumn program
+              (proofLogicalSource index) (proofLogicalSource_lt index)) = _
+        rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
+        apply Eq.symm
+        apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
+        left
+        have indexBound : index.val < 29288 := by
+          simpa only [proofInputCount_eq] using proof
+        rw [proofLogicalSource, dif_pos proof]
+        rw [PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq]
+        omega
+      · by_cases transcript : index.val < proofInputCount + transcriptOutputCount
+        · let slot : Fin transcriptOutputCount := ⟨index.val - proofInputCount, by omega⟩
+          have indexEq : index = transcriptOutputSlot slot := by
+            apply Fin.ext
+            change index.val = proofInputCount + (index.val - proofInputCount)
+            omega
+          rw [indexEq, form_transcriptOutput, sourceColumn,
+            proofLogicalSource_transcriptOutput]
+          let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
+            Fin.decodeProd slot
+          have sourceEq : transcriptOutputSource slot =
+              PiCCSTranscriptOutputForms.transcriptSource decoded.1 decoded.2 := by
+            unfold transcriptOutputSource PiCCSTranscriptOutputForms.transcriptSource
+              PiCCSTranscriptOutputForms.transcriptSourceStart
+            change PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val = _
+            omega
+          rw [sourceEq]
+          exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
+            assignment base groupValue products encodes.sboxes decoded.1 decoded.2
+        · rw [form, dif_neg proof, dif_neg transcript,
+            LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
+          change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+              (RunningTransitionRetainedBlocks.packageSourceColumn program
+                (proofLogicalSource index) (proofLogicalSource_lt index)) = _
+          rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
+          apply Eq.symm
+          apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
+          right
+          rw [proofLogicalSource, dif_neg proof, dif_neg transcript,
+            PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+          norm_num [PiCCSInputs.phaseOffset_eq, PiCCSStarts.initialClaimLogicalStart,
+            PiCCSStarts.roundTranscriptWitnessStart_eq] <;> omega
 
 end Location
 
@@ -462,12 +634,28 @@ theorem classifyTarget_complete {column : Nat}
       refine ⟨⟨source, located.location, located.owns⟩, ?_, rfl⟩
       simp [classifyTarget, inverse, found]
 
+/-- The final transcript state has an owned retained block but is not an
+arithmetic-row input. Decode its existing cells for the complete phase
+specification; classified arithmetic sources retain their original forms. -/
+def endpointForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (column : Fin Spartan.spartanColumnCount) : SparseForm logicalWidth :=
+  match Spartan.spartanToSource column.val with
+  | none => .empty
+  | some source =>
+      if inside : PiCCSOrdinarySourceSupport.InRange
+          PiCCSOrdinaryRetainedBlocks.outputEndpointStart 8 source then
+        (outputEndpointBlock program).form
+          (PiCCSOrdinaryRetainedGeometry.outputEndpointStart program)
+          (outputEndpointFits geometry) (rangeIndex inside)
+      else .empty
+
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
-    | none => .empty
+    | none => endpointForm geometry column
     | some decoded => decoded.location.form geometry
 
 theorem sourceMap_form_eval_of_target
@@ -485,13 +673,11 @@ theorem sourceMap_form_eval_of_target
       RunningTransitionDirectPlan.transitionEnv program base column.val := by
   rcases classifyTarget_complete support with ⟨decoded, found, mapped⟩
   change (match classifyTarget column.val with
-    | none => SparseForm.empty
+    | none => endpointForm geometry column
     | some value => value.location.form geometry).eval assignment = _
   rw [found]
-  rw [Location.form_eval geometry assignment _ encodes decoded.location]
-  rw [RunningTransitionDirectPlan.sourceAssignment_packageSource program base
-    groupValue products decoded.location.sourceColumn
-    decoded.location.sourceColumn_lt]
+  rw [Location.form_eval geometry assignment base groupValue products
+    encodes decoded.location]
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]

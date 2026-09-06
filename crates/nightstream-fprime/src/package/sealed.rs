@@ -708,3 +708,7 @@ mod sealed_tests;
 #[cfg(test)]
 #[path = "../../tests/unit/pi_ccs_prefix_assignment.rs"]
 mod pi_ccs_prefix_assignment_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/pilot_prefix_assignment.rs"]
+mod pilot_prefix_assignment_tests;

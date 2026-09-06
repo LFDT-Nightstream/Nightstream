@@ -776,9 +776,7 @@ fn shifted_ternary_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, emitted).expect("write shifted-ternary artifact");
-        panic!("shifted-ternary Lean artifact drifted; wrote {expected}");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }
 
@@ -789,9 +787,7 @@ fn shifted_ternary_shared_slots_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SHARED_SLOTS_ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, emitted).expect("write shifted-ternary shared-slot artifact");
-        panic!("shifted-ternary shared-slot Lean artifact drifted; wrote {expected}");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }
 
@@ -801,15 +797,6 @@ fn shifted_ternary_selective_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTIVE_ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, emitted).expect("write shifted-ternary selective artifact");
-        panic!("shifted-ternary selective Lean artifact drifted; wrote {expected}");
+        panic!("frozen Lean reference differs: {path:?}");
     }
-}
-
-#[test]
-#[ignore = "deliberately rewrites reviewed generated Lean artifacts"]
-fn regenerate_shifted_ternary_selective_artifact() {
-    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTIVE_ARTIFACT_REL_PATH);
-    std::fs::write(path, render_selective()).expect("write shifted-ternary selective artifact");
 }

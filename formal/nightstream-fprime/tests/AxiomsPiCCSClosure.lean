@@ -1,4 +1,10 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
+import NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
+import NightstreamFPrime.Layout.ProductionRelation.ZeroRunningRoundSum
+import NightstreamFPrime.Lifecycle.PilotZeroRunning
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness.Core
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity
@@ -25,8 +31,47 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
+import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 /-! Fail-closed axiom coverage for the complete PiCCS compiler closure. -/
+
+#audit_axioms NightstreamFPrime.Lifecycle.PilotZeroRunning.defaultRunning_holds
+
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldOne_size
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldOne_getD
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldOne_fits
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldPrefix_fits
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldOne_evaluate
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldPrefix_evaluate
+
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.freshPrefix_size
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_fits
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_getD
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.source_running_zero
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.source_matrix13_zero
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.freshPrefix_table
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle.matrixPrefix_table
+
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum.numericSum_eq_vertexSum
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum.numericSum_prefix_eq_vertexSum
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningRoundSum.completionSum_eq_sumCompletions
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.ZeroRunningRoundSum.roundSum_eq_sumCompletions
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.verifierInput_eq_production
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.outputMessage_eq_production
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.initialClaimFast_eq_initial
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.padTerminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.matrixTerminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.powerFast_eq_power
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.terminalFast_eq_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.traceFrom_eq_derive
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.runningOutput_zero
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.matrix13Output_zero
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.runningAssignment_zero
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.freshMatrix13_zero
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.qAtPoint_eq_fresh
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.initial_zero
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutWiring_eq_compileWiring
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.challengeLabels_length
@@ -34,6 +79,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutWiring_samples_length
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.alpha_eq_alphaFast_pointwise
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.gamma_eq_gammaFast_pointwise
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.alphaSchedule_eq_alphaScheduleFast
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutSamples_take_gamma
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.actions_shape_eq_layout
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.finalState_eq_finalStateFast_pointwise

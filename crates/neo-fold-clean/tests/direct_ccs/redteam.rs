@@ -223,7 +223,7 @@ fn verifier_rejects_proof_committed_with_different_same_shaped_ajtai_setup() {
     let r1cs = three_term_addition();
     let verifier_prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 0xA170_0100).expect("canonical prep");
     let structure = r1cs.to_structure();
-    let params = verifier_prep.params.clone();
+    let params = verifier_prep.params().clone();
     let wrong_log = owned_log(D, structure.m.div_ceil(D), params.kappa() as usize, 0xA170_0200);
     let prover_prep = preprocess_with_test_log(params, structure, wrong_log, Some(r1cs.m_in))
         .expect("same-shaped non-canonical prover prep");
@@ -368,7 +368,7 @@ fn recompute_terminal_x_out(prep: &Preprocessing, proof: &Uncompressed) -> EncIn
     };
     EncInst::from_digest(digest::state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         proof.state.chunk_count,

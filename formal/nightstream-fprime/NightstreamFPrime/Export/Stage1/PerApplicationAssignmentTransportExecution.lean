@@ -174,7 +174,7 @@ private theorem canonical_domain_source (program : Program)
         ((kind.expand raw).block.source ⟨slot, rawBound⟩) := by
   cases kind <;>
     simp [domainValue, expressionValue,
-      PerApplicationAssignmentTransport.canonical,
+      PerApplicationAssignmentTransport.canonical_payloadExpressions,
       PerApplicationAssignmentBlocks.sourceDomainOf,
       PerApplicationAssignmentBlocks.sourceIndex,
       PerApplicationAssignmentBlocks.entry,
@@ -400,7 +400,7 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 45 function-valued
+/-- Interpret the serialized block order. The list has 38 function-valued
 entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=

@@ -517,14 +517,8 @@ fn output_authority_sbox_lean_manifest_matches_audited_production() {
     let rendered = render_lean_bridge(&bridge);
     let path = repo_root().join(LEAN_DATA_PATH);
     let committed = fs::read_to_string(&path).unwrap_or_default();
-    if committed != rendered {
-        let expected = path.with_extension("lean.expected");
-        fs::create_dir_all(expected.parent().expect("output-authority manifest parent"))
-            .expect("create output-authority manifest directory");
-        fs::write(&expected, &rendered).expect("write expected output-authority S-box Lean manifest");
-    }
     assert_eq!(
         committed, rendered,
-        "output-authority S-box Lean manifest drifted; inspect and deliberately promote the generated .expected file"
+        "output-authority S-box Lean manifest drifted; frozen reference differs"
     );
 }

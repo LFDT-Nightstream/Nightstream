@@ -1,12 +1,14 @@
 //! Exact structural row conformance for the production linked overlay.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use neo_ccs::{CcsMatrix, GeometricRowRun};
-use neo_fold_clean::frontends::r1cs_f_prime::{LinkedOverlayLowNormR1cs, OverlayKindLinks};
+use neo_fold_clean::frontends::r1cs_f_prime::{
+    LinkedOverlayLowNormR1cs, OverlayKindLinks, SelectiveProjectedSourceLinearCombination,
+};
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const SELECTIVE_ARITY: usize = 13;
 const GENERAL_SELECTOR: usize = 1;
@@ -351,4 +353,120 @@ pub(super) fn assert_exact_final_row_embedding(relation: &LinkedOverlayLowNormR1
         },
     );
     assert_composer_rows_exact(relation, links);
+}
+
+pub(super) fn canonical_poseidon_call(
+    steps: &[neo_fold_clean::frontends::r1cs_f_prime::SelectiveProjectedPoseidon2SboxStep],
+    rows: &[&neo_fold_clean::frontends::r1cs_f_prime::SelectiveProjectedRowArtifact],
+    source_start: usize,
+    final_start: usize,
+    selector_column: usize,
+    swap_direct_groups: bool,
+) -> (Vec<String>, Vec<String>) {
+    assert_eq!(steps.len(), 86);
+    assert_eq!(rows.len(), 86);
+    let source_stop = source_start + 600;
+    let final_stop = final_start + 86 * 41;
+    let mut external_sources = steps
+        .iter()
+        .flat_map(|step| step.input().terms().iter().chain(step.output().terms()))
+        .map(|term| term.column())
+        .filter(|column| !(source_start..source_stop).contains(column))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!(external_sources.len(), 8);
+    let mut external_slots = rows
+        .iter()
+        .flat_map(|row| row.ports())
+        .flat_map(|port| port.geometric_runs())
+        .map(|run| {
+            assert_eq!(run.length(), 41);
+            run.column_start()
+        })
+        .filter(|start| !(final_start..final_stop).contains(start))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    if swap_direct_groups {
+        assert_eq!(external_slots.len(), 8);
+        external_sources.rotate_left(4);
+        external_slots.rotate_left(4);
+    }
+
+    let source_shape = |value: &SelectiveProjectedSourceLinearCombination| {
+        let mut terms = value
+            .terms()
+            .iter()
+            .map(|term| {
+                let role = if (source_start..source_stop).contains(&term.column()) {
+                    (1usize, term.column() - source_start)
+                } else {
+                    (
+                        0,
+                        external_sources
+                            .iter()
+                            .position(|&column| column == term.column())
+                            .expect("Poseidon2 source term has a canonical external role"),
+                    )
+                };
+                (role, term.coefficient().as_canonical_u64())
+            })
+            .collect::<Vec<_>>();
+        terms.sort_unstable();
+        format!("{}:{terms:?}", value.constant().as_canonical_u64())
+    };
+    let step_shapes = steps
+        .iter()
+        .map(|step| format!("{}=>{}", source_shape(step.input()), source_shape(step.output())))
+        .collect::<Vec<_>>();
+
+    let row_shapes = rows
+        .iter()
+        .map(|row| {
+            row.ports()
+                .iter()
+                .map(|port| {
+                    assert!(port.seeded_blocks().is_empty());
+                    let mut explicit = port
+                        .explicit()
+                        .iter()
+                        .map(|term| {
+                            let role = match term.column() {
+                                0 => 0usize,
+                                column if column == selector_column => 1,
+                                column => panic!("unexpected explicit Poseidon2 column {column}"),
+                            };
+                            (role, term.coefficient().as_canonical_u64())
+                        })
+                        .collect::<Vec<_>>();
+                    explicit.sort_unstable();
+                    let mut geometric = port
+                        .geometric_runs()
+                        .iter()
+                        .map(|run| {
+                            assert_eq!(run.length(), 41);
+                            let role = if (final_start..final_stop).contains(&run.column_start()) {
+                                assert_eq!((run.column_start() - final_start) % 41, 0);
+                                (1usize, (run.column_start() - final_start) / 41)
+                            } else {
+                                (
+                                    0,
+                                    external_slots
+                                        .iter()
+                                        .position(|&start| start == run.column_start())
+                                        .expect("Poseidon2 geometric run has a canonical external role"),
+                                )
+                            };
+                            (role, run.initial().as_canonical_u64(), run.ratio().as_canonical_u64())
+                        })
+                        .collect::<Vec<_>>();
+                    geometric.sort_unstable();
+                    format!("{explicit:?}:{geometric:?}")
+                })
+                .collect::<Vec<_>>()
+                .join("|")
+        })
+        .collect::<Vec<_>>();
+    (step_shapes, row_shapes)
 }

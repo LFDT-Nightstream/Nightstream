@@ -209,30 +209,28 @@ private theorem applicationInputEnv_eq_transition
     norm_num [ApplicationInputs.currentWordStart,
       Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega
-  have packageBound : ApplicationInputs.inputColumn index <
-      PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-    have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-        29336725 :=
-      NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
-    rw [total, ApplicationInputs.inputColumn_value]
-    have indexBound := index.isLt
-    norm_num [ApplicationInputs.currentWordStart,
-      Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
-    omega
   unfold applicationEnv ApplicationDirectPlan.sourceEnv
   rw [dif_pos sourceBound]
   unfold DirectApplicationPrefixPlan.applicationSource
   unfold transitionEnv Spartan.pullback
   change raw.base _ = RunningTransitionDirectPlan.transitionEnv application
     raw.base (ApplicationInputs.inputColumn index)
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos packageBound]
-  apply congrArg raw.base
-  apply Fin.ext
-  change ApplicationInputs.inputColumn index =
-    PerApplicationPackage.shiftColumn application
-      (ApplicationInputs.inputColumn index)
+  have viewEq : RunningTransitionDirectPlan.transitionEnv application raw.base
+        (ApplicationInputs.inputColumn index) =
+      RunningTransitionDirectPlan.packageEnv application raw.base
+        (ApplicationInputs.inputColumn index) := by
+    apply PermutationOutput.Readout.env_of_decode_none
+    unfold PermutationOutput.Readout.decode
+    rw [dif_neg (by
+      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.inputColumn_value]
+      have indexBound := index.isLt
+      norm_num [ApplicationInputs.currentWordStart,
+        Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
+      omega)]
+  rw [viewEq]
+  unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv
   rw [PerApplicationPackage.shiftColumn_private application _ privateBound]
+  exact (SourceCompiler.sourceEnv_at raw.base _).symm
 
 private theorem applicationOutputEnv_eq_transition
     {application : Program} (raw : RawValues application)
@@ -251,29 +249,28 @@ private theorem applicationOutputEnv_eq_transition
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega
-  have packageBound : ApplicationInputs.outputColumn index <
-      PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-    have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-        29336725 :=
-      NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
-    rw [total, ApplicationInputs.outputColumn_value]
-    have indexBound := index.isLt
-    norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
-    omega
   unfold applicationEnv ApplicationDirectPlan.sourceEnv
   rw [dif_pos sourceBound]
   unfold DirectApplicationPrefixPlan.applicationSource
   unfold transitionEnv Spartan.pullback
   change raw.base _ = RunningTransitionDirectPlan.transitionEnv application
     raw.base (ApplicationInputs.outputColumn index)
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos packageBound]
-  apply congrArg raw.base
-  apply Fin.ext
-  change ApplicationInputs.outputColumn index =
-    PerApplicationPackage.shiftColumn application
-      (ApplicationInputs.outputColumn index)
+  have viewEq : RunningTransitionDirectPlan.transitionEnv application raw.base
+        (ApplicationInputs.outputColumn index) =
+      RunningTransitionDirectPlan.packageEnv application raw.base
+        (ApplicationInputs.outputColumn index) := by
+    apply PermutationOutput.Readout.env_of_decode_none
+    unfold PermutationOutput.Readout.decode
+    rw [dif_neg (by
+      rw [PiCCSTranscriptReadout.phaseStart_eq, ApplicationInputs.outputColumn_value]
+      have indexBound := index.isLt
+      norm_num [ApplicationInputs.currentWordStart,
+        Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
+      omega)]
+  rw [viewEq]
+  unfold RunningTransitionDirectPlan.packageEnv PerApplicationPackage.baseEnv
   rw [PerApplicationPackage.shiftColumn_private application _ privateBound]
+  exact (SourceCompiler.sourceEnv_at raw.base _).symm
 
 private theorem priorSource
     (word : Fin PilotProduction.stateHashWords) :
@@ -408,14 +405,8 @@ theorem priorRepresents
       (StateDecoder.preimage
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application) (priorState raw)) := by
-  unfold Lifecycle.PriorStateHash.RepresentsPreimage
-  rw [PilotProduction.priorInterface_preimage_apply]
-  simp only [PilotProduction.priorPreimage, Hash.evalList,
-    PilotProduction.variableExprs, List.map_ofFn]
-  rw [StateDecoder.serializePreimage_preimage _ _ canonical]
-  apply congrArg List.ofFn
-  funext word
-  exact (priorState_eq_pilot raw word).symm
+  exact StateDecoder.priorRepresents _ _ (pilotEnv raw) (priorState raw)
+    canonical (fun word => (priorState_eq_pilot raw word).symm)
 
 theorem outputRepresents
     {application : Program} (raw : RawValues application)
@@ -427,14 +418,8 @@ theorem outputRepresents
       (StateDecoder.preimage
         (PerApplicationFixedPoint.logicalWidth application)
         (PerApplicationFixedPoint.publicFits application) (outputState raw)) := by
-  unfold Lifecycle.OutputHash.RepresentsPreimage
-  rw [PilotProduction.outputInterface_preimage_apply]
-  simp only [PilotProduction.outputPreimage, Hash.evalList,
-    PilotProduction.variableExprs, List.map_ofFn]
-  rw [StateDecoder.serializePreimage_preimage _ _ canonical]
-  apply congrArg List.ofFn
-  funext word
-  exact (outputState_eq_pilot raw word).symm
+  exact StateDecoder.outputRepresents _ _ (pilotEnv raw) (outputState raw)
+    canonical (fun word => (outputState_eq_pilot raw word).symm)
 
 def outputDigest {application : Program} (raw : RawValues application) : Digest :=
   raw.outputDigest

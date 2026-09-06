@@ -571,15 +571,6 @@ fn scheduled_grouped_phase_generated_artifact_matches_emitted_recipe() {
     let path = artifact_path();
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != rendered {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write scheduled grouped-phase artifact candidate");
-        panic!("scheduled grouped-phase artifact drifted; inspect {expected} and promote it explicitly");
+        panic!("scheduled grouped-phase artifact drifted; inspect {path}");
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_scheduled_grouped_phase_artifact() {
-    std::fs::write(artifact_path(), render_artifact(&fixture()))
-        .expect("write generated scheduled grouped-phase artifact");
 }

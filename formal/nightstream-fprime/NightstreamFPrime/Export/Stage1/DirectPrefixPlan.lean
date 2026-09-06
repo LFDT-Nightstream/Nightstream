@@ -40,9 +40,10 @@ def pilotPlan {program : Lifecycle.Stage1.Application.Program}
 
 def piCcsPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  PiCCSPoseidonPlan.plan geometry
+  PiCCSPoseidonPlan.plan payloadForms geometry
 
 def samplerPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -58,38 +59,43 @@ def piRlcPlan {program : Lifecycle.Stage1.Application.Program}
 
 theorem pilotPiCcsRowCount_le
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (pilotPlan geometry).rowCount + (piCcsPlan geometry).rowCount ≤
+    (pilotPlan geometry).rowCount + (piCcsPlan payloadForms geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   simp [pilotPlan, piCcsPlan]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
 def pilotPiCcsPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (pilotPlan geometry) (piCcsPlan geometry)
-    (pilotPiCcsRowCount_le geometry)
+  ProductionRelation.Plan.append (pilotPlan geometry) (piCcsPlan payloadForms geometry)
+    (pilotPiCcsRowCount_le payloadForms geometry)
 
 theorem poseidonRowCount_le
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (pilotPiCcsPlan geometry).rowCount + (samplerPlan geometry).rowCount ≤
+    (pilotPiCcsPlan payloadForms geometry).rowCount + (samplerPlan geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   simp [pilotPiCcsPlan, pilotPlan, piCcsPlan, samplerPlan]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
 def poseidonPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (pilotPiCcsPlan geometry)
-    (samplerPlan geometry) (poseidonRowCount_le geometry)
+  ProductionRelation.Plan.append (pilotPiCcsPlan payloadForms geometry)
+    (samplerPlan geometry) (poseidonRowCount_le payloadForms geometry)
 
 theorem totalRowCount_le
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (poseidonPlan geometry).rowCount + (piRlcPlan geometry).rowCount ≤
+    (poseidonPlan payloadForms geometry).rowCount + (piRlcPlan geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   simp [poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
@@ -97,25 +103,28 @@ theorem totalRowCount_le
 
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (poseidonPlan geometry) (piRlcPlan geometry)
-    (totalRowCount_le geometry)
+  ProductionRelation.Plan.append (poseidonPlan payloadForms geometry) (piRlcPlan geometry)
+    (totalRowCount_le payloadForms geometry)
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 4964947 := by
+    (plan payloadForms geometry).rowCount = 4964947 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 
 theorem rowsZero_iff
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    (plan geometry).RowsZero assignment ↔
+    (plan payloadForms geometry).RowsZero assignment ↔
       (pilotPlan geometry).RowsZero assignment ∧
-        (piCcsPlan geometry).RowsZero assignment ∧
+        (piCcsPlan payloadForms geometry).RowsZero assignment ∧
           (samplerPlan geometry).RowsZero assignment ∧
             (piRlcPlan geometry).RowsZero assignment := by
   rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
@@ -129,13 +138,14 @@ theorem rowsZero_iff
 
 structure Semantics {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   pilot : PilotPoseidonPlan.Semantics (pilotGeometry geometry) assignment
-  piCcsEncoding : PiCCSPoseidonPreservation.Encoding geometry assignment
+  piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
       program base groupValue products)
   piCcs : PiCCSPoseidonPreservation.CanonicalSemantics geometry assignment
@@ -149,6 +159,7 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
 
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -168,30 +179,29 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)) assignment
       (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue products)
-  payload : (PiCCSActionPayloadBlock.block program).EncodesAt
-    (PiCCSActionPayloadBlock.payloadStart program)
-    (PiCCSPoseidonPlan.payloadFits geometry) assignment
-    (PiCCSPoseidonPreservation.sourceAssignment program
-      (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+  payload : ∀ index, (payloadForms index).eval assignment =
+    PiCCSActionPayloadBlock.payloadValue program
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)
+      index
 
 theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
-    (rowsZero : (plan geometry).RowsZero assignment) :
-    Semantics geometry assignment base groupValue products := by
-  have children := (rowsZero_iff geometry assignment).mp rowsZero
+    (encodes : Encodes payloadForms geometry assignment base groupValue products)
+    (rowsZero : (plan payloadForms geometry).RowsZero assignment) :
+    Semantics payloadForms geometry assignment base groupValue products := by
+  have children := (rowsZero_iff payloadForms geometry assignment).mp rowsZero
   let prefixAssignment := PiRLCRetainedPreservation.sourceAssignment
     program base groupValue products
-  have piCcsEncoding : PiCCSPoseidonPreservation.Encoding geometry assignment
+  have piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
       prefixAssignment :=
-    PiCCSPoseidonPreservation.encodingOfRetained geometry assignment
+    PiCCSPoseidonPreservation.encodingOfRetained payloadForms geometry assignment
       prefixAssignment
       (PiRLCRetainedGeometry.laterPoseidonFits (prefixGeometry geometry))
       encodes.retained.laterPoseidon encodes.payload
@@ -205,7 +215,7 @@ theorem rowsZero_implies_semantics
   · exact PilotPoseidonPlan.rowsZero_implies_semantics
       (pilotGeometry geometry) assignment one children.1
   · exact PiCCSPoseidonPreservation.rowsZero_implies_canonicalSemantics
-      geometry assignment prefixAssignment piCcsEncoding one children.2.1
+      payloadForms geometry assignment prefixAssignment piCcsEncoding one children.2.1
   · exact PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
       geometry assignment one children.2.2.1
   · exact PiRLCRetainedPlan.rowsZero_implies_semantics

@@ -47,6 +47,27 @@ structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop wh
     (interface.outputInitialState offset index).eval env =
       (interface.priorInitialState offset index).eval env
 
+theorem SpecHolds.of_cross_values_eq
+    (before after : Interface) (beforeOffset afterOffset : Nat)
+    (beforeEnv afterEnv : Env)
+    (priorIteration : (before.priorIteration beforeOffset).eval beforeEnv =
+      (after.priorIteration afterOffset).eval afterEnv)
+    (outputIteration : (before.outputIteration beforeOffset).eval beforeEnv =
+      (after.outputIteration afterOffset).eval afterEnv)
+    (priorInitialState : ∀ index,
+      (before.priorInitialState beforeOffset index).eval beforeEnv =
+        (after.priorInitialState afterOffset index).eval afterEnv)
+    (outputInitialState : ∀ index,
+      (before.outputInitialState beforeOffset index).eval beforeEnv =
+        (after.outputInitialState afterOffset index).eval afterEnv)
+    (specification : SpecHolds before beforeOffset beforeEnv) :
+    SpecHolds after afterOffset afterEnv := by
+  refine ⟨?_, fun index => ?_⟩
+  · rw [← priorIteration, ← outputIteration]
+    exact specification.iteration
+  · rw [← priorInitialState, ← outputInitialState]
+    exact specification.initialState index
+
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   (assertions interface offset).map Op.assertZero
 
@@ -175,6 +196,10 @@ def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
   spec := SpecHolds interface
+  privateCount := fun _ => 0
+  rowCount := fun _ => 5
+  privateCount_eq := localLength_eq interface
+  rowCount_eq := flatConstraints_length interface
   soundness := by
     intro env offset _assumptions rows
     exact soundness interface env offset rows

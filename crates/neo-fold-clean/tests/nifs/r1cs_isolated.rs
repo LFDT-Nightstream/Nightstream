@@ -46,10 +46,10 @@ fn nifs_round_trip_on_r1cs_structure() {
     let mut prover_tr = Transcript::session();
     let (next_running, proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -62,7 +62,7 @@ fn nifs_round_trip_on_r1cs_structure() {
     let mut verifier_tr = Transcript::session();
     let verified = nifs::verify(
         &mut verifier_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),

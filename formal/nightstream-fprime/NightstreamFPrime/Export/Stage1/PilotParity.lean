@@ -1,12 +1,13 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
+import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
 /-!
-Owns one standalone nonzero pilot result for Lean--Rust conformance. It reuses
-the PiCCS nonzero running-state fixture, but gives the output hash a distinct
-next-state preimage. The result contains both hashes and the complete
-58-field public vector in production order.
+Owns one standalone nonzero pilot result for Lean--Rust conformance. Its
+running claims have zero openings under the canonical key. The output hash
+has a distinct next-state preimage. The result contains both hashes and the
+complete 274-field public vector in production order.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotParity
@@ -20,23 +21,42 @@ open NightstreamFPrime.Spec
 def outputCurrent : AppState :=
   [field 401, field 402, field 403, field 404]
 
-def outputPreimage : HashPreimage
+def priorPreimage (vk : KeyDigest) : HashPreimage
     (logicalWidth := fixtureLogicalWidth)
     (publicFits := fixturePublicFits) :=
-  { statePreimage (stateVerifierKey ()) with
+  { statePreimage vk with
+    running := fun _ => defaultRunning }
+
+def priorPreimageWords (vk : KeyDigest) : List F :=
+  serializePreimage (publicFits := fixturePublicFits) (priorPreimage vk)
+
+def outputPreimage (vk : KeyDigest) : HashPreimage
+    (logicalWidth := fixtureLogicalWidth)
+    (publicFits := fixturePublicFits) :=
+  { priorPreimage vk with
     iteration := 8
     current := outputCurrent }
 
-def outputPreimageWords : List F :=
+def outputPreimageWords (vk : KeyDigest) : List F :=
   serializePreimage (publicFits := fixturePublicFits)
-    outputPreimage
+    (outputPreimage vk)
 
-def priorDigest : Digest := stateDigest ()
+def priorDigest (vk : KeyDigest) : Digest :=
+  stateHash (publicFits := fixturePublicFits) (priorPreimage vk)
 
-def outputDigest : Digest :=
-  stateHash (publicFits := fixturePublicFits) outputPreimage
+def outputDigest (vk : KeyDigest) : Digest :=
+  stateHash (publicFits := fixturePublicFits) (outputPreimage vk)
 
-def publicValues : List F := statePublicInputWords () ++ outputDigest
+/-- Encode the public instance from one already-computed state digest. -/
+def publicInputWordsForDigest (digest : Digest) : List F :=
+  List.ofFn fun column =>
+    encHash (publicFits := fixturePublicFits) digest column
+
+def priorPublicInputWords (vk : KeyDigest) : List F :=
+  publicInputWordsForDigest (priorDigest vk)
+
+def publicValues (vk : KeyDigest) : List F :=
+  priorPublicInputWords vk ++ outputDigest vk
 
 def boolValue (value : Bool) : Value :=
   .atom (if value then 1 else 0)
@@ -48,11 +68,6 @@ def fieldWordsValue (values : List F) : Value :=
 
 def segmentValue (role start length : Nat) : Value :=
   .array [.atom role, .atom start, .atom length]
-
-/-- Encode the public instance from one already-computed state digest. -/
-def publicInputWordsForDigest (digest : Digest) : List F :=
-  List.ofFn fun column =>
-    encHash (publicFits := VerifierContext.candidatePublicFits) digest column
 
 /-- Caller-owned pilot inputs: prior preimage, prior public instance, output
 preimage, and claimed output digest. -/
@@ -83,12 +98,12 @@ def resultValueFrom (computedPriorDigest computedOutputDigest : Digest)
       boolValue (decide
         (computedPublicValues.length = PilotValues.publicColumnCount))]]
 
-def inputValue : Value :=
-  inputValueFrom (statePreimageWords ()) (statePublicInputWords ())
-    outputPreimageWords outputDigest
+def inputValue (vk : KeyDigest) : Value :=
+  inputValueFrom (priorPreimageWords vk) (priorPublicInputWords vk)
+    (outputPreimageWords vk) (outputDigest vk)
 
-def resultValue : Value :=
-  resultValueFrom priorDigest outputDigest (statePublicInputWords ())
+def resultValue (vk : KeyDigest) : Value :=
+  resultValueFrom (priorDigest vk) (outputDigest vk) (priorPublicInputWords vk)
 
 def parityValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
     (computedPriorDigest computedOutputDigest : Digest) : Value :=
@@ -98,9 +113,9 @@ def parityValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
     resultValueFrom computedPriorDigest computedOutputDigest priorPublicInput]
 
 /-- Schema 1 is the first standalone complete nonzero pilot parity object. -/
-def parityValue : Value :=
-  parityValueFrom (statePreimageWords ()) (statePublicInputWords ())
-    outputPreimageWords priorDigest outputDigest
+def parityValue (vk : KeyDigest) : Value :=
+  parityValueFrom (priorPreimageWords vk) (priorPublicInputWords vk)
+    (outputPreimageWords vk) (priorDigest vk) (outputDigest vk)
 
 private abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
 
@@ -113,24 +128,25 @@ private def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
   | .error error => throw error
 
 /-- Compute independent preimages and hashes on native tasks, then serialize
-the canonical schema once from the shared digest values. -/
-def parityValueIO : IO Value := do
+the canonical schema once from the shared digest values. The explicit fixture
+context is checked against the canonical package by the Rust parity gate. -/
+def parityValueIO (vk : KeyDigest) : IO Value := do
   let priorPreimageTask ← IO.asTask (prio := Task.Priority.dedicated)
-    (prepare fun _ => statePreimageWords ())
+    (prepare fun _ => priorPreimageWords vk)
   let outputPreimageTask ← IO.asTask (prio := Task.Priority.dedicated)
-    (prepare fun _ => outputPreimageWords)
-  let priorDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
-    (prepare fun _ => priorDigest)
-  let outputDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
-    (prepare fun _ => outputDigest)
+    (prepare fun _ => outputPreimageWords vk)
   let priorPreimage ← prepared priorPreimageTask
   let outputPreimage ← prepared outputPreimageTask
+  let priorDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => Poseidon2.hash priorPreimage)
+  let outputDigestTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => Poseidon2.hash outputPreimage)
   let computedPriorDigest ← prepared priorDigestTask
   let computedOutputDigest ← prepared outputDigestTask
   let priorPublicInput := publicInputWordsForDigest computedPriorDigest
   pure <| parityValueFrom priorPreimage priorPublicInput outputPreimage
     computedPriorDigest computedOutputDigest
 
-def render : String := parityValue.render
+def render (vk : KeyDigest) : String := (parityValue vk).render
 
 end NightstreamFPrime.Export.Stage1.PilotParity

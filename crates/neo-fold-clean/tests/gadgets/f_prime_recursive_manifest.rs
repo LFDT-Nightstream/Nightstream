@@ -226,7 +226,7 @@ fn prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
 
 fn pi_ccs_config(prep: &neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'_> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -237,7 +237,7 @@ fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
         nifs: NifsVCircuitConfig {
             pi_ccs: pi_ccs_config(prep),
         },
-        b: prep.params.b(),
+        b: prep.params().b(),
         transcript_label: TRANSCRIPT_LABEL,
         public_input_layout: FPrimePublicInputLayout::plain(),
         nebula: None,
@@ -253,10 +253,10 @@ fn build_fixture() -> Fixture {
     let mut first_transcript = Transcript::session();
     let (running, _) = neo_fold_clean::paper::nifs::prove(
         &mut first_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -288,10 +288,10 @@ fn build_fixture() -> Fixture {
     append_step_context(&mut transcript, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -382,7 +382,7 @@ fn build_recursive_program_with_output() -> (R1csBuilder, FPrimeStepOutput) {
     };
     let mut builder = R1csBuilder::new();
     builder.enable_encoding_trace();
-    let output = enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &config, &inputs)
+    let output = enforce_f_prime_recursive_step_circuit(&mut builder, fixture.prep.params(), &config, &inputs)
         .expect("emit recursive program");
     builder.begin_encoding_stage("complete");
     (builder, output)
@@ -912,10 +912,6 @@ fn recursive_program_manifest_matches_production_rows() {
     let path = repo_root().join(MANIFEST_PATH);
     let committed = fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("read {}: {error}\nexpected manifest:\n{rendered}", path.display()));
-    if committed != rendered {
-        let expected = path.with_extension("json.expected");
-        fs::write(&expected, &rendered).expect("write expected recursive manifest");
-    }
     assert_eq!(
         committed, rendered,
         "recursive program manifest drifted; reviewed output:\n{rendered}"
@@ -928,32 +924,10 @@ fn recursive_program_manifest_matches_production_rows() {
             lean_path.display()
         )
     });
-    if lean_committed != lean_rendered {
-        let expected = lean_path.with_extension("lean.expected");
-        fs::write(&expected, &lean_rendered).expect("write expected Lean recursive manifest");
-    }
     assert_eq!(
         lean_committed, lean_rendered,
         "recursive Lean manifest data drifted; reviewed output:\n{lean_rendered}"
     );
-}
-
-#[test]
-#[ignore = "deliberately promotes the reviewed recursive manifest artifacts"]
-fn regenerate_recursive_program_manifest() {
-    let (json, lean) = render_current_manifest_artifacts();
-    let json_path = repo_root().join(MANIFEST_PATH);
-    let lean_path = repo_root().join(LEAN_DATA_PATH);
-    fs::write(&json_path, json).expect("write recursive JSON manifest");
-    fs::write(&lean_path, lean).expect("write recursive Lean manifest");
-    for candidate in [
-        json_path.with_extension("json.expected"),
-        lean_path.with_extension("lean.expected"),
-    ] {
-        if candidate.exists() {
-            fs::remove_file(candidate).expect("remove promoted recursive manifest candidate");
-        }
-    }
 }
 
 #[test]

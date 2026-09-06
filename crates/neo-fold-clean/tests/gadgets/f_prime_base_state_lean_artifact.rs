@@ -130,15 +130,6 @@ fn lean_base_state_artifact_matches_committed_file() {
         || !compact_committed.contains(&without_whitespace(&expected_columns))
         || !compact_committed.contains(&without_whitespace(&expected_values))
     {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(
-            &expected_path,
-            format!(
-                "{expected_rows}\n{expected_witnesses}\n{expected_columns}\n{expected_values}\n{}",
-                lean_witness("honestWitness", builder.witness())
-            ),
-        )
-        .expect("write .expected artifact metadata");
-        panic!("generated Lean base-state artifact drifted. Wrote {expected_path}; inspect and copy its declarations");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

@@ -143,9 +143,6 @@ fn lean_terminal_link_artifact_matches_committed_file() {
     let expected_rows = format!("def artifactSha256 : String := \"{row_hash}\"");
     let expected_witnesses = format!("def witnessSha256 : String := \"{witness_hash}\"");
     if !committed.contains(&expected_rows) || !committed.contains(&expected_witnesses) {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, format!("{expected_rows}\n{expected_witnesses}\n"))
-            .expect("write .expected artifact hashes");
-        panic!("generated Lean terminal-link artifact drifted. Wrote {expected_path}; inspect and copy it over {path}");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

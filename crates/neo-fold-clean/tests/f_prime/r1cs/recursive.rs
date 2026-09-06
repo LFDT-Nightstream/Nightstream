@@ -22,7 +22,7 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
 
     let mut b = R1csBuilder::new();
     let rows_before = b.rows();
-    let out = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    let out = enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     let rows_added = b.rows() - rows_before;
     assert!(
         rows_added > 100_000,
@@ -77,7 +77,7 @@ fn f_prime_recursive_rejects_chunk_counter_field_modulus_wrap() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' must reject chunk_count transition p - 1 -> 0; Construction 2 counters are integers, not field elements"
@@ -119,7 +119,7 @@ fn f_prime_recursive_rejects_step_counter_field_modulus_wrap() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' must reject step_count transition p - 1 -> 0; Construction 2 counters are integers, not field elements"
@@ -149,7 +149,7 @@ fn f_prime_recursive_rejects_chunk_count_in_zero() {
     };
 
     let mut b = R1csBuilder::new();
-    let result = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs);
+    let result = enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs);
     assert!(result.is_err(), "recursive must reject chunk_count_in == 0");
 }
 
@@ -182,7 +182,7 @@ fn f_prime_recursive_rejects_empty_fresh_batch() {
     };
 
     let mut b = R1csBuilder::new();
-    let result = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs);
+    let result = enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs);
     assert!(
         result.is_err(),
         "recursive must reject empty fresh batch (SuperNeo K \u{2265} 1)"
@@ -215,7 +215,7 @@ fn recursive_step_accepts_multi_fresh_batch() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         b.is_satisfied(),
         "multi-fresh recursive F' step must satisfy when every fresh.x is linked to the shared prior x_out (first bad row: {:?})",
@@ -256,7 +256,7 @@ fn f_prime_recursive_rejects_multi_fresh_with_divergent_non_first_link() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' R1CS must run the per-fresh recursive-link gate at every index — fresh[2].x diverged from \
@@ -296,7 +296,7 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
     };
 
     let mut b = R1csBuilder::new();
-    let result = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs);
+    let result = enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs);
     assert!(
         result.is_err(),
         "recursive must reject fresh m_in != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN"
@@ -336,7 +336,7 @@ fn f_prime_recursive_rejects_tampered_public_x_out_bits() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' recursive must reject tampered enc_inst(x_out) public output bits"
@@ -366,7 +366,7 @@ fn f_prime_recursive_rejects_tampered_acc_digest_in() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' recursive must reject acc_digest_in that doesn't match digest(running)"
@@ -396,7 +396,7 @@ fn f_prime_recursive_rejects_tampered_chunk_digest() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' recursive must reject chunk_digest that diverges from native pre-NIFS transcript absorb"
@@ -438,7 +438,7 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' recursive must reject fresh.x that doesn't encode prior_x_out"
@@ -471,7 +471,7 @@ fn f_prime_recursive_rejects_nonzero_fresh_carrier_padding_when_nifs_proof_match
     };
 
     let mut builder = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut builder, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !builder.is_satisfied(),
         "F′ accepted nonzero fresh carrier padding even though that padding is verifier-fixed"
@@ -503,7 +503,7 @@ fn f_prime_recursive_rejects_fresh_public_one_slot_not_one_even_when_nifs_proof_
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "F' recursive accepted a fresh public input with x[0] != 1 even though the NIFS proof matched it"
@@ -538,7 +538,7 @@ fn f_prime_recursive_rejects_nonbinary_source_image_public_bit() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "non-binary source-image bit must be rejected by bitness constraint"
@@ -574,7 +574,7 @@ fn f_prime_recursive_rejects_tampered_prior_source_image_bit() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "tampered prior source-image bit must break recursive input link"
@@ -618,7 +618,7 @@ fn f_prime_recursive_rejects_fresh_x_not_matching_prior_source_image() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(!b.is_satisfied(), "fresh.x must match source-image prior enc_inst bits");
 }
 
@@ -653,7 +653,7 @@ fn f_prime_recursive_rejects_source_image_chunk_count_mismatch() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "source-image chunk_count word must match in-circuit state var"
@@ -689,7 +689,7 @@ fn f_prime_recursive_rejects_source_image_step_count_mismatch() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "source-image step_count word must match in-circuit state var"
@@ -728,7 +728,7 @@ fn f_prime_recursive_rejects_noncanonical_source_image_pc_word() {
     };
 
     let mut b = R1csBuilder::new();
-    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    enforce_f_prime_recursive_step_circuit(&mut b, fixture.prep.params(), &cfg, &inputs).expect("emit");
     assert!(
         !b.is_satisfied(),
         "source-image pc word must be canonical Goldilocks (< p)"

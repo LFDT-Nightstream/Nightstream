@@ -277,10 +277,10 @@ fn real_fold_rlc_fixture() -> (Preprocessing, Vec<CeClaim>, Vec<Mat<F>>) {
     let mut tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -294,10 +294,10 @@ fn real_fold_rlc_fixture() -> (Preprocessing, Vec<CeClaim>, Vec<Mat<F>>) {
     let mut tr = Transcript::session();
     let (_next, proof) = nifs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -322,7 +322,7 @@ fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
     let mut tr_p = Transcript::session();
     let (out, proof) = pi_rlc::prove(
         &mut tr_p,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,
@@ -333,7 +333,7 @@ fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
     let mut tr_v = Transcript::session();
     let combined = pi_rlc::verify(
         &mut tr_v,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,
@@ -370,7 +370,7 @@ fn projection_schedule_rejects_mixer_that_is_not_the_ring_action() {
     let mut tr = Transcript::session();
     let err = pi_rlc::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         drifted_mixer,
         &claims,
@@ -395,7 +395,7 @@ fn projection_schedule_bridges_to_the_f_prime_encoders() {
     let mut tr = Transcript::session();
     let (out, _proof) = pi_rlc::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,

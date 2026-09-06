@@ -8,8 +8,6 @@ mod canonical_step_export;
 mod canonical_terminal_export;
 #[path = "formal_conformance/native_step_export.rs"]
 mod native_step_export;
-#[path = "formal_conformance/rust_origin.rs"]
-mod rust_origin;
 #[path = "formal_conformance/state_x_out_program_export.rs"]
 mod state_x_out_program_export;
 #[path = "../support/mod.rs"]
@@ -65,19 +63,10 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn compare_or_write_expected(path: &Path, rendered: &str, drifted: &mut Vec<PathBuf>) {
-    if fs::read_to_string(path).is_ok_and(|committed| committed == rendered) {
-        return;
+fn record_artifact_drift(path: &Path, rendered: &str, drifted: &mut Vec<PathBuf>) {
+    if !fs::read_to_string(path).is_ok_and(|committed| committed == rendered) {
+        drifted.push(path.to_owned());
     }
-    fs::create_dir_all(path.parent().expect("native-step artifact parent"))
-        .expect("create native-step artifact parent");
-    let extension = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .expect("native-step artifact extension");
-    let expected = path.with_extension(format!("{extension}.expected"));
-    fs::write(&expected, rendered).expect("write expected native-step artifact");
-    drifted.push(expected);
 }
 
 fn one_batch_finished() -> (neo_fold_clean::Preprocessing, Uncompressed) {
@@ -155,7 +144,7 @@ fn terminal_ce_native_success_and_each_authority_rejection_are_live() {
     ));
 
     let mut bad_norm = running.clone();
-    bad_norm.witnesses[0].as_mut_slice()[0] = F::from_u64(prep.params.b() as u64);
+    bad_norm.witnesses[0].as_mut_slice()[0] = F::from_u64(prep.params().b() as u64);
     assert!(matches!(
         neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_norm),
         Err(Error::FinalAccumulatorLowNormViolation { index: 0, .. })
@@ -236,25 +225,12 @@ fn native_verify_step_receipts_are_exact_and_deterministic() {
          CanonicalConformance/NativeStep/Generated/Receipts.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&json_path, &json, &mut drifted);
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&json_path, &json, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "native verify_step receipt drifted; inspect and deliberately promote {drifted:?}"
+        "native verify_step receipt drifted; frozen reference differs: {drifted:?}"
     );
-}
-
-#[test]
-fn rust_origin_native_verifier_evidence_is_emitted_for_independent_checks() {
-    let evidence = rust_origin::emit();
-    for paths in [evidence.step, evidence.terminal] {
-        assert!(
-            paths.evidence.is_file(),
-            "Rust-origin evidence envelope was not emitted"
-        );
-        assert!(paths.corpus.is_file(), "Rust-origin bounded corpus was not emitted");
-        assert!(paths.lean_replay.is_file(), "Rust-origin Lean replay was not emitted");
-    }
 }
 
 #[test]
@@ -265,10 +241,10 @@ fn native_public_link_program_is_exact_and_deterministic() {
          CanonicalConformance/NativeStep/Generated/PublicInputLinkProgram.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "native public-link program drifted; inspect and deliberately promote {drifted:?}"
+        "native public-link program drifted; frozen reference differs: {drifted:?}"
     );
 }
 
@@ -280,10 +256,10 @@ fn native_state_x_out_programs_are_exact_and_deterministic() {
          CanonicalConformance/NativeStep/Generated/StateXOutProgram.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "native state_x_out programs drifted; inspect and deliberately promote {drifted:?}"
+        "native state_x_out programs drifted; frozen reference differs: {drifted:?}"
     );
 }
 
@@ -295,10 +271,10 @@ fn terminal_link_program_is_exact_and_deterministic() {
          CanonicalConformance/TerminalLink/Generated/Program.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "terminal-link source program drifted; inspect and deliberately promote {drifted:?}"
+        "terminal-link source program drifted; frozen reference differs: {drifted:?}"
     );
 }
 
@@ -310,10 +286,10 @@ fn terminal_native_guard_names_are_exact_and_deterministic() {
          TerminalVerifierNativeGuards/Generated/Names.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "terminal native guard ledger drifted; inspect and deliberately promote {drifted:?}"
+        "terminal native guard ledger drifted; frozen reference differs: {drifted:?}"
     );
 }
 
@@ -327,11 +303,11 @@ fn linked_canonical_step_cases_are_exact_and_deterministic() {
          CanonicalConformance/OneSlot/Generated/StepCases.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&json_path, &json, &mut drifted);
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&json_path, &json, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "linked canonical-step corpus drifted; inspect and deliberately promote {drifted:?}"
+        "linked canonical-step corpus drifted; frozen reference differs: {drifted:?}"
     );
 }
 
@@ -345,10 +321,10 @@ fn linked_canonical_terminal_cases_are_exact_and_deterministic() {
          CanonicalConformance/OneSlot/Generated/TerminalCases.lean",
     );
     let mut drifted = Vec::new();
-    compare_or_write_expected(&json_path, &json, &mut drifted);
-    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    record_artifact_drift(&json_path, &json, &mut drifted);
+    record_artifact_drift(&lean_path, &lean, &mut drifted);
     assert!(
         drifted.is_empty(),
-        "linked canonical-terminal corpus drifted; inspect and deliberately promote {drifted:?}"
+        "linked canonical-terminal corpus drifted; frozen reference differs: {drifted:?}"
     );
 }

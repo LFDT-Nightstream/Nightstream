@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
+import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
 /-!
@@ -158,6 +159,21 @@ theorem kindAt_materializes :
       rw [statementKindAt_materializes, challengeKindAt_materializes,
         roundKindAt_materializes, outputKindAt_materializes]
 
+/-- Materialize each action expansion once. In particular, the PiCCS output
+absorb is chunked once instead of once per random payload lookup. -/
+def materializedPayloadKinds (_delay : Unit := ()) :
+    List PoseidonActionSchedule.Kind :=
+  PoseidonActionSchedule.kinds statementActions ++
+    (PoseidonActionSchedule.kinds challengeActions ++
+      (PoseidonActionSchedule.kinds roundActions ++
+        PoseidonActionSchedule.kinds outputActions))
+
+theorem materializedPayloadKinds_eq :
+    materializedPayloadKinds () =
+      List.ofFn kindAt := by
+  simpa only [materializedPayloadKinds] using
+    kindAt_materializes.symm
+
 theorem kindAt_wellFormed (invocation : Fin invocationCount) :
     (kindAt invocation).WellFormed := by
   have member : kindAt invocation ∈ List.ofFn kindAt :=
@@ -198,6 +214,49 @@ def payloadExpression (index : Fin payloadCount) : Expr :=
       payloadExpr invocation lane := by
   simp [payloadExpression]
 
+
+/-- Expand each invocation once, then visit its rate lanes in canonical order. -/
+def materializedPayloadExpressions (_delay : Unit := ()) : List Expr :=
+  List.flatten <| (materializedPayloadKinds ()).map fun kind =>
+    List.ofFn fun lane : Fin Spec.Poseidon2.rate => payloadExprForKind kind lane
+
+private theorem ofFn_decodeProd_eq_nested {Alpha : Type}
+    (m n : Nat) (value : Fin m → Fin n → Alpha) :
+    List.ofFn (fun index : Fin (m * n) =>
+      let decoded : Fin m × Fin n := Fin.decodeProd index
+      value decoded.1 decoded.2) =
+      List.flatten (List.ofFn fun outer : Fin m =>
+        List.ofFn fun inner : Fin n => value outer inner) := by
+  rw [List.ofFn_mul]
+  apply congrArg List.flatten
+  apply congrArg List.ofFn
+  funext outer
+  apply congrArg List.ofFn
+  funext inner
+  let combined : Fin (m * n) :=
+    ⟨outer.val * n + inner.val, by
+      calc
+        outer.val * n + inner.val < (outer.val + 1) * n := by
+          simpa [Nat.add_mul] using
+            Nat.add_lt_add_left inner.isLt (outer.val * n)
+        _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
+  change value (Fin.decodeProd combined).1 (Fin.decodeProd combined).2 =
+    value outer inner
+  have combined_eq : combined = Fin.encodeProd (outer, inner) := by
+    apply Fin.ext
+    simp [combined, Fin.encodeProd, Nat.mul_comm]
+  rw [combined_eq, Fin.decodeProd_encodeProd]
+
+/-- Ordered materialization equals every declared indexed payload expression. -/
+theorem materializedPayloadExpressions_eq :
+    materializedPayloadExpressions () = List.ofFn payloadExpression := by
+  unfold materializedPayloadExpressions
+  rw [materializedPayloadKinds_eq, ← List.ofFn_comp']
+  symm
+  simpa only [payloadCount, payloadExpression, payloadExpr] using
+    (ofFn_decodeProd_eq_nested invocationCount Spec.Poseidon2.rate
+      (fun invocation lane => payloadExprForKind (kindAt invocation) lane))
+
 def prefixSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
@@ -217,8 +276,9 @@ columns from the retained prefix. -/
 def packageEnv (program : Lifecycle.Stage1.Application.Program)
     (prefixAssignment : Fin (prefixSourceWidth program) → F) : Env :=
   NightstreamFPrime.Layout.Stage1.Spartan.pullback <|
-    PerApplicationPackage.baseEnv program
-      (SourceCompiler.sourceEnv prefixAssignment)
+    PiCCSTranscriptReadout.env <|
+      PerApplicationPackage.baseEnv program
+        (SourceCompiler.sourceEnv prefixAssignment)
 
 def payloadValue (program : Lifecycle.Stage1.Application.Program)
     (prefixAssignment : Fin (prefixSourceWidth program) → F)

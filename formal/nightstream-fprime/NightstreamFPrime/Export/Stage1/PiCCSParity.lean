@@ -3,9 +3,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, steps 1--5.
-Obligation: Emit one complete valid nonzero PiCCS input, proof, and verifier
-result for Lean--Rust conformance. Lean computes the result through the exact
-production transcript schedule and fixed-width SumCheck checker.
+Obligation: Emit the complete synthetic PiCCS input, proof, and verifier
+result for Lean--Rust result comparison. This fixture does not establish
+valid bounded openings. Lean uses the production transcript schedule and
+fixed-width SumCheck checker.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSParity

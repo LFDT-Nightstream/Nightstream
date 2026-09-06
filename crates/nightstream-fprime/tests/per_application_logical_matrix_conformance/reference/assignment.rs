@@ -12,12 +12,12 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
 const TRANSPORT_SCHEMA: usize = 1;
-const BLOCK_COUNT: usize = 45;
+const BLOCK_COUNT: usize = 38;
 const PHYSICAL_COLUMNS: usize = 29_344_425;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 264_627_433;
-const CARRIER_WIDTH: usize = 264_627_486;
+const LOGICAL_WIDTH: usize = 256_532_147;
+const CARRIER_WIDTH: usize = 256_532_184;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PAYLOAD_VALUES: usize = 30_416;
@@ -125,7 +125,7 @@ impl BlockPlan {
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
             13 => SourceDomain::Payload,
-            41..=44 => SourceDomain::Physical,
+            36..=37 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -354,7 +354,7 @@ impl Transport {
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
         let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "payload block opcode")? != 13 || word(&fields[6], "output-digest block opcode")? != 31 {
+        if word(&fields[4], "payload block opcode")? != 13 || word(&fields[6], "output-digest block opcode")? != 27 {
             return Err("unexpected derived assignment block selector".into());
         }
         let payload_expressions = exact_array(&fields[5], PAYLOAD_VALUES, "payload expressions")?.to_vec();
@@ -382,12 +382,20 @@ struct Physical<'a> {
     public: &'a [u64],
     constant_column: usize,
     total_columns: usize,
+    unavailable_private: Option<Range<usize>>,
 }
 
 impl Physical<'_> {
     fn value(&self, column: usize) -> Result<u64> {
         if column >= self.total_columns {
             return Err(format!("physical assignment column {column} is out of range"));
+        }
+        if self
+            .unavailable_private
+            .as_ref()
+            .is_some_and(|range| range.contains(&column))
+        {
+            return Err(format!("physical private column {column} is unavailable"));
         }
         let value = if column < self.constant_column {
             self.private
@@ -490,6 +498,7 @@ impl LogicalAssignment {
             public: public_values,
             constant_column: constant,
             total_columns: PHYSICAL_COLUMNS,
+            unavailable_private: None,
         };
         for column in 0..PHYSICAL_COLUMNS {
             physical.value(column)?;
@@ -690,6 +699,7 @@ impl<'a> PartialLogicalAssignment<'a> {
                 public: public_values,
                 constant_column: constant,
                 total_columns: PHYSICAL_COLUMNS,
+                unavailable_private: None,
             },
             block_ranges,
             groups: OnceLock::new(),
@@ -700,6 +710,18 @@ impl<'a> PartialLogicalAssignment<'a> {
 
     pub fn len(&self) -> usize {
         LOGICAL_WIDTH
+    }
+
+    /// Keep the sealed pilot's proof-input gap and non-pilot public context
+    /// unavailable. This uses the same independent schema-6 transport.
+    pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
+        if private_prefix.len() != 14_751_526 {
+            return Err("pilot physical-assignment prefix has the wrong length".into());
+        }
+        let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
+        assignment.physical.unavailable_private = Some(98_786..128_074);
+        assignment.physical.public = &public_values[..274];
+        Ok(assignment)
     }
 
     pub fn value(&self, column: usize) -> Result<Field> {
@@ -963,7 +985,7 @@ fn validate_derived_block_sources(
             return Err("payload source map does not select the derived value".into());
         }
     }
-    let digest = transport.block(31)?;
+    let digest = transport.block(27)?;
     if digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }

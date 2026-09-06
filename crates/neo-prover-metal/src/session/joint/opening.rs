@@ -2,6 +2,7 @@
 
 use std::mem::size_of;
 
+use neo_ccs::V1_1Evaluations;
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 use objc2_foundation::NSString;
@@ -189,7 +190,8 @@ impl MetalSession {
             return Err(MetalError::Shape("one-joint opening transpose is incomplete"));
         }
 
-        // Matrix zero is the virtual identity used by the selected PiCCS.
+        // The first device batch evaluates Pad; the remaining batches evaluate
+        // the genuine CCS matrices. Pad is not part of the CCS matrix list.
         // Application matrices follow in their canonical structure order.
         let matrix_count = matrices.len() + 1;
         let mut active_local_offsets = Vec::new();
@@ -585,7 +587,7 @@ impl MetalSession {
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
-    ) -> Result<Vec<Vec<Vec<K>>>, MetalError> {
+    ) -> Result<Vec<V1_1Evaluations<K>>, MetalError> {
         let chi_len = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("one-joint opening tensor length overflow"))?;
@@ -841,7 +843,16 @@ impl MetalSession {
                 }
             }
         }
-        Ok(openings)
+        Ok(openings
+            .into_iter()
+            .map(|families| {
+                let mut families = families.into_iter();
+                V1_1Evaluations {
+                    eval_k: families.next().expect("the opening plan includes Pad"),
+                    eval_a: families.collect(),
+                }
+            })
+            .collect())
     }
 }
 

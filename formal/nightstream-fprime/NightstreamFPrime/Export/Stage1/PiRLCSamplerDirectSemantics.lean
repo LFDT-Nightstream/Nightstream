@@ -1111,7 +1111,15 @@ theorem semanticEnv_logical_eq_baseEnv
         groupValue products encodes descriptor position
     _ = PiRLCFirst54DirectPlan.baseEnv program base column :=
       (PiRLCSamplerRetainedCustody.baseEnv_eq_transitionEnv program base column
-        privateBound).symm
+        privateBound (by
+          right
+          norm_num [column, PiCCSInputs.phaseOffset_eq,
+            PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+            PiRLCSamplerOrdinaryRetainedBlocks.logicalSource,
+            PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
+            PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
+            PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
+            NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] <;> omega)).symm
 
 def candidateDigestRound
     (candidate : PiRLCFirst54DirectSchedule.Candidate) :

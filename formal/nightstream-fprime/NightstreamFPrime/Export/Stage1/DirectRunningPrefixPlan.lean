@@ -23,18 +23,15 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    PiCCSPoseidonPlan.Geometry program logicalWidth where
-  payloadFits := by
-    apply Nat.le_trans _ geometry.completeFits
-    rw [PiCCSActionPayloadBlock.logicalWidth_eq,
-      RunningTransitionRetainedGeometry.completeLogicalWidth_eq]
-    omega
+    PiCCSPoseidonPlan.Geometry program logicalWidth :=
+  RunningTransitionRetainedGeometry.poseidonGeometry geometry
 
 def prefixPlan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  DirectPrefixPlan.plan (prefixGeometry geometry)
+  DirectPrefixPlan.plan payloadForms (prefixGeometry geometry)
 
 def transitionPlan
     {program : Lifecycle.Stage1.Application.Program}
@@ -52,8 +49,9 @@ theorem rowCount_le
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (prefixPlan geometry).rowCount + (transitionPlan relation geometry).rowCount ≤
+    (prefixPlan payloadForms geometry).rowCount + (transitionPlan relation geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [prefixPlan, DirectPrefixPlan.plan_rowCount, transitionPlan,
     RunningTransitionDirectPlan.plan_rowCount]
@@ -65,10 +63,11 @@ def plan
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  ProductionRelation.Plan.append (prefixPlan geometry)
-    (transitionPlan relation geometry) (rowCount_le relation geometry)
+  ProductionRelation.Plan.append (prefixPlan payloadForms geometry)
+    (transitionPlan relation geometry) (rowCount_le relation payloadForms geometry)
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program}
@@ -76,8 +75,9 @@ def plan
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 5310442 := by
+    (plan relation payloadForms geometry).rowCount = 5310442 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -86,23 +86,25 @@ theorem rowsZero_iff
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
-    (plan relation geometry).RowsZero assignment ↔
-      (prefixPlan geometry).RowsZero assignment ∧
+    (plan relation payloadForms geometry).RowsZero assignment ↔
+      (prefixPlan payloadForms geometry).RowsZero assignment ∧
         (transitionPlan relation geometry).RowsZero assignment := by
   exact ProductionRelation.Plan.append_rowsZero_iff _ _
-    (rowCount_le relation geometry) assignment
+    (rowCount_le relation payloadForms geometry) assignment
 
 structure Encodes
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  prior : DirectPrefixPlan.Encodes (prefixGeometry geometry) assignment
+  prior : DirectPrefixPlan.Encodes payloadForms (prefixGeometry geometry) assignment
     base groupValue products
   transition : RunningTransitionRetainedGeometry.Encodes geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
@@ -114,12 +116,13 @@ structure Semantics
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  prior : DirectPrefixPlan.Semantics (prefixGeometry geometry) assignment base
+  prior : DirectPrefixPlan.Semantics payloadForms (prefixGeometry geometry) assignment base
     groupValue products
   transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
     logicalWidth publicFits
@@ -150,6 +153,7 @@ theorem rowsZero_implies_semantics
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -157,13 +161,13 @@ theorem rowsZero_implies_semantics
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
-    (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Semantics relation geometry assignment base groupValue products := by
-  have children := (rowsZero_iff relation geometry assignment).mp rowsZero
+    (encodes : Encodes payloadForms geometry assignment base groupValue products)
+    (rowsZero : (plan relation payloadForms geometry).RowsZero assignment) :
+    Semantics relation payloadForms geometry assignment base groupValue products := by
+  have children := (rowsZero_iff relation payloadForms geometry assignment).mp rowsZero
   refine ⟨?_, ?_⟩
   · exact DirectPrefixPlan.rowsZero_implies_semantics
-      (prefixGeometry geometry) assignment base groupValue products
+      payloadForms (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.prior children.1
   · exact (RunningTransitionDirectPlan.rowsZero_iff_physical
       relation geometry assignment base groupValue products one

@@ -952,7 +952,39 @@ def applicationAssumptions
     (applicationInputsBelow
       (logicalWidth := logicalWidth) program)
 
-/-- The exact seven child assumptions for the compact Stage 1 parent at its
+theorem nextPreimageSourceOffset_le_root
+    (program : Lifecycle.Stage1.Application.Program) :
+    RunningTransitionInputs.phaseOffset ≤ AssemblerInputs.rootOffset program := by
+  unfold AssemblerInputs.rootOffset AssemblerInputs.applicationLocalStart
+    AssemblerInputs.applicationWitnessStart
+  rw [Stage1.Spartan.sourceColumnCount_eq]
+  norm_num [RunningTransitionInputs.phaseOffset]
+  omega
+
+def nextPreimageAssumptions
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Lifecycle.Stage1.Application.Program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (env : Env) :
+    (Lifecycle.Stage1.nextPreimageChild relation program
+      (AssemblerInputs.interface relation program)).assumptions
+      (Lifecycle.Stage1.finalOffset relation ajtai program
+        (AssemblerInputs.interface relation program) template
+        (AssemblerInputs.rootOffset program)) env := by
+  have source := NextPreimageInputs.sourceAssumptions env
+  have le := le_trans (nextPreimageSourceOffset_le_root program)
+    (AssemblerInputs.rootOffset_le_finalOffset relation ajtai program template)
+  exact {
+    priorIteration := Expr.VarsBelow.mono _ source.priorIteration le
+    outputIteration := Expr.VarsBelow.mono _ source.outputIteration le
+    priorInitialState := fun index =>
+      Expr.VarsBelow.mono _ (source.priorInitialState index) le
+    outputInitialState := fun index =>
+      Expr.VarsBelow.mono _ (source.outputInitialState index) le }
+
+/-- The exact eight child assumptions for the compact Stage 1 parent at its
 production root. -/
 def stage1Assumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -971,7 +1003,8 @@ def stage1Assumptions
     piRlc := ?_
     piDec := ?_
     running := ?_
-    application := ?_ }
+    application := ?_
+    nextPreimage := nextPreimageAssumptions relation ajtai program template env }
   · rw [AssemblerInputs.parent_priorOffset_eq relation program]
     exact AssemblerPilotBounds.priorAssumptions program env
   · rw [AssemblerInputs.parent_outputHashOffset_eq relation program]

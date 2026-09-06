@@ -62,10 +62,15 @@ timeout 300s cargo test -p wip-spartan --release
 Run `cargo fmt --all` after Rust changes. All non-Lean test commands have a
 five-minute cap. See [AGENTS.md](AGENTS.md) for the full project rules.
 
+For Lean proof work, [lean-graph](scripts/lean_graph/README.md) records proof
+obligations, runs and resumes validation checkpoints, and answers dependency
+queries. Its current configuration covers the Nightstream F′ pilot/PiCCS chain.
+
 ## Papers and implementation notes
 
 - [SuperNeo paper](docs/superneo-paper/)
 - [HyperNova paper](docs/hypernova-paper/)
 - [Nebula paper](docs/nebula-paper/)
 - [Wiki](wiki/index.md)
-- [Active Lean model](formal/nightstream-lean/README.md)
+- [Active Lean proof work](formal/nightstream-fprime/CONSTRAINT_TREE.md)
+- [Lean evidence workflow design](docs/trellis-nightstream-proposal.md)

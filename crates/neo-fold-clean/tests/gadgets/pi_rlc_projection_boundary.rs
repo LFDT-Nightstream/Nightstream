@@ -471,13 +471,7 @@ fn render_lean_artifact(honest: &ProjectionFixture, bad: &ProjectionFixture) -> 
 fn assert_generated_file(path: &Path, rendered: &str) {
     let committed = fs::read_to_string(path).unwrap_or_default();
     if committed != rendered {
-        let expected = path.with_extension("lean.expected");
-        fs::write(&expected, rendered).expect("write expected Lean projection artifact");
-        panic!(
-            "generated Lean projection artifact drifted; inspect {} and copy it to {}",
-            expected.display(),
-            path.display()
-        );
+        panic!("frozen Lean projection reference differs: {}", path.display());
     }
 }
 
@@ -560,10 +554,6 @@ fn production_projection_rows_expose_exact_or_bad_root_boundary() {
     let path = repo_root().join(MANIFEST_PATH);
     let committed = fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("read {}: {error}\nexpected manifest:\n{rendered}", path.display()));
-    if committed != rendered {
-        let expected = path.with_extension("json.expected");
-        fs::write(&expected, &rendered).expect("write expected PiRLC projection manifest");
-    }
     assert_eq!(
         committed, rendered,
         "PiRLC projection boundary drifted; reviewed output:\n{rendered}"
@@ -573,27 +563,4 @@ fn production_projection_rows_expose_exact_or_bad_root_boundary() {
         &repo_root().join(LEAN_ARTIFACT_PATH),
         &render_lean_artifact(&honest, &bad),
     );
-}
-
-#[test]
-#[ignore = "deliberately promotes the reviewed PiRLC projection artifacts"]
-fn regenerate_pi_rlc_projection_boundary_artifacts() {
-    let honest = honest_fixture();
-    let bad = bad_root_fixture();
-    let manifest_path = repo_root().join(MANIFEST_PATH);
-    let lean_path = repo_root().join(LEAN_ARTIFACT_PATH);
-    let rendered_manifest = format!(
-        "{}\n",
-        serde_json::to_string_pretty(&manifest(&honest, &bad)).expect("render projection manifest")
-    );
-    fs::write(&manifest_path, rendered_manifest).expect("write PiRLC projection manifest");
-    fs::write(&lean_path, render_lean_artifact(&honest, &bad)).expect("write PiRLC projection Lean artifact");
-    for candidate in [
-        manifest_path.with_extension("json.expected"),
-        lean_path.with_extension("lean.expected"),
-    ] {
-        if candidate.exists() {
-            fs::remove_file(candidate).expect("remove promoted PiRLC projection candidate");
-        }
-    }
 }

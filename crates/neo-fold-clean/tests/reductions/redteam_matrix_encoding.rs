@@ -90,17 +90,23 @@ fn mat_deserialization_rejects_short_dense_backing() {
 fn nifs_prover_does_not_panic_for_zero_public_inputs() {
     let prep = support::toy_preprocessing_unfixed_public_input_len();
     let assignment = vec![F::ZERO; neo_math::D];
-    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, 0)
-        .expect("zero-public-input CCS instance");
+    let fresh = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &assignment,
+        0,
+    )
+    .expect("zero-public-input CCS instance");
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut prover_transcript = Transcript::session();
         neo_fold_clean::paper::nifs::prove(
             &mut prover_transcript,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
-            &prep.log,
+            prep.commitment_scheme(),
             None,
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),

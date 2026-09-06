@@ -5,7 +5,9 @@ import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
 /-!
 Owns the ordered direct 14-matrix plan through one verifier-selected
-application. The running prefix comes first; the application rows follow.
+application. The running prefix comes first; application rows follow and read
+the actual pilot preimage forms. Only application witness/local values add
+retained coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
@@ -218,7 +220,9 @@ theorem rowsZero_iff
   rw [throughNextPreimagePlan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [prefixApplicationPlan, ProductionRelation.Plan.append_rowsZero_iff]
 
-private theorem applicationSourceWidth_le_baseSourceWidth
+/-- The application source is contained in the complete package source
+prefix used by the canonical retained assignment. -/
+theorem applicationSourceWidth_le_baseSourceWidth
     (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedBlocks.sourceWidth application ≤
       PiRLCProductPlan.baseSourceWidth application := by
@@ -287,6 +291,8 @@ structure Encodes
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
     (prefixGeometry geometry) assignment base groupValue products
+  /-- Input/output facts refer to the existing pilot coordinates. Only the
+  witness/local fields describe new application suffix coordinates. -/
   applicationEncoding : ApplicationRetainedGeometry.Encodes geometry assignment
     (applicationSource application base)
 

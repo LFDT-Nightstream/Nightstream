@@ -2,8 +2,10 @@
 
 use serde_json::Value;
 
+use super::matrix::SourceSubstitution;
+use super::source::SourceCombination;
 use super::{
-    array, checked_add, checked_mul, decode_list, exact_array, field, word, Field, Form, Result, RetainedBlock,
+    array, checked_add, checked_mul, decode_list, exact_array, field, word, Entry, Field, Form, Result, RetainedBlock,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +78,13 @@ enum Term {
         values: Vec<Option<Field>>,
         lane_count: usize,
     },
+    TaggedAffine {
+        values: Vec<SourceCombination>,
+        substitution: SourceSubstitution,
+        tags: Vec<InvocationTag>,
+        required: InvocationTag,
+        lane_count: usize,
+    },
 }
 
 impl Term {
@@ -117,6 +126,13 @@ impl Term {
             Some(4) if fields.len() == 3 => Ok(Self::OptionalConstant {
                 values: decode_optional_constants(&fields[1])?,
                 lane_count: word(&fields[2], "Poseidon2 optional lane count")?,
+            }),
+            Some(5) if fields.len() == 6 => Ok(Self::TaggedAffine {
+                values: decode_list(&fields[1], decode_affine_word, "affine source words")?,
+                substitution: SourceSubstitution::decode(&fields[2], logical_width)?,
+                tags: decode_list(&fields[3], InvocationTag::decode, "affine invocation tags")?,
+                required: InvocationTag::decode(&fields[4])?,
+                lane_count: word(&fields[5], "affine lane count")?,
             }),
             _ => Err("unknown Poseidon2 input term opcode".into()),
         }
@@ -181,6 +197,29 @@ impl Term {
                     None => Ok(Form::default()),
                 }
             }
+            Self::TaggedAffine {
+                values,
+                substitution,
+                tags,
+                required,
+                lane_count,
+            } => {
+                let actual = tags
+                    .get(invocation)
+                    .ok_or_else(|| "affine invocation tag is out of range".to_string())?;
+                if actual != required {
+                    return Ok(Form::default());
+                }
+                let position = checked_add(
+                    checked_mul(invocation, *lane_count, "affine word position")?,
+                    lane,
+                    "affine word position",
+                )?;
+                let source = values
+                    .get(position)
+                    .ok_or_else(|| "affine source word is absent".to_string())?;
+                substitution.compile(logical_width, one_column, source)
+            }
         }
     }
 }
@@ -229,6 +268,22 @@ impl Program {
         }
         Ok(state)
     }
+}
+
+fn decode_affine_word(value: &Value) -> Result<SourceCombination> {
+    let pair = exact_array(value, 2, "affine source word")?;
+    let mut terms = Vec::new();
+    for encoded in array(&pair[1], "affine source entries")? {
+        let entry = exact_array(encoded, 2, "affine source entry")?;
+        terms.push(Entry {
+            column: word(&entry[0], "affine source index")?,
+            coefficient: field(&entry[1], "affine source scalar")?,
+        });
+    }
+    Ok(SourceCombination {
+        constant: field(&pair[0], "affine source constant")?,
+        terms,
+    })
 }
 
 fn decode_optional_constants(value: &Value) -> Result<Vec<Option<Field>>> {

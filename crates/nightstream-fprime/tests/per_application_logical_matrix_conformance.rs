@@ -13,14 +13,55 @@
 use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LogicalMatrixRow, PackageError, PI_CCS_V1_1_MATRIX_COUNT,
-    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LoadedPerApplicationPackage,
+    LogicalMatrixRow, PackageError, PI_CCS_V1_1_MATRIX_COUNT, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
 };
 use rayon::prelude::*;
 use serde_json::Value;
 
 #[path = "per_application_logical_matrix_conformance/reference/mod.rs"]
 mod reference;
+
+#[path = "support/poseidon_affine_fixture.rs"]
+mod affine_fixture;
+
+#[test]
+fn affine_poseidon_reference_preserves_values_indices_and_tag_selection() {
+    let program = reference::poseidon_input::Program::decode(&affine_fixture::program(), 32)
+        .expect("independent affine input decoder");
+    let first = program.state(32, 31, 0).expect("first independent input");
+    let second = program.state(32, 31, 1).expect("second independent input");
+    for (form, expected) in [
+        (&first[0], vec![(4, 1), (5, 3), (31, 7)]),
+        (&first[1], vec![(5, 4), (31, 11)]),
+        (&second[0], vec![(31, 13)]),
+        (&second[1], vec![(4, 5), (31, 17)]),
+    ] {
+        let entries: Vec<_> = form
+            .entries()
+            .iter()
+            .map(|entry| (entry.column, entry.coefficient.canonical()))
+            .collect();
+        assert_eq!(entries, expected);
+    }
+    assert!(first[2..].iter().all(|form| form.entries().is_empty()));
+    assert!(second[2..].iter().all(|form| form.entries().is_empty()));
+    assert!(program
+        .state(32, 31, 2)
+        .expect("inactive tag")
+        .iter()
+        .all(|form| form.entries().is_empty()));
+    assert!(program.state(32, 32, 0).is_err(), "independent constant-column bound");
+}
+
+#[test]
+fn affine_poseidon_reference_rejects_malformed_words_and_sources() {
+    for (label, input) in affine_fixture::malformed() {
+        let result =
+            reference::poseidon_input::Program::decode(&input, 32).and_then(|program| program.state(32, 31, 0));
+        assert!(result.is_err(), "independent decoder accepted {label}");
+    }
+}
 
 use reference::{
     empty_row,
@@ -30,7 +71,7 @@ use reference::{
 };
 
 const EXPECTED_ACTIVE_ROWS: usize = 6_377_559;
-const EXPECTED_LOGICAL_COLUMNS: usize = 264_627_433;
+const EXPECTED_LOGICAL_COLUMNS: usize = 256_532_147;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
 const EXPECTED_PHYSICAL_ROWS: usize = 29_225_729;
@@ -72,28 +113,53 @@ fn canonical_pin_entry(package: &mut Value) -> &mut Vec<Value> {
         .and_then(Value::as_array_mut)
         .and_then(|rows| rows.get_mut(760))
         .and_then(Value::as_array_mut)
-        .and_then(|row| row.first_mut())
+        .and_then(|row| {
+            row.iter_mut().find(|entry| {
+                entry
+                    .get(1)
+                    .and_then(Value::as_u64)
+                    .is_some_and(|coefficient| coefficient != 0)
+            })
+        })
         .and_then(Value::as_array_mut)
         .expect("canonical final matrix pin entry")
 }
 
-fn assert_independent_decode_then_identity_rejection(label: &str, package: &Value, artifact: &Artifact) {
-    MatrixProgram::decode(
+fn assert_independent_decode_then_identity_rejection(
+    label: &str,
+    package: &Value,
+    artifact: &Artifact,
+    expected_identity: [u64; 4],
+    expected_row: (usize, &RowForms),
+) {
+    let changed = MatrixProgram::decode(
         matrix_program_value(package),
         &artifact.sources,
         artifact.logical_columns,
         artifact.logical_rows,
     )
     .unwrap_or_else(|error| panic!("independent decoder rejected valid {label}: {error}"));
+    assert_ne!(
+        &changed
+            .row(expected_row.0, &artifact.sources)
+            .expect("changed canonical row"),
+        expected_row.1,
+        "{label} must change an expanded matrix row"
+    );
+    drop(changed);
 
-    match load_poseidon2_hash_chain_v1_package(&canonical_bytes(package)) {
+    match load_per_application_package(&canonical_bytes(package), expected_identity) {
         Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
-            assert_eq!(expected, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER);
+            assert_eq!(expected, expected_identity);
             assert_ne!(computed, expected, "{label} did not change the structural identity");
         }
-        Err(error) => panic!("{label} failed for a reason other than the pinned structural identity: {error}"),
-        Ok(_) => panic!("pinned production loader accepted {label}"),
+        Err(error) => panic!("{label} failed for a reason other than the selected structural identity: {error}"),
+        Ok(_) => panic!("production loader accepted {label} under the selected identity"),
     }
+    println!(
+        "{label}: changed expanded row {}, selected identity rejected",
+        expected_row.0
+    );
 }
 
 fn compare_row(ordinal: usize, expected: &RowForms, actual: &LogicalMatrixRow) -> [u64; PI_CCS_V1_1_MATRIX_COUNT] {
@@ -134,10 +200,32 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
         current.structural_identifier(),
         POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER
     );
+    check_matrix_mutations(current, sealed_bytes);
+}
+
+/// Apply the matrix mutations to a package that passed the selected identity
+/// check. Every mutation must decode and then fail that same identity check.
+pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
+    let expected_identity = current.structural_identifier();
     drop(current);
 
     let artifact = SourcePackage::decode(&sealed_bytes).expect("independent sealed package decoder");
     let value: Value = serde_json::from_slice(&sealed_bytes).expect("sealed package JSON");
+    let original = MatrixProgram::decode(
+        matrix_program_value(&value),
+        &artifact.sources,
+        artifact.logical_columns,
+        artifact.logical_rows,
+    )
+    .expect("independent original matrix program");
+    let first_row = original
+        .row(0, &artifact.sources)
+        .expect("original first row");
+    let pin_ordinal = original.block_ends().nth(2).expect("start of fourth block") + 760;
+    let pin_row = original
+        .row(pin_ordinal, &artifact.sources)
+        .expect("original selected pin row");
+    drop(original);
 
     let mut changed_block_order = value.clone();
     let blocks = changed_block_order
@@ -147,30 +235,49 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
         .expect("final matrix blocks");
     assert_ne!(blocks[0], blocks[1], "distinct final matrix blocks");
     blocks.swap(0, 1);
-    assert_independent_decode_then_identity_rejection("matrix block-order mutation", &changed_block_order, &artifact);
+    assert_independent_decode_then_identity_rejection(
+        "matrix block-order mutation",
+        &changed_block_order,
+        &artifact,
+        expected_identity,
+        (0, &first_row),
+    );
     drop(changed_block_order);
 
     let mut changed_column = value.clone();
-    let replacement_column = 196_202_985_u64;
-    assert!(replacement_column < u64::try_from(artifact.logical_columns).expect("logical columns fit u64"));
     let entry = canonical_pin_entry(&mut changed_column);
-    assert_eq!(entry[0].as_u64(), Some(196_202_984));
+    let original_column = entry[0].as_u64().expect("canonical pin column");
+    let column_count = u64::try_from(artifact.logical_columns).expect("logical columns fit u64");
+    let replacement_column = original_column.checked_add(1).expect("next pin column");
+    assert!(replacement_column < column_count);
     entry[0] = Value::from(replacement_column);
-    assert_independent_decode_then_identity_rejection("in-range matrix-column mutation", &changed_column, &artifact);
+    assert_independent_decode_then_identity_rejection(
+        "in-range matrix-column mutation",
+        &changed_column,
+        &artifact,
+        expected_identity,
+        (pin_ordinal, &pin_row),
+    );
     drop(changed_column);
 
     let mut changed_coefficient = value;
-    let replacement_coefficient = 2_u64;
-    assert_ne!(replacement_coefficient, 0);
-    assert!(replacement_coefficient < GOLDILOCKS_MODULUS);
     let entry = canonical_pin_entry(&mut changed_coefficient);
-    assert_eq!(entry[1].as_u64(), Some(1));
+    let original_coefficient = entry[1].as_u64().expect("selected nonzero coefficient");
+    assert!(original_coefficient != 0 && original_coefficient < GOLDILOCKS_MODULUS);
+    let replacement_coefficient = if original_coefficient == GOLDILOCKS_MODULUS - 1 {
+        1
+    } else {
+        original_coefficient + 1
+    };
     entry[1] = Value::from(replacement_coefficient);
     assert_independent_decode_then_identity_rejection(
         "canonical nonzero matrix-coefficient mutation",
         &changed_coefficient,
         &artifact,
+        expected_identity,
+        (pin_ordinal, &pin_row),
     );
+    println!("matrix block-order, in-range column, and canonical coefficient mutations rejected");
 }
 
 #[test]
@@ -178,6 +285,12 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
 fn final_fourteen_matrices_equal_the_independent_sealed_interpretation() {
     let sealed_bytes = fs::read(artifact_path()).expect("Lean-emitted sealed package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("production package decoder");
+    check_logical_matrices(package, sealed_bytes);
+}
+
+/// Compare the actual final matrix rows with the independent sealed
+/// interpretation for an already identity-checked package.
+pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let artifact = SourcePackage::decode(&sealed_bytes).expect("independent sealed package decoder");
     drop(sealed_bytes);
 
@@ -195,18 +308,6 @@ fn final_fourteen_matrices_equal_the_independent_sealed_interpretation() {
     assert_eq!(package.total_column_count(), EXPECTED_PHYSICAL_COLUMNS);
     assert_eq!(package.public_input_count(), EXPECTED_PUBLIC_COLUMNS);
     assert_eq!(package.logical_public_input_count(), EXPECTED_LOGICAL_PUBLIC_INPUTS);
-    assert_eq!(
-        package.structural_identifier(),
-        POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER
-    );
-    assert_eq!(
-        package
-            .production_verifier_binding()
-            .expect("production verifier binding")
-            .package_identity(),
-        POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY
-    );
-
     let relation = package.ccs_relation();
     assert_eq!(relation.row_count(), EXPECTED_ACTIVE_ROWS);
     assert_eq!(relation.column_count(), EXPECTED_LOGICAL_COLUMNS);

@@ -258,7 +258,7 @@ theorem logicalCircuit_coverage
     (program : Lifecycle.Stage1.Application.Program)
     (template : Proof (ProductionKey.degreeBound relation)) :
     (Circuit.ops (logicalCircuit relation ajtai program template).main
-      (AssemblerInputs.rootOffset program)).length = 7 := by
+      (AssemblerInputs.rootOffset program)).length = 8 := by
   exact Lifecycle.Stage1.circuit_coverage relation ajtai program
     (AssemblerInputs.interface relation program) template
     (AssemblerInputs.rootOffset program)

@@ -832,4 +832,45 @@ theorem preimage_wellFormed
   refine ⟨preimage_fixed logicalWidth publicFits state, ?_, rfl⟩
   exact (state RunningTransitionInputs.iterationWordIndex).isLt
 
+/-- Canonical decoded words represent the complete prior hash preimage at
+the pilot interface. The agreement is over the actual hashed word interval. -/
+theorem priorRepresents
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (env : Circuit.Env) (state : Nat → F)
+    (canonical : Canonical state)
+    (agrees : ∀ word : Fin PilotProduction.stateHashWords,
+      env (PilotProduction.priorPreimageStart + word.val) = state word.val) :
+    PriorStateHash.RepresentsPreimage PilotProduction.priorInterface
+      PilotProduction.witnessOffset env (preimage logicalWidth publicFits state) := by
+  unfold PriorStateHash.RepresentsPreimage
+  rw [PilotProduction.priorInterface_preimage_apply]
+  simp only [PilotProduction.priorPreimage,
+    NightstreamFPrime.Gadgets.Poseidon2.Hash.evalList,
+    PilotProduction.variableExprs, List.map_ofFn]
+  rw [serializePreimage_preimage _ _ canonical]
+  exact congrArg List.ofFn (funext agrees)
+
+/-- Canonical decoded words represent the complete output hash preimage at
+the pilot interface. No coordinate-encoding premise is needed. -/
+theorem outputRepresents
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (env : Circuit.Env) (state : Nat → F)
+    (canonical : Canonical state)
+    (agrees : ∀ word : Fin PilotProduction.stateHashWords,
+      env (PilotProduction.outputPreimageStart + word.val) = state word.val) :
+    OutputHash.RepresentsPreimage PilotProduction.outputInterface
+      (Pilot.outputOffset PilotProduction.interface PilotProduction.witnessOffset)
+      env (preimage logicalWidth publicFits state) := by
+  unfold OutputHash.RepresentsPreimage
+  rw [PilotProduction.outputInterface_preimage_apply]
+  simp only [PilotProduction.outputPreimage,
+    NightstreamFPrime.Gadgets.Poseidon2.Hash.evalList,
+    PilotProduction.variableExprs, List.map_ofFn]
+  rw [serializePreimage_preimage _ _ canonical]
+  exact congrArg List.ofFn (funext agrees)
+
 end NightstreamFPrime.Layout.Stage1.StateDecoder

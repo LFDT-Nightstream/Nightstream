@@ -829,8 +829,17 @@ theorem resolvedEnv_logical
       assignment = _
   rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.logical]
   rw [PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_source]
-  exact RunningTransitionDirectPlan.sourceAssignment_packageSource program base
-    groupValue products _ _
+  rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
+  apply Eq.symm
+  apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _
+    (PiRLCSamplerOrdinaryRetainedBlocks.logicalSource_lt descriptor position)
+  right
+  norm_num [PiCCSInputs.phaseOffset_eq,
+    PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+    PiRLCSamplerOrdinaryRetainedBlocks.logicalSource, PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
+      PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
+      PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
+      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] <;> omega
 
 /-- Every retained digest-lane fresh source evaluates to the exact canonical
 package source selected by the transition environment. -/
@@ -865,25 +874,42 @@ theorem resolvedEnv_fresh
       assignment = _
   rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
   rw [PiRLCSamplerOrdinaryRetainedBlocks.freshBlock_source]
-  exact RunningTransitionDirectPlan.sourceAssignment_packageSource program base
-    groupValue products _ _
+  rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
+  apply Eq.symm
+  apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _
+    (PiRLCSamplerOrdinaryRetainedBlocks.freshSource_lt descriptor position)
+  right
+  norm_num [PiCCSInputs.phaseOffset_eq,
+    PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+    PiRLCSamplerOrdinaryRetainedBlocks.freshSource, PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
+      PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
+      PiRLCStarts.phaseFreshStart, PiRLCStarts.phaseLogicalStart,
+      PiRLCInputs.phaseOffset,
+      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] <;> omega
 
-/-- The product-plan base environment and transition environment are the same
-view of every package-private logical source. -/
+/-- The product-plan and transition views agree on private source columns
+outside the PiCCS transcript-output family. Callers prove their source ranges. -/
 theorem baseEnv_eq_transitionEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
     (column : Nat)
-    (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn) :
+    (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
+    (outside : column < PiCCSInputs.phaseOffset ∨
+      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+        column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
-  have mappedBound :=
-    PiRLCProductPlan.sourceToSpartan_lt_basePackage column bound
-  rw [PiRLCProductPlan.baseEnv_eq_mappedPackageColumn program base column bound]
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos mappedBound]
-  rfl
+  have sourceBound : column < Spartan.SourceColumnCount := by
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 29336446 :=
+      Package.circuitPackage_layout_values.2.2.1
+    rw [constant] at bound
+    rw [Spartan.sourceColumnCount_eq]
+    omega
+  rw [PiRLCProductPlan.baseEnv_eq_mappedPackageColumn program base column bound,
+    RunningTransitionDirectPlan.transitionEnv_of_outside program base column sourceBound outside]
+  exact (SourceCompiler.sourceEnv_at base
+    (PiRLCProductPlan.mappedPackageColumn program column bound)).symm
 
 /-- The fail-closed final selector source is the exact retained First54 full
 slot and the exact canonical transition value. -/
@@ -947,6 +973,15 @@ theorem resolvedEnv_selector
     omega
   change PiRLCProductPlan.baseEnv program base
       (PiRLCSamplerOrdinaryDirectSource.selectorSource source.val) = _
-  exact baseEnv_eq_transitionEnv program base _ privateBound
+  exact baseEnv_eq_transitionEnv program base _ privateBound (by
+    right
+    norm_num [PiCCSInputs.phaseOffset_eq,
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+      PiRLCSamplerOrdinaryDirectSource.selectorSource,
+      PiRLCStarts.selectorLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
+      PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
+      PiRLCInputs.phaseOffset,
+      First54.positionOffset, First54.candidateCount, First54.roundPrivateCount,
+      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset] <;> omega)
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody

@@ -434,7 +434,7 @@ fn require_active_state(state: &ProofState) -> Result<(RunningInstance, &LatestI
 }
 
 fn check_running_shape(running: &RunningInstance) -> Result<(), Error> {
-    if !running.shape_ok() {
+    if !running.prover_shape_is_valid() {
         return Err(Error::FinalAccumulatorWitnessShapeMismatch);
     }
     Ok(())

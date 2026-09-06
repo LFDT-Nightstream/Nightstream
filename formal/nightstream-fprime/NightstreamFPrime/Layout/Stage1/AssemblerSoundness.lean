@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
 /-!
-Owns deterministic semantic composition for the seven-child Stage 1 parent.
+Owns deterministic semantic composition for the eight-child Stage 1 parent.
 
 The representation record names the exact typed HyperNova input and output
 carried by the symbolic wires. The canonical theorem composes the compact
@@ -575,7 +575,7 @@ structure Represents
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
 
-/-- The compact seven-child Stage 1 specification implies the complete
+/-- The compact eight-child Stage 1 specification implies the complete
 deterministic SuperNeo accumulator update. -/
 theorem spec_implies_compactAccumulator
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -882,7 +882,7 @@ theorem spec_implies_stepHoldsFor
       exact Or.inr ⟨priorPcValid, iterationPositive, priorPublicInput,
         selectedNifs, unchanged⟩
 
-/-- The canonical compact seven-child parent implies the exact fixed
+/-- The canonical compact eight-child parent implies the exact fixed
 HyperNova step. Its recursive accumulator premise is derived from the three
 phase-local specifications and their Lean-owned wiring. -/
 theorem compactSpec_implies_stepHoldsFor

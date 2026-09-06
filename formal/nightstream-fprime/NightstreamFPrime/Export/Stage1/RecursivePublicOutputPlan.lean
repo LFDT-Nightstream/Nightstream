@@ -91,6 +91,39 @@ def publicInput
       (publicFits := carrierPublicFits geometry) :=
   fun column => assignment (publicColumn geometry column)
 
+/-- The local public reader is the exact public projection of the aligned
+CCS assignment. Completion does not change any public coordinate. -/
+theorem publicInput_eq_projectPublicInput
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    publicInput geometry assignment =
+      Phi81Relation.projectPublicInput
+        (shape := FullShape logicalWidth (carrierPublicFits geometry))
+        (Phi81CarrierLayout.extendAssignment 0 assignment) := by
+  funext column
+  have same : (FullShape logicalWidth (carrierPublicFits geometry)).publicColumn column =
+      Phi81CarrierLayout.embedLogical (publicColumn geometry column) := by
+    apply Fin.ext
+    rfl
+  change assignment (publicColumn geometry column) =
+    Phi81CarrierLayout.extendAssignment 0 assignment
+      ((FullShape logicalWidth (carrierPublicFits geometry)).publicColumn column)
+  rw [same, Phi81CarrierLayout.extendAssignment_embedLogical]
+
+/-- Binding the actual public prefix to an encoded digest enforces the one
+coordinate used by every child plan. No witness-generation premise is used. -/
+theorem publicEqual_implies_one
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) (digest : Digest)
+    (publicEqual : publicInput geometry assignment =
+      Lifecycle.encHash (publicFits := carrierPublicFits geometry) digest) :
+    assignment (oneColumn geometry) = 1 := by
+  have marker := congrFun publicEqual Lifecycle.encHashMarkerIndex
+  rw [Lifecycle.encHash_marker] at marker
+  exact marker
+
 def bitForm
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}

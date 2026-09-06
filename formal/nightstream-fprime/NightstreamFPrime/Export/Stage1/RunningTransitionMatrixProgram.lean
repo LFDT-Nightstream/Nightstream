@@ -4,7 +4,8 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 /-!
 Owns the compact matrix program for the running-instance transition. Lean
-fixes the one contiguous row schedule and the six retained source families.
+fixes the one contiguous row schedule and the six source families. The state
+and output ranges point to the actual pilot preimage coordinates.
 The two round-challenge families use affine grids; all other families use
 contiguous ranges.
 
@@ -43,16 +44,10 @@ def roundC1SourceStart : Nat :=
     RunningTransitionInputs.roundSampleC1Offset
 
 def roundC0Grid (program : ApplicationProgram) : SourceGrid :=
-  SourceGrid.ofSemantic (roundC0Block program) (roundC0Start program)
-    (Spartan.sourceToSpartan roundC0SourceStart)
-    productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 0 1 0
+  PiCCSTranscriptOutputForms.pointGrid program 0
 
 def roundC1Grid (program : ApplicationProgram) : SourceGrid :=
-  SourceGrid.ofSemantic (roundC1Block program) (roundC1Start program)
-    (Spartan.sourceToSpartan roundC1SourceStart)
-    productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 1 1 0 1 0
+  PiCCSTranscriptOutputForms.pointGrid program 1
 
 def piDecRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (piDecBlock program) (piDecStart program)

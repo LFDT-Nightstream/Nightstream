@@ -45,7 +45,7 @@ private theorem piCcsPreviousRule_zero
   apply congrArg some
   apply congrArg some
   unfold PiRLCSamplerPoseidonPlan.piCcsFinalOutput
-    PiCCSPoseidonPlan.interface PoseidonRetainedFamily.familyInterface
+    PiCCSPoseidonPlan.outputState
     PoseidonRetainedFamily.outputState PoseidonRetainedFamily.form
   apply congrArg (fun state => SparseLayer.external state lane)
   funext selected

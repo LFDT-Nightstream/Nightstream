@@ -1,14 +1,4 @@
-//! Lean artifact exporter + drift gate for the canonical-u64 gadget.
-//!
-//! Owns: the machine-readable export of the exact R1CS rows that
-//! `decompose_var_to_u64_bits` emits, as a generated Lean data file, plus the
-//! honest/forged witness vectors the Lean side re-checks. The Lean theorem
-//! `Nightstream.Implementation.R1CS.canonicalU64_sound` is stated over this
-//! exported data; this test is the conformance/drift gate that fails when the
-//! gadget's constraint rows change without regenerating the artifact.
-//!
-//! Regeneration: on mismatch the test writes `<artifact>.expected` next to
-//! the committed file; inspect the diff and copy it over to re-bless.
+//! Canonical-u64 witness checks and read-only comparison with the frozen Lean artifact.
 
 use neo_fold_clean::engine::r1cs_circuit::builder::R1csBuilder;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
@@ -134,12 +124,6 @@ fn lean_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, &emitted).expect("write .expected artifact");
-        panic!(
-            "generated Lean artifact drifted from the committed file.\n\
-             Wrote the regenerated version to {expected_path}.\n\
-             Inspect the diff, copy it over {path}, and rebuild the Lean project."
-        );
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

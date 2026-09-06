@@ -579,20 +579,8 @@ fn production_claim_replay_overlay_decoder_artifact_is_current() {
     let path = generated_artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected claim-replay overlay decoder artifact");
-        panic!(
-            "claim-replay overlay decoder artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("frozen Lean reference differs: {path:?}");
     }
-}
-
-#[test]
-#[ignore = "writes the exact generated Lean decoder artifact"]
-fn regenerate_production_claim_replay_overlay_decoder_artifact() {
-    std::fs::write(generated_artifact_path(), render_artifact())
-        .expect("write generated claim-replay overlay decoder artifact");
 }
 
 #[test]

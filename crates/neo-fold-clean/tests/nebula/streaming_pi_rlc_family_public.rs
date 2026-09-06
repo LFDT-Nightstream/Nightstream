@@ -777,18 +777,6 @@ fn production_pi_rlc_family_public_artifact_is_current() {
     let path = generated_artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected PiRLC family public artifact");
-        panic!(
-            "PiRLC family public Lean artifact drifted; inspect {}",
-            expected.display()
-        );
+        panic!("PiRLC family public Lean artifact drifted; inspect {}", path.display());
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_production_pi_rlc_family_public_artifact() {
-    let path = generated_artifact_path();
-    std::fs::write(path, render_artifact()).expect("write generated PiRLC family public artifact");
 }

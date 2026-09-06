@@ -787,7 +787,7 @@ fn wasm_nebula_radix_four_candidate_census() {
     assert_eq!(relation_receipt.row_variables(), 24);
     let delayed_suffix = delayed_nebula_public_suffix_len(
         prep.inner()
-            .prep
+            .preprocessing()
             .nebula()
             .expect("radix-four Nebula verifier context")
             .stacks,
@@ -1261,7 +1261,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
     let preprocess_elapsed = started.elapsed();
     let structure = live.inner().relation().structure();
     let shape = (structure.n, structure.m, structure.t());
-    let matrix_digest = live.inner().prep.pi_ccs_header_bundle();
+    let matrix_digest = live.inner().preprocessing().pi_ccs_header_bundle();
     let relation_receipt = live
         .inner()
         .relation_artifact_receipt()
@@ -1275,7 +1275,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
     let mut writer = BufWriter::new(File::create(&cache_path).expect("create radix-four cache artifact"));
     let cache_receipt = live
         .inner()
-        .prep
+        .preprocessing()
         .optimized_cache()
         .superneo()
         .write_artifact(&mut writer, matrix_digest)
@@ -1336,7 +1336,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
             .expect("load radix-four cache artifact")
         });
         let encoder = scope.spawn(|| {
-            neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact::read(
+            neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
                 BufReader::new(File::open(&encoder_path).expect("open radix-four encoder artifact")),
                 &encoder_receipt,
                 encoder_limits,
@@ -1384,7 +1384,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
         .expect("bind program to restored radix-four profile");
     let bind_elapsed = started.elapsed();
     assert_eq!(
-        bound.inner().prep.pi_ccs_header_bundle(),
+        bound.inner().preprocessing().pi_ccs_header_bundle(),
         matrix_digest,
         "restored radix-four profile matrix authority"
     );
@@ -1444,10 +1444,13 @@ fn wasm_nebula_radix_four_all_branch_metal_profile() {
     let started = Instant::now();
     prover
         .prepare_static(
-            &prep.inner().prep.log,
+            prep.inner().preprocessing().commitment_scheme(),
             structure,
-            prep.inner().prep.optimized_cache(),
-            prep.inner().prep.nebula().map(|config| &config.scheme),
+            prep.inner().preprocessing().optimized_cache(),
+            prep.inner()
+                .preprocessing()
+                .nebula()
+                .map(|config| &config.scheme),
         )
         .expect("prepare radix-four Metal state");
     let metal_prepare_elapsed = started.elapsed();

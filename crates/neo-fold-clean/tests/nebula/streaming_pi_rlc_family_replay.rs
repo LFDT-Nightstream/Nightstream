@@ -298,12 +298,7 @@ fn production_pi_rlc_family_replay_artifact_is_current() {
     let path = artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected PiRLC family replay artifact");
-        panic!(
-            "PiRLC family replay Lean artifact drifted; inspect {}",
-            expected.display(),
-        );
+        panic!("PiRLC family replay Lean artifact drifted; inspect {}", path.display(),);
     }
 }
 
@@ -323,10 +318,4 @@ fn production_pi_rlc_family_replay_shapes_are_exact() {
     );
     assert_eq!((even.before_absorbed, even.after_absorbed), (0, 2));
     assert_eq!((odd.before_absorbed, odd.after_absorbed), (2, 0));
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_production_pi_rlc_family_replay_artifact() {
-    std::fs::write(artifact_path(), render_artifact()).expect("write PiRLC family replay artifact");
 }

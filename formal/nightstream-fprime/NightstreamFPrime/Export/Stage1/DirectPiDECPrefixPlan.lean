@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectRunningPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
+import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
@@ -69,6 +70,13 @@ def poseidonGeometry
     PiCCSPoseidonPlan.Geometry application logicalWidth :=
   DirectRunningPrefixPlan.prefixGeometry (runningGeometry geometry)
 
+/-- The phase parent selects the declared action values from its source map. -/
+def piCcsPayload
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
+    PiCCSPoseidonPlan.Payload logicalWidth :=
+  PiCCSPayloadWiring.form (piCcsOrdinaryGeometry geometry)
+
 def pilotPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
@@ -79,7 +87,7 @@ def piCcsPoseidonPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  DirectPrefixPlan.piCcsPlan (poseidonGeometry geometry)
+  DirectPrefixPlan.piCcsPlan (piCcsPayload geometry) (poseidonGeometry geometry)
 
 def piCcsOrdinaryPlan
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -511,7 +519,7 @@ structure Encodes
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  running : DirectRunningPrefixPlan.Encodes (runningGeometry geometry) assignment
+  running : DirectRunningPrefixPlan.Encodes (piCcsPayload geometry) (runningGeometry geometry) assignment
     base groupValue products
   pilotOrdinary : PilotOrdinaryDirectPlan.Encodes
     (pilotOrdinaryGeometry geometry) assignment base groupValue products
@@ -528,7 +536,7 @@ structure Semantics
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
-  prior : DirectPrefixPlan.Semantics (poseidonGeometry geometry) assignment base
+  prior : DirectPrefixPlan.Semantics (piCcsPayload geometry) (poseidonGeometry geometry) assignment base
     groupValue products
   pilot : Lifecycle.Pilot.SpecHolds PilotProduction.interface
     PilotProduction.witnessOffset
@@ -570,12 +578,12 @@ theorem rowsZero_implies_semantics
     pilotOrdinaryRows, pilotBindingRows, piCcsEndpointRows, samplerRows,
     piRlcRows, piDecRows, transitionRows⟩
   have directPrefixRows :
-      (DirectPrefixPlan.plan (poseidonGeometry geometry)).RowsZero assignment := by
-    apply (DirectPrefixPlan.rowsZero_iff (poseidonGeometry geometry)
+      (DirectPrefixPlan.plan (piCcsPayload geometry) (poseidonGeometry geometry)).RowsZero assignment := by
+    apply (DirectPrefixPlan.rowsZero_iff (piCcsPayload geometry) (poseidonGeometry geometry)
       assignment).mpr
     exact ⟨pilotRows, piCcsPoseidonRows, samplerRows, piRlcRows⟩
   have prior := DirectPrefixPlan.rowsZero_implies_semantics
-      (poseidonGeometry geometry) assignment base groupValue products one
+      (piCcsPayload geometry) (poseidonGeometry geometry) assignment base groupValue products one
       encodes.running.prior directPrefixRows
   have pilotOne : assignment
       (PilotOrdinaryDirectPlan.oneColumn
@@ -593,21 +601,43 @@ theorem rowsZero_implies_semantics
         (pilotOrdinaryGeometry geometry)) assignment base groupValue products :=
     { priorInput := encodes.running.prior.pilotPriorInput
       outputInput := encodes.running.prior.pilotOutputInput }
+  have pilotHashes := PilotPoseidonPreservation.semantics_imply_hashFacts
+    (PilotDirectSemantics.poseidonGeometry (pilotOrdinaryGeometry geometry))
+    assignment (PilotOrdinaryDirectPlan.pilotEnv application base) pilotOne
+    (PilotPoseidonPreservation.priorInputForm_eval _ assignment base groupValue
+      products pilotEncoding)
+    (PilotPoseidonPreservation.outputInputForm_eval _ assignment base groupValue
+      products pilotEncoding)
+    prior.pilot
   have pilotSpec := PilotDirectSemantics.implies_spec
-    (pilotOrdinaryGeometry geometry) assignment base groupValue products
-    pilotOne pilotEncoding prior.pilot encodes.pilotOrdinary
+    (pilotOrdinaryGeometry geometry) assignment
+    (PilotOrdinaryDirectPlan.pilotEnv application base) pilotHashes
     pilotOrdinaryRowsHold pilotBinding
-  have traces := PiCCSTranscriptDirectSemantics.canonicalSemantics_implies_traces
+    (fun lane => PilotOrdinaryDirectPlan.Location.form_eval
+      (pilotOrdinaryGeometry geometry) assignment base groupValue products
+      encodes.pilotOrdinary (.priorDigest lane))
+    (fun lane => PilotOrdinaryDirectPlan.Location.form_eval
+      (pilotOrdinaryGeometry geometry) assignment base groupValue products
+      encodes.pilotOrdinary (.outputState lane))
+  have traces := PiCCSTranscriptDirectSemantics.indexedSemantics_implies_traces
     (poseidonGeometry geometry) assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-      products) prior.piCcs
+    (PiCCSActionPayloadBlock.packageEnv application
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
+        products))
+    (PiCCSPoseidonPreservation.indexedSemantics (poseidonGeometry geometry)
+      assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
+        products) prior.piCcs)
   refine ⟨prior, pilotSpec, ?_, piCcsEndpointRows, ?_, ?_, ?_⟩
-  · exact PiCCSTranscriptEndpointPlan.traces_and_rowsZero_imply_transcriptSpecs
+  · exact PiCCSTranscriptEndpointPlan.traces_and_endpoints_imply_transcriptSpecs
       (relationLogicalWidth := relationLogicalWidth)
       (relationPublicFits := relationPublicFits)
-      (poseidonGeometry geometry) (piCcsOrdinaryGeometry geometry) assignment
-      base groupValue products one encodes.pilotOrdinary.prior traces
-      piCcsEndpointRows
+      (poseidonGeometry geometry) assignment
+      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue products)
+      traces
+      (PiCCSTranscriptEndpointPlan.rowsZero_implies_endpointState
+        (poseidonGeometry geometry) (piCcsOrdinaryGeometry geometry) assignment
+        base groupValue products one encodes.pilotOrdinary.prior piCcsEndpointRows)
   · exact (PiCCSOrdinaryDirectPlan.rowsZero_iff_rowsHold relation
       (piCcsOrdinaryGeometry geometry) assignment base groupValue products one
       encodes.pilotOrdinary.prior).mp piCcsOrdinaryRows

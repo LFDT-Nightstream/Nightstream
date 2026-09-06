@@ -428,12 +428,9 @@ fn rendered_artifacts(built: &BuiltBinding) -> Vec<(std::path::PathBuf, String)>
     artifacts
 }
 
-fn compare_or_write_expected(path: &std::path::Path, rendered: &str, drifted: &mut Vec<String>) {
+fn record_artifact_drift(path: &std::path::Path, rendered: &str, drifted: &mut Vec<String>) {
     if std::fs::read_to_string(path).ok().as_deref() != Some(rendered) {
-        std::fs::create_dir_all(path.parent().expect("artifact parent")).expect("create artifact directory");
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected Lean artifact");
-        drifted.push(expected.display().to_string());
+        drifted.push(path.display().to_string());
     }
 }
 
@@ -484,25 +481,10 @@ fn lean_program_binding_artifacts_match_committed_files() {
     assert!(built.builder.is_satisfied());
     let mut drifted = Vec::new();
     for (path, rendered) in rendered_artifacts(&built) {
-        compare_or_write_expected(&path, &rendered, &mut drifted);
+        record_artifact_drift(&path, &rendered, &mut drifted);
     }
     assert!(
         drifted.is_empty(),
         "generated Lean Nebula program-binding artifacts drifted: {drifted:?}",
     );
-}
-
-#[test]
-#[ignore = "writes reviewed generated Lean artifacts"]
-fn regenerate_lean_program_binding_artifacts() {
-    let built = build();
-    assert!(built.builder.is_satisfied());
-    for (path, rendered) in rendered_artifacts(&built) {
-        std::fs::create_dir_all(path.parent().expect("artifact parent")).expect("create artifact directory");
-        std::fs::write(&path, rendered).expect("write generated Lean artifact");
-        let expected = path.with_extension("lean.expected");
-        if expected.exists() {
-            std::fs::remove_file(expected).expect("remove reviewed expected artifact");
-        }
-    }
 }

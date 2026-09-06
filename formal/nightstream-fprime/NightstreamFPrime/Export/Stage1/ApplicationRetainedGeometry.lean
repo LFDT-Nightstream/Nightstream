@@ -3,7 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 
 /-!
 Owns the canonical low-norm placement of one verifier-selected application.
-The four application blocks extend the running-prefix geometry without gaps.
+Only witness and local blocks extend the prefix. The four input and four
+output words reuse the actual pilot Poseidon2 preimage coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
@@ -13,16 +14,18 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open ApplicationRetainedBlocks
 
 def inputStart (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth application
+  PiRLCPoseidonGeometry.priorInputStart application +
+    Layout.Stage1.ApplicationInputs.currentWordStart * 41
 
 def witnessStart (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  inputStart application + (inputBlock application).coordinateCount
+  PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth application
 
 def outputStart (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  witnessStart application + (witnessBlock application).coordinateCount
+  PiRLCPoseidonGeometry.outputInputStart application +
+    Layout.Stage1.ApplicationInputs.currentWordStart * 41
 
 def localStart (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  outputStart application + (outputBlock application).coordinateCount
+  witnessStart application + (witnessBlock application).coordinateCount
 
 def completeLogicalWidth
     (application : Lifecycle.Stage1.Application.Program) : Nat :=
@@ -31,23 +34,22 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      264311405 + retainedCoordinateCount application := by
-  unfold completeLogicalWidth localStart outputStart witnessStart inputStart
+      256216447 + retainedCoordinateCount application := by
+  unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
   omega
 
 /-- Closed production formula for the only application-dependent retained
-coordinates. The fixed Stage 1 prefix and the eight input/output words account
-for the constant term. -/
+coordinates. The fixed Stage 1 prefix accounts for the constant term;
+application input/output words already belong to that prefix. -/
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      264311733 +
+      256216447 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
-  omega
 
 /-- Exact retained-word budget for one application in the owner-selected
 `2^28` carrier. -/
@@ -55,7 +57,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 100578 := by
+      application.witnessWordCount + localCount application ≤ 298024 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -67,7 +69,7 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 100577 := by
+      application.witnessWordCount + localCount application ≤ 298023 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
@@ -86,7 +88,7 @@ structure FitsTwoPow28
 word budget. -/
 def fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 100578) :
+    (fits : application.witnessWordCount + localCount application ≤ 298024) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits
@@ -107,7 +109,7 @@ def prefixGeometry {application : Lifecycle.Stage1.Application.Program}
     PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth where
   completeFits := by
     apply Nat.le_trans _ geometry.completeFits
-    unfold completeLogicalWidth localStart outputStart witnessStart inputStart
+    unfold completeLogicalWidth localStart witnessStart
     omega
 
 def oneColumn {application : Lifecycle.Stage1.Application.Program}
@@ -115,12 +117,27 @@ def oneColumn {application : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiRLCSamplerOrdinaryRetainedGeometry.oneColumn (prefixGeometry geometry)
 
+/-- The selected application reads the preimage geometry used by the actual
+pilot Poseidon2 chains. This projection adds no coordinates. -/
+def pilotGeometry {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
+    PiRLCPoseidonGeometry.Geometry application logicalWidth where
+  pilotFits := by
+    have complete := geometry.completeFits
+    rw [completeLogicalWidth_eq] at complete
+    rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq]
+    omega
+
 def inputFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     inputStart application + (inputBlock application).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth localStart outputStart witnessStart
+  have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
+  have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
+      2025113 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+  rw [full] at pilot
+  change PiRLCPoseidonGeometry.priorInputStart application + 35 * 41 + 4 * 41 ≤
+    logicalWidth
   omega
 
 def witnessFits {application : Lifecycle.Stage1.Application.Program}
@@ -128,15 +145,19 @@ def witnessFits {application : Lifecycle.Stage1.Application.Program}
     witnessStart application + (witnessBlock application).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth localStart outputStart
+  unfold completeLogicalWidth localStart
   omega
 
 def outputFits {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     outputStart application + (outputBlock application).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth localStart
+  have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
+  have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
+      2025113 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
+  rw [full] at pilot
+  change PiRLCPoseidonGeometry.outputInputStart application + 35 * 41 + 4 * 41 ≤
+    logicalWidth
   omega
 
 def localFits {application : Lifecycle.Stage1.Application.Program}

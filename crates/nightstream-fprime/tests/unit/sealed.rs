@@ -67,12 +67,12 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
                 8 => (2, FIRST54_PRODUCTS, product_source_start),
                 9 => (2, PHI81_INVOCATIONS, 0),
                 13 => (2, PAYLOAD_VALUES, 0),
-                31 => (2, 4, 0),
+                27 => (2, 4, 0),
                 _ => (0, 0, 0),
             };
             let source_domain = match opcode {
                 13 => 1,
-                41..=44 => 2,
+                36..=37 => 2,
                 _ => 0,
             };
             logical_width += slot_count * if kind == 2 { 41 } else { 1 };
@@ -110,7 +110,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
         [FIRST54_PRODUCTS, 4, 5, 8],
         13,
         payload_expressions,
-        31,
+        27,
         [[0, 0], [0, 1], [0, 2], [0, 3]]
     ]);
 

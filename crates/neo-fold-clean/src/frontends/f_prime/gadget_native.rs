@@ -111,11 +111,9 @@ use slots::{
 };
 pub use source_allocation::{
     audit_r1cs_gadget_native_ordinary_placement, gadget_native_source_loop_width, GadgetNativeOrdinaryPlacement,
-    GadgetNativeOrdinaryPlacementManifest, GadgetNativeOrdinaryPlacementManifestTestMutation,
+    GadgetNativeOrdinaryPlacementManifest,
 };
-pub use source_manifest::{
-    audit_r1cs_gadget_native_source_manifest, GadgetNativeSourceManifest, GadgetNativeSourceManifestTestMutation,
-};
+pub use source_manifest::{audit_r1cs_gadget_native_source_manifest, GadgetNativeSourceManifest};
 pub use source_schedule::GadgetNativeSourceRole;
 
 const FIELD_BITS: usize = 64;

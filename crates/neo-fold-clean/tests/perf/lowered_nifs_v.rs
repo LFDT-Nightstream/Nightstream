@@ -77,10 +77,10 @@ fn build_honest_fixture() -> Fixture {
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut first_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -94,10 +94,10 @@ fn build_honest_fixture() -> Fixture {
     let mut second_tr = Transcript::session();
     let (next_running, proof) = nifs::prove(
         &mut second_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -118,7 +118,7 @@ fn build_honest_fixture() -> Fixture {
 
 fn pi_ccs_config(prep: &Preprocessing) -> PiCcsVerifierConfig<'_> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -132,7 +132,7 @@ fn emit_verifier(f: &Fixture) -> (R1csBuilder, NifsVOutputs) {
     };
     let outputs = enforce_nifs_v_circuit_with_transcript(
         &mut builder,
-        &f.prep.params,
+        f.prep.params(),
         &cfg,
         &mut tr,
         &NifsVCircuitMessages {

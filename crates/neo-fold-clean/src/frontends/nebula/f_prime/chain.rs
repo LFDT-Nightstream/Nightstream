@@ -129,8 +129,9 @@ pub enum NebulaFPrimeChainError {
 /// Verifier-owned fixed-point relation, plan, and lifecycle preprocessing.
 /// No public constructor accepts an already-built `Preprocessing`, preventing
 /// callers from attaching terminal-induction authority to an arbitrary CCS.
+#[doc = include_str!("../../../../tests/nebula_preprocessing_read_only.md")]
 pub struct NebulaFPrimePreprocessing {
-    pub prep: Preprocessing,
+    prep: Preprocessing,
     relation: NebulaFPrimeRelation,
     plan: NebulaPlan,
 }
@@ -321,6 +322,11 @@ impl NebulaFPrimePreparedProfile {
 }
 
 impl NebulaFPrimePreprocessing {
+    /// Shared access to the lifecycle context bound to this relation and plan.
+    pub fn preprocessing(&self) -> &Preprocessing {
+        &self.prep
+    }
+
     /// Compile and preprocess the authoritative fixed point using the global
     /// verifier-owned Ajtai setup.
     pub fn new(params: Params, plan: NebulaPlan) -> Result<Self, NebulaFPrimeChainError> {
@@ -615,9 +621,8 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             let assignment = assignments
                 .next()
                 .expect("application trace has one assignment per memory step");
-            let semantic =
-                crate::frontends::r1cs_f_prime::ivc::shape::semantic_values(application.recursive_plan(), assignment)
-                    .map_err(NebulaFPrimeRelationError::from)?;
+            let semantic = super::semantic_state::semantic_values(application.recursive_plan(), assignment)
+                .map_err(NebulaFPrimeRelationError::from)?;
             #[cfg(feature = "perf-timers")]
             let application_elapsed = application_started.elapsed();
             #[cfg(feature = "perf-timers")]
@@ -795,7 +800,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
 
     fn prepare_step(
         &mut self,
-        semantic: Option<crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues>,
+        semantic: Option<super::semantic_state::SemanticValues>,
         adapter: Option<&mut dyn NifsProverAdapter>,
     ) -> Result<PreparedStep, NebulaFPrimeChainError> {
         let Some(audit) = self.audit.take() else {
@@ -889,7 +894,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
     ) -> Result<SynthesizedSourceInstance, NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let total_started = std::time::Instant::now();
-        let nifs = self.prep.prep.nifs_v_circuit_config()?;
+        let nifs = self.prep.prep.nifs_v_circuit_config();
         let nebula = self.prep.relation.nebula_config();
         let cfg = FPrimeStepConfig {
             nifs,
@@ -902,7 +907,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 .relation
                 .application()
                 .map_or(StateXOutDigestMode::Stateless, |application| {
-                    crate::frontends::r1cs_f_prime::ivc::shape::digest_mode(application.recursive_plan())
+                    super::semantic_state::digest_mode(application.recursive_plan())
                 }),
         };
         let application = match (self.prep.relation.application(), application_assignment) {

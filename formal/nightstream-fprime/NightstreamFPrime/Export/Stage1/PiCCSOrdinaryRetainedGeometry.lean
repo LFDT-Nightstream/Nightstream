@@ -2,11 +2,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 
 /-!
-Owns the no-gap placement of the conservative PiCCS ordinary retained blocks.
-
-The candidate begins after the direct running-prefix geometry and stays below
-the fixed `2^28` domain. It does not prove that the PiCCS ordinary rows use
-only these sources; that source-support edge remains separate.
+Owns the placement of PiCCS ordinary retained blocks. The two preimage views
+reuse the actual pilot coordinates. Only the remaining source families extend
+the running prefix. Source-support and direct-plan theorems own preservation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
@@ -19,15 +17,13 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   RunningTransitionRetainedGeometry.completeLogicalWidth program
 
 def priorInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  prefixLogicalWidth program
+  PiRLCPoseidonGeometry.priorInputStart program
 
 def outputInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  priorInputStart program +
-    (PiCCSOrdinaryRetainedBlocks.priorInputBlock program).coordinateCount
+  PiRLCPoseidonGeometry.outputInputStart program
 
 def freshPublicInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  outputInputStart program +
-    (PiCCSOrdinaryRetainedBlocks.outputInputBlock program).coordinateCount
+  prefixLogicalWidth program
 
 def priorLastStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   freshPublicInputStart program +
@@ -59,11 +55,10 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 252392541 := by
+    completeLogicalWidth program = 246316751 := by
   simp only [completeLogicalWidth, freshStart, outputEndpointStart,
     proofLogicalStart,
     expectedContextStart, outputLastStart, priorLastStart, freshPublicInputStart,
-    outputInputStart, priorInputStart,
     prefixLogicalWidth]
   rw [RunningTransitionRetainedGeometry.completeLogicalWidth_eq]
   have count :=
@@ -88,7 +83,7 @@ def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     apply Nat.le_trans _ geometry.completeFits
     unfold completeLogicalWidth freshStart outputEndpointStart proofLogicalStart
       expectedContextStart outputLastStart priorLastStart freshPublicInputStart
-      outputInputStart priorInputStart prefixLogicalWidth
+      prefixLogicalWidth
     omega
 
 def oneColumn {program : Lifecycle.Stage1.Application.Program}
@@ -96,29 +91,47 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   RunningTransitionRetainedGeometry.oneColumn (prefixGeometry geometry)
 
+def poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiCCSPoseidonPlan.Geometry program logicalWidth :=
+  RunningTransitionRetainedGeometry.poseidonGeometry (prefixGeometry geometry)
+
+def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCPoseidonGeometry.Geometry program logicalWidth :=
+  RunningTransitionRetainedGeometry.pilotGeometry (prefixGeometry geometry)
+
 def priorInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     priorInputStart program +
         (PiCCSOrdinaryRetainedBlocks.priorInputBlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  simp only [completeLogicalWidth, freshStart, outputEndpointStart,
-    proofLogicalStart,
-    expectedContextStart, outputLastStart, priorLastStart, freshPublicInputStart,
-    outputInputStart, priorInputStart]
-  omega
+  have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
+  have viewCount :
+      (PiCCSOrdinaryRetainedBlocks.priorInputBlock program).coordinateCount =
+        (PiRLCPoseidonGeometry.priorInputBlock program).coordinateCount := by
+    simp [PiCCSOrdinaryRetainedBlocks.priorInputBlock,
+      PiCCSOrdinaryRetainedBlocks.sourceFieldBlock,
+      PiRLCPoseidonGeometry.priorInputBlock,
+      LowNormBlock.Block.coordinateCount, LowNormSlot.Kind.width,
+      BalancedTernary.width, PilotProduction.stateHashWords_eq]
+  simpa only [priorInputStart, viewCount] using pilot
 
 def outputInputFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     outputInputStart program +
         (PiCCSOrdinaryRetainedBlocks.outputInputBlock program).coordinateCount ≤
       logicalWidth := by
-  apply Nat.le_trans (m := completeLogicalWidth program) _ geometry.completeFits
-  simp only [completeLogicalWidth, freshStart, outputEndpointStart,
-    proofLogicalStart,
-    expectedContextStart, outputLastStart, priorLastStart, freshPublicInputStart,
-    outputInputStart]
-  omega
+  have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
+  have viewCount :
+      (PiCCSOrdinaryRetainedBlocks.outputInputBlock program).coordinateCount =
+        (PiRLCPoseidonGeometry.outputInputBlock program).coordinateCount := by
+    simp [PiCCSOrdinaryRetainedBlocks.outputInputBlock,
+      PiCCSOrdinaryRetainedBlocks.sourceFieldBlock,
+      PiRLCPoseidonGeometry.outputInputBlock,
+      LowNormBlock.Block.coordinateCount, LowNormSlot.Kind.width,
+      BalancedTernary.width, PilotProduction.stateHashWords_eq]
+  simpa only [outputInputStart, viewCount] using pilot
 
 def priorLastFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
@@ -222,5 +235,9 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       source
   fresh : (PiCCSOrdinaryRetainedBlocks.freshBlock program).EncodesAt
     (freshStart program) (freshFits geometry) assignment source
+  sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
+    (PiCCSPoseidonPlan.retainedStart program)
+    (PiCCSPoseidonPlan.retainedFits (poseidonGeometry geometry)) assignment
+    (PiCCSActionPayloadBlock.sourceAssignment program source)
 
 end NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry

@@ -83,8 +83,8 @@ fn r1cs_satisfaction_rejects_invalid_assignment() {
 fn build_instance_succeeds_for_satisfying_low_norm_assignment() {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 1).expect("preprocess");
-    assert!(prep.params.has_production_core());
-    assert_eq!(prep.params.k_rho(), config::K_RHO);
+    assert!(prep.params().has_production_core());
+    assert_eq!(prep.params().k_rho(), config::K_RHO);
 
     // (a, b, c) = (1, 0, 1) — pad to structure.m with zeros.
     let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
@@ -123,7 +123,7 @@ fn end_to_end_chain_proof_for_production_max_fresh_steady_state() {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 7).expect("preprocess");
 
-    let k = prep.params.max_fresh_count() as usize;
+    let k = prep.params().max_fresh_count() as usize;
     let total = 2 * k;
     let instances: Vec<_> = (0..total)
         .map(|_| {
@@ -151,7 +151,7 @@ fn finish_uncompressed_rejects_steady_state_above_max_fresh() {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 11).expect("preprocess");
 
-    let k = prep.params.max_fresh_count() as usize;
+    let k = prep.params().max_fresh_count() as usize;
     let build = || {
         let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
         direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
@@ -177,7 +177,7 @@ fn prove_rejects_transient_batch_above_max_fresh() {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 17).expect("preprocess");
 
-    let k = prep.params.max_fresh_count() as usize;
+    let k = prep.params().max_fresh_count() as usize;
     let build = || {
         let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
         direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
@@ -210,7 +210,7 @@ fn finish_uncompressed_rejects_manual_oversized_latest() {
     };
 
     let mut audit = prove(&prep, [vec![build()]]).expect("honest one-step proof");
-    let k = prep.params.max_fresh_count() as usize;
+    let k = prep.params().max_fresh_count() as usize;
     let oversized: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
     let claims: Vec<_> = oversized
         .iter()
@@ -227,7 +227,7 @@ fn finish_uncompressed_rejects_manual_oversized_latest() {
         ProofState::Active { running, latest } => {
             assert_eq!(
                 running.claims.len(),
-                prep.params.k_rho() as usize,
+                prep.params().k_rho() as usize,
                 "one-step fixture must carry the selected accumulator",
             );
             *latest = LatestInstance::from_instances(oversized);
@@ -258,37 +258,37 @@ fn construction2_step_rejects_manual_oversized_prior_latest() {
         let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
         direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
     };
-    let k = prep.params.max_fresh_count() as usize;
+    let k = prep.params().max_fresh_count() as usize;
     let oversized: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
     let next = vec![build()];
 
-    let z_0 = neo_fold_clean::paper::digest::initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
+    let z_0 = neo_fold_clean::paper::digest::initial_boundary_digest(prep.structure_digest(), prep.public_input_len());
     let public_trace = neo_fold_clean::paper::digest::public_trace_seed_digest(prep.structure_digest());
     let empty_acc = neo_fold_clean::paper::digest::AccumulatorHandle::empty().digest();
     let state0 = State::base(z_0, public_trace, empty_acc, empty_acc);
 
     let (state1, _step0) = neo_fold_clean::paper::construction2::step(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state0,
         oversized,
     )
     .expect("manual base step can deposit oversized latest");
     let err = neo_fold_clean::paper::construction2::step(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state1,
         next,
     )

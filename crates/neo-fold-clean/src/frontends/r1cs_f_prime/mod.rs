@@ -1,12 +1,7 @@
-//! Lean-package Stage 1 boundary and legacy R1CS F' diagnostics.
-//!
-//! [`production`] is the only production Stage 1 relation boundary. The
-//! remaining modules own legacy relation construction, selective-lowering
-//! diagnostics, audit artifacts, and terminal Spartan verification.
+//! Native R1CS construction, lowering, and diagnostic artifacts.
+//! The Stage 1 package boundary is [`crate::stage1`].
 
 mod grouped_phase;
-#[doc(hidden)]
-pub mod ivc;
 pub mod lean_manifest;
 pub mod lean_native_ccs_manifest;
 pub mod lean_nebula_combined_manifest;
@@ -16,7 +11,6 @@ pub mod lowering;
 pub mod native_ccs;
 #[cfg(test)]
 pub mod nebula_combined_ccs;
-pub mod production;
 mod selective;
 mod selective_audit;
 mod selective_census;
@@ -49,7 +43,6 @@ pub use lowering::{
     LowNormEncoderArtifactError, LowNormEncoderArtifactLimits, LowNormEncoderArtifactReceipt, LowNormR1cs,
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs, VerifiedLowNormEncoderArtifact,
 };
-pub use production::Poseidon2HashChainV1Package;
 pub(crate) use selective::{
     audit_multi_branch_selective_compact_layout_and_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_compiler_with_shared_bit_prefix,

@@ -6,8 +6,8 @@ use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, Term};
 use neo_fold_clean::{
     engine::{optimized, paper_exact},
-    frontends::r1cs_f_prime::production::pi_ccs_v1_1_state_hash,
     paper::{params::Params, relations::ajtai_dec_mixer},
+    stage1::pi_ccs_v1_1_state_hash,
 };
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::split_b_matrix_k;

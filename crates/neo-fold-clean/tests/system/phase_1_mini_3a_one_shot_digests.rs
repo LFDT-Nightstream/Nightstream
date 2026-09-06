@@ -143,10 +143,10 @@ fn build_nifs_fixture() -> NifsFixture {
     let mut prover_tr = Transcript::session();
     let (running, _proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -160,7 +160,7 @@ fn build_nifs_fixture() -> NifsFixture {
         .expect("non-empty running must carry the Pi_RLC parent_authority")
         .clone();
     NifsFixture {
-        base: prep.params.b(),
+        base: prep.params().b(),
         fresh_claim,
         running_claims: running.claims.clone(),
         parent_c_data: parent_authority.c.data.clone(),

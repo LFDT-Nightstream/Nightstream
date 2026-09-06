@@ -69,6 +69,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
+import NightstreamFPrime.Export.Stage1.RecursiveStepFixture
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 import NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
@@ -109,6 +110,18 @@ import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript
+import NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
+import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
+import NightstreamFPrime.Export.Stage1.PilotDecodedHashes
+import NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
+import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
+import NightstreamFPrime.Export.Stage1.ActualApplicationStep
+import NightstreamFPrime.Export.Stage1.ActualHashSlots
+import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
+import NightstreamFPrime.Export.Stage1.ActualRunningTransition
+import NightstreamFPrime.Export.Stage1.ActualStep
+import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry

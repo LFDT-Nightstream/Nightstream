@@ -294,6 +294,7 @@ private theorem entryInvocations_eq_singleton (source : Nat) :
   unfold PiRLCSamplerInvocations.entryInvocations
     PiRLCSamplerInvocations.entryTrace
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption.actions
+  rw [PiRLCSamplerInvocations.fastEntryState_eq_entryState]
   change
     (NightstreamFPrime.Export.Stage1.Invocations.compileActions
       PiRLCSamplerInvocations.phase (PiRLCStarts.entryRowStart source)
@@ -464,6 +465,7 @@ theorem remappedPacket_implies_windowPermutation (env : Env)
         NightstreamFPrime.Gadgets.Poseidon2.Permutation.schedule).recipes)
       at sourceHolds
   unfold PiRLCSamplerInvocations.windowInvocation
+  rw [PiRLCSamplerInvocations.fastWindowState_eq_windowState]
   apply PermutationCompilerTransport.invocation_complete_of_sourceConstraints
   · exact windowWitnessLocal source.val round.val
   · exact PiRLCSamplerInvocations.windowState_affine source.val round.val

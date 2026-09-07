@@ -63,8 +63,8 @@ for the candidate here. Compiler evidence is linked below; the registered
   passed, including direct serialized-value equality and detached PiRLC product rejection.
   All 91 PiCCS diagnostics passed on `50e6e2d3` under its recorded policy.
   The [compiler inventory](../../../nightstream-stage1-evidence/notes/compiler-inventory-1a5c4b87.json)
-  passed 115 declaration audits and the boundary gate on `1a5c4b87` under the updated policy.
-  Branch registration, independent reviews, and approved checker evidence remain open.
+  passed 115 declaration audits and the boundary gate on `1a5c4b87` under its recorded policy.
+  Eight branches now select all 91 checks; independent reviews and approved runs remain open.
 - PiRLC and PiDEC: the stored fixtures do not establish a current cumulative
   handoff. PiRLC `InputBinding` remains frozen until PiCCS is Conformance-closed.
 - Stage 1: the eight-child opaque root includes NextPreimage. The arbitrary-row
@@ -1476,11 +1476,11 @@ Rust checks. The current nonzero base, actual-child recursive, assignment,
 opening and mutation records are retained in the durable archive linked above.
 They replace the missing temporary repair-note path as the discoverable evidence
 for this candidate. Production pins remain unchanged; these are diagnostic
-results for their recorded source and policy; branch registration and independent approval remain open.
+results for their recorded source and policy; the current review handoff binds `b7789c26` and grants no approval.
 
 The remaining owner-ordered work is:
 
-1. finish branch registration and independent pilot/PiCCS reviews; run the
+1. obtain independent pilot/PiCCS formula, branch, and target reviews; run the
    required approved checks on the final source, inputs, and policy;
 2. finish the arbitrary-assignment proof connections without weakening the
    decoded `StepHoldsFor` target or supplying missing representation premises;

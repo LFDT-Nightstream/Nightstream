@@ -129,7 +129,7 @@ and `phase_statuses` for closure decisions. A later failed attempt does not eras
 an earlier matching successful result; the report can display that earlier run.
 
 The obligation map keeps the full Stage 1 assignment target, independent
-compiler formula review, complete branch coverage, and production binding
+compiler and branch reviews, and production binding
 open. Existing conditional theorems remain useful facts.
 The new pilot/PiCCS registrations do not discharge these other obligations.
 The report separates PiCCS from Stage 1. A full Stage 1 gap does not erase a
@@ -331,6 +331,23 @@ required test cannot satisfy these registrations. Independent review of the
 compiler inventory and required branch set remains open. Updating this
 draft map does not approve it or preserve reviews bound to an older policy.
 
+`explain piccs-coverage` shows each named branch, its scope, and its required
+checks. The registered branches cover the base and actual-child recursive
+inputs, complete results, proof, statement, point and output mutations, and
+independent assignment and ownership checks. Each branch must select checks
+that are part of its checkpoint, including prerequisites. An empty scope,
+empty check list, unknown check, or omitted check is rejected by the policy.
+This consistency check does not decide whether the branch set is sufficient;
+the independent formula review must make that decision.
+
+Base mutation completion requires the same exact counts as the recursive
+case: 562 proof, 282 statement, and 843 output mutations, each in both Rust
+engines. These counts come from the fixed-profile loops and assertions in
+`pi_ccs_positive_mutations.rs`. The common-point case requires 56 limb
+mutations with nonzero running openings. For zero running openings, the
+parent hash owns rejection with the old public digest. No direct point
+rejection check is claimed for that zero-running relation.
+
 `lean-input` regenerates the Lean result and compares it with the selected
 result bytes. The phase-result and opening gates depend on that check.
 Their required test names and completion messages must appear in the logs.
@@ -480,7 +497,8 @@ proof progress. Update its draft as the proof develops:
 
 1. Keep each owner criterion's intended meaning and permitted premises explicit.
    Record its target, mathematical argument, required gates, input dependencies,
-   coverage cases, and reviews. Preserve mandatory identity-dependent checks.
+   named `coverage` cases with their scopes and gates, and reviews. Preserve
+   mandatory identity-dependent checks.
 2. Register propositions and closure witnesses in
    [EvidenceTargets.lean](../../formal/nightstream-fprime/tests/EvidenceTargets.lean).
    Connect their exact checks in

@@ -128,9 +128,9 @@ Gate acceptance does not replace obligation reviews. Use `obligations[].closed`
 and `phase_statuses` for closure decisions. A later failed attempt does not erase
 an earlier matching successful result; the report can display that earlier run.
 
-The initial obligation map deliberately keeps the full Stage 1 assignment
-target, complete compiler theorem set, complete branch coverage, and
-production binding open. Existing conditional theorems remain useful facts.
+The obligation map keeps the full Stage 1 assignment target, independent
+compiler formula review, complete branch coverage, and production binding
+open. Existing conditional theorems remain useful facts.
 The new pilot/PiCCS registrations do not discharge these other obligations.
 The report separates PiCCS from Stage 1. A full Stage 1 gap does not erase a
 closed PiCCS criterion. Each phase still needs its complete approved gate set.
@@ -261,9 +261,21 @@ Pass `--inputs /absolute/path/inputs.json`. Its keys are the input names in
   "identity": "/candidate/expected-structural-identity.json",
   "expanded": "/candidate/expanded.json",
   "base_fixture": "/candidate/base-fixture.json",
-  "phase_input": "/candidate/phase-input.json",
-  "lean_result": "/candidate/lean-result.json",
-  "opening_cache": "/candidate/opening-cache"
+  "phase_input": "/candidate/base-piccs-input.json",
+  "lean_result": "/candidate/base-piccs-lean.json",
+  "opening_cache": "/candidate/base-opening-cache",
+  "verifier_context": "/candidate/verifier-context.json",
+  "pilot_fixture": "/candidate/pilot-fixture.json",
+  "piccs_ownership": "/candidate/piccs-ownership.json",
+  "recursive_fixture": "/candidate/recursive-step-fixture.json",
+  "recursive_phase_input": "/candidate/recursive-piccs-input.json",
+  "recursive_lean_result": "/candidate/recursive-piccs-lean.json",
+  "recursive_opening_cache": "/candidate/recursive-opening-cache",
+  "folded_cache": "/candidate/first-fold-opening",
+  "child_commitments": "/candidate/first-fold-children",
+  "child_input_evaluations": "/candidate/first-fold-families",
+  "child_output_evaluations": "/candidate/recursive-child-families",
+  "child_running": "/candidate/first-fold-running.json"
 }
 ```
 
@@ -272,6 +284,20 @@ words as a JSON array. The CLI never copies a production identity from a
 candidate package. It captures all bytes in an input directory, including
 the opening carrier and its metadata. Supply a directory with only the
 required inputs. Missing inputs keep their gates open.
+
+The base PiCCS input has valid zero-running openings. The recursive input uses
+the sixteen actual children of its first fold. The child commitment directory
+contains `child-0.json` through `child-15.json`; each evaluation directory
+contains `family-K.json` and `family-A0.json` through `family-A13.json`.
+The folded directory contains `folded.json` and the complete `folded.i16`
+carrier. The base and recursive opening caches contain their complete carriers,
+matrix images, and metadata. `verifier_context` contains four words; the pilot
+and opening tests compare them with the context recomputed from the package.
+
+Run `checkpoint pilot-conformance` first. It regenerates the current Lean pilot
+result, checks its complete values and input mutations, and evaluates the raw
+pilot assignment and owner mutations. The positive PiCCS parent check also
+requires the selected base caller and executable Lean PiCCS result.
 
 Inspect missing inputs before starting a conformance checkpoint. Replace the
 input-manifest path below with the file that lists your selected inputs:
@@ -285,9 +311,25 @@ python3 scripts/lean_graph/evidence.py --store /tmp/nightstream-evidence \
 
 Registered gates call the existing package checker, complete PiCCS result
 checker, mutation implementations, and independent opening evaluator.
-The opening gates cover `K`, `A0` through `A13`, the CCS rows, and commitment
-rows `C0` through `C21`, as required by the selected profile. A valid zero
-matrix evaluation is retained. No generic nonzero-value check is added.
+The opening gates cover `K`, `A0` through `A13`, the CCS rows, and all commitment
+rows. `opening-commitment` checks rows 0 through 21 and all 1,188 coefficients
+in one invocation. It replaces the repeated per-row package loads.
+A valid zero-matrix evaluation is retained. No generic nonzero-value check is
+added.
+
+The actual-child gates independently check all sixteen commitments and all
+child evaluation families at both points. Output-family gates require the
+accepted recursive Lean result; a check at the prior point cannot replace
+them. The map also requires exact parent and caller handoffs, complete recursive
+phase results and mutations, raw recursive assignment checks, the PiCCS owner
+audit, and detached-product rejection. The fresh-only evaluator cannot close
+the child-opening obligations.
+
+Completion counts come from the named tests under the fixed profile. A partial
+commitment traversal, a missing family, or a successful command that omits its
+required test cannot satisfy these registrations. Independent review of the
+compiler inventory and required branch set remains open. Updating this
+draft map does not approve it or preserve reviews bound to an older policy.
 
 `lean-input` regenerates the Lean result and compares it with the selected
 result bytes. The phase-result and opening gates depend on that check.
@@ -348,7 +390,7 @@ The authority directory contains:
 operator inspection. The CLI does not create an approval, a key, or a review
 judgment. `record-review` imports a decision from the separate review process.
 An approved policy cannot be replaced with a candidate `--policy` argument.
-The Lean metadata, acceptance driver, boundary script, and axiom checker sources
+The Lean metadata, acceptance and compiler drivers, boundary script, and axiom checker sources
 must also match the installed checker. The proposal's exact targets require
 review before acceptance use.
 
@@ -454,6 +496,16 @@ proof progress. Update its draft as the proof develops:
 Another Lean package needs project-specific source paths, gates, target
 registrations, and module-origin validation. `--policy` alone does not port
 the current Nightstream F′ configuration to a separate SuperNeo Lean project.
+
+`checkpoint compiler-coverage` runs the boundary check and the authored
+[compiler inventory](CompilerCoverage.lean). It builds the existing source axiom
+target, then audits every listed declaration through `validate.sh file`. The
+inventory names each PiCCS leaf's predicate, circuit, soundness, completeness,
+parent connection, and physical costs, followed by the phase, ownership,
+cumulative footprint, and package connections. A missing audit result fails the
+gate. This is a source-bound declaration check; it does not export another
+dependency graph or replace review of statement meaning and permitted premises.
+Formula review and approved checker evidence remain required for closure.
 
 ## Validation
 

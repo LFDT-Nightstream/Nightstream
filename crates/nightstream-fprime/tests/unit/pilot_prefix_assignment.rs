@@ -2,8 +2,9 @@
 //! The serialized pilot fixture supplies both preimages and the public values;
 //! no PiCCS proof or later phase input is constructed.
 
-use std::{fs, time::Instant};
+use std::{fs, path::PathBuf, time::Instant};
 
+use rayon::prelude::*;
 use serde::Deserialize;
 
 use super::pi_ccs_prefix_assignment_tests::{
@@ -142,13 +143,40 @@ fn check_logical_family_mutations(
 #[test]
 #[ignore = "exact standalone pilot physical and logical assignment gate; run explicitly under the 300-second cap"]
 fn sealed_package_checks_the_standalone_pilot_assignment() {
-    let started = Instant::now();
     let sealed_bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"))
         .expect("sealed canonical Stage 1 package");
     let parity_bytes = fs::read(artifact_path("nightstream-fprime-stage1-pilot-parity-v1.json"))
         .expect("standalone Lean pilot fixture");
+    let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("verifier-owned production package");
+    check_standalone_pilot_assignment(&sealed_bytes, &parity_bytes, package);
+}
+
+#[derive(Deserialize)]
+struct ExternalPilot {
+    package: PathBuf,
+    structural_identity: [u64; 4],
+    pilot_fixture: PathBuf,
+}
+
+#[test]
+#[ignore = "current candidate paths as JSON on stdin; run under the 300-second cap"]
+fn external_standalone_pilot_assignment() {
+    let paths: ExternalPilot = serde_json::from_reader(std::io::stdin().lock()).expect("external pilot paths");
+    let sealed_bytes = fs::read(paths.package).expect("current Lean package");
+    let package = super::load_per_application_package(&sealed_bytes, paths.structural_identity)
+        .expect("selected candidate identity");
+    let parity_bytes = fs::read(paths.pilot_fixture).expect("current Lean pilot fixture");
+    check_standalone_pilot_assignment(&sealed_bytes, &parity_bytes, package);
+}
+
+fn check_standalone_pilot_assignment(
+    sealed_bytes: &[u8],
+    parity_bytes: &[u8],
+    package: super::LoadedPerApplicationPackage,
+) {
+    let started = Instant::now();
     let RawPilotParity(schema, RawPilotInput(prior, prior_public, output, output_digest), expected) =
-        serde_json::from_slice(&parity_bytes).expect("standalone pilot parity decode");
+        serde_json::from_slice(parity_bytes).expect("standalone pilot parity decode");
     assert_eq!(schema, 1);
     assert_eq!(prior_public.len(), 270);
     assert_eq!(output_digest.len(), 4);
@@ -164,7 +192,6 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
     assert_eq!(expected.4, [1, 1, 1, 1]);
     assert_ne!(expected.0, expected.1);
 
-    let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("verifier-owned production package");
     let context = package
         .production_verifier_binding()
         .expect("production verifier binding")
@@ -212,7 +239,7 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
     drop(private_values);
     println!("standalone pilot witness execution and result: {:?}", started.elapsed());
 
-    let raw_bytes = inner_raw_package_bytes(&sealed_bytes);
+    let raw_bytes = inner_raw_package_bytes(sealed_bytes);
     let report = conformance_support::evaluate_pilot_assignment(
         &raw_bytes,
         &assignment.private_values,
@@ -247,9 +274,9 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
     println!("standalone pilot production logical transport: {:?}", started.elapsed());
 
     let relation =
-        logical_reference::relation::Relation::decode(&sealed_bytes).expect("independent final relation decoder");
+        logical_reference::relation::Relation::decode(sealed_bytes).expect("independent final relation decoder");
     let artifact =
-        logical_reference::source::SourcePackage::decode(&sealed_bytes).expect("independent sealed source decoder");
+        logical_reference::source::SourcePackage::decode(sealed_bytes).expect("independent sealed source decoder");
     let program = logical_reference::matrix::MatrixProgram::decode(
         &artifact.matrix_program,
         &artifact.sources,
@@ -272,7 +299,7 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
         PILOT_BLOCK_OPCODES
     );
     let logical_assignment = logical_reference::assignment::PartialLogicalAssignment::decode_pilot(
-        &sealed_bytes,
+        sealed_bytes,
         &assignment.private_values,
         &assignment.public_values,
     )
@@ -281,42 +308,70 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
     assert_eq!(production_logical_assignment.len(), artifact.logical_columns);
     println!("standalone pilot logical relation decode: {:?}", started.elapsed());
 
-    // Compare each immutable production coordinate once, before recording it.
-    // The bitset covers the exact package width; every row is still evaluated.
-    let mut compared_columns = vec![0u64; artifact.logical_columns.div_ceil(u64::BITS as usize)];
-    let mut checked_production_value = |column| {
-        let production = production_logical_assignment
-            .value(column)
-            .map_err(|error| format!("production pilot logical column {column}: {error}"))?;
-        let production = logical_reference::Field::checked(production, "production pilot logical value")?;
-        let bit = 1u64 << (column % u64::BITS as usize);
-        let compared = compared_columns
-            .get_mut(column / u64::BITS as usize)
-            .ok_or_else(|| format!("pilot logical column {column} exceeds the package width"))?;
-        if *compared & bit == 0 {
-            let independent = logical_assignment.value(column)?;
-            if production != independent {
-                return Err(format!(
-                    "production pilot logical assignment differs at column {column}: {} != {}",
-                    production.canonical(),
-                    independent.canonical()
-                ));
+    // Each independent family owns its comparison bitset. The assignment
+    // views are immutable, and every row is still evaluated in ordinal order.
+    let checked_values = || {
+        let mut compared_columns = vec![0u64; artifact.logical_columns.div_ceil(u64::BITS as usize)];
+        let production_assignment = &production_logical_assignment;
+        let independent_assignment = &logical_assignment;
+        move |column| {
+            let production = production_assignment
+                .value(column)
+                .map_err(|error| format!("production pilot logical column {column}: {error}"))?;
+            let production = logical_reference::Field::checked(production, "production pilot logical value")?;
+            let bit = 1u64 << (column % u64::BITS as usize);
+            let compared = compared_columns
+                .get_mut(column / u64::BITS as usize)
+                .ok_or_else(|| format!("pilot logical column {column} exceeds the package width"))?;
+            if *compared & bit == 0 {
+                let independent = independent_assignment.value(column)?;
+                if production != independent {
+                    return Err(format!(
+                        "production pilot logical assignment differs at column {column}: {} != {}",
+                        production.canonical(),
+                        independent.canonical()
+                    ));
+                }
+                *compared |= bit;
             }
-            *compared |= bit;
+            Ok(production)
         }
-        Ok(production)
     };
+    let family_rows = PILOT_LOGICAL_FAMILIES
+        .par_iter()
+        .map(|&(name, start, end)| {
+            let count = logical_reference::evaluation::verify_satisfaction_range_with(
+                &program,
+                &artifact.sources,
+                &relation,
+                start,
+                end,
+                checked_values(),
+            )?;
+            println!(
+                "standalone pilot logical family {name} rows {start}..{end}: {:?}",
+                started.elapsed()
+            );
+            Ok(count)
+        })
+        .collect::<logical_reference::Result<Vec<_>>>()
+        .expect("production logical values match the independent lift and satisfy every pilot-owned row");
     let mut logical_rows = 0;
     for (start, end) in PILOT_LOGICAL_RANGES {
-        logical_rows += logical_reference::evaluation::verify_satisfaction_range_with(
-            &program,
-            &artifact.sources,
-            &relation,
-            start,
-            end,
-            &mut checked_production_value,
-        )
-        .expect("production logical values match the independent lift and satisfy every pilot-owned row");
+        let mut next = start;
+        for ((_, family_start, family_end), count) in PILOT_LOGICAL_FAMILIES.iter().zip(&family_rows) {
+            if *family_start >= start && *family_end <= end {
+                assert_eq!(*family_start, next, "pilot family coverage is contiguous");
+                assert_eq!(
+                    *count,
+                    *family_end - *family_start,
+                    "every pilot family row was checked"
+                );
+                logical_rows += *count;
+                next = *family_end;
+            }
+        }
+        assert_eq!(next, end, "pilot family coverage reaches the complete range");
         println!("standalone pilot logical rows {start}..{end}: {:?}", started.elapsed());
     }
     assert_eq!(logical_rows, 2_323_138);
@@ -325,7 +380,7 @@ fn sealed_package_checks_the_standalone_pilot_assignment() {
         &artifact.sources,
         &relation,
         1 + expected.1.len() * u64::BITS as usize,
-        &mut checked_production_value,
+        &mut checked_values(),
     )
     .expect("every named pilot logical family has effective canonical row and column mutations");
     assert_eq!(logical_row_mutations, PILOT_LOGICAL_FAMILIES.len());

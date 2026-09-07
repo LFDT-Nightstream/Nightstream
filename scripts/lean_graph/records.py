@@ -190,6 +190,7 @@ def report(policy, manifest, store, authority, active=None, invocation=None):
                             "closed": not missing, "missing": sorted(set(missing)),
                             "gap": obligation["gap"], "target": obligation.get("target"),
                             "argument": obligation.get("argument"),
+                            "coverage": obligation.get("coverage", {}),
                             "gates": gate_order(policy, obligation["gates"]),
                             "reviews": review_states,
                             "decomposition": decompositions.get(name),
@@ -264,6 +265,10 @@ def explain(result, name):
              f"Exact target: {item['target'] or 'not registered'}"]
     if item["argument"]:
         lines += ["", "Argument: " + item["argument"]]
+    if item.get("coverage"):
+        lines += ["", "Named branches:", ""]
+        for branch, case in item["coverage"].items():
+            lines += [f"- {branch}: {case['scope']}", "  Checks: " + ", ".join(case["gates"]) + "."]
     if item.get("decomposition"):
         decision = item["decomposition"]
         lines += ["", "Decomposition review: " + item["reviews"]["decomposition"] + "."]

@@ -47,7 +47,7 @@ def gate_scope(policy, selected):
 def checker_key():
     root = Path(__file__).parent
     paths = sorted(root.glob("*.py")) + [root.parent / "fprime_stage1_review_manifest.py"]
-    paths.append(root / "ExportMetadata.lean")
+    paths += [root / "ExportMetadata.lean", root / "CompilerCoverage.lean"]
     lean = root.parents[1] / "formal/nightstream-fprime"
     paths += [lean / "scripts/validate.sh", lean / "scripts/check-boundaries.sh", lean / "tests/AxiomAudit.lean",
               lean / "tests/EvidenceMetadata.lean", lean / "tests/EvidenceAcceptance.lean"]
@@ -59,6 +59,7 @@ def verify_checker_sources(snapshot):
     """Candidate edits cannot substitute the trusted Lean checker commands."""
     root = Path(__file__).resolve().parents[2]
     for relative in ("scripts/lean_graph/ExportMetadata.lean",
+                     "scripts/lean_graph/CompilerCoverage.lean",
                      "formal/nightstream-fprime/scripts/validate.sh",
                      "formal/nightstream-fprime/scripts/check-boundaries.sh",
                      "formal/nightstream-fprime/tests/AxiomAudit.lean",
@@ -142,6 +143,20 @@ def validate(policy):
             raise EvidenceError(f"unknown required review: {name}")
         if "decomposition" in obligation["reviews"] and not obligation.get("target_required"):
             raise EvidenceError(f"decomposition review needs an exact target criterion: {name}")
+        coverage = obligation.get("coverage")
+        if coverage is not None:
+            if not isinstance(coverage, dict) or not coverage:
+                raise EvidenceError(f"empty or invalid branch coverage: {name}")
+            selected = set(gate_order(policy, obligation["gates"]))
+            for branch, case in coverage.items():
+                if (not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", branch)
+                        or not isinstance(case, dict)
+                        or not isinstance(case.get("scope"), str) or not case["scope"].strip()
+                        or not isinstance(case.get("gates"), list) or not case["gates"]
+                        or any(not isinstance(gate, str) for gate in case["gates"])):
+                    raise EvidenceError(f"branch needs a scope and named checks: {name}/{branch}")
+                if not set(case["gates"]) <= selected:
+                    raise EvidenceError(f"branch checks are outside the checkpoint: {name}/{branch}")
     return policy
 
 

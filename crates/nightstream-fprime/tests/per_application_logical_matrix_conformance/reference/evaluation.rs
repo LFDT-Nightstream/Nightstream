@@ -1,5 +1,7 @@
 //! Streaming evaluation of independent logical rows against an assignment.
 
+use rayon::prelude::*;
+
 use super::assignment::LogicalAssignment;
 use super::matrix::MatrixProgram;
 use super::relation::Relation;
@@ -27,31 +29,38 @@ pub fn verify_satisfaction_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
-    mut value_at: impl FnMut(usize) -> Field,
+    value_at: impl Fn(usize) -> Field + Sync,
 ) -> Result<()> {
+    // Use the existing runtime pool for independent immutable row ranges.
+    // Keep results in range order so rejection still names the first failure.
+    let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
+    let ranges = (0..ACTIVE_ROWS)
+        .step_by(range_size)
+        .map(|start| (start, (start + range_size).min(ACTIVE_ROWS)))
+        .collect::<Vec<_>>();
+    let results = ranges
+        .par_iter()
+        .map(|&(start, end)| {
+            verify_satisfaction_range_with(program, sources, relation, start, end, |column| Ok(value_at(column)))
+        })
+        .collect::<Vec<_>>();
     let mut next = 0usize;
-    program.visit_rows(0, ACTIVE_ROWS, sources, |ordinal, row| {
-        if ordinal != next {
-            return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
+    for ((start, end), result) in ranges.into_iter().zip(results) {
+        if start != next {
+            return Err(format!("logical row order changed: got {start}, expected {next}"));
         }
-        let matrix_values = evaluate_row_with(&row, &mut value_at);
-        validate_zero_slot(&matrix_values, ordinal)?;
-        let residual = relation.evaluate(&matrix_values);
-        if residual != Field::ZERO {
-            return Err(format!(
-                "logical relation failed at row {ordinal}: {}",
-                residual.canonical()
-            ));
+        let checked = result?;
+        if checked != end - start {
+            return Err(format!("logical row range {start}..{end} checked {checked} rows"));
         }
-        next += 1;
-        Ok(())
-    })?;
+        next = end;
+    }
     if next != ACTIVE_ROWS {
         return Err(format!("logical row coverage ended at {next}, expected {ACTIVE_ROWS}"));
     }
 
     let implicit_padding = empty_row();
-    if relation.evaluate(&evaluate_row_with(&implicit_padding, &mut value_at)) != Field::ZERO {
+    if relation.evaluate(&evaluate_row_with(&implicit_padding, &mut |column| value_at(column))) != Field::ZERO {
         return Err("implicit zero row does not satisfy the CCS polynomial".into());
     }
     for ordinal in [ACTIVE_ROWS, PADDED_ROWS - 1, PADDED_ROWS] {

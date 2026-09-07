@@ -28,8 +28,18 @@ fn nat_list(value: &Value) -> Vec<u64> {
 
 #[test]
 fn lean_setup_vectors_match_rust_and_rfc8439() {
-    let fixture: Value = serde_json::from_slice(&std::fs::read(FIXTURE_PATH).expect("read Lean setup fixture"))
-        .expect("decode Lean setup fixture");
+    check_lean_setup_fixture(&std::fs::read(FIXTURE_PATH).expect("read Lean setup fixture"));
+}
+
+#[test]
+#[ignore = "current Lean setup fixture path as JSON on stdin; run under the 300-second cap"]
+fn external_lean_setup_vectors_match_current_rust() {
+    let path: std::path::PathBuf = serde_json::from_reader(std::io::stdin()).expect("external Lean setup fixture path");
+    check_lean_setup_fixture(&std::fs::read(path).expect("read external Lean setup fixture"));
+}
+
+fn check_lean_setup_fixture(bytes: &[u8]) {
+    let fixture: Value = serde_json::from_slice(bytes).expect("decode Lean setup fixture");
     let root = array(&fixture);
     assert_eq!(root.len(), 7);
     assert_eq!(nat(&root[0]), 3, "setup fixture schema");

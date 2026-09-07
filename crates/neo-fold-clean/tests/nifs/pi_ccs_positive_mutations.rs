@@ -57,25 +57,30 @@ pub fn check_proof_mutations(
     let mut changed = proof.clone();
     changed.sumcheck_rounds[0].pop();
     rejects(&changed, "missing round coefficient");
-    let mut checked = 2;
-    for round in 0..proof.sumcheck_rounds.len() {
-        for coefficient in 0..proof.sumcheck_rounds[round].len() {
-            for limb in 0..2 {
-                let mut changed = proof.clone();
-                let mut words: [u64; 2] = changed.sumcheck_rounds[round][coefficient]
-                    .to_limbs_u64()
-                    .into();
-                words[limb] = if words[limb] == MODULUS - 1 { 0 } else { words[limb] + 1 };
-                changed.sumcheck_rounds[round][coefficient] =
-                    from_complex(F::from_u64(words[0]), F::from_u64(words[1]));
-                rejects(
-                    &changed,
-                    &format!("round {round}, coefficient {coefficient}, limb {limb}"),
-                );
-                checked += 1;
-            }
-        }
-    }
+    let checked = 2
+        + (0..proof.sumcheck_rounds.len())
+            .into_par_iter()
+            .map(|round| {
+                let mut checked = 0;
+                for coefficient in 0..proof.sumcheck_rounds[round].len() {
+                    for limb in 0..2 {
+                        let mut changed = proof.clone();
+                        let mut words: [u64; 2] = changed.sumcheck_rounds[round][coefficient]
+                            .to_limbs_u64()
+                            .into();
+                        words[limb] = if words[limb] == MODULUS - 1 { 0 } else { words[limb] + 1 };
+                        changed.sumcheck_rounds[round][coefficient] =
+                            from_complex(F::from_u64(words[0]), F::from_u64(words[1]));
+                        rejects(
+                            &changed,
+                            &format!("round {round}, coefficient {coefficient}, limb {limb}"),
+                        );
+                        checked += 1;
+                    }
+                }
+                checked
+            })
+            .sum::<usize>();
     assert_eq!(checked, 2 + 28 * 10 * 2);
     println!("positive_pi_ccs_proof_mutations_rejected={checked} engines=paper_exact,optimized");
 }
@@ -203,43 +208,32 @@ pub fn check_claim_mutations(
             assert_eq!(checked.load(Ordering::Relaxed), 4 + 4 + 16 * 17 + 2);
         }
         "output-mutations" => {
-            (0..outputs.len()).into_par_iter().for_each(|source| {
-                for family in 0..17 {
+            let mutations_per_source = 17 + 28 + 4;
+            (0..outputs.len() * mutations_per_source)
+                .into_par_iter()
+                .for_each(|mutation| {
+                    let source = mutation / mutations_per_source;
+                    let mutation = mutation % mutations_per_source;
                     let mut changed = outputs.to_vec();
-                    match family {
-                        0 => changed[source].c.data[0] += F::ONE,
-                        1 => changed[source].X[(0, 0)] += F::ONE,
-                        2 => changed[source].eval_k[0] += K::ONE,
-                        _ => changed[source].eval_a[family - 3][0] += K::ONE,
-                    }
-                    rejects(
-                        fresh,
-                        running,
-                        &changed,
-                        &format!("output source {source}, family {family}"),
-                    );
-                }
-                for coordinate in 0..28 {
-                    let mut changed = outputs.to_vec();
-                    changed[source].r[coordinate] += K::ONE;
-                    rejects(
-                        fresh,
-                        running,
-                        &changed,
-                        &format!("output source {source}, point {coordinate}"),
-                    );
-                }
-                for lane in 0..4 {
-                    let mut changed = outputs.to_vec();
-                    change_digest(&mut changed[source].fold_digest, lane);
-                    rejects(
-                        fresh,
-                        running,
-                        &changed,
-                        &format!("output source {source}, digest {lane}"),
-                    );
-                }
-            });
+                    let label = if mutation < 17 {
+                        match mutation {
+                            0 => changed[source].c.data[0] += F::ONE,
+                            1 => changed[source].X[(0, 0)] += F::ONE,
+                            2 => changed[source].eval_k[0] += K::ONE,
+                            _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
+                        }
+                        format!("output source {source}, family {mutation}")
+                    } else if mutation < 17 + 28 {
+                        let coordinate = mutation - 17;
+                        changed[source].r[coordinate] += K::ONE;
+                        format!("output source {source}, point {coordinate}")
+                    } else {
+                        let lane = mutation - 17 - 28;
+                        change_digest(&mut changed[source].fold_digest, lane);
+                        format!("output source {source}, digest {lane}")
+                    };
+                    rejects(fresh, running, &changed, &label);
+                });
             for shape in 0..10 {
                 let mut changed = outputs.to_vec();
                 match shape {

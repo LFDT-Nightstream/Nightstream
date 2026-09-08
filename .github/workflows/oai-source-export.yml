@@ -1,0 +1,45 @@
+name: OAI source export
+
+on:
+  push:
+    branches:
+      - oai/nebula-fprime-latest-retry
+  pull_request:
+    branches:
+      - nico/f-prime-constraints-cuda-formal
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Package source tree
+        run: |
+          tar --exclude=.git --exclude=target -czf /tmp/nightstream-source.tar.gz .
+      - name: Upload source tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightstream-source
+          path: /tmp/nightstream-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  diagnose-streaming-fixed-point:
+    if: github.event_name == 'pull_request'
+    runs-on: self-hosted
+    timeout-minutes: 6
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Measure exact latest streaming lifecycle fixed point
+        run: |
+          timeout --signal=KILL 300s cargo test --release -p neo-fold-clean \
+            --test nebula_streaming_lifecycle_profile \
+            lifecycle_full_source_profile_reaches_a_recursive_shape_fixed_point \
+            -- --ignored --nocapture

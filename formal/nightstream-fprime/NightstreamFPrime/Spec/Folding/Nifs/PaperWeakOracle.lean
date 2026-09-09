@@ -31,7 +31,7 @@ private theorem weights_hasSum {Tape : Type*} (tapes : PMF Tape) :
     rw [← ENNReal.tsum_toReal_eq tapes.apply_ne_top, tapes.tsum_coe, ENNReal.toReal_one]
   exact total ▸ summable.hasSum
 
-private noncomputable def pushMass {Tape Output : Type*} (tapes : PMF Tape)
+noncomputable def pushMass {Tape Output : Type*} (tapes : PMF Tape)
     (route : Tape → Output) (output : Output) : ℝ :=
   ∑' tape : {tape // route tape = output}, (tapes tape.val).toReal
 
@@ -39,7 +39,7 @@ private theorem pushMass_hasSum {Tape Output : Type*} (tapes : PMF Tape)
     (route : Tape → Output) : HasSum (pushMass tapes route) 1 :=
   (weights_hasSum tapes).tsum_fiberwise route
 
-private theorem pushMass_value_hasSum {Tape Output : Type*} (tapes : PMF Tape)
+theorem pushMass_value_hasSum {Tape Output : Type*} (tapes : PMF Tape)
     (route : Tape → Output) (value : Output → ℝ)
     (summable : Summable fun tape => (tapes tape).toReal * value (route tape)) :
     HasSum (fun output => pushMass tapes route output * value output)

@@ -147,6 +147,25 @@ theorem postMean_range (context : Context) :
     by simpa only [PaperCompositionAgreement.pairMean_const] using upper⟩
 
 include bounded accessBounded in
+theorem totalClock_nonnegative (context : Context)
+    (alpha : CubePoint K productionShape.cubeVariables) (gamma : K)
+    (point : CubePoint K productionShape.cubeVariables) :
+    0 ≤ totalClock ajtai program relation running fresh originalFirstPhase publicCheck continuation
+      call sourceProgram context alpha gamma point := by
+  apply add_nonneg
+  · apply mul_nonneg (by norm_num : (0 : ℝ) ≤ 2)
+    have nonnegative := StrongProbability.verifierMean_mono (shape := productionShape)
+      (fun _ _ _ => 0)
+      (InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram context)
+      (PaperCompositionWork.totalClock_nonnegative (ProductionKey.key relation ajtai).piRlcAlgebra call
+        (InteractiveWork.law relation ajtai running fresh continuation)
+        (InteractiveWork.parentChecker relation ajtai running fresh continuation)
+        program sourceProgram (PaperWeakOutput.decode (ProductionKey.key relation ajtai)) context)
+    simpa only [StrongProbability.verifierMean_const] using nonnegative
+  · exact (postMean_range ajtai program relation running fresh originalFirstPhase publicCheck
+      continuation sourceProgram bounds bounded accessBound accessBounded context).1
+
+include bounded accessBounded in
 /-- The reduction after context preparation inherits the actual source moment.
 There is no new premise asserting the reduction's own total work. -/
 theorem expected_work_bound (contexts : PMF Context)
@@ -170,20 +189,8 @@ theorem expected_work_bound (contexts : PMF Context)
     (totalClock ajtai program relation running fresh originalFirstPhase publicCheck continuation call sourceProgram)
     2 ((BindingOutput.crossWork bounds +
       (FullShape logicalWidth publicFits).carrierWidth * (accessBound + 6) + 12 : Nat) : ℝ)
-    (by
-      intro context _ _ _
-      apply add_nonneg
-      · apply mul_nonneg (by norm_num : (0 : ℝ) ≤ 2)
-        have nonnegative := StrongProbability.verifierMean_mono (shape := productionShape)
-          (fun _ _ _ => 0)
-          (InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram context)
-          (PaperCompositionWork.totalClock_nonnegative (ProductionKey.key relation ajtai).piRlcAlgebra call
-            (InteractiveWork.law relation ajtai running fresh continuation)
-            (InteractiveWork.parentChecker relation ajtai running fresh continuation)
-            program sourceProgram (PaperWeakOutput.decode (ProductionKey.key relation ajtai)) context)
-        simpa only [StrongProbability.verifierMean_const] using nonnegative
-      · exact (postMean_range ajtai program relation running fresh originalFirstPhase publicCheck
-          continuation sourceProgram bounds bounded accessBound accessBounded context).1)
+    (totalClock_nonnegative ajtai program relation running fresh originalFirstPhase publicCheck
+      continuation call sourceProgram bounds bounded accessBound accessBounded)
     (by simpa only [source, StrongProbability.verifierMean_const] using sourceSummable)
     (by
       intro context _ _ _
@@ -227,5 +234,59 @@ theorem expected_work_polynomial_bound (contexts : PMF Context)
   push_cast at total
   simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C]
   nlinarith
+
+include bounded accessBounded in
+/-- Preparation, including fixed-key preprocessing, is charged once before
+the two source runs. The context law is derived from the same actual call.
+The preparation and source moments are the original EPT premises. -/
+theorem prepared_expected_work_polynomial_bound {SetupTape : Type*}
+    (setupTapes : PMF SetupTape) (prepare : SetupTape → Result Context)
+    (preparationSummable : Summable fun tape => (setupTapes tape).toReal * (prepare tape).work)
+    (sourceSummable : Summable fun context => (ContextPreparation.contexts setupTapes prepare context).toReal *
+      StrongProbability.verifierMean
+        (InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram context))
+    (securityParameter : Nat)
+    (preparationPolynomial sourcePolynomial primitivePolynomial accessPolynomial : Polynomial ℝ)
+    (preparationPPT : (∑' tape, (setupTapes tape).toReal * (prepare tape).work) ≤
+      preparationPolynomial.eval (securityParameter : ℝ))
+    (sourcePPT : StrongProbability.clockMean (ContextPreparation.contexts setupTapes prepare)
+      (InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram) ≤
+        sourcePolynomial.eval (securityParameter : ℝ))
+    (primitivePPT : (bounds.coordinateWork : ℝ) ≤ primitivePolynomial.eval (securityParameter : ℝ))
+    (accessPPT : (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ)) :
+    let continuationMean := fun context => StrongProbability.verifierMean
+      (totalClock ajtai program relation running fresh originalFirstPhase publicCheck continuation
+        call sourceProgram context)
+    Summable (fun tape => (setupTapes tape).toReal * ContextPreparation.clock prepare continuationMean tape) ∧
+    (∑' tape, (setupTapes tape).toReal * ContextPreparation.clock prepare continuationMean tape) ≤
+      (preparationPolynomial + Polynomial.C 2 * sourcePolynomial + Polynomial.C 3 * primitivePolynomial +
+        Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
+          (accessPolynomial + Polynomial.C 6) + Polynomial.C 13).eval (securityParameter : ℝ) := by
+  dsimp only
+  have source := expected_work_polynomial_bound ajtai program relation running fresh originalFirstPhase
+    publicCheck continuation call sourceProgram bounds bounded accessBound accessBounded
+    (ContextPreparation.contexts setupTapes prepare) sourceSummable securityParameter sourcePolynomial
+    primitivePolynomial accessPolynomial sourcePPT primitivePPT accessPPT
+  have full := ContextPreparation.expected_work_eq setupTapes prepare
+    (fun context => StrongProbability.verifierMean
+      (totalClock ajtai program relation running fresh originalFirstPhase publicCheck continuation
+        call sourceProgram context))
+    (by
+      intro context
+      have nonnegative := StrongProbability.verifierMean_mono (shape := productionShape)
+        (fun _ _ _ => 0) _
+        (totalClock_nonnegative ajtai program relation running fresh originalFirstPhase publicCheck
+          continuation call sourceProgram bounds bounded accessBound accessBounded context)
+      simpa only [StrongProbability.verifierMean_const] using nonnegative)
+    preparationSummable source.1
+  refine ⟨full.1, ?_⟩
+  rw [full.2]
+  have reduced := source.2
+  change (∑' context, (ContextPreparation.contexts setupTapes prepare context).toReal *
+    StrongProbability.verifierMean
+      (totalClock ajtai program relation running fresh originalFirstPhase publicCheck continuation
+        call sourceProgram context)) ≤ _ at reduced
+  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C] at reduced ⊢
+  linarith
 
 end NightstreamFPrime.Lifecycle.Nifs.BindingWork

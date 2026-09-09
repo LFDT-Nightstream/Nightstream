@@ -214,10 +214,14 @@ theorem probability_and_expected_work
       accessPolynomial basePPT primitivePPT accessPPT
 
 include checkCorrect lowNorm correct bounded sourceCorrect in
-/-- The selected source theorem and the binding reduction share
-the checked prefix, supported continuation, and actual work premises. The
-source loss uses the emitted same-key MSIS vector probability. -/
-theorem msis_probability_and_expected_work
+/-- The original preparation call generates the context once for both
+source runs. Probability uses its actual returned context, and work includes
+its full preparation/preprocessing clock. The checked prefix and reachable
+continuation remain the existing selected NIFS execution. -/
+theorem msis_probability_and_expected_work {SetupTape : Type*}
+    (setupTapes : PMF SetupTape) (prepare : SetupTape → Result Context)
+    (preparedContexts : contexts = ContextPreparation.contexts setupTapes prepare)
+    (preparationSummable : Summable fun tape => (setupTapes tape).toReal * (prepare tape).work)
     (call : Context → CubePoint K productionShape.cubeVariables → K →
       CubePoint K productionShape.cubeVariables → Result (Option (Probe K productionShape × State)))
     (callCorrect : ∀ context alpha gamma point,
@@ -225,13 +229,16 @@ theorem msis_probability_and_expected_work
         (InteractiveComposition.firstPhase originalFirstPhase publicCheck context) alpha gamma point)
     (accessBound : Nat)
     (accessBounded : ∀ context, CostedWitnessProjection.Bounded (sourceProgram context).access accessBound)
-    (securityParameter : Nat) (basePolynomial primitivePolynomial accessPolynomial : Polynomial ℝ) :
+    (securityParameter : Nat)
+    (preparationPolynomial basePolynomial primitivePolynomial accessPolynomial : Polynomial ℝ) :
     let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
       (InteractiveComposition.firstPhase originalFirstPhase publicCheck) abortTape provider
     let base := InteractiveWork.baseClock relation ajtai running fresh continuation call program sourceProgram
     let sourceTotal := InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram
     let bindingTotal := BindingWork.totalClock ajtai program relation running fresh originalFirstPhase publicCheck
       continuation call sourceProgram
+    let total := ContextPreparation.clock prepare
+      (fun context => StrongProbability.verifierMean (bindingTotal context))
     let sourcePolynomial := Polynomial.C ((PaperProfile.arity.total : ℝ) + 1) * basePolynomial +
       Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
       Polynomial.C (productionShape.freshCount : ℝ) *
@@ -244,6 +251,8 @@ theorem msis_probability_and_expected_work
     StrongProbability.clockMean contexts base ≤ basePolynomial.eval (securityParameter : ℝ) →
     (bounds.coordinateWork : ℝ) ≤ primitivePolynomial.eval (securityParameter : ℝ) →
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
+    (∑' tape, (setupTapes tape).toReal * (prepare tape).work) ≤
+      preparationPolynomial.eval (securityParameter : ℝ) →
     (∀ context alpha gamma point,
       sourceTotal context alpha gamma point = ((call context alpha gamma point).work : ℝ) +
         (match InteractivePrefix.run
@@ -260,18 +269,21 @@ theorem msis_probability_and_expected_work
     (StrongProbability.clockMean contexts
       (InteractiveComposition.originalSuccess relation ajtai running fresh originalFirstPhase
         publicCheck continuation) - InteractiveComposition.weakLoss relation ajtai -
-      Real.sqrt (BindingProbability.successProbability ajtai program relation running fresh
-        originalFirstPhase publicCheck continuation (fun context => (sourceProgram context).access)
-        contexts * PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
+      Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability ajtai program
+        (sourceProgram (prepare tape).value).access relation running fresh originalFirstPhase publicCheck
+        continuation (prepare tape).value) * PaperProfile.arity.total +
+          IndependentExecution.testError productionShape 9) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         publicCheck continuation program sourceProgram contexts) ∧
-    Summable (fun context => (contexts context).toReal * StrongProbability.verifierMean (bindingTotal context)) ∧
-    StrongProbability.clockMean contexts bindingTotal ≤
-      (Polynomial.C 2 * sourcePolynomial + Polynomial.C 3 * primitivePolynomial +
+    Summable (fun tape => (setupTapes tape).toReal * total tape) ∧
+    (∑' tape, (setupTapes tape).toReal * total tape) ≤
+      (preparationPolynomial + Polynomial.C 2 * sourcePolynomial + Polynomial.C 3 * primitivePolynomial +
         Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
-          (accessPolynomial + Polynomial.C 6) + Polynomial.C 12).eval (securityParameter : ℝ) := by
+          (accessPolynomial + Polynomial.C 6) + Polynomial.C 13).eval (securityParameter : ℝ) := by
+  subst contexts
   dsimp only
-  intro baseSummable basePPT primitivePPT accessPPT
+  intro baseSummable basePPT primitivePPT accessPPT preparationPPT
+  let contexts := ContextPreparation.contexts setupTapes prepare
   let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
     (InteractiveComposition.firstPhase originalFirstPhase publicCheck) abortTape provider
   have source := probability_and_expected_work relation ajtai running fresh contexts originalFirstPhase
@@ -279,10 +291,14 @@ theorem msis_probability_and_expected_work
     call callCorrect accessBound accessBounded securityParameter basePolynomial primitivePolynomial accessPolynomial
     baseSummable basePPT primitivePPT accessPPT
   refine ⟨source.1, ?_, ?_⟩
-  · exact returned_source_bound_with_msis relation ajtai running fresh contexts originalFirstPhase
+  · have success := returned_source_bound_with_msis relation ajtai running fresh contexts originalFirstPhase
       publicCheck abortTape provider program sourceProgram checkCorrect lowNorm correct bounds bounded sourceCorrect
-  · exact BindingWork.expected_work_polynomial_bound ajtai program relation running fresh originalFirstPhase
-      publicCheck continuation call sourceProgram bounds bounded accessBound accessBounded contexts source.2.2.1
-      securityParameter _ primitivePolynomial accessPolynomial source.2.2.2 primitivePPT accessPPT
+    dsimp only [contexts] at success
+    rw [BindingProbability.prepared_successProbability_eq] at success
+    exact success
+  · exact BindingWork.prepared_expected_work_polynomial_bound ajtai program relation running fresh originalFirstPhase
+      publicCheck continuation call sourceProgram bounds bounded accessBound accessBounded setupTapes prepare
+      preparationSummable source.2.2.1 securityParameter preparationPolynomial _ primitivePolynomial accessPolynomial
+      preparationPPT source.2.2.2 primitivePPT accessPPT
 
 end NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nifs.BindingReduction
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement
+import NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation
 
 /-!
 The actual binding reduction samples one of the selected 17 source
@@ -193,6 +194,28 @@ noncomputable def successProbability
   ∑' context, (contexts context).toReal *
     localSuccessProbability ajtai program (accesses context) relation running fresh
       originalFirstPhase publicCheck continuation context
+
+omit [DecidableEq RingF] in
+/-- The actual preparation output selects the same binding experiment.
+The probability is taken over the original private tapes, not over an
+independently supplied context distribution. -/
+theorem prepared_successProbability_eq {SetupTape : Type*}
+    (setupTapes : PMF SetupTape) (prepare : SetupTape → Result Context)
+    (accesses : Context → CostedWitnessProjection.Accessor productionShape (FullShape logicalWidth publicFits)) :
+    successProbability ajtai program relation running fresh originalFirstPhase publicCheck
+        continuation accesses (ContextPreparation.contexts setupTapes prepare) =
+      ∑' tape, (setupTapes tape).toReal * localSuccessProbability ajtai program
+        (accesses (prepare tape).value) relation running fresh originalFirstPhase publicCheck
+        continuation (prepare tape).value := by
+  let value := fun context => localSuccessProbability ajtai program (accesses context) relation
+    running fresh originalFirstPhase publicCheck continuation context
+  have summable := StrongProbability.clockMean_summable_of_bounded (shape := productionShape)
+    setupTapes (fun tape _ _ _ => value (prepare tape).value) 1
+    (fun tape _ _ _ => localSuccessProbability_range ajtai program (accesses (prepare tape).value)
+      relation running fresh originalFirstPhase publicCheck continuation (prepare tape).value)
+  have actual := ContextPreparation.value_hasSum setupTapes prepare value
+    (by simpa only [StrongProbability.verifierMean_const] using summable)
+  exact actual.tsum_eq
 
 include strongSet correct in
 /-- Global binding failure is bounded by the implemented same-key MSIS

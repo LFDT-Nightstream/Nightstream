@@ -2,7 +2,7 @@ mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
-    EventBlock, EventBlockBuilder, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding,
+    EventBlock, EventSequenceBuilder, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding,
     TurnInputs,
 };
 use neo_wasm::{
@@ -207,7 +207,7 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
     )
     .expect("guest tail call with event binding");
     common::ccs_check_trace(&trace);
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
 
     let capture = trace
         .iter()
@@ -261,15 +261,16 @@ fn tail_call_exit_memory_uses_the_captured_output_pointer() {
         .first()
         .and_then(|row| row.current_function_ref)
         .expect("export function ref");
-    let exit = EventBlockBuilder::op(1)
-        .memory_read_i32(0, MemoryBase::Output, 0)
+    let exit = EventSequenceBuilder::op(1)
+        .memory_read_i32(MemoryBase::Output, 0)
         .expect("valid exit memory slot")
-        .finish();
+        .finish()
+        .expect("valid exit schedule");
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
         export_fref,
         ExportTemplate {
-            exit: vec![exit],
+            exit,
             ..Default::default()
         },
     );

@@ -78,7 +78,7 @@ pub(crate) fn mixed_adv(
 }
 
 pub(crate) fn projection_schedule(
-    tr: &mut Transcript,
+    tr: &Transcript,
     rhos: &[RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
@@ -205,8 +205,9 @@ pub(crate) fn projection_schedule(
     }
 
     let digest = accumulator_digest(PROJECTION_CONFIG, &binding)?;
-    tr.append_fields(b"pi_rlc/projection_binding_digest", &digest);
-    let beta = tr.challenge_fields(b"pi_rlc/projection_beta", 2);
+    let mut projection_transcript = tr.clone();
+    projection_transcript.append_fields(b"pi_rlc/projection_binding_digest", &digest);
+    let beta = projection_transcript.challenge_fields(b"pi_rlc/projection_beta", 2);
 
     Ok(ProjectionSchedule {
         rhos: rho_coeffs,

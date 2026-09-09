@@ -1,5 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
+import NightstreamFPrime.Export.Stage1.ActualContextSecurity
+import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
@@ -21,6 +23,22 @@ import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateExtraction
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
 /-! Axiom audits for deterministic Stage 1 binding and replay security. -/
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.serializePreimage_eq_implies_context_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.stateHash_length
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.serializePreimage_eq_implies_iteration_word_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.natWord_successor_eq_below_modulus
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.matrixVectorAt_logicalAssignment
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.projectPublicInput_logicalAssignment
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.selectedRowsAndCheckedPublic_imply_contextOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.selectedRowsAndCheckedPublic_imply_stepOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.selectedRowsAndTerminal_imply_stepOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.terminal_implies_stepOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.terminal_implies_rowsAndPublic
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.terminal_implies_preimageOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualContextSecurity.terminal_implies_matchingStepOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_le_inverse

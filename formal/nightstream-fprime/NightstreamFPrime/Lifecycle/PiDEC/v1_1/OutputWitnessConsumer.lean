@@ -125,7 +125,7 @@ theorem recursiveTerminal_supplies_childOpenings
       (key relation ajtai) attempt) := by
   rcases (Stage1.Terminal.holdsFor_recursive_iff relation ajtai vk application
     statement payload).mp terminal with
-    ⟨_pcValid, _positive, _publicLink, runningValid, freshValid⟩
+    ⟨_statementValid, _pcValid, _positive, _publicLink, runningValid, freshValid⟩
   have memberships : Lifecycle.TerminalHolds relation ajtai
       (payload.running functionIndex) (payload.runningWitness functionIndex)
       payload.fresh payload.freshWitness :=

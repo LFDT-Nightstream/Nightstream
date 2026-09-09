@@ -113,7 +113,8 @@ class ConformanceRegistrationTests(unittest.TestCase):
                 self.assertTrue(set(self.policy["identity_inputs"]) <= set(scope["inputs"]))
 
     def test_registrations_do_not_grant_review_or_full_step_closure(self):
-        for name in ("pilot-assignment", "piccs-assignment", "piccs-public-assignment"):
+        for name in ("pilot-assignment", "piccs-assignment", "piccs-public-assignment",
+                     "stage1-terminal-assignment", "stage1-terminal-parent"):
             self.assertEqual(set(self.policy["obligations"][name]["reviews"]),
                              {"target-meaning", "decomposition"})
         for name in ("compiler-coverage", "piccs-coverage"):

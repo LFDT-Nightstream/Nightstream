@@ -1,10 +1,12 @@
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
+import NightstreamFPrime.Export.Stage1.ActualContextSecurity
+import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import tests.EvidenceMetadata
 
-/-! Exact assignment targets for the pilot and PiCCS evidence slice.
-These targets do not claim the remaining full Stage 1 decoded-step theorem.
+/-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
+Terminal matching does not close full history or production conformance.
 -/
 
 namespace LeanGraph.Targets
@@ -102,6 +104,70 @@ def PiCCSPublicAssignment : Prop :=
 
 theorem piCCSPublicAssignment : PiCCSPublicAssignment :=
   ActualPiCCSInputs.selectedRowsAndPublic_imply_phaseAndHashes
+
+/-- Actual terminal membership must supply the arbitrary opening and all
+row/public premises, plus exact advertised-state matching or a named collision. -/
+def Stage1TerminalAssignment : Prop :=
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
+    (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
+    (payload : ActualContextSecurity.TerminalPayload application),
+    Lifecycle.Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+      application statement (.recursive payload) →
+    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+    (StepHoldsFor (PerApplicationFixedPoint.relation application fits)
+        (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+        (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup) application
+        (ActualStep.input application fits assignment (ActualStep.decodedFresh application assignment)
+          (ActualPiDECMessages.proof application fits assignment))
+        (ActualStep.output application assignment
+          (stateHash (ActualContextSecurity.terminalPreimage
+            application fits commitmentSetup statement payload))) ∧
+      ActualContextSecurity.decodedNext application assignment =
+        ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload) ∨
+      PiCCSSecurity.StateHashCollision (ActualContextSecurity.decodedNext application assignment)
+        (ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload)
+
+theorem stage1TerminalAssignment : Stage1TerminalAssignment :=
+  ActualContextSecurity.terminal_implies_matchingStepOrCollision
+
+#audit_axioms stage1TerminalAssignment
+
+/-- The terminal's actual witnesses must open the exact decoded PiDEC parent.
+The first step needs no NIFS extraction; collisions remain named events. -/
+def Stage1TerminalParent : Prop :=
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
+    (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
+    (payload : ActualContextSecurity.TerminalPayload application),
+    Lifecycle.Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+      application statement (.recursive payload) →
+    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+    let input := ActualStep.input application fits assignment
+      (ActualStep.decodedFresh application assignment)
+      (ActualPiDECMessages.proof application fits assignment)
+    let relation := PerApplicationFixedPoint.relation application fits
+    let ajtai := PerApplicationCanonicalPackage.commitmentKey commitmentSetup
+    let key := ProductionKey.key relation ajtai
+    input.iteration = 0 ∨
+      (0 < input.iteration ∧ ∃ attempt,
+        key.piDecAttempt (input.running functionIndex) input.fresh input.nifsProof = some attempt ∧
+        Spec.CE.Holds (semantics ajtai) productionGlobalParams attempt.parent
+          ((PaperAlgebra.piDecAlgebra ajtai).recomposeAssignment
+            (payload.runningWitness functionIndex))) ∨
+      PiCCSSecurity.StateHashCollision (ActualContextSecurity.decodedNext application assignment)
+        (ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload)
+
+theorem stage1TerminalParent : Stage1TerminalParent :=
+  ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision
+
+#audit_axioms stage1TerminalParent
 
 #audit_axioms piCCSPublicAssignment
 

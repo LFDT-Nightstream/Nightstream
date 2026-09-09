@@ -44,6 +44,7 @@ impl Poseidon2TranscriptSnapshot {
 /// (sub-transcript with a scope label). All challenges are derived through
 /// this handle; nobody else calls `Poseidon2Transcript::*` directly in paper
 /// code.
+#[derive(Clone)]
 pub struct Transcript {
     inner: Poseidon2Transcript,
 }

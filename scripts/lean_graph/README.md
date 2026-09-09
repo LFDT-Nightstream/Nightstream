@@ -3,8 +3,10 @@
 lean-graph records proof obligations, exports Lean declaration dependencies,
 and checks validation evidence. Its current configuration covers the
 pilot/PiCCS assignment-proof chain, including the actual public-boundary and
-hash-observation target. It does not prove the missing full
-Stage 1 decoded-step theorem. The approved owner goal and phase order still
+hash-observation target, and the Stage 1 terminal-opening target. The latter
+derives the exact decoded step and advertised preimage from the arbitrary
+accepted terminal opening, or a named state-hash collision. Full history and
+production conformance remain separate. The approved owner goal and phase order still
 apply. The graph contains existing Lean declarations; the tool does not write
 proofs or infer new owner criteria from the paper.
 
@@ -135,6 +137,19 @@ The new pilot/PiCCS registrations do not discharge these other obligations.
 The report separates PiCCS from Stage 1. A full Stage 1 gap does not erase a
 closed PiCCS criterion. Each phase still needs its complete approved gate set.
 
+`explain stage1-terminal-assignment` shows the terminal-opening target.
+`checkpoint stage1-terminal-assignment` checks its literal proposition,
+closure witness and declaration dependencies. It does not replace the broader
+`stage1-assignment` target or grant history/production closure. Independent
+target and decomposition reviews remain required. The terminal predicate's
+canonical counter and fixed state widths are part of its meaning and therefore
+part of the source and dependency review.
+
+`stage1-terminal-parent` checks the next connection: the accepted terminal's
+actual running witnesses open the exact decoded PiDEC parent. It derives the
+output match from the complete preimage equality. It adds no caller-supplied
+child-opening premise and does not close extraction of earlier history.
+
 ## Decomposition review
 
 The assignment criteria require a separate decomposition review. The CLI
@@ -201,8 +216,9 @@ Local diagnostic checks remain available and cannot grant accepted closure.
 
 `PiCCSPublicAssignment` derives the public one cell rather than assuming it.
 Its conclusions are the phase predicate, prior-running agreement, fresh public
-hash, and claimed output hash. It is still an intermediate target: the complete
-Stage 1 decoded-step target and selected-context connection remain open.
+hash, and claimed output hash. It is still an intermediate target. The concrete
+terminal context connection has its own target; the broader Stage 1 assignment
+and full production obligations remain open.
 
 ## Ordinary commands and the shared lock
 
@@ -293,6 +309,14 @@ The folded directory contains `folded.json` and the complete `folded.i16`
 carrier. The base and recursive opening caches contain their complete carriers,
 matrix images, and metadata. `verifier_context` contains four words; the pilot
 and opening tests compare them with the context recomputed from the package.
+
+Fixture generation is separate from these conformance checks. If a complete
+child-family batch reaches the 300-second cap, use the generator's existing
+family selectors to partition the measured work. On the current recursive
+input, `K`, `A0`–`A5`, and `A6`–`A13` passed in separate jobs; the split follows
+the measured cost of `A4` and `A5`. Keep the input and point fixed, retain the
+failed log, compare completed output bytes, and still supply every family to
+the independent checks. This partition is not a protocol parameter or a new gate.
 
 Run `checkpoint pilot-conformance` first. It regenerates the current Lean pilot
 result, checks its complete values and input mutations, and evaluates the raw

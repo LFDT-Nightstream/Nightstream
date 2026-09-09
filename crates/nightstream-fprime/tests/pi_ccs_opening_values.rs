@@ -189,18 +189,19 @@ fn check_positive_opening(sources: OpeningSources) {
             .strip_prefix('C')
             .map(|row| row.parse::<usize>().expect("commitment row"))
     };
-    let selected = if paths.family == "K" || check_ccs || check_commitment || commitment_row.is_some() {
-        None
-    } else {
-        let matrix: usize = paths
-            .family
-            .strip_prefix('A')
-            .expect("family K or A0..A13")
-            .parse()
-            .expect("matrix index");
-        assert!(matrix < 14);
-        Some(matrix)
-    };
+    let selected =
+        if matches!(paths.family.as_str(), "K" | "ALL") || check_ccs || check_commitment || commitment_row.is_some() {
+            None
+        } else {
+            let matrix: usize = paths
+                .family
+                .strip_prefix('A')
+                .expect("family K or A0..A13")
+                .parse()
+                .expect("matrix index");
+            assert!(matrix < 14);
+            Some(matrix)
+        };
     let bytes = fs::read(&paths.package).expect("Lean canonical package");
     let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
     let logical_width = package.logical_column_count();
@@ -403,6 +404,36 @@ fn check_positive_opening(sources: OpeningSources) {
             (1 << 28) - row_count,
             started.elapsed()
         );
+        return;
+    }
+    if paths.family == "ALL" {
+        assert!(
+            signs.is_none(),
+            "ALL checks the fresh source; distinct running openings keep their own gate"
+        );
+        for selected in std::iter::once(None).chain((0..14).map(Some)) {
+            let name = selected.map_or_else(|| "K".to_owned(), |matrix| format!("A{matrix}"));
+            let expected: Ring = extension_array(match selected {
+                None => &input[4][0],
+                Some(matrix) => &input[5][0][matrix],
+            })
+            .try_into()
+            .expect("54 claimed output coefficients");
+            let actual =
+                opening_family::evaluate_family(&bytes, logical_width, row_count, &carrier, &weights, selected);
+            assert_eq!(
+                actual, expected,
+                "all 54 independent fresh opening coefficients for {name}"
+            );
+            if selected == Some(13) {
+                assert_eq!(actual, [Extension::ZERO; DEGREE]);
+            }
+            println!(
+                "independent_fresh_opening_family={name} coefficients={DEGREE} elapsed={:?}",
+                started.elapsed()
+            );
+        }
+        println!("independent_fresh_opening_families=15 shared_package_and_carrier=true");
         return;
     }
     let actual = opening_family::evaluate_family(&bytes, logical_width, row_count, &carrier, &weights, selected);

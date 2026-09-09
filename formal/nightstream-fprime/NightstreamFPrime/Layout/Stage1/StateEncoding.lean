@@ -88,6 +88,73 @@ private theorem block_injective : Function.Injective block := by
   unfold block at equal
   exact (List.cons.inj equal).2
 
+/-- Equal state encodings identify the context prefix without requiring
+injectivity of the later natural counter encoding. -/
+theorem serializePreimage_eq_implies_context_eq
+    (left right : HashPreimage
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (lengthEqual : (left.verifierKeys functionIndex).length =
+      (right.verifierKeys functionIndex).length)
+    (encodedEqual : serializePreimage (publicFits := publicFits) left =
+      serializePreimage (publicFits := publicFits) right) :
+    left.verifierKeys functionIndex = right.verifierKeys functionIndex := by
+  simp only [serializePreimage, List.append_assoc] at encodedEqual
+  have afterTag := List.append_cancel_left encodedEqual
+  have blockLength : (block (left.verifierKeys functionIndex)).length =
+      (block (right.verifierKeys functionIndex)).length := by
+    simp [lengthEqual]
+  exact block_injective (split_append blockLength afterTag).1
+
+/-- The iteration field follows the context block in the same fixed frame. -/
+theorem serializePreimage_eq_implies_iteration_word_eq
+    (left right : HashPreimage
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (lengthEqual : (left.verifierKeys functionIndex).length =
+      (right.verifierKeys functionIndex).length)
+    (encodedEqual : serializePreimage (publicFits := publicFits) left =
+      serializePreimage (publicFits := publicFits) right) :
+    natWord left.iteration = natWord right.iteration := by
+  simp only [serializePreimage, List.append_assoc] at encodedEqual
+  have afterTag := List.append_cancel_left encodedEqual
+  have blockLength : (block (left.verifierKeys functionIndex)).length =
+      (block (right.verifierKeys functionIndex)).length := by
+    simp [lengthEqual]
+  exact (List.cons.inj (split_append blockLength afterTag).2).1
+
+/-- Every state hash has the exact four-word public ABI, independently of
+the input length. The proof follows the round structure symbolically. -/
+theorem stateHash_length
+    (preimage : HashPreimage
+      (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (stateHash preimage).length = 4 := by
+  have roundsLength (roundStep : Nat → Poseidon2.State → Poseidon2.State)
+      (stepLength : ∀ round state, (roundStep round state).length = Poseidon2.width)
+      (rounds : List Nat) (state : Poseidon2.State)
+      (stateLength : state.length = Poseidon2.width) :
+      (rounds.foldl (fun current round => roundStep round current) state).length =
+        Poseidon2.width := by
+    induction rounds generalizing state with
+    | nil => exact stateLength
+    | cons round rest inductionHypothesis =>
+        exact inductionHypothesis _ (stepLength round state)
+  have permuteLength (state : Poseidon2.State) :
+      (Poseidon2.permute state).length = Poseidon2.width := by
+    unfold Poseidon2.permute Poseidon2.rounds
+    apply roundsLength
+    · intro round current
+      simp [Poseidon2.fullRound, Poseidon2.externalLayer]
+    · apply roundsLength
+      · intro round current
+        simp [Poseidon2.partialRound, Poseidon2.internalLayer]
+      · apply roundsLength
+        · intro round current
+          simp [Poseidon2.fullRound, Poseidon2.externalLayer]
+        · simp [Poseidon2.externalLayer]
+  unfold stateHash Poseidon2.hash
+  dsimp only
+  rw [List.length_take, permuteLength]
+  norm_num [Poseidon2.digestLen, Poseidon2.width]
+
 private theorem natWord_injective_below_modulus
     {left right : Nat}
     (leftBound : left < goldilocksModulus)
@@ -97,6 +164,23 @@ private theorem natWord_injective_below_modulus
   have valuesEqual := congrArg Fin.val equal
   simpa [natWord, Spec.Poseidon2.ofNat,
     Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound] using valuesEqual
+
+/-- A decoded predecessor below the modulus cannot wrap to a positive,
+canonical terminal iteration with the same field word. -/
+theorem natWord_successor_eq_below_modulus
+    (prior current : Nat)
+    (priorBound : prior < goldilocksModulus)
+    (currentPositive : 0 < current)
+    (currentBound : current < goldilocksModulus)
+    (wordEqual : natWord (prior + 1) = natWord current) :
+    prior + 1 = current := by
+  by_cases nextBound : prior + 1 < goldilocksModulus
+  · exact natWord_injective_below_modulus nextBound currentBound wordEqual
+  · have atModulus : prior + 1 = goldilocksModulus := by omega
+    have valuesEqual := congrArg Fin.val wordEqual
+    simp [natWord, Spec.Poseidon2.ofNat, atModulus,
+      Nat.mod_eq_of_lt currentBound] at valuesEqual
+    omega
 
 private theorem fin_slot_eq_functionIndex (index : Fin slotCount) :
     index = functionIndex := by

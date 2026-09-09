@@ -508,16 +508,16 @@ pub fn validate_rho_sampling_count(pp: &Params, claim_count: usize) -> Result<()
     enforce_rlc_bound(pp, claim_count)
 }
 
-/// Lemma 5 transcript schedule, shared verbatim by `prove` and
-/// `verify`: with ρ sampled and the mix fixed, recompute the per-lane
-/// quotients from the input commitments, absorb the combined
-/// commitment and every quotient, then squeeze β. Also discharges the
+/// Projection metadata, shared by `prove` and `verify`: with ρ sampled and
+/// the mix fixed, recompute the per-lane quotients and derive β on a copy
+/// of the sampler transcript. The caller remains at the Lean PiRLC endpoint.
+/// The combined commitment and every quotient precede β. Also discharges the
 /// wire-identity obligation (Lemma 5 audit item 1): the mix the
 /// quotients divide against must BE the combined commitment, lane for
 /// lane — so the projection algebra can never drift from the mixer the
 /// fold actually used.
 fn projection_schedule(
-    tr: &mut Transcript,
+    tr: &Transcript,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
@@ -528,7 +528,7 @@ fn projection_schedule(
 }
 
 fn projection_schedule_with_digest(
-    tr: &mut Transcript,
+    tr: &Transcript,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
@@ -668,8 +668,9 @@ fn projection_schedule_with_digest(
     #[cfg(feature = "perf-timers")]
     let binding_started = std::time::Instant::now();
     let binding_digest = compute_digest(&binding_preimage)?;
-    tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
-    let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
+    let mut projection_transcript = tr.clone();
+    projection_transcript.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
+    let beta = projection_transcript.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-rlc/projection] c={:.3}s adv={:.3}s X={:.3}s y={:.3}s sis+beta={:.3}s total={:.3}s identities=c:{} adv:{} X:{} y:{} preimage_fields={}",
@@ -702,11 +703,11 @@ fn projection_schedule_with_digest(
     })
 }
 
-/// Replay the post-rho projection binding for a backend-produced combined
-/// claim. The returned schedule is prover metadata; verifiers recompute it
-/// from the public inputs and transcript.
+/// Derive projection metadata for a backend-produced combined claim from
+/// the post-rho transcript. This leaves the caller at the Lean phase endpoint;
+/// verifiers independently recompute the metadata from the same public inputs.
 pub fn bind_backend_projection_schedule(
-    tr: &mut Transcript,
+    tr: &Transcript,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
@@ -714,13 +715,13 @@ pub fn bind_backend_projection_schedule(
     projection_schedule(tr, rhos, inputs, combined)
 }
 
-/// Replay the canonical projection checks while delegating only the final
+/// Derive projection metadata without advancing the caller, delegating the final
 /// fixed-seed SIS compression to an accelerator. The callback sees the exact
 /// preimage used by the native prover; the verifier independently rebuilds
 /// and compresses it before accepting the proof.
 #[doc(hidden)]
 pub fn bind_backend_projection_schedule_with_digest(
-    tr: &mut Transcript,
+    tr: &Transcript,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,

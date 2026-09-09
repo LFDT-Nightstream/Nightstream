@@ -542,7 +542,7 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result() {
 }
 
 #[test]
-fn native_pi_rlc_wrapper_matches_lean_parent_and_identifies_projection_state() {
+fn native_pi_rlc_wrapper_matches_lean_parent_and_outgoing_state() {
     let Artifact(_, input, result) = artifact();
     let structure = relation();
     let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
@@ -574,16 +574,15 @@ fn native_pi_rlc_wrapper_matches_lean_parent_and_identifies_projection_state() {
     .expect("native PiRLC wrapper accepts the Lean public equations");
     assert_eq!(parent, expected, "the actual wrapper returns the exact Lean parent");
 
-    // The Lean phase result ends at sampling. The legacy projection metadata
-    // advances the caller's transcript after that boundary, but not the parent.
-    pi_rlc::bind_backend_projection_schedule(&mut replay, &rhos, &inputs, &parent)
-        .expect("exact native projection replay");
-    assert_eq!(verifier.snapshot(), replay.snapshot());
-    assert_ne!(
+    assert_eq!(
         verifier.snapshot(),
         sampler_end,
-        "projection state is separately observable"
+        "the native phase must leave the exact Lean outgoing state"
     );
+
+    // Projection metadata must not advance the caller's protocol transcript.
+    pi_rlc::bind_backend_projection_schedule(&replay, &rhos, &inputs, &parent).expect("exact native projection replay");
+    assert_eq!(replay.snapshot(), sampler_end);
 }
 
 fn assert_both_reject(

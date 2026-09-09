@@ -1,4 +1,4 @@
-//! Compare all PiCCSInputCheck schema-2 values with both Rust verifiers.
+//! Compare all PiCCSInputCheck schema-2 values with the selected Rust verifiers.
 //! Inputs contain the complete running statement and caller-supplied proof.
 //! Opening validity and assignment satisfaction are separate gates.
 
@@ -215,12 +215,17 @@ fn main() {
     assert_eq!(
         arguments.len(),
         8,
-        "usage: check_pi_ccs_input <candidate> <id0> <id1> <id2> <id3> <input> <Lean-result> <accept|reject|proof-mutations|statement-mutations|output-mutations|point-mutations>"
+        "usage: check_pi_ccs_input <candidate> <id0> <id1> <id2> <id3> <input> <Lean-result> <accept|reject|optimized-accept|optimized-reject|proof-mutations|statement-mutations|output-mutations|point-mutations>"
     );
     let expected_identity = std::array::from_fn(|lane| arguments[lane + 1].parse().expect("identity word"));
     let expected_acceptance = match arguments[7].as_str() {
-        "accept" | "proof-mutations" | "statement-mutations" | "output-mutations" | "point-mutations" => true,
-        "reject" => false,
+        "accept"
+        | "optimized-accept"
+        | "proof-mutations"
+        | "statement-mutations"
+        | "output-mutations"
+        | "point-mutations" => true,
+        "reject" | "optimized-reject" => false,
         _ => panic!("expected outcome must be accept, reject, or a named mutation group"),
     };
     let bytes = fs::read(&arguments[0]).expect("Lean candidate package");
@@ -402,9 +407,9 @@ fn main() {
         "required Lean outcome"
     );
 
-    let mut paper_transcript = Poseidon2Transcript::new_v1_1();
-    let paper = paper_exact_verify_with_trace(
-        &mut paper_transcript,
+    let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+    let optimized = optimized_verify_with_trace(
+        &mut optimized_transcript,
         params.inner(),
         &structure,
         std::slice::from_ref(&fresh),
@@ -412,9 +417,32 @@ fn main() {
         &outputs,
         &proof,
     );
-    let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
-    let optimized = optimized_verify_with_trace(
-        &mut optimized_transcript,
+    if arguments[7].starts_with("optimized-") {
+        match optimized {
+            Ok((accepted, trace)) => {
+                assert_eq!(accepted, expected_acceptance);
+                assert_eq!(
+                    result(accepted, &trace, &outputs),
+                    lean[5],
+                    "complete Lean/optimized phase values"
+                );
+                println!(
+                    "pi_ccs_optimized_phase_values=passed accepted={accepted} elapsed={:?}",
+                    started.elapsed()
+                );
+            }
+            Err(PiCcsError::SumcheckError(error)) if !expected_acceptance => {
+                println!("pi_ccs_optimized_early_rejection=passed Lean=false optimized={error:?}");
+                println!("complete_rust_trace=unavailable_after_early_rejection");
+            }
+            Err(error) => panic!("optimized verifier result: {error:?}"),
+        }
+        println!("opening_validity_and_assignment_satisfaction=separate_required_gates");
+        return;
+    }
+    let mut paper_transcript = Poseidon2Transcript::new_v1_1();
+    let paper = paper_exact_verify_with_trace(
+        &mut paper_transcript,
         params.inner(),
         &structure,
         std::slice::from_ref(&fresh),

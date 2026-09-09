@@ -198,3 +198,17 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.expected_work_polynomial_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.returned_source_bound_with_msis
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.msis_probability_and_expected_work
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakOracle.pushMass
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakOracle.pushMass_value_hasSum
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.run
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.run_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.run_work
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.contexts_toReal
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.value_hasSum
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.summable_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.clock_eq_run_work
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.ContextPreparation.expected_work_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingProbability.prepared_successProbability_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.totalClock_nonnegative
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.prepared_expected_work_polynomial_bound

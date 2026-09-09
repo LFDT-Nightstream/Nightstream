@@ -2,8 +2,7 @@
 
 The incoming proofs are useful at their stated conditional interactive scope.
 The review found no source-level proof regression. The combined
-Lean source passes the full library and axiom checks. Site validation and
-target-branch promotion are pending.
+source passes the full Lean library, axiom and site export checks.
 
 Reviewed incoming branch: `nico/nifs-interactive-proofs` at
 `f256543cbce3e560f9464879645aad4cadda9a50`. Target base:
@@ -98,6 +97,25 @@ The NIFS audit checked all 118 listed declarations and accepted only
 checked the retained Stage 1 security and terminal exports. The recorded source
 manifest still matches the files that were built.
 
-Site export checks are pending.
+The site build produced 454 nodes, 11 Markdown files, HTML, JSON and the
+download ZIP. All seven export tests and the JavaScript syntax check passed.
+The reviewed reference check confirmed the eight NIFS records against the
+combined code commit and confirmed preservation of every earlier node outside
+that set and every earlier update record. Non-Lean checks used the shared
+300-second guard.
+
+The first added reference check failed because it treated a descriptive Rust
+source label as a literal declaration name. The corrected check validates
+source locations and literal Lean declaration names. It passed; both attempts
+are retained. The seven export tests had already passed and were not rerun.
+
+The map's code reference is the signed merge commit
+`77713c1e711c7b1bca0a1b0e5941c2ac94f0656e`. The following documentation commit
+only records this result and its evidence.
+
+[NIFS_INTERACTIVE_EVIDENCE.zip](NIFS_INTERACTIVE_EVIDENCE.zip) contains the
+source manifest, full build/audit log, site check logs and review findings.
+The source manifest binds the checked Lean files to their exact bytes.
+This local source update makes no claim that the live site was published.
 The review does not adopt the incoming report's earlier timings or publication
 record as evidence for this combined tree. No proof backend is used.

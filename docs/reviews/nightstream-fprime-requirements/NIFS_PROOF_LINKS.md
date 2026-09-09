@@ -234,6 +234,52 @@ The local map updates the three NIFS conformance records and keeps each
 connection partial. This is local execution evidence, not independent phase
 approval.
 
+## Rebuilt openings and current optimized prover
+
+Test-tool commit: `3e85884d5bcc2764fd85829a32d0be5e42cc57e0`.
+
+The actual base and recursive fresh openings were rebuilt from the selected
+package and retained caller fixtures. Each run checked all 6377559 scalar
+matrix rows and recomputed the selected-key commitment. Both commitments
+and public projections match the retained PiCCS input. The runs took 42.34
+and 43.83 seconds. The first base attempt used a mistyped identity argument
+and rejected before writing a cache; that log is retained as a failed
+command attempt, not a conformance test.
+
+The current Lean base C/R check passed in 13 seconds and preserves every
+retained PiCCS field. The integer fold completed in 20.08 seconds with
+254260620 coordinates and maximum norm 62. Its sampler values, complete
+state, parent public input, point and all 16 child public inputs match the
+retained values. The fixed bound remains 65536. The actual recursive running
+prefix rebuilt in 40.04 seconds.
+
+The existing independent fresh-opening test now accepts `family: "ALL"`.
+It loads the package and raw carrier once and checks the pad and all 14
+matrix families with the existing independent decoder, matrix program and
+ring arithmetic. All 810 extension-field coefficients match the actual
+recursive PiCCS input. The test passed in 128.84 seconds after a 23.13-second
+release test build. Changing the first private carrier coefficient while
+preserving its signed-unit bound and public projection fails the pad check
+in 22.07 seconds, with the expected test exit 101.
+
+The existing `child-complete-driver` ran the optimized common prover and
+verifier on 17 actual native witnesses. It recomputed all 28 round messages
+and compared the complete output and transcript. All 662424 emitted input
+and proof bytes match the input already checked by current Lean and Rust
+C/R execution. The run took 48.38 seconds; the prover reported 19.62 seconds.
+
+This driver uses prepared full ring evaluations through the existing
+evaluator interface. The fresh evaluations are independently checked above.
+The current distinct running-opening checks, PiRLC witness folding, PiDEC,
+final output and complete assignment/matrix conformance remain required.
+This evidence does not close the full NIFS prover or grant phase approval.
+
+`NIFS_OPENING_AND_PROVER_EVIDENCE.zip` retains the commands, compact caller
+inputs, exact proof bytes, opening metadata, source and logs. The large
+reconstructed witness and matrix caches remain in the external working
+directory; their byte identities and regeneration commands are recorded.
+Every native run used the project-required 300-second hard cap.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -241,8 +287,9 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Continue the same honest input through the optimized prover, PiDEC and final
-output, with the complete required mutations and assignment/matrix checks.
+Continue the same honest input through the remaining running-opening checks,
+PiRLC witness folding, PiDEC and final output, with the complete required
+mutations and assignment/matrix checks.
 Keep the current PiCCS-to-PiRLC verifier prefix separate from complete NIFS
 or phase approval.
 

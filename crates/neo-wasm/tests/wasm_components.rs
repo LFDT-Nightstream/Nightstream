@@ -176,7 +176,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).expect("memory semantics");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("commitment chain");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
 }
 
 #[test]

@@ -79,7 +79,7 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
     sanity_check_trace_with_bindings(trace, artifacts, &bindings)
 }
 
-/// Run lookup, continuity, memory, and commitment-chain checks with the
+/// Run lookup, continuity, memory, and native event-hash parity checks with the
 /// bindings that produced `trace`.
 pub fn sanity_check_trace_with_bindings(
     trace: &[WasmVmStep],
@@ -100,9 +100,38 @@ pub fn sanity_check_trace_with_bindings(
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
-    neo_wasm::comm_chain::sanity_check_comm_chain(trace)
-        .unwrap_or_else(|err| panic!("comm chain semantics rejected trace: {err}"));
+    check_native_event_hashes(trace).unwrap_or_else(|err| panic!("native event-hash parity failed: {err}"));
     witnesses
+}
+
+/// Compare each complete permutation group's result with native compression.
+/// This is a test oracle, not a trace verifier: CCS, ROM, and continuity checks
+/// own scheduling, source binding, and opaque save/restore transitions.
+pub fn check_native_event_hashes(trace: &[WasmVmStep]) -> Result<(), String> {
+    use neo_application::event_commitment::commit_block;
+    use neo_wasm::comm_chain::COMM_CHAIN_PERM_ROWS;
+    use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+    for (index, row) in trace.iter().enumerate() {
+        if !row.row_kind.is_host_event_perm() || row.state_before.event_absorb.perm_round != 0 {
+            continue;
+        }
+        let last_perm_row = trace
+            .get(index + COMM_CHAIN_PERM_ROWS - 1)
+            .ok_or_else(|| format!("row {index}: incomplete event permutation group"))?;
+        let expected = commit_block(
+            row.state_before.comm_chain.map(F::from_u64),
+            row.state_before.event_absorb.evbuf.map(F::from_u64),
+        )
+        .map(|value| value.as_canonical_u64());
+        if last_perm_row.state_after.comm_chain != expected {
+            return Err(format!(
+                "row {index}: permutation group output {:?} differs from native {expected:?}",
+                last_perm_row.state_after.comm_chain
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Hand-build a single program row for direct row-CCS tests. Stack lanes are

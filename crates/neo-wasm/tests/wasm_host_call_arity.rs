@@ -71,7 +71,7 @@ fn checked_import_run(
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);

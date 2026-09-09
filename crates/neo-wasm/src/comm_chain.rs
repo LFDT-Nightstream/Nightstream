@@ -1,11 +1,11 @@
-//! Wasm host-event extraction and diagnostic replay for the shared event
-//! commitment protocol.
+//! Wasm host-event extraction and permutation-row decomposition for the shared
+//! event commitment protocol.
 //!
 //! The exact Poseidon2 parameters and compression live in `neo-application`;
-//! this module owns only wasm's event-block interpretation and trace checks.
+//! this module owns only wasm's event-block interpretation and row transitions.
 
-use crate::ir::{WasmBuildError, WasmVmStep};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use crate::ir::WasmVmStep;
+use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
 use neo_application::event_commitment::{self, EVENT_COMMITMENT_BLOCK_WIDTH, EVENT_COMMITMENT_STATE_WIDTH};
@@ -72,7 +72,8 @@ pub struct AbsorbedEventBlock {
 /// exact stream the carried chain folds, for external consumers rebuilding
 /// the event sequence (e.g. the Starstream interleaving buffer). A block
 /// commits on the gather row that raises `perm_pending`; advice events stage
-/// `evbuf` without raising it and are excluded by construction. This extracts
+/// `evbuf` without raising it and are excluded by construction. Object-internal
+/// blocks are excluded; only the outer block containing their root is emitted. This extracts
 /// witness data; it does not validate the supplied trace.
 pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
     trace
@@ -81,6 +82,7 @@ pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
             row.row_kind.is_host_event_gather()
                 && row.state_after.event_absorb.perm_pending
                 && !row.state_before.event_absorb.perm_pending
+                && !row.state_after.event_absorb.object_active
         })
         .map(|row| AbsorbedEventBlock {
             words: row.state_after.event_absorb.evbuf,
@@ -150,84 +152,4 @@ pub fn perm_row_checkpoints(
     }
     checkpoints[COMM_CHAIN_PERM_ROWS] = state;
     checkpoints
-}
-
-/// Recompute the host-event commitment chain from gathered event blocks and
-/// validate every carried `comm_chain` state against it.
-pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildError> {
-    use std::collections::VecDeque;
-
-    let err = |msg: String| Err(WasmBuildError::StateMismatch(msg));
-    let mut expected = match trace.first() {
-        Some(row) => row.state_before.comm_chain,
-        None => return Ok(()),
-    };
-    // Blocks owed by events already seen but not yet absorbed, in absorb
-    // order: the block's words and the chain value its perm group lands on.
-    let mut owed_blocks: VecDeque<([u64; COMM_CHAIN_BLOCK_WORDS], [u64; COMM_CHAIN_STATE_LEN])> = VecDeque::new();
-    let mut owed_chain = expected;
-
-    for (i, row) in trace.iter().enumerate() {
-        if row.state_before.comm_chain != expected {
-            return err(format!(
-                "row {i}: comm_chain before {:?} does not match expected {:?}",
-                row.state_before.comm_chain, expected
-            ));
-        }
-
-        // Each event block is staged by 8 gather rows; the one
-        // that completes the block raises `perm_pending`, and the chain must
-        // fold exactly the staged blocks in order. The binding of block
-        // contents to the host-event tables is checked against the host-event ROM
-        // (see `memory_semantics::preload_host_event_tables`), not here.
-        if row.row_kind.is_host_event_gather()
-            && row.state_after.event_absorb.perm_pending
-            && !row.state_before.event_absorb.perm_pending
-        {
-            let words = row.state_after.event_absorb.evbuf;
-            let updated = commit_event(
-                owed_chain.map(Goldilocks::from_u64),
-                Goldilocks::from_u64(words[0]),
-                core::array::from_fn(|i| Goldilocks::from_u64(words[1 + i])),
-            );
-            owed_chain = updated.map(|limb| limb.as_canonical_u64());
-            owed_blocks.push_back((words, owed_chain));
-        }
-
-        let mut want_after = expected;
-        if row.row_kind.is_host_event_perm() {
-            let round = row.state_before.event_absorb.perm_round;
-            if round == 0 {
-                let Some(&(words, _)) = owed_blocks.front() else {
-                    return err(format!("row {i}: perm group without an owed event block"));
-                };
-                if row.state_before.event_absorb.evbuf != words {
-                    return err(format!(
-                        "row {i}: perm group absorbs buffer {:?} but the event owes block {:?}",
-                        row.state_before.event_absorb.evbuf, words
-                    ));
-                }
-            }
-            if usize::from(round) + 1 == COMM_CHAIN_PERM_ROWS {
-                let Some((_, updated)) = owed_blocks.pop_front() else {
-                    return err(format!("row {i}: perm group tail without an owed event block"));
-                };
-                want_after = updated;
-            }
-        }
-        if row.state_after.comm_chain != want_after {
-            return err(format!(
-                "row {i}: comm_chain after {:?} does not match recomputed chain {:?}",
-                row.state_after.comm_chain, want_after
-            ));
-        }
-        expected = want_after;
-    }
-    if !owed_blocks.is_empty() {
-        return err(format!(
-            "trace ended with {} unabsorbed event blocks",
-            owed_blocks.len()
-        ));
-    }
-    Ok(())
 }

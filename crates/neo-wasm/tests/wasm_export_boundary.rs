@@ -8,7 +8,9 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding};
+use neo_wasm::host_event_bindings::{
+    absorbed_blocks, EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding,
+};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
@@ -92,7 +94,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
@@ -139,7 +141,10 @@ fn export_boundary_folds_entry_and_exit_events() {
     // different entry input must not.
     let template = bindings.exports.values().next().expect("template");
     let mut expected = neo_wasm::host_event_bindings::expand_export_entry(template, &[7, 35]).expect("entry");
-    expected.extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
+    expected = absorbed_blocks(&template.entry, &expected).expect("absorbed entry");
+    let exit = neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[]).expect("exit");
+    let exit = absorbed_blocks(&template.exit, &exit).expect("absorbed exit");
+    expected.extend_from_slice(&exit);
     assert_eq!(expected, staged, "claimed transcript must match the staged blocks");
     let lift = |blocks: &[[u64; 8]]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
         blocks
@@ -153,13 +158,11 @@ fn export_boundary_folds_entry_and_exit_events() {
         neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lift(&expected)).canonical_u64()
     );
     let wrong_inputs = neo_wasm::host_event_bindings::expand_export_entry(template, &[7, 36]).expect("wrong entry");
+    let wrong_inputs = absorbed_blocks(&template.entry, &wrong_inputs).expect("absorbed wrong entry");
     assert_ne!(
         final_chain,
-        neo_wasm::comm_chain::fold_event_blocks(
-            Default::default(),
-            &lift(&[wrong_inputs, expected[2..].to_vec()].concat())
-        )
-        .canonical_u64(),
+        neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lift(&[wrong_inputs, exit].concat()))
+            .canonical_u64(),
         "a different entry input must fold to a different chain"
     );
 }
@@ -296,7 +299,7 @@ fn i64_param_bootstraps_both_lanes() {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     let staged: Vec<[u64; 8]> = trace
@@ -434,7 +437,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");

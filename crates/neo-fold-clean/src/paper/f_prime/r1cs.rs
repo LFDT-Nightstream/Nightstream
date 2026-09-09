@@ -98,6 +98,7 @@ pub use crate::paper::f_prime::public_input_link::{
     F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     X_OUT_BITS_PER_LANE,
 };
+#[cfg(test)]
 pub(crate) use accumulator::enforce_terminal_output_acc_digest;
 
 /// `enc_inst(x_out)` body: encode `x_out`'s four Goldilocks lanes as
@@ -913,7 +914,7 @@ fn enforce_f_prime_base_step_with_output_acc(
 ///   - all K fresh public inputs are bound to the **same** prior
 ///     `x_out` source-image bits; the whole batch is treated as one
 ///     SuperNeo chunk rooted at one prior Construction-2 state.
-pub fn enforce_f_prime_recursive_step_circuit(
+pub(crate) fn enforce_f_prime_recursive_step_circuit(
     builder: &mut R1csBuilder,
     pp: &Params,
     cfg: &FPrimeStepConfig<'_>,
@@ -930,7 +931,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
 /// This entry point does not weaken any Nebula transition row. It changes only
 /// where the canonical delayed bits are allocated.
 #[doc(hidden)]
-pub fn enforce_f_prime_recursive_step_circuit_with_private_nebula_input(
+pub(crate) fn enforce_f_prime_recursive_step_circuit_with_private_nebula_input(
     builder: &mut R1csBuilder,
     pp: &Params,
     cfg: &FPrimeStepConfig<'_>,

@@ -49,9 +49,7 @@ const NORMALIZED_LINK_ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nigh
 fn assert_generated_artifact_matches_committed(rendered: &str, path: &str, description: &str) {
     let committed = std::fs::read_to_string(path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write expected PiRLC family artifact");
-        panic!("{description}; wrote {expected}");
+        panic!("{description}; reference: {path}");
     }
 }
 

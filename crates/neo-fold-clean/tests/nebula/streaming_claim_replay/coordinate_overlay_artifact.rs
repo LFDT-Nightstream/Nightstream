@@ -648,18 +648,9 @@ fn production_claim_coordinate_overlay_lean_artifact_is_current() {
     let path = generated_overlay_artifact_path();
     let rendered = render_overlay_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected coordinate-overlay artifact");
         panic!(
             "claim-coordinate overlay Lean artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_production_claim_coordinate_overlay_lean_artifact() {
-    std::fs::write(generated_overlay_artifact_path(), render_overlay_artifact())
-        .expect("write generated coordinate-overlay artifact");
 }

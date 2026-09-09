@@ -150,6 +150,21 @@ def form {program : Lifecycle.Stage1.Application.Program}
   | .fresh index => (freshBlock program).form (freshStart program)
       (freshFits geometry) index
 
+/-- PiDEC and the recursive running transition use the same child commitment,
+public-input, Eval_K, and Eval_A forms for every assignment. -/
+theorem proof_form_eq_running
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin PiDECInputs.proofInputColumnCount) :
+    (Location.proof index).form geometry =
+      (RunningTransitionDirectPlan.Location.piDec index).form
+        (PiCCSOrdinaryRetainedGeometry.prefixGeometry
+          (prefixGeometry geometry)) := by
+  unfold form RunningTransitionDirectPlan.Location.form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · rfl
+
 theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -335,6 +350,19 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
     | none => .empty
     | some decoded => decoded.location.form geometry
 
+private theorem Location.sourceColumn_afterTranscript (location : Location) :
+    PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+      location.sourceColumn := by
+  cases location <;>
+    simp only [Location.sourceColumn, PiCCSInputs.phaseOffset_eq,
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+      PiDECSourceSupport.parentCommitmentStart_eq,
+      PiDECSourceSupport.parentPublicInputStart_eq,
+      PiDECSourceSupport.parentEvalKStart_eq,
+      PiDECSourceSupport.parentEvalAStart_eq,
+      PiDECInputs.proofInputStart, PiDECInputs.phaseOffset,
+      PiDECStarts.phaseLogicalStart, PiDECStarts.phaseFreshStart] <;> omega
+
 theorem sourceMap_form_eval_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -359,7 +387,10 @@ theorem sourceMap_form_eval_of_target
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
-  rw [mappedLocation]
+  rw [← mappedLocation]
+  exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
+    decoded.location.sourceColumn decoded.location.sourceColumn_lt
+    (Or.inr decoded.location.sourceColumn_afterTranscript)).symm
 
 private theorem preservesCombination
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

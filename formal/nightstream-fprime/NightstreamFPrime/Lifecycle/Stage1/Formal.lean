@@ -69,6 +69,12 @@ def applicationChild
     FormalCircuit :=
   program.circuit interface.application
 
+def nextPreimageChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  NextPreimage.circuit interface.nextPreimage
+
 def priorOffset (offset : Nat) : Nat := offset
 
 def outputHashOffset
@@ -172,7 +178,9 @@ noncomputable def opsAt
       (runningChild relation program interface)
       (runningOffset relation ajtai program interface template offset),
     childOp "stage1.application" (applicationChild relation program interface)
-      (applicationOffset relation ajtai program interface template offset)]
+      (applicationOffset relation ajtai program interface template offset),
+    childOp "stage1.next_preimage" (nextPreimageChild relation program interface)
+      (finalOffset relation ajtai program interface template offset)]
 
 noncomputable def main
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -210,7 +218,9 @@ noncomputable def logicalPrivateCount
   (runningChild relation program interface).privateCount
     (runningOffset relation ajtai program interface template offset) +
   (applicationChild relation program interface).privateCount
-    (applicationOffset relation ajtai program interface template offset)
+    (applicationOffset relation ajtai program interface template offset) +
+  (nextPreimageChild relation program interface).privateCount
+    (finalOffset relation ajtai program interface template offset)
 
 noncomputable def logicalRowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -230,7 +240,9 @@ noncomputable def logicalRowCount
   (runningChild relation program interface).rowCount
     (runningOffset relation ajtai program interface template offset) +
   (applicationChild relation program interface).rowCount
-    (applicationOffset relation ajtai program interface template offset)
+    (applicationOffset relation ajtai program interface template offset) +
+  (nextPreimageChild relation program interface).rowCount
+    (finalOffset relation ajtai program interface template offset)
 
 theorem localLength_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -279,6 +291,8 @@ structure Assumptions
     (runningOffset relation ajtai program interface template offset) env
   application : (applicationChild relation program interface).assumptions
     (applicationOffset relation ajtai program interface template offset) env
+  nextPreimage : (nextPreimageChild relation program interface).assumptions
+    (finalOffset relation ajtai program interface template offset) env
 
 structure SpecHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -299,6 +313,8 @@ structure SpecHolds
     (runningOffset relation ajtai program interface template offset) env
   application : (applicationChild relation program interface).spec
     (applicationOffset relation ajtai program interface template offset) env
+  nextPreimage : (nextPreimageChild relation program interface).spec
+    (finalOffset relation ajtai program interface template offset) env
 
 private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
     (childOffset : Nat) (env : Env) (operations : List Op)
@@ -336,19 +352,21 @@ theorem soundness
     running := childSpec_of_rows "stage1.running_transition" _ _ env _ rows
       (by simp [opsAt]) assumptions.running
     application := childSpec_of_rows "stage1.application" _ _ env _ rows
-      (by simp [opsAt]) assumptions.application }
+      (by simp [opsAt]) assumptions.application
+    nextPreimage := childSpec_of_rows "stage1.next_preimage" _ _ env _ rows
+      (by simp [opsAt]) assumptions.nextPreimage }
 
-/-- The parent has exactly seven opaque children, once each, in protocol
+/-- The parent has exactly eight opaque children, once each, in protocol
 order. This is the mechanical coverage statement used by later layout proofs. -/
 theorem opsAt_coverage
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (program : Application.Program) (interface : Interface relation program)
     (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
-    (opsAt relation ajtai program interface template offset).length = 7 := by
+    (opsAt relation ajtai program interface template offset).length = 8 := by
   rfl
 
-/-- Proof-only evidence that the exact seven-child parent can be completed at
+/-- Proof-only evidence that the exact eight-child parent can be completed at
 one verifier-owned root. Layout constructs this record from the canonical
 wire placement. It does not select or change the circuit. -/
 structure RootCompleteness
@@ -402,7 +420,7 @@ noncomputable def circuit
     · rw [← operationsEq]
       exact completed.rows
 
-/-- The exported circuit contains each of the seven Stage 1 children exactly
+/-- The exported circuit contains each of the eight Stage 1 children exactly
 once in protocol order. -/
 theorem circuit_coverage
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -414,7 +432,7 @@ theorem circuit_coverage
       root) :
     (Circuit.ops
       (circuit relation ajtai program interface template root completion).main
-      root).length = 7 := by
+      root).length = 8 := by
   exact opsAt_coverage relation ajtai program interface template root
 
 end NightstreamFPrime.Lifecycle.Stage1

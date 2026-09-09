@@ -23,6 +23,9 @@
 pub mod accumulator_sis_circuit;
 pub(crate) mod paper_exact_protocol;
 pub mod pi_ccs;
+// The compressed circuit has no public Stage 1 caller. Keep it only for the
+// private diagnostic modules that have not yet been removed.
+#[allow(dead_code, unused_imports)]
 pub mod pi_ccs_circuit;
 pub mod pi_ccs_output_message;
 pub mod pi_dec;

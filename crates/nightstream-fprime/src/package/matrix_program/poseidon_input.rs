@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::{
     array, checked_add, checked_mul, decode_list, exact_array, field_atom, usize_atom, Form, PackageError,
-    RetainedBlock,
+    RetainedBlock, SourceCombination, SourceSubstitution,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,6 +79,13 @@ enum Term {
         values: Vec<Option<Goldilocks>>,
         lane_count: usize,
     },
+    TaggedAffine {
+        values: Vec<SourceCombination>,
+        substitution: SourceSubstitution,
+        tags: Vec<InvocationTag>,
+        required: InvocationTag,
+        lane_count: usize,
+    },
 }
 
 impl Term {
@@ -108,6 +115,13 @@ impl Term {
             Some(4) if fields.len() == 3 => Ok(Self::OptionalConstant {
                 values: decode_optional_constants(&fields[1])?,
                 lane_count: usize_atom(&fields[2], "Poseidon2 optional lane count")?,
+            }),
+            Some(5) if fields.len() == 6 => Ok(Self::TaggedAffine {
+                values: decode_list(&fields[1], SourceCombination::decode)?,
+                substitution: SourceSubstitution::decode(&fields[2])?,
+                tags: decode_list(&fields[3], InvocationTag::decode)?,
+                required: InvocationTag::decode(&fields[4])?,
+                lane_count: usize_atom(&fields[5], "Poseidon2 affine lane count")?,
             }),
             _ => Err(PackageError::Invalid("Poseidon2 input term")),
         }
@@ -193,6 +207,29 @@ impl Term {
                     None => Ok(Form::default()),
                     Some(coefficient) => constant_form(logical_width, one_column, *coefficient, "Poseidon2 one column"),
                 }
+            }
+            Self::TaggedAffine {
+                values,
+                substitution,
+                tags,
+                required,
+                lane_count,
+            } => {
+                let actual = tags
+                    .get(invocation_offset)
+                    .ok_or(PackageError::Invalid("Poseidon2 affine invocation tag"))?;
+                if actual != required {
+                    return Ok(Form::default());
+                }
+                let index = checked_add(
+                    checked_mul(invocation_offset, *lane_count, "Poseidon2 affine word index")?,
+                    lane_offset,
+                    "Poseidon2 affine word index",
+                )?;
+                let combination = values
+                    .get(index)
+                    .ok_or(PackageError::Invalid("Poseidon2 affine word table"))?;
+                substitution.compile_combination(logical_width, one_column, combination)
             }
         }
     }

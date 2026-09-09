@@ -2,8 +2,10 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 /-!
-Owns the compact retained field blocks needed by the direct running-transition
-rows. Every source first follows the established Spartan permutation, then the
+Owns the compact field-source views needed by the direct running-transition
+rows. State and output reuse the actual pilot preimages. Only the round,
+PiDEC, and fresh blocks allocate coordinates. Every source first follows the
+established Spartan permutation, then the
 per-application package shift, and finally the existing nested PiRLC source
 embedding.
 
@@ -173,32 +175,27 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
   rfl
 
 def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  (stateBlock program).slotCount +
-    (outputBlock program).slotCount +
-    (roundC0Block program).slotCount +
+  (roundC0Block program).slotCount +
     (roundC1Block program).slotCount +
     (piDecBlock program).slotCount +
     (freshBlock program).slotCount
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 394846 := by
+    retainedSlotCount program = 345442 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  (stateBlock program).coordinateCount +
-    (outputBlock program).coordinateCount +
-    (roundC0Block program).coordinateCount +
+  (roundC0Block program).coordinateCount +
     (roundC1Block program).coordinateCount +
     (piDecBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 16188686 := by
-  change 11 * 41 + 49393 * 41 + 28 * 41 + 28 * 41 +
-    49248 * 41 + 296138 * 41 = 16188686
+    retainedCoordinateCount program = 14163122 := by
+  change 28 * 41 + 28 * 41 + 49248 * 41 + 296138 * 41 = 14163122
   norm_num
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks

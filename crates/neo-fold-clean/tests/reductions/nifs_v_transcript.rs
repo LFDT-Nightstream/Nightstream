@@ -81,7 +81,7 @@ fn build_honest_fixture_with_adv(with_adv: bool) -> Fixture {
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
     let lanes = with_adv.then(|| {
         LaneScheme::from_seeds(
-            prep.params.kappa() as usize,
+            prep.params().kappa() as usize,
             LaneRanges {
                 ops: 0..1,
                 is: 1..2,
@@ -100,10 +100,10 @@ fn build_honest_fixture_with_adv(with_adv: bool) -> Fixture {
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut first_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         lanes.as_ref(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -121,10 +121,10 @@ fn build_honest_fixture_with_adv(with_adv: bool) -> Fixture {
     let mut second_tr = Transcript::session();
     let (next_running, proof) = nifs::prove(
         &mut second_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         lanes.as_ref(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -151,10 +151,10 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut first_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -170,10 +170,10 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
     let mut honest_tr = Transcript::session();
     let (_honest_next, proof) = nifs::prove(
         &mut honest_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -195,7 +195,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
     let mut wrong_rlc_tr = Transcript::session();
     let (wrong_rlc, _wrong_rlc_proof) = pi_rlc::prove(
         &mut wrong_rlc_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &proof.pi_ccs.outputs,
@@ -204,10 +204,10 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
     .expect("wrong-phase Π_RLC.P");
 
     let (wrong_dec, _wrong_dec_proof) = pi_dec::prove(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.combine_b_pows(),
         &wrong_rlc.claim,
@@ -227,7 +227,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
 
 fn pi_ccs_config<'a>(prep: &'a Preprocessing) -> PiCcsVerifierConfig<'a> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -241,7 +241,7 @@ fn emit_verifier(f: &Fixture) -> Result<(R1csBuilder, NifsVOutputs), neo_fold_cl
     };
     let outputs = enforce_nifs_v_circuit_with_transcript(
         &mut builder,
-        &f.prep.params,
+        f.prep.params(),
         &cfg,
         &mut tr,
         &NifsVCircuitMessages {
@@ -401,7 +401,7 @@ fn recursive_pi_ccs_rejects_unforwarded_output_adv() {
         assert!(
             neo_fold_clean::paper::pi_ccs::verify(
                 &mut native_tr,
-                &fixture.prep.params,
+                fixture.prep.params(),
                 fixture.prep.structure(),
                 fixture.prep.optimized_cache(),
                 &fixture.fresh_claims,

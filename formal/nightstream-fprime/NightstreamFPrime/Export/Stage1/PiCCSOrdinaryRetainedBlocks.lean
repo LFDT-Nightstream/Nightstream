@@ -5,13 +5,10 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 
 /-!
-Owns a conservative retained-field candidate for the PiCCS ordinary rows.
-
-These six blocks cover the two authoritative state preimages, the last local
-permutation interval of both pilot hashes, the proof/PiCCS logical interval,
-and the exact R1CS-fresh interval. This module proves only ownership and
-footprint. A separate source-support theorem must prove complete row coverage
-before these blocks can enter the final direct plan.
+Owns the retained field blocks and shared preimage views for PiCCS ordinary
+rows. The prior/output preimage views reuse the actual pilot coordinates.
+Only the remaining source families allocate new retained coordinates.
+Source-support and direct-plan theorems own row coverage and preservation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
@@ -322,16 +319,14 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    (priorInputBlock program).slotCount +
-      (outputInputBlock program).slotCount +
-      (freshPublicInputBlock program).slotCount +
+    (freshPublicInputBlock program).slotCount +
       (priorLastBlock program).slotCount +
       (outputLastBlock program).slotCount +
       (expectedContextBlock program).slotCount +
       (proofLogicalBlock program).slotCount +
       (outputEndpointBlock program).slotCount +
-      (freshBlock program).slotCount = 946735 := by
-  norm_num [priorInputBlock, outputInputBlock, freshPublicInputBlock,
+      (freshBlock program).slotCount = 847949 := by
+  norm_num [freshPublicInputBlock,
     priorLastBlock, outputLastBlock, expectedContextBlock, proofLogicalBlock,
     outputEndpointBlock, freshBlock, packageFieldBlock, sourceFieldBlock,
     proofLogicalCount_eq, freshCount, Data.priorChain, Data.outputChain,
@@ -342,9 +337,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
     Nat :=
-  (priorInputBlock program).coordinateCount +
-    (outputInputBlock program).coordinateCount +
-    (freshPublicInputBlock program).coordinateCount +
+  (freshPublicInputBlock program).coordinateCount +
     (priorLastBlock program).coordinateCount +
     (outputLastBlock program).coordinateCount +
     (expectedContextBlock program).coordinateCount +
@@ -354,9 +347,9 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 38816135 := by
+    retainedCoordinateCount program = 34765909 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
-    priorInputBlock, outputInputBlock, freshPublicInputBlock, priorLastBlock,
+    freshPublicInputBlock, priorLastBlock,
     outputLastBlock, expectedContextBlock, proofLogicalBlock, freshBlock,
     outputEndpointBlock, packageFieldBlock, sourceFieldBlock]
   rw [proofLogicalCount_eq]

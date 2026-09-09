@@ -452,8 +452,8 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
         .expect("provisional S_mem witness");
     let public_columns = NebulaFPrimeStreamingPublicLayout::production().columns();
     let mut provisional = CcsInstance::from_low_norm_assignment(
-        &preprocessing.params,
-        &preprocessing.log,
+        preprocessing.params(),
+        preprocessing.commitment_scheme(),
         preprocessing.structure(),
         &provisional_z,
         public_columns,
@@ -473,20 +473,20 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
     assert_eq!(d_pre[1], d_pre[2], "an empty segment must preserve its memory snapshot");
 
     let running = RunningInstance::canonical_zero(
-        &preprocessing.params,
+        preprocessing.params(),
         preprocessing.structure(),
         public_columns,
         LaneCommitmentMode::Nebula,
     )
     .expect("canonical recursive input accumulator");
     let accumulator = AccumulatorHandle::from_running_parts(
-        preprocessing.params.b(),
+        preprocessing.params().b(),
         &running.claims,
         running.parent_authority.as_ref(),
     )
     .digest_fields();
     let prior_boundary =
-        f_prime_chunk_public_digest_for_uniform_shape(0, 1, D, preprocessing.params.kappa() as usize, public_columns);
+        f_prime_chunk_public_digest_for_uniform_shape(0, 1, D, preprocessing.params().kappa() as usize, public_columns);
     let config = preprocessing
         .nebula()
         .expect("prepared lifecycle carries the verifier-owned Nebula config")
@@ -495,7 +495,7 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
     opened
         .open_segment(
             &config,
-            preprocessing.vk.digest(),
+            preprocessing.verifier_key().digest(),
             digest_fields_as_digest32(prior_boundary),
             digest_fields_as_digest32(accumulator),
             d_pre,
@@ -520,7 +520,7 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
     let lane_in = NebulaLane::base(&config);
     let prior_x_out = digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateful,
-        preprocessing.vk.digest(),
+        preprocessing.verifier_key().digest(),
         preprocessing.pi_ccs_header_bundle(),
         &preprocessing.pi_ccs_header_bundle(),
         1,
@@ -552,8 +552,8 @@ fn streaming_recursive_source_assignment_uses_a_real_nifs_proof() {
         }
     }
     let mut fresh = CcsInstance::from_low_norm_assignment(
-        &preprocessing.params,
-        &preprocessing.log,
+        preprocessing.params(),
+        preprocessing.commitment_scheme(),
         preprocessing.structure(),
         &fresh_z,
         public_columns,

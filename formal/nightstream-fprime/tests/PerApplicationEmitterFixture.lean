@@ -162,7 +162,7 @@ def program (_ : Unit) : Application.Program where
 def fits (_ : Unit) : PerApplicationFixedPoint.FitsTwoPow28 (program ()) :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds (program ())
     (by simp) (by simp) (by
-      change 0 ≤ 100577
-      omega)
+      change 0 ≤ _
+      exact Nat.zero_le _)
 
 end NightstreamFPrime.Tests.PerApplicationEmitterFixture

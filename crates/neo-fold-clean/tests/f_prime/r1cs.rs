@@ -150,10 +150,10 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = neo_fold_clean::paper::nifs::prove(
         &mut first_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -201,10 +201,10 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
     append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -257,10 +257,10 @@ fn build_fixture_with_k_fresh_and_public_carrier(
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = neo_fold_clean::paper::nifs::prove(
         &mut first_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -313,10 +313,10 @@ fn build_fixture_with_k_fresh_and_public_carrier(
     append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -353,10 +353,10 @@ fn rebuild_recursive_fixture_for_state(mut fixture: Fixture, state: FPrimeStateI
     append_f_prime_step_context(&mut tr, &state, fixture.chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
-        &fixture.prep.params,
+        fixture.prep.params(),
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        &fixture.prep.log,
+        fixture.prep.commitment_scheme(),
         None,
         fixture.prep.mix_rhos_commits(),
         fixture.prep.combine_b_pows(),
@@ -375,7 +375,7 @@ fn rebuild_recursive_fixture_for_state(mut fixture: Fixture, state: FPrimeStateI
 
 fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -386,7 +386,7 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
         nifs: NifsVCircuitConfig {
             pi_ccs: pi_ccs_config(prep),
         },
-        b: prep.params.b(),
+        b: prep.params().b(),
         transcript_label: TRANSCRIPT_LABEL,
         public_input_layout: FPrimePublicInputLayout::plain(),
         nebula: None,
@@ -407,9 +407,9 @@ fn running_acc_digest(running: &RunningInstance) -> [F; 4] {
 
 fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
     let m_in = prep
-        .public_input_len
+        .public_input_len()
         .expect("fixture pins the public input width");
-    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
+    let running = RunningInstance::canonical_zero(prep.params(), prep.structure(), m_in, LaneCommitmentMode::Plain)
         .expect("construct canonical base accumulator");
     AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }

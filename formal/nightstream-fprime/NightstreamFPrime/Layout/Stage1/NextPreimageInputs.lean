@@ -221,6 +221,52 @@ theorem spartanAssumptions (offset : Nat) (env : Env)
   · exact lt_of_lt_of_le
       (Spartan.sourceToSpartan_lt _ (outputInitialStateSource_lt index)) fits
 
+/-- Next-preimage inputs are private. The final application suffix therefore
+does not move any wire read by this child. -/
+theorem spartanInputsBelowConstant (env : Env) :
+    NextPreimage.Assumptions spartanInterface Spartan.constantColumn env := by
+  refine {
+    priorIteration := ?_
+    outputIteration := ?_
+    priorInitialState := fun index => ?_
+    outputInitialState := fun index => ?_ }
+  all_goals
+    simp only [spartanInterface, Expr.VarsBelow]
+  · norm_num [priorIterationSource, RunningTransitionInputs.iterationWordIndex,
+      PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
+      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
+      PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
+      Spartan.pilotInputPrivateColumnCount, Spartan.constantColumn]
+  · norm_num [outputIterationSource, RunningTransitionInputs.iterationWordIndex,
+      PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
+      Lifecycle.PriorStateHash.publicWidth_eq, Spartan.sourceToSpartan,
+      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
+      PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
+      PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
+      Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
+      Spartan.constantColumn]
+  · have bound := index.isLt
+    norm_num [priorInitialStateSource,
+      RunningTransitionInputs.initialStateWordStart, RunningTransition.stateWordCount,
+      PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
+      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
+      PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
+      Spartan.pilotInputPrivateColumnCount, Spartan.constantColumn] at bound ⊢
+    split_ifs <;> omega
+  · have bound := index.isLt
+    norm_num [outputInitialStateSource,
+      RunningTransitionInputs.initialStateWordStart, RunningTransition.stateWordCount,
+      PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
+      PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
+      Lifecycle.PriorStateHash.publicWidth_eq, Spartan.sourceToSpartan,
+      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
+      PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
+      PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
+      Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
+      Spartan.constantColumn] at bound ⊢
+    split_ifs <;> omega
+
 theorem spartanSpec_iff_sourceSpec (offset : Nat) (env : Env) :
     NextPreimage.SpecHolds spartanInterface offset env ↔
       NextPreimage.SpecHolds sourceInterface offset (Spartan.pullback env) := by

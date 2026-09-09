@@ -218,48 +218,56 @@ inductive ColumnOwner where
   | r1csIntermediate (index : Nat)
 deriving Repr, DecidableEq
 
-/-- Every physical column has one owner. Zero-length child intervals are
-retained in the type so the ownership vocabulary matches all 12 leaves. -/
+/-- Total column owner classifier. Zero-length child intervals are retained in
+the type so the ownership vocabulary matches all 12 leaves. -/
+def columnOwnerAt
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (offset : Nat)
+    (column : Nat) : ColumnOwner :=
+  if column < offset then
+    .external column
+  else if column < Formal.statementAbsorptionOffset interface offset then
+    .statementBinding (column - offset)
+  else if column < Formal.challengeOffset interface offset then
+    .statementAbsorption
+      (column - Formal.statementAbsorptionOffset interface offset)
+  else if column < Formal.roundTranscriptOffset interface offset then
+    .challengeDerivation
+      (column - Formal.challengeOffset interface offset)
+  else if column < Formal.initialClaimOffset interface offset then
+    .roundTranscript
+      (column - Formal.roundTranscriptOffset interface offset)
+  else if column < Formal.sumcheckOffset interface offset then
+    .initialClaim (column - Formal.initialClaimOffset interface offset)
+  else if column < Formal.evalKOffset interface offset then
+    .sumcheckChain (column - Formal.sumcheckOffset interface offset)
+  else if column < Formal.evalAOffset interface offset then
+    .eval_K (column - Formal.evalKOffset interface offset)
+  else if column < Formal.ccsOffset interface offset then
+    .eval_A (column - Formal.evalAOffset interface offset)
+  else if column < Formal.normOffset relation interface offset then
+    .ccsTerminal (column - Formal.ccsOffset interface offset)
+  else if column < Formal.finalIdentityOffset relation interface offset then
+    .normTerminal (column - Formal.normOffset relation interface offset)
+  else if column < Formal.outputBindingOffset relation interface offset then
+    .finalIdentity
+      (column - Formal.finalIdentityOffset relation interface offset)
+  else if column < logicalColumnCount relation interface offset then
+    .outputBinding
+      (column - Formal.outputBindingOffset relation interface offset)
+  else
+    .r1csIntermediate
+      (column - logicalColumnCount relation interface offset)
+
+/-- Every physical column has one owner. -/
 def columnOwner
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat)
     (column : Fin (physicalColumnCount relation interface offset)) :
     ColumnOwner :=
-  if column.val < offset then
-    .external column.val
-  else if column.val < Formal.statementAbsorptionOffset interface offset then
-    .statementBinding (column.val - offset)
-  else if column.val < Formal.challengeOffset interface offset then
-    .statementAbsorption
-      (column.val - Formal.statementAbsorptionOffset interface offset)
-  else if column.val < Formal.roundTranscriptOffset interface offset then
-    .challengeDerivation
-      (column.val - Formal.challengeOffset interface offset)
-  else if column.val < Formal.initialClaimOffset interface offset then
-    .roundTranscript
-      (column.val - Formal.roundTranscriptOffset interface offset)
-  else if column.val < Formal.sumcheckOffset interface offset then
-    .initialClaim (column.val - Formal.initialClaimOffset interface offset)
-  else if column.val < Formal.evalKOffset interface offset then
-    .sumcheckChain (column.val - Formal.sumcheckOffset interface offset)
-  else if column.val < Formal.evalAOffset interface offset then
-    .eval_K (column.val - Formal.evalKOffset interface offset)
-  else if column.val < Formal.ccsOffset interface offset then
-    .eval_A (column.val - Formal.evalAOffset interface offset)
-  else if column.val < Formal.normOffset relation interface offset then
-    .ccsTerminal (column.val - Formal.ccsOffset interface offset)
-  else if column.val < Formal.finalIdentityOffset relation interface offset then
-    .normTerminal (column.val - Formal.normOffset relation interface offset)
-  else if column.val < Formal.outputBindingOffset relation interface offset then
-    .finalIdentity
-      (column.val - Formal.finalIdentityOffset relation interface offset)
-  else if column.val < logicalColumnCount relation interface offset then
-    .outputBinding
-      (column.val - Formal.outputBindingOffset relation interface offset)
-  else
-    .r1csIntermediate
-      (column.val - logicalColumnCount relation interface offset)
+  columnOwnerAt relation interface offset column.val
 
 theorem columnOwner_unique
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

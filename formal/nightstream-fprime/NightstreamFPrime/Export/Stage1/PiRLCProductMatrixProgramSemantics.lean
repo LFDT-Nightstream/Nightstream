@@ -203,40 +203,40 @@ theorem challengeSlot_eq
 
 @[simp] theorem block_oneColumn?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (block geometry).oneColumn? logicalWidth =
-      some (PiRLCRetainedGeometry.oneColumn geometry) := by
+      some (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)) := by
   unfold MatrixProgram.Phi81Product.Block.oneColumn? block
-  rw [dif_pos (PiRLCRetainedGeometry.oneColumn geometry).isLt]
+  rw [dif_pos (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).isLt]
 
 theorem challenge_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     (block geometry).challenge.form? logicalWidth
         (challengeSlotStart + descriptor.source.val *
           challengeSourceStride + lane.val) =
       some (PiRLCProductPlan.challengeForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation lane) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
     (PiRLCFirst54RetainedBlocks.valueBlock program)
     (PiRLCRetainedGeometry.valueStart program)
-    (PiRLCRetainedGeometry.valueFits geometry)
+    (PiRLCRetainedGeometry.valueFits (prefixGeometry geometry))
     (PiRLCFirst54DirectSchedule.valueIndex
       (PiRLCProductSourceBlocks.challengeValueDescriptor
         descriptor.source lane))
   rw [← challengeSlot_eq descriptor.source lane] at direct
   simpa [block, PiRLCProductPlan.challengeForm,
-    PiRLCRetainedInputs.productInputs] using direct
+    inputs, PiRLCRetainedInputs.productInputs] using direct
 
 theorem challengeState?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).challengeState? logicalWidth (wireDescriptor descriptor) =
       some (PiRLCProductPlan.challengeForm
-        (PiRLCRetainedInputs.productInputs geometry) descriptor.invocation) := by
+        (inputs geometry) descriptor.invocation) := by
   unfold MatrixProgram.Phi81Product.Block.challengeState?
   apply loadFin?_of_some
   intro lane
@@ -271,30 +271,27 @@ theorem challengeState?
 
 theorem input_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     (block geometry).input.form? logicalWidth
         ((wireDescriptor descriptor).invocationAtLane lane) =
       some (PiRLCProductPlan.valueForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation lane) := by
-  have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
-    (PiRLCRetainedGeometry.productInputBlock program)
-    (PiRLCRetainedGeometry.productInputStart program)
-    (PiRLCRetainedGeometry.productInputFits geometry)
+  have direct := PiRLCValueMatrixProgram.substitution_form? geometry
     (descriptor.withLane lane).invocation
   rw [wireDescriptor_invocationAtLane]
   simpa [block, PiRLCProductPlan.valueForm,
-    PiRLCRetainedInputs.productInputs,
+    inputs, PiRLCRetainedInputs.productInputs,
     PiRLCProductSchedule.descriptor_invocation] using direct
 
 theorem inputState?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).inputState? logicalWidth (wireDescriptor descriptor) =
       some (PiRLCProductPlan.valueState
-        (PiRLCRetainedInputs.productInputs geometry) descriptor.invocation) := by
+        (inputs geometry) descriptor.invocation) := by
   unfold MatrixProgram.Phi81Product.Block.inputState?
     PiRLCProductPlan.valueState
   apply loadFin?_of_some
@@ -303,29 +300,29 @@ theorem inputState?
 
 theorem group_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (group : Fin 33) :
     (block geometry).group.form? logicalWidth
         ((wireDescriptor descriptor).invocation * 33 + group.val) =
       some (PiRLCProductPlan.groupForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation group) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
     (PiRLCRetainedGeometry.productGroupBlock program)
     (PiRLCRetainedGeometry.productGroupStart program)
-    (PiRLCRetainedGeometry.productGroupFits geometry)
+    (PiRLCRetainedGeometry.productGroupFits (prefixGeometry geometry))
     (Fin.encodeProd (descriptor.invocation, group))
   simpa [block, PiRLCProductPlan.groupForm,
-    PiRLCRetainedInputs.productInputs, wireDescriptor_invocation,
+    inputs, PiRLCRetainedInputs.productInputs, wireDescriptor_invocation,
     Fin.encodeProd, Nat.mul_comm] using direct
 
 theorem groupOutput?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).groupOutput? logicalWidth (wireDescriptor descriptor) =
       some (PiRLCProductPlan.groupForm
-        (PiRLCRetainedInputs.productInputs geometry) descriptor.invocation) := by
+        (inputs geometry) descriptor.invocation) := by
   unfold MatrixProgram.Phi81Product.Block.groupOutput?
   apply loadFin?_of_some
   intro group
@@ -333,20 +330,20 @@ theorem groupOutput?
 
 theorem output_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).output.form? logicalWidth
         (wireDescriptor descriptor).invocation =
       some (PiRLCProductPlan.outputForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
     (PiRLCRetainedGeometry.productOutputBlock program)
     (PiRLCRetainedGeometry.productOutputStart program)
-    (PiRLCRetainedGeometry.productOutputFits geometry)
+    (PiRLCRetainedGeometry.productOutputFits (prefixGeometry geometry))
     descriptor.invocation
   simpa [block, PiRLCProductPlan.outputForm,
-    PiRLCRetainedInputs.productInputs, wireDescriptor_invocation] using direct
+    inputs, PiRLCRetainedInputs.productInputs, wireDescriptor_invocation] using direct
 
 @[simp] theorem wireDescriptor_lane_eq
     (descriptor : PiRLCProductSchedule.Descriptor) :
@@ -398,62 +395,62 @@ theorem previousInvocation_eq
 
 theorem prior_form?_of_ne
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor)
     (notFirst : descriptor.source.val ≠ 0) :
     (block geometry).output.form? logicalWidth
         ((wireDescriptor descriptor).invocation -
           (wireDescriptor descriptor).family.privateCount) =
       some (PiRLCProductPlan.priorForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
     (PiRLCRetainedGeometry.productOutputBlock program)
     (PiRLCRetainedGeometry.productOutputStart program)
-    (PiRLCRetainedGeometry.productOutputFits geometry)
+    (PiRLCRetainedGeometry.productOutputFits (prefixGeometry geometry))
     (descriptor.previousSource notFirst).invocation
   rw [previousInvocation_eq descriptor notFirst]
   simpa [block, PiRLCProductPlan.priorForm,
-    PiRLCRetainedInputs.productInputs,
+    inputs, PiRLCRetainedInputs.productInputs,
     PiRLCProductSchedule.descriptor_invocation, notFirst] using direct
 
 theorem prior_form_at_invocation?_of_ne
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor)
     (notFirst : descriptor.source.val ≠ 0) :
     (block geometry).output.form? logicalWidth
         (descriptor.invocation.val -
           (wireDescriptor descriptor).family.privateCount) =
       some (PiRLCProductPlan.priorForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation) := by
   simpa using prior_form?_of_ne geometry descriptor notFirst
 
 theorem output_form_at_invocation?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).output.form? logicalWidth descriptor.invocation.val =
       some (PiRLCProductPlan.outputForm
-        (PiRLCRetainedInputs.productInputs geometry)
+        (inputs geometry)
           descriptor.invocation) := by
   simpa using output_form? geometry descriptor
 
 def semanticInterface
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     ProductSumPlan.Interface logicalWidth :=
   Phi81ProductFamilyPlan.laneInterface
     (PiRLCProductPlan.interface
-      (PiRLCRetainedInputs.productInputs geometry)) descriptor.invocation
+      (inputs geometry)) descriptor.invocation
 
 /-- The complete fail-closed wire interface is exactly the direct semantic
 interface for the same PiRLC product invocation. -/
 theorem block_interface?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).interface? logicalWidth (wireDescriptor descriptor) =
       some (semanticInterface geometry descriptor) := by
@@ -469,7 +466,7 @@ theorem block_interface?
     unfold semanticInterface Phi81ProductFamilyPlan.laneInterface
       Phi81ProductFamilyPlan.groupOutputAt PiRLCProductPlan.interface
       PiRLCProductPlan.challengeState PiRLCProductPlan.priorForm
-      PiRLCRetainedInputs.productInputs
+      inputs PiRLCRetainedInputs.productInputs
     simp [first, wireDescriptor_lane_eq]
     apply (Fin.heq_fun_iff (Phi81ProductPlan.groups_length _ _ _).symm).2
     intro group
@@ -483,7 +480,7 @@ theorem block_interface?
     apply congrArg some
     unfold semanticInterface Phi81ProductFamilyPlan.laneInterface
       Phi81ProductFamilyPlan.groupOutputAt PiRLCProductPlan.interface
-      PiRLCProductPlan.challengeState PiRLCRetainedInputs.productInputs
+      PiRLCProductPlan.challengeState inputs PiRLCRetainedInputs.productInputs
     simp [wireDescriptor_lane_eq]
     apply (Fin.heq_fun_iff (Phi81ProductPlan.groups_length _ _ _).symm).2
     intro group
@@ -493,13 +490,13 @@ theorem block_interface?
 decoded descriptor and local row. -/
 theorem block_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (localRow : Fin 34) :
     (block geometry).row? logicalWidth
         (descriptor.invocation.val * 34 + localRow.val) =
       some (Phi81ProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface
-          (PiRLCRetainedInputs.productInputs geometry))
+          (inputs geometry))
         descriptor.invocation localRow) := by
   let ordinal := descriptor.invocation.val * 34 + localRow.val
   have bound : ordinal < (block geometry).rowCount := by
@@ -520,14 +517,14 @@ theorem block_row?
     exact descriptor?_wireDescriptor descriptor
   let semanticRow := Phi81ProductFamilyPlan.rowAt
     (PiRLCProductPlan.interface
-      (PiRLCRetainedInputs.productInputs geometry))
+      (inputs geometry))
     descriptor.invocation localRow
   have rowBound : localRow.val <
       (ProductSumPlan.rows (semanticInterface geometry descriptor)).length := by
     change localRow.val <
       (ProductSumPlan.rows (Phi81ProductFamilyPlan.laneInterface
         (PiRLCProductPlan.interface
-          (PiRLCRetainedInputs.productInputs geometry))
+          (inputs geometry))
         descriptor.invocation)).length
     rw [Phi81ProductFamilyPlan.laneRows_length]
     exact localRow.isLt
@@ -548,7 +545,7 @@ theorem block_row?
 authoritative invocation and local row. -/
 theorem matrixProgram_invocation_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
     (localRow : Fin 34) :
@@ -556,7 +553,7 @@ theorem matrixProgram_invocation_row?
         (invocation.val * 34 + localRow.val) =
       some (Phi81ProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface
-          (PiRLCRetainedInputs.productInputs geometry)) invocation localRow) := by
+          (inputs geometry)) invocation localRow) := by
   let descriptor := PiRLCProductSchedule.descriptor invocation
   have exactRow := block_row? geometry descriptor localRow
   rw [PiRLCProductSchedule.invocation_descriptor] at exactRow
@@ -576,7 +573,7 @@ theorem matrixProgram_invocation_row?
 row selected by the canonical Lean invocation-major family plan. -/
 theorem matrixProgram_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCRetainedGeometry.Geometry program logicalWidth)
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (global : Fin (PiRLCProductSchedule.invocationCount * 34)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
@@ -584,7 +581,7 @@ theorem matrixProgram_row?
         Fin.decodeProd global
       some (Phi81ProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface
-          (PiRLCRetainedInputs.productInputs geometry))
+          (inputs geometry))
         decoded.1 decoded.2) := by
   let decoded : Fin PiRLCProductSchedule.invocationCount × Fin 34 :=
     Fin.decodeProd global

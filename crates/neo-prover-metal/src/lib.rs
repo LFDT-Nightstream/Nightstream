@@ -123,3 +123,18 @@ pub enum MetalError {
     #[error("Metal input shape mismatch: {0}")]
     Shape(&'static str),
 }
+
+#[cfg(any(test, all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
+    match error {
+        MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
+        error => neo_reductions::PiCcsError::BackendFailure {
+            backend: "metal",
+            reason: error.to_string(),
+        },
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/unit/oracle_errors.rs"]
+mod oracle_errors;

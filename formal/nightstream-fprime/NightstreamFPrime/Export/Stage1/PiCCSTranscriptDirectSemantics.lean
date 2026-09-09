@@ -201,45 +201,38 @@ structure Traces {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (prefixAssignment :
-      Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F) : Prop where
+    (env : Circuit.Env) : Prop where
   statement : Formal.TraceHolds Spec.Poseidon2.zeroState
     (PiCCSActionPayloadBlock.statementActions.map
-      (Formal.Action.eval
-        (PiCCSActionPayloadBlock.packageEnv program prefixAssignment)))
+      (Formal.Action.eval env))
     (PiCCSPoseidonPreservation.valueState geometry assignment statementLast)
   challenge : Formal.TraceHolds
     (PiCCSPoseidonPreservation.valueState geometry assignment statementLast)
     (PiCCSActionPayloadBlock.challengeActions.map
-      (Formal.Action.eval
-        (PiCCSActionPayloadBlock.packageEnv program prefixAssignment)))
+      (Formal.Action.eval env))
     (PiCCSPoseidonPreservation.valueState geometry assignment challengeLast)
   rounds : Formal.TraceHolds
     (PiCCSPoseidonPreservation.valueState geometry assignment challengeLast)
     (PiCCSActionPayloadBlock.roundActions.map
-      (Formal.Action.eval
-        (PiCCSActionPayloadBlock.packageEnv program prefixAssignment)))
+      (Formal.Action.eval env))
     (PiCCSPoseidonPreservation.valueState geometry assignment roundLast)
   output : Formal.TraceHolds
     (PiCCSPoseidonPreservation.valueState geometry assignment roundLast)
     (PiCCSActionPayloadBlock.outputActions.map
-      (Formal.Action.eval
-        (PiCCSActionPayloadBlock.packageEnv program prefixAssignment)))
+      (Formal.Action.eval env))
     (PiCCSPoseidonPreservation.valueState geometry assignment outputLast)
 
-theorem canonicalSemantics_implies_traces
+theorem indexedSemantics_implies_traces
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (prefixAssignment :
-      Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (semantics : PiCCSPoseidonPreservation.CanonicalSemantics geometry
-      assignment prefixAssignment) :
-    Traces geometry assignment prefixAssignment := by
-  let env := PiCCSActionPayloadBlock.packageEnv program prefixAssignment
+    (env : Circuit.Env)
+    (semantics : PoseidonActionSemantics.IndexedSemantics env
+      Spec.Poseidon2.zeroState PiCCSActionPayloadBlock.kindAt
+      (PiCCSPoseidonPreservation.valueState geometry assignment)) :
+    Traces geometry assignment env := by
   let globalOutput := PiCCSPoseidonPreservation.valueState geometry assignment
-  have global := PiCCSPoseidonPreservation.indexedSemantics geometry assignment
-    prefixAssignment semantics
+  have global := semantics
   have statementSemantics := global.slice statementOffset statementCount
     statementFits statementOffsetBound
   have challengeSemantics := global.slice challengeOffset challengeCount
@@ -284,19 +277,19 @@ theorem canonicalSemantics_implies_traces
     PiCCSActionPayloadBlock.outputActions outputKindAt_materializes
     outputSemantics
   refine ⟨?_, ?_, ?_, ?_⟩
-  · simpa [env, globalOutput, statementCount, statementOffset, statementLast,
+  · simpa [globalOutput, statementCount, statementOffset, statementLast,
       PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
       PoseidonActionSemantics.sliceIndex] using statementTrace
-  · simpa [env, globalOutput, challengeCount, challengeOffset, statementLast,
+  · simpa [globalOutput, challengeCount, challengeOffset, statementLast,
       challengeLast, PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
       PoseidonActionSemantics.sliceIndex] using challengeTrace
-  · simpa [env, globalOutput, roundCount, roundOffset, challengeLast,
+  · simpa [globalOutput, roundCount, roundOffset, challengeLast,
       roundLast, PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
       PoseidonActionSemantics.sliceIndex] using roundTrace
-  · simpa [env, globalOutput, outputCount, outputOffset, roundLast, outputLast,
+  · simpa [globalOutput, outputCount, outputOffset, roundLast, outputLast,
       PoseidonActionSemantics.sliceInitial,
       PoseidonActionSemantics.sliceOutput,
       PoseidonActionSemantics.sliceIndex] using outputTrace

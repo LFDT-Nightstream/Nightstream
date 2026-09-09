@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.Stage1.Preservation
 Closes physical preservation for the sole compact Stage 1 logical parent.
 
 The phase-local preservation theorems remain in `Preservation`. This module
-owns only the final running-transition relocation, seven-child parent
+owns only the final running-transition relocation, eight-child parent
 assembly, and composition with the exact HyperNova step relation. It does not
 define rows, another circuit, or another semantic predicate.
 -/
@@ -192,7 +192,63 @@ theorem physical_implies_compactRunning
   · exact compactRunningOutput_eq program env
   · exact children.running
 
-/-- Every physical Stage 1 row family implies the sole compact seven-child
+/-- Physical next-preimage rows preserve the same pilot inputs in the compact
+logical assembler. No new row or column is introduced by this connection. -/
+theorem physical_implies_compactNextPreimage
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Lifecycle.Stage1.Application.Program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (env : Env) (physical : Preservation.PhysicalHolds relation program env) :
+    (Lifecycle.Stage1.nextPreimageChild relation program
+      (AssemblerInputs.interface relation program)).spec
+      (Lifecycle.Stage1.finalOffset relation ajtai program
+        (AssemblerInputs.interface relation program) template
+        (AssemblerInputs.rootOffset program))
+      (CompactPullback.compactEnv program env) := by
+  have children := Preservation.physical_implies_childSpecs relation ajtai
+    program template env physical
+  have privateBounds := NextPreimageInputs.spartanInputsBelowConstant env
+  have privateAgrees : ∀ index, index < Spartan.constantColumn →
+      env index = Lowering.basePullback program env index := by
+    intro index below
+    simp [Lowering.basePullback, Lowering.shiftColumn_private program index below]
+  have shifted := Lifecycle.Stage1.NextPreimage.SpecHolds.of_cross_values_eq
+    NextPreimageInputs.spartanInterface NextPreimageInputs.spartanInterface
+    Lowering.nextPreimagePrivateStart Lowering.nextPreimagePrivateStart
+    env (Lowering.basePullback program env)
+    (Expr.eval_eq_of_agree_below _ Spartan.constantColumn _ _
+      privateBounds.priorIteration privateAgrees)
+    (Expr.eval_eq_of_agree_below _ Spartan.constantColumn _ _
+      privateBounds.outputIteration privateAgrees)
+    (fun index => Expr.eval_eq_of_agree_below _ Spartan.constantColumn _ _
+      (privateBounds.priorInitialState index) privateAgrees)
+    (fun index => Expr.eval_eq_of_agree_below _ Spartan.constantColumn _ _
+      (privateBounds.outputInitialState index) privateAgrees)
+    children.nextPreimage
+  have source := (NextPreimageInputs.spartanSpec_iff_sourceSpec
+    Lowering.nextPreimagePrivateStart (Lowering.basePullback program env)).mp shifted
+  have bounds := NextPreimageInputs.sourceAssumptions
+    (CompactPullback.sourceEnv program env)
+  have agrees := sourceEnv_eq_compactEnv_belowRunning program env
+  apply Lifecycle.Stage1.NextPreimage.SpecHolds.of_cross_values_eq
+    NextPreimageInputs.sourceInterface NextPreimageInputs.sourceInterface
+    Lowering.nextPreimagePrivateStart _ (CompactPullback.sourceEnv program env)
+    (CompactPullback.compactEnv program env)
+  · exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
+      _ _ bounds.priorIteration agrees
+  · exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
+      _ _ bounds.outputIteration agrees
+  · intro index
+    exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
+      _ _ (bounds.priorInitialState index) agrees
+  · intro index
+    exact Expr.eval_eq_of_agree_below _ RunningTransitionInputs.phaseOffset
+      _ _ (bounds.outputInitialState index) agrees
+  · exact source
+
+/-- Every physical Stage 1 row family implies the sole compact eight-child
 logical parent specification. -/
 theorem physical_implies_compactSpec
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -214,7 +270,9 @@ theorem physical_implies_compactSpec
     piRlc := ?_
     piDec := ?_
     running := ?_
-    application := ?_ }
+    application := ?_
+    nextPreimage := physical_implies_compactNextPreimage relation ajtai program
+      template env physical }
   · rw [AssemblerInputs.parent_priorOffset_eq relation program]
     exact Preservation.compactPilotPrior program env children.pilot.1
   · rw [AssemblerInputs.parent_outputHashOffset_eq relation program]

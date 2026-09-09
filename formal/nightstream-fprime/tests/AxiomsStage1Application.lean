@@ -199,6 +199,9 @@ import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.holdsFor_bottom_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.relations_iff_terminalHolds
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.holdsFor_recursive_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.rejects_counter_shift
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.rejects_wrong_initial_state_length
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Terminal.rejects_wrong_current_state_length
 #audit_axioms NightstreamFPrime.Export.Stage1.TerminalPackage.install_terminal
 #audit_axioms NightstreamFPrime.Export.Stage1.TerminalPackage.install_layout
 #audit_axioms NightstreamFPrime.Export.Stage1.TerminalPackage.install_relation

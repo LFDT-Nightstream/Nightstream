@@ -29,12 +29,19 @@ theorem inputRange_form?
     (inputRange application).form? logicalWidth
         (ApplicationInputs.inputColumn index) =
       some ((ApplicationDirectPlan.Location.input index).form geometry) := by
-  rw [ApplicationInputs.inputColumn_value]
-  simpa [inputRange, ApplicationDirectPlan.Location.form] using
-    (SourceRange.form?_ofSemantic (inputBlock application)
-      (inputStart application) ApplicationInputs.currentWordStart
-      Lifecycle.Stage1.Application.stateWordCount 0 (inputFits geometry)
-      (by rfl) index)
+  rw [ApplicationInputs.inputColumn_value,
+    ApplicationDirectPlan.Location.input_form_eq_pilot]
+  simpa [inputRange, ApplicationDirectPlan.Location.preimageWord] using
+    (SourceRange.form?_ofSemantic
+      (PiRLCPoseidonGeometry.priorInputBlock application)
+      (PiRLCPoseidonGeometry.priorInputStart application)
+      ApplicationInputs.currentWordStart Lifecycle.Stage1.Application.stateWordCount
+      ApplicationInputs.currentWordStart
+      (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
+      (by norm_num [PiRLCPoseidonGeometry.priorInputBlock,
+        ApplicationInputs.currentWordStart,
+        Lifecycle.Stage1.Application.stateWordCount])
+      index)
 
 theorem witnessRange_form?
     {application : ApplicationProgram} {logicalWidth : Nat}
@@ -56,12 +63,19 @@ theorem outputRange_form?
     (outputRange application).form? logicalWidth
         (ApplicationInputs.outputColumn index) =
       some ((ApplicationDirectPlan.Location.output index).form geometry) := by
-  rw [ApplicationInputs.outputColumn_value]
-  simpa [outputRange, ApplicationDirectPlan.Location.form] using
-    (SourceRange.form?_ofSemantic (outputBlock application)
-      (outputStart application) 49428
-      Lifecycle.Stage1.Application.stateWordCount 0 (outputFits geometry)
-      (by rfl) index)
+  rw [ApplicationInputs.outputColumn_value,
+    ApplicationDirectPlan.Location.output_form_eq_pilot]
+  simpa [outputRange, ApplicationDirectPlan.Location.preimageWord] using
+    (SourceRange.form?_ofSemantic
+      (PiRLCPoseidonGeometry.outputInputBlock application)
+      (PiRLCPoseidonGeometry.outputInputStart application)
+      49428 Lifecycle.Stage1.Application.stateWordCount
+      ApplicationInputs.currentWordStart
+      (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
+      (by norm_num [PiRLCPoseidonGeometry.outputInputBlock,
+        ApplicationInputs.currentWordStart,
+        Lifecycle.Stage1.Application.stateWordCount])
+      index)
 
 theorem localRange_form?
     {application : ApplicationProgram} {logicalWidth : Nat}

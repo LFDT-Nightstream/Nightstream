@@ -1,10 +1,12 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
+import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 
 /-!
 Owns the executable source resolver and direct 14-matrix plan for the
 running-instance transition. The resolver uses the established Spartan
-partial inverse and only the six retained support blocks.
+partial inverse and six source views. State and output alias the actual pilot
+preimages; the remaining four views own allocated blocks.
 
 This module does not append the plan to other Stage 1 phases or construct a
 final package identity.
@@ -98,61 +100,67 @@ def form {program : Lifecycle.Stage1.Application.Program}
       (stateStart program) (stateFits geometry) index
   | .output index => (outputBlock program).form
       (outputStart program) (outputFits geometry) index
-  | .roundC0 coordinate => (roundC0Block program).form
-      (roundC0Start program) (roundC0Fits geometry) coordinate
-  | .roundC1 coordinate => (roundC1Block program).form
-      (roundC1Start program) (roundC1Fits geometry) coordinate
+  | .roundC0 coordinate => PiCCSTranscriptOutputForms.pointForm
+      (poseidonGeometry geometry) coordinate 0
+  | .roundC1 coordinate => PiCCSTranscriptOutputForms.pointForm
+      (poseidonGeometry geometry) coordinate 1
   | .piDec index => (piDecBlock program).form
       (piDecStart program) (piDecFits geometry) index
   | .fresh index => (freshBlock program).form
       (freshStart program) (freshFits geometry) index
 
-/-- Every selected form reconstructs its exact nested package source. -/
-theorem form_eval {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (source : Fin (sourceWidth program) → F)
-    (encodes : Encodes geometry assignment source) (location : Location) :
-    (location.form geometry).eval assignment =
-      source (packageSourceColumn program location.sourceColumn
-        location.sourceColumn_lt) := by
-  cases location with
-  | state index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.state]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | output index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.output]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | roundC0 coordinate =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.roundC0]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | roundC1 coordinate =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.roundC1]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | piDec index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.piDec]
-      apply congrArg source
-      apply Fin.ext
-      rfl
-  | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.fresh]
-      apply congrArg source
-      apply Fin.ext
-      rfl
+/-- The state transition reads the counter and application-state words from
+slots 28 through 38 of the actual prior pilot preimage. -/
+def statePreimageWord (index : Fin RunningTransitionSourceSupport.stateCount) :
+    Fin PilotValues.stateHashWords :=
+  ⟨28 + index.val, by
+    have bound := index.isLt
+    change index.val < 11 at bound
+    change 28 + index.val < 49393
+    omega⟩
+
+/-- The output transition uses every word of the actual output preimage in
+the same order. This changes only the typed bound of its index. -/
+def outputPreimageWord (index : Fin RunningTransitionSourceSupport.outputCount) :
+    Fin PilotValues.stateHashWords :=
+  ⟨index.val, by
+    change index.val < 49393
+    simpa only [RunningTransitionSourceSupport.outputCount_eq] using index.isLt⟩
+
+/-- The running state form is the actual prior-hash preimage form for every
+assignment. No representation premise or copy row supplies this connection. -/
+theorem state_form_eq_pilot
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin RunningTransitionSourceSupport.stateCount) :
+    (Location.state index).form geometry =
+      (PiRLCPoseidonGeometry.priorInputBlock program).form
+        (PiRLCPoseidonGeometry.priorInputStart program)
+        (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
+        (statePreimageWord index) := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · change PiRLCPoseidonGeometry.priorInputStart program + 28 * 41 +
+        index.val * 41 =
+      PiRLCPoseidonGeometry.priorInputStart program + (28 + index.val) * 41
+    omega
+
+/-- The running output form is the actual output-hash preimage form for
+every assignment, including the full carried running state. -/
+theorem output_form_eq_pilot
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin RunningTransitionSourceSupport.outputCount) :
+    (Location.output index).form geometry =
+      (PiRLCPoseidonGeometry.outputInputBlock program).form
+        (PiRLCPoseidonGeometry.outputInputStart program)
+        (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
+        (outputPreimageWord index) := by
+  unfold form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · rfl
 
 end Location
 
@@ -383,15 +391,15 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
     | none => .empty
     | some decoded => decoded.location.form geometry
 
-/-- The old package-row environment reads each Spartan column through the
-per-application shift into the complete package source prefix. -/
+/-- The unmodified physical package view before transcript readout. -/
+def packageEnv (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
+  PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
+
+/-- The transition reads each challenge from its retained Poseidon2 output. -/
 def transitionEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
-  fun column =>
-    if bound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount then
-      base (PiRLCProductPlan.shiftedPackageColumn program column bound)
-    else
-      0
+  PiCCSTranscriptReadout.env (packageEnv program base)
 
 private theorem mapped_lt_basePackage (source : Nat)
     (bound : source < Spartan.SourceColumnCount) :
@@ -411,11 +419,149 @@ theorem sourceAssignment_packageSource
     (source : Nat) (bound : source < Spartan.SourceColumnCount) :
     PiRLCRetainedPreservation.sourceAssignment program base groupValue products
         (packageSourceColumn program source bound) =
-      transitionEnv program base (Spartan.sourceToSpartan source) := by
+      packageEnv program base (Spartan.sourceToSpartan source) := by
   rw [packageSourceColumn,
     PiRLCRetainedPreservation.sourceAssignment_base]
-  unfold transitionEnv
-  rw [dif_pos (mapped_lt_basePackage source bound)]
+  exact (SourceCompiler.sourceEnv_at base
+    (PiRLCProductPlan.shiftedPackageColumn program
+      (Spartan.sourceToSpartan source) (mapped_lt_basePackage source bound))).symm
+
+/-- Readout leaves every non-transcript source value unchanged. -/
+theorem transitionEnv_of_notTranscript
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (source : Nat) (bound : source < Spartan.SourceColumnCount)
+    (outside : ¬ PiCCSOrdinarySourceSupport.TranscriptOutput source) :
+    transitionEnv program base (Spartan.sourceToSpartan source) =
+      packageEnv program base (Spartan.sourceToSpartan source) :=
+  PiCCSTranscriptReadout.env_source_of_notTranscript _ source bound outside
+
+/-- A source outside the complete transcript block is unchanged by readout. -/
+theorem transitionEnv_of_outside
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (column : Nat) (bound : column < Spartan.SourceColumnCount)
+    (outside : column < PiCCSInputs.phaseOffset ∨
+      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+        column) :
+    transitionEnv program base (Spartan.sourceToSpartan column) =
+      packageEnv program base (Spartan.sourceToSpartan column) := by
+  apply transitionEnv_of_notTranscript program base column bound
+  rintro ⟨invocation, lane, same⟩
+  have invocationBound := invocation.isLt
+  have laneBound : lane.val < 8 := lane.isLt
+  rcases outside with before | after <;> omega
+
+
+namespace Location
+
+/-- All transition readers use the same physical source view. Point readers
+compute the actual Poseidon2 output; the other readers retain their source. -/
+theorem form_eval {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+    (location : Location) :
+    (location.form geometry).eval assignment =
+      transitionEnv program base (Spartan.sourceToSpartan location.sourceColumn) := by
+  cases location with
+  | roundC0 coordinate =>
+      rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c0]
+      exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
+        assignment base groupValue products encodes.sboxes coordinate 0
+  | roundC1 coordinate =>
+      rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c1]
+      exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
+        assignment base groupValue products encodes.sboxes coordinate 1
+  | state index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.state]
+      have sourceEq : (stateBlock program).source index =
+          packageSourceColumn program (Location.state index).sourceColumn
+            (Location.state index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, sourceAssignment_packageSource]
+      apply Eq.symm
+      apply transitionEnv_of_notTranscript program base _ (Location.state index).sourceColumn_lt
+      rintro ⟨invocation, lane, same⟩
+      have indexBound : index.val < 11 := index.isLt
+      have invocationBound : invocation.val < 718 := by
+        simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+          using invocation.isLt
+      have laneBound : lane.val < 8 := lane.isLt
+      have address : 28 + index.val =
+          14751804 + invocation.val * 592 + 584 + lane.val := by
+        simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
+          PiCCSInputs.phaseOffset_eq] using same
+      omega
+  | output index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.output]
+      have sourceEq : (outputBlock program).source index =
+          packageSourceColumn program (Location.output index).sourceColumn
+            (Location.output index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, sourceAssignment_packageSource]
+      apply Eq.symm
+      apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
+      rintro ⟨invocation, lane, same⟩
+      have indexBound : index.val < 49393 := index.isLt
+      have invocationBound : invocation.val < 718 := by
+        simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+          using invocation.isLt
+      have laneBound : lane.val < 8 := lane.isLt
+      have address : 49663 + index.val =
+          14751804 + invocation.val * 592 + 584 + lane.val := by
+        simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
+          PiCCSInputs.phaseOffset_eq] using same
+      omega
+  | piDec index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.piDec]
+      have sourceEq : (piDecBlock program).source index =
+          packageSourceColumn program (Location.piDec index).sourceColumn
+            (Location.piDec index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, sourceAssignment_packageSource]
+      apply Eq.symm
+      apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
+      rintro ⟨invocation, lane, same⟩
+      have indexBound : index.val < 49248 := index.isLt
+      have invocationBound : invocation.val < 718 := by
+        simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+          using invocation.isLt
+      have laneBound : lane.val < 8 := lane.isLt
+      have address : 28973248 + index.val =
+          14751804 + invocation.val * 592 + 584 + lane.val := by
+        simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
+          PiCCSInputs.phaseOffset_eq] using same
+      omega
+  | fresh index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
+      have sourceEq : (freshBlock program).source index =
+          packageSourceColumn program (Location.fresh index).sourceColumn
+            (Location.fresh index).sourceColumn_lt := by
+        apply Fin.ext
+        rfl
+      rw [sourceEq, sourceAssignment_packageSource]
+      apply Eq.symm
+      apply transitionEnv_of_notTranscript program base _ (Location.fresh index).sourceColumn_lt
+      rintro ⟨invocation, lane, same⟩
+      have indexBound : index.val < 296138 := index.isLt
+      have invocationBound : invocation.val < 718 := by
+        simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+          using invocation.isLt
+      have laneBound : lane.val < 8 := lane.isLt
+      unfold sourceColumn at same
+      rw [PiCCSInputs.phaseOffset_eq] at same
+      norm_num [RunningTransitionInputs.phaseOffset] at same
+      omega
+
+end Location
 
 theorem sourceMap_form_eval_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -435,9 +581,8 @@ theorem sourceMap_form_eval_of_target
     | none => SparseForm.empty
     | some value => value.location.form geometry).eval assignment = _
   rw [found]
-  rw [Location.form_eval geometry assignment _ encodes decoded.location]
-  rw [sourceAssignment_packageSource program base groupValue products
-    decoded.location.sourceColumn decoded.location.sourceColumn_lt]
+  rw [Location.form_eval geometry assignment base groupValue products
+    encodes decoded.location]
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]

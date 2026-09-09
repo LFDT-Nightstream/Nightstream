@@ -83,11 +83,441 @@ def pushNode (state : HashState) (node : Node) : HashState :=
 def processNodes (state : HashState) (stream : List Node) : HashState :=
   stream.foldl pushNode state
 
-def processValue : Value → HashState → HashState
-  | .atom value, state => pushNode state ⟨0, value⟩
+@[specialize push] def processValueWith {State : Type}
+    (push : State → Node → State) :
+    Value → State → State
+  | .atom value, state => push state ⟨0, value⟩
   | .array values, state =>
-      values.foldl (fun current child => processValue child current)
-        (pushNode state ⟨1, values.length⟩)
+      values.foldl (fun current child => processValueWith push child current)
+        (push state ⟨1, values.length⟩)
+
+/-- Canonical value traversal specialized to the semantic Poseidon2 node
+transition. -/
+def processValue : Value → HashState → HashState :=
+  processValueWith pushNode
+
+/-- Count canonical codec nodes without constructing the encoded node list. -/
+def countNode (count : Nat) (_node : Node) : Nat := count + 1
+
+theorem processValueWith_countNode (value : Value) : ∀ initial,
+    processValueWith countNode value initial =
+      initial + (nodes value).length :=
+  Value.rec
+    (motive_1 := fun value => ∀ initial,
+      processValueWith countNode value initial =
+        initial + (nodes value).length)
+    (motive_2 := fun values => ∀ initial,
+      values.foldl
+          (fun current child => processValueWith countNode child current)
+          initial =
+        initial + (values.flatMap nodes).length)
+    (fun value initial => by
+      simp [processValueWith, countNode, nodes])
+    (fun values valuesInduction initial => by
+      simp only [processValueWith, countNode, nodes, List.length_cons]
+      rw [valuesInduction]
+      omega)
+    (by
+      intro initial
+      simp)
+    (fun head tail headInduction tailInduction initial => by
+      simp only [List.foldl_cons, List.flatMap_cons, List.length_append]
+      rw [headInduction, tailInduction]
+      omega)
+    value
+
+@[simp] theorem processValueWith_pushNode (value : Value)
+    (state : HashState) :
+    processValueWith pushNode value state = processValue value state := by
+  rfl
+
+/-- A pointwise simulation of node transitions lifts through the complete
+canonical value traversal. This is the proof boundary for an alternative
+state representation: the alternative transition must still prove every
+node step against the semantic transition. -/
+theorem processValueWith_simulates
+    {SourceState TargetState : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (value : Value) : ∀ state,
+    denote (processValueWith sourcePush value state) =
+      processValueWith targetPush value (denote state) :=
+  Value.rec
+    (motive_1 := fun value => ∀ state,
+      denote (processValueWith sourcePush value state) =
+        processValueWith targetPush value (denote state))
+    (motive_2 := fun values => ∀ state,
+      denote (values.foldl (fun current child =>
+        processValueWith sourcePush child current) state) =
+      values.foldl (fun current child =>
+        processValueWith targetPush child current) (denote state))
+    (fun value state => by
+      simp [processValueWith, pushSimulates])
+    (fun values valuesInduction state => by
+      simp [processValueWith, valuesInduction, pushSimulates])
+    (by
+      intro state
+      rfl)
+    (fun head tail headInduction tailInduction state => by
+      simp [headInduction, tailInduction])
+    value
+
+/-! ## Typed, allocation-bounded traversals -/
+
+/-- Process encoded items without an enclosing list node. The traversal
+encodes only the current item and never constructs `values.map format.encode`.
+This is the primitive used to join several item producers under one
+caller-owned array header. -/
+@[specialize push format] def processEncodedItemsWith {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) : List Alpha → State
+  | [] => state
+  | value :: rest =>
+      processEncodedItemsWith push
+        (processValueWith push (format.encode value) state) format rest
+
+theorem processEncodedItemsWith_eq_mappedFoldl {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (values : List Alpha) :
+    processEncodedItemsWith push state format values =
+      (values.map format.encode).foldl
+        (fun current value => processValueWith push value current) state := by
+  induction values generalizing state with
+  | nil => rfl
+  | cons value rest inductionHypothesis =>
+      simp [processEncodedItemsWith, inductionHypothesis]
+
+theorem processEncodedItemsWith_append {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (left right : List Alpha) :
+    processEncodedItemsWith push state format (left ++ right) =
+      processEncodedItemsWith push
+        (processEncodedItemsWith push state format left) format right := by
+  induction left generalizing state with
+  | nil => rfl
+  | cons value rest inductionHypothesis =>
+      simp [processEncodedItemsWith, inductionHypothesis]
+
+theorem processEncodedItemsWith_simulates
+    {SourceState TargetState Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha) (values : List Alpha) :
+    denote (processEncodedItemsWith sourcePush state format values) =
+      processEncodedItemsWith targetPush (denote state) format values := by
+  induction values generalizing state with
+  | nil => rfl
+  | cons value rest inductionHypothesis =>
+      simp [processEncodedItemsWith,
+        processValueWith_simulates denote sourcePush targetPush pushSimulates,
+        inductionHypothesis]
+
+/-- Process one codec list with exactly one canonical array header. -/
+@[specialize push format] def processEncodedListWith {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (values : List Alpha) : State :=
+  processEncodedItemsWith push (push state ⟨1, values.length⟩)
+    format values
+
+theorem processEncodedListWith_eq_processValueWith {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (values : List Alpha) :
+    processEncodedListWith push state format values =
+      processValueWith push ((list format).encode values) state := by
+  unfold processEncodedListWith
+  rw [processEncodedItemsWith_eq_mappedFoldl]
+  simp only [Codec.list, processValueWith, List.length_map]
+
+theorem processEncodedListWith_simulates
+    {SourceState TargetState Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha) (values : List Alpha) :
+    denote (processEncodedListWith sourcePush state format values) =
+      processEncodedListWith targetPush (denote state) format values := by
+  calc
+    denote (processEncodedListWith sourcePush state format values) =
+        denote (processValueWith sourcePush
+          ((list format).encode values) state) := by
+      rw [processEncodedListWith_eq_processValueWith]
+    _ = processValueWith targetPush ((list format).encode values)
+        (denote state) :=
+      processValueWith_simulates denote sourcePush targetPush
+        pushSimulates _ state
+    _ = processEncodedListWith targetPush (denote state) format values := by
+      rw [processEncodedListWith_eq_processValueWith]
+
+/-- Number of immediate list items across ordered segments. This recursive
+form avoids allocating `segments.map List.length`. -/
+def encodedSegmentsLength {Alpha : Type} : List (List Alpha) → Nat
+  | [] => 0
+  | values :: rest => values.length + encodedSegmentsLength rest
+
+theorem encodedSegmentsLength_eq_flatten_length {Alpha : Type}
+    (segments : List (List Alpha)) :
+    encodedSegmentsLength segments = segments.flatten.length := by
+  induction segments with
+  | nil => rfl
+  | cons values rest inductionHypothesis =>
+      simp [encodedSegmentsLength, inductionHypothesis]
+
+/-- Process all items from ordered list segments without an enclosing array
+header and without constructing their concatenation. -/
+@[specialize push format] def processEncodedSegmentsItemsWith
+    {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) : List (List Alpha) → State
+  | [] => state
+  | values :: rest =>
+      processEncodedSegmentsItemsWith push
+        (processEncodedItemsWith push state format values) format rest
+
+theorem processEncodedSegmentsItemsWith_eq_items {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (segments : List (List Alpha)) :
+    processEncodedSegmentsItemsWith push state format segments =
+      processEncodedItemsWith push state format segments.flatten := by
+  induction segments generalizing state with
+  | nil => rfl
+  | cons values rest inductionHypothesis =>
+      rw [processEncodedSegmentsItemsWith, List.flatten_cons,
+        processEncodedItemsWith_append, inductionHypothesis]
+
+theorem processEncodedSegmentsItemsWith_simulates
+    {SourceState TargetState Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha)
+    (segments : List (List Alpha)) :
+    denote
+        (processEncodedSegmentsItemsWith sourcePush state format segments) =
+      processEncodedSegmentsItemsWith targetPush (denote state) format
+        segments := by
+  induction segments generalizing state with
+  | nil => rfl
+  | cons values rest inductionHypothesis =>
+      simp [processEncodedSegmentsItemsWith,
+        processEncodedItemsWith_simulates denote sourcePush targetPush
+          pushSimulates,
+        inductionHypothesis]
+
+/-- Process ordered list segments beneath one canonical array header. -/
+@[specialize push format] def processEncodedSegmentsWith {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (segments : List (List Alpha)) : State :=
+  processEncodedSegmentsItemsWith push
+    (push state ⟨1, encodedSegmentsLength segments⟩) format segments
+
+theorem processEncodedSegmentsWith_eq_processValueWith {State Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (segments : List (List Alpha)) :
+    processEncodedSegmentsWith push state format segments =
+      processValueWith push ((list format).encode segments.flatten) state := by
+  unfold processEncodedSegmentsWith
+  rw [processEncodedSegmentsItemsWith_eq_items,
+    encodedSegmentsLength_eq_flatten_length]
+  exact processEncodedListWith_eq_processValueWith
+    push state format segments.flatten
+
+theorem processEncodedSegmentsWith_simulates
+    {SourceState TargetState Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha)
+    (segments : List (List Alpha)) :
+    denote (processEncodedSegmentsWith sourcePush state format segments) =
+      processEncodedSegmentsWith targetPush (denote state) format segments := by
+  calc
+    denote (processEncodedSegmentsWith sourcePush state format segments) =
+        denote (processValueWith sourcePush
+          ((list format).encode segments.flatten) state) := by
+      rw [processEncodedSegmentsWith_eq_processValueWith]
+    _ = processValueWith targetPush
+        ((list format).encode segments.flatten) (denote state) :=
+      processValueWith_simulates denote sourcePush targetPush
+        pushSimulates _ state
+    _ = processEncodedSegmentsWith targetPush (denote state) format
+        segments := by
+      rw [processEncodedSegmentsWith_eq_processValueWith]
+
+/-- Number of immediate items in one ordered block expansion. The expansion
+is evaluated one block at a time; the flattened list is not constructed. -/
+@[specialize expand] def encodedFlatMapLength {Block Alpha : Type}
+    (expand : Block → List Alpha) : List Block → Nat
+  | [] => 0
+  | block :: rest =>
+      (expand block).length + encodedFlatMapLength expand rest
+
+theorem encodedFlatMapLength_eq_flatMap_length {Block Alpha : Type}
+    (expand : Block → List Alpha) (blocks : List Block) :
+    encodedFlatMapLength expand blocks = (blocks.flatMap expand).length := by
+  induction blocks with
+  | nil => rfl
+  | cons block rest inductionHypothesis =>
+      simp [encodedFlatMapLength, inductionHypothesis]
+
+/-- Process block expansions without an enclosing array header and without
+constructing `blocks.flatMap expand`. -/
+@[specialize push format expand] def processEncodedFlatMapItemsWith
+    {State Block Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (expand : Block → List Alpha) :
+    List Block → State
+  | [] => state
+  | block :: rest =>
+      processEncodedFlatMapItemsWith push
+        (processEncodedItemsWith push state format (expand block))
+        format expand rest
+
+theorem processEncodedFlatMapItemsWith_eq_items
+    {State Block Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (expand : Block → List Alpha)
+    (blocks : List Block) :
+    processEncodedFlatMapItemsWith push state format expand blocks =
+      processEncodedItemsWith push state format (blocks.flatMap expand) := by
+  induction blocks generalizing state with
+  | nil => rfl
+  | cons block rest inductionHypothesis =>
+      rw [processEncodedFlatMapItemsWith, List.flatMap_cons,
+        processEncodedItemsWith_append, inductionHypothesis]
+
+theorem processEncodedFlatMapItemsWith_simulates
+    {SourceState TargetState Block Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha)
+    (expand : Block → List Alpha) (blocks : List Block) :
+    denote
+        (processEncodedFlatMapItemsWith sourcePush state format expand blocks) =
+      processEncodedFlatMapItemsWith targetPush (denote state) format expand
+        blocks := by
+  induction blocks generalizing state with
+  | nil => rfl
+  | cons block rest inductionHypothesis =>
+      simp [processEncodedFlatMapItemsWith,
+        processEncodedItemsWith_simulates denote sourcePush targetPush
+          pushSimulates,
+        inductionHypothesis]
+
+/-- Process an ordered block expansion beneath one canonical array header. -/
+@[specialize push format expand] def processEncodedFlatMapWith
+    {State Block Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (expand : Block → List Alpha)
+    (blocks : List Block) : State :=
+  processEncodedFlatMapItemsWith push
+    (push state ⟨1, encodedFlatMapLength expand blocks⟩)
+    format expand blocks
+
+theorem processEncodedFlatMapWith_eq_processValueWith
+    {State Block Alpha : Type}
+    (push : State → Node → State) (state : State)
+    (format : Format Alpha) (expand : Block → List Alpha)
+    (blocks : List Block) :
+    processEncodedFlatMapWith push state format expand blocks =
+      processValueWith push
+        ((list format).encode (blocks.flatMap expand)) state := by
+  unfold processEncodedFlatMapWith
+  rw [processEncodedFlatMapItemsWith_eq_items,
+    encodedFlatMapLength_eq_flatMap_length]
+  exact processEncodedListWith_eq_processValueWith
+    push state format (blocks.flatMap expand)
+
+theorem processEncodedFlatMapWith_simulates
+    {SourceState TargetState Block Alpha : Type}
+    (denote : SourceState → TargetState)
+    (sourcePush : SourceState → Node → SourceState)
+    (targetPush : TargetState → Node → TargetState)
+    (pushSimulates : ∀ state node,
+      denote (sourcePush state node) = targetPush (denote state) node)
+    (state : SourceState) (format : Format Alpha)
+    (expand : Block → List Alpha) (blocks : List Block) :
+    denote (processEncodedFlatMapWith sourcePush state format expand blocks) =
+      processEncodedFlatMapWith targetPush (denote state) format expand
+        blocks := by
+  calc
+    denote
+        (processEncodedFlatMapWith sourcePush state format expand blocks) =
+      denote (processValueWith sourcePush
+        ((list format).encode (blocks.flatMap expand)) state) := by
+        rw [processEncodedFlatMapWith_eq_processValueWith]
+    _ = processValueWith targetPush
+        ((list format).encode (blocks.flatMap expand)) (denote state) :=
+      processValueWith_simulates denote sourcePush targetPush
+        pushSimulates _ state
+    _ = processEncodedFlatMapWith targetPush (denote state) format expand
+        blocks := by
+      rw [processEncodedFlatMapWith_eq_processValueWith]
+
+/-- Semantic specializations for callers that do not supply another proved
+node transition. -/
+def processEncodedItems {Alpha : Type} (state : HashState)
+    (format : Format Alpha) (values : List Alpha) : HashState :=
+  processEncodedItemsWith pushNode state format values
+
+def processEncodedList {Alpha : Type} (state : HashState)
+    (format : Format Alpha) (values : List Alpha) : HashState :=
+  processEncodedListWith pushNode state format values
+
+def processEncodedSegmentsItems {Alpha : Type} (state : HashState)
+    (format : Format Alpha) (segments : List (List Alpha)) : HashState :=
+  processEncodedSegmentsItemsWith pushNode state format segments
+
+def processEncodedSegments {Alpha : Type} (state : HashState)
+    (format : Format Alpha) (segments : List (List Alpha)) : HashState :=
+  processEncodedSegmentsWith pushNode state format segments
+
+def processEncodedFlatMapItems {Block Alpha : Type} (state : HashState)
+    (format : Format Alpha) (expand : Block → List Alpha)
+    (blocks : List Block) : HashState :=
+  processEncodedFlatMapItemsWith pushNode state format expand blocks
+
+def processEncodedFlatMap {Block Alpha : Type} (state : HashState)
+    (format : Format Alpha) (expand : Block → List Alpha)
+    (blocks : List Block) : HashState :=
+  processEncodedFlatMapWith pushNode state format expand blocks
+
+theorem processEncodedList_eq_processValue {Alpha : Type}
+    (state : HashState) (format : Format Alpha) (values : List Alpha) :
+    processEncodedList state format values =
+      processValue ((list format).encode values) state := by
+  exact processEncodedListWith_eq_processValueWith
+    pushNode state format values
+
+theorem processEncodedSegments_eq_processValue {Alpha : Type}
+    (state : HashState) (format : Format Alpha)
+    (segments : List (List Alpha)) :
+    processEncodedSegments state format segments =
+      processValue ((list format).encode segments.flatten) state := by
+  exact processEncodedSegmentsWith_eq_processValueWith
+    pushNode state format segments
+
+theorem processEncodedFlatMap_eq_processValue {Block Alpha : Type}
+    (state : HashState) (format : Format Alpha)
+    (expand : Block → List Alpha) (blocks : List Block) :
+    processEncodedFlatMap state format expand blocks =
+      processValue ((list format).encode (blocks.flatMap expand)) state := by
+  exact processEncodedFlatMapWith_eq_processValueWith
+    pushNode state format expand blocks
 
 theorem processValue_eq_processNodes (value : Value) :
     ∀ state, processValue value state = processNodes state (nodes value) :=
@@ -98,9 +528,20 @@ theorem processValue_eq_processNodes (value : Value) :
       values.foldl (fun current child => processValue child current) state =
         processNodes state (values.flatMap nodes))
     (fun value state => by
-      simp [processValue, processNodes, nodes])
+      unfold processValue
+      rw [processValueWith, nodes]
+      rfl)
     (fun values valuesInduction state => by
-      simp [processValue, nodes, processNodes, valuesInduction])
+      unfold processValue
+      rw [processValueWith, nodes]
+      change
+        values.foldl
+            (fun current child => processValueWith pushNode child current)
+            (pushNode state ⟨1, values.length⟩) =
+          processNodes (pushNode state ⟨1, values.length⟩)
+            (values.flatMap nodes)
+      simpa only [processValueWith_pushNode] using
+        valuesInduction (pushNode state ⟨1, values.length⟩))
     (by
       intro state
       rfl)

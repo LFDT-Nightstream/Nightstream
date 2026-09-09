@@ -7,7 +7,7 @@ Obligation: Lower
 `E_K = eq(r', r) * sum_(i,l) gamma^I_K(i,l) cf(y'_i)_l`.
 
 Inputs:
-- the 26-coordinate verifier-derived point `r'` and prior point `r`;
+- the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
 - 864 Pad-family coefficients, with no CCS-matrix coefficient.
 
@@ -15,10 +15,12 @@ Outputs:
 - the child-owned exact unshifted `Eval_K` terminal term.
 
 Constraint groups:
-- point equality: 102 logical columns, 617 fresh columns, 719 rows;
+- point equality: 110 logical columns, 665 fresh columns, 775 rows;
 - 864-term Horner: 1,726 logical columns, 6,041 fresh columns,
   7,767 rows;
 - parent wiring: zero columns and zero rows.
+- total leaf footprint: 1,836 logical columns, 6,706 fresh columns,
+  8,542 rows.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.eval_K_terminal`.

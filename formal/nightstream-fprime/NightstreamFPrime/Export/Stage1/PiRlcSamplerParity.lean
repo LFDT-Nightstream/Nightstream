@@ -1,9 +1,10 @@
 import NightstreamFPrime.Export.Codec
-import NightstreamFPrime.Lifecycle.Transcript
+import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 
 /-!
 Owns compact executable vectors for the production PiRLC sampler. The vectors
 cover the exact 16-bit decoder, the fixed 54-of-64 bound, explicit shortfall,
+all 17 sources from the nonzero PiCCS fixture, their selected positions,
 all eight Poseidon2 digest windows per scalar, and transcript-state chaining.
 They emit no constraints and do not claim PiRLC phase closure.
 -/
@@ -89,10 +90,18 @@ def packedDigestWords (candidates : List Chunk) : List (List F) :=
 def directSample (candidates : List Chunk) : Option (List Coefficient) :=
   FirstAccepted.boundedSample verifier coefficientCount candidates
 
+def selectedPositions (candidates : List Chunk) : List Nat :=
+  (((candidates.zipIdx).filter fun entry => verifier.accepts entry.1).map
+    Prod.snd).take coefficientCount
+
+def selectedPositionsValue (candidates : List Chunk) : Value :=
+  .array ((selectedPositions candidates).map Value.atom)
+
 def injectedCaseValue (candidates : List Chunk) : Value :=
   .array [chunkWordsValue candidates,
     .array ((packedDigestWords candidates).map fieldWordsValue),
-    optionCoefficientsValue (directSample candidates)]
+    optionCoefficientsValue (directSample candidates),
+    selectedPositionsValue candidates]
 
 def decodedCoefficient (candidate : Chunk) : Option Coefficient :=
   if verifier.accepts candidate then some (verifier.symbol candidate) else none
@@ -105,8 +114,6 @@ def decoderCaseValue (candidate : Chunk) : Value :=
     | some coefficient =>
         .array [.atom 1, coefficientValue coefficient,
           fieldValue (Phi81StrongSet.embedCoefficient coefficient)]]
-
-def initialState : State := Poseidon2.zeroState
 
 structure CoordinateTrace where
   coordinate : Nat
@@ -161,11 +168,12 @@ def transcriptEntryValue (entry : CoordinateTrace) : Value :=
     chunkWordsValue entry.candidates,
     optionScalarValue scalar,
     optionRingValue (scalar.map Phi81StrongSet.embedScalar),
-    fieldWordsValue entry.nextState]
+    fieldWordsValue entry.nextState,
+    selectedPositionsValue entry.candidates]
 
-def transcriptCount : Nat := 2
+def transcriptCount : Nat := PiRLCNonzero.SourceCount
 
-def transcriptValue : Value :=
+def transcriptValue (initialState : State) : Value :=
   let trace := computeTranscript transcriptCount 0 initialState
   .array [fieldWordsValue initialState,
     .atom transcriptCount,
@@ -186,16 +194,20 @@ def decoderCasesValue : Value :=
   .array ([0, 1, 2, 3, 4, 5, 65534, 65535].map fun value =>
     decoderCaseValue (chunkOfNat value))
 
-/-- Schema 1 fixes the sampler constants, direct boundary cases, and one
-two-coordinate concrete transcript execution. -/
-def parityValue : Value :=
-  .array [.atom 1,
+/-- Schema 2 records selected positions and all production sources, starting
+at the same nonzero PiCCS outgoing state as the complete PiRLC fixture. -/
+def parityValue (initialState : State) : Value :=
+  .array [.atom 2,
     parameterValue,
     decoderCasesValue,
     injectedCaseValue successCandidates,
     injectedCaseValue shortfallCandidates,
-    transcriptValue]
+    transcriptValue initialState]
 
-def render : String := parityValue.render
+def parityValueIO : IO Value := do
+  let computed ← PiCCSNonzero.computeIO
+  pure (parityValue computed.outgoingState)
+
+def render (initialState : State) : String := (parityValue initialState).render
 
 end NightstreamFPrime.Export.Stage1.PiRlcSamplerParity

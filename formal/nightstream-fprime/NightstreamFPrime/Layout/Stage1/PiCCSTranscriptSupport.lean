@@ -220,7 +220,7 @@ private theorem roundWiring_outputPrefix_supported
       (Duplex.Formal.OutputPrefix External PiCCSInputs.phaseOffset 718)
   exact projected.1
 
-private theorem challengeWiring_supported
+theorem challengeWiring_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :

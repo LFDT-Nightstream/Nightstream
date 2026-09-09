@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 
-use neo_ccs::Mat;
+use neo_ccs::{Mat, V1_1Evaluations};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::{PaperJointOracleInput, PaperJointRoundOracle};
 use neo_reductions::superneo_eval::{
@@ -19,6 +19,8 @@ use crate::MetalError;
 
 mod opening;
 mod support;
+
+use crate::oracle_error;
 use opening::MetalJointOpeningPlan;
 use support::*;
 
@@ -132,7 +134,7 @@ impl MetalSession {
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
-    ) -> Result<Option<Vec<Vec<[K; D]>>>, MetalError> {
+    ) -> Result<Option<Vec<V1_1Evaluations<K>>>, MetalError> {
         if witnesses.is_empty() || assignment_width > plan.blocks * D {
             return Err(MetalError::Shape("one-joint PiDEC opening shape is invalid"));
         }
@@ -167,27 +169,14 @@ impl MetalSession {
         }
         let masks =
             self.prepare_witness_digit_masks(&mask_words, witnesses.len(), plan.blocks, magnitudes, assignment_width)?;
-        let openings = self
-            .eval_joint_openings(
-                &plan.opening,
-                plan.seeded.as_ref(),
-                &masks,
-                point,
-                witnesses.len(),
-                assignment_width,
-            )?
-            .into_iter()
-            .map(|matrices| {
-                matrices
-                    .into_iter()
-                    .map(|coefficients| {
-                        coefficients
-                            .try_into()
-                            .map_err(|_| MetalError::Shape("one-joint PiDEC opening has the wrong ring degree"))
-                    })
-                    .collect()
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let openings = self.eval_joint_openings(
+            &plan.opening,
+            plan.seeded.as_ref(),
+            &masks,
+            point,
+            witnesses.len(),
+            assignment_width,
+        )?;
         Ok(Some(openings))
     }
 
@@ -679,15 +668,15 @@ impl MetalSession {
         }
         let running_count = input.running_witnesses.len();
         let fresh_count = input.fresh_witnesses.len();
-        let matrix_count = plan.matrix_count + 1;
+        let matrix_count = plan.matrix_count;
         let gamma = input.challenges.gamma;
         let carried_coefficients = (0..running_count)
             .map(|running| k_power(gamma, running))
             .collect::<Vec<_>>();
         let weights = std::array::from_fn(|coefficient| k_power(gamma, running_count * matrix_count * coefficient));
-        let identity_coefficient = k_power(gamma, 2 * fresh_count + running_count);
+        let identity_coefficient = K::ONE;
         let matrix_coefficients = (0..plan.matrix_count)
-            .map(|matrix| k_power(gamma, 2 * fresh_count + running_count + running_count * (matrix + 1)))
+            .map(|matrix| k_power(gamma, running_count * D + running_count * matrix))
             .collect::<Vec<_>>();
         let coeffs = self.buffer_from_slice(&k_words(&carried_coefficients))?;
         let mat_coeffs = self.buffer_from_slice(&k_words(&matrix_coefficients))?;
@@ -773,17 +762,6 @@ impl MetalSession {
             matrix_shapes.push(matrix_shape);
         }
 
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_add_identity_carried);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&identity_coeff), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&identity_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(output), output_offset, 3);
-        }
-        self.dispatch(&encoder, &self.joint_add_identity_carried, input.dims.assignment_width);
-        encoder.endEncoding();
-
         let seeded_partials = if let Some(seeded) = &plan.seeded {
             let partial_values = seeded
                 .work_count
@@ -821,6 +799,33 @@ impl MetalSession {
         } else {
             None
         };
+        let pad_weights = std::array::from_fn(|coefficient| k_power(gamma, running_count * coefficient));
+        let (pad_re, pad_im) = weighted_projection_basis_forms(&pad_weights);
+        let pad_re = self.buffer_from_slice(&ring_words(&pad_re))?;
+        let pad_im = self.buffer_from_slice(&ring_words(&pad_im))?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.fe_weighted_basis_dots);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&pad_re), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&pad_im), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&z_re), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&z_im), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 5);
+        }
+        self.dispatch(&encoder, &self.fe_weighted_basis_dots, plane_len);
+        encoder.endEncoding();
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.joint_add_identity_carried);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&identity_coeff), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&identity_shape), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(output), output_offset, 3);
+        }
+        self.dispatch(&encoder, &self.joint_add_identity_carried, input.dims.assignment_width);
+        encoder.endEncoding();
+
         self.finish(&command)?;
         drop(matrix_shapes);
         drop(seeded_partials);
@@ -841,14 +846,14 @@ impl<'a> MetalPaperJointOracle<'a> {
             || input.dims.degree + 1 > MAX_COEFFICIENTS
             || input.dims.row_count < 2
         {
-            return Err(protocol_error(MetalError::Shape(
+            return Err(oracle_error(MetalError::Shape(
                 "Metal one-joint oracle does not support this shape",
             )));
         }
         let fresh_count = input.fresh_witnesses.len();
         let opening_assignment_count = fresh_count + input.running_witnesses.len();
         if input.prior_point.is_some() != !input.running_witnesses.is_empty() {
-            return Err(protocol_error(MetalError::Shape(
+            return Err(oracle_error(MetalError::Shape(
                 "one-joint prior point and running witnesses disagree",
             )));
         }
@@ -866,12 +871,12 @@ impl<'a> MetalPaperJointOracle<'a> {
             .collect::<Result<Vec<_>, _>>()?;
         for blocks in &source_blocks {
             let words = blocks.signed_digit_masks(input.params.b).ok_or_else(|| {
-                protocol_error(MetalError::Shape(
+                oracle_error(MetalError::Shape(
                     "Metal one-joint witness is outside the configured radix alphabet",
                 ))
             })?;
             if words.len() != plan.blocks * 2 * magnitudes {
-                return Err(protocol_error(MetalError::Shape(
+                return Err(oracle_error(MetalError::Shape(
                     "Metal one-joint witness width does not match the matrix plan",
                 )));
             }
@@ -893,7 +898,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .collect::<Vec<_>>();
         let assignment_sources = session
             .buffer_from_slice(nonempty(&assignment_source_words))
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let masks = session
             .prepare_witness_digit_masks(
                 &mask_words,
@@ -902,7 +907,7 @@ impl<'a> MetalPaperJointOracle<'a> {
                 magnitudes,
                 input.structure.m,
             )
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let selective_f_prime = input.params.b == 2
             && neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
         let application_base = session
@@ -915,10 +920,10 @@ impl<'a> MetalPaperJointOracle<'a> {
                 input.dims.row_count,
                 selective_f_prime,
             )
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let (common, common_len) = session
             .build_joint_common_tables(plan, &input, &masks, has_carried)
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
 
         let application_count = fresh_count * plan.matrix_count;
         let application_len = input.structure.n;
@@ -930,49 +935,48 @@ impl<'a> MetalPaperJointOracle<'a> {
         let application_k = [
             session
                 .buffer(application_count * application_half * 2 * size_of::<u64>())
-                .map_err(protocol_error)?,
+                .map_err(oracle_error)?,
             session
                 .buffer(application_count * application_quarter * 2 * size_of::<u64>())
-                .map_err(protocol_error)?,
+                .map_err(oracle_error)?,
         ];
         let assignments_k = [
             session
                 .buffer(assignment_count * assignment_half * 2 * size_of::<u64>())
-                .map_err(protocol_error)?,
+                .map_err(oracle_error)?,
             session
                 .buffer(assignment_count * assignment_quarter * 2 * size_of::<u64>())
-                .map_err(protocol_error)?,
+                .map_err(oracle_error)?,
         ];
 
+        let constraint_exponent = input.running_witnesses.len() * D * (plan.matrix_count + 1);
         let mut weights = Vec::with_capacity(fresh_count + assignment_count);
-        weights.extend((0..fresh_count).map(|source| k_power(input.challenges.gamma, source)));
+        weights.extend((0..fresh_count).map(|source| k_power(input.challenges.gamma, constraint_exponent + source)));
         weights.extend(
             assignment_source_indices
                 .iter()
-                .map(|&source| k_power(input.challenges.gamma, fresh_count + source)),
+                .map(|&source| k_power(input.challenges.gamma, constraint_exponent + fresh_count + source)),
         );
         let weights = session
             .buffer_from_slice(&k_words(&weights))
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let (term_headers, term_variables) = joint_term_metadata(input.structure)?;
         let term_headers = session
             .buffer_from_slice(&term_headers)
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let term_variables = session
             .buffer_from_slice(nonempty(&term_variables))
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let coefficient_count = input.dims.degree + 1;
         let active_len = input.structure.n.max(input.dims.assignment_width);
         let groups = active_len.div_ceil(2).div_ceil(64).max(1);
         let partials = session
             .buffer(groups * coefficient_count * 2 * size_of::<u64>())
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let output = session
             .buffer(coefficient_count * 2 * size_of::<u64>())
-            .map_err(protocol_error)?;
-        let challenge = session
-            .buffer(2 * size_of::<u64>())
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
+        let challenge = session.buffer(2 * size_of::<u64>()).map_err(oracle_error)?;
         let alpha_point = input.challenges.alpha.clone();
         let prior_point = has_carried.then(|| {
             input
@@ -988,7 +992,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .max(1);
         let equality_chunks = session
             .buffer_from_slice(&equality_suffix_chunk_words(&alpha_point, equality_chunks_per_round))
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
         let prior_equality_chunks = session
             .buffer_from_slice(
                 prior_point
@@ -997,7 +1001,7 @@ impl<'a> MetalPaperJointOracle<'a> {
                     .as_deref()
                     .unwrap_or(&[0]),
             )
-            .map_err(protocol_error)?;
+            .map_err(oracle_error)?;
 
         Ok(Self {
             session,
@@ -1384,7 +1388,7 @@ fn compact_row_is_constant_one(matrix: &neo_reductions::superneo_eval::SuperneoM
 
 impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
     fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, neo_reductions::PiCcsError> {
-        let coefficients = self.round_coefficients().map_err(protocol_error)?;
+        let coefficients = self.round_coefficients().map_err(oracle_error)?;
         if self.selective_f_prime {
             if points.len() != coefficients.len()
                 || points
@@ -1392,7 +1396,7 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
                     .enumerate()
                     .any(|(index, &point)| point != K::from(F::from_u64(index as u64)))
             {
-                return Err(protocol_error(MetalError::Shape(
+                return Err(oracle_error(MetalError::Shape(
                     "selective one-joint oracle received non-canonical evaluation points",
                 )));
             }
@@ -1418,10 +1422,10 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
     }
 
     fn fold(&mut self, challenge: K) -> Result<(), neo_reductions::PiCcsError> {
-        self.fold_tables(challenge).map_err(protocol_error)
+        self.fold_tables(challenge).map_err(oracle_error)
     }
 
-    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<Vec<Vec<K>>>>, neo_reductions::PiCcsError> {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
         self.application_base = None;
         self.application_k = None;
         self.assignments_k = None;
@@ -1436,6 +1440,6 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
                 self.assignment_width,
             )
             .map(Some)
-            .map_err(protocol_error)
+            .map_err(oracle_error)
     }
 }

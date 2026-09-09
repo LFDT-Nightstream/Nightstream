@@ -328,7 +328,7 @@ fn wasm_nebula_terminal_only_rejects_earlier_fold_tamper() {
 
     let mut backend = MetalNifsProver::new().expect("Metal opening verifier");
     neo_fold_clean::lifecycle::verify_uncompressed_with_opening_backend(
-        &fixture.prep.inner().prep,
+        fixture.prep.inner().preprocessing(),
         &tampered,
         &mut backend,
     )

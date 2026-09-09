@@ -652,14 +652,6 @@ fn packed_mod5_lean_artifact_matches_exact_production() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != rendered {
-        let expected = format!("{path}.expected");
-        std::fs::create_dir_all(
-            std::path::Path::new(&expected)
-                .parent()
-                .expect("generated artifact parent"),
-        )
-        .expect("create generated artifact directory");
-        std::fs::write(&expected, rendered).expect("write packed Mod-5 Lean artifact .expected");
-        panic!("packed Mod-5 Lean artifact drifted; inspect {expected} and deliberately promote it");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

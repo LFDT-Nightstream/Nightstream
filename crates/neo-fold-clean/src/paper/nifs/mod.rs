@@ -59,6 +59,9 @@
 //! This module selects one complete implementation and composes it.
 
 mod backend;
+// Legacy circuit API used by native frontends and constraint conformance
+// tests. Stage 1 uses the separate Lean package boundary.
+#[allow(dead_code, unused_imports)]
 pub mod circuit;
 mod crosscheck;
 mod fixed;

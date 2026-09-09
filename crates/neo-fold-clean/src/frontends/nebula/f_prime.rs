@@ -9,6 +9,7 @@ mod constraint_source_audit;
 mod constraint_witness_audit;
 mod encoder_artifact;
 mod relation_artifact;
+mod semantic_state;
 mod shape;
 mod streaming_claim_replay;
 mod streaming_lifecycle_fixed_point;
@@ -255,7 +256,7 @@ pub enum NebulaFPrimeError {
     #[error(transparent)]
     App(#[from] crate::frontends::direct_ccs::FrontendError),
     #[error(transparent)]
-    R1csIvc(#[from] crate::frontends::r1cs_f_prime::ivc::R1csIvcError),
+    SemanticState(#[from] semantic_state::SemanticStateError),
     #[error("composed Nebula F': FPrimeStepConfig has no Nebula configuration")]
     MissingNebulaConfig,
     #[error("composed Nebula F': S_mem public step width {actual} != configured width {expected}")]
@@ -273,7 +274,7 @@ pub enum NebulaFPrimeRelationError {
     #[error(transparent)]
     Application(#[from] ApplicationError),
     #[error(transparent)]
-    R1csIvc(#[from] crate::frontends::r1cs_f_prime::ivc::R1csIvcError),
+    SemanticState(#[from] semantic_state::SemanticStateError),
     #[error(transparent)]
     LowNorm(#[from] LowNormR1csError),
     #[error(transparent)]
@@ -1091,13 +1092,7 @@ pub fn enforce_nebula_application_f_prime_base_step(
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
     if let Some(semantic) = current.semantic {
         builder.begin_encoding_stage(fprime_stage::BASE_SEMANTIC_LINKS);
-        crate::frontends::r1cs_f_prime::ivc::shape::bind_semantic_state(
-            builder,
-            application.recursive_plan(),
-            &f_prime,
-            semantic,
-            true,
-        );
+        semantic_state::bind_semantic_state(builder, application.recursive_plan(), &f_prime, semantic, true);
     }
     Ok(NebulaFPrimeStepOutput {
         f_prime,
@@ -1133,13 +1128,7 @@ pub fn enforce_nebula_application_f_prime_recursive_step(
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
     if let Some(semantic) = current.semantic {
         builder.begin_encoding_stage(fprime_stage::RECURSIVE_SEMANTIC_LINKS);
-        crate::frontends::r1cs_f_prime::ivc::shape::bind_semantic_state(
-            builder,
-            application.recursive_plan(),
-            &f_prime,
-            semantic,
-            false,
-        );
+        semantic_state::bind_semantic_state(builder, application.recursive_plan(), &f_prime, semantic, false);
     }
     Ok(NebulaFPrimeStepOutput {
         f_prime,
@@ -1153,7 +1142,7 @@ struct CurrentApplication {
     s_mem: Vec<Var>,
     application: Vec<Var>,
     public_suffix: Vec<Var>,
-    semantic: Option<crate::frontends::r1cs_f_prime::ivc::shape::SemanticWires>,
+    semantic: Option<semantic_state::SemanticWires>,
 }
 
 fn enforce_current_application(
@@ -1200,7 +1189,7 @@ fn enforce_current_application(
         let vars = application.shape().enforce_in_f_prime(
             builder,
             application_assignment,
-            crate::frontends::r1cs_f_prime::ivc::shape::pin_app_constant(application.recursive_plan()),
+            semantic_state::pin_app_constant(application.recursive_plan()),
         )?;
         builder.record_row_family("nebula.application.relation", relation_start);
         builder.record_column_family("nebula.application.relation", relation_column_start);
@@ -1223,7 +1212,7 @@ fn enforce_current_application(
         builder.record_column_family("nebula.application.memory_ports", memory_column_start);
         let semantic_start = builder.rows();
         let semantic_column_start = builder.witness().len();
-        let semantic = crate::frontends::r1cs_f_prime::ivc::shape::enforce_semantic_digests(
+        let semantic = semantic_state::enforce_semantic_digests(
             builder,
             application.recursive_plan(),
             application_assignment,

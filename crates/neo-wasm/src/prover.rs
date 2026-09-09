@@ -166,10 +166,6 @@ impl WasmProver {
         prep: &WasmNebulaPreprocessing,
         trace: &[WasmVmStep],
     ) -> Result<WasmNebulaProof, WasmNebulaError> {
-        if self.automatic && !self.supports(prep) {
-            self.fallback_to_cpu("the selected accelerator does not support this proof shape".to_owned());
-        }
-
         let result = prove_with_nifs_adapter(prep, self.adapter.as_mut(), trace);
         if self.automatic && self.backend != WasmProverBackend::CpuOptimized {
             if let Err(error) = &result {
@@ -191,11 +187,6 @@ impl WasmProver {
         }
     }
 
-    fn supports(&self, prep: &WasmNebulaPreprocessing) -> bool {
-        let _ = prep;
-        true
-    }
-
     fn fallback_to_cpu(&mut self, reason: String) {
         self.backend = WasmProverBackend::CpuOptimized;
         self.adapter = Box::new(OptimizedCpuNifsProver);
@@ -206,7 +197,7 @@ impl WasmProver {
 fn is_backend_error(error: &WasmNebulaError) -> bool {
     match error {
         WasmNebulaError::Chain(error) => match error {
-            neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeChainError::Lifecycle(error) => {
+            neo_fold_clean::frontends::nebula::NebulaFPrimeChainError::Lifecycle(error) => {
                 is_lifecycle_backend_error(error)
             }
             _ => false,
@@ -217,11 +208,27 @@ fn is_backend_error(error: &WasmNebulaError) -> bool {
 }
 
 fn is_lifecycle_backend_error(error: &neo_fold_clean::lifecycle::Error) -> bool {
-    matches!(
-        error,
-        neo_fold_clean::lifecycle::Error::Construction2(neo_fold_clean::paper::construction2::Error::Nifs(
-            neo_fold_clean::paper::nifs::Error::BackendUnavailable { .. }
-                | neo_fold_clean::paper::nifs::Error::BackendFailure { .. }
-        ))
-    )
+    use neo_fold_clean::{
+        engine::optimized,
+        lifecycle,
+        paper::{construction2, nifs, pi_ccs, pi_dec, pi_rlc},
+    };
+
+    let lifecycle::Error::Construction2(construction2::Error::Nifs(error)) = error else {
+        return false;
+    };
+    match error {
+        nifs::Error::BackendUnavailable { .. } | nifs::Error::BackendFailure { .. } => true,
+        nifs::Error::PiCcs(pi_ccs::Error::Engine(error))
+        | nifs::Error::PiDec(pi_dec::Error::Engine(error))
+        | nifs::Error::PiRlc(pi_rlc::Error::Engine(error)) => matches!(
+            error,
+            optimized::Error::Reductions(neo_reductions::PiCcsError::BackendFailure { .. })
+        ),
+        _ => false,
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/prover_errors.rs"]
+mod prover_errors;

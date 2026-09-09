@@ -235,7 +235,7 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
     let running_claims = vec![zero_claim.clone(); manifest.running_claim_count()];
     let running_witnesses = vec![zero_witness; manifest.running_claim_count()];
     let acc_digest = AccumulatorHandle::from_running_parts(2, &running_claims, Some(&zero_claim)).digest();
-    let z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
+    let z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len());
 
     let placeholder = CcsClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
@@ -284,7 +284,7 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
         ));
         let digest = state_x_out_digest_with_mode(
             StateXOutDigestMode::Stateless,
-            prep.vk.digest(),
+            prep.verifier_key().digest(),
             prep.pi_ccs_header_bundle(),
             prep.structure_digest(),
             step_count,
@@ -405,7 +405,7 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
         0,
         1,
         D,
-        prep.params.kappa() as usize,
+        prep.params().kappa() as usize,
         setup.manifest().public_carrier_width(),
     ));
     post_state.chunk_count = 1;
@@ -413,7 +413,7 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
     post_state.z_i = boundary;
     post_state.public_trace = boundary;
     let default_running = RunningInstance::canonical_zero(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         setup.manifest().public_carrier_width(),
         neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
@@ -430,7 +430,7 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
     };
     let expected = state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         state.chunk_count,
@@ -484,7 +484,7 @@ fn combined_manifest_owned_lifecycle_proves_and_verifies() {
         0,
         1,
         D,
-        prep.params.kappa() as usize,
+        prep.params().kappa() as usize,
         setup.manifest().public_carrier_width(),
     ));
     post_state.chunk_count = 1;
@@ -492,7 +492,7 @@ fn combined_manifest_owned_lifecycle_proves_and_verifies() {
     post_state.z_i = boundary;
     post_state.public_trace = boundary;
     let default_running = RunningInstance::canonical_zero(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         setup.manifest().public_carrier_width(),
         neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
@@ -508,7 +508,7 @@ fn combined_manifest_owned_lifecycle_proves_and_verifies() {
     };
     let expected = state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         post_state.chunk_count,
@@ -907,7 +907,7 @@ fn terminal_statement_guard_audit_covers_every_native_statement_check() {
     };
     let x_out = state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         state.chunk_count,
@@ -921,7 +921,7 @@ fn terminal_statement_guard_audit_covers_every_native_statement_check() {
         None,
     );
     let image = neo_fold_clean::PublicImage {
-        vk_fs_digest: prep.vk.digest(),
+        vk_fs_digest: prep.verifier_key().digest(),
         chunk_count: state.chunk_count,
         step_count: state.step_count,
         z_0: state.z_0,

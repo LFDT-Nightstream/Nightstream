@@ -64,6 +64,10 @@ fn inspect_sealed(arguments: &mut impl Iterator<Item = std::ffi::OsString>) -> R
     println!("structural_identity={:?}", package.structural_identifier());
     println!("package_identity={:?}", binding.package_identity());
     println!("verifier_context={:?}", binding.verifier_context().digest());
+    println!(
+        "verifier_context_descriptor={:?}",
+        binding.verifier_context().descriptor_words()
+    );
     println!("verification_key_digest={:?}", binding.verification_key_digest());
     println!(
         "authority_lengths={:?}",

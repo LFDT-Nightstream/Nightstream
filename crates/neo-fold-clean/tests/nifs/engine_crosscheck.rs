@@ -6,15 +6,15 @@ use std::{fs, path::PathBuf};
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::r1cs_f_prime::production::{
-    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1ProofInputs,
-};
 use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::nifs::{
     self, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsProof, NifsProverAdapter, NifsProverRequest,
     OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
 use neo_fold_clean::paper::relations::{CeClaim, LaneRanges, LaneScheme};
+use neo_fold_clean::stage1::{
+    encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1ProofInputs,
+};
 use neo_math::{KExtensions, D, F, K};
 use nightstream_fprime::{
     load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_MATRIX_COUNT,
@@ -34,7 +34,7 @@ fn parity_path() -> PathBuf {
 }
 
 fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
-    RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Plain)
+    RunningInstance::canonical_zero(prep.params(), prep.structure(), D, LaneCommitmentMode::Plain)
         .expect("canonical nonempty SuperNeo accumulator")
 }
 
@@ -73,10 +73,10 @@ fn crosscheck_rectangular_case(rows: usize, columns: usize, seed: u64) {
     nifs::prove_with_adapter(
         &mut prover,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -97,10 +97,10 @@ fn paper_exact_and_optimized_cpu_nifs_are_byte_exact() {
     let (optimized_running, optimized_proof) = nifs::prove_with_adapter(
         &mut optimized,
         &mut optimized_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -114,10 +114,10 @@ fn paper_exact_and_optimized_cpu_nifs_are_byte_exact() {
     let (reference_running, reference_proof) = nifs::prove_with_adapter(
         &mut paper_exact,
         &mut reference_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -226,10 +226,10 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
         .expect("package-owned verifier binding");
     assert_eq!(binding.package_identity(), POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
     let verifier_context = binding.verifier_context().clone();
-    let verifier_key_digest = verifier_context.digest().map(F::from_u64);
+    let verifier_context_digest = binding.verifier_context().digest().map(F::from_u64);
     let z0 = [F::from_u64(201), F::from_u64(202), F::from_u64(203), F::from_u64(204)];
     let current = [F::from_u64(301), F::from_u64(302), F::from_u64(303), F::from_u64(304)];
-    let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_key_digest, 7, z0, current, &running, 1)
+    let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(verifier_context_digest, 7, z0, current, &running, 1)
         .expect("canonical Lean prior-state preimage");
     assert_eq!(prior_preimage.len(), PI_CCS_V1_1_STATE_PREIMAGE_WORDS);
     assert_eq!(
@@ -256,7 +256,8 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
 
     let lean_preimage: Vec<u64> = serde_json::from_value(parity_input[0].clone()).expect("Lean state preimage");
     let lean_digest: [u64; 4] = serde_json::from_value(parity_input[3].clone()).expect("Lean state digest");
-    let lean_context: [u64; 4] = serde_json::from_value(parity_input[4].clone()).expect("Lean verifier context");
+    let lean_verifier_context: [u64; 4] =
+        serde_json::from_value(parity_input[4].clone()).expect("Lean verifier-context digest");
     let lean_public_input: Vec<u64> = serde_json::from_value(parity_input[2].clone()).expect("Lean state public input");
     assert_eq!(
         pi_ccs_v1_1_state_hash(&lean_preimage).expect("Lean preimage replay"),
@@ -266,8 +267,8 @@ fn nonzero_pi_ccs_messages_map_to_the_lean_package_without_offsets() {
         encode_pi_ccs_v1_1_public_input(lean_digest).expect("Lean public-input replay"),
         lean_public_input,
     );
-    assert_eq!(&lean_preimage[24..28], lean_context);
-    assert_eq!(verifier_context.digest(), lean_context);
+    assert_eq!(&lean_preimage[24..28], lean_verifier_context);
+    assert_eq!(binding.verifier_context().digest(), lean_verifier_context);
 
     let inputs = bridge
         .into_package_inputs(
@@ -303,10 +304,10 @@ fn crosscheck_nifs_covers_a_carried_accumulator() {
     let (running, _) = nifs::prove_with_adapter(
         &mut crosscheck,
         &mut first_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -324,10 +325,10 @@ fn crosscheck_nifs_covers_a_carried_accumulator() {
     let (next_running, proof) = nifs::prove_with_adapter(
         &mut crosscheck,
         &mut second_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -339,7 +340,7 @@ fn crosscheck_nifs_covers_a_carried_accumulator() {
     let mut verifier_transcript = Transcript::session();
     let verified = nifs::verify(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -359,7 +360,7 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
     let r1cs = rectangular_relation(2, columns);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4e49_4653_4144_5631).expect("adv preprocess");
     let lanes = LaneScheme::from_seeds(
-        prep.params.kappa() as usize,
+        prep.params().kappa() as usize,
         LaneRanges {
             ops: 0..1,
             is: 1..2,
@@ -376,7 +377,7 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
         instance
     };
     let initial_running =
-        RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Nebula)
+        RunningInstance::canonical_zero(prep.params(), prep.structure(), D, LaneCommitmentMode::Nebula)
             .expect("canonical Nebula accumulator");
 
     let mut prover = CrosscheckNifsProver;
@@ -384,10 +385,10 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
     let (running, _) = nifs::prove_with_adapter(
         &mut prover,
         &mut first_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         Some(&lanes),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -400,10 +401,10 @@ fn crosscheck_nifs_covers_carried_auxiliary_commitments() {
     nifs::prove_with_adapter(
         &mut prover,
         &mut second_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         Some(&lanes),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -426,10 +427,10 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
     let (_, proof) = nifs::prove_with_adapter(
         &mut OptimizedCpuNifsProver,
         &mut prover_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -443,7 +444,7 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
     let mut rlc_transcript = Transcript::session();
     assert!(nifs::verify_paper_exact(
         &mut rlc_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -458,7 +459,7 @@ fn paper_exact_verifier_rejects_pi_rlc_and_pi_dec_value_mutations() {
     let mut dec_transcript = Transcript::session();
     assert!(nifs::verify_paper_exact(
         &mut dec_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -478,10 +479,10 @@ fn complete_nifs_comparator_rejects_a_round_mutation() {
     let (running, proof) = nifs::prove_with_adapter(
         &mut optimized,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -567,10 +568,10 @@ fn accelerator_crosscheck_accepts_an_exact_optimized_backend() {
     nifs::prove_with_adapter(
         &mut crosscheck,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -588,10 +589,10 @@ fn accelerator_crosscheck_rejects_a_backend_round_mutation() {
     assert!(nifs::prove_with_adapter(
         &mut crosscheck,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -609,10 +610,10 @@ fn accelerator_crosscheck_rejects_a_backend_witness_mutation() {
     assert!(nifs::prove_with_adapter(
         &mut crosscheck,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),

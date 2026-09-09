@@ -106,12 +106,6 @@ fn lean_increment_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, &emitted).expect("write .expected artifact");
-        panic!(
-            "generated Lean u64-increment artifact drifted from the committed file.\n\
-             Wrote the regenerated version to {expected_path}.\n\
-             Inspect the diff, copy it over {path}, and rebuild the Lean project."
-        );
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

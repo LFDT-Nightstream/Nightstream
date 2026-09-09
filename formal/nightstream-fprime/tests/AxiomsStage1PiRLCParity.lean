@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 /-! Axiom audits for the fast PiCCS and indexed PiRLC value-parity path. -/
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.stateVerifierKey_length
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.stateVerifierKey_eq_productionContext
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.initialClaimFast_eq_initial
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.powerFast_eq_power
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNonzero.padTerminalFast_eq_paper

@@ -10,7 +10,7 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
-    RunningInstance::canonical_zero(&prep.params, prep.structure(), D, LaneCommitmentMode::Plain)
+    RunningInstance::canonical_zero(prep.params(), prep.structure(), D, LaneCommitmentMode::Plain)
         .expect("canonical nonempty SuperNeo accumulator")
 }
 
@@ -24,10 +24,10 @@ fn nifs_prove_verify_round_trip_matches_children() {
     let mut prover_tr = Transcript::session();
     let (next_running, proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -39,7 +39,7 @@ fn nifs_prove_verify_round_trip_matches_children() {
     let mut verifier_tr = Transcript::session();
     let verified_children = nifs::verify(
         &mut verifier_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -66,10 +66,10 @@ fn nifs_cpu_adapter_matches_prover_contract() {
     let (next_running, proof) = nifs::prove_with_adapter(
         &mut adapter,
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -81,7 +81,7 @@ fn nifs_cpu_adapter_matches_prover_contract() {
     let mut verifier_tr = Transcript::session();
     let verified_children = nifs::verify(
         &mut verifier_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -106,10 +106,10 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
     let mut prover_tr = Transcript::session();
     let (_, proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -121,7 +121,7 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
     let mut replay_tr = Transcript::session();
     let ccs_outputs = pi_ccs::verify(
         &mut replay_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         &fresh_claims,
@@ -129,10 +129,10 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
         &proof.pi_ccs,
     )
     .expect("Pi_CCS replay");
-    let rhos = pi_rlc::derive_rhos_for_inputs(&mut replay_tr, &prep.params, &ccs_outputs).expect("Pi_RLC rhos");
+    let rhos = pi_rlc::derive_rhos_for_inputs(&mut replay_tr, prep.params(), &ccs_outputs).expect("Pi_RLC rhos");
     let mix = prep.mix_rhos_commits();
     let ok = neo_fold_clean::engine::optimized::verify_pi_rlc(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         &rhos,
         &ccs_outputs,
@@ -145,7 +145,7 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
     let mut verifier_tr = Transcript::session();
     nifs::verify(
         &mut verifier_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -164,10 +164,10 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     let mut tr0 = Transcript::session();
     let (running, _) = nifs::prove(
         &mut tr0,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -185,10 +185,10 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     let mut tr1 = Transcript::session();
     let (_, proof) = nifs::prove(
         &mut tr1,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -200,7 +200,7 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     let mut baseline_tr = Transcript::session();
     nifs::verify(
         &mut baseline_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -222,7 +222,7 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     assert!(
         nifs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),
@@ -243,10 +243,10 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
     let mut tr0 = Transcript::session();
     let (running, _) = nifs::prove(
         &mut tr0,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -260,10 +260,10 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
     let mut tr1 = Transcript::session();
     let (_, proof) = nifs::prove(
         &mut tr1,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -278,7 +278,7 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
     assert!(
         nifs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),
@@ -302,10 +302,10 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -317,7 +317,7 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     let mut baseline_tr = Transcript::session();
     nifs::verify(
         &mut baseline_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -334,7 +334,7 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     assert!(
         nifs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),
@@ -369,10 +369,10 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -384,7 +384,7 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     let mut baseline_tr = Transcript::session();
     pi_ccs::verify(
         &mut baseline_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         &fresh_claims,
@@ -403,7 +403,7 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     assert!(
         pi_ccs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             &fresh_claims,
@@ -425,10 +425,10 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -440,7 +440,7 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     let mut baseline_tr = Transcript::session();
     nifs::verify(
         &mut baseline_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -457,7 +457,7 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     assert!(
         nifs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),
@@ -481,10 +481,10 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
     let mut prover_tr = Transcript::session();
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -499,7 +499,7 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
     assert!(
         nifs::verify(
             &mut verifier_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),

@@ -4,7 +4,6 @@ use neo_math::{KExtensions, Rq, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{EQUALITY_CHUNK_BITS, EQUALITY_CHUNK_VALUES};
-use crate::MetalError;
 
 pub(super) fn joint_term_metadata(
     structure: &neo_ccs::CcsStructure<F>,
@@ -86,8 +85,4 @@ pub(super) fn nonempty(values: &[u64]) -> &[u64] {
     } else {
         values
     }
-}
-
-pub(super) fn protocol_error(error: MetalError) -> neo_reductions::PiCcsError {
-    neo_reductions::PiCcsError::ProtocolError(format!("Metal one-joint oracle: {error}"))
 }

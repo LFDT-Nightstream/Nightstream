@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
+import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.RetainedValues
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
 
@@ -19,91 +20,26 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Poseidon2.Duplex
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-
-def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
-    (prefixAssignment :
-      Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F) :
-    Fin (PiCCSPoseidonPlan.sourceWidth program) → F :=
-  PiCCSActionPayloadBlock.sourceAssignment program prefixAssignment
-
-theorem sourceToSpartan_lt_basePackage (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column <
-      PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-  have mapped := NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt
-    column bound
-  rw [NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_eq] at mapped
-  simpa [PiRLCProductPlan.basePackage] using mapped
-
-def logicalPackageColumn (program : Lifecycle.Stage1.Application.Program)
-    (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
-    Fin (PiRLCProductPlan.baseSourceWidth program) :=
-  PiRLCProductPlan.shiftedPackageColumn program
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
-
-/-- PiCCS payload expressions read every shifted base-package column from the
-base assignment. PiRLC-derived suffixes cannot alias private or public inputs. -/
-theorem packageEnv_sourceAssignment
-    (program : Lifecycle.Stage1.Application.Program)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (column : Nat)
-    (bound : column <
-      NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
-    PiCCSActionPayloadBlock.packageEnv program
-        (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) column =
-      base (logicalPackageColumn program column bound) := by
-  let mapped := NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column
-  let mappedBound := sourceToSpartan_lt_basePackage column bound
-  have shiftedBase : PerApplicationPackage.shiftColumn program mapped <
-      PiRLCProductPlan.baseSourceWidth program :=
-    PiRLCProductPlan.shiftColumn_lt_baseSourceWidth program mapped mappedBound
-  have shiftedPrefix :
-      PerApplicationPackage.shiftColumn program mapped <
-        PiCCSActionPayloadBlock.prefixSourceWidth program := by
-    unfold PiCCSActionPayloadBlock.prefixSourceWidth
-      PiRLCRetainedGeometry.sourceWidth
-      PiRLCFirst54DirectPlan.sourceWidth
-      PiRLCFirst54DirectPlan.prefixSourceWidth
-      PiRLCProductPlan.sourceWidth ProductRetainedBlock.sourceWidth
-      FieldSuffixBlock.sourceWidth
-    omega
-  unfold PiCCSActionPayloadBlock.packageEnv
-    NightstreamFPrime.Layout.Stage1.Spartan.pullback
-    PerApplicationPackage.baseEnv SourceCompiler.sourceEnv
-  rw [dif_pos shiftedPrefix]
-  rw [show
-      (⟨PerApplicationPackage.shiftColumn program mapped, shiftedPrefix⟩ :
-        Fin (PiCCSActionPayloadBlock.prefixSourceWidth program)) =
-        PiRLCRetainedPreservation.baseSourceColumn program
-          (PiRLCProductPlan.shiftedPackageColumn program mapped mappedBound) by
-    apply Fin.ext
-    rfl]
-  rw [PiRLCRetainedPreservation.sourceAssignment_base]
-  rfl
+open NightstreamFPrime.Export.Package
 
 structure Encoding {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    {logicalWidth : Nat} (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F) : Prop where
-  payload : (PiCCSActionPayloadBlock.block program).EncodesAt
-    (PiCCSActionPayloadBlock.payloadStart program)
-    (PiCCSPoseidonPlan.payloadFits geometry) assignment
-    (sourceAssignment program prefixAssignment)
+  payload : ∀ index, (payloadForms index).eval assignment =
+    PiCCSActionPayloadBlock.payloadValue program prefixAssignment index
   sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
     (PiCCSPoseidonPlan.retainedStart program)
     (PiCCSPoseidonPlan.retainedFits geometry) assignment
     (sourceAssignment program prefixAssignment)
 
 /-- The canonical parent retained block supplies the PiCCS S-box slice. The
-payload block is the only additional encoding obligation. -/
+parent proves each payload value through its own source map. -/
 theorem encodingOfRetained
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
@@ -114,11 +50,9 @@ theorem encodingOfRetained
     (retained : (PiRLCRetainedGeometry.laterPoseidonBlock program).EncodesAt
       (PiRLCRetainedGeometry.laterPoseidonStart program) parentFits assignment
       prefixAssignment)
-    (payload : (PiCCSActionPayloadBlock.block program).EncodesAt
-      (PiCCSActionPayloadBlock.payloadStart program)
-      (PiCCSPoseidonPlan.payloadFits geometry) assignment
-      (sourceAssignment program prefixAssignment)) :
-    Encoding geometry assignment prefixAssignment := by
+    (payload : ∀ index, (payloadForms index).eval assignment =
+      PiCCSActionPayloadBlock.payloadValue program prefixAssignment index) :
+    Encoding payloadForms geometry assignment prefixAssignment := by
   refine ⟨payload, ?_⟩
   exact PiCCSPoseidonPlan.retainedBlock_encodesAt geometry assignment
     prefixAssignment parentFits retained
@@ -136,21 +70,19 @@ def payloadLaneValue (program : Lifecycle.Stage1.Application.Program)
 
 theorem payloadForm_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (encoding : Encoding geometry assignment prefixAssignment)
+    (encoding : Encoding payloadForms geometry assignment prefixAssignment)
     (invocation : Fin PiCCSPoseidonPlan.invocationCount)
     (lane : Fin Spec.Poseidon2.width) :
-    (PiCCSPoseidonPlan.payloadForm geometry invocation lane).eval assignment =
+    (PiCCSPoseidonPlan.payloadForm payloadForms invocation lane).eval assignment =
       payloadLaneValue program prefixAssignment invocation lane := by
   unfold PiCCSPoseidonPlan.payloadForm payloadLaneValue
   split
-  · rw [LowNormBlock.Block.form_eval]
-    · exact PiCCSActionPayloadBlock.block_sourceAssignment
-        program prefixAssignment _
-    · exact encoding.payload
+  · exact encoding.payload _
   · exact SparseForm.empty_eval assignment
 
 theorem payloadLaneValue_absorb
@@ -237,17 +169,18 @@ def outputValue {program : Lifecycle.Stage1.Application.Program}
     (invocation : Fin PiCCSPoseidonPlan.invocationCount) :
     NightstreamFPrime.Gadgets.Poseidon2.Layer.FState :=
   SparseLayer.evalState assignment
-    ((PiCCSPoseidonPlan.interface geometry).output invocation)
+    (PiCCSPoseidonPlan.outputState geometry invocation)
 
 /-- Every retained final-state lane reconstructs the exact canonical source
 value selected by the PiCCS Poseidon schedule. -/
 theorem outputValue_sourceAssignment
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    {payloadForms : PiCCSPoseidonPlan.Payload logicalWidth}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (encoding : Encoding geometry assignment prefixAssignment)
+    (encoding : Encoding payloadForms geometry assignment prefixAssignment)
     (invocation : Fin PiCCSPoseidonPlan.invocationCount) :
     outputValue geometry assignment invocation =
       NightstreamFPrime.Gadgets.Poseidon2.Layer.externalF (fun lane =>
@@ -307,14 +240,15 @@ def canonicalInput {program : Lifecycle.Stage1.Application.Program}
 
 theorem inputState_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (encoding : Encoding geometry assignment prefixAssignment)
+    (encoding : Encoding payloadForms geometry assignment prefixAssignment)
     (invocation : Fin PiCCSPoseidonPlan.invocationCount) :
     SparseLayer.evalState assignment
-        (PiCCSPoseidonPlan.inputState geometry invocation) =
+        (PiCCSPoseidonPlan.inputState payloadForms geometry invocation) =
       canonicalInput geometry assignment prefixAssignment invocation := by
   funext lane
   unfold PiCCSPoseidonPlan.inputState canonicalInput
@@ -327,7 +261,7 @@ theorem inputState_eval
             previousValue geometry assignment invocation lane by
         exact congrFun
           (previousOutput_eval geometry assignment invocation) lane]
-      rw [payloadForm_eval geometry assignment prefixAssignment encoding]
+      rw [payloadForm_eval payloadForms geometry assignment prefixAssignment encoding]
   | squeezeFirst expected =>
       simp only [SparseLayer.evalState]
       exact congrFun (previousOutput_eval geometry assignment invocation) lane
@@ -462,12 +396,13 @@ def indexedSemantics
 
 theorem squeezeExpected_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (encoding : Encoding geometry assignment prefixAssignment)
-    (semantics : PiCCSPoseidonPlan.Semantics geometry assignment)
+    (encoding : Encoding payloadForms geometry assignment prefixAssignment)
+    (semantics : PiCCSPoseidonPlan.Semantics payloadForms geometry assignment)
     (current : Fin PiCCSPoseidonPlan.invocationCount)
     (expected : NightstreamFPrime.Circuit.Quadratic.KExpr)
     (found : PiCCSActionPayloadBlock.kindAt current = .squeezeFirst expected) :
@@ -475,9 +410,9 @@ theorem squeezeExpected_eval
       ⟨previousValue geometry assignment current 0,
         outputValue geometry assignment current 0⟩ := by
   have rowZero := semantics.squeezeBinding current (0 : Fin 2)
-  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_zero geometry current
+  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_zero payloadForms geometry current
     expected found, SparseForm.add_eval, SparseForm.scale_eval] at rowZero
-  rw [payloadForm_eval geometry assignment prefixAssignment encoding] at rowZero
+  rw [payloadForm_eval payloadForms geometry assignment prefixAssignment encoding] at rowZero
   rw [show
       (PiCCSPoseidonPlan.previousOutput geometry current 0).eval assignment =
         previousValue geometry assignment current 0 by
@@ -490,9 +425,9 @@ theorem squeezeExpected_eval
       payloadLaneValue_squeezeFirst_zero program prefixAssignment current
         expected found] using rowZero
   have rowOne := semantics.squeezeBinding current (1 : Fin 2)
-  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_one geometry current
+  rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_one payloadForms geometry current
     expected found, SparseForm.add_eval, SparseForm.scale_eval] at rowOne
-  rw [payloadForm_eval geometry assignment prefixAssignment encoding] at rowOne
+  rw [payloadForm_eval payloadForms geometry assignment prefixAssignment encoding] at rowOne
   have c1 : expected.c1.eval
       (PiCCSActionPayloadBlock.packageEnv program prefixAssignment) =
       outputValue geometry assignment current 0 := by
@@ -505,33 +440,34 @@ theorem squeezeExpected_eval
 
 theorem rowsZero_implies_canonicalSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (prefixAssignment :
       Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
-    (encoding : Encoding geometry assignment prefixAssignment)
+    (encoding : Encoding payloadForms geometry assignment prefixAssignment)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
-    (rowsZero : (PiCCSPoseidonPlan.plan geometry).RowsZero assignment) :
+    (rowsZero : (PiCCSPoseidonPlan.plan payloadForms geometry).RowsZero assignment) :
     CanonicalSemantics geometry assignment prefixAssignment := by
   have semantics := PiCCSPoseidonPlan.rowsZero_implies_semantics
-    geometry assignment one rowsZero
+    payloadForms geometry assignment one rowsZero
   refine ⟨?_, ?_⟩
   intro invocation
   calc
     List.ofFn (outputValue geometry assignment invocation) =
         Spec.Poseidon2.permute
           (List.ofFn (SparseLayer.evalState assignment
-            ((PiCCSPoseidonPlan.interface geometry).input invocation))) :=
+            ((PiCCSPoseidonPlan.interface payloadForms geometry).input invocation))) :=
       semantics.invocation invocation
     _ = Spec.Poseidon2.permute
           (List.ofFn
             (canonicalInput geometry assignment prefixAssignment invocation)) := by
       change Spec.Poseidon2.permute
           (List.ofFn (SparseLayer.evalState assignment
-            (PiCCSPoseidonPlan.inputState geometry invocation))) = _
-      rw [inputState_eval geometry assignment prefixAssignment encoding]
+            (PiCCSPoseidonPlan.inputState payloadForms geometry invocation))) = _
+      rw [inputState_eval payloadForms geometry assignment prefixAssignment encoding]
   · intro current expected found
-    exact squeezeExpected_eval geometry assignment prefixAssignment encoding
+    exact squeezeExpected_eval payloadForms geometry assignment prefixAssignment encoding
       semantics current expected found
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation

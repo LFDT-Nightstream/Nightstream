@@ -199,7 +199,7 @@ fn preprocessing(circuit: &neo_fold_clean::frontends::nebula::circuit::SMemCircu
 
 fn pi_ccs_config(prep: &Preprocessing) -> PiCcsVerifierConfig<'_> {
     PiCcsVerifierConfig {
-        params: &prep.params,
+        params: prep.params(),
         structure: prep.structure().into(),
         matrix_digest: prep.pi_ccs_header_bundle(),
     }
@@ -221,7 +221,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
     let public_input_len =
         FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(params.stack_shape())).total_len();
     let zero_running = RunningInstance::canonical_zero(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         public_input_len,
         LaneCommitmentMode::Nebula,
@@ -233,7 +233,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
 
     let empty_acc = AccumulatorHandle::empty().digest_fields();
     let state = FPrimeStateIn {
-        vk_fs_digest: digest32_as_fields(prep.vk.digest()),
+        vk_fs_digest: digest32_as_fields(prep.verifier_key().digest()),
         pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
@@ -282,7 +282,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
         .expect("S_mem witness");
 
     let chunk_digest =
-        f_prime_chunk_public_digest_for_uniform_shape(0, 1, D, prep.params.kappa() as usize, public_input_len);
+        f_prime_chunk_public_digest_for_uniform_shape(0, 1, D, prep.params().kappa() as usize, public_input_len);
     let expected_x_out = digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
@@ -307,7 +307,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
         nifs: NifsVCircuitConfig {
             pi_ccs: pi_ccs_config(&prep),
         },
-        b: prep.params.b(),
+        b: prep.params().b(),
         transcript_label: TRANSCRIPT_LABEL,
         public_input_layout: FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(
             params.stack_shape(),
@@ -695,7 +695,7 @@ fn run_single_segment_append() {
     let rom = [10];
     let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xD3; 32], params.kappa() as usize).expect("plan");
     let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xD3D3_0001).expect("fixed preprocessing");
-    assert!(prep.prep.enforces_terminal_induction());
+    assert!(prep.preprocessing().enforces_terminal_induction());
     let relation_artifact = prep
         .relation_artifact_json()
         .expect("exact recursive relation artifact");

@@ -66,8 +66,6 @@ fn production_recursive_lifecycle_mapping_matches_lean_artifact() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, emitted).expect("write .expected artifact");
-        panic!("generated Lean recursive-arm artifact drifted. Wrote {expected_path}; inspect and copy it over {path}");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

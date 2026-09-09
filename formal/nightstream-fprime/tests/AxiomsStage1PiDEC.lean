@@ -5,6 +5,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputBinding
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RingKRecomposition
@@ -28,6 +29,11 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 
 /-! Axiom audits for the strict production PiDEC public split. -/
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.terminalHolds_supplies_childOpenings
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.terminalHolds_extracts_parent
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.recursiveTerminal_supplies_childOpenings
 
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.parentBounded_project
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput_eq_boundedDigit

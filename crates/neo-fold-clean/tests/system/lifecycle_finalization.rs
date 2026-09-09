@@ -15,7 +15,7 @@ use neo_fold_clean::CcsInstance;
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: F) -> CcsInstance {
     let mut z = vec![F::ZERO; prep.structure().m];
     z[0] = x;
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
+    CcsInstance::from_low_norm_assignment(prep.params(), prep.commitment_scheme(), prep.structure(), &z, D)
         .expect("low-norm toy instance with chosen x")
 }
 
@@ -42,8 +42,14 @@ fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessin
     let invalid_low_norm = F::ZERO - F::ONE;
     let mut assignment = vec![F::ZERO; D];
     assignment[0] = invalid_low_norm;
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
-        .expect("shape-valid low-norm instance that intentionally violates z*z=z")
+    CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &assignment,
+        D,
+    )
+    .expect("shape-valid low-norm instance that intentionally violates z*z=z")
 }
 
 fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::RunningInstance {
@@ -538,9 +544,14 @@ fn finish_uncompressed_rejects_inconsistent_already_finalized_proof() {
 fn prove_rejects_public_input_len_mismatch() {
     let prep = support::toy_preprocessing();
     let z = vec![F::ZERO; prep.structure().m];
-    let mismatched =
-        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 0)
-            .expect("mismatched public-input split instance");
+    let mismatched = neo_fold_clean::CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &z,
+        0,
+    )
+    .expect("mismatched public-input split instance");
 
     assert!(
         matches!(
@@ -565,15 +576,15 @@ fn validate(
     statement: &neo_fold_clean::paper::decider::Statement,
 ) -> Result<(), neo_fold_clean::paper::decider::Error> {
     neo_fold_clean::paper::decider::validate_witness(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
-        prep.public_input_len,
+        prep.verifier_key(),
+        prep.public_input_len(),
         prep.enforces_f_prime_recursive_link(),
         prep.enforces_terminal_induction(),
         prep.semantic_state_mode(),
@@ -1129,7 +1140,7 @@ fn final_witness_authority_rejects_zero_witness_with_wrong_packed_shape() {
 fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
     let prep = support::toy_preprocessing_unfixed_public_input_len();
     assert!(
-        prep.public_input_len.is_none(),
+        prep.public_input_len().is_none(),
         "this test intentionally bypasses the program public_input_len guard so it reaches the structure-width guard"
     );
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 80)]])
@@ -1191,7 +1202,7 @@ fn final_witness_authority_rejects_zero_witness_partial_ring_public_input() {
 fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len() {
     let prep = support::toy_preprocessing();
     assert_eq!(
-        prep.public_input_len,
+        prep.public_input_len(),
         Some(D),
         "toy preprocessing fixes one complete public ring"
     );
@@ -1231,7 +1242,7 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
 fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_public_input_len() {
     let prep = support::toy_preprocessing();
     assert_eq!(
-        prep.public_input_len,
+        prep.public_input_len(),
         Some(D),
         "toy preprocessing fixes one complete public ring"
     );

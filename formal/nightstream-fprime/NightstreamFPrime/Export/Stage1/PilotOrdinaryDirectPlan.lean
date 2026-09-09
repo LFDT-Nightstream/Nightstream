@@ -335,6 +335,13 @@ theorem sourceAssignment_at
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource
     program base groupValue products location.sourceColumn
     location.stage1SourceColumn_lt]
+  rw [← RunningTransitionDirectPlan.transitionEnv_of_outside program base
+    location.sourceColumn location.stage1SourceColumn_lt (by
+      left
+      have bound := location.sourceColumn_lt
+      rw [PilotSpartan.sourceColumnCount_eq] at bound
+      rw [PiCCSInputs.phaseOffset_eq]
+      omega)]
   unfold pilotEnv
   rw [location.stage1Map]
 
@@ -572,19 +579,19 @@ theorem priorDigest_form_eval_chainOutput
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (env : Env)
+    (values : ∀ lane : Fin 4,
+      ((Location.priorDigest lane).form geometry).eval assignment =
+        env (PilotSpartan.sourceToSpartan (Location.priorDigest lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.priorDigest lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.priorChain
-        PilotData.priorChain.absorbCount (pilotEnv program base)
+        PilotData.priorChain.absorbCount env
         ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
-  rw [Location.form_eval geometry assignment base groupValue products encodes]
+  rw [values lane]
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
-  change pilotEnv program base
+  change env
       (PilotSpartan.sourceToSpartan
         (PilotProduction.priorDigestStart + lane.val)) = _
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn]
@@ -597,19 +604,19 @@ theorem outputState_form_eval_chainOutput
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (env : Env)
+    (values : ∀ lane : Fin 4,
+      ((Location.outputState lane).form geometry).eval assignment =
+        env (PilotSpartan.sourceToSpartan (Location.outputState lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.outputState lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.outputChain
-        PilotData.outputChain.absorbCount (pilotEnv program base)
+        PilotData.outputChain.absorbCount env
         ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
-  rw [Location.form_eval geometry assignment base groupValue products encodes]
+  rw [values lane]
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
-  change pilotEnv program base
+  change env
       (PilotSpartan.sourceToSpartan
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 592 + 584 + lane.val)) = _

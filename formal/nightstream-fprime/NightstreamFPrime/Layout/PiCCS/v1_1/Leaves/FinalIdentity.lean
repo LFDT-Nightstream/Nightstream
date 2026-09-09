@@ -9,7 +9,7 @@ Obligation: Lower
 `v = E_K + gamma^864 E_A + gamma^12960 eq(r', alpha) (F + gamma N)`.
 
 Inputs:
-- the 26-coordinate verifier-derived points `r'` and `alpha`;
+- the 28-coordinate verifier-derived points `r'` and `alpha`;
 - verifier-derived `gamma`;
 - separate `E_K` and `E_A`, `F`, `N`, and terminal `v` values.
 

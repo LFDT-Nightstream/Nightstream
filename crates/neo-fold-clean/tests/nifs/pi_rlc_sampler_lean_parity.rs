@@ -29,7 +29,7 @@ struct Artifact(
 struct DecoderCase(u64, u64, Vec<u64>);
 
 #[derive(Deserialize)]
-struct InjectedCase(Vec<u64>, Vec<[u64; 4]>, TaggedWords);
+struct InjectedCase(Vec<u64>, Vec<[u64; 4]>, TaggedWords, Vec<u64>);
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -66,6 +66,7 @@ struct TranscriptEntry(
     TaggedWords,
     TaggedWords,
     [u64; 8],
+    Vec<u64>,
 );
 
 #[derive(Deserialize)]
@@ -79,6 +80,12 @@ fn artifact_path() -> PathBuf {
 fn artifact() -> Artifact {
     serde_json::from_slice(&fs::read(artifact_path()).expect("Lean PiRLC sampler artifact"))
         .expect("canonical Lean PiRLC sampler JSON")
+}
+
+fn pi_rlc_artifact() -> serde_json::Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-pirlc-parity-v1.json");
+    serde_json::from_slice(&fs::read(path).expect("Lean PiRLC phase artifact")).expect("Lean PiRLC phase JSON")
 }
 
 fn field(word: u64) -> F {
@@ -117,10 +124,20 @@ fn expected_centered(indices: &[u64]) -> Vec<i8> {
         .collect()
 }
 
+fn selected_positions(candidates: &[u64]) -> Vec<u64> {
+    candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| **candidate != PI_RLC_V1_1_REJECTION_BUCKET as u64)
+        .take(D)
+        .map(|(position, _)| position as u64)
+        .collect()
+}
+
 #[test]
 fn direct_decoder_matches_lean_boundaries_and_fails_closed() {
     let Artifact(schema, parameters, decoder_cases, success, shortfall, _) = artifact();
-    assert_eq!(schema, 1);
+    assert_eq!(schema, 2);
     assert_eq!(parameters, [65_536, 65_535, 5, D as u64, 8, 8, 64]);
     assert_eq!(PI_RLC_V1_1_REJECTION_BUCKET, 65_535);
 
@@ -143,6 +160,12 @@ fn direct_decoder_matches_lean_boundaries_and_fails_closed() {
     assert_eq!(success.0.len(), 64);
     assert_eq!(success.1.len(), PI_RLC_V1_1_DIGEST_ROUNDS);
     assert_eq!(unpack_candidates(&success.1), success.0);
+    assert_eq!(selected_positions(&success.0), success.3);
+    assert_eq!(
+        success.3,
+        (10..64).collect::<Vec<_>>(),
+        "the last candidate supplies coefficient 54"
+    );
     let expected = expected_centered(success.2.words().expect("Lean success output"));
     assert_eq!(expected.len(), D);
     assert_eq!(
@@ -152,6 +175,12 @@ fn direct_decoder_matches_lean_boundaries_and_fails_closed() {
 
     assert_eq!(shortfall.0.len(), 64);
     assert_eq!(unpack_candidates(&shortfall.1), shortfall.0);
+    assert_eq!(selected_positions(&shortfall.0), shortfall.3);
+    assert_eq!(
+        shortfall.3,
+        (11..64).collect::<Vec<_>>(),
+        "only 53 positions survive rejection"
+    );
     assert!(shortfall.2.words().is_none(), "Lean shortfall must be none");
     let error = decode_pi_rlc_v1_1_coefficients(&digest_array(&shortfall.1)).expect_err("shortfall must reject");
     assert!(error.to_string().contains("sampler shortfall"));
@@ -159,13 +188,25 @@ fn direct_decoder_matches_lean_boundaries_and_fails_closed() {
 
 #[test]
 fn transcript_windows_and_both_engines_match_lean() {
-    let Artifact(_, _, _, _, _, TranscriptCase(initial, count, entries, final_state, accepted)) = artifact();
-    assert_eq!(initial, [0; 8]);
+    let Artifact(schema, _, _, _, _, TranscriptCase(initial, count, entries, final_state, accepted)) = artifact();
+    assert_eq!(schema, 2);
+    let phase = pi_rlc_artifact();
+    assert_eq!(phase[1][0], serde_json::json!(initial), "exact nonzero PiCCS handoff");
+    assert_eq!(
+        phase[2][9],
+        serde_json::json!(final_state),
+        "complete PiRLC sampler handoff"
+    );
+    assert_ne!(initial, [0; 8]);
+    assert_eq!(count, 17, "one fresh source and 16 running sources");
     assert_eq!(count, entries.len() as u64);
     assert_eq!(accepted, 1);
 
-    let mut replay = Poseidon2Transcript::new_v1_1();
-    for TranscriptEntry(coordinate, before, entered, blocks, candidates, scalar, ring, next) in &entries {
+    let mut replay = Poseidon2Transcript::from_state_and_absorbed(initial.map(field), 0);
+    for (source, TranscriptEntry(coordinate, before, entered, blocks, candidates, scalar, ring, next, positions)) in
+        entries.iter().enumerate()
+    {
+        assert_eq!(*coordinate, source as u64, "exact source domain index");
         assert_eq!(state_words(&replay), *before);
         replay.absorb_v1_1(&[F::from_u64(4), F::from_u64(*coordinate)]);
         assert_eq!(state_words(&replay), *entered);
@@ -179,16 +220,22 @@ fn transcript_windows_and_both_engines_match_lean() {
                 .squeeze_digest_v1_1()
                 .map(|value| value.as_canonical_u64());
             assert_eq!(actual, *digest);
-            let actual_candidates = unpack_candidates(std::slice::from_ref(digest));
+            let actual_candidates = unpack_candidates(std::slice::from_ref(&actual));
             assert_eq!(actual_candidates, block_candidates);
             replay_candidates.extend(actual_candidates);
-            replay_digests.push(*digest);
+            replay_digests.push(actual);
         }
         assert_eq!(replay_candidates, *candidates);
+        assert_eq!(selected_positions(&replay_candidates), *positions);
         let decoded = decode_pi_rlc_v1_1_coefficients(&digest_array(&replay_digests)).unwrap();
         let scalar_indices = scalar.words().expect("Lean transcript scalar");
+        assert_eq!(positions.len(), D);
+        for (coefficient, position) in positions.iter().enumerate() {
+            assert_eq!(scalar_indices[coefficient], replay_candidates[*position as usize] % 5);
+        }
         assert_eq!(decoded.as_slice(), expected_centered(scalar_indices));
         let ring_words = ring.words().expect("Lean transcript ring challenge");
+        assert_eq!(phase[2][1][source], serde_json::json!(ring_words));
         assert_eq!(ring_words.len(), D);
         for (actual, expected) in decoded.iter().zip(ring_words) {
             assert_eq!(field(*expected), F::from_i8(*actual));
@@ -198,10 +245,10 @@ fn transcript_windows_and_both_engines_match_lean() {
     assert_eq!(state_words(&replay), final_state);
 
     let params = Params::production();
-    let mut optimized_transcript = Poseidon2Transcript::new_v1_1();
+    let mut optimized_transcript = Poseidon2Transcript::from_state_and_absorbed(initial.map(field), 0);
     let optimized_rhos =
         optimized::sample_rho_n(&mut optimized_transcript, &params, entries.len()).expect("optimized PiRLC sampler");
-    let mut paper_transcript = Poseidon2Transcript::new_v1_1();
+    let mut paper_transcript = Poseidon2Transcript::from_state_and_absorbed(initial.map(field), 0);
     let paper_rhos =
         paper_exact::sample_rho_n(&mut paper_transcript, &params, entries.len()).expect("PaperExact PiRLC sampler");
 

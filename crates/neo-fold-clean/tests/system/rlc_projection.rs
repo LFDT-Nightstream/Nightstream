@@ -236,12 +236,12 @@ fn projection_variant_cost_beats_toom3() {
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::f_prime::projection_trace::{
     encode_projection_identity, encode_projection_pair, encode_projection_shared,
 };
 use neo_fold_clean::paper::relations::ajtai_rlc_mixer;
-use neo_fold_clean::paper::{nifs, pi_rlc};
+use neo_fold_clean::paper::{nifs, pi_ccs, pi_rlc};
 use neo_fold_clean::{CeClaim, Preprocessing};
 use neo_math::K;
 
@@ -266,63 +266,79 @@ fn assignment(a: u64, b: u64) -> Vec<F> {
     z
 }
 
-/// Two real folds; returns the second fold's Π_CCS output claims (K+k,
-/// non-zero commitments) and their witnesses, ready for a standalone
-/// Π_RLC run.
-fn real_fold_rlc_fixture() -> (Preprocessing, Vec<CeClaim>, Vec<Mat<F>>) {
+struct RlcFixture {
+    prep: Preprocessing,
+    claims: Vec<CeClaim>,
+    witnesses: Vec<Mat<F>>,
+    transcript: Transcript,
+}
+
+/// The second fold's actual PiCCS claims, witnesses and outgoing transcript.
+fn real_fold_rlc_fixture() -> RlcFixture {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 61).expect("preprocess");
+    let initial = RunningInstance::canonical_zero(prep.params(), prep.structure(), D, LaneCommitmentMode::Plain)
+        .expect("canonical nonempty SuperNeo accumulator");
 
     let first = direct_ccs::build_instance(&prep, &r1cs, &assignment(1, 0)).expect("first instance");
     let mut tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![first],
-        &RunningInstance::default(),
+        &initial,
     )
     .expect("first NIFS.P");
 
     let second = direct_ccs::build_instance(&prep, &r1cs, &assignment(0, 1)).expect("second instance");
     let second_z = second.witness.Z.clone();
     let mut tr = Transcript::session();
-    let (_next, proof) = nifs::prove(
+    let proof = pi_ccs::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
-        None,
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
+        prep.commitment_scheme(),
         vec![second],
         &running,
     )
-    .expect("second NIFS.P");
+    .expect("second PiCCS.P");
 
     let mut witnesses = Vec::with_capacity(1 + running.witnesses.len());
     witnesses.push(second_z);
     witnesses.extend(running.witnesses.iter().cloned());
-    (prep, proof.pi_ccs.outputs.clone(), witnesses)
+    RlcFixture {
+        prep,
+        claims: proof.outputs,
+        witnesses,
+        transcript: tr,
+    }
 }
 
-/// The β schedule runs identically on the prove and verify paths: after
-/// Π_RLC both transcripts are in lockstep (same downstream challenges),
-/// with one quotient per κ lane behind the squeezed β.
+/// Projection metadata keeps the real-fold prover and verifier at the
+/// canonical rho-sampler endpoint, with one checked quotient per κ lane.
 #[test]
 fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
-    let (prep, claims, witnesses) = real_fold_rlc_fixture();
+    let RlcFixture {
+        prep,
+        claims,
+        witnesses,
+        transcript,
+    } = real_fold_rlc_fixture();
 
-    let mut tr_p = Transcript::session();
+    let mut sampler = transcript.clone();
+    let rhos = pi_rlc::derive_rhos_for_inputs(&mut sampler, prep.params(), &claims).expect("canonical rho sampler");
+
+    let mut tr_p = transcript.clone();
     let (out, proof) = pi_rlc::prove(
         &mut tr_p,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,
@@ -330,10 +346,10 @@ fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
     )
     .expect("Π_RLC.P");
 
-    let mut tr_v = Transcript::session();
+    let mut tr_v = transcript;
     let combined = pi_rlc::verify(
         &mut tr_v,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,
@@ -342,9 +358,29 @@ fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
     .expect("Π_RLC.V");
 
     assert_eq!(
+        tr_p.snapshot(),
+        sampler.snapshot(),
+        "prover leaves the sampler endpoint"
+    );
+    assert_eq!(
+        tr_v.snapshot(),
+        sampler.snapshot(),
+        "verifier leaves the sampler endpoint"
+    );
+    let metadata = pi_rlc::bind_backend_projection_schedule(&sampler, &rhos, &claims, &combined)
+        .expect("backend projection metadata");
+    assert_eq!(metadata.beta, out.projection.beta);
+    assert_eq!(metadata.q_lanes, out.projection.q_lanes);
+    assert_eq!(
+        tr_v.snapshot(),
+        sampler.snapshot(),
+        "metadata preserves the caller endpoint"
+    );
+
+    assert_eq!(
         tr_p.challenge_field(b"post_rlc_probe"),
         tr_v.challenge_field(b"post_rlc_probe"),
-        "prove/verify transcripts must stay in lockstep through the β schedule"
+        "prove/verify transcripts must stay in lockstep after PiRLC"
     );
     assert_eq!(
         out.projection.q_lanes.len(),
@@ -366,11 +402,15 @@ fn drifted_mixer(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
 /// commitment the fold never produced.
 #[test]
 fn projection_schedule_rejects_mixer_that_is_not_the_ring_action() {
-    let (prep, claims, witnesses) = real_fold_rlc_fixture();
-    let mut tr = Transcript::session();
+    let RlcFixture {
+        prep,
+        claims,
+        witnesses,
+        transcript: mut tr,
+    } = real_fold_rlc_fixture();
     let err = pi_rlc::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         drifted_mixer,
         &claims,
@@ -391,11 +431,15 @@ fn projection_schedule_rejects_mixer_that_is_not_the_ring_action() {
 /// combined commitment's lane.
 #[test]
 fn projection_schedule_bridges_to_the_f_prime_encoders() {
-    let (prep, claims, witnesses) = real_fold_rlc_fixture();
-    let mut tr = Transcript::session();
+    let RlcFixture {
+        prep,
+        claims,
+        witnesses,
+        transcript: mut tr,
+    } = real_fold_rlc_fixture();
     let (out, _proof) = pi_rlc::prove(
         &mut tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.mix_rhos_commits(),
         &claims,

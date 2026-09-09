@@ -47,6 +47,8 @@ def parentEvalARange (program : ApplicationProgram) : SourceRange :=
     (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart)
     PiDECInputs.evalAWordsPerChild 0
 
+/-- The child proof source resolves to the same logical forms used by the
+recursive running transition. This range adds no allocation or copy row. -/
 def proofRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (proofBlock program) (proofStart program)
     (Spartan.sourceToSpartan PiDECInputs.proofInputStart)

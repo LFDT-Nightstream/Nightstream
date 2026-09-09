@@ -3,14 +3,14 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS Fiat–Shamir challenges.
-Obligation: Derive all 26 `α` coordinates and `γ` from the exact labelled
+Obligation: Derive all 28 `α` coordinates and `γ` from the exact labelled
 Poseidon2 transcript schedule.
 
 Inputs:
 - the child-owned state produced by Statement absorption.
 
 Outputs:
-- 26 verifier-derived `α` values;
+- 28 verifier-derived `α` values;
 - one verifier-derived `γ` value;
 - the child-owned outgoing transcript state.
 

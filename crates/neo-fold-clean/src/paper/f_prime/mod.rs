@@ -35,6 +35,8 @@ pub mod nebula_lane_circuit;
 pub mod poseidon_trace;
 pub mod projection_trace;
 pub mod public_input_link;
+// Only private diagnostic paths retain the old recursive R1CS emitter.
+#[allow(dead_code, unused_imports)]
 pub mod r1cs;
 pub mod ring_action_trace;
 pub mod source_image;

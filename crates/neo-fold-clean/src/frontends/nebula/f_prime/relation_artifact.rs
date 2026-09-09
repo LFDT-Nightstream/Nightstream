@@ -23,7 +23,7 @@ impl NebulaFPrimePreprocessing {
         writer: impl Write,
     ) -> Result<RelationArtifactReceipt, RelationArtifactError> {
         validate_live_context(self)?;
-        VerifierKeyRelationArtifact::write(&self.prep, writer)
+        VerifierKeyRelationArtifact::write(self.preprocessing(), writer)
     }
 
     /// Return the exact recursive relation artifact as canonical JSON.
@@ -39,36 +39,36 @@ impl NebulaFPrimePreprocessing {
         bytes: &[u8],
     ) -> Result<RelationArtifactReceipt, RelationArtifactError> {
         validate_live_context(self)?;
-        VerifierKeyRelationArtifact::validate_json(&self.prep, bytes)
+        VerifierKeyRelationArtifact::validate_json(self.preprocessing(), bytes)
     }
 
     /// Return the exact recursive relation census without serializing it.
     pub fn relation_artifact_receipt(&self) -> Result<RelationArtifactReceipt, RelationArtifactError> {
         validate_live_context(self)?;
-        VerifierKeyRelationArtifact::receipt(&self.prep)
+        VerifierKeyRelationArtifact::receipt(self.preprocessing())
     }
 }
 
 fn validate_live_context(prep: &NebulaFPrimePreprocessing) -> Result<(), RelationArtifactError> {
-    prep.prep
+    prep.preprocessing()
         .validate_cached_structure()
         .map_err(|error| RelationArtifactError::Profile(error.to_string()))?;
-    prep.prep
+    prep.preprocessing()
         .validate_verifier_key_binding()
         .map_err(|error| RelationArtifactError::Profile(error.to_string()))?;
 
     let relation = prep.relation();
-    if !same_structure(prep.prep.structure(), relation.structure()) {
+    if !same_structure(prep.preprocessing().structure(), relation.structure()) {
         return Err(RelationArtifactError::Profile(
             "compiled relation differs from verifier-owned preprocessing".to_owned(),
         ));
     }
-    if prep.prep.public_input_len != Some(relation.public_input_len()) {
+    if prep.preprocessing().public_input_len != Some(relation.public_input_len()) {
         return Err(RelationArtifactError::Profile(
             "compiled and verifier-owned public layouts differ".to_owned(),
         ));
     }
-    if !prep.prep.enforces_f_prime_recursive_link() || !prep.prep.enforces_terminal_induction() {
+    if !prep.preprocessing().enforces_f_prime_recursive_link() || !prep.preprocessing().enforces_terminal_induction() {
         return Err(RelationArtifactError::Profile(
             "verifier context does not own the complete recursive F-prime induction".to_owned(),
         ));
@@ -82,7 +82,7 @@ fn validate_live_context(prep: &NebulaFPrimePreprocessing) -> Result<(), Relatio
 
     let compiled_config = relation.nebula_config();
     let verifier_config = prep
-        .prep
+        .preprocessing()
         .nebula()
         .ok_or_else(|| RelationArtifactError::Profile("verifier context has no Nebula plan".to_owned()))?;
     if !same_exact_config(compiled_config, verifier_config) {

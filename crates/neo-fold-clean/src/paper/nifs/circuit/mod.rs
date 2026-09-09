@@ -97,7 +97,8 @@ pub enum Error {
 }
 
 /// Enforce NIFS.V on top of `transcript`.
-pub fn enforce_nifs_v_circuit_with_transcript(
+#[cfg(test)]
+pub(crate) fn enforce_nifs_v_circuit_with_transcript(
     builder: &mut R1csBuilder,
     pp: &Params,
     cfg: &NifsVCircuitConfig<'_>,
@@ -108,25 +109,13 @@ pub fn enforce_nifs_v_circuit_with_transcript(
 }
 
 /// Folded-F' entrypoint using the verifier header carried by F' state.
-pub fn enforce_nifs_v_circuit_with_transcript_and_header_bundle(
+pub(crate) fn enforce_nifs_v_circuit_with_transcript_and_header_bundle(
     builder: &mut R1csBuilder,
     pp: &Params,
     cfg: &NifsVCircuitConfig<'_>,
     transcript: &mut TranscriptGadget,
     msg: &NifsVCircuitMessages<'_>,
     header_bundle: [Var; 4],
-) -> Result<NifsVOutputs, Error> {
-    enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
-}
-
-/// Fixed-relation alias with the header-first argument order used by F'.
-pub fn enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires(
-    builder: &mut R1csBuilder,
-    pp: &Params,
-    cfg: &NifsVCircuitConfig<'_>,
-    transcript: &mut TranscriptGadget,
-    header_bundle: [Var; 4],
-    msg: &NifsVCircuitMessages<'_>,
 ) -> Result<NifsVOutputs, Error> {
     enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
 }

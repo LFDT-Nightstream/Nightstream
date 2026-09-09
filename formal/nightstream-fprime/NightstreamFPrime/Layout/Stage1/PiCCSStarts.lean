@@ -29,13 +29,12 @@ def prefixStarts : Nat → List Nat → List Nat
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
 /-- The completed pilot owns the physical row prefix. -/
-def rowBase : Nat := PilotProduction.physicalRowCountValue
+def rowBase : Nat := 14623730
 
 theorem rowBase_eq_layout :
     rowBase = Pilot.physicalRowCount PilotProduction.interface
       PilotProduction.witnessOffset := by
-  rw [rowBase, PilotProduction.physicalRowCountValue_eq,
-    PilotProduction.physicalRowCount_eq]
+  rw [rowBase, PilotProduction.physicalRowCount_eq]
 
 def statementBindingRowStart : Nat := rowBase
 def statementAbsorptionRowStart : Nat := statementBindingRowStart + 160

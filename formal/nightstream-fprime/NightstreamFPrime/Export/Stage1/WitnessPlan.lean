@@ -78,7 +78,7 @@ def laneBlock
         source round lane := by
   unfold laneBlock Block.expand
     WitnessProgram.piRlcDigestLaneBatches
-  rw [PiRLCSamplerOrdinaryRows.fastLaneSource_eq]
+  rfl
 
 private theorem flatMap_map_expand {Alpha : Type}
     (values : List Alpha) (make : Alpha → Block) :

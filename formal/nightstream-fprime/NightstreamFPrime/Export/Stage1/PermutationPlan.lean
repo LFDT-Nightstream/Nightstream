@@ -195,6 +195,99 @@ def Block.format : Format Block where
     intro value
     cases value <;> simp [Format.decode_encode]
 
+/-! ## Exact witness-start projection -/
+
+/-- Consecutive final-layout witness starts for one compiled action trace. -/
+private def sequentialWitnessStarts : Nat → Nat → List Nat
+  | _witnessStart, 0 => []
+  | witnessStart, count + 1 =>
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan witnessStart ::
+        sequentialWitnessStarts (witnessStart + 592) count
+
+private theorem sequentialWitnessStarts_add
+    (witnessStart left right : Nat) :
+    sequentialWitnessStarts witnessStart (left + right) =
+      sequentialWitnessStarts witnessStart left ++
+        sequentialWitnessStarts (witnessStart + left * 592) right := by
+  induction left generalizing witnessStart with
+  | zero => simp [sequentialWitnessStarts]
+  | succ left inductionHypothesis =>
+      simp only [Nat.succ_add, sequentialWitnessStarts, List.cons_append]
+      rw [inductionHypothesis]
+      rw [show witnessStart + 592 + left * 592 =
+        witnessStart + Nat.succ left * 592 by omega]
+
+private theorem sequentialWitnessStarts_length (witnessStart count : Nat) :
+    (sequentialWitnessStarts witnessStart count).length = count := by
+  induction count generalizing witnessStart with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [sequentialWitnessStarts, List.length_cons, inductionHypothesis]
+
+private theorem sequentialWitnessStarts_getD
+    (witnessStart count index : Nat) (bound : index < count) :
+    (sequentialWitnessStarts witnessStart count).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (witnessStart + index * 592) := by
+  induction count generalizing witnessStart index with
+  | zero => omega
+  | succ count inductionHypothesis =>
+      cases index with
+      | zero => simp [sequentialWitnessStarts]
+      | succ index =>
+          rw [sequentialWitnessStarts, List.getD_cons_succ,
+            inductionHypothesis (witnessStart + 592) index (by omega)]
+          apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          omega
+
+private theorem compileBlocks_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (blocks : List (List Expr)) :
+    (Invocations.compileBlocks phase rowStart witnessStart state blocks).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart blocks.length := by
+  induction blocks generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons block blocks inductionHypothesis =>
+      simp only [Invocations.compileBlocks, List.map_cons,
+        Invocations.invocation_witnessStart, List.length_cons,
+        sequentialWitnessStarts]
+      rw [inductionHypothesis
+        (rowStart := rowStart + 592)
+        (witnessStart := witnessStart + 592)
+        (state := Invocations.permutationOutput witnessStart)]
+
+private theorem compileActions_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Formal.Action) :
+    (Invocations.compileActions phase rowStart witnessStart state actions).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart
+        (Invocations.invocationCount actions) := by
+  induction actions generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          simp only [Invocations.compileActions, List.map_append]
+          rw [compileBlocks_witnessStarts, inductionHypothesis,
+            Invocations.compileBlocks_witnessNext]
+          simp only [Invocations.invocationCount,
+            Invocations.Action.invocationCount, List.map_cons, List.sum_cons]
+          exact (sequentialWitnessStarts_add witnessStart
+            (Hash.inputChunks input).length
+            ((actions.map Invocations.Action.invocationCount).sum)).symm
+      | squeezeK expected =>
+          simp only [Invocations.compileActions, List.map_cons,
+            Invocations.invocation_witnessStart]
+          rw [inductionHypothesis]
+          simp only [Invocations.invocationCount,
+            Invocations.Action.invocationCount, List.map_cons, List.sum_cons]
+          rw [sequentialWitnessStarts_add witnessStart 2
+            ((actions.map Invocations.Action.invocationCount).sum)]
+          simp only [sequentialWitnessStarts, List.cons_append,
+            List.nil_append]
+
 /-! ## Canonical PiCCS blocks -/
 
 def statementBlock (_unit : Unit) : ActionBlock :=
@@ -317,6 +410,54 @@ theorem piCcsBlocks_expand :
     roundBlock_expand, outputBlock_expand]
   simp only [List.append_assoc]
 
+/-- Lightweight exact witness-start schedule for all four PiCCS packets. -/
+def piCcsWitnessStarts (_unit : Unit) : List Nat :=
+  sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 379 ++
+    sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 87 ++
+    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 252 ++
+    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 6886
+
+theorem piCcsWitnessStarts_materializes :
+    piCcsWitnessStarts () =
+      (PiCCSInvocations.invocations Data.logicalWidth Data.publicFits).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold piCcsWitnessStarts PiCCSInvocations.invocations
+  simp only [List.map_append, PiCCSInvocations.statementTrace,
+    PiCCSInvocations.challengeTrace, PiCCSInvocations.roundTrace,
+    PiCCSInvocations.outputTrace, compileActions_witnessStarts]
+  rw [PiCCSInvocations.statementInvocationCount_eq,
+    PiCCSInvocations.challengeInvocationCount_eq,
+    PiCCSInvocations.roundInvocationCount_eq,
+    PiCCSInvocations.outputInvocationCount_eq]
+
+private theorem piCcsWitnessStarts_transcriptPrefix :
+    piCcsWitnessStarts () =
+      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 718 ++
+        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 6886 := by
+  have challengeStart : PiCCSInvocations.statementWitnessStart + 379 * 592 =
+      PiCCSInvocations.challengeWitnessStart := by
+    simp only [PiCCSInvocations.statementWitnessStart,
+      PiCCSInvocations.challengeWitnessStart,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
+  have roundStart : PiCCSInvocations.statementWitnessStart +
+      (379 + 87) * 592 = PiCCSInvocations.roundWitnessStart := by
+    simp only [PiCCSInvocations.statementWitnessStart,
+      PiCCSInvocations.roundWitnessStart,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold piCcsWitnessStarts
+  rw [← challengeStart,
+    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart 379 87]
+  rw [← roundStart,
+    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart
+      (379 + 87) 252]
+
+private theorem piCcsWitnessStarts_length :
+    (piCcsWitnessStarts ()).length = 7604 := by
+  rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
+    sequentialWitnessStarts_length, sequentialWitnessStarts_length]
+
 /-! ## Canonical PiRLC sampler blocks -/
 
 def samplerEntryBlock (source : Nat) : ActionBlock :=
@@ -360,9 +501,7 @@ theorem samplerEntryBlock_expand (source : Nat) :
             (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
             source)
           (TranscriptAbsorption.actions source)
-    _ = _ := by
-      rw [PiRLCSamplerInvocations.fastEntryState_eq_entryState]
-      rfl
+    _ = _ := by rfl
 
 theorem samplerWindowBlock_expand (source round : Nat) :
     (samplerWindowBlock source round).expand =
@@ -608,6 +747,53 @@ theorem samplerWitnessStartAt_materializes :
           (publicFits := Data.publicFits)).map
             (fun invocation => invocation.witnessStart) := by
       rw [piRlcSamplerBlocks_expand]
+
+/-- Lightweight exact witness-start schedule for every non-pilot invocation. -/
+def canonicalWitnessStarts (_unit : Unit) : List Nat :=
+  piCcsWitnessStarts () ++ List.ofFn samplerWitnessStartAt
+
+theorem canonicalWitnessStarts_materializes :
+    canonicalWitnessStarts () =
+      (Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold canonicalWitnessStarts
+  rw [Data.permutationInvocations_eq, List.map_append,
+    piCcsWitnessStarts_materializes, samplerWitnessStartAt_materializes]
+
+private theorem canonicalWitnessStarts_transcript_getD
+    (index : Nat) (bound : index < 718) :
+    (canonicalWitnessStarts ()).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+          index * 592) := by
+  rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
+    rw [piCcsWitnessStarts_length]
+    omega)]
+  rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append _ _ _ _ (by
+    rw [sequentialWitnessStarts_length]
+    exact bound)]
+  simpa only [PiCCSInvocations.statementWitnessStart,
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart] using
+      sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
+        718 index bound
+
+/-- The selected pre-ordinary PiCCS invocation has its exact affine source
+address. The proof uses the structural schedule and does not expand it. -/
+theorem canonicalInvocation_witnessStart_of_transcript
+    (index : Fin (Data.permutationInvocations ()).length)
+    (bound : index.val < 718) :
+    ((Data.permutationInvocations ()).get index).witnessStart =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
+          index.val * 592) := by
+  have selected := canonicalWitnessStarts_transcript_getD index.val bound
+  rw [canonicalWitnessStarts_materializes] at selected
+  have mappedBound : index.val <
+      ((Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart)).length := by
+    simpa only [List.length_map] using index.isLt
+  rw [List.getD_eq_getElem (l := _) (d := 0) mappedBound] at selected
+  simpa only [List.getElem_map, List.get_eq_getElem] using selected
 
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcSamplerBlocks ()

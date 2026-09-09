@@ -7,7 +7,7 @@ Obligation: Lower
 `E_A = eq(r', r) * sum_(i,j,l) gamma^I_A(i,j,l) cf(y'_(i,j))_l`.
 
 Inputs:
-- the 26-coordinate verifier-derived point `r'` and prior point `r`;
+- the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
 - 12,096 CCS-matrix-family coefficients, with no Pad coefficient.
 
@@ -15,10 +15,12 @@ Outputs:
 - the child-owned exact unshifted `Eval_A` terminal term.
 
 Constraint groups:
-- point equality: 102 logical columns, 617 fresh columns, 719 rows;
+- point equality: 110 logical columns, 665 fresh columns, 775 rows;
 - 12,096-term Horner: 24,190 logical columns, 84,665 fresh columns,
   108,855 rows;
 - parent wiring: zero columns and zero rows.
+- total leaf footprint: 24,300 logical columns, 85,330 fresh columns,
+  109,630 rows.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.eval_A_terminal`.

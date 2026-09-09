@@ -1,6 +1,6 @@
 //! Poseidon2 identity binding for the canonical Lean-emitted package.
 
-use neo_ajtai::nightstream_fprime_setup::production_authority_words;
+use neo_ajtai::nightstream_fprime_setup::{authority_words, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS};
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -36,22 +36,22 @@ const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    8_237_867_231_673_714_158,
-    9_137_925_141_728_451_729,
-    15_386_715_550_800_926_991,
-    8_441_232_538_509_246_241,
+    12_850_397_830_186_002_711,
+    3_288_783_999_059_851_307,
+    4_378_874_948_253_040_911,
+    12_528_041_036_879_069_119,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    14_715_010_765_054_236_145,
-    2_785_364_480_572_687_531,
-    13_125_420_619_761_893_675,
-    2_341_830_514_818_296_126,
+    6_335_883_518_996_883_063,
+    12_495_920_096_635_129_097,
+    13_503_539_403_510_063_271,
+    2_659_339_960_413_338_175,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    1_860_265_443_911_764_719,
-    6_962_543_029_970_685_374,
-    879_560_073_388_521_708,
-    7_535_128_577_962_597_164,
+    17_505_542_376_529_507_650,
+    12_182_753_955_727_871_167,
+    8_073_683_893_392_655_443,
+    5_120_996_971_254_106_095,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the
@@ -176,10 +176,13 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
 
 pub(super) fn stage1_verifier_binding(
     structural_identifier: [u64; 4],
+    logical_columns: usize,
     relation_value_words: &[u64],
     application_words: &[u64],
 ) -> Result<Stage1VerifierBinding, PackageError> {
-    let commitment_key_words = production_authority_words();
+    let message_columns = u64::try_from(logical_columns.div_ceil(54))
+        .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
+    let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
     validate_context_words(relation_value_words)?;
     validate_context_words(application_words)?;
     validate_context_words(&commitment_key_words)?;

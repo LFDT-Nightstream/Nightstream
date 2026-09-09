@@ -1,0 +1,13 @@
+{
+  "source_references_checked": 1596,
+  "nodes": 454,
+  "leaves": 377,
+  "origins": {
+    "profile": 56,
+    "paper": 183,
+    "implementation": 107,
+    "assumption": 19,
+    "out_of_scope": 12
+  },
+  "visual_bytes": 398313
+}

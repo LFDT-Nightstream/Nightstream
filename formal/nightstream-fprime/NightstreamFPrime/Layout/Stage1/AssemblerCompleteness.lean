@@ -6,7 +6,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBindingSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 
 /-!
-Owns ordered witness composition for the compact seven-child Stage 1 logical
+Owns ordered witness composition for the compact eight-child Stage 1 logical
 assembler. It uses only opaque child completeness and exact interface wiring.
 It adds no row, verifier predicate, or physical placement.
 -/

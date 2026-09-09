@@ -249,17 +249,8 @@ fn streaming_claim_digest_poseidon_witness_artifact_is_current() {
     let path = generated_artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected claim-digest witness artifact");
-        panic!("claim-digest witness artifact drifted; inspect {}", expected.display());
+        panic!("frozen Lean reference differs: {path:?}");
     }
-}
-
-#[test]
-#[ignore = "explicit deterministic artifact regeneration"]
-fn regenerate_streaming_claim_digest_poseidon_witness_artifact() {
-    std::fs::write(generated_artifact_path(), render_artifact())
-        .expect("write generated claim-digest witness artifact");
 }
 
 #[test]
@@ -267,15 +258,6 @@ fn streaming_gamma_domain_poseidon_witness_artifact_is_current() {
     let path = generated_gamma_artifact_path();
     let rendered = render_gamma_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected gamma-domain witness artifact");
-        panic!("gamma-domain witness artifact drifted; inspect {}", expected.display());
+        panic!("frozen Lean reference differs: {path:?}");
     }
-}
-
-#[test]
-#[ignore = "explicit deterministic artifact regeneration"]
-fn regenerate_streaming_gamma_domain_poseidon_witness_artifact() {
-    std::fs::write(generated_gamma_artifact_path(), render_gamma_artifact())
-        .expect("write generated gamma-domain witness artifact");
 }

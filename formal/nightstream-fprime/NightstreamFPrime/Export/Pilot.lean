@@ -240,6 +240,20 @@ theorem canonicalInvocationEnv_local (invocation : PermutationInvocation)
     simp [PilotData.columnRef]]
   simp [ColumnRef.eval, instantiateInvocationColumn]
 
+/-- Accepted physical invocation rows imply the exact logical permutation
+constraints in the invocation's canonical input/local environment. -/
+theorem canonicalPermutationInvocation_implies_constraints
+    (invocation : PermutationInvocation) (env : Env)
+    (rows : PermutationInvocationHolds
+      (PilotData.circuitPackage ()) invocation env) :
+    ConstraintsHold (canonicalInvocationEnv invocation env)
+      (PilotData.canonicalConstraints ()) := by
+  have physical : R1CS.RowsHold (canonicalInvocationEnv invocation env)
+      (PilotData.canonicalRows ()) :=
+    (canonicalPermutationInvocation_iff invocation env).mp rows
+  exact R1CS.lowerConstraints_sound (canonicalInvocationEnv invocation env)
+    (PilotData.canonicalConstraints ()) 600 physical
+
 /-- Constructive completeness of one explicit canonical Poseidon2
 invocation. The premise is the fixed-size logical permutation constraint
 list under the invocation's exact column map. -/

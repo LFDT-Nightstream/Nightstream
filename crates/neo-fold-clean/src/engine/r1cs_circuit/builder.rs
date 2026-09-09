@@ -977,6 +977,7 @@ impl R1csBuilder {
         self.pi_dec_strict_audits.push(audit);
     }
 
+    #[cfg(test)]
     pub(crate) fn record_terminal_ce_claim(&mut self, audit: TerminalCeClaimAudit) {
         if self.record_structure {
             debug_assert_eq!(audit.row_end, self.rows);

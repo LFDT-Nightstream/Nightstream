@@ -2,7 +2,51 @@ use super::*;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
 
+#[path = "../support/poseidon_affine_fixture.rs"]
+mod affine_fixture;
+
 const FIRST_POSEIDON_CONSTANT: u64 = 15_504_881_536_434_223_753;
+
+#[test]
+fn affine_poseidon_inputs_preserve_values_indices_and_tag_selection() {
+    let program = poseidon_input::Program::decode(&affine_fixture::program()).expect("affine input program");
+    let first = program.state(32, 31, 0).expect("first affine input");
+    let second = program.state(32, 31, 1).expect("second affine input");
+    for (form, expected) in [
+        (&first[0], vec![(4, 1), (5, 3), (31, 7)]),
+        (&first[1], vec![(5, 4), (31, 11)]),
+        (&second[0], vec![(31, 13)]),
+        (&second[1], vec![(4, 5), (31, 17)]),
+    ] {
+        assert_eq!(
+            form.entries()
+                .iter()
+                .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
+                .collect::<Vec<_>>(),
+            expected,
+        );
+    }
+    assert!(first[2..].iter().all(|form| form.entries().is_empty()));
+    assert!(second[2..].iter().all(|form| form.entries().is_empty()));
+    assert!(program
+        .state(32, 31, 2)
+        .expect("inactive tag")
+        .iter()
+        .all(|form| form.entries().is_empty()));
+    assert!(program.state(32, 32, 0).is_err(), "constant column must be in range");
+}
+
+#[test]
+fn affine_poseidon_inputs_reject_malformed_words_and_sources() {
+    for (label, input) in affine_fixture::malformed() {
+        assert!(
+            poseidon_input::Program::decode(&input)
+                .and_then(|program| program.state(32, 31, 0))
+                .is_err(),
+            "accepted {label}",
+        );
+    }
+}
 
 fn affine_constant(coefficient: u64) -> Value {
     json!([[[0, 1, 0, 1, 0, 1], [1, coefficient]]])

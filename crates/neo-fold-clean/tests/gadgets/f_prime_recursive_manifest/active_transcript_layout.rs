@@ -1282,11 +1282,8 @@ fn active_pi_rlc_transcript_layout_matches_production_trace() {
         if fs::read_to_string(&path).unwrap_or_default() == file.contents {
             continue;
         }
-        let expected = path.with_extension("lean.expected");
-        fs::create_dir_all(expected.parent().expect("transcript artifact parent"))
-            .expect("create transcript artifact directory");
-        fs::write(&expected, &file.contents).expect("write expected transcript artifact");
-        drifted.push(expected);
+
+        drifted.push(path);
     }
     if !drifted.is_empty() {
         panic!(

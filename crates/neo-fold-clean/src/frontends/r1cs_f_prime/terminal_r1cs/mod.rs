@@ -8,6 +8,7 @@
 
 mod compiler;
 mod lane_opening;
+#[cfg(test)]
 mod lifecycle;
 mod streaming_lifecycle;
 #[cfg(test)]
@@ -394,6 +395,7 @@ pub fn compile_combined_terminal_r1cs_statement(
     compiler::compile_combined_statement(manifest, log, statement)
 }
 
+#[cfg(test)]
 pub use lifecycle::{
     audit_combined_terminal_context_guards, audit_combined_terminal_statement_guards, audit_terminal_context_guards,
     audit_terminal_statement_guards, finish_combined_with_spartan, finish_with_spartan, verify_combined_spartan,

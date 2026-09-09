@@ -57,7 +57,7 @@ def pilotPoseidonProgram (application : ApplicationProgram) : Program :=
   PilotPoseidonMatrixProgram.matrixProgram (pilotGeometry application)
 
 def piCcsPoseidonProgram (application : ApplicationProgram) : Program :=
-  PiCCSPoseidonMatrixProgram.matrixProgram (poseidonGeometry application)
+  PiCCSPoseidonMatrixProgram.matrixProgram (piCcsOrdinaryGeometry application)
 
 def piCcsOrdinaryProgram (application : ApplicationProgram) : Program :=
   PiCCSOrdinaryMatrixProgram.matrixProgram
@@ -81,7 +81,7 @@ def samplerOrdinaryProgram (application : ApplicationProgram) : Program :=
     (samplerGeometry application)
 
 def piRlcProgram (application : ApplicationProgram) : Program :=
-  PiRLCMatrixProgram.matrixProgram (piRlcGeometry application)
+  PiRLCMatrixProgram.matrixProgram (piCcsOrdinaryGeometry application)
 
 def piDecProgram (application : ApplicationProgram) : Program :=
   PiDECMatrixProgram.matrixProgram (piDecGeometry application)

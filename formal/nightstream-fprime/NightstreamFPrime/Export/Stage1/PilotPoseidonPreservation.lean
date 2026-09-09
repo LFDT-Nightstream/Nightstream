@@ -65,7 +65,8 @@ private theorem sourceAssignment_privatePhysical
     (column : Nat)
     (sourceEq : source.val = column)
     (privateBound : column <
-      PiRLCProductPlan.basePackage.layout.constantColumn) :
+      PiRLCProductPlan.basePackage.layout.constantColumn)
+    (beforeTranscript : column < PiCCSTranscriptReadout.phaseStart + 584) :
     sourceAssignment program base groupValue products source =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have totalBound : column <
@@ -84,8 +85,13 @@ private theorem sourceAssignment_privatePhysical
   rw [sourceColumn]
   unfold sourceAssignment
   rw [PiRLCRetainedPreservation.sourceAssignment_base]
-  unfold RunningTransitionDirectPlan.transitionEnv
-  rw [dif_pos totalBound]
+  have viewEq : RunningTransitionDirectPlan.transitionEnv program base column =
+      RunningTransitionDirectPlan.packageEnv program base column := by
+    apply PermutationOutput.Readout.env_of_decode_none
+    unfold PermutationOutput.Readout.decode
+    rw [dif_neg (Nat.not_le.mpr beforeTranscript)]
+  rw [viewEq]
+  exact (SourceCompiler.sourceEnv_at base shifted).symm
 
 private theorem priorInputPrivate
     (index : Fin Data.priorChain.inputLength) :
@@ -147,7 +153,11 @@ theorem priorInputForm_eval
   rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.priorInput]
   rw [sourceAssignment_privatePhysical program base groupValue products
     _ (Data.priorChain.inputStart + index.val) (by rfl)
-    (priorInputPrivate index)]
+    (priorInputPrivate index) (by
+      have bound : index.val < 49393 := index.isLt
+      change 0 + index.val < PiCCSTranscriptReadout.phaseStart + 584
+      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [priorInputLift index]
 
@@ -169,7 +179,11 @@ theorem outputInputForm_eval
   rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputInput]
   rw [sourceAssignment_privatePhysical program base groupValue products
     _ (Data.outputChain.inputStart + index.val) (by rfl)
-    (outputInputPrivate index)]
+    (outputInputPrivate index) (by
+      have bound : index.val < 49393 := index.isLt
+      change 49393 + index.val < PiCCSTranscriptReadout.phaseStart + 584
+      rw [PiCCSTranscriptReadout.phaseStart_eq]
+      omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [outputInputLift index]
 
@@ -254,22 +268,24 @@ theorem priorInputState_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (env : Circuit.Env)
     (one : assignment (PiRLCPoseidonGeometry.oneColumn geometry) = 1)
-    (encoding : Encoding geometry assignment base groupValue products)
+    (inputValues : ∀ index : Fin Data.priorChain.inputLength,
+      ((PiRLCPoseidonGeometry.priorInputBlock program).form
+        (PiRLCPoseidonGeometry.priorInputStart program)
+        (PiRLCPoseidonGeometry.priorInputFits geometry) index).eval assignment =
+          env (PilotData.priorChain.inputStart + index.val))
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState assignment
         (PilotPoseidonPlan.priorInputState geometry invocation) =
       canonicalInput PilotData.priorChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base)
+        env
         (priorOutputValue geometry assignment) invocation := by
   funext lane
   change (PilotPoseidonPlan.priorInputState geometry invocation lane).eval
       assignment =
     canonicalInput PilotData.priorChain
-      (PilotOrdinaryDirectPlan.pilotEnv program base)
+      env
       (priorOutputValue geometry assignment) invocation lane
   unfold PilotPoseidonPlan.priorInputState canonicalInput
   by_cases absorbing : invocation.val < Data.priorChain.absorbCount
@@ -301,8 +317,7 @@ theorem priorInputState_eval
           previousValue (priorOutputValue geometry assignment)
             invocation lane + value)
         simpa only [offset] using
-          priorInputForm_eval geometry assignment base groupValue products
-            encoding ⟨offset, present⟩
+          inputValues ⟨offset, present⟩
       · rw [dif_neg present]
         have pilotAbsent : ¬offset < PilotData.priorChain.inputLength := by
           simpa [Data.priorChain, Data.liftPilotChain] using present
@@ -339,22 +354,24 @@ theorem outputInputState_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (env : Circuit.Env)
     (one : assignment (PiRLCPoseidonGeometry.oneColumn geometry) = 1)
-    (encoding : Encoding geometry assignment base groupValue products)
+    (inputValues : ∀ index : Fin Data.outputChain.inputLength,
+      ((PiRLCPoseidonGeometry.outputInputBlock program).form
+        (PiRLCPoseidonGeometry.outputInputStart program)
+        (PiRLCPoseidonGeometry.outputInputFits geometry) index).eval assignment =
+          env (PilotData.outputChain.inputStart + index.val))
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState assignment
         (PilotPoseidonPlan.outputInputState geometry invocation) =
       canonicalInput PilotData.outputChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base)
+        env
         (outputOutputValue geometry assignment) invocation := by
   funext lane
   change (PilotPoseidonPlan.outputInputState geometry invocation lane).eval
       assignment =
     canonicalInput PilotData.outputChain
-      (PilotOrdinaryDirectPlan.pilotEnv program base)
+      env
       (outputOutputValue geometry assignment) invocation lane
   unfold PilotPoseidonPlan.outputInputState canonicalInput
   by_cases absorbing : invocation.val < Data.outputChain.absorbCount
@@ -386,8 +403,7 @@ theorem outputInputState_eval
           previousValue (outputOutputValue geometry assignment)
             invocation lane + value)
         simpa only [offset] using
-          outputInputForm_eval geometry assignment base groupValue products
-            encoding ⟨offset, present⟩
+          inputValues ⟨offset, present⟩
       · rw [dif_neg present]
         have pilotAbsent : ¬offset < PilotData.outputChain.inputLength := by
           simpa [Data.outputChain, Data.liftPilotChain] using present
@@ -433,17 +449,24 @@ theorem canonicalSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (env : Circuit.Env)
     (one : assignment (PiRLCPoseidonGeometry.oneColumn geometry) = 1)
-    (encoding : Encoding geometry assignment base groupValue products)
+    (priorValues : ∀ index : Fin Data.priorChain.inputLength,
+      ((PiRLCPoseidonGeometry.priorInputBlock program).form
+        (PiRLCPoseidonGeometry.priorInputStart program)
+        (PiRLCPoseidonGeometry.priorInputFits geometry) index).eval assignment =
+          env (PilotData.priorChain.inputStart + index.val))
+    (outputValues : ∀ index : Fin Data.outputChain.inputLength,
+      ((PiRLCPoseidonGeometry.outputInputBlock program).form
+        (PiRLCPoseidonGeometry.outputInputStart program)
+        (PiRLCPoseidonGeometry.outputInputFits geometry) index).eval assignment =
+          env (PilotData.outputChain.inputStart + index.val))
     (semantics : PilotPoseidonPlan.Semantics geometry assignment) :
     CanonicalSemantics PilotData.priorChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base)
+        env
         (priorOutputValue geometry assignment) ∧
       CanonicalSemantics PilotData.outputChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base)
+        env
         (outputOutputValue geometry assignment) := by
   constructor
   · constructor
@@ -456,14 +479,13 @@ theorem canonicalSemantics
         semantics.prior current
       _ = Spec.Poseidon2.permute
           (List.ofFn (canonicalInput PilotData.priorChain
-            (PilotOrdinaryDirectPlan.pilotEnv program base)
+            env
             (priorOutputValue geometry assignment) current)) := by
         apply congrArg Spec.Poseidon2.permute
         change List.ofFn (SparseLayer.evalState assignment
           (PilotPoseidonPlan.priorInputState geometry current)) = _
         exact congrArg List.ofFn
-          (priorInputState_eval geometry assignment base groupValue products
-            one encoding current)
+          (priorInputState_eval geometry assignment env one priorValues current)
   · constructor
     intro current
     calc
@@ -474,14 +496,13 @@ theorem canonicalSemantics
         semantics.output current
       _ = Spec.Poseidon2.permute
           (List.ofFn (canonicalInput PilotData.outputChain
-            (PilotOrdinaryDirectPlan.pilotEnv program base)
+            env
             (outputOutputValue geometry assignment) current)) := by
         apply congrArg Spec.Poseidon2.permute
         change List.ofFn (SparseLayer.evalState assignment
           (PilotPoseidonPlan.outputInputState geometry current)) = _
         exact congrArg List.ofFn
-          (outputInputState_eval geometry assignment base groupValue products
-            one encoding current)
+          (outputInputState_eval geometry assignment env one outputValues current)
 
 theorem canonicalInput_absorb (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
@@ -748,39 +769,46 @@ structure HashFacts {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Prop where
+    (env : Circuit.Env) : Prop where
   prior : List.ofFn (directDigest PilotData.priorChain
       priorInvocationCount_eq (priorOutputValue geometry assignment)) =
     Spec.Poseidon2.hash
       (NightstreamFPrime.Export.Pilot.chainInputValues PilotData.priorChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base))
+        env)
   output : List.ofFn (directDigest PilotData.outputChain
       outputInvocationCount_eq (outputOutputValue geometry assignment)) =
     Spec.Poseidon2.hash
       (NightstreamFPrime.Export.Pilot.chainInputValues PilotData.outputChain
-        (PilotOrdinaryDirectPlan.pilotEnv program base))
+        env)
 
 /-- Both fixed pilot chains compute their exact canonical Poseidon2 hashes. -/
 theorem semantics_imply_hashFacts
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (env : Circuit.Env)
     (one : assignment (PiRLCPoseidonGeometry.oneColumn geometry) = 1)
-    (encoding : Encoding geometry assignment base groupValue products)
+    (priorValues : ∀ index : Fin Data.priorChain.inputLength,
+      ((PiRLCPoseidonGeometry.priorInputBlock program).form
+        (PiRLCPoseidonGeometry.priorInputStart program)
+        (PiRLCPoseidonGeometry.priorInputFits geometry) index).eval assignment =
+          env (PilotData.priorChain.inputStart + index.val))
+    (outputValues : ∀ index : Fin Data.outputChain.inputLength,
+      ((PiRLCPoseidonGeometry.outputInputBlock program).form
+        (PiRLCPoseidonGeometry.outputInputStart program)
+        (PiRLCPoseidonGeometry.outputInputFits geometry) index).eval assignment =
+          env (PilotData.outputChain.inputStart + index.val))
     (semantics : PilotPoseidonPlan.Semantics geometry assignment) :
-    HashFacts geometry assignment base := by
-  have canonical := canonicalSemantics geometry assignment base groupValue
-    products one encoding semantics
+    HashFacts geometry assignment env := by
+  have canonical := canonicalSemantics geometry assignment env one priorValues
+    outputValues semantics
   constructor
   · exact directDigest_eq_hash PilotData.priorChain
-      (PilotOrdinaryDirectPlan.pilotEnv program base)
+      env
       (priorOutputValue geometry assignment) priorInvocationCount_eq
       priorChunkCount_eq canonical.1
   · exact directDigest_eq_hash PilotData.outputChain
-      (PilotOrdinaryDirectPlan.pilotEnv program base)
+      env
       (outputOutputValue geometry assignment) outputInvocationCount_eq
       outputChunkCount_eq canonical.2
 

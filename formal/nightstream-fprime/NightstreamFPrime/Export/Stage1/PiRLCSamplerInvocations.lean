@@ -68,7 +68,7 @@ def entryTrace (source : Nat) : Trace :=
   compileActions phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
     (sourceLogicalStart source)
-    (entryState (logicalWidth := logicalWidth) (publicFits := publicFits)
+    (fastEntryState (logicalWidth := logicalWidth) (publicFits := publicFits)
       source)
     (TranscriptAbsorption.actions source)
 
@@ -103,7 +103,7 @@ def windowInvocation (source round : Nat) : PermutationInvocation :=
       source round)
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
       source round)
-    (windowState (logicalWidth := logicalWidth) (publicFits := publicFits)
+    (fastWindowState (logicalWidth := logicalWidth) (publicFits := publicFits)
       source round)
 
 def windowInvocations (source : Nat) : List PermutationInvocation :=
@@ -169,6 +169,7 @@ theorem entryTrace_state_matches (source : Nat) :
   unfold entryTrace TranscriptAbsorption.output
     TranscriptAbsorption.ownedInterface Formal.Owned.output
     Formal.Owned.program
+  rw [fastEntryState_eq_entryState]
   exact compileActions_state_eq phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
     (sourceLogicalStart source)
@@ -189,6 +190,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
           (publicFits := publicFits) source))
       source (sourceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+  simp only [entryTrace, fastEntryState_eq_entryState] at holds
   have witnessLocal :
       NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
         sourceLogicalStart source := by
@@ -219,6 +221,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
   have stateMatches := entryTrace_state_matches (logicalWidth := logicalWidth)
     (publicFits := publicFits) source
   unfold entryTrace at stateMatches
+  rw [fastEntryState_eq_entryState] at stateMatches
   rw [stateMatches] at trace
   apply (TranscriptAbsorption.ownedSpec_iff_specHolds
     (Sampler.entryInterface
@@ -259,6 +262,7 @@ theorem windowInvocation_implies_spec (source round : Nat) (env : Env)
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
         source round)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+  simp only [windowInvocation, fastWindowState_eq_windowState] at holds
   have witnessLocal :
       NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart

@@ -442,18 +442,8 @@ fn production_streaming_program_matches_lean_artifact() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write streaming-program artifact candidate");
-        panic!("streaming-program artifact drifted; wrote {expected}. Inspect and promote it explicitly");
+        panic!("streaming-program artifact drifted; reference: {path}");
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_production_streaming_program_artifact() {
-    let program = NebulaFPrimeStreamingProgramAudit::production();
-    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);
-    std::fs::write(path, render_artifact(&program)).expect("write generated streaming-program artifact");
 }
 
 fn cursor_arm(arm: usize) -> (SparseR1cs, Vec<F>) {

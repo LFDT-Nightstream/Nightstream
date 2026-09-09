@@ -68,7 +68,7 @@ fn recursive_pi_dec_rejects_wrapped_empty_commitment_shape() {
     let prep = support::toy_preprocessing();
     let wrapped_kappa = 1usize << 63;
     assert_eq!(D.wrapping_mul(wrapped_kappa), 0);
-    assert_ne!(wrapped_kappa, prep.params.kappa() as usize);
+    assert_ne!(wrapped_kappa, prep.params().kappa() as usize);
 
     let malformed = CeClaim {
         c: Commitment {
@@ -84,16 +84,16 @@ fn recursive_pi_dec_rejects_wrapped_empty_commitment_shape() {
         fold_digest: [0u8; 32],
         adv: None,
     };
-    let children = vec![malformed.clone(); prep.params.k_rho() as usize];
+    let children = vec![malformed.clone(); prep.params().k_rho() as usize];
     let mut builder = R1csBuilder::new();
     let wires = alloc_dec_inputs(&mut builder, &malformed, &children);
-    let result = enforce_dec_v_strict(&mut builder, &prep.params, &wires);
+    let result = enforce_dec_v_strict(&mut builder, prep.params(), &wires);
     let accepted = result.is_ok() && builder.is_satisfied();
 
     assert!(
         !accepted,
         "recursive-verifier soundness failure: strict Π_DEC accepted an empty commitment declaring kappa={wrapped_kappa}, outside params.kappa={} after D*kappa wrapped to zero",
-        prep.params.kappa(),
+        prep.params().kappa(),
     );
 }
 
@@ -137,10 +137,10 @@ fn lifecycle_rejects_nonzero_out_of_norm_fresh_witness_padding_lane() {
     let prep = preprocess(params, structure, Some(D)).expect("test preprocessing");
 
     let mut z = Mat::zero(D, 2, F::ZERO);
-    z[(1, 1)] = F::from_u64(prep.params.b() as u64);
+    z[(1, 1)] = F::from_u64(prep.params().b() as u64);
     let fresh = CcsInstance {
         claim: CcsClaim {
-            c: prep.log.commit(&z),
+            c: prep.commitment_scheme().commit(&z),
             x: vec![F::ZERO; D],
             m_in: D,
             adv: None,

@@ -9,13 +9,21 @@
 #   validate.sh emit-expanded <path>
 #   validate.sh emit-poseidon2-hash-chain-v1 <path>
 #   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
-#   validate.sh pilot-parity <path>
-#   validate.sh pi-ccs-parity <path>
+#   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
+#   validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>
+#   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> <path>
+#   validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>
+#   validate.sh pi-ccs-input-check <input-json-path> <output-path>
+#   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
 #   validate.sh pi-rlc-sampler-parity <path>
-#   validate.sh pi-rlc-parity <path>
-#   validate.sh pi-dec-parity <path>
+#   validate.sh pi-rlc-parity <context[4]> <package[4]> <path>
+#   validate.sh pi-dec-parity <context[4]> <package[4]> <path>
+#   validate.sh foundation-parity <directory>
 #   validate.sh ajtai-setup-v1-parity <path>
-#   validate.sh poseidon2-hash-chain-v1-parity <path>
+#   validate.sh ajtai-sparse-commitment-v1-parity <path>
+#   validate.sh poseidon2-hash-chain-v1-parity <context[4]> <path>
+#   validate.sh poseidon2-hash-chain-v1-canonical-binding <path>
+#   validate.sh poseidon2-hash-chain-v1-binding-parity <id[4]> <relation[4]> <application[4]> <nifs[4]> <commitment[4]> <path>
 #   validate.sh per-application-reference <path>
 #   validate.sh per-application-streamed <path>
 #   validate.sh all
@@ -58,6 +66,7 @@ case "$phase" in
   stage1-axioms)
     for audit in \
       tests/AxiomsAjtaiSetupV1.lean \
+      tests/AxiomsPiCCSClosure.lean \
       tests/AxiomsStage1Accumulator.lean \
       tests/AxiomsStage1Application.lean \
       tests/AxiomsStage1Assembler.lean \
@@ -88,32 +97,103 @@ case "$phase" in
     capped lake exe emit -- --poseidon2-hash-chain-v1-expanded "$2"
     ;;
   pilot-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pilot-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPilotParity -- "$2"
+    if (( $# != 6 )); then
+      echo "usage: validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitPilotParity -- "$2" "$3" "$4" "$5" "$6"
+    ;;
+  base-step-fixture)
+    if (( $# != 6 )); then
+      echo "usage: validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitBaseStepFixture -- "$2" "$3" "$4" "$5" "$6"
+    ;;
+  recursive-step-fixture)
+    if (( $# != 8 )); then
+      echo "usage: validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitRecursiveStepFixture -- "$2" "$3" "$4" "$5" "$6" "$7" "$8"
     ;;
   pi-ccs-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pi-ccs-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiCCSParity -- "$2"
+    if (( $# != 6 )); then
+      echo "usage: validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitPiCCSParity -- "$2" "$3" "$4" "$5" "$6"
+    ;;
+  pi-ccs-ownership-audit)
+    if (( $# != 6 )); then
+      echo "usage: validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitPiCCSOwnershipAudit -- "$2" "$3" "$4" "$5" "$6"
+    ;;
+  pi-ccs-input-check)
+    if (( $# != 3 )); then
+      echo "usage: validate.sh pi-ccs-input-check <input-json-path> <output-path>" >&2
+      exit 2
+    fi
+    capped lake exe checkPiCCSInput -- "$2" "$3"
     ;;
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
     capped lake exe emitPiRlcSamplerParity -- "$2"
     ;;
   pi-rlc-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiRLCParity -- "$2"
+    if (( $# != 10 )); then
+      echo "usage: validate.sh pi-rlc-parity <context[4]> <package[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPiRLCParity -- "$@"
     ;;
   pi-dec-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pi-dec-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiDECParity -- "$2"
+    if (( $# != 10 )); then
+      echo "usage: validate.sh pi-dec-parity <context[4]> <package[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPiDECParity -- "$@"
+    ;;
+  foundation-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh foundation-parity <directory>" >&2; exit 2; fi
+    capped lake exe emitFoundationParity -- "$2"
     ;;
   ajtai-setup-v1-parity)
     if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi
     capped lake exe emitAjtaiSetupV1Parity -- "$2"
     ;;
+  ajtai-sparse-commitment-v1-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh ajtai-sparse-commitment-v1-parity <path>" >&2; exit 2; fi
+    capped lake exe emitAjtaiSparseCommitmentV1Parity -- "$2"
+    ;;
   poseidon2-hash-chain-v1-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh poseidon2-hash-chain-v1-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPoseidon2HashChainV1Parity -- "$2"
+    if (( $# != 6 )); then
+      echo "usage: validate.sh poseidon2-hash-chain-v1-parity <context[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPoseidon2HashChainV1Parity -- "$@"
+    ;;
+  poseidon2-hash-chain-v1-canonical-binding)
+    if (( $# != 2 )); then
+      echo "usage: validate.sh poseidon2-hash-chain-v1-canonical-binding <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitPoseidon2HashChainV1BindingParity -- "$2"
+    ;;
+  poseidon2-hash-chain-v1-binding-parity)
+    if (( $# != 22 )); then
+      echo "usage: validate.sh poseidon2-hash-chain-v1-binding-parity <id0> <id1> <id2> <id3> <relation0> <relation1> <relation2> <relation3> <application0> <application1> <application2> <application3> <nifs0> <nifs1> <nifs2> <nifs3> <commitment0> <commitment1> <commitment2> <commitment3> <path>" >&2
+      exit 2
+    fi
+    capped lake exe emitPoseidon2HashChainV1BindingParity -- \
+      "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" \
+      "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" \
+      "${18}" "${19}" "${20}" "${21}" "${22}"
     ;;
   per-application-reference)
     if (( $# != 2 )); then echo "usage: validate.sh per-application-reference <path>" >&2; exit 2; fi

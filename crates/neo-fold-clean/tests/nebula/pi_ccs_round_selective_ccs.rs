@@ -278,14 +278,6 @@ fn pi_ccs_round_emitter_matches_generated_selective_recipe() {
     let rendered = render_artifact();
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write PiCCS round artifact candidate");
-        panic!("PiCCS round selective-CCS artifact drifted; inspect {expected} and promote it explicitly");
+        panic!("PiCCS round selective-CCS artifact drifted; inspect {path}");
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_pi_ccs_round_selective_ccs_artifact() {
-    std::fs::write(artifact_path(), render_artifact()).expect("write generated PiCCS round artifact");
 }

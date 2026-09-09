@@ -13,8 +13,14 @@ use p3_field::{Field, PrimeCharacteristicRing};
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: neo_math::F) -> neo_fold_clean::CcsInstance {
     let mut z = vec![neo_math::F::ZERO; prep.structure().m];
     z[0] = x;
-    neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
-        .expect("toy low-norm CCS instance with chosen public input")
+    neo_fold_clean::CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &z,
+        D,
+    )
+    .expect("toy low-norm CCS instance with chosen public input")
 }
 
 fn wide_kernel_preprocessing() -> neo_fold_clean::Preprocessing {
@@ -182,8 +188,8 @@ fn final_running_passes_witness_authority(prep: &neo_fold_clean::Preprocessing, 
 fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() {
     let prep = wide_kernel_preprocessing();
     let instance = neo_fold_clean::CcsInstance::from_low_norm_assignment(
-        &prep.params,
-        &prep.log,
+        prep.params(),
+        prep.commitment_scheme(),
         prep.structure(),
         &vec![F::ZERO; prep.structure().m],
         D,
@@ -208,13 +214,13 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
             delta.len(),
             "kernel vector must match packed witness length"
         );
-        let before = prep.log.commit(witness);
+        let before = prep.commitment_scheme().commit(witness);
         for (entry, delta) in dense.iter_mut().zip(delta) {
             *entry += delta;
         }
         *witness = Mat::from_row_major(rows, columns, dense);
         assert_eq!(
-            prep.log.commit(witness),
+            prep.commitment_scheme().commit(witness),
             before,
             "test setup must mutate inside the verifier-owned Ajtai commitment kernel"
         );
@@ -373,7 +379,7 @@ fn verify_uncompressed_rejects_locally_valid_final_accumulator_substitution() {
         .expect("test setup: final witness");
     witness[(0, 0)] += neo_math::F::ONE;
 
-    claim.c = prep.log.commit(witness);
+    claim.c = prep.commitment_scheme().commit(witness);
     claim.X = project_x_from_witness_mat(witness, prep.structure().m, claim.m_in)
         .expect("mutated witness still has valid public projection shape");
     let ell_d = neo_math::D.next_power_of_two().trailing_zeros() as usize;

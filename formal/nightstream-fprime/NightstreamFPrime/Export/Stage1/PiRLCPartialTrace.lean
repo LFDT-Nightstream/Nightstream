@@ -253,15 +253,21 @@ theorem commitmentPartials_indexed
       (commitmentSemanticStep challenges) index)
 
 def publicInputStep (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits))
     (current : MaterializedPublicInput) (source : Fin SourceCount) :
     MaterializedPublicInput :=
   MaterializedPublicInput.ofPublicInput <|
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
       current.toPublicInput
       (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
-        (challenges source) (inputPublicInput source))
+        (challenges source) (values source))
 
 def publicInputSemanticStep (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits))
     (current : PublicInput
       (logicalWidth := VerifierContext.candidateLogicalWidth)
       (publicFits := VerifierContext.candidatePublicFits))
@@ -271,27 +277,36 @@ def publicInputSemanticStep (challenges : Fin SourceCount → RingF)
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
     current
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
-      (challenges source) (inputPublicInput source))
+      (challenges source) (values source))
 
-def publicInputPartials (challenges : Fin SourceCount → RingF) :
+def publicInputPartials (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) :
     List MaterializedPublicInput :=
   scan
     (MaterializedPublicInput.ofPublicInput
       NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero)
-    (publicInputStep challenges)
+    (publicInputStep challenges values)
 
-def publicInputSemanticPartials (challenges : Fin SourceCount → RingF) :
+def publicInputSemanticPartials (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) :
     List (PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
       (publicFits := VerifierContext.candidatePublicFits)) :=
   scan
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
-    (publicInputSemanticStep challenges)
+    (publicInputSemanticStep challenges values)
 
 theorem publicInputPartials_semantics
-    (challenges : Fin SourceCount → RingF) :
-    (publicInputPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) :
+    (publicInputPartials challenges values).map
         MaterializedPublicInput.toPublicInput =
-      publicInputSemanticPartials challenges := by
+      publicInputSemanticPartials challenges values := by
   unfold publicInputPartials publicInputSemanticPartials
   apply scan_map_hom
   · simp
@@ -299,19 +314,22 @@ theorem publicInputPartials_semantics
     simp [publicInputStep, publicInputSemanticStep]
 
 theorem publicInputPartials_indexed
-    (challenges : Fin SourceCount → RingF) (index : Nat) :
-    ((publicInputPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) (index : Nat) :
+    ((publicInputPartials challenges values).map
       MaterializedPublicInput.toPublicInput)[index]? =
       if index < SourceCount then
         some (prefixValue
           NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
-          (publicInputSemanticStep challenges) (index + 1))
+          (publicInputSemanticStep challenges values) (index + 1))
       else none := by
   rw [publicInputPartials_semantics]
   simpa [publicInputSemanticPartials] using
     (scan_getElem?
       NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
-      (publicInputSemanticStep challenges) index)
+      (publicInputSemanticStep challenges values) index)
 
 def evaluationStep (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → RingK)
@@ -572,14 +590,18 @@ private theorem commitmentFoldl_eq_combined
   exact (combineCommitments_eq_foldr challenges inputCommitment).symm
 
 private theorem publicInputFoldl_eq_combined
-    (challenges : Fin SourceCount → RingF) :
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) :
     (List.finRange SourceCount).foldl
-        (publicInputSemanticStep challenges)
+        (publicInputSemanticStep challenges values)
         NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero =
-      combinedPublicInput challenges := by
+      NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
+        challenges values := by
   unfold publicInputSemanticStep
   rw [← List.foldl_map, ← List.foldr_eq_foldl, List.foldr_map]
-  exact (combinePublicInputs_eq_foldr challenges inputPublicInput).symm
+  exact (combinePublicInputs_eq_foldr challenges values).symm
 
 private theorem evaluationFoldl_eq_combined
     (challenges : Fin SourceCount → RingF)
@@ -601,10 +623,14 @@ theorem commitmentPartials_getLast?
   rw [scan_getLast?, commitmentFoldl_eq_combined]
 
 theorem publicInputPartials_getLast?
-    (challenges : Fin SourceCount → RingF) :
-    ((publicInputPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PublicInput
+      (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits)) :
+    ((publicInputPartials challenges values).map
       MaterializedPublicInput.toPublicInput).getLast? =
-      some (combinedPublicInput challenges) := by
+      some (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
+        challenges values) := by
   rw [publicInputPartials_semantics]
   unfold publicInputSemanticPartials
   rw [scan_getLast?, publicInputFoldl_eq_combined]

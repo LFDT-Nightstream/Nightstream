@@ -210,6 +210,14 @@ def packageColumn (program : Lifecycle.Stage1.Application.Program)
     Fin (sourceWidth program) :=
   prefixColumn program (PiRLCProductPlan.baseColumn program column bound)
 
+private theorem packageColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    (packageColumn program column bound).val <
+      PiRLCProductPlan.baseSourceWidth program := by
+  unfold packageColumn prefixColumn FieldSuffixBlock.baseColumn
+  exact PiRLCProductPlan.baseColumn_val_lt_baseSourceWidth program column bound
+
 def productColumn (program : Lifecycle.Stage1.Application.Program)
     (candidate : Fin PiRLCFirst54DirectSchedule.candidateCount) :
     Fin (sourceWidth program) :=
@@ -239,6 +247,33 @@ def retainedValueColumn (program : Lifecycle.Stage1.Application.Program)
     Fin (sourceWidth program) :=
   packageColumn program descriptor.valueColumn
     (valueColumn_lt_basePackage descriptor)
+
+theorem retainedValueColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCFirst54DirectSchedule.Value) :
+    (retainedValueColumn program descriptor).val <
+      PiRLCProductPlan.baseSourceWidth program := by
+  unfold retainedValueColumn
+  exact packageColumn_val_lt_baseSourceWidth program descriptor.valueColumn
+    (valueColumn_lt_basePackage descriptor)
+
+theorem retainedRejectColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
+    (retainedRejectColumn program candidate).val <
+      PiRLCProductPlan.baseSourceWidth program := by
+  unfold retainedRejectColumn
+  exact packageColumn_val_lt_baseSourceWidth program candidate.rejectColumn
+    (rejectColumn_lt_basePackage candidate)
+
+theorem retainedSymbolColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
+    (retainedSymbolColumn program candidate).val <
+      PiRLCProductPlan.baseSourceWidth program := by
+  unfold retainedSymbolColumn
+  exact packageColumn_val_lt_baseSourceWidth program candidate.symbolColumn
+    (symbolColumn_lt_basePackage candidate)
 
 def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)

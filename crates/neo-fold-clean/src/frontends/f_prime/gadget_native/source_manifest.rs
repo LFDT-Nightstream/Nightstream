@@ -177,62 +177,6 @@ impl GadgetNativeSourceManifest {
         }
         Ok(())
     }
-
-    #[doc(hidden)]
-    pub fn apply_test_mutation(&mut self, mutation: GadgetNativeSourceManifestTestMutation) {
-        match mutation {
-            GadgetNativeSourceManifestTestMutation::RunStart { run, start } => self.runs[run].columns.start = start,
-            GadgetNativeSourceManifestTestMutation::RunLength { run, length } => {
-                self.runs[run].columns.end = self.runs[run].columns.start + length;
-            }
-            GadgetNativeSourceManifestTestMutation::RunRole { run, role } => self.runs[run].role = role,
-            GadgetNativeSourceManifestTestMutation::SwapRunRoles { left, right } => {
-                let left_role = self.runs[left].role;
-                self.runs[left].role = self.runs[right].role;
-                self.runs[right].role = left_role;
-            }
-            GadgetNativeSourceManifestTestMutation::DropRun { run } => {
-                self.runs.remove(run);
-            }
-            GadgetNativeSourceManifestTestMutation::RoleTotal { role, count } => {
-                self.totals.counts[role.index()] = count;
-            }
-            GadgetNativeSourceManifestTestMutation::CanonicalTraced { count } => {
-                self.canonical_u64.traced_fields = count;
-            }
-        }
-    }
-}
-
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug)]
-pub enum GadgetNativeSourceManifestTestMutation {
-    RunStart {
-        run: usize,
-        start: usize,
-    },
-    RunLength {
-        run: usize,
-        length: usize,
-    },
-    RunRole {
-        run: usize,
-        role: GadgetNativeSourceRole,
-    },
-    SwapRunRoles {
-        left: usize,
-        right: usize,
-    },
-    DropRun {
-        run: usize,
-    },
-    RoleTotal {
-        role: GadgetNativeSourceRole,
-        count: usize,
-    },
-    CanonicalTraced {
-        count: usize,
-    },
 }
 
 #[derive(Debug, Error)]

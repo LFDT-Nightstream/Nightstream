@@ -11,9 +11,9 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
+    let zero = FixedNifsAccumulator::canonical_zero(prep.params(), prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
-    assert_eq!(zero.claims().len(), prep.params.k_rho() as usize);
+    assert_eq!(zero.claims().len(), prep.params().k_rho() as usize);
     assert!(zero.claims().iter().all(|claim| {
         claim.c.data.iter().all(|&value| value == F::ZERO)
             && claim.X.to_dense_vec().iter().all(|&value| value == F::ZERO)
@@ -24,10 +24,10 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     let mut prover_transcript = Transcript::session();
     let (next, proof) = prove_fixed(
         &mut prover_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,
@@ -36,7 +36,7 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     .expect("fixed NIFS prover");
 
     let zero_verifier = FixedNifsAccumulator::from_verifier_running(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.combine_b_pows(),
         zero.running().claims_only(),
@@ -45,7 +45,7 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     let mut verifier_transcript = Transcript::session();
     let verified = verify_fixed(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -57,20 +57,20 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     .expect("fixed NIFS verifier");
 
     assert_eq!(next.claims(), verified.claims());
-    assert_eq!(next.claims().len(), prep.params.k_rho() as usize);
+    assert_eq!(next.claims().len(), prep.params().k_rho() as usize);
 }
 
 #[test]
 fn fixed_interface_rejects_variable_arity_running_state() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
+    let zero = FixedNifsAccumulator::canonical_zero(prep.params(), prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
     let mut malformed = zero.into_running();
     malformed.claims.pop();
     malformed.witnesses.pop();
 
     let error =
-        FixedNifsAccumulator::from_prover_running(&prep.params, prep.structure(), prep.combine_b_pows(), malformed)
+        FixedNifsAccumulator::from_prover_running(prep.params(), prep.structure(), prep.combine_b_pows(), malformed)
             .expect_err("variable-arity accumulator must fail");
     assert!(matches!(error, Error::FixedShape { .. }));
 }
@@ -78,7 +78,7 @@ fn fixed_interface_rejects_variable_arity_running_state() {
 #[test]
 fn fixed_interface_rejects_a_forged_decomposition_parent_cache() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
+    let zero = FixedNifsAccumulator::canonical_zero(prep.params(), prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
     let mut malformed = zero.into_running();
     malformed
@@ -88,6 +88,6 @@ fn fixed_interface_rejects_a_forged_decomposition_parent_cache() {
         .c
         .data[0] += F::ONE;
 
-    FixedNifsAccumulator::from_prover_running(&prep.params, prep.structure(), prep.combine_b_pows(), malformed)
+    FixedNifsAccumulator::from_prover_running(prep.params(), prep.structure(), prep.combine_b_pows(), malformed)
         .expect_err("the derived parent cache must be checked against all k formal CE claims");
 }

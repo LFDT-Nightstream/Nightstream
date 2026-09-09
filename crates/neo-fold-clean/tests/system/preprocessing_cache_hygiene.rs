@@ -79,6 +79,10 @@ fn preprocessing_cache_accessors_expose_read_only_views() {
     let _structure = prep.structure();
     let _digest = prep.structure_digest();
     let _cache = prep.optimized_cache();
+    let _params: &neo_fold_clean::paper::params::Params = prep.params();
+    let _setup: &neo_ajtai::AjtaiSModule = prep.commitment_scheme();
+    let _key: &neo_fold_clean::paper::construction2::VerifierKey = prep.verifier_key();
+    assert_eq!(prep.public_input_len(), Some(r1cs.m_in));
 
     prep.validate_cached_structure()
         .expect("read-only accessor use must leave caches valid");
@@ -93,14 +97,22 @@ fn seeded_preprocessing_does_not_share_equal_shaped_setup_state() {
     let prep_b = direct_ccs::preprocess_seeded(&r1cs, seed_b).expect("seed B preprocessing");
     let prep_a_again = direct_ccs::preprocess_seeded(&r1cs, seed_a).expect("second seed A preprocessing");
 
-    assert_ne!(prep_a.vk.digest(), prep_b.vk.digest());
-    assert_eq!(prep_a.vk.digest(), prep_a_again.vk.digest());
+    assert_ne!(prep_a.verifier_key().digest(), prep_b.verifier_key().digest());
+    assert_eq!(prep_a.verifier_key().digest(), prep_a_again.verifier_key().digest());
     assert_eq!(
-        prep_a.log.seeded_params().expect("seed A descriptor").1[..8],
+        prep_a
+            .commitment_scheme()
+            .seeded_params()
+            .expect("seed A descriptor")
+            .1[..8],
         seed_a.to_le_bytes()
     );
     assert_eq!(
-        prep_b.log.seeded_params().expect("seed B descriptor").1[..8],
+        prep_b
+            .commitment_scheme()
+            .seeded_params()
+            .expect("seed B descriptor")
+            .1[..8],
         seed_b.to_le_bytes()
     );
 }
@@ -123,11 +135,11 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
     };
 
     let mut z_mat = NeoMat::zero(D, prep.structure().m.div_ceil(D), F::ZERO);
-    z_mat[(1, 0)] = F::from_u64(prep.params.b() as u64);
+    z_mat[(1, 0)] = F::from_u64(prep.params().b() as u64);
     let fresh = CcsInstance {
         claim: CcsClaim {
             adv: None,
-            c: prep.log.commit(&z_mat),
+            c: prep.commitment_scheme().commit(&z_mat),
             x: Vec::new(),
             m_in: 0,
         },
@@ -140,10 +152,10 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
     let mut prove_tr = Transcript::session();
     let proof_result = nifs::prove(
         &mut prove_tr,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -155,7 +167,7 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
         let mut verify_tr = Transcript::session();
         let verified = nifs::verify(
             &mut verify_tr,
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.mix_rhos_commits(),

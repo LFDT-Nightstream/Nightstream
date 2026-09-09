@@ -694,7 +694,7 @@
       "id": "D.security.children",
       "proof": "proved",
       "connection": "connected",
-      "scope": "Consumes the valid witness of the exact output relation, as required by the reduction experiment. The actual recursive terminal payload supplies all 16 openings. Bare public acceptance does not supply witnesses.",
+      "scope": "The local theorem consumes valid witnesses for the exact output relation and extracts the parent for any accepted fold. The concrete terminal consumer supplies all 16 openings for the last fold. Recovering the witnesses for earlier folds belongs to H.security.reverse_recursive and is still open. Bare public acceptance supplies no witness. The proof denominator increased from 25 to 26 because this conditional consumer is now proved instead of excluded as an assumption.",
       "code": [
         {
           "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiDEC/OutputWitnessConsumer.lean",
@@ -1272,7 +1272,7 @@
         "public_map_updated": true,
         "final_source_input_confirmation": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-final-source-input-confirmation.json"
       },
-      "scope": "Selected native conformance is closed for the honest base and actual-child recursive cases on the same Nightstream Goldilocks package, matrices and setup. The actual optimized prover, executable Lean and both Rust verifiers agree on the full PiCCS result. All 91 registered checks pass: exact matrices, raw assignments, every opening family and commitment, all 16 children at both points, parent/caller handoffs, ownership and required mutations. The twelve-owner formula map and changed driver were independently reviewed. This is scoped conformance evidence; universal Rust correctness and full Stage 1 production approval retain their own requirements."
+      "scope": "Selected conformance is checked for the nonzero base and actual-child recursive cases. At the 2^28 profile, the shared optimized protocol driver, transcript code and both Rust verifiers ran with the bounded fixture evaluator and its 17 complete opening families. Independent checks cover the selected matrices, raw assignments, every opening coefficient and commitment, both child evaluation points, handoffs and mutations; all 91 registered checks passed. The production OptimizedPaperJointOracle was compared only on a small case. This does not establish the full-profile production evaluator or caller; P.runtime.piccs and L.export.current remain open."
     }
   ],
   "partial_progress": [
@@ -1381,16 +1381,17 @@
       "source_cut": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-source-cut-2026-09-08.json",
       "independent_review": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-independent-review-2026-09-08.md"
     },
-    "final_source_input_confirmation": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-final-source-input-confirmation.json"
+    "final_source_input_confirmation": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-final-source-input-confirmation.json",
+    "evaluator_scope": "The 2^28 conformance runs use the shared optimized protocol driver with the bounded fixture evaluator and prepared complete openings. The default production OptimizedPaperJointOracle was compared only on a small case. Full-profile production evaluator and caller closure remain separate."
   },
   "publication": {
     "status": "succeeded",
     "url": "https://nightstream-requirements.nicarq.chatgpt.site/",
-    "version_number": 15,
-    "site_commit": "e57c018ccc7c2ceb223d41afcb1dad156298db6b",
-    "version_id": "appgprj_6a9f572526f48191bbe2f0718c03d1ec~appgver_5e810cc7ea3481919ab001f66bcbd9ac",
-    "deployment_id": "appgdep_6aa0a7ea7efc819196c40322d0f563c1",
-    "published_at": "2026-09-09T00:28:14.631431+00:00",
+    "version_number": 16,
+    "site_commit": "d3896f12265fde99f7774cba7080d5aec8c375f0",
+    "version_id": "appgprj_6a9f572526f48191bbe2f0718c03d1ec~appgver_abb088aba1dc819189b7ab86c343b358",
+    "deployment_id": "appgdep_6aa0af6fa1048191b3854b0e17767fdb",
+    "published_at": "2026-09-09T00:59:50.412289+00:00",
     "live_json_matches": true,
     "counts": {
       "C": {
@@ -1406,5 +1407,10 @@
         "link": "26/26"
       }
     }
+  },
+  "scope_review": {
+    "source_commit": "708431f5f8e33fec89669f5ada9876c19ab0d5b6",
+    "report": "docs/reviews/nightstream-fprime-requirements/FEEDBACK_SCOPE_REVIEW.md",
+    "scope": "Clarify C native evaluator and D witness scope; close only H.recursive.fold_exact; retain selected-context, history and pinned-artifact gaps."
   }
 }

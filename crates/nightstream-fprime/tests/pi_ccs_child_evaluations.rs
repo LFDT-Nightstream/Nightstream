@@ -236,12 +236,16 @@ fn evaluate(
 }
 
 #[test]
-#[ignore = "requires external child-opening paths and family K or A0..A13 as JSON on stdin; run under the 300-second cap"]
+#[ignore = "requires external child-opening paths and family K, A0..A13 or ALL as JSON on stdin; run under the 300-second cap"]
 fn independent_actual_child_evaluation_family() {
     let started = Instant::now();
     let inputs: Inputs = serde_json::from_reader(std::io::stdin().lock()).expect("child evaluation paths");
-    let selected = if inputs.family == "K" {
-        None
+    let selected_families = if inputs.family == "ALL" {
+        std::iter::once(None)
+            .chain((0..MATRICES).map(Some))
+            .collect::<Vec<_>>()
+    } else if inputs.family == "K" {
+        vec![None]
     } else {
         let matrix = inputs
             .family
@@ -250,7 +254,7 @@ fn independent_actual_child_evaluation_family() {
             .parse::<usize>()
             .expect("matrix index");
         assert!(matrix < MATRICES);
-        Some(matrix)
+        vec![Some(matrix)]
     };
     let bytes = fs::read(&inputs.package).expect("canonical package");
     let package = load_per_application_package(&bytes, inputs.structural_identity).expect("selected package identity");
@@ -304,99 +308,107 @@ fn independent_actual_child_evaluation_family() {
     assert!(parent
         .par_chunks_exact(2)
         .all(|word| u64::from(i16::from_le_bytes(word.try_into().unwrap()).unsigned_abs()) <= bound));
-    let family = read(&inputs.family_result);
-    assert_eq!(family.as_array().expect("complete child family").len(), 9);
-    assert_eq!(family[0], 1);
-    assert_eq!(family[1], json!(inputs.structural_identity));
-    assert_eq!(family[2], json!(context));
-    assert_eq!(family[3], json!(point));
-    assert_eq!(family[4], json!(u64::from(selected.is_some())));
-    assert_eq!(family[5], json!(selected.unwrap_or(0)));
-    for index in [6, 7, 8] {
-        assert_eq!(
-            family[index]
-                .as_array()
-                .expect("sixteen child values")
-                .len(),
-            CHILDREN
-        );
-    }
-    let mut expected = Box::new([[Extension::ZERO; DEGREE]; CHILDREN]);
-    for child in 0..CHILDREN {
-        let commitment = read(&inputs.commitments.join(format!("child-{child}.json")));
-        assert_eq!(
-            commitment
-                .as_array()
-                .expect("child commitment record")
-                .len(),
-            7
-        );
-        assert_eq!(commitment[0], 1);
-        assert_eq!(commitment[1], json!(inputs.structural_identity));
-        assert_eq!(commitment[2], json!(context));
-        assert_eq!(commitment[3], json!(child));
-        assert_eq!(commitment[4], json!(prior_point));
-        assert_eq!(family[6][child], commitment[5], "same public projection");
-        assert_eq!(family[7][child], commitment[6], "same independently checked commitment");
-        if let Some(phase) = &phase {
-            assert_eq!(family[6][child], phase[2][2][child], "same phase public input");
-            assert_eq!(family[7][child], phase[2][1][child], "same phase commitment");
-            let claimed = match selected {
-                None => &phase[1][4][child + 1],
-                Some(matrix) => &phase[1][5][child + 1][matrix],
-            };
-            assert_eq!(&family[8][child], claimed, "same complete phase output family");
-        }
-        let public: Vec<u64> = serde_json::from_value(family[6][child].clone()).expect("public projection");
-        assert_eq!(public.len(), PUBLIC);
-        for (column, &word) in public.iter().enumerate() {
-            let value = i16::from_le_bytes(parent[column * 2..column * 2 + 2].try_into().unwrap());
-            let digit = (u64::from(value.unsigned_abs()) / (1u64 << child)) % 2;
-            let canonical = if value < 0 && digit != 0 {
-                reference::GOLDILOCKS_MODULUS - digit
-            } else {
-                digit
-            };
-            assert_eq!(word, canonical, "actual child public coordinate");
-        }
-        let commitments: Vec<u64> = serde_json::from_value(family[7][child].clone()).expect("commitment words");
-        assert_eq!(commitments.len(), 22 * DEGREE);
-        assert!(commitments
-            .iter()
-            .all(|&word| word < reference::GOLDILOCKS_MODULUS));
-        expected[child] = ring(&family[8][child]);
-        if selected == Some(MATRICES - 1) {
+    drop(package);
+    for selected in selected_families {
+        let name = selected.map_or_else(|| "K".to_owned(), |matrix| format!("A{matrix}"));
+        let family_path = if inputs.family == "ALL" {
+            inputs.family_result.join(format!("family-{name}.json"))
+        } else {
+            inputs.family_result.clone()
+        };
+        let family = read(&family_path);
+        assert_eq!(family.as_array().expect("complete child family").len(), 9);
+        assert_eq!(family[0], 1);
+        assert_eq!(family[1], json!(inputs.structural_identity));
+        assert_eq!(family[2], json!(context));
+        assert_eq!(family[3], json!(point));
+        assert_eq!(family[4], json!(u64::from(selected.is_some())));
+        assert_eq!(family[5], json!(selected.unwrap_or(0)));
+        for index in [6, 7, 8] {
             assert_eq!(
-                expected[child],
-                [Extension::ZERO; DEGREE],
-                "canonical zero matrix claim"
+                family[index]
+                    .as_array()
+                    .expect("sixteen child values")
+                    .len(),
+                CHILDREN
             );
         }
-    }
-    drop(package);
-    println!(
-        "independent_child_evaluation_family={} children={CHILDREN} input_time={:?}",
-        inputs.family,
-        started.elapsed()
-    );
-    println!(
-        "child_evaluation_point_source={}",
-        if phase.is_some() {
-            "accepted_lean_output"
-        } else {
-            "prior_claim"
+        let mut expected = Box::new([[Extension::ZERO; DEGREE]; CHILDREN]);
+        for child in 0..CHILDREN {
+            let commitment = read(&inputs.commitments.join(format!("child-{child}.json")));
+            assert_eq!(
+                commitment
+                    .as_array()
+                    .expect("child commitment record")
+                    .len(),
+                7
+            );
+            assert_eq!(commitment[0], 1);
+            assert_eq!(commitment[1], json!(inputs.structural_identity));
+            assert_eq!(commitment[2], json!(context));
+            assert_eq!(commitment[3], json!(child));
+            assert_eq!(commitment[4], json!(prior_point));
+            assert_eq!(family[6][child], commitment[5], "same public projection");
+            assert_eq!(family[7][child], commitment[6], "same independently checked commitment");
+            if let Some(phase) = &phase {
+                assert_eq!(family[6][child], phase[2][2][child], "same phase public input");
+                assert_eq!(family[7][child], phase[2][1][child], "same phase commitment");
+                let claimed = match selected {
+                    None => &phase[1][4][child + 1],
+                    Some(matrix) => &phase[1][5][child + 1][matrix],
+                };
+                assert_eq!(&family[8][child], claimed, "same complete phase output family");
+            }
+            let public: Vec<u64> = serde_json::from_value(family[6][child].clone()).expect("public projection");
+            assert_eq!(public.len(), PUBLIC);
+            for (column, &word) in public.iter().enumerate() {
+                let value = i16::from_le_bytes(parent[column * 2..column * 2 + 2].try_into().unwrap());
+                let digit = (u64::from(value.unsigned_abs()) / (1u64 << child)) % 2;
+                let canonical = if value < 0 && digit != 0 {
+                    reference::GOLDILOCKS_MODULUS - digit
+                } else {
+                    digit
+                };
+                assert_eq!(word, canonical, "actual child public coordinate");
+            }
+            let commitments: Vec<u64> = serde_json::from_value(family[7][child].clone()).expect("commitment words");
+            assert_eq!(commitments.len(), 22 * DEGREE);
+            assert!(commitments
+                .iter()
+                .all(|&word| word < reference::GOLDILOCKS_MODULUS));
+            expected[child] = ring(&family[8][child]);
+            if selected == Some(MATRICES - 1) {
+                assert_eq!(
+                    expected[child],
+                    [Extension::ZERO; DEGREE],
+                    "canonical zero matrix claim"
+                );
+            }
         }
-    );
-    let actual = evaluate(
-        &bytes,
-        logical_width,
-        row_count,
-        &parent,
-        &weights,
-        selected,
-        active_digits,
-    );
-    check_values(&actual, &family[8]).expect("every independently evaluated child coefficient");
-    check_output_mutations(&actual, &family[8]);
-    println!("independent_child_evaluation_family={} passed children={CHILDREN} coefficients={} carrier={native_width} elapsed={:?}", inputs.family, CHILDREN * DEGREE, started.elapsed());
+        println!(
+            "independent_child_evaluation_family={} children={CHILDREN} input_time={:?}",
+            name,
+            started.elapsed()
+        );
+        println!(
+            "child_evaluation_point_source={}",
+            if phase.is_some() {
+                "accepted_lean_output"
+            } else {
+                "prior_claim"
+            }
+        );
+        let actual = evaluate(
+            &bytes,
+            logical_width,
+            row_count,
+            &parent,
+            &weights,
+            selected,
+            active_digits,
+        );
+        check_values(&actual, &family[8]).expect("every independently evaluated child coefficient");
+        check_output_mutations(&actual, &family[8]);
+        println!("independent_child_evaluation_family={} passed children={CHILDREN} coefficients={} carrier={native_width} elapsed={:?}", name, CHILDREN * DEGREE, started.elapsed());
+    }
 }

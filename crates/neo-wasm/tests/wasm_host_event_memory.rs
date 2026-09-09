@@ -241,7 +241,7 @@ fn import_memory_fixture() -> ImportMemoryFixture {
     )
     .expect("bindings trace");
 
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     check_memory_rows(&component_bytes, &bindings, &trace);
 

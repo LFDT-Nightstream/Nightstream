@@ -942,6 +942,18 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
     let before = trace.state_before.event_absorb;
     let after = trace.state_after.event_absorb;
+    wit[crate::layout::COL_OBJECT_ACTIVE_BEFORE] = bool_f(before.object_active);
+    wit[crate::layout::COL_OBJECT_ACTIVE_AFTER] = bool_f(after.object_active);
+    for (columns, values) in [
+        (crate::layout::COL_OUTER_CHAIN_BEFORE, before.outer_chain),
+        (crate::layout::COL_OUTER_CHAIN_AFTER, after.outer_chain),
+        (crate::layout::COL_OUTER_PREFIX_BEFORE, before.outer_prefix),
+        (crate::layout::COL_OUTER_PREFIX_AFTER, after.outer_prefix),
+    ] {
+        for (column, value) in columns.into_iter().zip(values) {
+            wit[column] = F::from_u64(value);
+        }
+    }
 
     for j in 0..8 {
         wit[COL_EVBUF_BEFORE[j]] = F::from_u64(before.evbuf[j]);

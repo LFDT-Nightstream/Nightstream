@@ -501,7 +501,7 @@ fn prove_inner(
     if trace.is_empty() {
         return Err(WasmNebulaError::EmptyTrace);
     }
-    if !trace.last().expect("nonempty").state_after.halted {
+    if !trace.last().expect("nonempty").state_after.is_terminal() {
         return Err(WasmNebulaError::NonTerminalTrace);
     }
     if !prep.allows_host_calls {
@@ -568,7 +568,7 @@ fn verify_inner(
     claimed_final_state: WasmStepState,
     opening_backend: Option<&mut dyn FinalWitnessOpeningBackend>,
 ) -> Result<(), WasmNebulaError> {
-    if !claimed_final_state.halted {
+    if !claimed_final_state.is_terminal() {
         return Err(WasmNebulaError::FalseTerminalClaim);
     }
     let pages_present = claimed_final_state.memory_pages.is_some();
@@ -847,7 +847,7 @@ pub enum WasmNebulaError {
     EmptyTrace,
     #[error("WASM trace does not end in a terminal state")]
     NonTerminalTrace,
-    #[error("WASM terminal verifier requires halted = true")]
+    #[error("WASM terminal verifier requires halted execution and a completed host-event schedule")]
     FalseTerminalClaim,
     #[error(
         "WASM terminal memory presence does not match the program (expected={expected}, pages_present={pages_present}, max_present={max_present})"

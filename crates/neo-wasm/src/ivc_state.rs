@@ -12,14 +12,15 @@ use super::layout::{
     COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE, COL_HOST_EVENT_INDEX_AFTER,
     COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
     COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
-    COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_AFTER,
-    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER,
-    COL_TURN_EXPORT_FREF_BEFORE,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE,
+    COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER,
+    COL_PERM_STATE_BEFORE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
+    COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 
 const fn link(previous_step_column: usize, next_step_column: usize) -> ContinuityLink {
@@ -110,7 +111,7 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<ContinuityGroup> {
         },
         ContinuityGroup {
             name: "comm_chain_continuity",
-            role: "row[i].host-event commitment chain must match row[i+1].host-event commitment chain",
+            role: "row[i].active commitment chain must match row[i+1].active commitment chain",
             links: COL_COMM_CHAIN_AFTER
                 .into_iter()
                 .zip(COL_COMM_CHAIN_BEFORE)
@@ -132,6 +133,7 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<ContinuityGroup> {
             role: "row[i].host-event absorb state (block buffer and perm group) must match row[i+1]",
             links: {
                 let mut links = vec![
+                    link(COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE),
                     link(COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE),
                     link(COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE),
                 ];
@@ -140,6 +142,16 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<ContinuityGroup> {
                         .into_iter()
                         .zip(COL_EVBUF_BEFORE)
                         .chain(COL_PERM_STATE_AFTER.into_iter().zip(COL_PERM_STATE_BEFORE))
+                        .chain(
+                            COL_OUTER_CHAIN_AFTER
+                                .into_iter()
+                                .zip(COL_OUTER_CHAIN_BEFORE),
+                        )
+                        .chain(
+                            COL_OUTER_PREFIX_AFTER
+                                .into_iter()
+                                .zip(COL_OUTER_PREFIX_BEFORE),
+                        )
                         .map(|(after, before)| link(after, before)),
                 );
                 links

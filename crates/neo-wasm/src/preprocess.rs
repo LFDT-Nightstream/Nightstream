@@ -22,10 +22,11 @@ use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
     COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
-    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
-    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_MEMORY_PAGES_BEFORE, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_BEFORE,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
+    COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -280,26 +281,29 @@ pub fn host_event_top_level_initial_state_digest(
 }
 
 fn carried_state_field(state: WasmStepState, column: usize) -> F {
-    if let Some(limb) = COL_COMM_CHAIN_BEFORE
-        .iter()
-        .position(|&candidate| candidate == column)
-    {
-        return F::from_u64(state.comm_chain[limb]);
-    }
-    if let Some(word) = COL_EVBUF_BEFORE
-        .iter()
-        .position(|&candidate| candidate == column)
-    {
-        return F::from_u64(state.event_absorb.evbuf[word]);
-    }
-    if let Some(lane) = COL_PERM_STATE_BEFORE
-        .iter()
-        .position(|&candidate| candidate == column)
-    {
-        return F::from_u64(state.event_absorb.perm_state[lane]);
+    for (columns, values) in [
+        (
+            COL_OUTER_CHAIN_BEFORE.as_slice(),
+            state.event_absorb.outer_chain.as_slice(),
+        ),
+        (
+            COL_OUTER_PREFIX_BEFORE.as_slice(),
+            state.event_absorb.outer_prefix.as_slice(),
+        ),
+        (COL_COMM_CHAIN_BEFORE.as_slice(), state.comm_chain.as_slice()),
+        (COL_EVBUF_BEFORE.as_slice(), state.event_absorb.evbuf.as_slice()),
+        (
+            COL_PERM_STATE_BEFORE.as_slice(),
+            state.event_absorb.perm_state.as_slice(),
+        ),
+    ] {
+        if let Some(lane) = columns.iter().position(|&candidate| candidate == column) {
+            return F::from_u64(values[lane]);
+        }
     }
 
     match column {
+        COL_OBJECT_ACTIVE_BEFORE => bool_field(state.event_absorb.object_active),
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
         COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),

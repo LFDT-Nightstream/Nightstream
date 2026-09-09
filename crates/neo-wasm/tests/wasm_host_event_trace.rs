@@ -153,7 +153,7 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
         initial_comm_chain,
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     // The claimed host-event ROM entries must match the embedder tables.
@@ -258,7 +258,7 @@ fn i64_result_lane_writes() {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
@@ -369,7 +369,7 @@ fn advice_import_pushes_without_absorbing() {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");

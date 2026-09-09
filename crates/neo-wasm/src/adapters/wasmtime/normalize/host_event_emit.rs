@@ -9,7 +9,8 @@
 
 use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
 use crate::host_event_bindings::{
-    expand_import_events, memory_rom_arg_variant, EventBlock, ImportTemplate, Limb, MemoryBase, SlotBinding,
+    expand_import_events, memory_rom_arg_variant, opaque_control_encoding, EventBlock, ImportTemplate, Limb,
+    MemoryBase, SlotBinding,
 };
 use crate::ir::{
     LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
@@ -37,7 +38,7 @@ pub(super) struct EventSlotRow {
     pub(super) linear_memory: Option<LinearMemoryAccess>,
 }
 
-/// One event block's eight gather rows and absorb policy.
+/// One ROM group's slot plans and absorb policy. Enter ends a prefix group early.
 pub(super) struct EventBlockPlan {
     pub(super) rows: Vec<EventSlotRow>,
     /// Whether the staged block enters the transcript.
@@ -357,6 +358,10 @@ fn plan_event_blocks(
                         linear_memory: None,
                     };
                     Ok(match *source {
+                        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
+                            let (kind, arg) = opaque_control_encoding(source).expect("control slot");
+                            base_slot_row(entry(kind, arg, WasmHostEventRomVariant::None, 0, 0))
+                        }
                         SlotBinding::Const(constant) => base_slot_row(entry(
                             WasmHostEventSlotKind::Const,
                             0,
@@ -528,6 +533,10 @@ pub(super) fn plan_export_blocks(
                         linear_memory: None,
                     };
                     Ok(match *source {
+                        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
+                            let (kind, arg) = opaque_control_encoding(source).expect("control slot");
+                            base_slot_row(entry(kind, arg, WasmHostEventRomVariant::None))
+                        }
                         SlotBinding::Const(constant) => base_slot_row(crate::ir::WasmHostEventRomEntry {
                             kind: WasmHostEventSlotKind::Const,
                             arg: 0,
@@ -757,11 +766,11 @@ pub(super) fn emit_perm_group(
     }
 }
 
-/// Emit one host-event block: eight gather rows (one word each, with the
+/// Emit one host-event group: up to eight gather rows (one word each, with the
 /// arg/result stack read, the result-lo stack WRITE that pushes the host
 /// result, or the input-local lane write the slot inputs). Absorbing blocks
-/// then run their permutation group. A result push bumps `ctx.sp` for every
-/// subsequent row.
+/// then run their permutation group; Enter ends a prefix group without hashing.
+/// A result push bumps `ctx.sp` for every subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
     ctx: &mut HostEventRowContext,
@@ -771,13 +780,34 @@ pub(super) fn emit_block_plan(
     plan: &EventBlockPlan,
 ) {
     for (word, slot) in plan.rows.iter().enumerate() {
+        let chain_before = *comm_chain;
         let absorb_before = *absorb;
         let host_event_state_before = *host_event_state;
         absorb.evbuf[word] = slot.value;
-        host_event_state.slot_cursor = ((word + 1) % 8) as u8;
-        if word == 7 {
+        let enter_opaque = slot.rom.kind == WasmHostEventSlotKind::EnterOpaque;
+        if enter_opaque {
+            absorb.outer_prefix.copy_from_slice(&absorb.evbuf[..4]);
+            absorb.outer_chain = *comm_chain;
+            // TODO: Consider a verifier-authored, ROM-bound initial chain for EnterOpaque,
+            // with matching circuit and native-root semantics. Const slots only initialize evbuf.
+            *comm_chain = [0; 4];
+            absorb.object_active = true;
+        }
+        if slot.rom.kind == WasmHostEventSlotKind::OpaqueRoot {
+            debug_assert_eq!(
+                slot.value,
+                comm_chain[usize::from(slot.rom.arg)],
+                "replayed opaque root must match the emitted object chain"
+            );
+            if slot.rom.arg == 3 {
+                *comm_chain = absorb.outer_chain;
+                absorb.object_active = false;
+            }
+        }
+        host_event_state.slot_cursor = if enter_opaque { 0 } else { ((word + 1) % 8) as u8 };
+        if word == 7 || enter_opaque {
             // Advice blocks advance the schedule without starting a permutation.
-            if plan.absorb {
+            if plan.absorb && !enter_opaque {
                 absorb.perm_pending = true;
                 absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
             }
@@ -799,7 +829,7 @@ pub(super) fn emit_block_plan(
         let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.write.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
-        let state_before = ctx.state(*comm_chain, absorb_before, host_event_state_before);
+        let state_before = ctx.state(chain_before, absorb_before, host_event_state_before);
         if pushes {
             ctx.sp += 1;
         }
@@ -831,8 +861,11 @@ pub(super) fn emit_block_plan(
                 state_after,
             )
         });
+        if enter_opaque {
+            break;
+        }
     }
-    if plan.absorb {
+    if absorb.perm_pending {
         emit_perm_group(out, ctx, comm_chain, absorb, *host_event_state);
     }
 }

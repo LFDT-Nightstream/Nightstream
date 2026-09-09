@@ -8,7 +8,8 @@
 //! positions 0-3 initial full rounds (0 also absorbs `[chain | evbuf]`
 //! premixed by the initial external layer), 4-14 partial pairs (2 internal
 //! rounds each), 15-18 terminal full rounds (18 also feeds the chain
-//! forward and is the only row on which `comm_chain` may move).
+//! forward). Opaque Enter saves and zeros the active chain; the final root-copy
+//! slot restores the saved outer chain. Both contexts use the same hash path.
 //!
 //! Scheduling soundness: `perm_pending` (raised only by the gated write-row
 //! update below) forces the next row to be position 0, the round counter
@@ -36,11 +37,13 @@
 use super::super::layout::{
     COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
-    COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_ONE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
-    COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO,
-    COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE, COL_ONE,
+    COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE,
+    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
+    COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_AFTER,
+    COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
@@ -94,6 +97,8 @@ define_column_region! {
         GMEM_BYTE: Boolean => "byte-width host-event memory slot",
         GMEM_HALF: Boolean => "half-width host-event memory slot",
         INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
+        OBJECT_ROOT_LANE: [Boolean; 4] => "opaque root copy-back lane selectors",
+        OBJECT_SAVED_LANE: [Boolean; 4] => "suspended outer prefix lane selectors",
     ]
 }
 
@@ -103,6 +108,9 @@ const GK_INPUT_LOCAL: usize = GATHER_KIND[WasmHostEventSlotKind::InputLocal.inde
 const GK_OUTPUT: usize = GATHER_KIND[WasmHostEventSlotKind::Output.index()];
 const GK_MEMORY_READ: usize = GATHER_KIND[WasmHostEventSlotKind::MemoryRead.index()];
 const GK_MEMORY_WRITE: usize = GATHER_KIND[WasmHostEventSlotKind::MemoryWrite.index()];
+const GK_ENTER: usize = GATHER_KIND[WasmHostEventSlotKind::EnterOpaque.index()];
+const GK_ROOT: usize = GATHER_KIND[WasmHostEventSlotKind::OpaqueRoot.index()];
+const GK_SAVED: usize = GATHER_KIND[WasmHostEventSlotKind::OpaqueSaved.index()];
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
 /// The `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
@@ -185,6 +193,7 @@ pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
 pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_interface_constraints(b);
     push_host_event_gather_constraints(b);
+    push_opaque_constraints(b);
     push_position_onehot_constraints(b);
     push_pending_update_constraints(b);
     push_buffer_write_constraints(b);
@@ -230,7 +239,8 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
-        // On the last gather row, pending_after = 1 - advice.
+        // Full groups hash unless they are advice; Enter ends its prefix group
+        // before slot seven and is covered by the non-final-slot pending rule.
         b.push_row(
             [(GATHER_WORD_POSITION[7], F::ONE)],
             [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE), (G_ADVICE, F::ONE)],
@@ -307,7 +317,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
         // Event schedule countdown: loaded from the event-count ROMs on the
         // host-call row (the whole call, args and result, is one atomic
-        // event sequence), decremented by each block's last slot row,
+        // event sequence), decremented at slot seven or an early Enter,
         // preserved elsewhere; program rows require it to be spent, and
         // gather rows require it to be live.
         HOST_EVENTS_REMAINING_ZERO_TEST.push_constraints(b);
@@ -327,7 +337,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
         b.push_row(
-            [(GATHER_WORD_POSITION[7], F::ONE)],
+            [(GATHER_WORD_POSITION[7], F::ONE), (GK_ENTER, F::ONE)],
             [
                 (EVENTS_REMAINING_AFTER, F::ONE),
                 (EVENTS_REMAINING_BEFORE, -F::ONE),
@@ -340,6 +350,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
                 (HOST_CALL_ACTIVE, -F::ONE),
                 (GATHER_WORD_POSITION[7], -F::ONE),
+                (GK_ENTER, -F::ONE),
                 (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
@@ -385,7 +396,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // Event index: the ROM key component walking the template.
         b.push_row([(HOST_CALL_ACTIVE, F::ONE)], [(EVENT_INDEX_AFTER, F::ONE)], []);
         b.push_row(
-            [(GATHER_WORD_POSITION[7], F::ONE)],
+            [(GATHER_WORD_POSITION[7], F::ONE), (GK_ENTER, F::ONE)],
             [
                 (EVENT_INDEX_AFTER, F::ONE),
                 (EVENT_INDEX_BEFORE, -F::ONE),
@@ -398,6 +409,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
                 (HOST_CALL_ACTIVE, -F::ONE),
                 (GATHER_WORD_POSITION[7], -F::ONE),
+                (GK_ENTER, -F::ONE),
                 (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
@@ -439,12 +451,18 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 .chain([(SLOT_CURSOR_BEFORE, -F::ONE)]),
             [],
         );
-        b.push_linear_zero([
-            (SLOT_CURSOR_AFTER, F::ONE),
-            (SLOT_CURSOR_BEFORE, -F::ONE),
-            (COL_GATHER_ACTIVE, -F::ONE),
-            (GATHER_WORD_POSITION[7], F::from_u64(8)),
-        ]);
+        // Normally advance one slot (wrapping at eight). Enter instead
+        // consumes the prefix's final instruction and resets directly to zero.
+        b.push_row(
+            [(GK_ENTER, F::ONE)],
+            [(SLOT_CURSOR_BEFORE, F::ONE), (COL_ONE, F::ONE)],
+            [
+                (SLOT_CURSOR_BEFORE, F::ONE),
+                (COL_GATHER_ACTIVE, F::ONE),
+                (GATHER_WORD_POSITION[7], -F::from_u64(8)),
+                (SLOT_CURSOR_AFTER, -F::ONE),
+            ],
+        );
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(SLOT_CURSOR_BEFORE, F::ONE)], []);
 
         // Advice uses the next code range above the raw slot kinds.
@@ -813,6 +831,86 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
+/// Opaque objects suspend only the outer prefix and chain. Both contexts use
+/// the same gather buffer, permutation state, round selectors, and S-box advice.
+fn push_opaque_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    use crate::layout::COL_HOST_EVENT_SLOT_ARG;
+    b.with_tag(host_event("opaque value context"), |b| {
+        b.push_linear_zero([
+            (COL_OBJECT_ACTIVE_AFTER, F::ONE),
+            (COL_OBJECT_ACTIVE_BEFORE, -F::ONE),
+            (GK_ENTER, -F::ONE),
+            (OBJECT_ROOT_LANE[3], F::ONE),
+        ]);
+        b.push_row([(GK_ENTER, F::ONE)], [(COL_OBJECT_ACTIVE_BEFORE, F::ONE)], []);
+        // only can use GK_ROOT (copy the digest to the outer evbuf) or GK_SAVED
+        // (restore the evbuf) if we are in opaque object mode
+        b.push_row(
+            [(GK_ROOT, F::ONE), (GK_SAVED, F::ONE)],
+            [(COL_OBJECT_ACTIVE_BEFORE, F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
+        for (kind, selectors, source) in [
+            (GK_ROOT, OBJECT_ROOT_LANE, COL_COMM_CHAIN_BEFORE),
+            (GK_SAVED, OBJECT_SAVED_LANE, COL_OUTER_PREFIX_BEFORE),
+        ] {
+            b.push_linear_zero(
+                selectors
+                    .into_iter()
+                    .map(|col| (col, F::ONE))
+                    .chain([(kind, -F::ONE)]),
+            );
+            b.push_row(
+                [(kind, F::ONE)],
+                selectors
+                    .into_iter()
+                    .enumerate()
+                    .map(|(lane, col)| (col, F::from_u64(lane as u64)))
+                    .chain([(COL_HOST_EVENT_SLOT_ARG, -F::ONE)]),
+                [],
+            );
+            for lane in 0..4 {
+                b.push_row(
+                    [(selectors[lane], F::ONE)],
+                    [(GSLOT_VALUE, F::ONE), (source[lane], -F::ONE)],
+                    [],
+                );
+            }
+        }
+        for lane in 0..4 {
+            b.push_row(
+                [(GK_ENTER, F::ONE)],
+                [
+                    (COL_OUTER_CHAIN_AFTER[lane], F::ONE),
+                    (COL_COMM_CHAIN_BEFORE[lane], -F::ONE),
+                ],
+                [],
+            );
+            b.push_row(
+                [(COL_ONE, F::ONE), (GK_ENTER, -F::ONE)],
+                [
+                    (COL_OUTER_CHAIN_AFTER[lane], F::ONE),
+                    (COL_OUTER_CHAIN_BEFORE[lane], -F::ONE),
+                ],
+                [],
+            );
+            b.push_row(
+                [(GK_ENTER, F::ONE)],
+                [(COL_OUTER_PREFIX_AFTER[lane], F::ONE), (COL_EVBUF_AFTER[lane], -F::ONE)],
+                [],
+            );
+            b.push_row(
+                [(COL_ONE, F::ONE), (GK_ENTER, -F::ONE)],
+                [
+                    (COL_OUTER_PREFIX_AFTER[lane], F::ONE),
+                    (COL_OUTER_PREFIX_BEFORE[lane], -F::ONE),
+                ],
+                [],
+            );
+        }
+    });
+}
+
 /// Position one-hot ↔ round-counter lockstep.
 fn push_position_onehot_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event perm position"), |b| {
@@ -940,13 +1038,22 @@ fn push_partial_pair_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-/// Chain movement: only the group's last row updates `comm_chain`, adding
-/// the raw input lanes (feed-forward) to the permutation output; every
-/// other row in the trace carries the chain unchanged.
+/// One active chain for every permutation. Enter zeros it after saving the
+/// outer chain; the final root-copy restores that chain after reading the root.
 fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let last = PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1];
+    let exit = OBJECT_ROOT_LANE[3];
     b.with_tag(host_event("host event chain update"), |b| {
         for limb in 0..4 {
+            b.push_row([(GK_ENTER, F::ONE)], [(COL_COMM_CHAIN_AFTER[limb], F::ONE)], []);
+            b.push_row(
+                [(exit, F::ONE)],
+                [
+                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
+                    (COL_OUTER_CHAIN_BEFORE[limb], -F::ONE),
+                ],
+                [],
+            );
             b.push_row(
                 [(last, F::ONE)],
                 [
@@ -957,7 +1064,7 @@ fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 [],
             );
             b.push_row(
-                [(COL_ONE, F::ONE), (last, -F::ONE)],
+                [(COL_ONE, F::ONE), (last, -F::ONE), (GK_ENTER, -F::ONE), (exit, -F::ONE)],
                 [
                     (COL_COMM_CHAIN_AFTER[limb], F::ONE),
                     (COL_COMM_CHAIN_BEFORE[limb], -F::ONE),
@@ -1035,6 +1142,14 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             wit[GMEM_OUTPUT] = bool_f(rom.variant.uses_output_memory_base());
             wit[GMEM_BYTE] = bool_f(rom.variant.uses_byte_memory_width());
             wit[GMEM_HALF] = bool_f(rom.variant.uses_half_memory_width());
+            if usize::from(rom.arg) < 4 {
+                if rom.kind == WasmHostEventSlotKind::OpaqueRoot {
+                    wit[OBJECT_ROOT_LANE[usize::from(rom.arg)]] = F::ONE;
+                }
+                if rom.kind == WasmHostEventSlotKind::OpaqueSaved {
+                    wit[OBJECT_SAVED_LANE[usize::from(rom.arg)]] = F::ONE;
+                }
+            }
         }
     }
     // Host-call arg pops: HOST_CALL_ACTIVE · ROM-bound param count.

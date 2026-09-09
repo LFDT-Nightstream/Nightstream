@@ -5,7 +5,7 @@
 
 use neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS;
 use neo_wasm::host_event_bindings::{
-    EventBlockBuilder, HostEventBindings, HostEventBindingsBuilder, Limb, SlotBinding,
+    absorbed_blocks, EventSequenceBuilder, HostEventBindings, HostEventBindingsBuilder,
 };
 use neo_wasm::{WasmBuildError, WasmProgramTables, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
@@ -59,29 +59,30 @@ fn test_bindings(
     sink_fref: u32,
     run_fref: u32,
 ) -> Result<HostEventBindings, WasmBuildError> {
-    let mul_args = EventBlockBuilder::op(MUL_ARGS_TAG)
-        .arg_i32(0, 0)?
-        .arg_i32(1, 1)?
-        .finish();
+    let mut mul_events = EventSequenceBuilder::op(MUL_ARGS_TAG)
+        .arg_i32(0)?
+        .arg_i32(1)?
+        .finish()?;
     // The ResultElem Lo slot pushes the host result; the Hi slot binds the
     // pushed hi lane (zero for this i32 result).
-    let mul_result = EventBlockBuilder::op(MUL_RESULT_TAG)
-        .slot(0, SlotBinding::ResultElem { limb: Limb::Lo })?
-        .slot(1, SlotBinding::ResultElem { limb: Limb::Hi })?
-        .finish();
-    let sink = EventBlockBuilder::op(SINK_TAG).arg_i32(0, 0)?.finish();
-    let entry_header = EventBlockBuilder::op(ENTRY_HEADER_TAG)
-        .constant_i32(0, ENTRY_HEADER_WORD)?
-        .finish();
-    let entry_payload = EventBlockBuilder::op(ENTRY_PAYLOAD_TAG).finish();
-    let exit = EventBlockBuilder::op(EXIT_OUTPUT_TAG)
-        .output_i32(0)?
-        .finish();
+    let mul_result = EventSequenceBuilder::op(MUL_RESULT_TAG)
+        .result()?
+        .finish()?;
+    mul_events.extend(mul_result);
+    let sink = EventSequenceBuilder::op(SINK_TAG).arg_i32(0)?.finish()?;
+    let mut entry_events = EventSequenceBuilder::op(ENTRY_HEADER_TAG)
+        .constant_i32(ENTRY_HEADER_WORD)?
+        .finish()?;
+    let entry_payload = EventSequenceBuilder::op(ENTRY_PAYLOAD_TAG).finish()?;
+    entry_events.extend(entry_payload);
+    let exit = EventSequenceBuilder::op(EXIT_OUTPUT_TAG)
+        .output_i32()?
+        .finish()?;
 
     let mut bindings = HostEventBindingsBuilder::new(program);
-    bindings.import(mul_fref, vec![mul_args, mul_result])?;
-    bindings.import(sink_fref, vec![sink])?;
-    bindings.export(run_fref, vec![entry_header, entry_payload], vec![exit])?;
+    bindings.import(mul_fref, mul_events)?;
+    bindings.import(sink_fref, sink)?;
+    bindings.export(run_fref, entry_events, exit)?;
     bindings.finish()
 }
 
@@ -152,7 +153,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
         Default::default(),
     )
     .expect("bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    super::check_native_event_hashes(&trace).expect("native event hashes");
     HostEventLifecycleSetup {
         trace,
         bindings,
@@ -169,27 +170,42 @@ pub fn expected_transcript(
 ) -> Vec<[p3_goldilocks::Goldilocks; COMM_CHAIN_BLOCK_WORDS]> {
     let template = bindings.exports.get(&run_fref).expect("export template");
     let mut blocks = neo_wasm::host_event_bindings::expand_export_entry(template, &[]).expect("entry");
+    blocks = absorbed_blocks(&template.entry, &blocks).expect("absorbed entry");
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_import_events(
-            &bindings.imports[&mul_fref(bindings)],
-            &[(7, 0), (6, 0)],
-            Some((42, 0)),
-            &[],
-            &[],
+        absorbed_blocks(
+            &bindings.imports[&mul_fref(bindings)].events,
+            &neo_wasm::host_event_bindings::expand_import_events(
+                &bindings.imports[&mul_fref(bindings)],
+                &[(7, 0), (6, 0)],
+                Some((42, 0)),
+                &[],
+                &[],
+            )
+            .expect("mul events"),
         )
-        .expect("mul events"),
+        .expect("absorbed mul events"),
     );
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_import_events(
-            &bindings.imports[&sink_fref(bindings)],
-            &[(42, 0)],
-            None,
-            &[],
-            &[],
+        absorbed_blocks(
+            &bindings.imports[&sink_fref(bindings)].events,
+            &neo_wasm::host_event_bindings::expand_import_events(
+                &bindings.imports[&sink_fref(bindings)],
+                &[(42, 0)],
+                None,
+                &[],
+                &[],
+            )
+            .expect("sink events"),
         )
-        .expect("sink events"),
+        .expect("absorbed sink events"),
     );
-    blocks.extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
+    blocks.extend(
+        absorbed_blocks(
+            &template.exit,
+            &neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"),
+        )
+        .expect("absorbed exit"),
+    );
     blocks
         .into_iter()
         .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))

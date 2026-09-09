@@ -332,7 +332,7 @@ fn f_prime_fibonacci_transition_assignment(prev: u64, curr: u64, next: u64, x_ou
 
 fn f_prime_base_state(prep: &neo_fold_clean::lifecycle::Preprocessing) -> State {
     let structure = structure_digest(prep.structure());
-    let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
+    let z_0 = initial_boundary_digest(&structure, prep.public_input_len());
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = AccumulatorHandle::empty().digest();
     State::base(z_0, public_trace, acc_digest, acc_digest)
@@ -345,7 +345,7 @@ fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &
     };
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
@@ -366,14 +366,14 @@ fn f_prime_peek_next_state(
     batch: CcsInstance,
 ) -> State {
     let (next, _) = construction2::step(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state.clone(),
         vec![batch],
     )
@@ -610,14 +610,14 @@ fn fibonacci_decider_r1cs_shape_snapshot() {
         let public_batch = vec![batch.claim.clone()];
 
         let (next_state, step_proof) = construction2::step(
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.structure_digest(),
-            &prep.log,
+            prep.commitment_scheme(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
-            &prep.vk,
+            prep.verifier_key(),
             state,
             vec![batch],
         )
@@ -753,13 +753,13 @@ fn print_report(
 
     section("Protocol params");
     kv("profile", R1CS_PROFILE);
-    kv("lambda", prep.params.lambda());
-    kv("extension s", prep.params.extension_degree());
-    kv("b", prep.params.b());
-    kv("k_rho", prep.params.k_rho());
-    kv("B = b^k_rho", prep.params.big_b());
-    kv("T", prep.params.T());
-    kv("kappa", prep.params.kappa());
+    kv("lambda", prep.params().lambda());
+    kv("extension s", prep.params().extension_degree());
+    kv("b", prep.params().b());
+    kv("k_rho", prep.params().k_rho());
+    kv("B = b^k_rho", prep.params().big_b());
+    kv("T", prep.params().T());
+    kv("kappa", prep.params().kappa());
 
     section("Proof shape");
     kv("steps", finished.steps.len());

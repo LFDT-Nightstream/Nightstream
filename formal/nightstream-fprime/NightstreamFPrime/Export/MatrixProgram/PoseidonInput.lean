@@ -1,5 +1,6 @@
 import Mathlib.Tactic.FinCases
 import NightstreamFPrime.Export.MatrixProgram
+import NightstreamFPrime.Export.MatrixProgram.Affine
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
 /-!
@@ -161,6 +162,8 @@ inductive Term where
       (required : InvocationTag)
       (slotBase invocationStride laneStride : Nat)
   | optionalConstant (values : OptionalConstantTable) (laneCount : Nat)
+  | taggedAffine (values : Affine.Table) (substitution : SourceSubstitution)
+      (tags : TagTable) (required : InvocationTag) (laneCount : Nat)
 deriving Repr, DecidableEq
 
 def Term.format : Format Term where
@@ -179,6 +182,10 @@ def Term.format : Format Term where
           .atom invocationStride, .atom laneStride]
     | .optionalConstant values laneCount => .array [
         .atom 4, OptionalConstantTable.format.encode values, .atom laneCount]
+    | .taggedAffine values substitution tags required laneCount => .array [
+        .atom 5, Affine.Table.format.encode values,
+        SourceSubstitution.format.encode substitution, TagTable.format.encode tags,
+        InvocationTag.format.encode required, .atom laneCount]
   decode
     | .array [.atom 0, block, .atom slotBase, .atom invocationStride,
         .atom laneStride] => do
@@ -196,12 +203,18 @@ def Term.format : Format Term where
     | .array [.atom 4, values, .atom laneCount] => do
         pure (.optionalConstant (← OptionalConstantTable.format.decode values)
           laneCount)
+    | .array [.atom 5, values, substitution, tags, required, .atom laneCount] => do
+        pure (.taggedAffine (← Affine.Table.format.decode values)
+          (← SourceSubstitution.format.decode substitution)
+          (← TagTable.format.decode tags) (← InvocationTag.format.decode required)
+          laneCount)
     | _ => .error "invalid Poseidon2 input term"
   decode_encode := by
     intro term
     cases term <;> simp [RetainedBlock.format.decode_encode,
       TagTable.format.decode_encode, InvocationTag.format.decode_encode,
-      OptionalConstantTable.format.decode_encode] <;> rfl
+      OptionalConstantTable.format.decode_encode, Affine.Table.format.decode_encode,
+      SourceSubstitution.format.decode_encode] <;> rfl
 
 def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
     (invocationOffset laneOffset : Nat) : Option (SparseForm logicalWidth) :=
@@ -239,6 +252,12 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
                 ⟨coefficient, coefficientBound⟩)
             else none
           else none
+  | .taggedAffine values substitution tags required laneCount => do
+      let actual ← tags.tag? invocationOffset
+      if actual = required then
+        values.compile? substitution logicalWidth oneColumn
+          (invocationOffset * laneCount + laneOffset)
+      else some .empty
 
 theorem Term.retained_form?_ofSemantic
     {sourceWidth logicalWidth : Nat}
@@ -274,6 +293,60 @@ theorem Term.constant_form? {logicalWidth : Nat}
       else none
     else none) = _
   rw [dif_pos oneColumn.isLt, dif_pos coefficient.isLt]
+
+/-- A selected affine word is compiled by the existing source substitution. -/
+theorem Term.taggedAffine_form?_of_eq
+    {logicalWidth invocationCount laneCount : Nat}
+    (combinations : Fin (invocationCount * laneCount) → R1CS.LinearCombination)
+    (substitution : SourceSubstitution) (oneColumn : Fin logicalWidth)
+    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
+    (invocation : Fin invocationCount) (lane : Fin laneCount)
+    (selected : tag invocation = required) :
+    (Term.taggedAffine (Affine.Table.ofSemantic combinations) substitution
+      (TagTable.ofSemantic tag) required laneCount).form? logicalWidth
+        oneColumn.val invocation.val lane.val =
+      Ordinary.compileCombination? substitution oneColumn
+        (combinations (Fin.encodeProd (invocation, lane))) := by
+  change (do
+    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
+    if actual = required then
+      (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
+        oneColumn.val (invocation.val * laneCount + lane.val)
+    else some .empty) = _
+  rw [TagTable.tag?_ofSemantic]
+  change (if tag invocation = required then
+    (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
+      oneColumn.val (invocation.val * laneCount + lane.val)
+    else some .empty) = _
+  rw [if_pos selected]
+  have indexEq : invocation.val * laneCount + lane.val =
+      (Fin.encodeProd (invocation, lane)).val := by
+    change invocation.val * laneCount + lane.val = laneCount * invocation.val + lane.val
+    rw [Nat.mul_comm invocation.val laneCount]
+  rw [indexEq]
+  exact Affine.Table.compile?_ofSemantic combinations substitution oneColumn
+    (Fin.encodeProd (invocation, lane))
+
+theorem Term.taggedAffine_form?_of_ne
+    {logicalWidth invocationCount : Nat}
+    (values : Affine.Table) (substitution : SourceSubstitution)
+    (oneColumn laneCount laneOffset : Nat)
+    (tag : Fin invocationCount → InvocationTag) (required : InvocationTag)
+    (invocation : Fin invocationCount) (notSelected : tag invocation ≠ required) :
+    (Term.taggedAffine values substitution (TagTable.ofSemantic tag) required laneCount).form?
+        logicalWidth oneColumn invocation.val laneOffset = some .empty := by
+  change (do
+    let actual ← (TagTable.ofSemantic tag).tag? invocation.val
+    if actual = required then
+      values.compile? substitution logicalWidth oneColumn
+        (invocation.val * laneCount + laneOffset)
+    else some .empty) = _
+  rw [TagTable.tag?_ofSemantic]
+  change (if tag invocation = required then
+    values.compile? substitution logicalWidth oneColumn
+      (invocation.val * laneCount + laneOffset)
+    else some .empty) = _
+  rw [if_neg notSelected]
 
 theorem Term.taggedRetained_form?_ofSemantic_of_eq
     {sourceWidth logicalWidth invocationCount : Nat}

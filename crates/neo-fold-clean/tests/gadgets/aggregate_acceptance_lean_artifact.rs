@@ -240,14 +240,6 @@ fn active_singleton_aggregate_acceptance_lean_artifact_matches_exact_production(
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != rendered {
-        let expected = format!("{path}.expected");
-        std::fs::create_dir_all(
-            std::path::Path::new(&expected)
-                .parent()
-                .expect("aggregate-acceptance artifact parent"),
-        )
-        .expect("create aggregate-acceptance artifact directory");
-        std::fs::write(&expected, rendered).expect("write aggregate-acceptance Lean artifact .expected");
-        panic!("aggregate-acceptance Lean artifact drifted; inspect {expected} and deliberately promote it");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

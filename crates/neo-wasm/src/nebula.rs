@@ -7,12 +7,12 @@ use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
 use neo_fold_clean::frontends::nebula::application::{
     ApplicationError, MemoryPortLayout, MemoryRegion, MemoryRegionKind, NebulaApplication,
 };
-use neo_fold_clean::frontends::nebula::f_prime::{
-    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
-};
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
 use neo_fold_clean::frontends::nebula::trace::Memory;
+use neo_fold_clean::frontends::nebula::{
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
+};
 use neo_fold_clean::lifecycle::{
     verify_uncompressed, verify_uncompressed_with_opening_backend, FinalWitnessOpeningBackend, Uncompressed,
 };
@@ -381,7 +381,7 @@ pub fn prepare_profile_with_artifacts(
     initial_locals: &[u32],
     entry_pc: u64,
     cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-    encoder_artifact: neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+    encoder_artifact: neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
     prepare_profile_inner(
@@ -418,7 +418,7 @@ pub fn prepare_profile_seeded_reduced_memory_with_artifacts_test_only(
     entry_pc: u64,
     seed: u64,
     cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-    encoder_artifact: neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+    encoder_artifact: neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     reject_host_imports(artifacts)?;
     prepare_profile_inner(
@@ -540,7 +540,7 @@ fn prepare_profile_inner(
     seed: Option<u64>,
     profile_artifacts: Option<(
         neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-        neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+        neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
     )>,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     let program = build_program_binding(&params, profile, artifacts, initial_locals, entry_pc, None)?;
@@ -906,8 +906,8 @@ fn verify_inner(
         });
     }
     match opening_backend {
-        Some(backend) => verify_uncompressed_with_opening_backend(&prep.inner.prep, &proof.proof, backend)?,
-        None => verify_uncompressed(&prep.inner.prep, &proof.proof)?,
+        Some(backend) => verify_uncompressed_with_opening_backend(prep.inner.preprocessing(), &proof.proof, backend)?,
+        None => verify_uncompressed(prep.inner.preprocessing(), &proof.proof)?,
     }
     if proof.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {
         return Err(WasmNebulaError::FinalStateMismatch);

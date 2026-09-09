@@ -3,13 +3,14 @@ import NightstreamFPrime.Layout.Stage1.ApplicationInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
+import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 import NightstreamFPrime.Lifecycle.Stage1.Formal
 
 /-!
 Owns the compact logical wiring for the Stage 1 opaque-child assembler.
 
 The existing package uses phase-local source offsets. This constructor instead
-places the seven logical children in one adjacent suffix and wires each later
+places the eight logical children in one adjacent suffix and wires each later
 phase to the earlier child's generated expressions. A later lowering theorem
 must map this compact logical suffix to the canonical physical package.
 
@@ -238,6 +239,7 @@ def interface
   piDec := piDecInterface relation program
   running := runningInterface relation program
   application := applicationInterface program
+  nextPreimage := NextPreimageInputs.sourceInterface
 
 theorem piRlc_initialState_wiring
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -424,5 +426,27 @@ theorem parent_applicationOffset_eq
     Lifecycle.Stage1.RunningTransition.exactPrivateCount =
       applicationOffset program
   rfl
+
+/-- The next-preimage child reuses the pilot preimage columns without a copy. -/
+theorem nextPreimage_parent_wiring
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Lifecycle.Stage1.Application.Program) :
+    (interface relation program).nextPreimage =
+      NextPreimageInputs.sourceInterface := by
+  rfl
+
+theorem rootOffset_le_finalOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Lifecycle.Stage1.Application.Program)
+    (template : Proof (ProductionKey.degreeBound relation)) :
+    rootOffset program ≤ Lifecycle.Stage1.finalOffset relation ajtai program
+      (interface relation program) template (rootOffset program) := by
+  unfold Lifecycle.Stage1.finalOffset
+  rw [parent_applicationOffset_eq relation ajtai program template]
+  unfold applicationOffset runningOffset piDecOffset piRlcOffset piCcsOffset
+    outputHashOffset priorOffset
+  omega
 
 end NightstreamFPrime.Layout.Stage1.AssemblerInputs

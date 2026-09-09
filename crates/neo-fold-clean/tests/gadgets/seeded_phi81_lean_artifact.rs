@@ -150,8 +150,6 @@ fn lean_artifact_matches_committed_file() {
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if committed != emitted {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(&expected_path, emitted).expect("write expected SeededPhi81 artifact");
-        panic!("generated SeededPhi81 Lean artifact drifted. Wrote {expected_path}; inspect and promote it");
+        panic!("frozen Lean reference differs: {path:?}");
     }
 }

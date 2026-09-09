@@ -1,0 +1,5 @@
+[parallel] LEAN_NUM_THREADS=18
+[bounded 1500s] lake env lean -j18 -DautoImplicit=false -DrelaxedAutoImplicit=false /Users/nicarq/starstream/develop/nightstream-clean-up/docs/reviews/nightstream-fprime-prove2/tests/RootSketch.lean
+FPrimeProve2Review.decodedProof_piCcs_fixed: [propext, Classical.choice, Quot.sound]
+FPrimeProve2Review.rootSketch: [propext, Classical.choice, Quot.sound]
+[bounded] exit=0 elapsed=2s

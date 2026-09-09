@@ -36,9 +36,5 @@ serde_json = { workspace = true }
 default = []
 serde = ["dep:serde"]
 
-[[test]]
-name = "phi81_bar_lean_artifact"
-path = "tests/phi81_bar_lean_artifact.rs"
-
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

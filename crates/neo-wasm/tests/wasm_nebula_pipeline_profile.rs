@@ -27,7 +27,7 @@ use neo_ccs::{CcsMatrix, CcsStructure};
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::config;
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeChainBuilder;
+use neo_fold_clean::frontends::nebula::NebulaFPrimeChainBuilder;
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::paper::construction2::ProofState;
@@ -197,9 +197,9 @@ fn reusable_relation_receipt(prep: &neo_wasm::WasmNebulaPreprocessing) -> Reusab
     let structure = prep.inner().relation().structure();
     ReusableRelationReceipt {
         signature: (structure.n, structure.m, structure.t(), structure.max_degree()),
-        structure_digest: *prep.inner().prep.structure_digest(),
-        pi_ccs_header_bundle: prep.inner().prep.pi_ccs_header_bundle(),
-        ajtai_pp_digest: prep.inner().prep.ajtai_pp_digest(),
+        structure_digest: *prep.inner().preprocessing().structure_digest(),
+        pi_ccs_header_bundle: prep.inner().preprocessing().pi_ccs_header_bundle(),
+        ajtai_pp_digest: prep.inner().preprocessing().ajtai_pp_digest(),
         initial_semantic_state_digest: prep
             .inner()
             .relation()
@@ -429,12 +429,12 @@ fn same_profile_programs_reuse_relation_but_not_program_binding() {
         let mut prover = MetalNifsProver::new().expect("Metal prover");
         prover
             .prepare_static(
-                &first_prep.inner().prep.log,
+                first_prep.inner().preprocessing().commitment_scheme(),
                 first_prep.inner().relation().structure(),
-                first_prep.inner().prep.optimized_cache(),
+                first_prep.inner().preprocessing().optimized_cache(),
                 first_prep
                     .inner()
-                    .prep
+                    .preprocessing()
                     .nebula()
                     .map(|config| &config.scheme),
             )
@@ -711,10 +711,13 @@ fn wasm_nebula_pipeline_profile() {
     let started = Instant::now();
     prover
         .prepare_static(
-            &prep.inner().prep.log,
+            prep.inner().preprocessing().commitment_scheme(),
             structure,
-            prep.inner().prep.optimized_cache(),
-            prep.inner().prep.nebula().map(|config| &config.scheme),
+            prep.inner().preprocessing().optimized_cache(),
+            prep.inner()
+                .preprocessing()
+                .nebula()
+                .map(|config| &config.scheme),
         )
         .expect("prepare static Metal proof state");
     let metal_prepare_elapsed = started.elapsed();
@@ -838,8 +841,8 @@ fn wasm_nebula_compact_cache_artifact_profile() {
     .expect("WASM Nebula preprocessing");
     let preprocess_elapsed = started.elapsed();
     let structure = prep.inner().relation().structure();
-    let cache = prep.inner().prep.optimized_cache().superneo();
-    let matrix_digest = prep.inner().prep.pi_ccs_header_bundle();
+    let cache = prep.inner().preprocessing().optimized_cache().superneo();
+    let matrix_digest = prep.inner().preprocessing().pi_ccs_header_bundle();
 
     let cache_artifact_path =
         std::env::temp_dir().join(format!("nightstream-superneo-cache-{}.bin", std::process::id()));
@@ -909,7 +912,7 @@ fn wasm_nebula_compact_cache_artifact_profile() {
         let encoder = scope.spawn(|| {
             let started = Instant::now();
             let file = File::open(&encoder_artifact_path).expect("open encoder artifact");
-            let loaded = neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact::read(
+            let loaded = neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
                 BufReader::new(file),
                 &encoder_receipt,
                 encoder_limits,
@@ -966,8 +969,8 @@ fn wasm_nebula_compact_cache_artifact_profile() {
         "artifact-backed program bindings must share relation and cache storage",
     );
     assert_eq!(
-        rebound.inner().prep.pi_ccs_header_bundle(),
-        prep.inner().prep.pi_ccs_header_bundle(),
+        rebound.inner().preprocessing().pi_ccs_header_bundle(),
+        prep.inner().preprocessing().pi_ccs_header_bundle(),
         "artifact-backed profile matrix authority",
     );
     assert_eq!(
@@ -987,10 +990,14 @@ fn wasm_nebula_compact_cache_artifact_profile() {
         let started = Instant::now();
         prover
             .prepare_static(
-                &rebound.inner().prep.log,
+                rebound.inner().preprocessing().commitment_scheme(),
                 rebound.inner().relation().structure(),
-                rebound.inner().prep.optimized_cache(),
-                rebound.inner().prep.nebula().map(|config| &config.scheme),
+                rebound.inner().preprocessing().optimized_cache(),
+                rebound
+                    .inner()
+                    .preprocessing()
+                    .nebula()
+                    .map(|config| &config.scheme),
             )
             .expect("prepare artifact-backed Metal proof state");
         let metal_prepare_elapsed = started.elapsed();
@@ -1085,10 +1092,13 @@ fn wasm_nebula_all_branch_metal_profile() {
     let started = Instant::now();
     prover
         .prepare_static(
-            &prep.inner().prep.log,
+            prep.inner().preprocessing().commitment_scheme(),
             prep.inner().relation().structure(),
-            prep.inner().prep.optimized_cache(),
-            prep.inner().prep.nebula().map(|config| &config.scheme),
+            prep.inner().preprocessing().optimized_cache(),
+            prep.inner()
+                .preprocessing()
+                .nebula()
+                .map(|config| &config.scheme),
         )
         .expect("prepare static Metal proof state");
     let metal_prepare_elapsed = started.elapsed();

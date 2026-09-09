@@ -517,6 +517,31 @@ Thus no physical product invocation is omitted or duplicated. -/
         rw [familyIndex_familyDescriptor]
         rfl
 
+/-- Flat invocation coordinates in the four-family order. -/
+theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor) :
+    descriptor.invocation.val =
+      (match descriptor.family with
+        | .commitment => 0 | .publicInput => 20196 | .evalK => 24786 | .evalA => 26622) +
+      descriptor.source.val * (descriptor.family.blockCount * 54 * descriptor.family.cellCount) +
+      descriptor.block.val * (54 * descriptor.family.cellCount) +
+      descriptor.lane.val * descriptor.family.cellCount + descriptor.cell.val := by
+  rcases descriptor with ⟨family, source, block, lane, cell⟩
+  cases family <;>
+    simp only [PiRLCProductSchedule.Descriptor.invocation,
+      PiRLCProductSchedule.Descriptor.familyIndex,
+      Fin.val_castAdd, Fin.val_natAdd, Fin.encodeProd, Fin.mkDivMod,
+      PiRLCCombinationInvocations.indexOf_val]
+  all_goals
+    norm_num only [PiRLCProductSchedule.Family.commitment_invocationCount,
+      PiRLCProductSchedule.Family.publicInput_invocationCount,
+      PiRLCProductSchedule.Family.evalK_invocationCount,
+      PiRLCProductSchedule.Family.privateCount,
+      PiRLCProductSchedule.Family.blockCount,
+      PiRLCProductSchedule.Family.cellCount,
+      CombinationStep.privateCount, PiRLCCombinationInvocations.logicalIndex,
+      ringDegree]
+    omega
+
 /-- Constant-time selector in exact family order. -/
 def compactInvocation : Fin invocationCount → CompactRowInvocation :=
   Fin.append (familyCompactInvocation .commitment) <|

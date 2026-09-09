@@ -278,14 +278,6 @@ fn pi_rlc_family_rows_match_generated_selective_recipe() {
     let rendered = render_artifact();
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     if rendered != committed {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, rendered).expect("write PiRLC family artifact candidate");
-        panic!("PiRLC family selective-CCS artifact drifted; inspect {expected} and promote it explicitly");
+        panic!("PiRLC family selective-CCS artifact drifted; inspect {path}");
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_pi_rlc_family_selective_ccs_artifact() {
-    std::fs::write(artifact_path(), render_artifact()).expect("write generated PiRLC family artifact");
 }

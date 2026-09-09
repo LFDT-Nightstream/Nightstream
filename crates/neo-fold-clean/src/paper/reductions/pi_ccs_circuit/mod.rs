@@ -40,9 +40,9 @@ pub use output_message::{
     audit_pi_ccs_output_sis, encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs,
     PiCcsOutputSisAudit, PiCcsOutputSisOwnerAudit, PiCcsOutputsPreimage,
 };
+pub(crate) use verifier::{enforce_pi_ccs, enforce_pi_ccs_with_matrix_digest_wires};
 pub use verifier::{
-    enforce_pi_ccs, enforce_pi_ccs_with_matrix_digest_wires, PiCcsOutputWires, PiCcsVerifierConfig,
-    PiCcsVerifierMessages, PiCcsVerifierRelation, PiCcsVerifierResult,
+    PiCcsOutputWires, PiCcsVerifierConfig, PiCcsVerifierMessages, PiCcsVerifierRelation, PiCcsVerifierResult,
 };
 
 /// Shape errors from the selected PiCCS circuit.

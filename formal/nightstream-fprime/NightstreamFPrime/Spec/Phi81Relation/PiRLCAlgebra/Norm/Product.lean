@@ -168,21 +168,18 @@ private theorem fieldListSum_le_activeCount
               decide (active item)).length) * bound := by
             simp [headActive]
 
-/-- One active schoolbook term contains a sampled five-symbol coefficient and
-one fresh coefficient of centered magnitude at most one. -/
-theorem rawTerm_le_two
-    (challenge : RingF) (block : RingF)
+/-- A production challenge coefficient has magnitude at most two; the other
+factor can have any stated coordinate bound. -/
+theorem rawTerm_le_twice_bound
+    {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
-    (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
+    (blockBounded : forall lane, centeredMagnitude (block lane) <= bound)
     (degree index : Nat) (indexLt : index < ringDegree) :
-    centeredMagnitude (rawTerm challenge block degree index) <= 2 := by
+    centeredMagnitude (rawTerm challenge block degree index) <= 2 * bound := by
   by_cases active : supportActive degree index
   · have rightIndexLt : degree - index < ringDegree := active.2
     let challengeLane : Fin ringDegree := ⟨index, indexLt⟩
     let blockLane : Fin ringDegree := ⟨degree - index, rightIndexLt⟩
-    have blockLeOne : centeredMagnitude (block blockLane) <= 1 := by
-      have strict := blockFresh blockLane
-      omega
     obtain ⟨scalar, rfl⟩ := challengeMember
     have productBound := Centered.embedCoefficient_mul_le_two
       (scalar (Phi81StrongSet.scalarPosition challengeLane)) (block blockLane)
@@ -196,27 +193,46 @@ theorem rawTerm_le_two
         simp [rawTerm, active, ringFCoeff, indexLt,
           rightIndexLt, Phi81StrongSet.embedScalar, challengeLane, blockLane]
       _ <= 2 * centeredMagnitude (block blockLane) := productBound
-      _ <= 2 := by omega
+      _ <= 2 * bound := Nat.mul_le_mul_left 2 (blockBounded blockLane)
   · simp [rawTerm, active, Centered.centeredMagnitude_zero]
 
 /-- A raw convolution is bounded by exactly its number of active terms, not
 by all 54 loop iterations. -/
+theorem rawMulCoeffF_le_support_of_bounded
+    {bound : Nat} (challenge : RingF) (block : RingF)
+    (challengeMember : ProductionMember challenge)
+    (blockBounded : forall lane, centeredMagnitude (block lane) <= bound)
+    (degree : Nat) :
+    centeredMagnitude (rawMulCoeffF challenge block degree) <=
+      supportCount degree * (2 * bound) := by
+  rw [rawMulCoeffF_eq_fieldListSum]
+  apply fieldListSum_le_activeCount
+      (active := supportActive degree) (bound := 2 * bound)
+  · intro index member active
+    have indexLt : index < ringDegree := List.mem_range.mp member
+    exact rawTerm_le_twice_bound challenge block challengeMember blockBounded degree
+      index indexLt
+  · intro index member inactive
+    simp [rawTerm, inactive]
+
+/-- Fresh-coefficient specialization retained by the PiRLC norm proof. -/
+theorem rawTerm_le_two
+    (challenge : RingF) (block : RingF)
+    (challengeMember : ProductionMember challenge)
+    (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
+    (degree index : Nat) (indexLt : index < ringDegree) :
+    centeredMagnitude (rawTerm challenge block degree index) <= 2 := by
+  simpa using rawTerm_le_twice_bound (bound := 1) challenge block challengeMember
+    (fun lane => Nat.le_of_lt_succ (blockFresh lane)) degree index indexLt
+
 theorem rawMulCoeffF_le_support
     (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
     (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
     (degree : Nat) :
-    centeredMagnitude (rawMulCoeffF challenge block degree) <=
-      supportCount degree * 2 := by
-  rw [rawMulCoeffF_eq_fieldListSum]
-  apply fieldListSum_le_activeCount
-      (active := supportActive degree) (bound := 2)
-  · intro index member active
-    have indexLt : index < ringDegree := List.mem_range.mp member
-    exact rawTerm_le_two challenge block challengeMember blockFresh degree
-      index indexLt
-  · intro index member inactive
-    simp [rawTerm, inactive]
+    centeredMagnitude (rawMulCoeffF challenge block degree) <= supportCount degree * 2 := by
+  simpa using rawMulCoeffF_le_support_of_bounded (bound := 1) challenge block challengeMember
+    (fun lane => Nat.le_of_lt_succ (blockFresh lane)) degree
 
 /-! ## Phi81 reduction support census -/
 
@@ -270,29 +286,29 @@ theorem ringFMul_eq_reducedValue
       reducedValue challenge block output.val := by
   rfl
 
-/-- One executable Phi81 multiplication by a valid production challenge
-expands every fresh lane to centered magnitude at most `216 = 2 * 54 * 2`. -/
-theorem ringFMul_le_expansion
-    (challenge : RingF) (block : RingF)
+/-- Multiplication by a production challenge expands a coordinate bound by
+at most `216 = 2 * 54 * 2`, including bounded non-fresh openings. -/
+theorem ringFMul_le_expansion_of_bounded
+    {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
-    (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
+    (blockBounded : forall lane, centeredMagnitude (block lane) <= bound)
     (output : Fin ringDegree) :
-    centeredMagnitude (ringFMul challenge block output) <= 216 := by
+    centeredMagnitude (ringFMul challenge block output) <= 216 * bound := by
   let folded := foldedDegree output.val
-  have baseBound := rawMulCoeffF_le_support challenge block challengeMember
-    blockFresh output.val
-  have foldedBound := rawMulCoeffF_le_support challenge block challengeMember
-    blockFresh folded
+  have baseBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
+    blockBounded output.val
+  have foldedBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
+    blockBounded folded
   have foldedRawEq : foldedRaw challenge block output.val =
       rawMulCoeffF challenge block folded := by
     by_cases low : output.val < ringMiddleDegree
     · simp [foldedRaw, foldedDegree, folded, low]
     · simp [foldedRaw, foldedDegree, folded, low]
   have twiceBound : centeredMagnitude (twiceRaw challenge block output.val) <=
-      (if twiceEnabled output.val then supportCount (output.val + 81) else 0) * 2 := by
+      (if twiceEnabled output.val then supportCount (output.val + 81) else 0) * (2 * bound) := by
     by_cases enabled : output.val + 81 <= 106
-    · have rawBound := rawMulCoeffF_le_support challenge block challengeMember
-        blockFresh (output.val + 81)
+    · have rawBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
+        blockBounded (output.val + 81)
       simpa [twiceRaw, twiceEnabled, enabled] using rawBound
     · simp [twiceRaw, twiceEnabled, enabled,
         Centered.centeredMagnitude_zero]
@@ -313,11 +329,11 @@ theorem ringFMul_le_expansion
           (rawMulCoeffF challenge block output.val)
           (rawMulCoeffF challenge block folded)) _)
   have supportBound := totalSupport_le_two_degrees output
-  have expandedBound : totalSupport output.val * 2 <= 216 := by
+  have expandedBound : totalSupport output.val * (2 * bound) <= 216 * bound := by
     calc
-      totalSupport output.val * 2 <= (2 * ringDegree) * 2 :=
-        Nat.mul_le_mul_right 2 supportBound
-      _ = 216 := by decide
+      totalSupport output.val * (2 * bound) <= (2 * ringDegree) * (2 * bound) :=
+        Nat.mul_le_mul_right (2 * bound) supportBound
+      _ = 216 * bound := by simp [ringDegree, ← Nat.mul_assoc]
   rw [ringFMul_eq_reducedValue]
   calc
     centeredMagnitude (reducedValue challenge block output.val) <=
@@ -325,13 +341,22 @@ theorem ringFMul_le_expansion
           centeredMagnitude (rawMulCoeffF challenge block folded) +
             centeredMagnitude (twiceRaw challenge block output.val) :=
       reductionTriangle
-    _ <= supportCount output.val * 2 + supportCount folded * 2 +
+    _ <= supportCount output.val * (2 * bound) + supportCount folded * (2 * bound) +
           (if twiceEnabled output.val then
-            supportCount (output.val + 81) else 0) * 2 :=
+            supportCount (output.val + 81) else 0) * (2 * bound) :=
       Nat.add_le_add (Nat.add_le_add baseBound foldedBound) twiceBound
-    _ = totalSupport output.val * 2 := by
-      simp [totalSupport, folded]
-      omega
-    _ <= 216 := expandedBound
+    _ = totalSupport output.val * (2 * bound) := by
+      simp [totalSupport, folded, Nat.add_mul]
+    _ <= 216 * bound := expandedBound
+
+/-- Fresh-coefficient specialization retained by the existing PiRLC consumer. -/
+theorem ringFMul_le_expansion
+    (challenge : RingF) (block : RingF)
+    (challengeMember : ProductionMember challenge)
+    (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
+    (output : Fin ringDegree) :
+    centeredMagnitude (ringFMul challenge block output) <= 216 := by
+  simpa using ringFMul_le_expansion_of_bounded (bound := 1) challenge block challengeMember
+    (fun lane => Nat.le_of_lt_succ (blockFresh lane)) output
 
 end NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product

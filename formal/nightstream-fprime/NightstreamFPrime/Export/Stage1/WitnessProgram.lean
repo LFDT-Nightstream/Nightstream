@@ -162,13 +162,13 @@ def piRlcDigestLaneBatches
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (source round : Nat) (lane : Fin 4) : List WitnessBatch :=
-  let interface := PiRLCSamplerOrdinaryRows.laneInterface
-    (logicalWidth := logicalWidth) (publicFits := publicFits)
-    source round lane
   let offset :=
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
       source round lane.val
-  digestLaneBatches (interface.source offset) offset
+  digestLaneBatches
+    (PiRLCSamplerOrdinaryRows.fastLaneSource
+      (logicalWidth := logicalWidth) (publicFits := publicFits)
+      source round lane) offset
 
 theorem piRlcDigestLaneBatches_eq_fromCircuit
     (logicalWidth : Nat)
@@ -179,6 +179,7 @@ theorem piRlcDigestLaneBatches_eq_fromCircuit
       piRlcDigestLaneBatchesFromCircuit logicalWidth publicFits
         source round lane := by
   simp [piRlcDigestLaneBatches, digestLaneBatches,
+    PiRLCSamplerOrdinaryRows.fastLaneSource_eq,
     piRlcDigestLaneBatchesFromCircuit,
     childBatches,
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnessBatchesForSource_eq,

@@ -1,10 +1,9 @@
-//! Owner-led matrix mutations for the exact Stage 1 conformance gate.
-
-use nightstream_fprime::PackageSparseMatrix;
+//! Named-owner mutations checked by the independent raw-row evaluator.
 
 use super::{
-    actual_row, canonicalize, changed_word, exact_row_accepts, ColumnOwnerSpan, ReferenceLayout, COLUMN_OWNER_SPANS,
-    FINAL_COLUMN_OWNER_SPANS, ROW_OWNER_SPANS,
+    event_row_count, events, expected_row, mul_mod,
+    raw_assignment::{event_row_values, RawRowMutation},
+    word, ColumnOwnerSpan, Event, MatrixSide, OwnerSpan, RawPackage, ReferenceLayout,
 };
 
 fn pilot_source_to_spartan(column: usize) -> usize {
@@ -106,165 +105,239 @@ fn final_to_spartan(column: usize, layout: &ReferenceLayout) -> Option<usize> {
     }
 }
 
-pub(super) fn row_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)], rows: usize) -> usize {
-    assert_eq!(ROW_OWNER_SPANS.first().map(|span| span.start), Some(0));
-    assert_eq!(ROW_OWNER_SPANS.last().map(|span| span.end), Some(rows));
-    for adjacent in ROW_OWNER_SPANS.windows(2) {
-        assert_eq!(adjacent[0].end, adjacent[1].start, "row-owner coverage");
-    }
+fn event_at<'a>(schedule: &[Event<'a>], raw: &RawPackage, row: usize) -> (Event<'a>, usize) {
+    let index = schedule
+        .partition_point(|event| event.row_start() <= row)
+        .checked_sub(1)
+        .expect("raw event before owner row");
+    let event = schedule[index];
+    let ordinal = row - event.row_start();
+    assert!(ordinal < event_row_count(event, raw), "raw owner row coverage");
+    (event, ordinal)
+}
 
+fn row_holds(values: [u64; 3]) -> bool {
+    mul_mod(values[0], values[1]) == values[2]
+}
+
+pub(super) fn row_owner_mutation_checks(
+    raw: &RawPackage,
+    owners: &[OwnerSpan],
+    private_values: &[u64],
+    public_values: &[u64],
+) -> usize {
+    let schedule = events(raw);
     let mut checks = 0;
-    for owner in ROW_OWNER_SPANS {
-        let mut applicable_sides = 0;
-        for &(side, matrix) in sides {
-            let selected =
-                (owner.start..owner.end).find(|&row| matrix.row_offsets()[row] < matrix.row_offsets()[row + 1]);
-            let Some(row) = selected else { continue };
-            applicable_sides += 1;
-            let actual = actual_row(matrix, row);
+    for &owner in owners {
+        let (event, ordinal) = event_at(&schedule, raw, owner.start);
+        let actual = event_row_values(raw, event, ordinal, private_values, public_values, RawRowMutation::None);
+        assert!(row_holds(actual), "{} raw owner row must hold", owner.name);
 
-            let mut deleted = actual.clone();
-            deleted.remove(0);
-            assert!(
-                !exact_row_accepts(matrix, row, &deleted),
-                "exact comparator accepted {} {side} row deletion",
-                owner.name
-            );
-            checks += 1;
-
-            let mut coefficient = actual.clone();
-            coefficient[0].1 = changed_word(coefficient[0].1);
-            coefficient = canonicalize(coefficient);
-            assert!(
-                !exact_row_accepts(matrix, row, &coefficient),
-                "exact comparator accepted {} {side} coefficient mutation",
-                owner.name
-            );
-            checks += 1;
-        }
-        assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
+        let changed = event_row_values(
+            raw,
+            event,
+            ordinal,
+            private_values,
+            public_values,
+            RawRowMutation::CConstant(1),
+        );
+        assert!(!row_holds(changed), "{} raw row mutation must reject", owner.name);
+        checks += 1;
     }
     checks
 }
 
-fn find_owned_term(
-    matrix: &PackageSparseMatrix,
-    owner: ColumnOwnerSpan,
+fn matching_column_rejects(
+    raw: &RawPackage,
+    schedule: &[Event<'_>],
+    name: &str,
+    rows: OwnerSpan,
     layout: &ReferenceLayout,
-) -> Option<(usize, usize, usize)> {
-    for row in owner.rows.start..owner.rows.end {
-        let start = matrix.row_offsets()[row];
-        let end = matrix.row_offsets()[row + 1];
-        for term in start..end {
-            let final_column = matrix.column_indices()[term];
-            let Some(spartan_column) = final_to_spartan(final_column, layout) else {
-                continue;
-            };
-            let Some(source_column) = spartan_to_source(spartan_column, layout) else {
-                continue;
-            };
-            if owner.columns.start <= source_column && source_column < owner.columns.end {
-                assert_eq!(
-                    source_to_spartan(source_column, layout),
-                    spartan_column,
-                    "{} round trip",
-                    owner.name
-                );
-                return Some((row, term - start, source_column));
+    private_values: &[u64],
+    public_values: &[u64],
+    mut owns: impl FnMut(usize) -> bool,
+) -> bool {
+    let first_event = schedule.partition_point(|&event| event.row_start() + event_row_count(event, raw) <= rows.start);
+    for &event in &schedule[first_event..] {
+        let event_start = event.row_start();
+        if event_start >= rows.end {
+            break;
+        }
+        let event_end = event_start + event_row_count(event, raw);
+        let start = rows.start.max(event_start);
+        let end = rows.end.min(event_end);
+        for row in start..end {
+            let ordinal = row - event_start;
+            for side in [MatrixSide::A, MatrixSide::B, MatrixSide::C] {
+                for &(final_column, _) in &expected_row(event, &raw.5, ordinal, side, layout) {
+                    let Some(spartan_column) = final_to_spartan(final_column, layout) else {
+                        continue;
+                    };
+                    if !owns(spartan_column) {
+                        continue;
+                    }
+                    assert_ne!(spartan_column, layout.unpadded_constant, "{name} constant column");
+                    let actual =
+                        event_row_values(raw, event, ordinal, private_values, public_values, RawRowMutation::None);
+                    assert!(row_holds(actual), "{name} source row must hold");
+                    let changed = event_row_values(
+                        raw,
+                        event,
+                        ordinal,
+                        private_values,
+                        public_values,
+                        RawRowMutation::AssignmentColumn(spartan_column),
+                    );
+                    if !row_holds(changed) {
+                        return true;
+                    }
+                }
             }
         }
     }
-    None
+    false
 }
 
-pub(super) fn column_owner_mutation_checks(sides: &[(&str, &PackageSparseMatrix)], layout: &ReferenceLayout) -> usize {
+fn owned_column_rejects(
+    raw: &RawPackage,
+    schedule: &[Event<'_>],
+    owner: ColumnOwnerSpan,
+    layout: &ReferenceLayout,
+    private_values: &[u64],
+    public_values: &[u64],
+) -> bool {
+    matching_column_rejects(
+        raw,
+        schedule,
+        owner.name,
+        owner.rows,
+        layout,
+        private_values,
+        public_values,
+        |spartan_column| {
+            let Some(source_column) = spartan_to_source(spartan_column, layout) else {
+                return false;
+            };
+            if !(owner.columns.start <= source_column && source_column < owner.columns.end) {
+                return false;
+            }
+            assert_eq!(
+                source_to_spartan(source_column, layout),
+                spartan_column,
+                "{} round trip",
+                owner.name,
+            );
+            true
+        },
+    )
+}
+
+pub(super) fn column_owner_mutation_checks(
+    raw: &RawPackage,
+    row_owners: &[OwnerSpan],
+    column_owners: &[OwnerSpan],
+    layout: &ReferenceLayout,
+    private_values: &[u64],
+    public_values: &[u64],
+) -> usize {
+    let schedule = events(raw);
+    let phase_rows = OwnerSpan {
+        name: "piccs",
+        start: row_owners.first().expect("first PiCCS row owner").start,
+        end: row_owners.last().expect("last PiCCS row owner").end,
+    };
+    let source_end = column_owners.last().expect("last PiCCS column owner").end;
+    assert_ne!(source_end, 0, "nonempty PiCCS source-column inventory");
+    assert_eq!(
+        source_to_spartan(source_end - 1, layout) + 1,
+        private_values.len(),
+        "PiCCS owner columns cover the independently generated prefix",
+    );
+
     let mut checks = 0;
-    for &owner in COLUMN_OWNER_SPANS {
-        assert!(owner.rows.start < owner.rows.end, "{} row interval", owner.name);
-        assert!(
-            owner.columns.start < owner.columns.end,
-            "{} column interval",
-            owner.name
-        );
-        let mut applicable_sides = 0;
-        for &(side, matrix) in sides {
-            let Some((row, term, source_column)) = find_owned_term(matrix, owner, layout) else {
-                continue;
-            };
-            applicable_sides += 1;
-            let target_source = if source_column + 1 < owner.columns.end {
-                source_column + 1
-            } else {
-                source_column - 1
-            };
-            let target_column = layout.map_column(source_to_spartan(target_source, layout));
-            let actual = actual_row(matrix, row);
-            let mut changed = actual.clone();
-            changed[term].0 = target_column;
-            changed = canonicalize(changed);
-            assert!(
-                !exact_row_accepts(matrix, row, &changed),
-                "exact comparator accepted {} {side} column mutation",
-                owner.name
-            );
-            checks += 1;
-        }
-        assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
-    }
-
-    for &owner in FINAL_COLUMN_OWNER_SPANS {
-        assert!(owner.rows.start < owner.rows.end, "{} row interval", owner.name);
-        assert!(
-            owner.columns.start < owner.columns.end,
-            "{} column interval",
-            owner.name
-        );
-        let mut applicable_sides = 0;
-        for &(side, matrix) in sides {
-            let selected = (owner.rows.start..owner.rows.end).find_map(|row| {
-                actual_row(matrix, row)
-                    .iter()
-                    .position(|term| owner.columns.start <= term.0 && term.0 < owner.columns.end)
-                    .map(|term| (row, term))
-            });
-            let Some((row, term)) = selected else { continue };
-            applicable_sides += 1;
-            let actual = actual_row(matrix, row);
-            let target = if actual[term].0 + 1 < owner.columns.end {
-                actual[term].0 + 1
-            } else {
-                actual[term].0 - 1
-            };
-            let mut changed = actual.clone();
-            changed[term].0 = target;
-            changed = canonicalize(changed);
-            assert!(
-                !exact_row_accepts(matrix, row, &changed),
-                "exact comparator accepted {} {side} column mutation",
-                owner.name
-            );
-            checks += 1;
-        }
-        assert!(applicable_sides > 0, "{} has no applicable matrix side", owner.name);
-    }
-
-    for &(side, matrix) in sides {
-        let selected = (0..layout.unpadded_rows).find_map(|row| {
-            let actual = actual_row(matrix, row);
-            actual
+    for columns in column_owners
+        .iter()
+        .copied()
+        .filter(|owner| owner.start != owner.end)
+    {
+        let rows = match columns.name {
+            "external" | "r1cs_intermediate" => phase_rows,
+            child => *row_owners
                 .iter()
-                .position(|term| term.0 == layout.constant_column())
-                .map(|term| (row, term, actual))
-        });
-        let Some((row, term, actual)) = selected else { continue };
-        let mut changed = actual.clone();
-        changed[term].0 = 0;
-        changed = canonicalize(changed);
+                .find(|owner| owner.name == child)
+                .expect("column owner has a row owner"),
+        };
+        let owner = ColumnOwnerSpan {
+            name: columns.name,
+            rows,
+            columns,
+        };
+        assert!(owner.rows.start < owner.rows.end, "{} row interval", owner.name);
         assert!(
-            !exact_row_accepts(matrix, row, &changed),
-            "exact comparator accepted constant {side} column mutation at row {row}"
+            owned_column_rejects(raw, &schedule, owner, layout, private_values, public_values),
+            "{} has no raw-assignment-rejecting owned column",
+            owner.name,
         );
         checks += 1;
     }
+    checks
+}
+
+pub(super) fn public_segment_mutation_checks(
+    raw: &RawPackage,
+    row_owners: &[OwnerSpan],
+    layout: &ReferenceLayout,
+    private_values: &[u64],
+    public_values: &[u64],
+) -> usize {
+    const PUBLIC_SEGMENTS: [(u64, &str); 3] = [
+        (4, "prior_public_input"),
+        (5, "output_digest"),
+        (10, "verification_key"),
+    ];
+
+    assert_eq!(raw.3 .6.len(), PUBLIC_SEGMENTS.len(), "public segment count");
+    let pi_ccs_rows = OwnerSpan {
+        name: "piccs",
+        start: row_owners.first().expect("first PiCCS row owner").start,
+        end: row_owners.last().expect("last PiCCS row owner").end,
+    };
+    let pilot_rows = OwnerSpan {
+        name: "pilot",
+        start: 0,
+        end: pi_ccs_rows.start,
+    };
+    let physical_end = word(raw.3 .4);
+    let mut cursor = layout.unpadded_constant + 1;
+    let schedule = events(raw);
+    let mut checks = 0;
+    for (segment, (expected_role, name)) in raw.3 .6.iter().zip(PUBLIC_SEGMENTS) {
+        assert_eq!(segment.0, expected_role, "{name} public role");
+        let start = word(segment.1);
+        let count = word(segment.2);
+        assert_eq!(start, cursor, "{name} public start");
+        assert_ne!(count, 0, "{name} public count");
+        let end = start.checked_add(count).expect("public segment end");
+        assert!(end <= physical_end, "{name} public range");
+        // The output digest is checked by Pilot. PiCCS consumes the output
+        // preimage and must not claim ownership of this already-checked value.
+        let rows = if expected_role == 5 { pilot_rows } else { pi_ccs_rows };
+        assert!(
+            matching_column_rejects(
+                raw,
+                &schedule,
+                name,
+                rows,
+                layout,
+                private_values,
+                public_values,
+                |column| start <= column && column < end,
+            ),
+            "{name} has no raw-assignment-rejecting column",
+        );
+        cursor = end;
+        checks += 1;
+    }
+    assert_eq!(cursor, physical_end, "public segment coverage");
     checks
 }

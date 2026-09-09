@@ -834,20 +834,11 @@ fn lifecycle_source_semantic_link_artifact_is_current() {
     let path = generated_source_artifact_path();
     let rendered = render_source_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected lifecycle source semantic-link artifact");
         panic!(
             "lifecycle source semantic-link Lean artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_lifecycle_source_semantic_link_artifact() {
-    std::fs::write(generated_source_artifact_path(), render_source_artifact())
-        .expect("write generated lifecycle source semantic-link artifact");
 }
 
 #[test]
@@ -855,18 +846,9 @@ fn lifecycle_semantic_link_artifact_is_current() {
     let path = generated_artifact_path();
     let rendered = render_artifact();
     if std::fs::read_to_string(&path).ok().as_deref() != Some(&rendered) {
-        let expected = path.with_extension("lean.expected");
-        std::fs::write(&expected, rendered).expect("write expected lifecycle semantic-link artifact");
         panic!(
             "lifecycle semantic-link Lean artifact drifted; inspect {}",
-            expected.display()
+            path.display()
         );
     }
-}
-
-#[test]
-#[ignore = "deliberately writes the reviewed generated Lean artifact"]
-fn regenerate_lifecycle_semantic_link_artifact() {
-    std::fs::write(generated_artifact_path(), render_artifact())
-        .expect("write generated lifecycle semantic-link artifact");
 }

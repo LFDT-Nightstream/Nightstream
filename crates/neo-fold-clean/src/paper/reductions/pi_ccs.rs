@@ -316,7 +316,7 @@ fn validate_input_shape(
     if fresh_claims.len() != fresh_witnesses.len() {
         return Err(Error::Shape("|fresh_claims| \u{2260} |fresh_witnesses|"));
     }
-    if !running.shape_ok() {
+    if !running.prover_shape_is_valid() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
     }
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {

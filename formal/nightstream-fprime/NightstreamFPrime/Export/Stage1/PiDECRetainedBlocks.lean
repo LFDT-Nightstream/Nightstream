@@ -4,7 +4,9 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 /-!
 Owns the seven exact source intervals retained by the nonempty PiDEC rows:
 four parent outputs, the proof input, the logical split cells, and the R1CS
-fresh interval.
+fresh interval. The proof view reuses the running-transition allocation;
+the four parent views reuse PiRLC outputs. Only logical and fresh views
+allocate coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
@@ -57,13 +59,7 @@ def parentEvalABlock (program : Lifecycle.Stage1.Application.Program) :
 
 def proofBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program PiDECInputs.proofInputColumnCount
-    PiDECInputs.proofInputStart (by
-      rw [Spartan.sourceColumnCount_eq]
-      norm_num [PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-        PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-        PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild])
+  RunningTransitionRetainedBlocks.piDecBlock program
 
 def logicalBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
@@ -88,35 +84,25 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    (parentCommitmentBlock program).slotCount +
-      (parentPublicInputBlock program).slotCount +
-      (parentEvalKBlock program).slotCount +
-      (parentEvalABlock program).slotCount +
-      (proofBlock program).slotCount +
-      (logicalBlock program).slotCount +
-      (freshBlock program).slotCount = 70416 := by
+            (logicalBlock program).slotCount +
+      (freshBlock program).slotCount = 18090 := by
   norm_num [parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
-    parentEvalABlock, proofBlock, logicalBlock, freshBlock, sourceFieldBlock,
+    parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock,
     freshCount, PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
     PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
     PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
     Nat :=
-  (parentCommitmentBlock program).coordinateCount +
-    (parentPublicInputBlock program).coordinateCount +
-    (parentEvalKBlock program).coordinateCount +
-    (parentEvalABlock program).coordinateCount +
-    (proofBlock program).coordinateCount +
-    (logicalBlock program).coordinateCount +
+          (logicalBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 2887056 := by
+    retainedCoordinateCount program = 741690 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
-    parentEvalABlock, proofBlock, logicalBlock, freshBlock, sourceFieldBlock]
+    parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock]
   norm_num [freshCount, PiDECInputs.proofInputColumnCount,
     PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
     PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,

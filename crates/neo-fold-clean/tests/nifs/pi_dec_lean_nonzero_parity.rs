@@ -1,4 +1,8 @@
 //! Complete nonzero PiDEC parity against the Lean-emitted Stage 1 fixture.
+//! Use one checked Lean source cut for the candidate, canonical binding, and
+//! setup. Run check_package_conformance before copying those test inputs here.
+//! The separate binding supplies expected identities; production pins stay
+//! unchanged. Synthetic values do not establish valid witness openings.
 
 use std::{fs, path::PathBuf};
 
@@ -6,13 +10,14 @@ use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, Term};
 use neo_fold_clean::{
     engine::{optimized, paper_exact},
-    frontends::r1cs_f_prime::production::pi_ccs_v1_1_state_hash,
-    paper::{params::Params, relations::ajtai_dec_mixer},
+    paper::{params::Params, pi_dec, relations::ajtai_dec_mixer},
+    stage1::pi_ccs_v1_1_state_hash,
 };
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::split_b_matrix_k;
 use nightstream_fprime::{
-    PI_CCS_V1_1_ROUND_COUNT, PI_CCS_V1_1_STATE_PREIMAGE_WORDS, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
+    load_per_application_package, LoadedPerApplicationPackage, PI_CCS_V1_1_ROUND_COUNT,
+    PI_CCS_V1_1_STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
@@ -132,8 +137,33 @@ fn pi_rlc_artifact_path() -> PathBuf {
 }
 
 fn package_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-candidate.json",
+    )
+}
+
+#[derive(Deserialize)]
+struct LeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4]);
+
+fn expected_binding() -> LeanBinding {
+    let path = package_path().with_file_name("nightstream-fprime-stage1-poseidon2-hash-chain-v1-binding-v1.json");
+    let binding: LeanBinding = serde_json::from_slice(&fs::read(path).expect("independent canonical Lean binding"))
+        .expect("Lean binding schema");
+    assert_eq!(binding.0, 1, "canonical binding schema");
+    binding
+}
+
+fn load_candidate(bytes: &[u8]) -> LoadedPerApplicationPackage {
+    let expected = expected_binding();
+    let package = load_per_application_package(bytes, expected.1).expect("separately selected Lean identity");
+    let actual = package
+        .production_verifier_binding()
+        .expect("selected setup binding");
+    assert_eq!(actual.package_identity(), expected.2);
+    assert_eq!(actual.verifier_context().descriptor_words(), expected.3.as_slice());
+    assert_eq!(actual.verification_key_words(), expected.4.as_slice());
+    assert_eq!(actual.verification_key_digest(), expected.5);
+    package
 }
 
 fn artifact() -> Artifact {
@@ -255,15 +285,7 @@ fn claims(input: &RawInput) -> (Claim, Vec<Claim>) {
 
 fn relation() -> CcsStructure<F> {
     let bytes = fs::read(package_path()).expect("Lean package bytes");
-    let loaded =
-        nightstream_fprime::load_poseidon2_hash_chain_v1_package(&bytes).expect("verifier-owned production package");
-    assert_eq!(
-        loaded
-            .production_verifier_binding()
-            .expect("fixed production binding")
-            .package_identity(),
-        POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY
-    );
+    load_candidate(&bytes);
     let package: serde_json::Value = serde_json::from_slice(&bytes).expect("Lean package JSON");
     assert_eq!(package[1][0].as_u64(), Some(8), "Lean inner-package schema");
     let raw: RawRelation = serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple");
@@ -700,6 +722,11 @@ fn assert_cumulative_handoff() {
     assert_eq!(pi_dec[1][0][3], pi_rlc[2][6], "PiRLC Eval_K handoff");
     assert_eq!(pi_dec[1][0][4], pi_rlc[2][7], "PiRLC Eval_A handoff");
     assert_eq!(pi_dec[1][5], pi_rlc[2][9], "PiRLC transcript-state handoff");
+    assert_eq!(
+        &pi_dec[2][17].as_array().expect("PiDEC output preimage")[..39],
+        &pi_ccs[1][0].as_array().expect("PiCCS prior preimage")[..39],
+        "PiDEC preserves the verifier context and application-state prefix"
+    );
 }
 
 fn transition_running_words(children: &[RawClaim]) -> Vec<u64> {
@@ -742,6 +769,19 @@ fn assert_both_reject(
         !optimized::verify_pi_dec(params, structure, parent, children, ajtai_dec_mixer),
         "optimized accepted mutated {location}"
     );
+    assert!(
+        pi_dec::verify(
+            params,
+            structure,
+            ajtai_dec_mixer,
+            parent,
+            &pi_dec::Proof {
+                children: children.to_vec()
+            },
+        )
+        .is_err(),
+        "native PiDEC wrapper accepted mutated {location}"
+    );
 }
 
 fn bump_word(word: &mut u64) {
@@ -758,7 +798,7 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
     assert_cumulative_handoff();
     let Artifact(schema, input, result) = artifact();
     assert_eq!(schema, 2);
-    assert_eq!(input.6, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
+    assert_eq!(input.6, expected_binding().2);
     assert_eq!(input.0 .5, 1, "PiDEC parent stage");
     assert_eq!(result.0, 1, "Lean PiDEC acceptance");
     assert_eq!(result.13.len(), CHILD_COUNT);
@@ -778,6 +818,24 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
     let lean = lean_result(&result);
     let paper = paper_result(&params, &parent, &children, input.5);
     let optimized = optimized_result(&params, &structure, &parent, &children, input.5);
+    let actual_children = pi_dec::verify(
+        &params,
+        &structure,
+        ajtai_dec_mixer,
+        &parent,
+        &pi_dec::Proof {
+            children: children.clone(),
+        },
+    )
+    .expect("native PiDEC wrapper accepts the Lean public equations");
+    assert_eq!(
+        actual_children
+            .iter()
+            .map(|child| claim_result(child, 0))
+            .collect::<Vec<_>>(),
+        lean.children,
+        "the actual wrapper returns every Lean child coordinate"
+    );
 
     assert_eq!(paper, lean);
     assert_eq!(optimized, lean);

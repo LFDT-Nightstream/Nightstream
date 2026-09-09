@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerCandidateWiring
 
 /-!
 Owns the executable source resolver and direct 14-matrix plan for the
@@ -1245,10 +1246,7 @@ def form {program : Lifecycle.Stage1.Application.Program}
       (PiRLCSamplerPoseidonPlan.interface (poseidonGeometry geometry)).output
         (poseidonInvocation descriptor) (DigestWindow.rateLane sourceLane)
   | .logical descriptor position =>
-      (logicalBlock program).form
-        (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart program)
-        (PiRLCSamplerOrdinaryRetainedGeometry.logicalFits geometry)
-        (logicalSlot descriptor position)
+      PiRLCSamplerCandidateWiring.logicalForm geometry descriptor position
   | .fresh descriptor position =>
       (freshBlock program).form
         (PiRLCSamplerOrdinaryRetainedGeometry.freshStart program)

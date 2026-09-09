@@ -15,6 +15,7 @@ formal/*-lean/.lake
 formal/external
 formal/nightstream-lean/.tmp_tv_test*
 /formal/nightstream-lean/
+/formal/nightstream-alt/
 .bundle_tmp/
 .tmp/
 tmp/

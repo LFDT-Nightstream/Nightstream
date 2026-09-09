@@ -38,39 +38,69 @@ def combinedCommitmentValue (challenges : Fin SourceCount → RingF) : Value :=
   PiCCSParity.fieldWordsValue
     (serializeCommitment (combinedCommitment challenges))
 
-def combinedPublicInputValue (challenges : Fin SourceCount → RingF) : Value :=
-  PiCCSParity.fieldWordsValue
-    (serializePublicInput (combinedPublicInput challenges))
+def inputPublicInputFromComputed (computed : PiCCSNonzero.Computed)
+    (source : Fin SourceCount) :
+    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits) :=
+  Fin.addCases
+    (fun _ column => encHash (publicFits := VerifierContext.candidatePublicFits)
+      computed.statement.digest column)
+    (fun runningSource column => PiCCSNonzero.field (runningSource.val + column.val))
+    (sourceIndex source)
 
-def combinedEvalKValue (challenges : Fin SourceCount → RingF) : Value :=
+def inputEvaluationFromComputed (computed : PiCCSNonzero.Computed)
+    (source : Fin SourceCount) : Evaluation where
+  pad := computed.output.padCoordinate (sourceIndex source)
+  matrix := computed.output.matrixCoordinate (sourceIndex source)
+
+def combinedPublicInputFromComputed (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) :
+    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
+      (publicFits := VerifierContext.candidatePublicFits) :=
+  NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
+    challenges (inputPublicInputFromComputed computed)
+
+def combinedEvaluationFromComputed (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) : Evaluation :=
+  PaperAlgebra.combineEvaluationFamily challenges
+    (inputEvaluationFromComputed computed)
+
+def combinedPublicInputValue (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) : Value :=
+  PiCCSParity.fieldWordsValue
+    (serializePublicInput (combinedPublicInputFromComputed computed challenges))
+
+def combinedEvalKValue (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) : Value :=
   PiCCSParity.extensionWordsValue
     ((List.finRange productionShape.coefficientCount).map fun coefficient =>
-      (combinedEvaluation challenges).pad coefficient)
+      (combinedEvaluationFromComputed computed challenges).pad coefficient)
 
-def combinedEvalAValue (challenges : Fin SourceCount → RingF) : Value :=
+def combinedEvalAValue (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) : Value :=
   .array ((List.finRange productionShape.matrixCount).map fun matrix =>
     PiCCSParity.extensionWordsValue
       ((List.finRange productionShape.coefficientCount).map fun coefficient =>
-        (combinedEvaluation challenges).matrix matrix coefficient))
+        (combinedEvaluationFromComputed computed challenges).matrix matrix coefficient))
 
 def pointValue (value : Point) : Value :=
   PiCCSParity.extensionWordsValue value.coordinates
 
-def inputFamilyValues : List Value :=
+def inputFamilyValues (computed : PiCCSNonzero.Computed) : List Value :=
   [PiCCSParity.outputCommitmentsValue,
-    PiCCSParity.outputPublicInputsValue,
-    PiCCSParity.outputEval_KValue,
-    PiCCSParity.outputEval_AValue]
+    PiCCSParity.outputPublicInputsValueFromFresh computed.statement.freshValue,
+    PiCCSParity.outputEval_KValue computed,
+    PiCCSParity.outputEval_AValue computed]
 
 def inputValueWithFamilies (computed : PiCCSNonzero.Computed)
-    (families : List Value) : Value :=
+    (families : List Value) (packageIdentity : VerifierContext.Digest4) : Value :=
   .array ([PiCCSParity.stateValue computed.outgoingState,
     pointValue computed.verifierRoundPoint] ++ families ++
-      [PiCCSParity.fieldWordsValue
-        VerifierContext.productionPackageIdentityWords])
+      [PiCCSParity.fieldWordsValue packageIdentity.toList])
 
-def inputValue (computed : PiCCSNonzero.Computed) : Value :=
-  inputValueWithFamilies computed inputFamilyValues
+def inputValue (computed : PiCCSNonzero.Computed)
+    (packageIdentity : VerifierContext.Digest4) : Value :=
+  inputValueWithFamilies computed (inputFamilyValues computed) packageIdentity
 
 def ringHasNonzero (value : RingF) : Bool :=
   (List.finRange ringDegree).any fun coefficient =>
@@ -96,20 +126,21 @@ def evaluationHasNonzero (value : Evaluation) : Bool :=
       (List.finRange productionShape.coefficientCount).any fun coefficient =>
         decide (value.matrix matrix coefficient ≠ K.zero))
 
-def inputsNonzero : Bool :=
+def inputsNonzero (computed : PiCCSNonzero.Computed) : Bool :=
   (List.finRange SourceCount).all fun source =>
     commitmentHasNonzero (inputCommitment source) &&
-      publicInputHasNonzero (inputPublicInput source) &&
-      evaluationHasNonzero (inputEvaluation source)
+      publicInputHasNonzero (inputPublicInputFromComputed computed source) &&
+      evaluationHasNonzero (inputEvaluationFromComputed computed source)
 
-def assuranceValue (challenges : Fin SourceCount → RingF) : Value :=
-  .array [PiCCSParity.boolValue inputsNonzero,
+def assuranceValue (computed : PiCCSNonzero.Computed)
+    (challenges : Fin SourceCount → RingF) : Value :=
+  .array [PiCCSParity.boolValue (inputsNonzero computed),
     PiCCSParity.boolValue (commitmentHasNonzero
       (combinedCommitment challenges)),
     PiCCSParity.boolValue (publicInputHasNonzero
-      (combinedPublicInput challenges)),
+      (combinedPublicInputFromComputed computed challenges)),
     PiCCSParity.boolValue (evaluationHasNonzero
-      (combinedEvaluation challenges))]
+      (combinedEvaluationFromComputed computed challenges))]
 
 def materializedCommitmentValue (value : MaterializedCommitment) : Value :=
   PiCCSParity.fieldWordsValue
@@ -202,12 +233,14 @@ def resultValue (computed : PiCCSNonzero.Computed) : Value :=
       computed.outgoingState SourceCount with
   | none => .array [PiCCSParity.boolValue false]
   | some batch =>
-      (resultValueFromPartials computed batch inputsNonzero
+      (resultValueFromPartials computed batch (inputsNonzero computed)
         (commitmentPartials batch.challenges)
-        (publicInputPartials batch.challenges)
-        (evalKPartials batch.challenges)
+        (publicInputPartials batch.challenges (inputPublicInputFromComputed computed))
+        (evaluationPartials batch.challenges fun source =>
+          (inputEvaluationFromComputed computed source).pad)
         ((List.finRange productionShape.matrixCount).map fun matrix =>
-          evalAPartials batch.challenges matrix)).getD
+          evaluationPartials batch.challenges fun source =>
+            (inputEvaluationFromComputed computed source).matrix matrix)).getD
             (.array [PiCCSParity.boolValue false])
 
 abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
@@ -220,14 +253,14 @@ def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
   | .ok value => pure value
   | .error error => throw error
 
-def parityValueIO : IO Value := do
-  let computedTask ← IO.asTask (prio := Task.Priority.dedicated)
-    PiCCSNonzero.computeIO
-  let inputFamiliesTask ← IO.asTask (prepare fun _ => inputFamilyValues)
-  let inputsNonzeroTask ← IO.asTask (prepare fun _ => inputsNonzero)
-  let computed ← prepared computedTask
+def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value := do
+  let computed ← PiCCSNonzero.computeIO context.toList
+  let inputFamiliesTask ←
+    IO.asTask (prepare fun _ => inputFamilyValues computed)
+  let inputsNonzeroTask ←
+    IO.asTask (prepare fun _ => inputsNonzero computed)
   let inputFamilies ← prepared inputFamiliesTask
-  let input := inputValueWithFamilies computed inputFamilies
+  let input := inputValueWithFamilies computed inputFamilies packageIdentity
   match Transcript.PiRlcSampler.piRlcChallengesWithState
       computed.outgoingState SourceCount with
   | none =>
@@ -237,13 +270,16 @@ def parityValueIO : IO Value := do
       let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
         (prepare fun _ => commitmentPartials batch.challenges)
       let publicInputTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => publicInputPartials batch.challenges)
+        (prepare fun _ => publicInputPartials batch.challenges
+          (inputPublicInputFromComputed computed))
       let evalKTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => evalKPartials batch.challenges)
+        (prepare fun _ => evaluationPartials batch.challenges fun source =>
+          (inputEvaluationFromComputed computed source).pad)
       let evalATasks ←
         (List.finRange productionShape.matrixCount).mapM fun matrix =>
           IO.asTask (prio := Task.Priority.dedicated) (prepare fun _ =>
-            evalAPartials batch.challenges matrix)
+            evaluationPartials batch.challenges fun source =>
+              (inputEvaluationFromComputed computed source).matrix matrix)
       let commitments ← prepared commitmentTask
       let publicInputs ← prepared publicInputTask
       let evalKs ← prepared evalKTask
@@ -256,11 +292,13 @@ def parityValueIO : IO Value := do
       | none =>
           throw (IO.userError "incomplete PiRLC indexed partial grid")
 
-/-- Schema 3 adds the verifier-owned production package identity. -/
-def parityValue (_ : Unit) : Value :=
-  let computed := PiCCSNonzero.compute ()
-  .array [.atom 3, inputValue computed, resultValue computed]
+/-- Schema 3 carries the selected package identity. The consumer checks it
+and the supplied context against its separately loaded canonical binding. -/
+def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
+  let computed := PiCCSNonzero.compute () context.toList
+  .array [.atom 3, inputValue computed packageIdentity, resultValue computed]
 
-def render (_ : Unit) : String := (parityValue ()).render
+def render (context packageIdentity : VerifierContext.Digest4) : String :=
+  (parityValue context packageIdentity).render
 
 end NightstreamFPrime.Export.Stage1.PiRLCParity

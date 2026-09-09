@@ -77,7 +77,7 @@ private theorem finRange_map_getD
   apply congrArg encode
   exact Fin.ext rfl
 
-private theorem serializeRingF_getD
+theorem serializeRingF_getD
     (value : RingF) (coefficient : Fin ringDegree) :
     (serializeRingF value).getD coefficient.val 0 = value coefficient := by
   unfold serializeRingF

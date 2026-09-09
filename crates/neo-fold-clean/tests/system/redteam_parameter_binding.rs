@@ -71,9 +71,14 @@ fn verifier_key_distinguishes_unbounded_from_fixed_zero_public_input_arity() {
     let fixed_zero = preprocess(params, structure, Some(0)).expect("fixed-zero public-input policy");
 
     let assignment = vec![F::ZERO; D];
-    let instance =
-        CcsInstance::from_low_norm_assignment(&unbounded.params, &unbounded.log, unbounded.structure(), &assignment, D)
-            .expect("one-ring instance");
+    let instance = CcsInstance::from_low_norm_assignment(
+        unbounded.params(),
+        unbounded.commitment_scheme(),
+        unbounded.structure(),
+        &assignment,
+        D,
+    )
+    .expect("one-ring instance");
     let audit = prove(&unbounded, [vec![instance]]).expect("prove under unbounded policy");
     let proof = finish_uncompressed(&unbounded, audit).expect("finish under unbounded policy");
     let unbounded_result = verify_uncompressed(&unbounded, &proof);
@@ -83,7 +88,7 @@ fn verifier_key_distinguishes_unbounded_from_fixed_zero_public_input_arity() {
         "fixture requires different verifier languages (unbounded={unbounded_result:?}, fixed_zero={fixed_zero_result:?})"
     );
 
-    let same_vk = unbounded.vk.digest() == fixed_zero.vk.digest();
+    let same_vk = unbounded.verifier_key().digest() == fixed_zero.verifier_key().digest();
     let same_boundary = neo_fold_clean::paper::digest::initial_boundary_digest(unbounded.structure_digest(), None)
         == neo_fold_clean::paper::digest::initial_boundary_digest(fixed_zero.structure_digest(), Some(0));
     assert!(
@@ -185,8 +190,14 @@ fn verifier_key_digest_binds_same_shaped_ajtai_public_parameters() {
     let strong = preprocess_with_test_log(params, structure, strong_log, Some(D)).expect("strong verifier context");
     let mut assignment = vec![F::ZERO; D];
     assignment[0] = F::ONE;
-    let instance = CcsInstance::from_low_norm_assignment(&weak.params, &weak.log, weak.structure(), &assignment, D)
-        .expect("nonzero instance under weak setup");
+    let instance = CcsInstance::from_low_norm_assignment(
+        weak.params(),
+        weak.commitment_scheme(),
+        weak.structure(),
+        &assignment,
+        D,
+    )
+    .expect("nonzero instance under weak setup");
     let proof = prove(&weak, vec![vec![instance]]).expect("prove under weak setup");
     let finished = finish_uncompressed(&weak, proof).expect("finish under weak setup");
     verify_uncompressed(&weak, &finished).expect("matching weak verifier accepts");
@@ -196,8 +207,8 @@ fn verifier_key_digest_binds_same_shaped_ajtai_public_parameters() {
     );
 
     assert_ne!(
-        weak.vk.digest(),
-        strong.vk.digest(),
+        weak.verifier_key().digest(),
+        strong.verifier_key().digest(),
         "verifier-key identity failure: different same-shaped Ajtai public parameters produce the same vk_fs_digest"
     );
 }
@@ -333,7 +344,13 @@ fn preprocessing_rejects_ajtai_pp_with_missing_matrix_rows() {
     };
     let assignment = vec![F::ZERO; width];
     let result = catch_unwind(AssertUnwindSafe(|| {
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
+        CcsInstance::from_low_norm_assignment(
+            prep.params(),
+            prep.commitment_scheme(),
+            prep.structure(),
+            &assignment,
+            D,
+        )
     }));
 
     assert!(
@@ -346,49 +363,43 @@ fn preprocessing_rejects_ajtai_pp_with_missing_matrix_rows() {
     );
 }
 
-/// `public_input_len` is part of the verifier-key identity, so changing the
-/// live policy after preprocessing must not leave the old key usable.  A key
-/// advertised for one public ring must never prove and verify a two-public-ring
-/// language merely through safe mutation of its context.
+/// Different public-input policies require separate contexts and key identities.
 #[test]
-fn verifier_rejects_public_input_policy_drift_after_key_derivation() {
+fn preprocessing_binds_each_public_input_policy_to_its_key() {
     let structure = CcsStructure::new(vec![Mat::zero(1, 2 * D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
         .expect("two-ring zero relation");
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
 
-    let mut stale =
+    let one_ring =
         preprocess(params.clone(), structure.clone(), Some(D)).expect("context advertised for one public ring");
     let honest_two =
         preprocess(params, structure, Some(2 * D)).expect("reference context advertised for two public rings");
-    let advertised_one = stale.vk.digest();
+    let advertised_one = one_ring.verifier_key().digest();
     assert_ne!(
         advertised_one,
-        honest_two.vk.digest(),
+        honest_two.verifier_key().digest(),
         "fixture precondition: verifier-key identity normally binds public-input arity"
     );
 
     let mut assignment = vec![F::ZERO; 2 * D];
     assignment[D] = F::ONE;
-    let instance =
-        CcsInstance::from_low_norm_assignment(&stale.params, &stale.log, stale.structure(), &assignment, 2 * D)
-            .expect("valid two-public-ring instance");
+    let instance = CcsInstance::from_low_norm_assignment(
+        one_ring.params(),
+        one_ring.commitment_scheme(),
+        one_ring.structure(),
+        &assignment,
+        2 * D,
+    )
+    .expect("valid two-public-ring instance");
     assert!(
-        prove(&stale, [vec![instance.clone()]]).is_err(),
+        prove(&one_ring, [vec![instance.clone()]]).is_err(),
         "fixture precondition: the originally advertised arity-one policy rejects this arity-two statement"
     );
 
-    stale.public_input_len = Some(2 * D);
-    assert_eq!(
-        stale.vk.digest(),
-        advertised_one,
-        "safe policy mutation leaves the once-derived verifier key stale"
-    );
-    let result = prove(&stale, [vec![instance]]);
-
-    assert!(
-        result.is_err(),
-        "verifier-authority failure: key {advertised_one:?}, derived for one public ring, accepted a two-public-ring proof after its live policy drifted ({result:?})"
-    );
+    prove(&honest_two, [vec![instance]]).expect("the two-ring context accepts its public-input policy");
+    assert_eq!(one_ring.public_input_len(), Some(D));
+    assert_eq!(honest_two.public_input_len(), Some(2 * D));
+    assert_eq!(one_ring.verifier_key().digest(), advertised_one);
 }

@@ -89,6 +89,16 @@ fn with_extra_sparse_term(matrix: &CcsMatrix<F>, row: usize, column: usize, coef
     .expect("rebuild test matrix")
 }
 
+fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
+    RunningInstance::canonical_zero(
+        prep.params(),
+        prep.structure(),
+        prep.public_input_len().expect("fixed public-input length"),
+        LaneCommitmentMode::Plain,
+    )
+    .expect("canonical zero running accumulator")
+}
+
 #[test]
 fn metal_joint_plan_keeps_its_structure_cache_alive() {
     let r1cs = relation(2 * D);
@@ -98,7 +108,7 @@ fn metal_joint_plan_keeps_its_structure_cache_alive() {
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
 
     metal
-        .prepare_static(&prep.log, prep.structure(), prep.optimized_cache(), None)
+        .prepare_static(prep.commitment_scheme(), prep.structure(), prep.optimized_cache(), None)
         .expect("prepare static Metal plan");
     drop(superneo);
     drop(prep);
@@ -115,20 +125,20 @@ fn metal_joint_plan_keeps_its_structure_cache_alive() {
 }
 
 #[test]
-fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
+fn metal_one_joint_oracle_matches_the_canonical_host_with_zero_running_claims() {
     let r1cs = relation(2 * D);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c32).expect("preprocess");
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &assignment(2 * D, 1, 0)).expect("fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -142,10 +152,10 @@ fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
     let delegated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -158,7 +168,6 @@ fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
     assert_eq!(delegated.0.witnesses, cpu.0.witnesses);
     assert_eq!(delegated.0.parent_authority, cpu.0.parent_authority);
     assert_eq!(delegated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
-    assert_eq!(delegated.1.pi_ccs.outputs_digest, cpu.1.pi_ccs.outputs_digest);
     assert_eq!(delegated.1.pi_rlc.combined, cpu.1.pi_rlc.combined);
     assert_eq!(delegated.1.pi_dec.children, cpu.1.pi_dec.children);
     assert_eq!(
@@ -169,7 +178,7 @@ fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
     let mut verifier_transcript = Transcript::session();
     let verified = nifs::verify(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -207,17 +216,23 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows
         1,
     );
     let values = assignment(2 * D, 1, 0);
-    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values, r1cs.m_in)
-        .expect("geometric fresh instance");
-    let running = RunningInstance::default();
+    let fresh = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &values,
+        r1cs.m_in,
+    )
+    .expect("geometric fresh instance");
+    let running = canonical_running(&prep);
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -231,10 +246,10 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -275,20 +290,26 @@ fn metal_radix_four_geometric_running_oracle_matches_the_host() {
         values
     };
 
-    let initial = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values(1, 1), D)
-        .expect("initial radix-four geometric instance");
+    let initial = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &values(1, 1),
+        D,
+    )
+    .expect("initial radix-four geometric instance");
     let mut initial_transcript = Transcript::session();
     let (running, _) = nifs::prove(
         &mut initial_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![initial],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("initial radix-four geometric fold");
     assert!(running.witnesses.iter().any(|witness| {
@@ -300,15 +321,21 @@ fn metal_radix_four_geometric_running_oracle_matches_the_host() {
         })
     }));
 
-    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values(3, 0), D)
-        .expect("recursive radix-four geometric instance");
+    let fresh = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &values(3, 0),
+        D,
+    )
+    .expect("recursive radix-four geometric instance");
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -321,10 +348,10 @@ fn metal_radix_four_geometric_running_oracle_matches_the_host() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -361,14 +388,12 @@ fn metal_partial_carrier_identity_opening_matches_the_canonical_host() {
     let point = (0..variables)
         .map(|index| K::from(F::from_u64(index as u64 + 2)))
         .collect::<Vec<_>>();
-    let expected = neo_reductions::common::compute_y_from_Z_and_r(
+    let expected = neo_reductions::common::compute_v1_1_evaluations_from_z_and_r(
         prep.structure(),
         &fresh.witness.Z,
         &point,
         D.next_power_of_two().trailing_zeros() as usize,
-        prep.params.b(),
-    )
-    .0;
+    );
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
     let actual = metal
         .final_witness_openings(
@@ -380,7 +405,16 @@ fn metal_partial_carrier_identity_opening_matches_the_canonical_host() {
         .expect("Metal openings")
         .expect("supported Metal openings");
 
-    assert_eq!(&expected[0][..D], &actual[0][0], "partial-carrier identity opening");
+    assert_eq!(&expected.eval_k[..D], &actual[0].eval_k, "partial-carrier Pad opening");
+    assert_ne!(
+        &expected.eval_k[..D],
+        &expected.eval_a[0][..D],
+        "fixture separates Pad from matrix zero"
+    );
+    assert_eq!(expected.eval_a.len(), actual[0].eval_a.len());
+    for (expected, actual) in expected.eval_a.iter().zip(&actual[0].eval_a) {
+        assert_eq!(&expected[..D], actual);
+    }
 }
 
 #[test]
@@ -388,16 +422,17 @@ fn metal_one_joint_oracle_skips_canonical_zero_running_planes() {
     let r1cs = relation(2 * D);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c40).expect("preprocess");
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &assignment(2 * D, 1, 0)).expect("fresh instance");
-    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), r1cs.m_in, LaneCommitmentMode::Plain)
-        .expect("canonical zero running accumulator");
+    let running =
+        RunningInstance::canonical_zero(prep.params(), prep.structure(), r1cs.m_in, LaneCommitmentMode::Plain)
+            .expect("canonical zero running accumulator");
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -411,10 +446,10 @@ fn metal_one_joint_oracle_skips_canonical_zero_running_planes() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -465,22 +500,22 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
         neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
             .expect("selective preprocessing");
     let fresh = CcsInstance::from_low_norm_assignment(
-        &prep.params,
-        &prep.log,
+        prep.params(),
+        prep.commitment_scheme(),
         prep.structure(),
         &assignment,
         relation.public_input_len(),
     )
     .expect("selective fresh instance");
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -499,14 +534,12 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
     let point = (0..variables)
         .map(|index| K::from(F::from_u64(index as u64 + 2)))
         .collect::<Vec<_>>();
-    let expected = neo_reductions::common::compute_y_from_Z_and_r(
+    let expected = neo_reductions::common::compute_v1_1_evaluations_from_z_and_r(
         prep.structure(),
         &fresh.witness.Z,
         &point,
         D.next_power_of_two().trailing_zeros() as usize,
-        prep.params.b(),
-    )
-    .0;
+    );
     let actual = metal
         .final_witness_openings(
             prep.optimized_cache(),
@@ -516,17 +549,19 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
         )
         .expect("Metal selective openings")
         .expect("supported selective openings");
-    for (matrix, (expected, actual)) in expected.iter().zip(&actual[0]).enumerate() {
+    assert_eq!(&expected.eval_k[..D], &actual[0].eval_k, "selective Pad opening");
+    assert_eq!(expected.eval_a.len(), actual[0].eval_a.len());
+    for (matrix, (expected, actual)) in expected.eval_a.iter().zip(&actual[0].eval_a).enumerate() {
         assert_eq!(&expected[..D], actual, "selective opening matrix {matrix}");
     }
     let mut metal_transcript = Transcript::session();
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -545,10 +580,10 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
     let mut recursive_cpu_transcript = Transcript::session();
     let recursive_cpu = nifs::prove(
         &mut recursive_cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -560,10 +595,10 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
     let recursive_metal = nifs::prove_with_adapter(
         &mut metal,
         &mut recursive_metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -640,22 +675,22 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
             .expect("selective preprocessing");
     let fresh = CcsInstance::from_low_norm_assignment(
-        &prep.params,
-        &prep.log,
+        prep.params(),
+        prep.commitment_scheme(),
         prep.structure(),
         &assignment,
         relation.public_input_len(),
     )
     .expect("selective fresh instance");
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -669,10 +704,10 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -705,25 +740,26 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     )
     .expect("fallback preprocessing");
     let fallback_fresh = CcsInstance::from_low_norm_assignment(
-        &fallback_prep.params,
-        &fallback_prep.log,
+        fallback_prep.params(),
+        fallback_prep.commitment_scheme(),
         fallback_prep.structure(),
         &assignment,
         relation.public_input_len(),
     )
     .expect("fallback fresh instance");
+    let fallback_running = canonical_running(&fallback_prep);
     let mut fallback_cpu_transcript = Transcript::session();
     let fallback_cpu = nifs::prove(
         &mut fallback_cpu_transcript,
-        &fallback_prep.params,
+        fallback_prep.params(),
         fallback_prep.structure(),
         fallback_prep.optimized_cache(),
-        &fallback_prep.log,
+        fallback_prep.commitment_scheme(),
         None,
         fallback_prep.mix_rhos_commits(),
         fallback_prep.combine_b_pows(),
         vec![fallback_fresh.clone()],
-        &running,
+        &fallback_running,
     )
     .expect("canonical fallback proof");
     let mut fallback_metal = MetalNifsProver::new().expect("fallback Metal adapter");
@@ -732,15 +768,15 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     let fallback_accelerated = nifs::prove_with_adapter(
         &mut fallback_metal,
         &mut fallback_metal_transcript,
-        &fallback_prep.params,
+        fallback_prep.params(),
         fallback_prep.structure(),
         fallback_prep.optimized_cache(),
-        &fallback_prep.log,
+        fallback_prep.commitment_scheme(),
         None,
         fallback_prep.mix_rhos_commits(),
         fallback_prep.combine_b_pows(),
         vec![fallback_fresh],
-        &running,
+        &fallback_running,
     )
     .expect("Metal fallback proof");
     let fallback_activity = fallback_metal.session().activity();
@@ -763,15 +799,15 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
     let mut initial_transcript = Transcript::session();
     let (running, _) = nifs::prove(
         &mut initial_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![initial_fresh],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("initial canonical fold");
 
@@ -780,10 +816,10 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -798,10 +834,10 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -813,19 +849,20 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
     let activity = metal.session().activity();
     assert!(activity.dispatches > 20, "one-joint proof must execute on Metal");
     assert!(activity.host_waits > 1, "one-joint rounds must synchronize with Metal");
-    assert_eq!(accelerated.0.claims, cpu.0.claims);
-    assert_eq!(accelerated.0.witnesses, cpu.0.witnesses);
-    assert_eq!(accelerated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
-    assert_eq!(accelerated.1.pi_ccs.outputs_digest, cpu.1.pi_ccs.outputs_digest);
-    assert_eq!(
-        accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
-        cpu.1.pi_ccs.sumcheck.canonical_bytes(),
-    );
+    nifs::require_nifs_execution_match(
+        cpu_transcript.snapshot(),
+        &cpu.0,
+        &cpu.1,
+        metal_transcript.snapshot(),
+        &accelerated.0,
+        &accelerated.1,
+    )
+    .expect("complete Metal execution matches the CPU with nonzero running claims");
 
     let mut verifier_transcript = Transcript::session();
     nifs::verify(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -851,15 +888,15 @@ fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
     let mut initial_transcript = Transcript::session();
     let (running, _) = nifs::prove(
         &mut initial_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![initial_fresh],
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("initial radix-four fold");
     assert!(running.witnesses.iter().any(|witness| {
@@ -877,10 +914,10 @@ fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -895,10 +932,10 @@ fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -919,7 +956,7 @@ fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
     let mut verifier_transcript = Transcript::session();
     nifs::verify(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -967,19 +1004,24 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x4d45_5441_4c5f);
     let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
         .expect("seeded preprocessing");
-    let fresh =
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, r1cs.m_in)
-            .expect("seeded fresh instance");
+    let fresh = CcsInstance::from_low_norm_assignment(
+        prep.params(),
+        prep.commitment_scheme(),
+        prep.structure(),
+        &assignment,
+        r1cs.m_in,
+    )
+    .expect("seeded fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
-    let running = RunningInstance::default();
+    let running = canonical_running(&prep);
 
     let mut cpu_transcript = Transcript::session();
     let cpu = nifs::prove(
         &mut cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -993,10 +1035,10 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
         &mut metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -1018,7 +1060,7 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
     let mut verifier_transcript = Transcript::session();
     nifs::verify(
         &mut verifier_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.mix_rhos_commits(),
@@ -1032,10 +1074,10 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
     let mut recursive_cpu_transcript = Transcript::session();
     let recursive_cpu = nifs::prove(
         &mut recursive_cpu_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -1047,10 +1089,10 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
     let recursive_metal = nifs::prove_with_adapter(
         &mut metal,
         &mut recursive_metal_transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
@@ -1074,10 +1116,10 @@ fn metal_fresh_commitment_matches_the_canonical_constructor() {
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
     let built = metal
         .build_fresh_instances(NifsFreshInstancesRequest {
-            pp: &prep.params,
+            pp: prep.params(),
             s: prep.structure(),
             cache: prep.optimized_cache(),
-            log: &prep.log,
+            log: prep.commitment_scheme(),
             m_in: r1cs.m_in,
             assignments: &assignments,
             lane_scheme: None,
@@ -1102,7 +1144,7 @@ fn metal_fresh_lane_commitments_match_the_canonical_constructor() {
     let values = assignment(3 * D, 1, 0);
     let canonical = direct_ccs::build_instance(&prep, &r1cs, &values).expect("canonical instance");
     let lanes = LaneScheme::from_seeds(
-        prep.params.kappa() as usize,
+        prep.params().kappa() as usize,
         LaneRanges {
             ops: 0..1,
             is: 1..2,
@@ -1119,10 +1161,10 @@ fn metal_fresh_lane_commitments_match_the_canonical_constructor() {
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
     let built = metal
         .build_fresh_signed_unit_instances(NifsFreshSignedUnitInstancesRequest {
-            pp: &prep.params,
+            pp: prep.params(),
             s: prep.structure(),
             cache: prep.optimized_cache(),
-            log: &prep.log,
+            log: prep.commitment_scheme(),
             m_in: r1cs.m_in,
             assignments: &assignments,
             lane_scheme: Some(&lanes),
@@ -1150,10 +1192,10 @@ fn metal_selected_nifs_crosschecks_after_gpu_fresh_commitment() {
     prover.accelerator().session().reset_activity();
     let fresh = prover
         .build_fresh_instances(NifsFreshInstancesRequest {
-            pp: &prep.params,
+            pp: prep.params(),
             s: prep.structure(),
             cache: prep.optimized_cache(),
-            log: &prep.log,
+            log: prep.commitment_scheme(),
             m_in: r1cs.m_in,
             assignments: &assignments,
             lane_scheme: None,
@@ -1167,15 +1209,15 @@ fn metal_selected_nifs_crosschecks_after_gpu_fresh_commitment() {
     nifs::prove_with_adapter(
         &mut prover,
         &mut transcript,
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
-        &prep.log,
+        prep.commitment_scheme(),
         None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,
-        &RunningInstance::default(),
+        &canonical_running(&prep),
     )
     .expect("Metal-selected NIFS matches optimized CPU");
 }

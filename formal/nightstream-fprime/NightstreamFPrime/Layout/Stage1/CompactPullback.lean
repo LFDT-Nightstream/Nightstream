@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.Lowering
 
 /-!
-Owns the explicit pullback from the compact seven-child logical assembler to
+Owns the explicit pullback from the compact eight-child logical assembler to
 the canonical physical Stage 1 layout. Each compact child-local interval maps
 to the already validated phase-local interval. Existing source columns use the
 proved Spartan permutation and final suffix shift. Application witness and

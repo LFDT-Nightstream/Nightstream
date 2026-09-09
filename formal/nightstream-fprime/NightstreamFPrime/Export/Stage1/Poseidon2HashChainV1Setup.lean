@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
+import NightstreamFPrime.Spec.AjtaiSetupV1.Framing
 
 /-!
 Owns the verifier-selected Ajtai setup for the canonical
@@ -30,12 +31,12 @@ def messageColumns : Nat :=
     Phi81CarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
-      264627486 := by
+      254260620 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
   norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
     ringDegree]
 
-@[simp] theorem messageColumns_eq : messageColumns = 4900509 := by
+@[simp] theorem messageColumns_eq : messageColumns = 4708530 := by
   unfold messageColumns
   rw [carrierWidth_eq]
   norm_num [Phi81ColumnLayout.blockCount, ringDegree]
@@ -62,6 +63,37 @@ def authorityWords (setup : Setup) : List F :=
 @[simp] theorem authorityWords_length (setup : Setup) :
     (authorityWords setup).length = 73 := by
   exact setup.authorityWords_length
+
+/-- For the selected key dimensions, equal descriptor words imply exactly the
+same setup. The field-word framing cannot hide a change to the seed. -/
+theorem authorityWords_injective : Function.Injective authorityWords := by
+  intro left right sameWords
+  have rowsBound : verifierRows < goldilocksModulus := by
+    rw [verifierRows_eq]
+    decide
+  have columnsBound : messageColumns < goldilocksModulus := by
+    rw [messageColumns_eq]
+    decide
+  have sameSeed := (AjtaiSetupV1.Setup.authorityWords_eq_iff left right
+    rowsBound columnsBound rowsBound columnsBound).mp sameWords
+  cases left with
+  | mk leftSeed =>
+    cases right with
+    | mk rightSeed =>
+      cases leftSeed with
+      | mk leftBytes leftLength leftCanonical =>
+        cases rightSeed with
+        | mk rightBytes rightLength rightCanonical =>
+          have sameBytes : leftBytes = rightBytes := sameSeed.2.2
+          cases sameBytes
+          rfl
+
+/-- At the selected production dimensions, matching descriptor words force
+the exact lazy key used by the relation. -/
+theorem ajtaiKey_eq_of_authorityWords (left right : Setup)
+    (sameWords : authorityWords left = authorityWords right) :
+    ajtaiKey left = ajtaiKey right :=
+  congrArg ajtaiKey (authorityWords_injective sameWords)
 
 def productionSeedBytes : List Nat :=
   Poseidon2HashChainV1SetupAuthority.productionSeedBytes
@@ -113,15 +145,18 @@ theorem directProductionAuthorityWords_eq :
   rw [directProductionAuthorityNats_eq]
   rfl
 
-def packageIdentity : Lifecycle.VerifierContext.Digest4 :=
+def packageIdentity (_delay : Unit := ()) :
+    Lifecycle.VerifierContext.Digest4 :=
   PerApplicationCanonicalPackage.packageIdentity
     Poseidon2HashChainV1Package.fits productionSetup
 
-def verifierContextDescriptor : Lifecycle.VerifierContext.Descriptor :=
+def verifierContextDescriptor (_delay : Unit := ()) :
+    Lifecycle.VerifierContext.Descriptor :=
   PerApplicationCanonicalPackage.verifierContextDescriptor
     Poseidon2HashChainV1Package.fits productionSetup
 
-def verificationKeyBinding : Lifecycle.Stage1.VerificationKey.Binding :=
+def verificationKeyBinding (_delay : Unit := ()) :
+    Lifecycle.Stage1.VerificationKey.Binding :=
   PerApplicationCanonicalPackage.verificationKeyBinding
     Poseidon2HashChainV1Package.fits productionSetup
 

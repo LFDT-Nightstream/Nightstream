@@ -436,7 +436,7 @@ fn terminal_digest(prep: &Preprocessing, state: &State) -> [u8; 32] {
     };
     state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         state.chunk_count,
@@ -465,7 +465,7 @@ fn add_base_case(
     mutation: &'static str,
     proof: Uncompressed,
 ) {
-    let verifier_key = builder.key(prep.vk.digest());
+    let verifier_key = builder.key(prep.verifier_key().digest());
     let (running, running_witness) = builder.absent_running();
     let (fresh, fresh_witness) = builder.absent_fresh();
     let rust_result = neo_fold_clean::verify_uncompressed(prep, &proof);
@@ -516,7 +516,7 @@ fn add_recursive_case(
     mutation: &'static str,
     proof: Uncompressed,
 ) {
-    let verifier_key = builder.key(prep.vk.digest());
+    let verifier_key = builder.key(prep.verifier_key().digest());
     let default_running = builder.running(&RunningInstance::default());
     let (running_value, latest) = active_parts(&proof);
     assert_eq!(latest.instances.len(), 1, "bounded terminal profile is one-slot");
@@ -683,7 +683,7 @@ fn build_corpus() -> Corpus {
     } else {
         F::ZERO
     };
-    instance.claim.c = prep.log.commit(&instance.witness.Z);
+    instance.claim.c = prep.commitment_scheme().commit(&instance.witness.Z);
     add_recursive_case(
         &mut builder,
         prep,
@@ -697,7 +697,9 @@ fn build_corpus() -> Corpus {
         relation_rows: prep.structure().n,
         relation_columns: prep.structure().m,
         matrix_count: prep.structure().t(),
-        public_input_len: prep.public_input_len.expect("fixed terminal public input"),
+        public_input_len: prep
+            .public_input_len()
+            .expect("fixed terminal public input"),
         semantic_mode: match prep.semantic_state_mode() {
             SemanticStateMode::Stateless => "stateless",
             SemanticStateMode::Stateful => "stateful",
@@ -705,7 +707,7 @@ fn build_corpus() -> Corpus {
         terminal_induction: prep.enforces_terminal_induction(),
         recursive_link: prep.enforces_f_prime_recursive_link(),
         fresh_count: 1,
-        verifier_key_digest: prep.vk.digest(),
+        verifier_key_digest: prep.verifier_key().digest(),
     };
     Corpus {
         schema: SCHEMA,

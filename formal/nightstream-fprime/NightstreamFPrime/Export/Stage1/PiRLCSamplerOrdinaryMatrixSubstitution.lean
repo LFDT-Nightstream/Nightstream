@@ -1,11 +1,12 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerLogicalGrids
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
 
 /-!
-Owns the four compact source grids for the PiRLC sampler ordinary matrix
-block. The grids cover Poseidon2 outputs, digest-lane logical values,
-digest-lane fresh values, and final selector outputs.
+Owns the compact source mapping for the PiRLC sampler ordinary matrix block.
+The logical-lane partition shares candidate outputs with First54. The other
+grids cover Poseidon2 outputs, fresh values, and final selector outputs.
 
 Every grid preserves the exact direct source resolver. Gap rejection and the
 complete substitution theorem are proved in this module.
@@ -61,8 +62,8 @@ def selectorGrid (program : Program) : SourceGrid :=
 
 def substitution (program : Program) : SourceSubstitution where
   ranges := []
-  grids := [poseidonGrid program, logicalGrid program, freshGrid program,
-    selectorGrid program]
+  grids := [poseidonGrid program, freshGrid program, selectorGrid program] ++
+    PiRLCSamplerLogicalGrids.grids program
 
 def poseidonDescriptor (source : Fin sourceCount) (round : Fin roundCount) :
     Lane :=
@@ -286,54 +287,6 @@ theorem selectorTarget (source : Fin sourceCount) :
         (PiRLCStarts.samplerLogicalStart + 15449) + source.val * 15504 := affine
     _ = selectorSourceStart + source.val * 15504 := by
       rfl
-
-theorem logicalGrid_form?
-    {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth)
-    (descriptor : Lane) (position : Fin logicalCountPerLane) :
-    (logicalGrid program).form? logicalWidth
-        (Spartan.sourceToSpartan
-          ((PiRLCSamplerOrdinaryDirectPlan.Location.logical descriptor
-            position).sourceColumn)) =
-      some ((PiRLCSamplerOrdinaryDirectPlan.Location.logical descriptor
-        position).form geometry) := by
-  rw [logicalTarget]
-  have sourceBound := descriptor.source.isLt
-  have roundBound := descriptor.round.isLt
-  have laneBound := descriptor.lane.isLt
-  have positionBound := position.isLt
-  change descriptor.source.val < 17 at sourceBound
-  change descriptor.round.val < 8 at roundBound
-  change descriptor.lane.val < 4 at laneBound
-  change position.val < 100 at positionBound
-  have direct := SourceGrid.form?_ofSemantic
-    (logicalBlock program) (logicalStart program)
-    logicalSourceStart 17 15504 8 992 400 0 3200 400
-    (logicalFits geometry) (by decide) (by decide)
-    descriptor.source descriptor.round
-    (logicalOffset descriptor.lane position)
-    (by unfold logicalOffset; omega)
-    (by unfold logicalOffset; omega)
-    (by
-      rw [logicalBlock_slotCount]
-      unfold logicalOffset
-      omega)
-  have slotEq :
-      (⟨descriptor.source.val * 3200 + descriptor.round.val * 400 +
-          (logicalOffset descriptor.lane position).val,
-        by
-          rw [logicalBlock_slotCount]
-          unfold logicalOffset
-          omega⟩ : Fin (logicalBlock program).slotCount) =
-        logicalSlot descriptor position := by
-    apply Fin.ext
-    simp [logicalSlot, laneIndex, Fin.encodeProd, logicalOffset,
-      sourceCount, roundCount, laneCount, logicalCountPerLane,
-      PiRLCSamplerOrdinaryRows.digestRoundCount]
-    omega
-  simp only [Nat.zero_add, Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at direct
-  rw [slotEq] at direct
-  simpa [logicalGrid, PiRLCSamplerOrdinaryDirectPlan.Location.form] using direct
 
 theorem freshGrid_form?
     {program : Program} {logicalWidth : Nat}
@@ -840,9 +793,11 @@ theorem substitution_poseidon_form?
             (poseidonDescriptor source round) lane).sourceColumn)) =
       some ((PiRLCSamplerOrdinaryDirectPlan.Location.poseidon
         (poseidonDescriptor source round) lane).form geometry) := by
+  have noLogical := PiRLCSamplerLogicalGrids.forms_none_of_envelope_none geometry
+    (logicalGrid_none_poseidon source round lane)
   simp [substitution, SourceSubstitution.form?,
     poseidonGrid_form? geometry source round lane,
-    logicalGrid_none_poseidon source round lane,
+    noLogical,
     freshGrid_none_poseidon source round lane,
     selectorGrid_none_poseidon source round lane]
 
@@ -856,9 +811,18 @@ theorem substitution_logical_form?
             position).sourceColumn)) =
       some ((PiRLCSamplerOrdinaryDirectPlan.Location.logical descriptor
         position).form geometry) := by
+  have logical : (PiRLCSamplerLogicalGrids.grids program).filterMap
+      (fun entry => entry.form? logicalWidth
+        (Spartan.sourceToSpartan
+          ((PiRLCSamplerOrdinaryDirectPlan.Location.logical descriptor position).sourceColumn))) =
+      [(PiRLCSamplerOrdinaryDirectPlan.Location.logical descriptor position).form geometry] := by
+    rw [logicalTarget]
+    simpa only [logicalOffset, logicalSourceStart, PiRLCSamplerLogicalGrids.sourceStart,
+      Nat.add_assoc, PiRLCSamplerOrdinaryDirectPlan.Location.form] using
+      PiRLCSamplerLogicalGrids.forms_at geometry descriptor position
   simp [substitution, SourceSubstitution.form?,
     poseidonGrid_none_logical descriptor position,
-    logicalGrid_form? geometry descriptor position,
+    logical,
     freshGrid_none_logical descriptor position,
     selectorGrid_none_logical descriptor position]
 
@@ -872,9 +836,11 @@ theorem substitution_fresh_form?
             position).sourceColumn)) =
       some ((PiRLCSamplerOrdinaryDirectPlan.Location.fresh descriptor
         position).form geometry) := by
+  have noLogical := PiRLCSamplerLogicalGrids.forms_none_of_envelope_none geometry
+    (logicalGrid_none_fresh descriptor position)
   simp [substitution, SourceSubstitution.form?,
     poseidonGrid_none_fresh descriptor position,
-    logicalGrid_none_fresh descriptor position,
+    noLogical,
     freshGrid_form? geometry descriptor position,
     selectorGrid_none_fresh descriptor position]
 
@@ -887,9 +853,11 @@ theorem substitution_selector_form?
           ((PiRLCSamplerOrdinaryDirectPlan.Location.selector source).sourceColumn)) =
       some ((PiRLCSamplerOrdinaryDirectPlan.Location.selector source).form
         geometry) := by
+  have noLogical := PiRLCSamplerLogicalGrids.forms_none_of_envelope_none geometry
+    (logicalGrid_none_selector source)
   simp [substitution, SourceSubstitution.form?,
     poseidonGrid_none_selector source,
-    logicalGrid_none_selector source,
+    noLogical,
     freshGrid_none_selector source,
     selectorGrid_form? geometry source]
 

@@ -17,10 +17,9 @@
 //!   `D_init` (the verifier's ROM handle), plan digest.
 //! - [`prove`] — the two-pass segment prover: one
 //!   [`trace::SegmentTrace`] in, `N` folded `S_mem` steps out.
-//! - [`f_prime`] — the fixed-relation encoder and lifecycle: compiles the
-//!   authoritative fixed relation, fills its selected low-norm arm from live
-//!   fold and memory data, and supports incremental segment appends followed
-//!   by terminal-only verification.
+//! - `f_prime` — the crate-internal Stage 2 fixed-relation prototype. It is not
+//!   a public lifecycle until its PiCCS relation consumes the sealed v1.1
+//!   package.
 //!
 //! Does not own: the fold pipeline's `adv` mirroring
 //! (`paper/relations`, `paper/reductions`) or the F′ `NebulaLane` carry
@@ -28,7 +27,13 @@
 
 pub mod application;
 pub mod circuit;
-pub mod f_prime;
+// Keep the Stage 2 assembly private; expose only the existing WASM integration types.
+#[allow(dead_code, unused_imports)]
+pub(crate) mod f_prime;
+pub use f_prime::{
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
+    VerifiedNebulaFPrimeEncoderArtifact,
+};
 pub mod fingerprint;
 pub mod layout;
 pub mod plan;

@@ -12,6 +12,7 @@
 //! - (`decider` — Spartan terminal compression, added as wiring lands.)
 
 pub mod ccs_native;
+#[cfg(test)]
 pub mod decider;
 pub mod optimized;
 pub mod paper_exact;

@@ -433,7 +433,7 @@ fn bit_carrier_r1cs() -> R1cs {
 
 fn base_state(prep: &Preprocessing) -> State {
     let structure = structure_digest(prep.structure());
-    let z0 = initial_boundary_digest(&structure, prep.public_input_len);
+    let z0 = initial_boundary_digest(&structure, prep.public_input_len());
     let public_trace = public_trace_seed_digest(&structure);
     let empty = AccumulatorHandle::empty().digest();
     State::base(z0, public_trace, empty, empty)
@@ -446,7 +446,7 @@ fn compute_x_out(prep: &Preprocessing, state: &State) -> [u8; 32] {
     };
     state_x_out_digest_with_mode(
         mode,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
@@ -468,14 +468,14 @@ fn build_link_instance(prep: &Preprocessing, r1cs: &R1cs, x_out: [u8; 32]) -> Cc
 
 fn peek_next_state(prep: &Preprocessing, state: &State, batch: &[CcsInstance]) -> State {
     construction2::step(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state.clone(),
         batch.to_vec(),
     )
@@ -488,7 +488,7 @@ pub(super) fn build_fixture() -> Fixture {
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("linked profile preprocessing");
     assert_eq!(prep.semantic_state_mode(), SemanticStateMode::Stateless);
     assert!(prep.nebula().is_none());
-    assert_eq!(prep.public_input_len, Some(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN));
+    assert_eq!(prep.public_input_len(), Some(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN));
 
     let placeholder = vec![F::ZERO; prep.structure().m];
     let dummy = || direct_ccs::build_instance(&prep, &r1cs, &placeholder).expect("dummy instance");
@@ -500,14 +500,14 @@ pub(super) fn build_fixture() -> Fixture {
         let state_in = state.clone();
         let next_latest = vec![linked.claim.clone()];
         let (state_out, proof) = construction2::step(
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.structure_digest(),
-            &prep.log,
+            prep.commitment_scheme(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
-            &prep.vk,
+            prep.verifier_key(),
             state,
             vec![linked],
         )
@@ -701,13 +701,13 @@ fn enc_inst_digest(proof: &StepProof) -> [u8; 32] {
 
 fn execution_facts(prep: &Preprocessing, state: State, next_latest: &[CcsClaim], proof: &StepProof) -> ExecutionFacts {
     let receipt = construction2::verify_step_with_execution_receipt(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state,
         next_latest,
         proof,
@@ -801,14 +801,14 @@ fn mapped_output(builder: &mut Builder, state: &State, x: [u8; 32]) -> MappedOut
 }
 
 fn add_case(builder: &mut Builder, prep: &Preprocessing, source: SourceCase) {
-    let key = builder.key(prep.vk.digest());
+    let key = builder.key(prep.verifier_key().digest());
     let m_in = source
         .next_latest
         .first()
         .expect("canonical step carries one fresh instance")
         .m_in;
     let canonical_default = RunningInstance::canonical_zero(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         m_in,
         construction2::LaneCommitmentMode::Plain,
@@ -1136,11 +1136,11 @@ fn build_corpus() -> Corpus {
         matrix_count: fixture.prep.structure().t(),
         public_input_len: fixture
             .prep
-            .public_input_len
+            .public_input_len()
             .expect("linked profile has public inputs"),
         semantic_mode: "stateless",
         fresh_count: 1,
-        verifier_key_digest: fixture.prep.vk.digest(),
+        verifier_key_digest: fixture.prep.verifier_key().digest(),
         structure_digest: fixture.prep.structure_digest().map(felt),
     };
     Corpus {

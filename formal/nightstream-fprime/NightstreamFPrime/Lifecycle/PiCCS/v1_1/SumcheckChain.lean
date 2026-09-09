@@ -5,14 +5,14 @@ import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 2, `SumCheck(T; Q)`.
-Obligation: Enforce all 26 equations
+Obligation: Enforce all 28 equations
 `p_i(0) + p_i(1) = claim_i`, then `claim_(i+1) = p_i(r_i)`, and
-export the final `claim_26` for the separate `Q(r')` check.
+export the final `claim_28` for the separate `Q(r')` check.
 
 Inputs:
 - the initial claim `T`;
-- 26 prover round polynomials of the fixed production degree;
-- 26 challenges that are shared with the transcript leaf;
+- 28 prover round polynomials of the fixed production degree;
+- 28 challenges that are shared with the transcript leaf;
 
 Outputs:
 - the final claimed value `v`;

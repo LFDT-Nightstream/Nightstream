@@ -7,13 +7,13 @@ use std::sync::{Arc, Weak};
 
 use neo_ajtai::{Commitment, PP};
 use neo_ccs::{LaneCommitments, Mat};
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use neo_fold_clean::lifecycle::{FinalWitnessOpeningBackend, V1_1WitnessOpenings};
 use neo_fold_clean::paper::nifs::{
     AcceleratorCrosscheckNifsProver, Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment,
     NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedNifsProverAdapter,
 };
 use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme, Structure};
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-use neo_fold_clean::FinalWitnessOpeningBackend;
 use neo_fold_clean::RunningInstance;
 use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::ring::Rq;
@@ -112,25 +112,22 @@ impl MetalNifsProver {
             self.ensure_lane_ajtai_plan(lanes, cols)?;
         }
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-        self.ensure_joint_matrix_plan(cache)?;
+        self.ensure_joint_matrix_plan(cache)
+            .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?;
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         let _ = cache;
         Ok(())
     }
 
     #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    fn ensure_joint_matrix_plan(&mut self, cache: &OptimizedStructureCache) -> Result<(), Error> {
+    fn ensure_joint_matrix_plan(&mut self, cache: &OptimizedStructureCache) -> Result<(), MetalError> {
         let superneo = cache.superneo_arc();
         if self
             .joint_matrix_plan
             .as_ref()
             .is_none_or(|plan| !plan.matches(superneo.as_ref()))
         {
-            self.joint_matrix_plan = Some(
-                self.session
-                    .prepare_joint_matrix_plan(superneo)
-                    .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?,
-            );
+            self.joint_matrix_plan = Some(self.session.prepare_joint_matrix_plan(superneo)?);
         }
         Ok(())
     }
@@ -425,7 +422,7 @@ impl PaperJointOracleBackend for MetalNifsProver {
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, neo_reductions::PiCcsError> {
         self.ensure_joint_matrix_plan(input.cache)
-            .map_err(|error| neo_reductions::PiCcsError::ProtocolError(error.to_string()))?;
+            .map_err(crate::oracle_error)?;
         let plan = self
             .joint_matrix_plan
             .as_ref()
@@ -439,18 +436,16 @@ impl PaperJointOracleBackend for MetalNifsProver {
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
-    ) -> Result<Option<Vec<Vec<[K; D]>>>, neo_reductions::PiCcsError> {
+    ) -> Result<Option<Vec<neo_ccs::V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
         self.ensure_joint_matrix_plan(cache)
-            .map_err(|error| neo_reductions::PiCcsError::ProtocolError(error.to_string()))?;
+            .map_err(crate::oracle_error)?;
         let plan = self
             .joint_matrix_plan
             .as_ref()
             .expect("one-joint matrix plan installed above");
         self.session
             .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
-            .map_err(|error| {
-                neo_reductions::PiCcsError::ProtocolError(format!("Metal one-joint PiDEC openings: {error}"))
-            })
+            .map_err(crate::oracle_error)
     }
 }
 
@@ -462,7 +457,7 @@ impl FinalWitnessOpeningBackend for MetalNifsProver {
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
-    ) -> Result<Option<Vec<Vec<[K; D]>>>, String> {
+    ) -> Result<Option<Vec<V1_1WitnessOpenings>>, String> {
         self.ensure_joint_matrix_plan(cache)
             .map_err(|error| error.to_string())?;
         let plan = self
@@ -471,7 +466,27 @@ impl FinalWitnessOpeningBackend for MetalNifsProver {
             .expect("one-joint matrix plan installed above");
         self.session
             .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
-            .map_err(|error| format!("Metal final witness openings: {error}"))
+            .map_err(|error| format!("Metal final witness openings: {error}"))?
+            .map(|openings| {
+                openings
+                    .into_iter()
+                    .map(|opening| {
+                        let to_ring = |row: Vec<K>| {
+                            row.try_into()
+                                .map_err(|_| "Metal opening has the wrong ring degree".to_owned())
+                        };
+                        Ok(V1_1WitnessOpenings {
+                            eval_k: to_ring(opening.eval_k)?,
+                            eval_a: opening
+                                .eval_a
+                                .into_iter()
+                                .map(to_ring)
+                                .collect::<Result<_, _>>()?,
+                        })
+                    })
+                    .collect()
+            })
+            .transpose()
     }
 }
 

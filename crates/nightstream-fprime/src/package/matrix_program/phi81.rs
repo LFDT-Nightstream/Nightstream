@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use super::{
     checked_add, checked_mul, decode_list, empty_row, exact_array, usize_atom, Form, PackageError, RetainedBlock,
-    RowForms,
+    RowForms, SourceSubstitution,
 };
 
 const RING_DEGREE: usize = 54;
@@ -98,7 +98,7 @@ pub(super) struct Block {
     challenge: RetainedBlock,
     challenge_slot_start: usize,
     challenge_source_stride: usize,
-    input: RetainedBlock,
+    input: SourceSubstitution,
     output: RetainedBlock,
     group: RetainedBlock,
 }
@@ -112,7 +112,7 @@ impl Block {
             challenge: RetainedBlock::decode(&fields[2])?,
             challenge_slot_start: usize_atom(&fields[3], "Phi81 challenge slot start")?,
             challenge_source_stride: usize_atom(&fields[4], "Phi81 challenge source stride")?,
-            input: RetainedBlock::decode(&fields[5])?,
+            input: SourceSubstitution::decode(&fields[5])?,
             output: RetainedBlock::decode(&fields[6])?,
             group: RetainedBlock::decode(&fields[7])?,
         })
@@ -151,6 +151,70 @@ impl Block {
         } else {
             self.final_row(logical_width, descriptor)
         }
+    }
+
+    pub(super) fn visit_rows(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if start > end || end > self.row_count()? {
+            return Err(PackageError::Invalid("Phi81 product row range"));
+        }
+        if start == end {
+            return Ok(());
+        }
+        if self.one_column >= logical_width {
+            return Err(PackageError::Invalid("Phi81 one column"));
+        }
+
+        let first_invocation = start / ROWS_PER_INVOCATION;
+        let last_invocation = (end - 1) / ROWS_PER_INVOCATION;
+        for invocation in first_invocation..=last_invocation {
+            let invocation_start = checked_mul(invocation, ROWS_PER_INVOCATION, "Phi81 product row")?;
+            let local_start = start
+                .saturating_sub(invocation_start)
+                .min(ROWS_PER_INVOCATION);
+            let local_end = end
+                .saturating_sub(invocation_start)
+                .min(ROWS_PER_INVOCATION);
+            self.visit_invocation_rows(logical_width, invocation, local_start, local_end, &mut visit)?;
+        }
+        Ok(())
+    }
+
+    fn visit_invocation_rows(
+        &self,
+        logical_width: usize,
+        invocation: usize,
+        local_start: usize,
+        local_end: usize,
+        visit: &mut impl FnMut(RowForms) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if local_start > local_end || local_end > ROWS_PER_INVOCATION {
+            return Err(PackageError::Invalid("Phi81 invocation row range"));
+        }
+        let descriptor = self.descriptor(invocation)?;
+        let product_end = local_end.min(GROUP_COUNT);
+        if local_start < product_end {
+            let challenge = self.challenge_state(logical_width, descriptor)?;
+            let input = self.input_state(logical_width, descriptor)?;
+            let left: [Form; RING_DEGREE] = std::array::from_fn(|lane| {
+                challenge[lane]
+                    .clone()
+                    .append(Form::singleton(self.one_column, -Goldilocks::from_u64(2)))
+            });
+            let terms = product_terms(&left, &input, descriptor.lane);
+            for group in local_start..product_end {
+                visit(self.product_row_from_terms(logical_width, descriptor, &terms, group)?)?;
+            }
+        }
+        if local_start <= GROUP_COUNT && GROUP_COUNT < local_end {
+            visit(self.final_row(logical_width, descriptor)?)?;
+        }
+        Ok(())
     }
 
     fn descriptor(&self, mut index: usize) -> Result<Descriptor, PackageError> {
@@ -213,6 +277,16 @@ impl Block {
         group: usize,
     ) -> Result<RowForms, PackageError> {
         let terms = product_terms(left, right, descriptor.lane);
+        self.product_row_from_terms(logical_width, descriptor, &terms, group)
+    }
+
+    fn product_row_from_terms(
+        &self,
+        logical_width: usize,
+        descriptor: Descriptor,
+        terms: &[(Form, Form)],
+        group: usize,
+    ) -> Result<RowForms, PackageError> {
         let first = checked_mul(group, TERMS_PER_GROUP, "Phi81 group term")?;
         let mut row = empty_row();
         let left_ports = [0, 3, 6, 9, 11];

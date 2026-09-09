@@ -59,7 +59,7 @@ fn bit_carrier_r1cs() -> R1cs {
 fn state_x_out(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
-        prep.vk.digest(),
+        prep.verifier_key().digest(),
         prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
@@ -76,7 +76,7 @@ fn state_x_out(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
 
 fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let structure = structure_digest(prep.structure());
-    let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
+    let z_0 = initial_boundary_digest(&structure, prep.public_input_len());
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = AccumulatorHandle::empty().digest();
     State::base(z_0, public_trace, acc_digest, acc_digest)
@@ -89,14 +89,14 @@ fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_
 
 fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &[CcsInstance]) -> State {
     construction2::step(
-        &prep.params,
+        prep.params(),
         prep.structure(),
         prep.optimized_cache(),
         prep.structure_digest(),
-        &prep.log,
+        prep.commitment_scheme(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
-        &prep.vk,
+        prep.verifier_key(),
         state.clone(),
         batch.to_vec(),
     )
@@ -117,14 +117,14 @@ fn full_history_fixture() -> (neo_fold_clean::Preprocessing, neo_fold_clean::Unc
         let batch = build_link_instance(&prep, &r1cs, state_x_out(&prep, &predicted));
         let public_batch = vec![batch.claim.clone()];
         let (next_state, step_proof) = construction2::step(
-            &prep.params,
+            prep.params(),
             prep.structure(),
             prep.optimized_cache(),
             prep.structure_digest(),
-            &prep.log,
+            prep.commitment_scheme(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
-            &prep.vk,
+            prep.verifier_key(),
             state,
             vec![batch],
         )
@@ -306,13 +306,10 @@ fn isolated_sumcheck_round_artifact_matches() {
     let artifact = build_artifact();
     assert_eq!(artifact.rows, 30, "degree-four round row count drift");
     let path = repo_root().join(ARTIFACT_PATH);
-    if std::env::var_os("UPDATE_NIFS_COMPILER_ARTIFACT").is_some() {
-        fs::write(&path, &artifact.source).expect("write SumCheck round artifact");
-    }
     let existing = fs::read_to_string(&path).unwrap_or_default();
     assert_eq!(
         existing, artifact.source,
-        "{ARTIFACT_PATH} drift; regenerate with UPDATE_NIFS_COMPILER_ARTIFACT=1"
+        "frozen Lean reference differs: {ARTIFACT_PATH}"
     );
 }
 
@@ -348,7 +345,7 @@ fn validate_rounds_in_range(builder: &R1csBuilder, row_start: usize, row_end: us
 
 fn validate_full_history_call_sites(anchor: &Artifact) {
     let (prep, finished) = full_history_fixture();
-    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims(prep.params.inner(), prep.structure(), 1, 0)
+    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims(prep.params().inner(), prep.structure(), 1, 0)
         .expect("fixture joint dimensions");
     assert_eq!(
         anchor.coefficient_count,

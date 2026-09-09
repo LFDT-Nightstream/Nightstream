@@ -2,9 +2,9 @@ import NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 import NightstreamFPrime.Layout.LowNormBlock
 
 /-!
-Owns the minimal retained field blocks for one verifier-selected application.
-It retains only declared application inputs, witnesses, outputs, and local
-lowering values.
+Owns the retained witness and local field blocks for one selected application.
+The input and output blocks are four-word source views. Their geometry reuses
+the actual pilot preimage coordinates; they allocate no application suffix.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
@@ -121,23 +121,18 @@ def localBlock (application : Lifecycle.Stage1.Application.Program) :
 
 def retainedSlotCount
     (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  (inputBlock application).slotCount +
-    (witnessBlock application).slotCount +
-    (outputBlock application).slotCount +
+  (witnessBlock application).slotCount +
     (localBlock application).slotCount
 
 theorem retainedSlotCount_eq
     (application : Lifecycle.Stage1.Application.Program) :
     retainedSlotCount application =
-      8 + application.witnessWordCount + localCount application := by
+      application.witnessWordCount + localCount application := by
   simp [retainedSlotCount]
-  omega
 
 def retainedCoordinateCount
     (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  (inputBlock application).coordinateCount +
-    (witnessBlock application).coordinateCount +
-    (outputBlock application).coordinateCount +
+  (witnessBlock application).coordinateCount +
     (localBlock application).coordinateCount
 
 theorem retainedCoordinateCount_eq
@@ -145,13 +140,13 @@ theorem retainedCoordinateCount_eq
     retainedCoordinateCount application =
       retainedSlotCount application * 41 := by
   simp [retainedCoordinateCount, retainedSlotCount,
-    inputBlock, witnessBlock, outputBlock, localBlock,
+    witnessBlock, localBlock,
     LowNormBlock.Block.coordinateCount, LowNormSlot.Kind.width,
     BalancedTernary.width]
   omega
 
-/-- Every permitted application source is owned by exactly one retained
-family, up to harmless overlap between fixed input/output values. -/
+/-- Every application source has a witness/local owner or a shared pilot
+input/output view. The views do not allocate additional coordinates. -/
 theorem sourceAllowed_covered
     (application : Lifecycle.Stage1.Application.Program)
     (column : Fin (sourceWidth application))

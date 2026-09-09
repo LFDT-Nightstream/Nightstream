@@ -135,7 +135,7 @@ def piCcsFinalOutput {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
     PoseidonSboxPlan.State logicalWidth :=
-  (PiCCSPoseidonPlan.interface geometry).output
+  PiCCSPoseidonPlan.outputState geometry
     ⟨PiCCSPoseidonPlan.invocationCount - 1, by
       rw [PiCCSPoseidonPlan.invocationCount_eq]
       omega⟩

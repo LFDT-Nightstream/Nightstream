@@ -91,8 +91,8 @@ fn lifecycle_rejects_mixed_public_input_relations_without_panicking() {
     let prep = support::toy_preprocessing_unfixed_public_input_len();
     let wide = support::toy_instance(&prep, 0);
     let narrow = neo_fold_clean::CcsInstance::from_low_norm_assignment(
-        &prep.params,
-        &prep.log,
+        prep.params(),
+        prep.commitment_scheme(),
         prep.structure(),
         &vec![F::ZERO; prep.structure().m],
         0,

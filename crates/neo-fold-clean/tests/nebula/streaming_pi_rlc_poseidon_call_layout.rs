@@ -846,8 +846,6 @@ fn production_replay_poseidon2_exports_exact_call_layout() {
     let artifact = render_artifact(&arms);
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_PATH);
     if artifact != std::fs::read_to_string(&path).unwrap_or_default() {
-        let expected = format!("{path}.expected");
-        std::fs::write(&expected, artifact).expect("write reviewed PiRLC replay-call layout artifact");
-        panic!("production PiRLC replay-call layout drifted; wrote {expected}");
+        panic!("production PiRLC replay-call layout drifted; reference: {path}");
     }
 }

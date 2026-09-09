@@ -280,6 +280,50 @@ reconstructed witness and matrix caches remain in the external working
 directory; their byte identities and regeneration commands are recorded.
 Every native run used the project-required 300-second hard cap.
 
+## Complete running openings and native PiRLC witness
+
+Code commits: `120425e9` and `24217edb37eb091d2c2a12008f0bb9e10c90ec6f`.
+
+The existing independent child evaluator now shares the selected package and
+raw parent across all 15 families. At each point it checks all 16 children,
+including every coefficient and the existing changed-word, noncanonical-word,
+cancelling-pair and malformed-shape mutations. All 12960 extension-field
+coefficients match at the prior point and at the new PiCCS point. The two
+runs passed in 133.91 and 132.63 seconds.
+
+The independent selected-key commitment check matches all 19008 coefficients
+of the 16 running commitments in 76.61 seconds. The fresh commitment check
+matches all 1188 coefficients in 60.04 seconds. The independent raw CCS
+evaluator accepts all 6377559 fresh rows in 29.45 seconds. These checks use
+the same reconstructed witnesses supplied to the current optimized prover.
+
+`fold-recursive` combines the actual fresh witness and 16 actual running
+witnesses with the exact sampled ring actions. Every ring-action basis entry
+is checked against the native sampler matrix. The full integer result has
+254260620 coordinates, with maximum norm 113. Its public input, point and
+sampler state match the checked R result. This preparation took 20.99
+seconds. The profile remains `b = 2`, `k_rho = 16`, `B = 65536`.
+
+`child-rlc-driver` now continues the actual optimized C prover through the
+native `pi_rlc::prove` and `pi_rlc::verify` owners. It compares the complete
+parent and full transcript state with Lean, then compares every private
+coefficient with the integer result. The complete run passed in 86.96
+seconds. The C input and proof remain byte-identical to the checked input.
+Changing the final private coefficient preserves the public input, shape and
+norm bound but fails at coordinate `(53, 4708529)`, as required. The expected
+release panic has exit 134; it is not a timeout.
+
+The C driver still uses its existing complete-oracle interface. Its prepared
+openings now have current independent checks for all 17 sources. The native
+R call uses the existing optimized witness mixer. No new crypto assumption,
+feature, environment variable or production profile was introduced.
+
+`NIFS_RUNNING_AND_NATIVE_RLC_EVIDENCE.zip` retains exact source, command and
+input records, all small results and the validation logs. Large raw caches
+remain at the recorded external paths with byte identities and generation
+commands. PiDEC, final output and complete matrix/assignment conformance
+remain open, as do the separate extraction-cost and Fiat-Shamir obligations.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -287,9 +331,8 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Continue the same honest input through the remaining running-opening checks,
-PiRLC witness folding, PiDEC and final output, with the complete required
-mutations and assignment/matrix checks.
+Continue the same honest input through PiDEC and final output, with the
+complete required mutations and assignment/matrix checks.
 Keep the current PiCCS-to-PiRLC verifier prefix separate from complete NIFS
 or phase approval.
 

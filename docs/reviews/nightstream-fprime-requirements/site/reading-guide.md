@@ -41,6 +41,8 @@ For each axis, the denominator contains applicable leaf requirements. `not_requi
 
 An entry can have Proof finished while Link is open. Link is the connection between results and the exact values used by a consumer. It can include proof composition, but a compatible interface name or an import alone is not that connection.
 
+Phase assurance uses the owner goal's separate terms: **Compiler-closed**, **Conformance-closed**, and **Production-closed**. These local counters do not assign those statuses. Conformance needs the required current matrix, assignment, complete nonzero result, mutation and independent-review evidence. Production also needs the validated package on the sole production path.
+
 ## Local results and complete security claims
 
 Keep these claim levels separate when reading evidence:

@@ -59,7 +59,15 @@ def relations
     CCS.Holds (semantics ajtai) productionGlobalParams
       (freshStatement relation fresh) witness
 
-/-- Exact Construction-2 terminal verifier for one selected Lean application. -/
+/-- Canonical counter and state widths at the selected terminal boundary. -/
+def StatementValid (statement : TerminalStatement AppState) : Prop :=
+  statement.iteration < goldilocksModulus ∧
+    statement.z0.length = Application.stateWordCount ∧
+    statement.zi.length = Application.stateWordCount
+
+/-- The canonical public statement checks precede the Construction-2
+relation. The counter bound matches native `validate_state_authority`; the
+state widths are the selected application's fixed public ABI. -/
 noncomputable def HoldsFor
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -68,9 +76,10 @@ noncomputable def HoldsFor
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
-  OuterTerminalTransition (setup relation ajtai vk)
-    (machineFor publicFits application) (relations relation ajtai)
-    statement proof
+  StatementValid statement ∧
+    OuterTerminalTransition (setup relation ajtai vk)
+      (machineFor publicFits application) (relations relation ajtai)
+      statement proof
 
 theorem holdsFor_bottom_iff
     (relation : LogicalRelation logicalWidth publicFits)
@@ -79,8 +88,43 @@ theorem holdsFor_bottom_iff
     (vk : KeyDigest) (application : Application.Program)
     (statement : TerminalStatement AppState) :
     HoldsFor relation ajtai vk application statement .bottom ↔
-      statement.iteration = 0 ∧ statement.zi = statement.z0 := by
+      StatementValid statement ∧ statement.iteration = 0 ∧ statement.zi = statement.z0 := by
   rfl
+
+/-- Adding a field modulus to a counter cannot preserve terminal acceptance,
+even though the old and changed counters have the same field encoding. -/
+theorem rejects_counter_shift
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (application : Application.Program)
+    (statement : TerminalStatement AppState)
+    (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    ¬ HoldsFor relation ajtai vk application
+      { statement with iteration := statement.iteration + goldilocksModulus } proof := by
+  intro accepted
+  have bound := accepted.1.1
+  dsimp only at bound
+  omega
+
+theorem rejects_wrong_initial_state_length
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (application : Application.Program)
+    (statement : TerminalStatement AppState)
+    (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (wrong : statement.z0.length ≠ Application.stateWordCount) :
+    ¬ HoldsFor relation ajtai vk application statement proof := by
+  exact fun accepted => wrong accepted.1.2.1
+
+theorem rejects_wrong_current_state_length
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (application : Application.Program)
+    (statement : TerminalStatement AppState)
+    (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (wrong : statement.zi.length ≠ Application.stateWordCount) :
+    ¬ HoldsFor relation ajtai vk application statement proof := by
+  exact fun accepted => wrong accepted.1.2.2
 
 /-- The relation-membership component is exactly the existing concrete
 Nightstream terminal opening predicate. -/
@@ -118,7 +162,7 @@ theorem holdsFor_recursive_iff
       (FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
       slotCount) :
     HoldsFor relation ajtai vk application statement (.recursive payload) ↔
-      RecursiveTerminalTransition (setup relation ajtai vk)
+      StatementValid statement ∧ RecursiveTerminalTransition (setup relation ajtai vk)
         (machineFor publicFits application) (relations relation ajtai)
         statement payload := by
   rfl

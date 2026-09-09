@@ -49,7 +49,8 @@ theorem holds_bottom_iff
     (commitmentSetup : CommitmentSetup application)
     (statement : TerminalStatement AppState) :
     Holds application fits commitmentSetup statement .bottom ↔
-      statement.iteration = 0 ∧ statement.zi = statement.z0 := by
+      Lifecycle.Stage1.Terminal.StatementValid statement ∧
+        statement.iteration = 0 ∧ statement.zi = statement.z0 := by
   exact Lifecycle.Stage1.Terminal.holdsFor_bottom_iff
     (PerApplicationFixedPoint.relation application fits)
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
@@ -76,7 +77,7 @@ theorem holds_recursive_iff
         (publicFits := PerApplicationFixedPoint.publicFits application))
       slotCount) :
     Holds application fits commitmentSetup statement (.recursive payload) ↔
-      RecursiveTerminalTransition
+      Lifecycle.Stage1.Terminal.StatementValid statement ∧ RecursiveTerminalTransition
         (setup (PerApplicationFixedPoint.relation application fits)
           (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
           (PerApplicationCanonicalPackage.verifierContextDigest fits

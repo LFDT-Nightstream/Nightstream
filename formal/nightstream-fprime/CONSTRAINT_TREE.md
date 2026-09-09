@@ -16,92 +16,49 @@ paper formula
 
 ## Current candidate and evidence
 
-Current source: `fc54cf8445e8b151f0673d3e6bb77a4e329a59e5`, with the recorded
-local Rust width and validation changes. The shared-value repair is in place:
-33 blocks, 6,377,559 logical rows, 254,260,583 logical coordinates, and
-254,260,620 carrier coordinates. The accepted profile is 28 rounds and `2^28`;
-`b = 2`, `k_rho = 16`, the seed and rank 22 remain fixed.
+The conformance fixes build on `9e49e7fb`. The exact pre-pin source patch,
+inputs and all command logs are in the
+[current evidence directory](../../../nightstream-stage1-evidence/conformance-fixes-9e49e7fb/PROGRESS.md).
+The selected profile remains Goldilocks, `b = 2`, `k_rho = 16`, rank 22,
+28 PiCCS rounds and the `2^28` joint domain.
 
-The candidate structural identity is
-`[1352583345059716010, 9598835915300462087, 5906199803585532789, 8386299545873102921]`.
-The stored artifact, fixtures and production pins still precede this repair.
-The stored loader has four passing and four failing tests. No replacement is
-pinned and no phase is reported **Conformance-closed** or **Production-closed**
-for the candidate here. Compiler evidence is linked below; the registered
-**Compiler-closed** status still needs its full approved target and coverage set.
+The selected structural identity is
+`[12850397830186002711, 3288783999059851307, 4378874948253040911, 12528041036879069119]`.
+Its package identity is
+`[6335883518996883063, 12495920096635129097, 13503539403510063271, 2659339960413338175]`.
+The canonical payload, expansion, setup, pilot, base and ownership fixtures,
+and verifier-owned pins now select this candidate. Fixed-package validation
+is recorded in the [implementation report](../../docs/reviews/nightstream-fprime-requirements/CONFORMANCE_FIXES.md).
 
-- Pilot: all eight registered diagnostic checks passed on the current
-  `50e6e2d3` capture, including all 14,623,730 physical rows, 2,323,138 logical
-  rows, and required mutations. Independent formula review and approved
-  checker evidence remain open; the diagnostic passes do not grant closure.
-- PiCCS: the current `50e6e2d3` cut passed all 17 base-opening gates and
-  the complete Lean / `paper_exact` / optimized result comparison.
-  [Base evidence](../../../nightstream-stage1-evidence/notes/base-piccs-50e6e2d3.json)
-  binds them to one source, input, proof, package, and identity. The fresh
-  opening is nonzero; all 16 running openings are zero. Both Rust engines
-  rejected all 562 proof, 282 statement, and 843 output mutations.
-  [Mutation coverage](../../../nightstream-stage1-evidence/notes/base-mutations-50e6e2d3.json)
-  also links the passed pilot checks of all 56 prior-point limbs per preimage.
-  Direct common-point rejection uses the actual-child recursive fixture.
-  The child commitment/public recomposition and independent checks of all
-  [19,008 child commitment coefficients](../../../nightstream-stage1-evidence/notes/child-commitments-50e6e2d3.json)
-  passed. All 15 [child input evaluation families](../../../nightstream-stage1-evidence/notes/child-input-families-50e6e2d3.json)
-  passed: 12,960 extension coefficients and 52,320 mutations.
-  [Recursive fixture evaluation](../../../nightstream-stage1-evidence/notes/candidate-recursive-50e6e2d3.json)
-  passed all 29,225,729 physical rows and 6,377,559 logical rows, with caller
-  binding from step 1 to step 2. The accepted [recursive Lean result](../../../nightstream-stage1-evidence/notes/recursive-lean-input-50e6e2d3.json)
-  was regenerated from source and matched the captured result byte for byte.
-  Three selected child assignment mutations also rejected. All 15
-  [child output evaluation families](../../../nightstream-stage1-evidence/notes/child-output-families-50e6e2d3.json)
-  passed at the accepted Lean output point: 12,960 coefficients and 52,320 mutations.
-  All 17 [recursive fresh-opening gates](../../../nightstream-stage1-evidence/notes/recursive-fresh-opening-50e6e2d3.json)
-  passed: 22 commitment rows, all CCS rows and padding, and 810 evaluation coefficients.
-  The [complete recursive result](../../../nightstream-stage1-evidence/notes/recursive-piccs-50e6e2d3.json)
-  matched Lean and both Rust verifiers. Both Rust verifiers rejected all
-  562 proof, 282 statement, 843 output, and 56 common-point mutations.
-  The [scoped prefix and handoff checks](../../../nightstream-stage1-evidence/notes/recursive-prefix-50e6e2d3.json)
-  passed, including direct serialized-value equality and detached PiRLC product rejection.
-  All 91 PiCCS diagnostics passed on `50e6e2d3` under its recorded policy.
-  The [compiler inventory](../../../nightstream-stage1-evidence/notes/compiler-inventory-1a5c4b87.json)
-  passed 115 declaration audits and the boundary gate on `1a5c4b87` under its recorded policy.
-  Eight branches now select all 91 checks; independent reviews and approved runs remain open.
-- PiRLC and PiDEC: the stored fixtures do not establish a current cumulative
-  handoff. PiRLC `InputBinding` remains frozen until PiCCS is Conformance-closed.
-- Stage 1: the eight-child opaque root includes NextPreimage. The arbitrary-row
-  base step is proved. The complete recursive PiDEC check, computed NIFS output,
-  and full decoded `StepHoldsFor` connection remain open. A checked external
-  context-or-collision draft is pending independent review and a production caller.
-- Production: the package-only lifecycle and the separately approved backend
-  obligation remain open. Backend acceptance cannot replace conformance.
+All 91 selected candidate diagnostics passed on one unchanged pre-pin source
+and input set. They include exact physical and logical matrices, independent
+base and recursive assignments, all fresh and child openings, complete
+nonzero phase results, exact handoffs, and required mutations. The complete
+base and actual-child recursive inputs also match the shared native driver
+byte-for-byte. That driver uses a bounded evaluator and prepared openings;
+the full-profile production evaluator remains a separate obligation.
 
-The [durable evidence archive](../../../nightstream-stage1-evidence/README.md)
-is `../nightstream-stage1-evidence` relative to the repository root. It contains
-immutable captured source and inputs, completed diagnostic records, manual
-execution logs, generator intermediates, and pending review requests. All
-73 input paths in the four manual evidence records match their recorded bytes
-and hashes. The copied pilot and full PiCCS snapshots passed the tool's complete
-manifest verification. Storage integrity does not grant conformance closure.
+The native PiRLC wrapper now leaves the exact Lean sampler endpoint.
+Projection metadata is computed on a local transcript clone. The endpoint
+regression, real-fold handoff and carried-accumulator checks pass. PiRLC
+`InputBinding` remains frozen.
 
-The complete current source/input snapshot is
-`50e6e2d34c310e115217c005dad7d202f01ff0c5752f8b6a573eda86f1814a6f`.
-The preceding registered cut remains archived as
-`cd98ae39cb866237ea3acc2df7323ddbeb6e9b196ccac58bc0686ec0add1e601`.
-Its `inputs/phase_input` and `inputs/lean_result` are the base case;
-`inputs/recursive_phase_input` and `inputs/recursive_lean_result` are the actual
-recursive case. Opening caches, child commitments and both evaluation points
-are included. The archive's `inputs.json` supplies portable paths. The archive also documents the generator
-order and five JSON joins reproduced byte-for-byte from retained outputs.
+The new terminal-opening proofs derive the arbitrary assignment's logical
+rows and public input, the exact selected Step and complete advertised next
+preimage, and the final PiDEC parent opening. They expose a named state-hash
+collision when the preimages differ. They assume no canonical encoder,
+representation, output-match or additional child-opening premise.
 
-From the repository root, inspect the archived registered status with:
+The new literal targets and independent reviews are registered in lean-graph.
+The broader Stage 1 target remains open. No phase is newly declared
+**Compiler-closed**, **Conformance-closed** or **Production-closed** here.
+Independent exact-cut review, approved checks, full history/security
+composition and the package-only production lifecycle remain open. No proof
+backend is authorized.
 
-```sh
-python3 -B scripts/lean_graph/evidence.py --store ../nightstream-stage1-evidence \
-  --snapshot 50e6e2d34c310e115217c005dad7d202f01ff0c5752f8b6a573eda86f1814a6f --json status
-```
-
-The archive can lag the live checkpoint. Read its run index and each record's
-source, inputs and outcome. Older development records below retain their
-original scope; they are not current approval or evidence for a changed identity.
+The [earlier archive](../../../nightstream-stage1-evidence/README.md) retains
+its original snapshots and evidence. Older records below keep their recorded
+scope; they do not grant current approval or validate a changed identity.
 
 ## Current proof and execution priority
 
@@ -118,15 +75,14 @@ to `NightstreamFPrime/Export/Stage1/`; the generic decoder is in
 
 | Obligation | Current proof and exact remaining connection | Focused build target |
 |---|---|---|
-| Accepted assignment and public boundary | `PerApplicationMatrixProgramSemantics.matrixProgramExact` connects the selected rows. `ActualPiCCSInputs.selectedRowsAndPublic_imply_phaseAndHashes` derives the one cell from the actual CCS public marker and composes the exact PiCCS phase predicate, typed running-input agreement, fresh public-hash equation, and claimed next-state hash. It has no separate one-cell or representation premise. The verifier-owned context and final typed step connection remain open. | `NightstreamFPrime.Export.Stage1.ActualPiCCSInputs` |
-| Actual value decoding | `PiCCSAssignmentSoundness.decodedEnv_location` and `ActualPreimageFraming.rowsZero_implies_actualPreimageCanonical` derive form values and canonical preimage framing. They require no canonical trit encoding. | `NightstreamFPrime.Export.Stage1.ActualPreimageFraming` |
-| Shared inputs and application step | `PilotDecodedEnvironment.priorWord_agrees`, `outputWord_agrees`, and `priorPublic_agrees` identify the pilot/PiCCS readers. `ActualApplicationStep.selectedRowsZero_implies_decodedStep` proves `zNext = application.step zi witness` for values decoded from the same assignment. | `NightstreamFPrime.Export.Stage1.ActualApplicationStep` |
-| Pilot and PiCCS children | `PilotDecodedPhase.selectedRowsZero_implies_specHolds` and `PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds` derive the opaque phase contracts from the selected rows. | `NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase` and `NightstreamFPrime.Export.Stage1.PilotDecodedPhase`, run in sequence |
-| Exact hash preimages | `ActualHashSlots.rowsZero_implies_nextPreimageSerialization` and `selectedRowsZero_implies_hashSlots` derive both hash equations from the pilot contract, actual preimage framing, and next-preimage rows. The next constructor uses the decoded prior counter plus one and needs no non-wrap premise. Connecting this decoded constructor to the complete typed lifecycle input/output remains open. | `NightstreamFPrime.Export.Stage1.ActualHashSlots` |
-| Typed accumulator and running values | `ActualPiCCSInputs.evalRunning_eq_priorRunning` identifies the complete PiCCS running claim with the actual decoded prior preimage. `evalFreshPublic_eq_priorPublic` and `selectedRowsZero_implies_freshPublicHash` bind its fresh public input to that same hash. The complete typed NIFS proof/output and later-phase reader agreement remain open. A PiCCS-only environment cannot supply PiRLC/PiDEC proof fields. PiRLC remains frozen until PiCCS is **Conformance-closed**. | `NightstreamFPrime.Export.Stage1.ActualPiCCSInputs`; the remaining full-step owner is `PerApplicationFixedPointSoundness` |
-| Decoded step from arbitrary rows | `ActualRunningTransition` derives the transition and actual preimage wiring. `ActualStep.selectedRowsAndPublic_imply_baseStep` proves the zero-counter branch. `selectedRowsAndPublic_imply_piCcsCheck` proves the concrete NIFS PiCCS check on the same decoded inputs. `selectedRowsAndPublic_step_iff_baseOrPiDec` isolates the remaining recursive PiDEC acceptance and computed-output equations. Canonical context binding remains open. | `NightstreamFPrime.Export.Stage1.ActualStep` |
-| PiDEC from arbitrary rows | `ActualPiDEC.selectedRowsAndPublic_imply_phaseHolds` derives the exact output predicate through the canonical physical layout. `evalPoint_eq_piCcs` preserves the PiCCS point; `decodedEnv_location` identifies each PiDEC-owned form. The repaired `PiDECValueWiring.parent*_form_eq_output` identities select the PiRLC sums directly. The typed verifier-computed NIFS result remains open. | `NightstreamFPrime.Export.Stage1.ActualPiDEC` |
-| Complete parent result | Compose the derived hash equations, application equation, typed phase results, branch condition, and public/context binding into the unchanged `StepHoldsFor` definition. No `Represents`, `Encodes`, application-correctness, or NIFS-correctness premise may enter at the final acceptance boundary. | Existing owner `NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness`; the final theorem is open |
+| Arbitrary accepted CCS opening | `Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic` restricts the actual full carrier to logical columns and derives every selected row and the actual public prefix. Padding need not be canonical. | `NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening` |
+| Actual value decoding | `ActualPreimageFraming.rowsZero_implies_actualPreimageCanonical` derives actual form values and canonical preimage framing without a canonical trit encoder. | `NightstreamFPrime.Export.Stage1.ActualPreimageFraming` |
+| Shared inputs and application step | `ActualApplicationStep.selectedRowsZero_implies_decodedStep` uses the same actual states as the pilot hashes. | `NightstreamFPrime.Export.Stage1.ActualApplicationStep` |
+| Pilot and PiCCS children | The decoded phase theorems derive the opaque child contracts from the selected rows. | `NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase` |
+| Complete typed Step from arbitrary rows | `ActualPiDECOutput.selectedRowsAndPublic_imply_step` derives the full decoded Step, including the exact PiDEC check and NIFS output, under the decoded context. | `NightstreamFPrime.Export.Stage1.ActualPiDECOutput` |
+| Selected context and complete advertised state | `ActualContextSecurity.terminal_implies_matchingStepOrCollision` derives the selected Step and full next-preimage equality, or a named collision, from actual terminal acceptance. Canonical counter and state-width checks supply the natural successor bounds. | `NightstreamFPrime.Export.Stage1.ActualContextSecurity` |
+| Actual terminal child witnesses | `ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision` derives the exact NIFS output match and opens the PiDEC parent using the terminal's sixteen child witnesses. | `NightstreamFPrime.Export.Stage1.ActualTerminalSecurity` |
+| Broader Stage 1 acceptance and history | The terminal targets do not replace the broader Stage 1 target. Complete the required independent reviews, history/security composition and production refinement. | `scripts/lean_graph/obligations.json` keeps these obligations open |
 
 Before implementing an open arrow, record its exact Lean statement, a short
 mathematical argument, its named dependencies, and the build target that checks
@@ -137,7 +93,8 @@ passes the same missing representation facts onward.
 
 Use [lean-graph](../../scripts/lean_graph/README.md) for the dependency and
 evidence workflow. The registered targets are `LeanGraph.Targets.PilotAssignment`,
-`LeanGraph.Targets.PiCCSAssignment`, and `LeanGraph.Targets.PiCCSPublicAssignment`.
+`LeanGraph.Targets.PiCCSAssignment`, `LeanGraph.Targets.PiCCSPublicAssignment`,
+`LeanGraph.Targets.Stage1TerminalAssignment` and `LeanGraph.Targets.Stage1TerminalParent`.
 The complete Stage 1 target remains open. Use focused incremental Lean checks
 for proof work. At checkpoints, use the archived inputs and the registered
 `pilot-conformance` and `piccs-conformance` criteria. The workflow resumes
@@ -380,7 +337,7 @@ decision agrees with the semantic predicate. The accepted path cannot use
 
 ## Proved cumulative and final layout
 
-The stored-artifact ledgers, before the application repair, are:
+The current physical composition is proved by these ledger theorems:
 
 - `PilotProduction.physicalRowCountValue_eq` and
   `PilotProduction.physicalColumnCount_eq`;
@@ -392,19 +349,22 @@ The stored-artifact ledgers, before the application repair, are:
 - `Export.Stage1.Package.circuitPackage_layout_values`;
 - `Export.Stage1.Package.circuitPackage_jointDomain_le_twoPow28`.
 
-| Endpoint | Physical rows | Physical source columns / joint domain |
-|---|---:|---:|
-| Pilot | 14,623,730 | 14,722,512 |
-| Through PiCCS | 19,936,967 | 20,064,823 |
-| Through PiRLC | 28,847,041 | 28,973,248 |
-| Through PiDEC | 28,872,529 | 29,040,586 |
-| Through running-instance branch | 29,218,024 | 29,336,724 |
-| Final application package | 29,225,729 | 29,344,425 |
+| Endpoint | Physical rows | Columns / live joint domain | Row delta | Column delta |
+|---|---:|---:|---:|---:|
+| Pilot | 14,623,730 | 14,722,512 | +14,623,730 | +14,722,512 |
+| Through PiCCS | 19,936,967 | 20,064,823 | +5,313,237 | +5,342,311 |
+| Through PiRLC | 28,847,041 | 28,973,248 | +8,910,074 | +8,908,425 |
+| Through PiDEC | 28,872,529 | 29,040,586 | +25,488 | +67,338 |
+| Through running-instance branch | 29,218,024 | 29,336,724 | +345,495 | +296,138 |
+| Physical constant column | 29,218,024 | 29,336,725 | +0 | +1 |
+| Final application and next-preimage | 29,225,729 | 29,344,425 | +7,705 | +7,700 |
 
-The stored recursive relation has 6,377,559 structural rows and logical width
-264,627,433. Its Φ81 carrier width, and therefore its exact joint domain, is
-264,627,486. This is below `2^28 = 268,435,456` with 3,807,970 points of
-headroom. The outer terminal metadata adds no row or column.
+Each endpoint is below `2^28` through its cumulative layout and domain theorem.
+The final retained relation has 6,377,559 active rows, 254,260,583 logical
+columns and 254,260,620 carrier columns. Its live joint domain is 254,260,620;
+the Boolean domain is 268,435,456. The live headroom is 14,174,836. The new
+terminal proofs and outer statement checks add no circuit row or column.
+The retained relation is a separate representation, not an extra physical phase.
 
 The current source shares the application input/output, PiCCS ordinary
 preimages, and running-transition preimages with the actual pilot hash inputs.
@@ -421,16 +381,16 @@ coordinates. The 33-block schedule has these proved values:
 | Ring columns | 4,708,530 | `Poseidon2HashChainV1Setup.messageColumns_eq` |
 | Carrier alignment | 37 | difference of the preceding width theorems |
 | Boolean domain | 268,435,456 | `jointDomain_le_twoPow28` |
-| Logical-column delta from stored package | −10,366,850 | difference of the exact width theorems |
-| Carrier-column delta from stored package | −10,366,866 | difference of the exact carrier theorems |
+| Logical-column delta from pre-repair package | −10,366,850 | difference of the exact width theorems |
+| Carrier-column delta from pre-repair package | −10,366,866 | difference of the exact carrier theorems |
 
-Physical rows and columns remain 29,225,729 and 29,344,425. The full existing
-`Poseidon2HashChainV1Closure` build passed in 49.453 seconds on this source,
-including the fixed-point and domain theorems. Its final step theorem still
-covers canonical raw assignments. These counts do not establish arbitrary
-assignment soundness or validate newly emitted bytes.
+Physical rows and columns remain 29,225,729 and 29,344,425. The final library
+and axiom check passed before the re-pin, and fresh package, binding and
+expansion bytes matched the tested candidate. The current terminal-opening
+proofs cover arbitrary accepted carriers; broader acceptance and independent
+review remain separate from these footprint facts.
 
-## Stored canonical package cut
+## Pre-repair canonical package (historical)
 
 | Final sealed package value | Exact value |
 |---|---:|
@@ -1435,65 +1395,61 @@ separate `Eval_K` / `Eval_A` and the canonical nonempty running accumulator.
 
 ## Open authority and assembly edges
 
-The existing proof path has an explicit encoding/representation boundary:
+The current terminal proof path is:
 
 ```text
-final canonical package
-  → exact 14-matrix LogicalRelation
-  → ProductionKey.key
-  → exact Lean-authored application Program and plan identity
-  → StepHoldsFor (requires encoding/representation evidence)
-  → recursive fixed point
-  → rerun every PiCCS gate on the final identity
+canonical package and selected ProductionKey
+  → arbitrary accepted terminal fresh carrier
+  → exact logical rows and actual public input
+  → decoded context and StepHoldsFor, or named state-hash collision
+  → complete advertised terminal preimage match
+  → actual sixteen terminal witnesses open the decoded PiDEC parent
+  → full history and quantitative security composition remain open
 ```
 
-The accepted per-application-package decision requires the verifier to pin or
-allowlist one final identity. `Poseidon2HashChainV1` is selected, its final
-stored identity is still pinned. The confirmed application defect requires
-the source repair and a fully checked replacement before any new identity is
-pinned. PiCCS remains status open until the valid nonzero parity, complete production
-assignment and mutation gates above pass, followed by independent review of
-that exact source and artifact cut.
+`AcceptedOpening.freshHolds_implies_rowsAndPublic` supplies the rows and public
+input without canonical padding or a representation premise.
+`ActualContextSecurity.terminal_implies_matchingStepOrCollision` supplies the
+complete step and advertised-state match.
+`ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision` consumes the
+actual terminal witnesses; it does not assume a detached child opening or an
+output-match premise. The canonical counter and state widths in `Terminal.HoldsFor`
+are part of the changed target meaning and need independent review.
 
-A baseline raw-assignment mutation exposed a parent-wiring defect: clearing
-retained PiRLC groups, inputs, and outputs left all 6,377,559 rows satisfied
-while PiDEC parents differed. The independent reproduction took 32.345 s.
-This is a row-assignment finding, not an accepted cryptographic proof or a
-full `StepHoldsFor` counterexample.
+These results preserve the eight-child Stage 1 root, including `NextPreimage`.
+They do not replace the broader Stage 1 assignment target or prove extraction
+of all earlier history. Both new literal terminal targets have pending review
+requests in the current lean-graph evidence store.
 
-The shared-value repair uses the existing PiCCS forms as PiRLC operands and
-final PiRLC output slots as all four PiDEC parent forms. It removes five
-allocations and adds no copy rows: 33 blocks, 254,260,583 logical coordinates,
-and 254,260,620 carrier coordinates. The Ajtai width is 4,708,530; its seed,
-rank 22, b = 2, k_rho = 16, and 2^28 domain remain fixed. The new structural
-identity is `[1352583345059716010,9598835915300462087,5906199803585532789,8386299545873102921]`.
-`ActualPiRLCValues.selectedRowsAndPublic_imply_sums` derives the full recurrence
-from arbitrary accepted selected rows and the actual public marker. The four
-`PiDECValueWiring.parent*_form_eq_output` identities select the final 17-source
-sums without an honest-witness premise. The full Lean build and axiom gate pass.
-All fourteen matrices and the new-context base assignment pass independent
-Rust checks. The current nonzero base, actual-child recursive, assignment,
-opening and mutation records are retained in the durable archive linked above.
-They replace the missing temporary repair-note path as the discoverable evidence
-for this candidate. Production pins remain unchanged; these are diagnostic
-results for their recorded source and policy; the current review handoff binds `b7789c26` and grants no approval.
-`ActualPiRLC.selectedRowsAndPublic_imply_keyChallenges` proves exact `rho` from arbitrary selected rows/public input; its batch theorem also identifies the final state from actual PiCCS execution.
-Sampler layout debt: 544 lanes retain four obsolete local copies (67, 82, 84, 99), or 2,176 field slots and 89,216 private coordinates, owned by `.samplerLogical` (opcode 29).
-They remain in the committed witness; sampler rows read shared First54 values instead. No accepted-row theorem constrains these redundant copies. Compaction remains separate layout cleanup.
+The earlier shared-value repair remains in place: PiRLC reads existing PiCCS
+forms, and PiDEC reads the final seventeen-source PiRLC sums. It adds no copy
+rows. The current package retains 33 assignment blocks, 254,260,583 logical
+coordinates and 254,260,620 carrier coordinates. The current package, setup and
+verifier pins now match the reproduced Lean emission; exact source cuts and
+validation outcomes are recorded in
+`docs/reviews/nightstream-fprime-requirements/CONFORMANCE_FIXES.md`.
+
+Sampler layout debt remains: 544 lanes retain four obsolete local copies
+(67, 82, 84, 99), or 2,176 field slots and 89,216 private coordinates, in
+`.samplerLogical` (opcode 29). Rows read shared First54 values instead. No
+accepted-row theorem constrains these copies. The retained full logical
+assignment test confirms that blocks 12, 13 and 14 are absent from the canonical
+rows; their strict mutation gate remains failed. The 91 passing candidate diagnostics do not waive it.
 
 The remaining owner-ordered work is:
 
-1. obtain independent pilot/PiCCS formula, branch, and target reviews; run the
-   required approved checks on the final source, inputs, and policy;
-2. finish the arbitrary-assignment proof connections without weakening the
-   decoded `StepHoldsFor` target or supplying missing representation premises;
+1. obtain independent pilot/PiCCS formula, branch, target and decomposition
+   reviews; close the complete logical mutation gate and run the required
+   approved checks on the final source, inputs and policy;
+2. finish the broader arbitrary-assignment and history connections without
+   weakening `StepHoldsFor` or supplying missing representation premises;
 3. after PiCCS is Conformance-closed, validate PiRLC and then PiDEC using the
    exact preceding outputs; keep PiRLC `InputBinding` frozen until that point;
-4. close application, running, terminal and cumulative evidence on one final
-   package; publish its artifact, fixtures and identities only after required gates;
-5. route the production lifecycle through that validated package alone, finish
-   all authorized work, then request the separate backend decision and complete
+4. close the application, running, terminal and cumulative evidence for one
+   final package, retaining the identity-change rerun requirements;
+5. route the production lifecycle through that package alone, finish all
+   authorized work, then obtain the separate backend decision and complete
    `prove → verify` only after approval.
 
-No backend is authorized on this cut. Backend acceptance cannot replace any
-semantic or conformance gate in this file.
+No backend is authorized. Backend acceptance cannot replace semantic or
+conformance evidence.

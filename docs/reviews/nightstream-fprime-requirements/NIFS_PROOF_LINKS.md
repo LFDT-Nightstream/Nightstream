@@ -21,9 +21,9 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
 | `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; preparation and reduction work checked |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
-| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; current PiCCS verifier prefix checked |
-| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current PiCCS commands and outputs retained |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Open |
+| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; current PiCCS-to-PiRLC verifier prefix checked |
+| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current PiCCS-to-PiRLC commands and outputs retained |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; current C-to-R owner links checked |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -185,6 +185,55 @@ outputs, mutations and logs, including failed proof attempts. The map updates
 three scoped NIFS records and corrects shifted source lines in two other NIFS
 records. Other requirements and their statuses are preserved.
 
+## Current PiCCS-to-PiRLC check
+
+Code commit: `3589e410587edc1e419e355ff5fab3be4580f04f`.
+
+`PiRLCInputCheck` consumes the same honest recursive PiCCS input. It runs the
+PiCCS check once, preserves its complete result, and continues with its exact
+full transcript state, point and 17 ordered claims. PiCCS rejection stops the
+continuation before the sampler. The sampler's existing failure result also
+stops it. No probability law is inferred from this execution equality.
+
+`commitments_eq_batch`, `publicInputs_eq_batch` and `evaluations_eq_batch`
+identify the actual fields with `PaperStrongInterface.piRlcBatchForProbe`.
+`sampled_response` identifies the successful response with
+`ProductionKey.piRlcResponse`. The generalized materialized commitment scan
+retains its indexed and final-combination proofs. It now accepts the actual
+commitments.
+
+The `optimized-rlc` action compares all 15 PiCCS fields and all 11 PiRLC
+fields, including all 17 partial combinations. It passes the supplied parent
+to the native `pi_rlc::verify` and checks the returned parent and full outgoing
+state. The compressed fold digest is not used to restore the transcript.
+
+The honest Lean build and execution took 14 seconds. Its PiCCS prefix is
+unchanged. The Rust release builds took 7.23 and 7.14 seconds. The explicit
+axiom audit passed in 2 seconds and used only `propext`, `Classical.choice`
+and `Quot.sound`. The source boundary gate passed.
+
+All 62 native mutations reject. They cover the parent commitment, public
+input, point, pad evaluation, every matrix evaluation, each source commitment,
+each transcript lane, malformed evaluation and point lengths, nonzero
+padding, and the parent fold digest. Seven serialized mutations also fail
+at the expected comparison: the handoff state, rho, each partial-result
+family and outgoing state. Each run took about 20.5 seconds and ended at
+the expected assertion; the release abort was not a timeout. The existing
+injected sampler test passes, including the stream with only 53 accepted
+coefficients. Its release build took 46.11 seconds. No PaperExact action ran.
+
+The actual parent commitment, public input and evaluations are nonzero.
+Some running children are zero, so the diagnostic flag for every input being
+nonzero is false. That flag does not control acceptance. Opening validity,
+the complete optimized prover, PiDEC, final output and assignment/matrix
+conformance keep their separate obligations.
+
+`NIFS_CCS_RLC_EVIDENCE.zip` retains the source, commands, complete input and
+results, mutations, and logs, including the earlier failed proof attempts.
+The local map updates the three NIFS conformance records and keeps each
+connection partial. This is local execution evidence, not independent phase
+approval.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -192,9 +241,10 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Continue the same honest input through the optimized prover, PiRLC, PiDEC and
-final output, with the complete required mutations. Keep the current PiCCS
-prefix separate from complete NIFS or phase approval.
+Continue the same honest input through the optimized prover, PiDEC and final
+output, with the complete required mutations and assignment/matrix checks.
+Keep the current PiCCS-to-PiRLC verifier prefix separate from complete NIFS
+or phase approval.
 
 The lookup for an existing approved Fiat-Shamir model is pending. No new
 Poseidon2 idealization, query budget, or security-transfer assumption was

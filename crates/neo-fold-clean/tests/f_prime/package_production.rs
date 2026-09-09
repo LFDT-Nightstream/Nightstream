@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use neo_fold_clean::Poseidon2HashChainV1Package;
 use nightstream_fprime::{
-    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    PackageError, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
     POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 
@@ -31,7 +31,14 @@ fn canonical_pin_entry(package: &mut serde_json::Value) -> &mut Vec<serde_json::
         .and_then(serde_json::Value::as_array_mut)
         .and_then(|rows| rows.get_mut(760))
         .and_then(serde_json::Value::as_array_mut)
-        .and_then(|row| row.first_mut())
+        .and_then(|row| {
+            row.iter_mut().find(|entry| {
+                entry
+                    .get(1)
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some_and(|coefficient| coefficient != 0)
+            })
+        })
         .and_then(serde_json::Value::as_array_mut)
         .expect("canonical final matrix pin entry")
 }
@@ -90,17 +97,34 @@ fn production_package_rejects_matrix_row_column_and_coefficient_mutations() {
         .expect("final matrix blocks");
     assert_ne!(blocks[0], blocks[1], "distinct final matrix blocks");
     blocks.swap(0, 1);
-    assert!(Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_row_order)).is_err());
+    assert!(matches!(
+        Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_row_order)),
+        Err(PackageError::ExpectedIdentityMismatch { expected, computed })
+            if expected == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER && computed != expected
+    ));
 
     let mut changed_column = value.clone();
     let entry = canonical_pin_entry(&mut changed_column);
-    assert_eq!(entry[0].as_u64(), Some(196_202_984));
-    entry[0] = serde_json::Value::from(196_202_985_u64);
-    assert!(Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_column)).is_err());
+    let column = entry[0].as_u64().expect("selected nonzero matrix column");
+    let replacement = column.checked_add(1).expect("next matrix column");
+    // Poseidon2HashChainV1Package.logicalWidth fixes the valid column range.
+    assert!(replacement < 254_260_583);
+    entry[0] = serde_json::Value::from(replacement);
+    assert!(matches!(
+        Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_column)),
+        Err(PackageError::ExpectedIdentityMismatch { expected, computed })
+            if expected == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER && computed != expected
+    ));
 
     let mut changed_coefficient = value;
     let entry = canonical_pin_entry(&mut changed_coefficient);
-    assert_eq!(entry[1].as_u64(), Some(1));
-    entry[1] = serde_json::Value::from(2_u64);
-    assert!(Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_coefficient)).is_err());
+    let coefficient = entry[1].as_u64().expect("selected nonzero coefficient");
+    const MODULUS: u64 = 0xffff_ffff_0000_0001;
+    assert!(coefficient != 0 && coefficient < MODULUS);
+    entry[1] = serde_json::Value::from(if coefficient == MODULUS - 1 { 1 } else { coefficient + 1 });
+    assert!(matches!(
+        Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_coefficient)),
+        Err(PackageError::ExpectedIdentityMismatch { expected, computed })
+            if expected == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER && computed != expected
+    ));
 }

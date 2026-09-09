@@ -14,6 +14,7 @@
 #   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> <path>
 #   validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
+#   validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh pi-rlc-parity <context[4]> <package[4]> <path>
@@ -141,6 +142,14 @@ case "$phase" in
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
     capped lake exe emitPiRlcSamplerParity -- "$2"
+    ;;
+  pi-rlc-input-check)
+    if (( $# != 7 )); then
+      echo "usage: validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe checkPiRLCInput -- "$@"
     ;;
   pi-rlc-parity)
     if (( $# != 10 )); then

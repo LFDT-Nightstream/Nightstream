@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
+import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
 
 /-! Axiom audits for the fast PiCCS and indexed PiRLC value-parity path. -/
 
@@ -31,3 +32,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evaluationPartials_getLast?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evalKPartials_getLast?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPartialTrace.evalAPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.commitments_eq_batch
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.publicInputs_eq_batch
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.evaluations_eq_batch
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.sampled_on_rejection
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.sampled_response

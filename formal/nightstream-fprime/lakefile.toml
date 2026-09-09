@@ -57,6 +57,11 @@ root = "NightstreamFPrime.Export.PiCCSInputCheckMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "checkPiRLCInput"
+root = "NightstreamFPrime.Export.PiRLCInputCheckMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitPiRlcSamplerParity"
 root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

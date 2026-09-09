@@ -190,7 +190,7 @@ def assemblePartialClaims :
       else none
   | _, _, _, _ => none
 
-def resultValueFromPartials (computed : PiCCSNonzero.Computed)
+def resultValueFromPartials (point : PaperAlgebra.Point)
     (batch : Transcript.PiRlcSampler.Batch SourceCount)
     (inputsAreNonzero : Bool)
     (commitments : List MaterializedCommitment)
@@ -215,7 +215,7 @@ def resultValueFromPartials (computed : PiCCSNonzero.Computed)
     membershipValue,
     materializedCommitmentValue finalCommitment,
     materializedPublicInputValue finalPublicInput,
-    pointValue computed.verifierRoundPoint,
+    pointValue point,
     materializedRingKValue finalEvalK,
     materializedEvalAValue finalEvalA,
     .array partialClaims,
@@ -233,8 +233,8 @@ def resultValue (computed : PiCCSNonzero.Computed) : Value :=
       computed.outgoingState SourceCount with
   | none => .array [PiCCSParity.boolValue false]
   | some batch =>
-      (resultValueFromPartials computed batch (inputsNonzero computed)
-        (commitmentPartials batch.challenges)
+      (resultValueFromPartials computed.verifierRoundPoint batch (inputsNonzero computed)
+        (commitmentPartials batch.challenges inputCommitment)
         (publicInputPartials batch.challenges (inputPublicInputFromComputed computed))
         (evaluationPartials batch.challenges fun source =>
           (inputEvaluationFromComputed computed source).pad)
@@ -268,7 +268,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
         .array [PiCCSParity.boolValue false]]
   | some batch =>
       let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => commitmentPartials batch.challenges)
+        (prepare fun _ => commitmentPartials batch.challenges inputCommitment)
       let publicInputTask ← IO.asTask (prio := Task.Priority.dedicated)
         (prepare fun _ => publicInputPartials batch.challenges
           (inputPublicInputFromComputed computed))
@@ -285,7 +285,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
       let evalKs ← prepared evalKTask
       let evalAsByMatrix ← evalATasks.mapM prepared
       let inputsAreNonzero ← prepared inputsNonzeroTask
-      match resultValueFromPartials computed batch inputsAreNonzero
+      match resultValueFromPartials computed.verifierRoundPoint batch inputsAreNonzero
           commitments publicInputs evalKs evalAsByMatrix with
       | some result =>
           pure <| Value.array [Value.atom 3, input, result]

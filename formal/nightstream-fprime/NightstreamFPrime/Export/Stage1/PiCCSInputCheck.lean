@@ -438,11 +438,11 @@ private def postRoundClaims :
       let claim := polynomial.evaluate extensionOps.toOps challenge
       claim :: postRoundClaims rounds challenges
 
-private def outputCommitments (input : Input) :
+def outputCommitments (input : Input) :
     Fin productionShape.sourceCount → PaperAlgebra.Commitment :=
   Fin.addCases (fresh input).commitments (running input).commitments
 
-private def outputPublicInputs (input : Input) :
+def outputPublicInputs (input : Input) :
     Fin productionShape.sourceCount → PublicInput :=
   Fin.addCases (fresh input).publicInputs (running input).publicInputs
 
@@ -513,17 +513,21 @@ def execute (input : Input) : Execution :=
       vectorValue (vectorValue (vectorValue extensionValue)) input.evalA,
       wordsValue outgoing] }
 
-/-- Result schema: [1, inputEcho, runningEcho, publicBlocks, verifierBlocks,
+/-- Fields of an already computed execution:
+[1, inputEcho, runningEcho, publicBlocks, verifierBlocks,
 [accepted, alpha, gamma, preState, roundChallenges, roundStates, rPrime,
 initialClaim, postRoundClaims, terminal[6], commitments[17], public[17],
-Eval_K, Eval_A, outgoingState]]. Acceptance checks the transcript-bound
-fixed-width chain only; input opening validity remains a separate obligation. -/
-def checkValue (input : Input) : Value :=
-  let result := execute input
+Eval_K, Eval_A, outgoingState]]. The supplied execution checks the
+transcript-bound fixed-width chain; opening validity is a separate obligation. -/
+def checkFields (input : Input) (result : Execution) : List Value :=
   let publicBlocks := ProductionKey.publicInputBlocks (running input) (fresh input)
-  .array [.atom 1, inputValue input, runningValue input,
+  [.atom 1, inputValue input, runningValue input,
     .array (publicBlocks.map wordsValue),
     .array ((Transcript.verifierInputBlocks (verifierInput input)).map wordsValue),
     result.encoded]
+
+/-- Execute PiCCS once and encode the complete check. -/
+def checkValue (input : Input) : Value :=
+  .array (checkFields input (execute input))
 
 end NightstreamFPrime.Export.Stage1.PiCCSInputCheck

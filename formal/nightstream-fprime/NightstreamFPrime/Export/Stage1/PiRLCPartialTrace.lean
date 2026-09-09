@@ -197,40 +197,45 @@ theorem scan_map_hom
     scanl_map_hom project stepAlpha stepBeta _ zeroAlpha zeroBeta zeroEq stepEq]
 
 def commitmentStep (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment)
     (current : MaterializedCommitment) (source : Fin SourceCount) :
     MaterializedCommitment :=
   MaterializedCommitment.ofCommitment <|
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentAdd
       current.toCommitment
       (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentAct
-        (challenges source) (inputCommitment source))
+        (challenges source) (values source))
 
 def commitmentSemanticStep (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment)
     (current : PaperAlgebra.Commitment) (source : Fin SourceCount) :
     PaperAlgebra.Commitment :=
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentAdd
     current
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentAct
-      (challenges source) (inputCommitment source))
+      (challenges source) (values source))
 
-def commitmentPartials (challenges : Fin SourceCount → RingF) :
+def commitmentPartials (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) :
     List MaterializedCommitment :=
   scan
     (MaterializedCommitment.ofCommitment
       NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero)
-    (commitmentStep challenges)
+    (commitmentStep challenges values)
 
-def commitmentSemanticPartials (challenges : Fin SourceCount → RingF) :
+def commitmentSemanticPartials (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) :
     List PaperAlgebra.Commitment :=
   scan
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero
-    (commitmentSemanticStep challenges)
+    (commitmentSemanticStep challenges values)
 
 theorem commitmentPartials_semantics
-    (challenges : Fin SourceCount → RingF) :
-    (commitmentPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) :
+    (commitmentPartials challenges values).map
         MaterializedCommitment.toCommitment =
-      commitmentSemanticPartials challenges := by
+      commitmentSemanticPartials challenges values := by
   unfold commitmentPartials commitmentSemanticPartials
   apply scan_map_hom
   · simp
@@ -238,19 +243,20 @@ theorem commitmentPartials_semantics
     simp [commitmentStep, commitmentSemanticStep]
 
 theorem commitmentPartials_indexed
-    (challenges : Fin SourceCount → RingF) (index : Nat) :
-    ((commitmentPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) (index : Nat) :
+    ((commitmentPartials challenges values).map
       MaterializedCommitment.toCommitment)[index]? =
       if index < SourceCount then
         some (prefixValue
           NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero
-          (commitmentSemanticStep challenges) (index + 1))
+          (commitmentSemanticStep challenges values) (index + 1))
       else none := by
   rw [commitmentPartials_semantics]
   simpa [commitmentSemanticPartials] using
     (scan_getElem?
       NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero
-      (commitmentSemanticStep challenges) index)
+      (commitmentSemanticStep challenges values) index)
 
 def publicInputStep (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
@@ -580,14 +586,16 @@ local instance : Std.LawfulIdentity ringKAdd ringKZero where
   right_id := ringKAdd_zero
 
 private theorem commitmentFoldl_eq_combined
-    (challenges : Fin SourceCount → RingF) :
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) :
     (List.finRange SourceCount).foldl
-        (commitmentSemanticStep challenges)
+        (commitmentSemanticStep challenges values)
         NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero =
-      combinedCommitment challenges := by
+      NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.combineCommitments
+        challenges values := by
   unfold commitmentSemanticStep
   rw [← List.foldl_map, ← List.foldr_eq_foldl, List.foldr_map]
-  exact (combineCommitments_eq_foldr challenges inputCommitment).symm
+  exact (combineCommitments_eq_foldr challenges values).symm
 
 private theorem publicInputFoldl_eq_combined
     (challenges : Fin SourceCount → RingF)
@@ -614,10 +622,12 @@ private theorem evaluationFoldl_eq_combined
   exact (combineEvaluations_eq_foldr challenges values).symm
 
 theorem commitmentPartials_getLast?
-    (challenges : Fin SourceCount → RingF) :
-    ((commitmentPartials challenges).map
+    (challenges : Fin SourceCount → RingF)
+    (values : Fin SourceCount → PaperAlgebra.Commitment) :
+    ((commitmentPartials challenges values).map
       MaterializedCommitment.toCommitment).getLast? =
-      some (combinedCommitment challenges) := by
+      some (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.combineCommitments
+        challenges values) := by
   rw [commitmentPartials_semantics]
   unfold commitmentSemanticPartials
   rw [scan_getLast?, commitmentFoldl_eq_combined]

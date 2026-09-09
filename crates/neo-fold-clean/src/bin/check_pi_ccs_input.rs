@@ -25,6 +25,12 @@ use serde_json::{json, Value};
 #[path = "../../tests/nifs/pi_ccs_positive_mutations.rs"]
 mod mutation_checks;
 
+#[path = "../../tests/nifs/pi_rlc_actual_mutations.rs"]
+mod rlc_mutation_checks;
+
+#[path = "check_pi_ccs_input/pi_rlc.rs"]
+mod pi_rlc_check;
+
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const ROUNDS: usize = 28;
 const COEFFICIENTS: usize = 10;
@@ -215,12 +221,13 @@ fn main() {
     assert_eq!(
         arguments.len(),
         8,
-        "usage: check_pi_ccs_input <candidate> <id0> <id1> <id2> <id3> <input> <Lean-result> <accept|reject|optimized-accept|optimized-reject|proof-mutations|statement-mutations|output-mutations|point-mutations>"
+        "usage: check_pi_ccs_input <candidate> <id0> <id1> <id2> <id3> <input> <Lean-result> <accept|reject|optimized-accept|optimized-reject|optimized-rlc|proof-mutations|statement-mutations|output-mutations|point-mutations>"
     );
     let expected_identity = std::array::from_fn(|lane| arguments[lane + 1].parse().expect("identity word"));
     let expected_acceptance = match arguments[7].as_str() {
         "accept"
         | "optimized-accept"
+        | "optimized-rlc"
         | "proof-mutations"
         | "statement-mutations"
         | "output-mutations"
@@ -368,7 +375,7 @@ fn main() {
     );
     let lean = read_value(Path::new(&arguments[6]));
     let lean = lean.as_array().expect("Lean checked-result envelope");
-    assert_eq!(lean.len(), 6);
+    assert_eq!(lean.len(), if arguments[7] == "optimized-rlc" { 8 } else { 6 });
     assert_eq!(lean[0], json!(1));
     assert_eq!(lean[1], raw_input, "identical serialized input and proof");
     assert_eq!(
@@ -430,6 +437,18 @@ fn main() {
                     "pi_ccs_optimized_phase_values=passed accepted={accepted} elapsed={:?}",
                     started.elapsed()
                 );
+                if arguments[7] == "optimized-rlc" {
+                    let parent = pi_rlc_check::check(
+                        &params,
+                        &structure,
+                        &outputs,
+                        &optimized_transcript,
+                        expected_identity,
+                        &lean[6],
+                        &lean[7],
+                    );
+                    rlc_mutation_checks::check(&params, &structure, &outputs, &optimized_transcript, &parent);
+                }
             }
             Err(PiCcsError::SumcheckError(error)) if !expected_acceptance => {
                 println!("pi_ccs_optimized_early_rejection=passed Lean=false optimized={error:?}");

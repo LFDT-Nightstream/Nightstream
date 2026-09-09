@@ -225,11 +225,11 @@ noncomputable def verifierMean {shape : Shape}
     𝔼 gamma ∈ GoldilocksRoots.fullChallengeSet,
       pointMean shape.cubeVariables (value alpha gamma)
 
-private theorem verifierMean_const {shape : Shape} (constant : ℝ) :
+theorem verifierMean_const {shape : Shape} (constant : ℝ) :
     verifierMean (shape := shape) (fun _ _ _ => constant) = constant := by
   simp only [verifierMean, pointMean_const, Finset.expect_const sampleSpace_nonempty]
 
-private theorem verifierMean_mono {shape : Shape}
+theorem verifierMean_mono {shape : Shape}
     (left right : CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
     (ordered : ∀ alpha gamma point, left alpha gamma point ≤ right alpha gamma point) :
     verifierMean left ≤ verifierMean right := by
@@ -239,7 +239,7 @@ private theorem verifierMean_mono {shape : Shape}
   intro gamma _
   exact pointMean_mono _ _ _ (ordered alpha gamma)
 
-private theorem verifierMean_range {shape : Shape}
+theorem verifierMean_range {shape : Shape}
     (value : CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
     (bound : ℝ) (range : ∀ alpha gamma point, 0 ≤ value alpha gamma point ∧ value alpha gamma point ≤ bound) :
     0 ≤ verifierMean value ∧ verifierMean value ≤ bound := by
@@ -249,13 +249,13 @@ private theorem verifierMean_range {shape : Shape}
   · rw [← verifierMean_const (shape := shape) bound]
     exact verifierMean_mono _ _ (fun alpha gamma point => (range alpha gamma point).2)
 
-private theorem verifierMean_add {shape : Shape}
+theorem verifierMean_add {shape : Shape}
     (left right : CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ) :
     verifierMean (fun alpha gamma point => left alpha gamma point + right alpha gamma point) =
       verifierMean left + verifierMean right := by
   simp only [verifierMean, pointMean_add, Finset.expect_add_distrib]
 
-private theorem verifierMean_mul_const {shape : Shape}
+theorem verifierMean_mul_const {shape : Shape}
     (value : CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
     (constant : ℝ) :
     verifierMean (fun alpha gamma point => value alpha gamma point * constant) =
@@ -770,6 +770,49 @@ noncomputable def clockMean {Tape : Type*} {shape : Shape} (tapes : PMF Tape)
     (clock : Tape → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ) : ℝ :=
   mean tapes fun tape => verifierMean (clock tape)
 
+/-- Finite suffix outcomes can be averaged before the verifier coins. -/
+theorem verifierMean_sum {Index : Type*} {shape : Shape} (indices : Finset Index)
+    (value : Index → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ) :
+    verifierMean (fun alpha gamma point => ∑ index ∈ indices, value index alpha gamma point) =
+      ∑ index ∈ indices, verifierMean (value index) := by
+  classical
+  induction indices using Finset.induction_on with
+  | empty => simp only [Finset.sum_empty, verifierMean_const]
+  | @insert index indices absent induction =>
+      simp only [Finset.sum_insert absent, verifierMean_add, induction]
+
+/-- The finite private-tape mean and verifier mean commute. The caller
+must separately identify the finite tape with its actual suffix law. -/
+theorem clockMean_fintype {Tape : Type*} [Fintype Tape] {shape : Shape}
+    (tapes : PMF Tape)
+    (clock : Tape → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ) :
+    clockMean tapes clock = verifierMean (fun alpha gamma point =>
+      ∑ tape, (tapes tape).toReal * clock tape alpha gamma point) := by
+  simp only [clockMean, mean, tsum_fintype, verifierMean_sum]
+  apply Finset.sum_congr rfl
+  intro tape _
+  simpa only [mul_comm] using (verifierMean_mul_const (clock tape) (tapes tape).toReal).symm
+
+theorem clockMean_mul_const {Tape : Type*} {shape : Shape} (tapes : PMF Tape)
+    (clock : Tape → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
+    (factor : ℝ) :
+    clockMean tapes (fun tape alpha gamma point => clock tape alpha gamma point * factor) =
+      clockMean tapes clock * factor := by
+  simp only [clockMean, mean, verifierMean_mul_const, ← mul_assoc, tsum_mul_right]
+
+/-- Bounded event observables have a summable mean under any context law. -/
+theorem clockMean_summable_of_bounded {Tape : Type*} {shape : Shape}
+    (tapes : PMF Tape)
+    (clock : Tape → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
+    (bound : ℝ)
+    (range : ∀ tape alpha gamma point,
+      0 ≤ clock tape alpha gamma point ∧ clock tape alpha gamma point ≤ bound) :
+    Summable fun tape => (tapes tape).toReal * verifierMean (clock tape) := by
+  apply weighted_summable tapes _ bound
+  intro tape
+  have limits := verifierMean_range (clock tape) bound (range tape)
+  simpa only [abs_of_nonneg limits.1] using limits.2
+
 /-- The clock and outcome means use the same tape and verifier samples. Keep
 the outcome value opaque when applying this equality to a concrete event. -/
 theorem clockMean_run_eq_executionMean {Tape : Type*} {shape : Shape} {columns width : Nat}
@@ -813,6 +856,25 @@ theorem clockMean_le_add_const {Tape : Type*} {shape : Shape} (tapes : PMF Tape)
     _ = _ := by
       rw [Summable.tsum_add baseSummable overheadSummable, tsum_mul_right, weight_sum, one_mul]
       rfl
+
+/-- A proved pointwise amplification of the call mean gives a global work
+bound without a uniform bound on individual contexts or calls. -/
+theorem clockMean_le_mul_add_const {Tape : Type*} {shape : Shape} (tapes : PMF Tape)
+    (base total : Tape → CubePoint K shape.cubeVariables → K → CubePoint K shape.cubeVariables → ℝ)
+    (factor overhead : ℝ)
+    (totalNonnegative : ∀ tape alpha gamma point, 0 ≤ total tape alpha gamma point)
+    (baseSummable : Summable fun tape => (tapes tape).toReal * verifierMean (base tape))
+    (pointwise : ∀ tape alpha gamma point,
+      total tape alpha gamma point ≤ base tape alpha gamma point * factor + overhead) :
+    Summable (fun tape => (tapes tape).toReal * verifierMean (total tape)) ∧
+      clockMean tapes total ≤ clockMean tapes base * factor + overhead := by
+  have scaled : Summable fun tape => (tapes tape).toReal *
+      verifierMean (fun alpha gamma point => base tape alpha gamma point * factor) := by
+    simpa only [verifierMean_mul_const, ← mul_assoc] using baseSummable.mul_right factor
+  have bound := clockMean_le_add_const tapes
+    (fun tape alpha gamma point => base tape alpha gamma point * factor) total overhead
+    totalNonnegative scaled pointwise
+  simpa only [clockMean_mul_const] using bound
 
 /-- Sample the stated setup context, then that context's private tape. The
 PMF bind/map constructors prove normalization without a finite-support premise. -/

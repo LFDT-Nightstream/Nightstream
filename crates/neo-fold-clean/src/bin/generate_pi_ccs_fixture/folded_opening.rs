@@ -1,4 +1,4 @@
-//! Integer packed fold of the checked base opening for a recursive fixture.
+//! Integer packed fold of checked fresh and running openings.
 //! This produces witness input data. Package rows and independent opening
 //! checks remain responsible for accepting the resulting parent and children.
 
@@ -116,7 +116,14 @@ fn zero(value: &Value) -> bool {
     }
 }
 
-pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &Path, output: &Path) {
+pub fn generate(
+    candidate: &Path,
+    expected: [u64; 4],
+    cache: &Path,
+    lean_path: &Path,
+    folded_children: Option<&Path>,
+    output: &Path,
+) {
     let started = Instant::now();
     assert!(!output.exists(), "use a fresh external folded-opening directory");
     let bytes = fs::read(candidate).expect("canonical candidate");
@@ -146,21 +153,28 @@ pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &
     assert_eq!(lean[1][0], 2);
     assert_eq!(lean[1][1], opening[10], "same checked fresh commitment");
     assert_eq!(lean[1][2], opening[9], "same checked fresh public input");
-    assert!(zero(&lean[1][6]), "this first fold uses sixteen zero running openings");
+    if folded_children.is_none() {
+        assert!(zero(&lean[1][6]), "the first fold uses sixteen zero running openings");
+    }
     assert_eq!(lean[5].as_array().expect("complete phase result").len(), 15);
     assert_eq!(lean[5][0], 1, "accepted honest PiCCS proof");
     let state: [u64; 8] = serde_json::from_value(lean[5][14].clone()).expect("PiCCS outgoing state");
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state.map(field), 0);
     let rhos = optimized::sample_rho_n(&mut transcript, &Params::production(), 17).expect("existing bounded sampler");
-    let rho: [i8; D] = std::array::from_fn(|row| centered_challenge(rhos[0].as_mat()[(row, 0)]));
-    let kernel = FoldKernel::new(rho);
-    for column in 0..D {
-        let mut basis = [0u8; D];
-        basis[column] = 1;
-        for (row, value) in kernel.apply(&basis).into_iter().enumerate() {
-            let magnitude = F::from_u64(u64::from(value.unsigned_abs()));
-            let lifted = if value < 0 { -magnitude } else { magnitude };
-            assert_eq!(lifted, rhos[0].as_mat()[(row, column)], "sampled rotation entry");
+    assert_eq!(rhos.len(), 17);
+    let kernels = rhos
+        .iter()
+        .map(|rho| FoldKernel::new(std::array::from_fn(|row| centered_challenge(rho.as_mat()[(row, 0)]))))
+        .collect::<Vec<_>>();
+    for (kernel, rho) in kernels.iter().zip(&rhos) {
+        for column in 0..D {
+            let mut basis = [0u8; D];
+            basis[column] = 1;
+            for (row, value) in kernel.apply(&basis).into_iter().enumerate() {
+                let magnitude = F::from_u64(u64::from(value.unsigned_abs()));
+                let lifted = if value < 0 { -magnitude } else { magnitude };
+                assert_eq!(lifted, rho.as_mat()[(row, column)], "sampled rotation entry");
+            }
         }
     }
     let coefficients: Vec<Vec<i8>> = rhos
@@ -189,12 +203,44 @@ pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &
             .collect::<Vec<_>>(),
         public
     );
+    let running = folded_children
+        .map(|children| child_assignments(children, expected, context, logical_width, carrier_width, &lean));
+    let source_norm_bound: i32 = if running.is_some() {
+        kernels
+            .iter()
+            .map(|kernel| i32::from(kernel.norm_bound()))
+            .sum()
+    } else {
+        i32::from(kernels[0].norm_bound())
+    };
+    // The selected 17-source, T=216 profile fits the signed i16 carrier.
+    assert!(source_norm_bound < i32::from(i16::MAX));
     println!("folded opening inputs: {:?}", started.elapsed());
     let folded: Vec<[i16; D]> = carrier
         .par_chunks_exact(D)
-        .map(|block| kernel.apply(block.try_into().expect("complete ring block")))
+        .enumerate()
+        .map(|(block, fresh)| {
+            let mut value = kernels[0].apply(fresh.try_into().expect("complete fresh ring block"));
+            if let Some(running) = &running {
+                for (source, kernel) in running.iter().zip(&kernels[1..]) {
+                    if source.is_empty() {
+                        continue;
+                    }
+                    let term = kernel.apply(
+                        source[block * D..(block + 1) * D]
+                            .try_into()
+                            .expect("complete running ring block"),
+                    );
+                    for (coefficient, term) in value.iter_mut().zip(term) {
+                        *coefficient += term;
+                    }
+                }
+            }
+            value
+        })
         .collect();
     drop(carrier);
+    drop(running);
     let (max_norm, digit_mask) = folded
         .par_iter()
         .map(|block| {
@@ -204,7 +250,7 @@ pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &
             })
         })
         .reduce(|| (0, 0), |left, right| (left.0.max(right.0), left.1 | right.1));
-    assert!(max_norm <= kernel.norm_bound() as u16);
+    assert!(i32::from(max_norm) <= source_norm_bound);
     assert!(i32::from(max_norm) < PARENT_BOUND);
     let parent_public: Vec<i16> = folded.iter().flatten().take(270).copied().collect();
     let child_public: Vec<Vec<i8>> = (0..DIGITS)
@@ -216,9 +262,8 @@ pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &
         })
         .collect();
     println!(
-        "packed integer fold: {:?}; max_norm={max_norm} exact_rho_bound={}",
+        "packed integer fold: {:?}; max_norm={max_norm} source_norm_bound={source_norm_bound}",
         started.elapsed(),
-        kernel.norm_bound()
     );
     fs::create_dir(output).expect("new external folded-opening directory");
     let mut writer = BufWriter::new(fs::File::create(output.join("folded.i16")).expect("folded carrier sink"));
@@ -249,7 +294,7 @@ pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, lean_path: &
     encoded.push(b'\n');
     fs::write(output.join("folded.json"), encoded).expect("folded metadata sink");
     println!(
-        "folded_base_opening={} carrier={carrier_width} elapsed={:?}",
+        "folded_opening={} carrier={carrier_width} elapsed={:?}",
         output.display(),
         started.elapsed()
     );

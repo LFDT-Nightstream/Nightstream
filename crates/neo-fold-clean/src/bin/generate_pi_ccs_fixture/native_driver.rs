@@ -7,7 +7,9 @@ use std::{fs, path::Path, time::Instant};
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
+use neo_fold_clean::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use neo_fold_clean::paper::params::Params;
+use neo_fold_clean::paper::{pi_rlc, relations::ajtai_rlc_mixer};
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::{
     engines::pi_ccs_joint_protocol::V1_1OutputOpening,
@@ -16,6 +18,7 @@ use neo_reductions::{
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::load_per_application_package;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use rayon::prelude::*;
 use serde_json::{json, Value};
 
 use super::{
@@ -170,6 +173,7 @@ pub fn generate(
     lean_result: &Path,
     running_prefix: Option<&Path>,
     folded_children: Option<&Path>,
+    combined_opening: Option<&Path>,
     output: &Path,
 ) {
     let started = Instant::now();
@@ -394,4 +398,114 @@ pub fn generate(
         perf.total_ms,
         started.elapsed()
     );
+    if let Some(folded) = combined_opening {
+        assert_eq!(phase.as_array().expect("complete C/R reference").len(), 8);
+        assert_eq!(phase[7].as_array().expect("complete R result").len(), 11);
+        assert_eq!(phase[7][0], 1);
+        let initial = Poseidon2TranscriptSnapshot::from_state_and_absorbed(transcript.state(), transcript.absorbed());
+        let mut rlc_transcript = Transcript::session();
+        rlc_transcript.restore_snapshot(initial);
+        let mut witnesses = Vec::with_capacity(outputs.len());
+        witnesses.push(witness.Z);
+        witnesses.extend(native_running);
+        let (combined, rlc_proof) = pi_rlc::prove(
+            &mut rlc_transcript,
+            &params,
+            &structure,
+            ajtai_rlc_mixer,
+            &outputs,
+            &witnesses,
+        )
+        .expect("actual optimized PiRLC prover");
+        drop(witnesses);
+        let mut rlc_verifier = Transcript::session();
+        rlc_verifier.restore_snapshot(initial);
+        let verified = pi_rlc::verify(
+            &mut rlc_verifier,
+            &params,
+            &structure,
+            ajtai_rlc_mixer,
+            &outputs,
+            &rlc_proof,
+        )
+        .expect("verify the actual PiRLC proof");
+        assert_eq!(combined.claim, verified);
+        assert_eq!(rlc_transcript.snapshot(), rlc_verifier.snapshot());
+        assert_eq!(rlc_transcript.snapshot().absorbed(), 0);
+        let parent = json!([
+            fields(&verified.c.data),
+            public_words(&verified.X),
+            words(&verified.r),
+            words(&verified.eval_k[..D]),
+            verified
+                .eval_a
+                .iter()
+                .map(|family| words(&family[..D]))
+                .collect::<Vec<_>>(),
+            fields(&rlc_transcript.snapshot().state())
+        ]);
+        assert_eq!(
+            parent,
+            json!([
+                phase[7][3],
+                phase[7][4],
+                phase[7][5],
+                phase[7][6],
+                phase[7][7],
+                phase[7][9]
+            ]),
+            "actual PiRLC proof and endpoint match Lean"
+        );
+        let meta: Value =
+            serde_json::from_slice(&fs::read(folded.join("folded.json")).expect("integer witness metadata"))
+                .expect("folded metadata JSON");
+        assert_eq!(meta.as_array().expect("folded metadata").len(), 13);
+        assert_eq!(meta[0], 1);
+        assert_eq!(meta[1], json!(expected_identity));
+        assert_eq!(meta[2], json!(context));
+        assert_eq!(meta[3], json!(prepared.logical_width));
+        assert_eq!(meta[4], json!(prepared.carrier_width));
+        assert_eq!(meta[5], phase[5][14]);
+        assert_eq!(meta[7], phase[7][9]);
+        assert_eq!(meta[12], phase[7][5]);
+        let raw = fs::read(folded.join("folded.i16")).expect("complete integer folded witness");
+        assert_eq!(raw.len(), prepared.carrier_width * 2);
+        assert_eq!(
+            (combined.witness.rows(), combined.witness.cols()),
+            (D, prepared.carrier_width / D)
+        );
+        let max_norm = raw
+            .par_chunks_exact(2 * D)
+            .enumerate()
+            .map(|(column, block)| {
+                let mut bound = 0u16;
+                for row in 0..D {
+                    let value = i16::from_le_bytes(block[2 * row..2 * row + 2].try_into().unwrap());
+                    bound = bound.max(value.unsigned_abs());
+                    let magnitude = F::from_u64(u64::from(value.unsigned_abs()));
+                    let expected = if value < 0 { -magnitude } else { magnitude };
+                    assert_eq!(
+                        combined.witness[(row, column)],
+                        expected,
+                        "actual PiRLC private coefficient ({row}, {column})"
+                    );
+                }
+                bound
+            })
+            .max()
+            .expect("nonempty selected carrier");
+        assert_eq!(meta[8], json!(max_norm));
+        assert!(u64::from(max_norm) < 1u64 << 16);
+        let proof_path = output.with_extension("rlc.json");
+        assert!(!proof_path.exists(), "fresh PiRLC proof sink");
+        let mut encoded = serde_json::to_vec(&parent).expect("native PiRLC proof and state");
+        encoded.push(b'\n');
+        fs::write(&proof_path, encoded).expect("native PiRLC proof sink");
+        println!(
+            "complete_native_pi_rlc=passed private_coefficients={} max_norm={max_norm} proof={} elapsed={:?}",
+            prepared.carrier_width,
+            proof_path.display(),
+            started.elapsed()
+        );
+    }
 }

@@ -1,9 +1,9 @@
-# NIFS top-three progress
+# NIFS top-three completion
 
-Requested scope: four shared-profile records; the strong, weak and aligned-fork
-interfaces; and interactive NIFS composition. This is eight proof records.
+All eight requested records are proved and connected at their stated
+conditional interactive scope. NIFS now shows **Proof 14/21** and **Link 18/26**.
 
-Base: `9e49e7fbe03d61b0e16eec1d6f839d33d57af9bb`, with uncommitted additions.
+Base: `7099ea842171a9a53114644612766a2522b4c4d0`, plus the checked runtime closure.
 
 ## Closed records
 
@@ -13,85 +13,69 @@ Base: `9e49e7fbe03d61b0e16eec1d6f839d33d57af9bb`, with uncommitted additions.
 | N.profile.shape | NifsProfile.selected_shape |
 | N.profile.arity | NifsProfile.selected_arity |
 | N.profile.setup | NifsProfile.shared_setup / phases_preserve_relation |
-| N.security.strong | PaperStrongCompleteness.exists_honest_piCcs_prover; PaperStrongInterface.piRlcBatchForProbe_same_phi; Lifecycle.Nifs.StrongExtraction.probability_and_expected_work |
+| N.security.strong | StrongExtraction.probability_and_expected_work |
 | N.security.aligned_fork | PaperAlignedExtraction.positive_return_implies_alignedFork |
+| N.security.weak | WeakExtraction.weak_relaxed_success_bound; InteractiveCompleteness.exists_honest_execution; InteractiveAgreement.disagreement_le_bindingProbability; SupportedExtraction.probability_and_expected_work |
+| N.security.composition | SupportedExtraction.probability_and_expected_work |
 
-The profile results preserve the exact selected matrices, polynomial, public
-projection, commitment map and counts. They do not prove external context
-selection or commitment hardness. The strong interface uses independent
-interactive verifier coins, the actual returned witness and actual call/check/
-access work. Alignment retains the observed probe and sampler equalities; it
-does not turn Poseidon2 coins into independent uniform coins.
+## Final result
 
-## Still open
+The final theorem connects one actual checked PiCCS prefix, its captured
+PiRLC/PiDEC continuation, and the source values returned by the checked
+projection. Its first conjunct uses the actual call-result equality to align
+the work calculation with the receipt used by the probability law.
 
-`N.security.weak` remains partial/open pending the complete selected contract.
-The resumed selected weak success wrapper now passes. The selected honest
-C→R→D theorem derives all 16 child openings from the original source witness.
-The exact same-phi binding connection is proved from the actual fork responses.
-It has no arbitrary-ambient uniqueness premise.
+The same theorem proves global work summability, an explicit polynomial
+expected-work bound, and source extraction success at least the original
+success probability minus
 
-`N.security.composition` remains partial/open. The selected probability theorem
-now measures the actual returned source values, uses the fixed extraction
-algebra, and requires suffix algorithms only at reachable positive-context
-receipts. `SupportedExtraction.returned_source_bound_with_binding` combines
-the original success rate, weak retry loss, PiCCS test error and actual binding
-event. The selected runtime connection must still be assembled with it. The
-probability theorem alone does not establish expected polynomial work.
+`17 / |C| + sqrt(binding-event probability + PiCCS test error)`.
 
-The initial source stop was resumed on the owner's instruction. The weak
-wrapper passed after rewriting the indicator with its proved equivalence.
-The runtime connection then reached the formal project's three-round stop
-rule. Its remaining elaboration failure is traced to a redundant finite-type
-instance. An exception for that specific proof has been requested; no further
-runtime repair has been applied while the answer is pending.
+Only positive, reachable continuation inputs need finite call moments.
+Unreachable inputs use the proved abort extension. Coupling tables used in the
+probability argument are not executed by the extractor. Two unequal actual
+fork returns give a collision from their short response differences; there is
+no arbitrary-ambient uniqueness premise.
 
-## Draft preservation
+The runtime repair removes a redundant finite-type instance and reduces the
+two generated prefix matches by their `none` and `some` cases. It changes no
+protocol relation, clock, layout, parameter, transcript or package identity.
+The runtime module is now in the library and axiom audit. Earlier paused drafts
+remain local historical evidence, not the current implementation.
 
-The original stopped drafts remain preserved outside the Lean package in:
+## Explicit boundaries
 
-`../nightstream-stage1-evidence/nifs-top-three-2026-09-09/drafts/`
+The selected profile remains Goldilocks, b=2, k_rho=16, B=65536, one fresh
+source and 16 running sources. Low-norm invertibility, exact call/check/access
+correctness, and the displayed polynomial bounds on actual call and primitive
+work remain explicit premises.
 
-`draft-manifest.json` records each original path and SHA-256. The files are
-`WeakExtraction.lean.txt`, `InteractiveComposition.lean.txt` and
-`InteractiveWork.lean.txt`. These originals are immutable evidence of the
-earlier stop. Source copies were restored for the approved resume. The runtime
-copy is preserved unchanged as `InteractiveWork.resumed-paused.lean.txt`, with
-SHA-256 `c1b481517b655efbe1b803539977690efc796d473f09b43f09b3d190827be9ea`.
-It is excluded from the proof package, root imports and axiom audit.
-`resumed-runtime-pause.json` records the pending exception and exact open item.
-`source-manifest.json` records the earlier validated cut;
-`resumed-source-manifest.json` records the resumed source cut.
+The measured binding-event probability is not replaced by a numerical MSIS
+estimate. `N.security.binding` still owns the computational reduction for the
+approved Nightstream-specific public-seed setup. `N.security.fiat_shamir`
+still owns transfer from independent interactive coins to the selected
+Poseidon2 transcript. HyperNova history extraction, context selection and
+production acceptance keep their own open records.
 
 ## Validation
 
-Boundary gate passed. The full library passed: 3770 jobs, 371 seconds.
-The full test/axiom library passed: 3808 jobs, 5 seconds, after the new audit
-file was added to the explicit build roots. All 85 new audits use only
-`propext`, `Classical.choice` and `Quot.sound`. Logs are `full-audit.log`
-and `axiom-audit.log` in the evidence directory.
-The requirements-site build and all seven existing export tests pass.
-No Rust code, protocol layout, selected parameter profile, transcript or package
-identity changed. Existing native conformance evidence was not rerun as proof
-of this new security work. C/R/D and HyperNova status rows are unchanged.
-The verified NIFS counts after that publication are Proof 12/21 and Link 16/26.
+- Boundary gate: pass.
+- Full Lean library: 3781 jobs, 7 seconds.
+- Full test/axiom library: 3819 jobs, 5 seconds.
+- NIFS audit: 118 declarations, only `propext`, `Classical.choice`, `Quot.sound`.
+- Site build and all seven export tests: pass.
+- No Rust changes; native conformance was not rerun for this proof-only change.
 
-On resume, the selected weak, probability, source-return, reachable-state and
-honest-completeness checks pass in 2–3 seconds each. The final boundary gate
-passes. The full library passes: 3780 jobs, 367 seconds. The full test/axiom
-library passes: 3818 jobs, 21 seconds. All 114 NIFS audit declarations use only
-the three allowed axioms. `resumed-full-audit.log` records those gates; all 36
-source hashes match `resumed-source-manifest.json` after validation. The site
-build and seven existing export tests pass. These results do not yet justify
-closing the two remaining requirement records.
+Evidence is in the local sibling directory
+`../nightstream-stage1-evidence/nifs-top-three-2026-09-09/`:
+`closure-runtime-check.log`, `closure-combined-check.log`,
+`closure-full-audit.log`, and `closure-source-manifest.json`.
 
 ## Publication
 
-The public requirements site was updated and its live JSON was checked against
-the validated source. Version 18, site source
-`94e58ad442d814e491135de203f09597e91025a4`, deployment
-`appgdep_6aa0e46a4bf48191a0d4191f1d6ca49f`. The two open entries now cite the
-checked selected probability and binding proofs and name the remaining runtime
-connection. The counts remain Proof 12/21 and Link 16/26.
+The public map closes only the two requested interactive records. Its live JSON
+matches the validated source. Site version 19; source
+`5a892da188a4851efd5d5a8f6fe4d3a0d1bfc4cd`; deployment
+`appgdep_6aa0e917f8e88191bcfd0dd5d1b1d39a`.
 
 https://nightstream-requirements.nicarq.chatgpt.site/#group-N

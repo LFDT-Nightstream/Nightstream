@@ -4,6 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
 import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
+import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
 import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
@@ -68,6 +69,10 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation.offsupport_run_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.returned_source_success_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.returned_source_bound_with_binding
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction.probability_and_expected_work
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveWork.totalClock_on_checked_prefix
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveWork.call_returns_accepted
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveWork.expected_work_polynomial_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingBridge.compatible
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement.localBindingProbability_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement.local_disagreement_le_binding

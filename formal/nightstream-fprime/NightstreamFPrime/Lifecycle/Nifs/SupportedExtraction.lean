@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
+import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
 
 /-!
 Selected interactive extraction from the actual checked prefix and its
@@ -107,5 +108,79 @@ theorem returned_source_bound_with_binding :
     program (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
     (_root_.add_le_add agreement (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
+
+include checkCorrect lowNorm correct bounded sourceCorrect in
+/-- The same checked execution has both the selected source-return bound
+and polynomial expected work. The first conjunct connects its actual prefix
+clock to the receipt used by the probability law. All moments are global;
+there is no uniform time bound on individual contexts or private calls. -/
+theorem probability_and_expected_work
+    (call : Context → CubePoint K productionShape.cubeVariables → K →
+      CubePoint K productionShape.cubeVariables → Result (Option (Probe K productionShape × State)))
+    (callCorrect : ∀ context alpha gamma point,
+      (call context alpha gamma point).value = InteractivePrefix.run
+        (InteractiveComposition.firstPhase originalFirstPhase publicCheck context) alpha gamma point)
+    (accessBound : Nat)
+    (accessBounded : ∀ context, CostedWitnessProjection.Bounded (sourceProgram context).access accessBound)
+    (securityParameter : Nat) (basePolynomial primitivePolynomial accessPolynomial : Polynomial ℝ) :
+    let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
+      (InteractiveComposition.firstPhase originalFirstPhase publicCheck) abortTape provider
+    let base := InteractiveWork.baseClock relation ajtai running fresh continuation call program sourceProgram
+    let total := InteractiveWork.totalClock relation ajtai running fresh continuation call program sourceProgram
+    Summable (fun context => (contexts context).toReal * StrongProbability.verifierMean (base context)) →
+    StrongProbability.clockMean contexts base ≤ basePolynomial.eval (securityParameter : ℝ) →
+    (bounds.coordinateWork : ℝ) ≤ primitivePolynomial.eval (securityParameter : ℝ) →
+    (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
+    (∀ context alpha gamma point,
+      total context alpha gamma point = ((call context alpha gamma point).work : ℝ) +
+        (match InteractivePrefix.run
+          (InteractiveComposition.firstPhase originalFirstPhase publicCheck context) alpha gamma point with
+        | none => 0
+        | some receipt =>
+            PiRLC.CoordinateExtraction.expectedTotalWork (ProductionKey.key relation ajtai).piRlcAlgebra
+              (InteractiveWork.law relation ajtai running fresh continuation context receipt)
+              (InteractiveWork.parentChecker relation ajtai running fresh continuation context receipt) program +
+            PaperCompositionWork.finishMean (ProductionKey.key relation ajtai).piRlcAlgebra
+              (InteractiveWork.law relation ajtai running fresh continuation context receipt)
+              (InteractiveWork.parentChecker relation ajtai running fresh continuation context receipt) program
+              (sourceProgram context) (PaperWeakOutput.decode (ProductionKey.key relation ajtai)) receipt.1) + 1) ∧
+    (StrongProbability.clockMean contexts
+      (InteractiveComposition.originalSuccess relation ajtai running fresh originalFirstPhase
+        publicCheck continuation) - InteractiveComposition.weakLoss relation ajtai -
+      Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
+        originalFirstPhase publicCheck continuation program contexts +
+        IndependentExecution.testError productionShape 9) ≤
+      InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
+        publicCheck continuation program sourceProgram contexts) ∧
+    Summable (fun context => (contexts context).toReal * StrongProbability.verifierMean (total context)) ∧
+    StrongProbability.clockMean contexts total ≤
+      (Polynomial.C ((PaperProfile.arity.total : ℝ) + 1) * basePolynomial +
+        Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
+        Polynomial.C (productionShape.freshCount : ℝ) *
+          (Polynomial.C (WitnessProjection.privateWidth (FullShape logicalWidth publicFits) : ℝ) *
+            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+        Polynomial.C (productionShape.runningCount : ℝ) *
+          (Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
+            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+        Polynomial.C 9).eval (securityParameter : ℝ) := by
+  dsimp only
+  intro baseSummable basePPT primitivePPT accessPPT
+  let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
+    (InteractiveComposition.firstPhase originalFirstPhase publicCheck) abortTape provider
+  refine ⟨?_, ?_, ?_⟩
+  · intro context alpha gamma point
+    have clock := InteractiveWork.totalClock_on_checked_prefix relation ajtai running fresh continuation call program
+      sourceProgram originalFirstPhase publicCheck callCorrect context alpha gamma point
+    refine clock.trans ?_
+    dsimp only [InteractiveWork.firstPhase, InteractiveComposition.firstPhase]
+    cases InteractivePrefix.run
+      (InteractivePrefix.checked (originalFirstPhase context) (publicCheck context)) alpha gamma point <;> rfl
+  · exact returned_source_bound_with_binding relation ajtai running fresh contexts originalFirstPhase
+      publicCheck abortTape provider program sourceProgram checkCorrect lowNorm correct bounds bounded sourceCorrect
+  · exact InteractiveWork.expected_work_polynomial_bound relation ajtai running fresh continuation call program
+      sourceProgram (PaperExtractionAlgebra.extractionAlgebra ajtai)
+      (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct bounds bounded
+      accessBound accessBounded contexts baseSummable securityParameter basePolynomial primitivePolynomial
+      accessPolynomial basePPT primitivePPT accessPPT
 
 end NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction

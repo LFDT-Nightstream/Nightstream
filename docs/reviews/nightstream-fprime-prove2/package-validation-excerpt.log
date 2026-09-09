@@ -1,0 +1,7 @@
+[boundary] all checks passed
+[bounded 1500s] lake build NightstreamFPrime
+Build completed successfully (3642 jobs).
+[bounded] exit=0 elapsed=4s
+[bounded 1500s] lake build NightstreamFPrimeTests
+Build completed successfully (3677 jobs).
+[bounded] exit=0 elapsed=1s

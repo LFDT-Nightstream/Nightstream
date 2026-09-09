@@ -1477,6 +1477,9 @@ opening and mutation records are retained in the durable archive linked above.
 They replace the missing temporary repair-note path as the discoverable evidence
 for this candidate. Production pins remain unchanged; these are diagnostic
 results for their recorded source and policy; the current review handoff binds `b7789c26` and grants no approval.
+`ActualPiRLC.selectedRowsAndPublic_imply_keyChallenges` proves exact `rho` from arbitrary selected rows/public input; its batch theorem also identifies the final state from actual PiCCS execution.
+Sampler layout debt: 544 lanes retain four obsolete local copies (67, 82, 84, 99), or 2,176 field slots and 89,216 private coordinates, owned by `.samplerLogical` (opcode 29).
+They remain in the committed witness; sampler rows read shared First54 values instead. No accepted-row theorem constrains these redundant copies. Compaction remains separate layout cleanup.
 
 The remaining owner-ordered work is:
 

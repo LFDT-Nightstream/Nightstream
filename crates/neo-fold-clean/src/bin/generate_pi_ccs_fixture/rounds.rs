@@ -10,7 +10,9 @@ use std::{
 
 use neo_ccs::{SparsePoly, Term};
 use neo_math::{from_complex, KExtensions, F, K};
-use neo_reductions::engines::{pi_ccs_joint::ProtocolTrace, pi_ccs_joint_protocol::prove_phase};
+use neo_reductions::engines::{
+    pi_ccs_joint::ProtocolTrace, pi_ccs_joint_protocol::prove_phase, pi_ccs_protocol::Challenges,
+};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
@@ -49,19 +51,32 @@ fn words(value: K) -> [u64; 2] {
     value.to_limbs_u64().into()
 }
 
-pub fn generate(
+pub(super) struct Prepared {
+    pub oracle: Oracle,
+    pub challenges: Challenges,
+    pub state: [F; 8],
+    pub initial: K,
+    pub identity: [u64; 4],
+    pub context: [u64; 4],
+    pub logical_width: usize,
+    pub carrier_width: usize,
+    pub row_count: usize,
+    pub polynomial: SparsePoly<F>,
+    pub public: Vec<u64>,
+    pub commitment: Vec<u64>,
+}
+
+pub(super) fn prepare(
     cache: &Path,
     lean_prelude: &Path,
     running_prefix: Option<&Path>,
     folded_children: Option<&Path>,
-    output: &Path,
-) {
+) -> Prepared {
     let started = Instant::now();
     assert!(
         folded_children.is_none() || running_prefix.is_some(),
         "child openings require their linear evaluation prefix"
     );
-    assert!(!output.exists(), "use a fresh external round output");
     let (
         schema,
         identity,
@@ -187,10 +202,46 @@ pub fn generate(
             "nonzero running statements require running-rounds and their canonical prefix"
         );
     }
+    Prepared {
+        oracle,
+        challenges: Challenges::new(alpha, gamma),
+        state,
+        initial,
+        identity,
+        context,
+        logical_width,
+        carrier_width,
+        row_count,
+        polynomial,
+        public,
+        commitment,
+    }
+}
+
+pub fn generate(
+    cache: &Path,
+    lean_prelude: &Path,
+    running_prefix: Option<&Path>,
+    folded_children: Option<&Path>,
+    output: &Path,
+) {
+    let started = Instant::now();
+    assert!(!output.exists(), "use a fresh external round output");
+    let Prepared {
+        mut oracle,
+        challenges,
+        state,
+        initial,
+        identity,
+        context,
+        public,
+        commitment,
+        ..
+    } = prepare(cache, lean_prelude, running_prefix, folded_children);
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state, 0);
     let mut trace = ProtocolTrace {
-        alpha,
-        gamma,
+        alpha: challenges.alpha,
+        gamma: challenges.gamma,
         pre_sumcheck_state: state,
         ..ProtocolTrace::default()
     };
@@ -208,7 +259,7 @@ pub fn generate(
         public,
         commitment,
         trace.alpha.iter().copied().map(words).collect::<Vec<_>>(),
-        words(gamma),
+        words(trace.gamma),
         state.map(|value| value.as_canonical_u64()),
         rounds
             .iter()

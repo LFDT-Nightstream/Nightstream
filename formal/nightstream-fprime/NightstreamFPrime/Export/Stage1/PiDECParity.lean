@@ -22,6 +22,21 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
+/-- Retain the exact PiCCS output values used by the matching PiRLC fixture. -/
+def fixtureFromComputed (computed : PiCCSNonzero.Computed)
+    (batch : PiDECNonzero.Batch) : PiDECNonzero.Fixture :=
+  let evaluation := PiRLCParity.combinedEvaluationFromComputed computed batch.challenges
+  {
+    batch := batch
+    point := computed.verifierRoundPoint
+    commitment := PiRLCPartialTrace.MaterializedCommitment.ofCommitment
+      (PiRLCNonzero.combinedCommitment batch.challenges)
+    publicInput := PiRLCPartialTrace.MaterializedPublicInput.ofPublicInput
+      (PiRLCParity.combinedPublicInputFromComputed computed batch.challenges)
+    evalK := PiRLCPartialTrace.MaterializedRingK.ofRing evaluation.pad
+    evalA := PiRLCPartialTrace.FixedArray.ofFn fun matrix =>
+      PiRLCPartialTrace.MaterializedRingK.ofRing (evaluation.matrix matrix) }
+
 def commitmentValue (value : PaperAlgebra.Commitment) : Value :=
   PiCCSParity.fieldWordsValue (serializeCommitment value)
 
@@ -76,14 +91,15 @@ def childPublicInputsValue (fixture : PiDECNonzero.Fixture) : Value :=
 /-- Input order after the PiRLC parent: 16 commitments, 16 `Eval_K`
 families, 16 separate 14-matrix `Eval_A` families, then 16 public digit
 vectors. This is the exact `PiDECInputs` physical segment order. -/
-def inputValue (fixture : PiDECNonzero.Fixture) : Value :=
+def inputValue (fixture : PiDECNonzero.Fixture)
+    (packageIdentity : VerifierContext.Digest4) : Value :=
   .array [parentValue fixture,
     messageCommitmentsValue fixture,
     messageEvalKValue fixture,
     messageEvalAValue fixture,
     childPublicInputsValue fixture,
     PiCCSParity.stateValue fixture.batch.finalState,
-    PiCCSParity.fieldWordsValue VerifierContext.productionPackageIdentityWords]
+    PiCCSParity.fieldWordsValue packageIdentity.toList]
 
 def parentBoundResultsValue (fixture : PiDECNonzero.Fixture) : Value :=
   .array ((List.finRange 270).map fun coordinate =>
@@ -143,23 +159,26 @@ def transitionRunning (fixture : PiDECNonzero.Fixture) : Running
   publicInputs := PiDECNonzero.childPublicInput fixture
   evaluations := PiDECNonzero.childEvaluation fixture
 
-def transitionOutputPreimage (fixture : PiDECNonzero.Fixture) : HashPreimage
+def transitionOutputPreimage (fixture : PiDECNonzero.Fixture)
+    (context : KeyDigest) : HashPreimage
     (logicalWidth := VerifierContext.candidateLogicalWidth)
     (publicFits := VerifierContext.candidatePublicFits) where
-  verifierKeys := fun _ => PiCCSNonzero.stateVerifierKey ()
+  verifierKeys := fun _ => context
   iteration := 7
   z0 := PiCCSNonzero.stateZ0
   current := PiCCSNonzero.stateCurrent
   running := fun _ => transitionRunning fixture
   pc := 1
 
-def transitionOutputPreimageWords (fixture : PiDECNonzero.Fixture) : List F :=
+def transitionOutputPreimageWords (fixture : PiDECNonzero.Fixture)
+    (context : KeyDigest) : List F :=
   serializePreimage (publicFits := VerifierContext.candidatePublicFits)
-    (transitionOutputPreimage fixture)
+    (transitionOutputPreimage fixture context)
 
-def transitionOutputDigest (fixture : PiDECNonzero.Fixture) : Digest :=
+def transitionOutputDigest (fixture : PiDECNonzero.Fixture)
+    (context : KeyDigest) : Digest :=
   stateHash (publicFits := VerifierContext.candidatePublicFits)
-    (transitionOutputPreimage fixture)
+    (transitionOutputPreimage fixture context)
 
 def allMessageEvaluationsNonzero (fixture : PiDECNonzero.Fixture) : Bool :=
   (List.finRange productionGlobalParams.k).all fun child =>
@@ -184,7 +203,7 @@ def assuranceValue (fixture : PiDECNonzero.Fixture) : Value :=
     PiCCSParity.boolValue (allMessageEvaluationsNonzero fixture),
     PiCCSParity.boolValue (digitsHaveNonzero fixture)]
 
-def resultValue (fixture : PiDECNonzero.Fixture) : Value :=
+def resultValue (fixture : PiDECNonzero.Fixture) (context : KeyDigest) : Value :=
   .array [PiCCSParity.boolValue (PiDECNonzero.accepted fixture),
     PiCCSParity.boolValue (PiDECNonzero.parentBounded fixture),
     childPublicInputsValue fixture,
@@ -202,29 +221,32 @@ def resultValue (fixture : PiDECNonzero.Fixture) : Value :=
     PiCCSParity.stateValue (PiDECNonzero.outgoingState fixture),
     PiCCSParity.boolValue (PiDECNonzero.unboundedRejected fixture),
     assuranceValue fixture,
-    PiCCSParity.fieldWordsValue (transitionOutputPreimageWords fixture),
-    PiCCSParity.fieldWordsValue (transitionOutputDigest fixture)]
+    PiCCSParity.fieldWordsValue (transitionOutputPreimageWords fixture context),
+    PiCCSParity.fieldWordsValue (transitionOutputDigest fixture context)]
 
 def rejectedValue : Value :=
   .array [PiCCSParity.boolValue false]
 
-def parityValueForFixture (fixture : PiDECNonzero.Fixture) : Value :=
-  .array [.atom 2, inputValue fixture, resultValue fixture]
+def parityValueForFixture (fixture : PiDECNonzero.Fixture)
+    (context packageIdentity : VerifierContext.Digest4) : Value :=
+  .array [.atom 2, inputValue fixture packageIdentity,
+    resultValue fixture context.toList]
 
-def parityValue (_ : Unit) : Value :=
-  let computed := PiCCSNonzero.compute ()
+def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
+  let computed := PiCCSNonzero.compute () context.toList
   match Transcript.PiRlcSampler.piRlcChallengesWithState
       computed.outgoingState PiRLCNonzero.SourceCount with
   | some batch =>
-      parityValueForFixture (PiDECNonzero.makeFixture computed batch)
+      parityValueForFixture (fixtureFromComputed computed batch) context packageIdentity
   | none => .array [.atom 2, .array [], rejectedValue]
 
-def parityValueIO : IO Value := do
-  let computed ← PiCCSNonzero.computeIO
+def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value := do
+  let computed ← PiCCSNonzero.computeIO context.toList
   match Transcript.PiRlcSampler.piRlcChallengesWithState
       computed.outgoingState PiRLCNonzero.SourceCount with
   | some batch =>
-      pure (parityValueForFixture (PiDECNonzero.makeFixture computed batch))
+      pure (parityValueForFixture (fixtureFromComputed computed batch)
+        context packageIdentity)
   | none => throw (IO.userError "PiRLC sampler shortfall before PiDEC fixture")
 
 end NightstreamFPrime.Export.Stage1.PiDECParity

@@ -26,6 +26,8 @@ mod child_commitment;
 mod child_evaluations;
 #[path = "generate_pi_ccs_fixture/folded_opening.rs"]
 mod folded_opening;
+#[path = "generate_pi_ccs_fixture/native_driver.rs"]
+mod native_driver;
 #[path = "generate_pi_ccs_fixture/oracle.rs"]
 mod oracle;
 #[path = "generate_pi_ccs_fixture/ring_output.rs"]
@@ -238,6 +240,24 @@ fn prepare(candidate: &Path, expected: [u64; 4], fixture: &Path, output: &Path) 
 
 fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
+    if arguments
+        .first()
+        .is_some_and(|mode| matches!(mode.as_str(), "complete-driver" | "child-complete-driver"))
+    {
+        let children = arguments[0] == "child-complete-driver";
+        assert_eq!(arguments.len(), if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-PiCCS-result> [running-prefix] [folded-child-cache] <external-output>");
+        let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
+        native_driver::generate(
+            Path::new(&arguments[1]),
+            identity,
+            Path::new(&arguments[6]),
+            Path::new(&arguments[7]),
+            children.then(|| Path::new(&arguments[8])),
+            children.then(|| Path::new(&arguments[9])),
+            Path::new(arguments.last().expect("native prover output")),
+        );
+        return;
+    }
     if arguments
         .first()
         .is_some_and(|mode| mode == "child-family" || mode == "child-family-at-rounds")

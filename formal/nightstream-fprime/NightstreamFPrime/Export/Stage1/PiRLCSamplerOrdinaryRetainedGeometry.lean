@@ -74,6 +74,11 @@ def freshFits {program : Lifecycle.Stage1.Application.Program}
       logicalWidth :=
   geometry.completeFits
 
+def piRlcGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCRetainedGeometry.Geometry program logicalWidth :=
+  PiDECRetainedGeometry.piRlcGeometry (prefixGeometry geometry)
+
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment NightstreamFPrime.Spec.F logicalWidth)
@@ -83,5 +88,11 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (logicalStart program) (logicalFits geometry) assignment source
   fresh : (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).EncodesAt
     (freshStart program) (freshFits geometry) assignment source
+  reject : (PiRLCFirst54RetainedBlocks.rejectBlock program).EncodesAt
+    (PiRLCRetainedGeometry.rejectStart program)
+    (PiRLCRetainedGeometry.rejectFits (piRlcGeometry geometry)) assignment source
+  symbol : (PiRLCFirst54RetainedBlocks.symbolBlock program).EncodesAt
+    (PiRLCRetainedGeometry.symbolStart program)
+    (PiRLCRetainedGeometry.symbolFits (piRlcGeometry geometry)) assignment source
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry

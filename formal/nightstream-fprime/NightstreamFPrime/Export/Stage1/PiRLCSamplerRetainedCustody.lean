@@ -822,12 +822,9 @@ theorem resolvedEnv_logical
   rw [resolvedForm_of_source geometry
     (PiRLCSamplerOrdinaryRetainedBlocks.logicalSource_lt descriptor position)
     (PiRLCSamplerOrdinaryDirectPlan.classifySource_logical descriptor position)]
-  change ((PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock program).form
-    (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart program)
-    (PiRLCSamplerOrdinaryRetainedGeometry.logicalFits geometry)
-    (PiRLCSamplerOrdinaryRetainedBlocks.logicalSlot descriptor position)).eval
-      assignment = _
-  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.logical]
+  change (PiRLCSamplerCandidateWiring.logicalForm geometry descriptor position).eval
+    assignment = _
+  rw [PiRLCSamplerCandidateWiring.logicalForm_eval geometry assignment _ encodes]
   rw [PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_source]
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
   apply Eq.symm

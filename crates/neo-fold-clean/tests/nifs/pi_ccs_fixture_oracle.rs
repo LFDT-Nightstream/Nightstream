@@ -3,7 +3,7 @@
 
 use neo_ccs::{SparsePoly, Term};
 use neo_math::{from_complex, superneo_bar_block, Rq, D, F, K};
-use neo_reductions::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
+use neo_reductions::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_1OutputOpening};
 use p3_field::PrimeCharacteristicRing;
 
 #[path = "../../src/bin/generate_pi_ccs_fixture/oracle.rs"]
@@ -25,6 +25,71 @@ use oracle::{Oracle, LIVE_MATRICES, MATRICES, ROUNDS};
 
 fn scalar(value: u64) -> K {
     K::from(F::from_u64(value))
+}
+
+#[test]
+fn native_witnesses_keep_the_exact_fresh_then_running_source_values() {
+    let width = D + 1;
+    let fresh = vec![K::ONE, -K::ONE, K::ZERO, K::ONE];
+    let sources: [Vec<u8>; 16] = std::array::from_fn(|source| {
+        let mut values = vec![0; source + 1];
+        values[source] = if source % 2 == 0 { 1 } else { 255 };
+        values
+    });
+    let oracle = Oracle::new(
+        fresh.clone(),
+        vec![[K::ZERO; LIVE_MATRICES]],
+        &polynomial(),
+        vec![K::ZERO; ROUNDS],
+        K::ONE,
+    )
+    .with_distinct_running(vec![K::ZERO; width], vec![K::ZERO; ROUNDS], sources.clone());
+    let (native, running) = oracle.native_witnesses(width);
+    assert_eq!((native.rows(), native.cols()), (D, 2));
+    assert_eq!(running.len(), sources.len());
+    for column in 0..2 * D {
+        assert_eq!(
+            K::from(native[(column % D, column / D)]),
+            fresh.get(column).copied().unwrap_or(K::ZERO)
+        );
+        for (source, witness) in running.iter().enumerate() {
+            let expected = match sources[source].get(column).copied().unwrap_or(0) {
+                1 => F::ONE,
+                255 => -F::ONE,
+                _ => F::ZERO,
+            };
+            assert_eq!(
+                witness[(column % D, column / D)],
+                expected,
+                "source {source}, coordinate {column}"
+            );
+        }
+    }
+}
+
+#[test]
+fn complete_fixture_openings_require_the_finished_exact_point() {
+    let point: Vec<K> = (0..ROUNDS).map(|index| scalar(index as u64 + 2)).collect();
+    let opening = V1_1OutputOpening {
+        eval_k: vec![K::ZERO; D],
+        eval_a: vec![vec![K::ZERO; D]; MATRICES],
+    };
+    let mut oracle = Oracle::new(
+        vec![K::ZERO],
+        vec![[K::ZERO; LIVE_MATRICES]],
+        &polynomial(),
+        vec![K::ZERO; ROUNDS],
+        K::ONE,
+    )
+    .with_output_openings(point.clone(), vec![opening; 17]);
+    assert!(oracle.output_openings(&point).is_err());
+    for &challenge in &point {
+        oracle.fold(challenge).unwrap();
+    }
+    let mut changed = point.clone();
+    changed[0] += K::ONE;
+    assert!(oracle.output_openings(&changed).is_err());
+    assert_eq!(oracle.output_openings(&point).unwrap().unwrap().len(), 17);
 }
 
 fn partial(values: &[K], fixed: &[K], tail: usize) -> K {

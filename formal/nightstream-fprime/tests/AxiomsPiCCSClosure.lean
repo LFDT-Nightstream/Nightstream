@@ -1,4 +1,16 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
@@ -34,6 +46,67 @@ import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 /-! Fail-closed axiom coverage for the complete PiCCS compiler closure. -/
+
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.sourceHolds_iff_memberships
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.fixedWidthAcceptedProbe_implies_memberships_or_badEvent
+
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.sampleSpace_nonempty
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.uniformAverage_const
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.uniformAverage_congr
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.uniformAverage_mono
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.uniformAverage_add
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.uniformAverage_expect
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal.collisionProbability_le
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.badChallenge_implies_collision
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.false_acceptance_implies_collision
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.aborted_not_events
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.badChallengeProbability_le
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace.falseAcceptanceProbability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal.sequentialRoundRepresentable
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal.failure_implies_collision
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal.agreed_accepted_implies_mixing_or_collision
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_count_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_probability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.signed_gamma_probability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanMixingProbability.zeroProbability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability.mixingProbability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability.mixingProbability_fullField_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution.run_implies_receipt
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.roundAgreementProbability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.agreementProbability_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_error_le_sqrt
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_success_ge
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_success_ge_of_disagreement_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.clockMean_le_add_const
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.clockMean_run_eq_executionMean
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.executionMean_eq_sourceProbability
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.jointTapeLaw_apply
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.joint_clockMean_eq_nested
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.project_work
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.project_fresh
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.project_running
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.joinFresh_project
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.reconstruct_fresh
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.reconstruct_running
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection.reconstruct_project
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.project_fresh
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.project_running
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.project_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.project_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finish_return_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.ambient_implies_reconstruct
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finish_returns_reconstruction
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finish_source_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.sourceReturned_iff_memberships
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finish_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.run_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.run_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.run_source_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.successProbability_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.expected_work_bound
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction.expected_work_polynomial_bound
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction.successProbability_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction.probability_and_expected_work
 
 #audit_axioms NightstreamFPrime.Lifecycle.PilotZeroRunning.defaultRunning_holds
 

@@ -48,6 +48,10 @@ def productionProfile : ProductionProfile where
   runningSources := 16
   ccsMatrices := 14
 
+/-- Exact size of the five-symbol Phi81 challenge set. This is a count,
+not the rounded bit descriptor or an end-to-end security estimate. -/
+def productionChallengeSetCardinality : Nat := 5 ^ productionProfile.ringDegree
+
 /-- PiRLC inputs in exact `K + k` order. -/
 def ProductionProfile.piRlcInputs (p : ProductionProfile) : Nat :=
   p.freshSources + p.runningSources
@@ -77,6 +81,11 @@ theorem production_norm_stages :
     NormStage.bound productionGlobalParams .fresh = 2 ∧
     NormStage.bound productionGlobalParams .combined = 65536 ∧
     NormStage.bound productionGlobalParams .ambient = 9223372034707292161 := by
+  decide
+
+/-- Exact integer form of the paper's strict inequality `B < q / 2`. -/
+theorem production_bigB_below_half_modulus :
+    2 * productionGlobalParams.bigB < productionGlobalParams.q := by
   decide
 
 theorem production_msis_norm_bound :

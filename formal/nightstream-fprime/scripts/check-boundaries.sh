@@ -3,6 +3,17 @@
 # FPRIME_LEAN_ARCHITECTURE_SPEC.md. Every check is a hard failure.
 set -euo pipefail
 
+# Associative arrays require Bash 4. macOS ships Bash 3.2; use Homebrew when present.
+if (( BASH_VERSINFO[0] < 4 )); then
+  for boundary_shell in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -x "$boundary_shell" ]] && "$boundary_shell" -c '(( BASH_VERSINFO[0] >= 4 ))'; then
+      exec "$boundary_shell" "${BASH_SOURCE[0]}" "$@"
+    fi
+  done
+  echo "[boundary] Bash 4 or newer is required; run this script with a newer bash." >&2
+  exit 2
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 status=0

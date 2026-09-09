@@ -1,0 +1,1410 @@
+{
+  "requested_order": [
+    "PiRLC and PiDEC",
+    "remaining PiCCS"
+  ],
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536
+  },
+  "initial_counts": {
+    "R": {
+      "proof": [
+        27,
+        32
+      ],
+      "link": [
+        28,
+        32
+      ]
+    },
+    "D": {
+      "proof": [
+        20,
+        25
+      ],
+      "link": [
+        21,
+        26
+      ]
+    },
+    "C": {
+      "proof": [
+        31,
+        39
+      ],
+      "link": [
+        37,
+        39
+      ]
+    }
+  },
+  "remaining_records": [
+    {
+      "id": "R.security.fork",
+      "label": "Successful coordinate forks",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "For each source i, supply a successful fork that changes only rho_i, keeps all other challenges equal, and supplies valid combined openings for the base and fork.",
+      "remaining": "CompleteFork is an extraction input, not a proof that an efficient sampler obtains it.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/PaperForkExtraction.lean",
+          "line": 216,
+          "symbol": "CompleteFork"
+        }
+      ],
+      "depends_on": [
+        "R.sampler.member"
+      ]
+    },
+    {
+      "id": "R.security.probability",
+      "label": "Efficient fork probability",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "Discharge the paper expected-time coordinate extractor and its loss (K+k)/|C| and oracle-call bound; treat fixed-window sampler shortfall as a separate event.",
+      "remaining": "Fork algebra exists. The cited NIFS theorem exposes a forking-failure branch and proves no probability bound for it.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/PaperForkExtraction.lean",
+          "line": 216,
+          "symbol": "CompleteFork"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean",
+          "line": 430,
+          "symbol": "PiRLCForkingFailure"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean",
+          "line": 12,
+          "symbol": "probability ownership boundary"
+        }
+      ],
+      "depends_on": [
+        "R.security.fork",
+        "R.sampler.first54",
+        "N.security.fiat_shamir"
+      ]
+    },
+    {
+      "id": "R.connection.challenges",
+      "label": "Actual rho equals verifier rho",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "From arbitrary selected RowsZero and actual public input, prove decoded rho_i equals exact key.piRlcChallenges for every source and coefficient, starting at the actual PiCCS outgoing state.",
+      "remaining": "Ordinary-row custody is available. The full sampler bridge still requires PiCCS and sampler Encodes, endpoint and ordinary rows, canonical Poseidon semantics, First54 SourceHolds, and scope facts. Canonical raw Encodes does not cover arbitrary selected assignments.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerOrdinaryDirectPlanSemantics.lean",
+          "line": 44,
+          "symbol": "rowsZero_iff_rowsHold"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerRetainedCustody.lean",
+          "line": 704,
+          "symbol": "rowsHold_semanticEnv"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerFullSemantics.lean",
+          "line": 436,
+          "symbol": "directSemantics_imply_samplerChain"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 461,
+          "symbol": "piRlcChallenges_eq_key_of_initialState"
+        }
+      ],
+      "depends_on": [
+        "R.sampler.response",
+        "C.connection.actual",
+        "R.connection.sums"
+      ]
+    },
+    {
+      "id": "R.connection.native",
+      "label": "Native sampler conformance",
+      "proof": "partial",
+      "connection": "partial",
+      "requirement": "Compare each source domain, digest block, canonical candidate, accepted position, centered coefficient, shortfall outcome and final sampler state with the same Lean computation.",
+      "remaining": "Scoped tests exist. This review ran no tests; these fixtures do not by themselves prove full native NIFS conformance.",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_sampler_lean_parity.rs",
+          "line": 121,
+          "symbol": "decoder and shortfall parity"
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_sampler_lean_parity.rs",
+          "line": 161,
+          "symbol": "digest window parity"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCParity.lean",
+          "line": 200,
+          "symbol": "resultValue"
+        }
+      ],
+      "depends_on": [
+        "R.sampler.response"
+      ]
+    },
+    {
+      "id": "R.connection.schedule",
+      "label": "Extra native projection update",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "Resolve native projection_schedule against the selected Lean outgoing sampler state and state which transcript state is observable.",
+      "remaining": "Native code adds a transcript update after rho and combination. Projection data is absent from NIFS outputs, PiDEC draws no challenge, and the next PiCCS resets. This is a schedule difference; no output mismatch or exploit was established.",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc.rs",
+          "line": 418,
+          "symbol": "projection_schedule call"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc.rs",
+          "line": 668,
+          "symbol": "projection digest"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc.rs",
+          "line": 671,
+          "symbol": "append_digest and beta squeeze"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCParity.lean",
+          "line": 191,
+          "symbol": "outgoing sampler state"
+        }
+      ],
+      "depends_on": [
+        "R.sampler.response",
+        "N.native.order"
+      ]
+    },
+    {
+      "id": "D.security.children",
+      "label": "Obtain child openings",
+      "proof": "assumption",
+      "connection": "open",
+      "requirement": "Supply valid openings for all k verifier-produced children or expose child-opening failure. The public PiDEC equations alone do not supply child witnesses.",
+      "remaining": "A later proof layer must discharge this premise. The deterministic NIFS theorem exposes failure otherwise.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean",
+          "line": 408,
+          "symbol": "ChildOpenings"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean",
+          "line": 447,
+          "symbol": "PiDECChildOpeningFailure"
+        }
+      ],
+      "depends_on": [
+        "D.verify.output"
+      ]
+    },
+    {
+      "id": "D.security.public_coin",
+      "label": "Deterministic verifier",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "PiDEC introduces no new random challenge; it checks bound, split and recomposition.",
+      "remaining": "",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiDEC/PaperVerifier.lean",
+          "line": 262,
+          "symbol": "acceptedDecision"
+        },
+        {
+          "path": "crates/neo-reductions/src/api/dec.rs",
+          "line": 15,
+          "symbol": "verify_dec_public"
+        }
+      ],
+      "depends_on": [
+        "D.verify.decision"
+      ]
+    },
+    {
+      "id": "D.connection.parent",
+      "label": "Actual parent equals NIFS parent",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "Identify the actual decoded PiDEC parent with key.parentForChallenges computed from the exact PiCCS outputs and exact verifier rho.",
+      "remaining": "Compose the actual sums with exact rho and input identifications. Canonical phase wiring is not itself this arbitrary-row equality.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiRLCValues.lean",
+          "line": 240,
+          "symbol": "selectedRowsAndPublic_imply_sums"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDEC.lean",
+          "line": 266,
+          "symbol": "selectedRowsAndPublic_imply_phaseHolds"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 401,
+          "symbol": "piRlcOutput_eq_keyParentForChallenges_of_inputs"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 759,
+          "symbol": "piDecParent_eq_piRlcOutput"
+        }
+      ],
+      "depends_on": [
+        "R.connection.sums",
+        "R.connection.challenges",
+        "D.connection.phase"
+      ]
+    },
+    {
+      "id": "D.connection.messages",
+      "label": "Actual messages fill NIFS proof",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "Decode every actual child commitment, Eval_K and Eval_A coordinate into the NIFS proof; prove key.piDecAttempt equals that actual attempt.",
+      "remaining": "withDecodedPiCCS replaces PiCCS fields and retains template PiDEC fields. Finish the actual message decoder and exact coordinate equalities.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualStep.lean",
+          "line": 61,
+          "symbol": "withDecodedPiCCS"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 499,
+          "symbol": "keyPiDecAttempt_eq_some_of_wiring"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 776,
+          "symbol": "piDecAttempt_eq_keyAttemptForParent"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDEC.lean",
+          "line": 266,
+          "symbol": "selectedRowsAndPublic_imply_phaseHolds"
+        }
+      ],
+      "depends_on": [
+        "D.connection.parent",
+        "D.connection.phase"
+      ]
+    },
+    {
+      "id": "D.connection.output",
+      "label": "Computed output equals carried output",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "After attempt identification, prove verifier-computed children equal the actual carried output state, including split public prefixes, commitments and both evaluation families.",
+      "remaining": "The carried-state projection and local phase output are proved in their own environments. Finish their equality through the exact attempt bridge.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 587,
+          "symbol": "keyOutput_eq_some_of_attempt"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/AccumulatorSemantics.lean",
+          "line": 923,
+          "symbol": "outputForAttempt_eq_accumulatorOutput"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualRunningTransition.lean",
+          "line": 181,
+          "symbol": "selectedOutputRunning_eq_running"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualStep.lean",
+          "line": 350,
+          "symbol": "selectedRowsAndPublic_step_iff_baseOrPiDec"
+        }
+      ],
+      "depends_on": [
+        "D.connection.messages",
+        "D.verify.output"
+      ]
+    },
+    {
+      "id": "D.connection.native",
+      "label": "Native PiDEC conformance",
+      "proof": "partial",
+      "connection": "partial",
+      "requirement": "Compare native accepted/rejected attempts and every computed child with the same Lean bounded split and recomposition.",
+      "remaining": "Scoped fixtures exist. Some use zero relation/key and solved child messages; they do not prove actual production witness openings.",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_dec_lean_nonzero_parity.rs",
+          "line": 757,
+          "symbol": "full result parity"
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_dec_lean_nonzero_parity.rs",
+          "line": 789,
+          "symbol": "input mutations"
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_dec_lean_nonzero_parity.rs",
+          "line": 880,
+          "symbol": "output comparator"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECNonzero.lean",
+          "line": 5,
+          "symbol": "synthetic fixture scope"
+        }
+      ],
+      "depends_on": [
+        "D.verify.decision",
+        "D.verify.output"
+      ]
+    },
+    {
+      "id": "C.input.fresh",
+      "label": "Fresh CCS input",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "For each i<K, use the selected structure, c_i=L(Pack([x_i,w_i])), public projection x_i, norm(z_i)<b, and f(M_0*z_i,...,M_(t-1)*z_i)=0 at every Boolean row.",
+      "remaining": "This is an input relation premise. The native constructor checks shape, norm and commitment, but does not replace the CCS polynomial proof.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongReduction.lean",
+          "line": 489,
+          "symbol": "SourceHolds"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/paper/relations/instance.rs",
+          "line": 40,
+          "symbol": "CcsInstance construction"
+        }
+      ],
+      "depends_on": [
+        "F.packing.pack",
+        "F.commitment.ajtai",
+        "N.profile.relation"
+      ]
+    },
+    {
+      "id": "C.input.running",
+      "label": "Prior CE input",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "For each prior q<k, require selected structure, commitment/public opening, norm<b, common point r, full Eval_K coefficients, and full Eval_A coefficients for each matrix.",
+      "remaining": "Valid prior openings remain a relation premise. Shared carried digests alone do not prove it.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongReduction.lean",
+          "line": 160,
+          "symbol": "sourceConnectedInputs"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongReduction.lean",
+          "line": 489,
+          "symbol": "SourceHolds"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/pi_ccs_joint_protocol.rs",
+          "line": 128,
+          "symbol": "validate_selected_inputs"
+        }
+      ],
+      "depends_on": [
+        "F.transform.matrix_product",
+        "F.multilinear.mle",
+        "N.binding.prior_authority"
+      ]
+    },
+    {
+      "id": "C.prover.eval_k_index",
+      "label": "Eval_K index",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "For prior q in [0,k) and coefficient ell in [0,d), use I_K=q+k*ell, the zero-based form of paper I_K.",
+      "remaining": "",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SignedJointIdentity.lean",
+          "line": 156,
+          "symbol": "padAt"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 87,
+          "symbol": "eval_k_gamma_exponent"
+        }
+      ],
+      "depends_on": [
+        "N.profile.shape"
+      ]
+    },
+    {
+      "id": "C.prover.eval_a_index",
+      "label": "Eval_A index",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "For prior q in [0,k), matrix j in [0,t) and coefficient ell in [0,d), use I_A=q+k*j+k*t*ell.",
+      "remaining": "",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SignedJointIdentity.lean",
+          "line": 165,
+          "symbol": "matrixAt"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 99,
+          "symbol": "eval_a_gamma_exponent"
+        }
+      ],
+      "depends_on": [
+        "N.profile.shape"
+      ]
+    },
+    {
+      "id": "C.prover.eval_k",
+      "label": "Eval_K polynomial",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "Eval_K(X)=eq(X,r)*sum(q<k,ell<d) gamma^(q+k*ell)*coeff_ell(h_(K+q)(X)).",
+      "remaining": "",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/ProtocolPolynomial.lean",
+          "line": 238,
+          "symbol": "padAtMessage"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 162,
+          "symbol": "Eval_K accumulator"
+        }
+      ],
+      "depends_on": [
+        "C.prover.eval_k_index",
+        "F.multilinear.eq"
+      ]
+    },
+    {
+      "id": "C.prover.eval_a",
+      "label": "Eval_A polynomial",
+      "proof": "definition",
+      "connection": "connected",
+      "requirement": "Eval_A(X)=eq(X,r)*sum(q<k,j<t,ell<d) gamma^(q+k*j+k*t*ell)*coeff_ell(h_(K+q),j(X)).",
+      "remaining": "",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/ProtocolPolynomial.lean",
+          "line": 254,
+          "symbol": "matrixAtMessage"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 168,
+          "symbol": "Eval_A accumulator"
+        }
+      ],
+      "depends_on": [
+        "C.prover.eval_a_index",
+        "F.multilinear.eq"
+      ]
+    },
+    {
+      "id": "C.security.probability",
+      "label": "Mixing and sumcheck probability bounds",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "Discharge the paper mixing bound (k*d*(t+1)+2*K+k-1+log2(m))/|Kfield| and sumcheck bound max(u,2*b,2)*log2(m)/|Kfield|, then the conditional expected-time extraction argument.",
+      "remaining": "Degree and named-event reductions exist. They do not give selected Poseidon2 Fiat-Shamir event probabilities or the Appendix B.2 expected-time extractor.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SignedCoefficientPolynomial.lean",
+          "line": 203,
+          "symbol": "polynomial_degreeUpperBound"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongReduction.lean",
+          "line": 890,
+          "symbol": "fixedWidthAcceptedProbe_extracts_source_or_badEvent"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean",
+          "line": 12,
+          "symbol": "probability ownership boundary"
+        }
+      ],
+      "depends_on": [
+        "C.security.extraction",
+        "F.field.extension.irreducible",
+        "N.security.fiat_shamir"
+      ]
+    },
+    {
+      "id": "C.connection.native",
+      "label": "Actual native assignment to Lean polynomial",
+      "proof": "partial",
+      "connection": "open",
+      "requirement": "For a nonzero assignment and selected matrices/key, connect native packing, honest polynomial, causal rounds and full outputs to the same Lean protocol data and export.",
+      "remaining": "Existing synthetic fixture parity and recorded honest diagnostics do not close the selected Compiler/Conformance gate.",
+      "code": [
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 539,
+          "symbol": "prove_with_trace_inner"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNonzero.lean",
+          "line": 7,
+          "symbol": "synthetic fixture scope"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSInputCheck.lean",
+          "line": 216,
+          "symbol": "verifierInput_eq_production"
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_ccs_lean_nonzero_parity.rs",
+          "line": 613,
+          "symbol": "fixture parity"
+        }
+      ],
+      "depends_on": [
+        "C.connection.actual",
+        "C.prover.joint",
+        "N.profile.relation"
+      ]
+    }
+  ],
+  "completed_records": [
+    {
+      "id": "R.connection.challenges",
+      "proof": "proved",
+      "connection": "connected",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiRLC.lean",
+          "symbol": "selectedRowsAndPublic_imply_keyChallenges",
+          "line": 161
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiRLC.lean",
+          "symbol": "selectedRowsAndPublic_imply_batch",
+          "line": 112
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiRLC.lean",
+          "symbol": "productChallenge_eq",
+          "line": 99
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      },
+      "scope": "Arbitrary accepted selected rows and actual public input determine the exact PiCCS outgoing state, all 17 verifier-derived PiRLC challenges and every coefficient, and the final sampler state. No honest-encoder or caller-supplied Encodes premise is required. Accepted rows force sampling success; the bounded verifier still rejects shortfall."
+    },
+    {
+      "id": "D.connection.parent",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "Every field of the actual decoded parent equals the exact verifier parent from arbitrary selected rows and actual public input.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECParent.lean",
+          "symbol": "selectedRowsAndPublic_imply_parentForChallenges",
+          "line": 548
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECParent.lean",
+          "symbol": "selectedRowsAndPublic_imply_parent",
+          "line": 616
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "D.connection.messages",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "All 16 actual child message families form the exact production attempt; no external proof template is a premise.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECMessages.lean",
+          "symbol": "proof_commitment_eq",
+          "line": 54
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECMessages.lean",
+          "symbol": "proof_evalK_eq",
+          "line": 67
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECMessages.lean",
+          "symbol": "proof_evalA_eq",
+          "line": 80
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECMessages.lean",
+          "symbol": "selectedRowsAndPublic_imply_attempt",
+          "line": 133
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "D.security.children",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "Consumes the valid witness of the exact output relation, as required by the reduction experiment. The actual recursive terminal payload supplies all 16 openings. Bare public acceptance does not supply witnesses.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiDEC/OutputWitnessConsumer.lean",
+          "symbol": "accepted_outputWitness_extracts_parent",
+          "line": 136
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/OutputWitnessConsumer.lean",
+          "symbol": "terminalHolds_extracts_parent",
+          "line": 88
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/OutputWitnessConsumer.lean",
+          "symbol": "recursiveTerminal_supplies_childOpenings",
+          "line": 109
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "D.security.public_coin",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "The existing constructive public decision is the exact production PiDEC check. It introduces no new random challenge after the upstream parent is computed.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiDEC/PaperVerifier.lean",
+          "symbol": "acceptedDecision",
+          "line": 262
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PaperAlgebra.lean",
+          "symbol": "piDecDecision",
+          "line": 519
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperNonInteractive/Verifier.lean",
+          "symbol": "piDecCheck_eq_true_iff",
+          "line": 107
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.prover.eval_k_index",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "Existing audited exponent-order and terminal-consumer results establish the exact local Eval_K index. Native prover conformance and source witness validity retain their separate records.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/Coefficients.lean",
+          "symbol": "canonicalPadCoordinates_localGammaExponents",
+          "line": 397
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/FinalIdentity.lean",
+          "symbol": "evaluateOutputPadCoefficients_eq_sum",
+          "line": 200
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiCCS/v1_1/EvalKTerminal.lean",
+          "symbol": "spec_implies_keyPadAtMessage",
+          "line": 179
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.prover.eval_a_index",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "Existing audited exponent-order and terminal-consumer results establish the exact local Eval_A index, before the separate global shift.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/Coefficients.lean",
+          "symbol": "canonicalMatrixCoordinates_localGammaExponents",
+          "line": 434
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/FinalIdentity.lean",
+          "symbol": "evaluateOutputMatrixCoefficients_eq_sum",
+          "line": 222
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiCCS/v1_1/EvalATerminal.lean",
+          "symbol": "spec_implies_keyMatrixAtMessage",
+          "line": 178
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.prover.eval_k",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "The exact point-weighted polynomial formula is proved for arbitrary points and output messages and is consumed by the production terminal phase. Source truth and native honest-prover data retain their own records.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/FinalIdentity.lean",
+          "symbol": "padAtMessage_eq_pointEquality_mul_horner",
+          "line": 244
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiCCS/v1_1/EvalKTerminal.lean",
+          "symbol": "spec_implies_keyPadAtMessage",
+          "line": 179
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.prover.eval_a",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "The exact point-weighted local matrix polynomial formula is proved and consumed by the production terminal phase. The final identity owns the global k*d shift.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/FinalIdentity.lean",
+          "symbol": "matrixAtMessage_eq_pointEquality_mul_horner",
+          "line": 262
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiCCS/v1_1/EvalATerminal.lean",
+          "symbol": "spec_implies_keyMatrixAtMessage",
+          "line": 178
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "R.security.fork",
+      "scope": "The uniform interactive experiment produces the exact successful coordinate forks. The base and all fork assignments feed the existing source-opening extractor unchanged. The runtime bound and Fiat-Shamir transfer remain separate.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateForkEvent.lean",
+          "symbol": "positive_outcome_implies_event",
+          "line": 86
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateForkEvent.lean",
+          "symbol": "completeFork_probability_lower_bound",
+          "line": 197
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateExtraction.lean",
+          "symbol": "event_implies_extracted_openings",
+          "line": 40
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "R.connection.native",
+      "scope": "Current Lean and Rust checks agree on all 17 sources, 8 digest blocks per source, all 64 candidates, the selected 54 positions and centered coefficients, shortfall rejection, and final sampler state. Complete parent and prefix results also agree. This is scoped phase conformance; full native NIFS conformance remains separate.",
+      "rust": "tested_scoped",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_sampler_lean_parity.rs",
+          "symbol": "transcript_windows_and_both_engines_match_lean",
+          "line": 190
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_sampler_lean_parity.rs",
+          "symbol": "direct_decoder_matches_lean_boundaries_and_fails_closed",
+          "line": 138
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_lean_nonzero_parity.rs",
+          "symbol": "lean_paper_exact_and_optimized_match_complete_nonzero_pi_rlc_result",
+          "line": 461
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "R.connection.schedule",
+      "scope": "The checked native wrapper returns the same combined parent. Lean reports the state after sampling. Native code then applies projection updates, which change the transcript visible to the caller. The boundary is resolved; the two outgoing transcript states are not claimed equal. PiDEC draws no new challenge and the next PiCCS resets its transcript.",
+      "rust": "tested_scoped",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_rlc_lean_nonzero_parity.rs",
+          "symbol": "native_pi_rlc_wrapper_matches_lean_parent_and_identifies_projection_state",
+          "line": 545
+        },
+        {
+          "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc.rs",
+          "symbol": "projection_schedule_with_digest",
+          "line": 530
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "D.connection.output",
+      "scope": "Arbitrary accepted selected rows and actual public input imply the exact verifier-computed children equal the actual carried running state, including public prefixes, commitments, point, Eval_K and Eval_A. The full typed step theorem covers both branches and uses the actual decoded messages. Canonical verifier-context authority remains a separate contract.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECOutput.lean",
+          "symbol": "selectedRowsAndPublic_imply_output",
+          "line": 105
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECOutput.lean",
+          "symbol": "selectedRowsAndPublic_imply_step",
+          "line": 153
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ActualPiDECCarriedValues.lean",
+          "symbol": "selectedRunningOutput_eq",
+          "line": 255
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "D.connection.native",
+      "scope": "Current Lean and both Rust engines agree on accepted and rejected public attempts, strict parent-bound rejection, all 16 digits and range checks, recomposition, and every child commitment, public input and evaluation family. The test also calls the native wrapper. Fixtures use the same checked selected package and setup. This checks the public phase equations; honest source openings and full native prover conformance retain their separate contracts.",
+      "rust": "tested_scoped",
+      "code": [
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_dec_lean_nonzero_parity.rs",
+          "symbol": "lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result",
+          "line": 797
+        },
+        {
+          "path": "crates/neo-fold-clean/tests/nifs/pi_dec_lean_nonzero_parity.rs",
+          "symbol": "both_engines_reject_every_indexed_pi_dec_input_family_mutation",
+          "line": 847
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.input.fresh",
+      "scope": "The source relation is exactly the product of fresh CCS memberships and prior CE memberships for the same structure, openings, public inputs and b=2 bound. The existing extraction theorem returns these exact memberships on its successful branch. Fresh validity remains a relation premise or extraction result; constructor checks do not establish it.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SourceMembership.lean",
+          "symbol": "sourceHolds_iff_memberships",
+          "line": 108
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SourceMembership.lean",
+          "symbol": "fixedWidthAcceptedProbe_implies_memberships_or_badEvent",
+          "line": 158
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.input.running",
+      "scope": "The source relation supplies the exact prior CE memberships, with one common point and all separate Eval_K and Eval_A coefficients. The existing extraction theorem returns these memberships in the fresh-then-running order. This does not derive valid openings from carried digests or constructor checks.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SourceMembership.lean",
+          "symbol": "sourceHolds_iff_memberships",
+          "line": 108
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SourceMembership.lean",
+          "symbol": "fixedWidthAcceptedProbe_implies_memberships_or_badEvent",
+          "line": 158
+        }
+      ],
+      "proof": "proved",
+      "connection": "connected",
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-folding-current-full-audit.log",
+        "library_jobs": 3683,
+        "library_seconds": 17,
+        "test_jobs": 3720,
+        "tests_seconds": 10,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/validated-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "R.security.probability",
+      "proof": "proved",
+      "connection": "connected",
+      "scope": "The same interactive execution proves success at least \u03b5\u2212n/|C|, at most n+1 expected oracle calls, and the total expected work of the retry loop and terminal extractor. Aborts, rejected retries, repeated challenges, CE checks and failed terminal paths are included. Every positive-mass returned list is the exact source-witness list. Polynomial time follows under the paper EPT/PPT bounds on the computed checked-call mean and the correct primitive implementations. No fixed cap on individual oracle calls is required. The bounded Poseidon sampler and Fiat-Shamir transfer remain separate.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateExtraction.lean",
+          "symbol": "bounds_and_openings",
+          "line": 183
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateExtraction.lean",
+          "symbol": "positive_return_implies_openings",
+          "line": 140
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateExtraction.lean",
+          "symbol": "expectedTotalWork_bound",
+          "line": 84
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiRLC/CoordinateExtraction.lean",
+          "symbol": "expectedTotalWork_polynomial_bound",
+          "line": 112
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-pirlc-runtime-full-audit.log",
+        "library_jobs": 3690,
+        "library_seconds": 7,
+        "test_jobs": 3727,
+        "tests_seconds": 5,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/pirlc-runtime-source-manifest.json",
+        "public_map_updated": true
+      }
+    },
+    {
+      "id": "C.security.probability",
+      "proof": "proved",
+      "connection": "connected",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/SignedMixingProbability.lean",
+          "symbol": "mixingProbability_fullField_le",
+          "line": 179
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/IndependentExecution.lean",
+          "symbol": "agreementProbability_le",
+          "line": 149
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongProbability.lean",
+          "symbol": "source_error_le_sqrt",
+          "line": 693
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/OneRunExtraction.lean",
+          "symbol": "successProbability_eq",
+          "line": 121
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongExtraction.lean",
+          "symbol": "probability_and_expected_work",
+          "line": 83
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/CheckedWitnessExtraction.lean",
+          "symbol": "sourceReturned_iff_memberships",
+          "line": 148
+        }
+      ],
+      "validation": {
+        "command": "formal/nightstream-fprime/scripts/validate.sh all",
+        "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-piccs-extraction-full-audit.log",
+        "library_jobs": 3750,
+        "library_seconds": 4,
+        "test_jobs": 3787,
+        "tests_seconds": 7,
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-extraction-source-manifest.json",
+        "public_map_updated": true
+      },
+      "scope": "The exact paper mixing and causal sumcheck bounds feed the global square-root extraction error. The implemented extractor calls the prover once, checks the same output, returns fresh private tails and full running witnesses, and satisfies the existing CCS/CE source relation. Success and actual call/check/copy/control work use the same joint context/tape law. Expected polynomial time has explicit bounds on that global call/check mean and correct field-access implementation; no per-context adversary cap is imposed. Fiat-Shamir transfer and setup hardness remain separate."
+    },
+    {
+      "id": "C.connection.native",
+      "proof": "proved",
+      "connection": "connected",
+      "rust": "tested_scoped",
+      "code": [
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 839,
+          "symbol": "prove_with_complete_oracle"
+        },
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 552,
+          "symbol": "prove_with_trace_inner"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture/oracle.rs",
+          "line": 207,
+          "symbol": "Oracle::native_witnesses"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture/native_driver.rs",
+          "line": 166,
+          "symbol": "generate"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSInputCheck.lean",
+          "line": 276,
+          "symbol": "verifierInput_eq_production"
+        },
+        {
+          "path": "crates/nightstream-fprime/tests/pi_ccs_opening_values.rs",
+          "line": 158,
+          "symbol": "external_positive_fresh_opening_family"
+        },
+        {
+          "path": "crates/nightstream-fprime/tests/pi_ccs_child_evaluations.rs",
+          "line": 240,
+          "symbol": "independent_actual_child_evaluation_family"
+        },
+        {
+          "path": "crates/nightstream-fprime/tests/pi_ccs_child_recomposition.rs",
+          "line": 71,
+          "symbol": "all_child_evaluations_recompose_to_the_preceding_pi_ccs_output"
+        },
+        {
+          "path": "crates/nightstream-fprime/tests/unit/pi_ccs_prefix_assignment.rs",
+          "line": 460,
+          "symbol": "external_positive_pi_ccs_prefix"
+        }
+      ],
+      "validation": {
+        "gate_results": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-gate-results.json",
+        "registered_gates_passed": 91,
+        "registered_gates_total": 91,
+        "source_cut": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-source-cut-2026-09-08.json",
+        "independent_review": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-independent-review-2026-09-08.md",
+        "recursive_equivalence": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/recursive-native-equivalence.json",
+        "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+        "uncommitted_worktree": true,
+        "public_map_updated": true,
+        "final_source_input_confirmation": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-final-source-input-confirmation.json"
+      },
+      "scope": "Selected native conformance is closed for the honest base and actual-child recursive cases on the same Nightstream Goldilocks package, matrices and setup. The actual optimized prover, executable Lean and both Rust verifiers agree on the full PiCCS result. All 91 registered checks pass: exact matrices, raw assignments, every opening family and commitment, all 16 children at both points, parent/caller handoffs, ownership and required mutations. The twelve-owner formula map and changed driver were independently reviewed. This is scoped conformance evidence; universal Rust correctness and full Stage 1 production approval retain their own requirements."
+    }
+  ],
+  "partial_progress": [
+    {
+      "id": "C.security.probability",
+      "remaining": "Canonical fresh-tail/full-running projection, actual costed-access projection, exact accepted-ambient checking and Phi81 source reconstruction now pass the full audit. Joint context/tape sampling and bounded-event averaging are proved, including clock summability helpers. Still missing: the final one-call probability equality and the global probability/runtime consumer. Its third check stopped at two nondefinitional event-indicator equalities; exact drafts and notes are preserved outside production. The final runtime draft now uses only a global actual call/check EPT premise, allowing rare expensive contexts. Fiat-Shamir transfer remains separate.",
+      "code": [
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongProbability.lean",
+          "line": 673,
+          "symbol": "source_error_le_sqrt"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongProbability.lean",
+          "line": 723,
+          "symbol": "source_success_ge"
+        },
+        {
+          "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongProbability.lean",
+          "line": 735,
+          "symbol": "source_success_ge_of_disagreement_le"
+        }
+      ]
+    },
+    {
+      "id": "C.connection.native",
+      "remaining": "All direct base-positive opening gates now pass: Pad, all 14 matrix families, CCS and the selected commitment. All 16 actual child commitments and parent recomposition pass independent checks. All 15 child input evaluation families are generated, but their independent checks remain pending. Still missing: those checks and child recomposition, the actual recursive caller and native proof with both evaluation points and fresh opening checks, plus remaining registered pilot/mutation/ownership gates. No complete native-conformance claim is made.",
+      "code": [
+        {
+          "path": "crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs",
+          "line": 839,
+          "symbol": "prove_with_complete_oracle"
+        },
+        {
+          "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture/native_driver.rs",
+          "line": 166,
+          "symbol": "generate"
+        }
+      ]
+    }
+  ],
+  "current_open_records": [],
+  "current_validation": {
+    "command": "formal/nightstream-fprime/scripts/validate.sh all",
+    "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-piccs-extraction-full-audit.log",
+    "library_jobs": 3750,
+    "library_seconds": 4,
+    "test_jobs": 3787,
+    "tests_seconds": 7,
+    "root_head": "4fc02857c3aa4207f3290739cc62d794ba86f5f9",
+    "uncommitted_worktree": true,
+    "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-extraction-source-manifest.json",
+    "public_map_updated": true,
+    "scope": "All 19 original folding closure records are proved and connected. The checked PiCCS extraction source remains unchanged; all 91 registered native conformance checks pass."
+  },
+  "native_validation": {
+    "log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-current-folding-native-parity.log",
+    "tests_passed": 14,
+    "phase_seconds": {
+      "PiCCS": 43.56,
+      "PiDEC": 21.72,
+      "PiRLC": 22.3,
+      "sampler": 0.0
+    },
+    "logical_matrix_log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-current-logical-conformance.log",
+    "structural_binding_seconds": 18.674324375,
+    "logical_conformance_seconds": 28.349486584,
+    "piccs_honest_base": {
+      "status": "conformance_closed",
+      "driver_log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-honest-base-native-driver-first.log",
+      "driver_seconds": 20.584262125,
+      "driver_prover_seconds": 1.920606,
+      "three_way_log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-honest-base-three-way.log",
+      "three_way_seconds": 18.625429041,
+      "rounds_seconds": 2.350320583,
+      "families_seconds": 91.762750333,
+      "lean_check_seconds": 7,
+      "driver_tests_passed": 4,
+      "oracle_tests_passed": 11,
+      "source_manifest": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-causal-mixing-source-manifest.json"
+    },
+    "gate_results": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-gate-results.json",
+    "physical_matrix_seconds": 23.201547875,
+    "base_assignment_seconds": 35.39174975,
+    "physical_matrix_nonzeros": [
+      93701820,
+      39358148,
+      28868018
+    ],
+    "physical_rows_checked": 29225729,
+    "logical_rows_checked": 6377559,
+    "registered_gate_executions_passed": 91,
+    "child_commitment_seconds": 58.849030334,
+    "child_parent_recomposition_seconds": 18.753228209,
+    "child_input_family_generation_seconds": 103.832912625,
+    "piccs_actual_child_recursive": {
+      "status": "conformance_closed",
+      "driver_log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-recursive-native-driver.log",
+      "driver_seconds": 29.180578833,
+      "driver_prover_seconds": 5.892138,
+      "three_way_log": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/nightstream-recursive-piccs-accept.log",
+      "three_way_seconds": 18.049501334,
+      "lean_check_seconds": 8,
+      "raw_assignment_seconds": 35.530020875,
+      "prefix_test_seconds": 116.48,
+      "source_cut": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-source-cut-2026-09-08.json",
+      "independent_review": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/piccs-native-formula-independent-review-2026-09-08.md"
+    },
+    "final_source_input_confirmation": "/Users/nicarq/starstream/develop/nightstream-stage1-evidence/folding-closure-2026-09-08/native-final-source-input-confirmation.json"
+  },
+  "publication": {
+    "status": "succeeded",
+    "url": "https://nightstream-requirements.nicarq.chatgpt.site/",
+    "version_number": 15,
+    "site_commit": "e57c018ccc7c2ceb223d41afcb1dad156298db6b",
+    "version_id": "appgprj_6a9f572526f48191bbe2f0718c03d1ec~appgver_5e810cc7ea3481919ab001f66bcbd9ac",
+    "deployment_id": "appgdep_6aa0a7ea7efc819196c40322d0f563c1",
+    "published_at": "2026-09-09T00:28:14.631431+00:00",
+    "live_json_matches": true,
+    "counts": {
+      "C": {
+        "proof": "39/39",
+        "link": "39/39"
+      },
+      "R": {
+        "proof": "32/32",
+        "link": "32/32"
+      },
+      "D": {
+        "proof": "26/26",
+        "link": "26/26"
+      }
+    }
+  }
+}

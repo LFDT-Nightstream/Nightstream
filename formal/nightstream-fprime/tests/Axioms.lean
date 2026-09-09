@@ -6,8 +6,8 @@ import tests.AxiomsStage1Accumulator
 import tests.AxiomsStage1Application
 import tests.AxiomsStage1Assembler
 import tests.AxiomsAjtaiSetupV1
-/-! Axiom gate. Every exported theorem has an explicit import and `#print axioms`.
-The gate fails if a theorem uses axioms outside the allowed set. -/
+import tests.AxiomsFoundations
+/-! Axiom gate. Explicit audits reject axioms outside the allowed set. -/
 /-! ## Spec -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
 #audit_axioms NightstreamFPrime.Spec.production_parameter_values

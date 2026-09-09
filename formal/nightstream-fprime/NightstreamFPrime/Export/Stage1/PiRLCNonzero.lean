@@ -38,7 +38,7 @@ def sampled (_ : Unit) : Option (Transcript.PiRlcSampler.Batch SourceCount) :=
   Transcript.PiRlcSampler.piRlcChallengesWithState (initialState ()) SourceCount
 
 def inputCommitment (source : Fin SourceCount) : PaperAlgebra.Commitment :=
-  Fin.addCases fresh.commitments running.commitments (sourceIndex source)
+  Fin.addCases (fun _ => freshCommitment) running.commitments (sourceIndex source)
 
 /-- The downstream fixture still uses the fixed 270-coordinate candidate
 carrier. This view evaluates the same key-bound PiCCS digest in that carrier;

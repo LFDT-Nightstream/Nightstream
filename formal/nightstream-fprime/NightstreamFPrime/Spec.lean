@@ -7,5 +7,12 @@ import NightstreamFPrime.Spec.Folding
 import NightstreamFPrime.Spec.HyperNova
 import NightstreamFPrime.Spec.Phi81Relation
 import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.GoldilocksExtension
+import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
+import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
+import NightstreamFPrime.Spec.FieldTower
+import NightstreamFPrime.Spec.AjtaiSetupV1.WordOperations
+import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 
 /-! Spec layer root. Lists the modules of this layer explicitly. -/

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
@@ -181,7 +182,7 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   matrixSource := matrixSource relation.system
   degreeBoundExact := derivedDegreeBound_eq relation
   constantLaw := Phi81CoefficientKernel.phi81ConstantTermLaw
-  challengeSetSize := 5 ^ ringDegree
+  challengeSetSize := productionChallengeSetCardinality
   piRlcSemantics := semantics ajtai
   openingAgreement := openingAgreement ajtai
   ambientAgreement := ambientAgreement ajtai
@@ -208,6 +209,25 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   absorbPiCcsOutput := absorbFullOutput
   piRlcResponse := piRlcResponse
   piRlcResponseValid := piRlcResponse_valid
+
+/-- The key's selected challenge count is exactly the cardinality of the
+production PiRLC membership predicate. -/
+theorem key_challengeSetSize_cardinality
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (key relation ajtai).challengeSetSize =
+      Nat.card {value : RingF // Phi81StrongSet.ProductionMember value} := by
+  change productionChallengeSetCardinality = _
+  exact Phi81StrongSet.productionMember_cardinality.symm
+
+/-- The production key's own combined norm bound meets the paper condition. -/
+theorem key_bigB_below_half_modulus
+    (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    2 * (key relation ajtai).params.bigB < (key relation ajtai).params.q :=
+  production_bigB_below_half_modulus
 
 /-- The production key uses the canonical complete `y′` absorber. This
 projection theorem lets circuit coverage proofs keep the rest of the key

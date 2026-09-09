@@ -814,6 +814,8 @@ private theorem samplerOrdinaryEncodes {application : Program}
   fresh := (position30 raw).encodes
     (PiRLCSamplerOrdinaryRetainedGeometry.freshFits
       (samplerGeometry application))
+  reject := (retainedEncodes raw).reject
+  symbol := (retainedEncodes raw).symbol
 
 /-- Canonical assignment evidence through the complete sampler prefix. -/
 theorem samplerPrefixEncodes {application : Program} (raw : RawValues application) :

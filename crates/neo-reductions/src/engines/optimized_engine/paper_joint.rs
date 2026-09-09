@@ -260,6 +260,17 @@ pub trait PaperJointOracleBackend {
     }
 }
 
+enum OracleSource<'a> {
+    Cached {
+        cache: &'a OptimizedStructureCache,
+        backend: Option<&'a mut dyn PaperJointOracleBackend>,
+    },
+    Complete {
+        oracle: &'a mut dyn PaperJointRoundOracle,
+        challenges: &'a Challenges,
+    },
+}
+
 impl<'a> OptimizedPaperJointOracle<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -436,7 +447,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_outputs<L>(
+fn build_outputs(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Cmt, F>],
     fresh_witnesses: &[CcsWitness<F>],
@@ -444,13 +455,14 @@ fn build_outputs<L>(
     running_witnesses: &[Mat<F>],
     point: &[K],
     dims: JointDims,
-    _commitment: &L,
-    cache: &OptimizedStructureCache,
+    cache: Option<&OptimizedStructureCache>,
     precomputed_openings: Option<&[V1_1OutputOpening]>,
-) -> Result<Vec<CeClaim<Cmt, F, K>>, PiCcsError>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
-{
+) -> Result<Vec<CeClaim<Cmt, F, K>>, PiCcsError> {
+    if precomputed_openings.is_none() && cache.is_none() {
+        return Err(PiCcsError::ProtocolError(
+            "complete optimized oracle did not return output openings".into(),
+        ));
+    }
     let weights = precomputed_openings
         .is_none()
         .then(|| neo_ccs::utils::tensor_point::<K>(point));
@@ -493,6 +505,7 @@ where
         let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
         let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
         eval_k.resize(d_pad, K::ZERO);
+        let cache = cache.expect("host openings require the validated structure cache");
         let eval_a =
             crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
                 .into_iter()
@@ -536,7 +549,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+fn prove_with_trace_inner(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -544,10 +557,8 @@ fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
-    cache: &OptimizedStructureCache,
     binding: TranscriptBinding,
-    backend: Option<&mut dyn PaperJointOracleBackend>,
+    source: OracleSource<'_>,
 ) -> Result<
     (
         Vec<CeClaim<Cmt, F, K>>,
@@ -558,7 +569,13 @@ fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     PiCcsError,
 > {
     let started = std::time::Instant::now();
-    cache.validate_structure(structure)?;
+    let cache = match &source {
+        OracleSource::Cached { cache, .. } => {
+            cache.validate_structure(structure)?;
+            Some(*cache)
+        }
+        OracleSource::Complete { .. } => None,
+    };
     if fresh_claims.len() != fresh_witnesses.len() || running_claims.len() != running_witnesses.len() {
         return Err(PiCcsError::InvalidInput(
             "optimized claim/witness count mismatch".into(),
@@ -584,36 +601,58 @@ fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_claims,
         running_claims,
         binding,
-        Some(cache.matrix_digest()),
+        cache.map(OptimizedStructureCache::matrix_digest),
     )?;
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
     let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
     let sumcheck_started = std::time::Instant::now();
-    let input = PaperJointOracleInput {
-        structure,
-        params,
-        fresh_witnesses,
-        running_witnesses,
-        challenges: challenges.clone(),
-        prior_point,
-        dims,
-        cache,
-    };
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
-    let mut oracle: Box<dyn PaperJointRoundOracle + '_> = match backend {
-        Some(backend) => backend.create(input)?,
-        None => Box::new(OptimizedPaperJointOracle::new(
-            input.structure,
-            input.params,
-            input.fresh_witnesses,
-            input.running_witnesses,
-            input.challenges,
-            input.prior_point,
-            input.dims,
-            input.cache,
-        )?),
+    let mut built_oracle = None;
+    let oracle: &mut dyn PaperJointRoundOracle = match source {
+        OracleSource::Cached { cache, backend } => {
+            let input = PaperJointOracleInput {
+                structure,
+                params,
+                fresh_witnesses,
+                running_witnesses,
+                challenges: challenges.clone(),
+                prior_point,
+                dims,
+                cache,
+            };
+            built_oracle = Some(match backend {
+                Some(backend) => backend.create(input)?,
+                None => Box::new(OptimizedPaperJointOracle::new(
+                    input.structure,
+                    input.params,
+                    input.fresh_witnesses,
+                    input.running_witnesses,
+                    input.challenges,
+                    input.prior_point,
+                    input.dims,
+                    input.cache,
+                )?),
+            });
+            built_oracle.as_mut().expect("constructed oracle").as_mut()
+        }
+        OracleSource::Complete {
+            oracle,
+            challenges: prepared,
+        } => {
+            if prepared != &challenges {
+                return Err(PiCcsError::InvalidInput(
+                    "complete optimized oracle challenges do not match the bound statement".into(),
+                ));
+            }
+            if oracle.num_rounds() != dims.variables || oracle.degree_bound() != dims.degree {
+                return Err(PiCcsError::InvalidInput(
+                    "complete optimized oracle does not have the selected round shape".into(),
+                ));
+            }
+            oracle
+        }
     };
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -623,13 +662,13 @@ fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(feature = "perf-timers")]
     let rounds_started = std::time::Instant::now();
     let (rounds, round_challenges, final_claim) =
-        pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, oracle.as_mut())?;
+        pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, oracle)?;
     #[cfg(feature = "perf-timers")]
     eprintln!("[pi-ccs/phase] rounds={:.3}s", rounds_started.elapsed().as_secs_f64());
     let sumcheck_ms = sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
     let output_started = std::time::Instant::now();
     let precomputed_openings = oracle.output_openings(&round_challenges)?;
-    drop(oracle);
+    drop(built_oracle);
     let mut outputs = build_outputs(
         structure,
         fresh_claims,
@@ -638,7 +677,6 @@ fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         running_witnesses,
         &round_challenges,
         dims,
-        commitment,
         cache,
         precomputed_openings.as_deref(),
     )?;
@@ -682,7 +720,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
+    _commitment: &L,
     cache: &OptimizedStructureCache,
     binding: TranscriptBinding,
 ) -> Result<
@@ -702,10 +740,8 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
-        cache,
         binding,
-        None,
+        OracleSource::Cached { cache, backend: None },
     )
 }
 
@@ -773,7 +809,7 @@ pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F,
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
+    _commitment: &L,
     cache: &OptimizedStructureCache,
     binding: TranscriptBinding,
     backend: &mut dyn PaperJointOracleBackend,
@@ -786,10 +822,51 @@ pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F,
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
-        cache,
         binding,
-        Some(backend),
+        OracleSource::Cached {
+            cache,
+            backend: Some(backend),
+        },
     )?;
     Ok((outputs, proof, perf))
+}
+
+/// Run the canonical optimized prover with an already prepared evaluator.
+/// The evaluator must use these exact ordered sources and prepared challenges,
+/// and return all ring openings. The driver rebinds the statement and rejects
+/// missing openings; this route never constructs a host cache or full tensor.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_complete_oracle(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    prepared: &Challenges,
+    oracle: &mut dyn PaperJointRoundOracle,
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        super::PiCcsProvePerf,
+        ProtocolTrace,
+    ),
+    PiCcsError,
+> {
+    prove_with_trace_inner(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        TranscriptBinding::digest_only(),
+        OracleSource::Complete {
+            oracle,
+            challenges: prepared,
+        },
+    )
 }

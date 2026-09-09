@@ -25,6 +25,7 @@ mod verify;
 // Re-export commonly used items
 pub use crate::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
 pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
+pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete_oracle;
 pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
 pub use sparse::{CscMat, SparseCache};
 

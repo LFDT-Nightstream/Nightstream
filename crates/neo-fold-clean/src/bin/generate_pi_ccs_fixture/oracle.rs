@@ -4,10 +4,13 @@
 
 use std::time::Instant;
 
-use neo_ccs::SparsePoly;
-use neo_math::{F, K};
+use neo_ccs::{Mat, SparsePoly};
+use neo_math::{KExtensions, D, F, K};
 use neo_reductions::{
-    engines::{pi_ccs_joint::gamma_power, pi_ccs_joint_protocol::PaperJointRoundOracle},
+    engines::{
+        pi_ccs_joint::gamma_power,
+        pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_1OutputOpening},
+    },
     PiCcsError,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -95,6 +98,23 @@ fn signed(value: u8) -> K {
     }
 }
 
+fn compact_witness(values: impl Iterator<Item = F>, columns: usize) -> Mat<F> {
+    let mut positive = vec![0u64; columns];
+    let mut negative = vec![0u64; columns];
+    for (index, value) in values.enumerate() {
+        assert!(index < columns * D, "source fits its native carrier");
+        let bit = 1u64 << (index % D);
+        if value == F::ONE {
+            positive[index / D] |= bit;
+        } else if value == -F::ONE {
+            negative[index / D] |= bit;
+        } else {
+            assert_eq!(value, F::ZERO, "signed-unit native source");
+        }
+    }
+    Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).expect("exact native source masks")
+}
+
 // Keep initial bounded data in bytes. The first fold halves its length before
 // extension-field storage is allocated; sources are folded one at a time.
 enum RunningAssignment {
@@ -178,9 +198,49 @@ pub struct Oracle {
     norm_weight: K,
     running_assignments: [RunningAssignment; 16],
     round: usize,
+    output_openings: Option<(Vec<K>, Vec<V1_1OutputOpening>)>,
 }
 
 impl Oracle {
+    /// Native witnesses are constructed from the same ordered sources used by
+    /// the evaluator. Alignment zeros use compact storage, never a domain table.
+    pub fn native_witnesses(&self, width: usize) -> (Mat<F>, Vec<Mat<F>>) {
+        assert_eq!(self.round, 0, "native witnesses precede every fold");
+        let columns = width.div_ceil(D);
+        let fresh = compact_witness(
+            self.values.iter().map(|value| {
+                let [real, imaginary] = value.as_coeffs();
+                assert_eq!(imaginary, F::ZERO, "base-field fresh opening");
+                real
+            }),
+            columns,
+        );
+        let running = self
+            .running_assignments
+            .iter()
+            .map(|source| match source {
+                RunningAssignment::Signed(values) if values.is_empty() => Mat::virtual_constant(D, columns, F::ZERO),
+                RunningAssignment::Signed(values) => {
+                    compact_witness(values.iter().map(|&value| signed(value).as_coeffs()[0]), columns)
+                }
+                RunningAssignment::Folded(_) => panic!("native witnesses precede every fold"),
+            })
+            .collect();
+        (fresh, running)
+    }
+
+    /// Complete families come from the existing selected-matrix ring and child
+    /// evaluators. Their point must equal the canonical driver's final point.
+    pub fn with_output_openings(mut self, point: Vec<K>, openings: Vec<V1_1OutputOpening>) -> Self {
+        assert_eq!(point.len(), ROUNDS);
+        assert_eq!(openings.len(), 17);
+        assert!(openings.iter().all(|opening| opening.eval_k.len() == D
+            && opening.eval_a.len() == MATRICES
+            && opening.eval_a.iter().all(|family| family.len() == D)));
+        self.output_openings = Some((point, openings));
+        self
+    }
+
     pub fn new(
         values: Vec<K>,
         images: Vec<[K; LIVE_MATRICES]>,
@@ -224,6 +284,7 @@ impl Oracle {
             norm_weight: K::ONE,
             running_assignments: std::array::from_fn(|_| RunningAssignment::Signed(Vec::new())),
             round: 0,
+            output_openings: None,
         }
     }
 
@@ -327,6 +388,34 @@ impl Oracle {
 }
 
 impl PaperJointRoundOracle for Oracle {
+    fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1OutputOpening>>, PiCcsError> {
+        let Some((expected, openings)) = &self.output_openings else {
+            return Ok(None);
+        };
+        if self.round != ROUNDS || point != expected {
+            return Err(PiCcsError::InvalidInput(
+                "complete fixture openings use a different SumCheck point".into(),
+            ));
+        }
+        let (fresh, matrices) = self.scalar_outputs();
+        if openings[0].eval_k[0] != fresh
+            || openings[0]
+                .eval_a
+                .iter()
+                .zip(matrices)
+                .any(|(family, value)| family[0] != value)
+            || openings[1..]
+                .iter()
+                .zip(&self.running_assignments)
+                .any(|(opening, source)| opening.eval_k[0] != source.terminal())
+        {
+            return Err(PiCcsError::InvalidInput(
+                "complete fixture openings do not match the folded sources".into(),
+            ));
+        }
+        Ok(self.output_openings.take().map(|(_, openings)| openings))
+    }
+
     fn num_rounds(&self) -> usize {
         ROUNDS
     }

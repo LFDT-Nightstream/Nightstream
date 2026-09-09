@@ -76,7 +76,7 @@ theorem rowsZero_implies_specHolds
   RunningTransitionLayout.physical_implies_specHolds relation _
     (rowsZero_implies_physical relation geometry assignment one rows)
 
-private theorem decodedEnv_location
+theorem decodedEnv_location
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (location : RunningTransitionDirectPlan.Location)
@@ -176,6 +176,25 @@ private theorem selectedOutputWord_eq_next
   rw [ActualPreimageFraming.outputState, dif_pos index.isLt]
   rfl
 
+/-- The branch counter is the counter in the actual prior preimage. -/
+theorem selectedIteration_eq_prior
+    (application : Lifecycle.Stage1.Application.Program)
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
+    Lifecycle.Stage1.RunningTransition.iterationValue
+        (RunningTransitionInputs.interface
+          (PerApplicationFixedPoint.logicalWidth application)
+          (PerApplicationFixedPoint.publicFits application))
+        RunningTransitionInputs.phaseOffset
+        (Spartan.pullback (decodedEnv (selectedGeometry application) assignment)) =
+      ActualPreimageFraming.priorState
+        (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
+          (PerApplicationFixedPoint.geometry application)) assignment 28 := by
+  simpa only [Lifecycle.Stage1.RunningTransition.iterationValue,
+    RunningTransitionInputs.interface, RunningTransitionInputs.iterationExpr,
+    RunningTransitionInputs.iterationWordIndex, Expr.eval, Nat.add_zero,
+    RunningTransitionSourceSupport.stateStart_eq] using
+    selectedStateWord_eq_prior application assignment ⟨0, by decide⟩
+
 /-- The full typed running output is the output preimage used by the pilot.
 Every point, commitment, public input, and evaluation uses the same forms. -/
 theorem selectedOutputRunning_eq_running
@@ -273,16 +292,7 @@ theorem selectedRowsAndPublic_imply_baseState
   have fieldZero : prior 28 = 0 := by
     simpa only [StateDecoder.iteration, StateDecoder.natWord_val] using
       congrArg natWord iterationZero
-  have iterationRead : Lifecycle.Stage1.RunningTransition.iterationValue
-      (RunningTransitionInputs.interface
-        (PerApplicationFixedPoint.logicalWidth application)
-        (PerApplicationFixedPoint.publicFits application))
-      RunningTransitionInputs.phaseOffset env = prior 28 := by
-    simpa only [Lifecycle.Stage1.RunningTransition.iterationValue,
-      RunningTransitionInputs.interface, RunningTransitionInputs.iterationExpr,
-      RunningTransitionInputs.iterationWordIndex, Expr.eval, Nat.add_zero,
-      RunningTransitionSourceSupport.stateStart_eq] using
-      selectedStateWord_eq_prior application assignment ⟨0, by decide⟩
+  have iterationRead := selectedIteration_eq_prior application assignment
   have transitionZero := iterationRead.trans fieldZero
   constructor
   · change StateDecoder.initialState prior = StateDecoder.currentState prior

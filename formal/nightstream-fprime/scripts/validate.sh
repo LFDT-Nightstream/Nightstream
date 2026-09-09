@@ -16,11 +16,12 @@
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
 #   validate.sh pi-rlc-sampler-parity <path>
-#   validate.sh pi-rlc-parity <path>
-#   validate.sh pi-dec-parity <path>
+#   validate.sh pi-rlc-parity <context[4]> <package[4]> <path>
+#   validate.sh pi-dec-parity <context[4]> <package[4]> <path>
+#   validate.sh foundation-parity <directory>
 #   validate.sh ajtai-setup-v1-parity <path>
 #   validate.sh ajtai-sparse-commitment-v1-parity <path>
-#   validate.sh poseidon2-hash-chain-v1-parity <path>
+#   validate.sh poseidon2-hash-chain-v1-parity <context[4]> <path>
 #   validate.sh poseidon2-hash-chain-v1-canonical-binding <path>
 #   validate.sh poseidon2-hash-chain-v1-binding-parity <id[4]> <relation[4]> <application[4]> <nifs[4]> <commitment[4]> <path>
 #   validate.sh per-application-reference <path>
@@ -142,12 +143,24 @@ case "$phase" in
     capped lake exe emitPiRlcSamplerParity -- "$2"
     ;;
   pi-rlc-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiRLCParity -- "$2"
+    if (( $# != 10 )); then
+      echo "usage: validate.sh pi-rlc-parity <context[4]> <package[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPiRLCParity -- "$@"
     ;;
   pi-dec-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh pi-dec-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiDECParity -- "$2"
+    if (( $# != 10 )); then
+      echo "usage: validate.sh pi-dec-parity <context[4]> <package[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPiDECParity -- "$@"
+    ;;
+  foundation-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh foundation-parity <directory>" >&2; exit 2; fi
+    capped lake exe emitFoundationParity -- "$2"
     ;;
   ajtai-setup-v1-parity)
     if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi
@@ -158,8 +171,12 @@ case "$phase" in
     capped lake exe emitAjtaiSparseCommitmentV1Parity -- "$2"
     ;;
   poseidon2-hash-chain-v1-parity)
-    if (( $# != 2 )); then echo "usage: validate.sh poseidon2-hash-chain-v1-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPoseidon2HashChainV1Parity -- "$2"
+    if (( $# != 6 )); then
+      echo "usage: validate.sh poseidon2-hash-chain-v1-parity <context[4]> <path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe emitPoseidon2HashChainV1Parity -- "$@"
     ;;
   poseidon2-hash-chain-v1-canonical-binding)
     if (( $# != 2 )); then

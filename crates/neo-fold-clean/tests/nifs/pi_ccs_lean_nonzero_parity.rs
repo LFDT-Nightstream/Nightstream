@@ -1,4 +1,8 @@
 //! Complete nonzero PiCCS parity against the Lean-emitted Stage 1 fixture.
+//! Use one checked Lean source cut for the candidate, canonical binding, and
+//! setup. Run check_package_conformance before copying those test inputs here.
+//! The separate binding supplies expected identities; production pins stay
+//! unchanged. Synthetic values do not establish valid witness openings.
 
 use std::{fs, path::PathBuf};
 
@@ -13,7 +17,7 @@ use neo_reductions::optimized_engine::optimized_verify_with_trace;
 use neo_reductions::PiCcsProof;
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT,
+    load_per_application_package, LoadedPerApplicationPackage, PI_CCS_V1_1_ROUND_COUNT as ROUND_COUNT,
     PI_CCS_V1_1_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -106,13 +110,37 @@ impl PhaseResult {
 fn package_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
         "../../formal/nightstream-fprime/artifacts/\
-         nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+         nightstream-fprime-stage1-poseidon2-hash-chain-v1-candidate.json",
     )
+}
+
+#[derive(Deserialize)]
+struct LeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4]);
+
+fn expected_binding() -> LeanBinding {
+    let path = package_path().with_file_name("nightstream-fprime-stage1-poseidon2-hash-chain-v1-binding-v1.json");
+    let binding: LeanBinding = serde_json::from_slice(&fs::read(path).expect("independent canonical Lean binding"))
+        .expect("Lean binding schema");
+    assert_eq!(binding.0, 1, "canonical binding schema");
+    binding
+}
+
+fn load_candidate(bytes: &[u8]) -> LoadedPerApplicationPackage {
+    let expected = expected_binding();
+    let package = load_per_application_package(bytes, expected.1).expect("separately selected Lean identity");
+    let actual = package
+        .production_verifier_binding()
+        .expect("selected setup binding");
+    assert_eq!(actual.package_identity(), expected.2);
+    assert_eq!(actual.verifier_context().descriptor_words(), expected.3.as_slice());
+    assert_eq!(actual.verification_key_words(), expected.4.as_slice());
+    assert_eq!(actual.verification_key_digest(), expected.5);
+    package
 }
 
 fn package_relation() -> RawRelation {
     let bytes = fs::read(package_path()).expect("Lean package bytes");
-    load_poseidon2_hash_chain_v1_package(&bytes).expect("verifier-owned production package");
+    load_candidate(&bytes);
     let package: serde_json::Value = serde_json::from_slice(&bytes).expect("Lean package JSON");
     assert_eq!(package[1][0].as_u64(), Some(8), "Lean inner-package schema");
     serde_json::from_value(package[1][4].clone()).expect("Lean relation tuple")
@@ -620,10 +648,10 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_ccs_result() {
     assert_eq!(parity.1 .3.as_slice(), parity.1 .9[0].as_slice());
     assert_eq!(parity.1 .5, parity.1 .9[1]);
     let package_bytes = fs::read(package_path()).expect("Lean package bytes");
-    let package = load_poseidon2_hash_chain_v1_package(&package_bytes).expect("verifier-owned production package");
+    let package = load_candidate(&package_bytes);
     let verifier_context_digest = package
         .production_verifier_binding()
-        .expect("fixed production binding")
+        .expect("selected setup binding")
         .verifier_context()
         .digest();
     assert_eq!(parity.1 .4, verifier_context_digest, "verifier-context digest");

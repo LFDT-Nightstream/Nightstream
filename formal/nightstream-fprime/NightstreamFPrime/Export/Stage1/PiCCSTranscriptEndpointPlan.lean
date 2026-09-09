@@ -1269,7 +1269,7 @@ private theorem outputTrace_state_matches_of_shape
     _ = _ := PiCCSInvocations.outputSemanticTrace_state_matches
       relationLogicalWidth relationPublicFits
 
-private theorem outputFinalState_endpoint_of_shape
+theorem outputFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth)

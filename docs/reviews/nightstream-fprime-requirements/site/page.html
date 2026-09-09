@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SuperNeo and HyperNova requirements, from protocol groups to individual primitives, with the current proof and implementation status.">
+  <meta name="referrer" content="no-referrer">
+  <title>Nightstream — Requirements map</title>
+  <link rel="alternate" type="text/markdown" href="requirements.md" title="Complete requirements in Markdown">
+  <link rel="alternate" type="application/json" href="requirements.json" title="Requirement source data">
+  <style>/* SITE_STYLES */</style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to requirements</a>
+  <header class="site-header">
+    <div class="brand">NIGHTSTREAM <span>Formal verification</span></div>
+    <nav class="export-links" aria-label="Read or download requirements">
+      <a href="requirements.md">Markdown for AI</a>
+      <a href="requirements-markdown.zip" download>Download all Markdown</a>
+    </nav>
+    <div class="source-meta" id="source-meta"></div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="Requirement groups">
+      <div class="sidebar-heading">Requirements map</div>
+      <nav id="group-nav" aria-label="Main groups"></nav>
+      <label class="mobile-nav" for="group-select">Group
+        <select id="group-select"></select>
+      </label>
+      <div class="legend">
+        <strong>Finished / applicable</strong>
+        <dl>
+          <dt class="axis-proof">Proof</dt><dd>A local proof exists.</dd>
+          <dt class="axis-connection">Link</dt><dd>Connected to its local consumer.</dd>
+          <dt class="axis-rust">Rust</dt><dd>Code exists or scoped tests passed.</dd>
+        </dl>
+        <p>Each axis excludes “not required” items. External assumptions are excluded from proof totals. Definitions do not count as finished proofs. Unreviewed status and recorded evidence do not count as finished.</p>
+        <p>Counts cover individual requirements. They do not estimate time remaining or certify production conformance.</p>
+      </div>
+    </aside>
+    <main id="main">
+      <div class="breadcrumb" id="breadcrumb">Selected Stage 1 / All groups</div>
+      <h1 id="view-title">Requirements map</h1>
+      <div id="view-progress" aria-label="Group completion counts"></div>
+      <p class="view-summary" id="view-summary"></p>
+      <div id="view-announcement" class="sr-only" aria-live="polite"></div>
+      <div id="requirements-tree" aria-label="Requirement hierarchy"></div>
+      <footer>Review snapshot. Explicit assumptions and unreviewed coverage are separate from missing proofs. This map does not change the approved goal.</footer>
+    </main>
+  </div>
+  <noscript><p><a href="requirements.md">Read the complete requirements in Markdown</a>. No JavaScript is needed.</p></noscript>
+  <script type="application/json" id="requirements-data">/* SITE_DATA */</script>
+  <script>/* SITE_SCRIPT */</script>
+</body>
+</html>

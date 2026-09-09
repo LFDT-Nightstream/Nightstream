@@ -65,9 +65,69 @@ private def decodeField (value : Lean.Json) : Except String F := do
   else
     throw "noncanonical Goldilocks word"
 
+/-- The input decoder preserves the exact canonical integer. It never reduces
+an external word modulo the field modulus. -/
+theorem decodeField_eq_ok_iff (input : Lean.Json) (value : F) :
+    decodeField input = .ok value ↔ input.getNat? = .ok value.val := by
+  cases parsed : input.getNat? with
+  | error message => simp [decodeField, parsed, bind, Except.bind]
+  | ok word =>
+      by_cases canonical : word < goldilocksModulus
+      · cases value
+        simp [decodeField, parsed, bind, Except.bind, pure, Except.pure, canonical]
+      · have different : word ≠ value.val := by
+          intro equal
+          exact canonical (equal ▸ value.isLt)
+        simp [decodeField, parsed, bind, Except.bind, throw, canonical, different]
+
+/-- Every out-of-range external integer fails, including `q` and `q + x`.
+Canonical field arithmetic does not make such encodings acceptable. -/
+theorem decodeField_rejects_noncanonical (input : Lean.Json) (word : Nat)
+    (parsed : input.getNat? = .ok word) (unbounded : goldilocksModulus ≤ word) :
+    decodeField input = .error "noncanonical Goldilocks word" := by
+  have notCanonical : ¬ word < goldilocksModulus := by omega
+  simp [decodeField, parsed, bind, Except.bind, notCanonical]
+  rfl
+
 private def decodeExtension (value : Lean.Json) : Except String K := do
   let words ← decodeVector 2 decodeField value
   pure ⟨words.get 0, words.get 1⟩
+
+/-- The quadratic-extension decoder preserves the ordered pair `(c0,c1)`.
+The component premises are characterized by `decodeField_eq_ok_iff`. -/
+theorem decodeExtension_ordered_pair (first second : Lean.Json) (value : K)
+    (firstExact : decodeField first = .ok value.c0)
+    (secondExact : decodeField second = .ok value.c1) :
+    decodeExtension (.arr #[first, second]) = .ok value := by
+  have mapped : Vector.toArray <$> (#v[first, second]).mapM decodeField =
+      (.ok #[value.c0, value.c1] : Except String (Array F)) := by
+    rw [Vector.toArray_mapM, Array.mapM_eq_mapM_toList]
+    simp [firstExact, secondExact, bind, Except.bind, pure, Except.pure,
+      Functor.map, Except.map]
+  have vectorExact : (#v[first, second]).mapM decodeField =
+      (.ok #v[value.c0, value.c1] : Except String (Vector F 2)) := by
+    cases decoded : (#v[first, second]).mapM decodeField with
+    | error message =>
+        simp only [decoded] at mapped
+        change (Except.error message : Except String (Array F)) = .ok _ at mapped
+        contradiction
+    | ok words =>
+        simp only [decoded] at mapped
+        change Except.ok words.toArray = .ok #[value.c0, value.c1] at mapped
+        exact congrArg Except.ok (Vector.toArray_inj.mp (Except.ok.inj mapped))
+  simp [decodeExtension, decodeVector, Lean.Json.getArr?,
+    bind, Except.bind, pure, Except.pure, vectorExact]
+  rfl
+
+/-- An extension encoding has exactly two coefficients; no padding or
+truncation is accepted at this boundary. -/
+theorem decodeExtension_rejects_wrong_length (values : Array Lean.Json)
+    (wrongLength : values.size ≠ 2) :
+    decodeExtension (.arr values) =
+      .error s!"expected array length 2, got {values.size}" := by
+  simp [decodeExtension, decodeVector, Lean.Json.getArr?,
+    bind, Except.bind, pure, Except.pure, wrongLength]
+  rfl
 
 private def decodeRunning (value : Lean.Json) : Except String RunningInput := do
   let values ← value.getArr?

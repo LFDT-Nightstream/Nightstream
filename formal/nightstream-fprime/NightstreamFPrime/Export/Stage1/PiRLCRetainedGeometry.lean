@@ -143,6 +143,37 @@ def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) :
   funext program
   exact prefixLogicalWidth_eq program
 
+/-- Fixed candidate-block starts avoid rebuilding the earlier Poseidon
+invocation geometry for each direct source lookup. -/
+def directRejectStart (_program : Lifecycle.Stage1.Application.Program) : Nat :=
+  185240730
+
+@[csimp] theorem rejectStart_eq_directRejectStart :
+    @rejectStart = @directRejectStart := by
+  funext program
+  have total := prefixLogicalWidth_eq program
+  simp only [prefixLogicalWidth, productOutputStart, first54ProductStart,
+    valueStart, positionStart, symbolStart, productOutputBlock,
+    LowNormBlock.Block.lift_coordinateCount,
+    PiRLCProductSourceBlocks.outputBlock_coordinateCount,
+    PiRLCFirst54RetainedBlocks.rejectBlock_coordinateCount,
+    PiRLCFirst54RetainedBlocks.symbolBlock_coordinateCount,
+    PiRLCFirst54RetainedBlocks.positionBlock_coordinateCount,
+    PiRLCFirst54RetainedBlocks.valueBlock_coordinateCount,
+    PiRLCFirst54RetainedBlocks.productBlock_coordinateCount] at total
+  unfold directRejectStart
+  omega
+
+def directSymbolStart (_program : Lifecycle.Stage1.Application.Program) : Nat :=
+  185241818
+
+@[csimp] theorem symbolStart_eq_directSymbolStart :
+    @symbolStart = @directSymbolStart := by
+  funext program
+  rw [symbolStart, rejectStart_eq_directRejectStart,
+    PiRLCFirst54RetainedBlocks.rejectBlock_coordinateCount]
+  rfl
+
 theorem prefixLogicalWidth_le_cube
     (program : Lifecycle.Stage1.Application.Program) :
     prefixLogicalWidth program ≤

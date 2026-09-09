@@ -8,8 +8,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 Concrete quadratic-extension cancellation boundary for paper-level `Pi_CCS`.
 
 Owns: the quadratic norm and conjugate of the concrete carrier
-`K = F[u]/(u² - 7)`, the exact irreducibility premise still missing from the
-active dependency-light Lean project, and the derivation of extension-field
+`K = F[u]/(u² - 7)`, the exact irreducibility premise, and the derivation of extension-field
 no-zero-divisors from that premise plus base-field no-zero-divisors.
 
 Does not own: a proof that the Goldilocks modulus is prime, a proof that seven
@@ -18,12 +17,9 @@ Rust/R1CS refinement, row emission, row removal, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: `SevenProjectiveNonresidue` is deliberately visible. The
-deprecated Mathlib-backed SuperNeo project proves the corresponding concrete
-number-theoretic fact, but importing that theorem here would add a second field
-carrier and a large dependency without a proved carrier equivalence. Until an
-active arithmetic certificate instantiates this premise, downstream results
-remain model-level and conditional.
+`Spec.GoldilocksExtension` supplies `SevenProjectiveNonresidue` from the active
+Goldilocks certificate and closes this derivation for the existing carriers.
+The generic derivation here keeps both hypotheses explicit.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|

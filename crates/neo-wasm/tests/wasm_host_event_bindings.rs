@@ -7,8 +7,9 @@ mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
-    expand_export_entry, expand_import_events, EventBlock, EventBlockBuilder, ExportTemplate, HostEventBindings,
-    HostEventBindingsBuilder, ImportTemplate, Limb, MemoryBase, SlotBinding, TurnInputs,
+    absorbed_blocks, expand_export_entry, expand_export_exit, expand_import_events, opaque_value_root, EventBlock,
+    EventSequenceBuilder, EventSources, ExportTemplate, HostEventBindings, HostEventBindingsBuilder, ImportTemplate,
+    Limb, MemoryBase, SlotBinding, TurnInputs,
 };
 use neo_wasm::CommChainState;
 
@@ -27,22 +28,22 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
     let import_fref = u32::try_from(artifacts.tables.call_targets[0].1).expect("import fref");
     let export_fref = u32::try_from(artifacts.tables.function_entries[0].0).expect("export fref");
 
-    let import_event = EventBlockBuilder::op(10)
-        .memory_write_i32(0, 0, MemoryBase::Arg(0), 0)?
-        .memory_write_i32(1, 1, MemoryBase::Arg(0), 4)?
-        .memory_write_i32(2, 2, MemoryBase::Arg(0), 8)?
-        .arg_i32(3, 0)?
-        .result(4)?
-        .finish();
-    let entry_event = EventBlockBuilder::op(20)
-        .input_local_i32(0, 0, 0)?
-        .memory_write_i32(1, 1, MemoryBase::Local(0), 0)?
-        .finish();
-    let exit_event = EventBlockBuilder::op(17).output_i32(0)?.finish();
+    let import_event = EventSequenceBuilder::op(10)
+        .memory_write_i32(0, MemoryBase::Arg(0), 0)?
+        .memory_write_i32(1, MemoryBase::Arg(0), 4)?
+        .memory_write_i32(2, MemoryBase::Arg(0), 8)?
+        .arg_i32(0)?
+        .result()?
+        .finish()?;
+    let entry_event = EventSequenceBuilder::op(20)
+        .input_local_i32(0, 0)?
+        .memory_write_i32(1, MemoryBase::Local(0), 0)?
+        .finish()?;
+    let exit_event = EventSequenceBuilder::op(17).output_i32()?.finish()?;
 
     let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
-    builder.import(import_fref, vec![import_event])?;
-    builder.export(export_fref, vec![entry_event], vec![exit_event])?;
+    builder.import(import_fref, import_event)?;
+    builder.export(export_fref, entry_event, exit_event)?;
     let bindings = builder.finish()?;
 
     assert_eq!(bindings.imports[&import_fref].input_count, 3);
@@ -53,22 +54,12 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
     );
     assert_eq!(bindings.imports[&import_fref].events[0].block[7], SlotBinding::Const(0));
 
-    let duplicate = EventBlockBuilder::op(1)
-        .word(0, SlotBinding::Const(2))
-        .expect_err("the discriminant already owns word zero");
-    assert!(format!("{duplicate:?}").contains("assigned more than once"));
-    let duplicate = EventBlockBuilder::op(1)
-        .constant_i32(0, 2)?
-        .constant_i32(0, 3)
-        .expect_err("slot zero was already assigned");
-    assert!(duplicate.to_string().contains("block slot 0"));
-
-    let gap = EventBlockBuilder::op(1)
-        .memory_write_i32(0, 1, MemoryBase::Arg(0), 0)?
-        .finish();
+    let gap = EventSequenceBuilder::op(1)
+        .memory_write_i32(1, MemoryBase::Arg(0), 0)?
+        .finish()?;
     let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
     let err = builder
-        .import(import_fref, vec![gap])
+        .import(import_fref, gap)
         .err()
         .expect("builder inputs must form a dense tuple");
     assert!(err.to_string().contains("input 0 is unreferenced"));
@@ -90,15 +81,20 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
         .find_map(|row| row.current_function_ref)
         .expect("export function ref");
 
-    let entry = EventBlockBuilder::absorbing()
-        .input_local_i32(0, 0, 0)?
-        .finish();
+    let schema = [1, 2, 3, 4];
+    let entry = EventSequenceBuilder::op(1)
+        .constant_i64(2)?
+        .opaque(schema, EventSources::new().input_local_i32(0, 0))?
+        .constant_i64(0x1122_3344_5566_7788)?
+        .opaque(schema, EventSources::new().constant_i32(9))?
+        .opaque(schema, EventSources::new())?
+        .finish()?;
 
-    let exit = EventBlockBuilder::absorbing().output_i32(0)?.finish();
+    let exit = EventSequenceBuilder::absorbing().output_i32()?.finish()?;
 
     let mut builder = HostEventBindingsBuilder::new(&run.program_tables);
 
-    builder.export(export_fref, vec![entry], vec![exit])?;
+    builder.export(export_fref, entry, exit)?;
 
     let bindings = builder.finish()?;
     let inputs = [TurnInputs { entry: vec![37] }];
@@ -114,6 +110,24 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
 
     common::ccs_check_trace(&trace);
 
+    // The suffix scalar straddles blocks; the third root forces zero padding.
+    let first_root = opaque_value_root(schema, &[37])?;
+    let second_root = opaque_value_root(schema, &[9])?;
+    let third_root = opaque_value_root(schema, &[])?;
+    let mut first = [1, 2, 0, 0, 0, 0, 0, 0x5566_7788];
+    first[3..7].copy_from_slice(&first_root);
+    let mut second = [0x1122_3344, 0, 0, 0, 0, 0, 0, 0];
+    second[1..5].copy_from_slice(&second_root);
+    let mut third = [0; 8];
+    third[..4].copy_from_slice(&third_root);
+    assert_eq!(
+        neo_wasm::comm_chain::absorbed_event_blocks(&trace)
+            .into_iter()
+            .map(|event| event.words)
+            .collect::<Vec<_>>(),
+        vec![first, second, third, [37, 0, 0, 0, 0, 0, 0, 0]],
+    );
+
     let output = trace.last().expect("final row").state_after.output;
     assert!(output.enabled);
     assert_eq!(output.value_lo, 37);
@@ -123,13 +137,13 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
 
 #[test]
 fn scalar_helpers_address_tagged_and_continuation_blocks() -> Result<(), Box<dyn std::error::Error>> {
-    let tagged = EventBlockBuilder::op(9)
-        .constant_i64(0, 0x1122_3344_5566_7788)?
-        .arg_i64(2, 3)?
-        .finish();
+    let tagged = EventSequenceBuilder::op(9)
+        .constant_i64(0x1122_3344_5566_7788)?
+        .arg_i64(3)?
+        .finish()?;
 
     assert_eq!(
-        tagged.block,
+        tagged[0].block,
         [
             SlotBinding::Const(9),
             SlotBinding::Const(0x5566_7788),
@@ -142,15 +156,15 @@ fn scalar_helpers_address_tagged_and_continuation_blocks() -> Result<(), Box<dyn
         ]
     );
 
-    let continuation = EventBlockBuilder::absorbing()
-        .output_i64(0)?
-        .memory_read_i64(2, MemoryBase::Arg(1), 12)?
-        .memory_write_i64(4, 10, MemoryBase::Arg(2), 20)?
-        .constant_i64(6, 0x0000_0002_0000_0001)?
-        .finish();
+    let continuation = EventSequenceBuilder::absorbing()
+        .output_i64()?
+        .memory_read_i64(MemoryBase::Arg(1), 12)?
+        .memory_write_i64(10, MemoryBase::Arg(2), 20)?
+        .constant_i64(0x0000_0002_0000_0001)?
+        .finish()?;
 
     assert_eq!(
-        continuation.block,
+        continuation[0].block,
         [
             SlotBinding::OutputElem { limb: Limb::Lo },
             SlotBinding::OutputElem { limb: Limb::Hi },
@@ -177,9 +191,191 @@ fn scalar_helpers_address_tagged_and_continuation_blocks() -> Result<(), Box<dyn
         ]
     );
 
-    assert!(EventBlockBuilder::op(0).arg_i64(6, 0).is_err());
-    assert!(EventBlockBuilder::absorbing().arg_i64(7, 0).is_err());
+    Ok(())
+}
 
+#[test]
+fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std::error::Error>> {
+    assert!(EventSequenceBuilder::absorbing().finish()?.is_empty());
+    let prefix = EventSequenceBuilder::absorbing()
+        .constant_i64(1)?
+        .constant_i64(2)?
+        .constant_i64(3)?
+        .constant_i32(4)?;
+    let full = prefix.clone().constant_i32(5)?.finish()?;
+    assert_eq!(full.len(), 1, "an exact block must not gain a padding block");
+    assert!(full[0].absorb);
+
+    // The argument's low limb ends block zero; its high limb starts block one.
+    let template = ImportTemplate {
+        events: prefix.clone().arg_i64(0)?.finish()?,
+        input_count: 0,
+    };
+    template.validate(1, 0)?;
+    assert!(template.events.iter().all(|event| event.absorb));
+    assert_eq!(
+        expand_import_events(&template, &[(11, 22)], None, &[], &[])?,
+        vec![[1, 0, 2, 0, 3, 0, 4, 11], [22, 0, 0, 0, 0, 0, 0, 0]],
+    );
+
+    // The result pair can cross the same boundary without being reordered.
+    let template = ImportTemplate {
+        events: prefix.clone().result()?.finish()?,
+        input_count: 0,
+    };
+    template.validate(0, 1)?;
+    assert_eq!(
+        expand_import_events(&template, &[], Some((33, 44)), &[], &[])?,
+        vec![[1, 0, 2, 0, 3, 0, 4, 33], [44, 0, 0, 0, 0, 0, 0, 0]],
+    );
+
+    // Chunking must not bypass the ban on reading argument zero after the result push.
+    let invalid = ImportTemplate {
+        events: prefix.clone().result()?.arg_i64(0)?.finish()?,
+        input_count: 0,
+    };
+    assert!(invalid.validate(1, 1).is_err());
+
+    // Export input pairs also preserve their input/local limb mapping across blocks.
+    let template = ExportTemplate {
+        entry: prefix.input_local_i64(0, 0)?.finish()?,
+        entry_input_count: 2,
+        ..Default::default()
+    };
+    template.validate(1, 0)?;
+    assert_eq!(
+        expand_export_entry(&template, &[55, 66])?,
+        vec![[1, 0, 2, 0, 3, 0, 4, 55], [66, 0, 0, 0, 0, 0, 0, 0]],
+    );
+    Ok(())
+}
+
+#[test]
+fn sequence_builder_pads_roots_without_splitting_them() -> Result<(), Box<dyn std::error::Error>> {
+    let schema = [1, 2, 3, 4];
+    // A root requested at word five starts the next block, not across the boundary.
+    let events = EventSequenceBuilder::op(7)
+        .arg_i64(0)?
+        .arg_i64(1)?
+        .opaque(schema, EventSources::new().arg_i64(2))?
+        // A second root cannot share an outer block, even when four words remain.
+        .opaque(schema, EventSources::new())?
+        .constant_i32(99)?
+        .finish()?;
+    let template = ImportTemplate { events, input_count: 0 };
+    template.validate(3, 0)?;
+    let expanded = expand_import_events(&template, &[(10, 11), (20, 21), (30, 31)], None, &[], &[])?;
+    let root = opaque_value_root(schema, &[30, 31])?;
+    let empty_root = opaque_value_root(schema, &[])?;
+    assert_eq!(
+        absorbed_blocks(&template.events, &expanded)?,
+        vec![
+            [7, 10, 11, 20, 21, 0, 0, 0],
+            [root[0], root[1], root[2], root[3], 0, 0, 0, 0],
+            [empty_root[0], empty_root[1], empty_root[2], empty_root[3], 99, 0, 0, 0],
+        ],
+    );
+    Ok(())
+}
+
+#[test]
+fn append_builder_places_opaque_roots_and_preserves_suffixes() -> Result<(), Box<dyn std::error::Error>> {
+    let schema = [1, 2, 3, 4];
+    let events = EventSequenceBuilder::op(7)
+        .arg_i32(0)?
+        .arg_i32(1)?
+        .opaque(
+            schema,
+            EventSources::new()
+                .arg_i32(2)
+                .arg_i64(3)
+                .constant_i64(0x1122_3344_5566_7788)
+                .constant_i32(50)
+                .constant_i32(51)
+                .constant_i32(52)
+                .constant_i32(53),
+        )?
+        .constant_i32(99)?
+        .finish()?;
+    let template = ImportTemplate { events, input_count: 0 };
+    template.validate(4, 0)?;
+    assert_eq!(
+        template.events.len(),
+        5,
+        "prefix, header, two payload blocks, copy-back"
+    );
+    assert_eq!(
+        template.events[1].block[6],
+        SlotBinding::Const(9),
+        "unpadded word count"
+    );
+    let expanded = expand_import_events(&template, &[(10, 0), (20, 0), (30, 0), (40, 41)], None, &[], &[])?;
+    let root = opaque_value_root(schema, &[30, 40, 41, 0x5566_7788, 0x1122_3344, 50, 51, 52, 53])?;
+    assert_eq!(
+        absorbed_blocks(&template.events, &expanded)?,
+        vec![[7, 10, 20, root[0], root[1], root[2], root[3], 99]],
+    );
+
+    Ok(())
+}
+
+#[test]
+fn opaque_builder_preserves_wide_export_inputs_and_outputs() -> Result<(), Box<dyn std::error::Error>> {
+    let wasm = wat::parse_str(r#"(module (func (export "run") (param i64) (result i64) local.get 0))"#)?;
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
+    let fref = u32::try_from(artifacts.tables.function_entries[0].0)?;
+    let schema = [1, 2, 3, 4];
+    let entry = EventSequenceBuilder::op(1)
+        .opaque(schema, EventSources::new().input_local_i64(0, 0)?)?
+        .finish()?;
+    let exit = EventSequenceBuilder::op(2)
+        .opaque(schema, EventSources::new().output_i64())?
+        .finish()?;
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+    builder.export(fref, entry, exit)?;
+    let bindings = builder.finish()?;
+    let template = &bindings.exports[&fref];
+    assert_eq!(template.entry_input_count, 2);
+    let root = opaque_value_root(schema, &[11, 22])?;
+    assert_eq!(
+        absorbed_blocks(&template.entry, &expand_export_entry(template, &[11, 22])?)?,
+        vec![[1, root[0], root[1], root[2], root[3], 0, 0, 0]],
+    );
+    assert_eq!(
+        absorbed_blocks(&template.exit, &expand_export_exit(template, Some((11, 22)), &[])?)?,
+        vec![[2, root[0], root[1], root[2], root[3], 0, 0, 0]],
+    );
+    Ok(())
+}
+
+#[test]
+fn sequence_builder_rejects_invalid_opaque_sources() -> Result<(), Box<dyn std::error::Error>> {
+    let schema = [1, 2, 3, 4];
+    // Advice does not commit an outer root.
+    assert!(EventSequenceBuilder::advice()
+        .opaque(schema, EventSources::new())
+        .is_err());
+    // Low-level slot access cannot smuggle nested opaque instructions into a value.
+    assert!(EventSequenceBuilder::absorbing()
+        .opaque(schema, EventSources::new().push(SlotBinding::EnterOpaque))?
+        .finish()
+        .is_err());
+    // Deferred lowering still validates the schema's field representation.
+    assert!(EventSequenceBuilder::absorbing()
+        .opaque([u64::MAX; 4], EventSources::new())?
+        .finish()
+        .is_err());
+    // Wide sources cannot wrap their second input index or memory offset.
+    assert!(EventSources::new().input_local_i64(u8::MAX, 0).is_err());
+    assert!(EventSources::new()
+        .memory_write_i64(u8::MAX, MemoryBase::Arg(0), 0)
+        .is_err());
+    assert!(EventSources::new()
+        .memory_read_i64(MemoryBase::Arg(0), u32::MAX)
+        .is_err());
+    assert!(EventSources::new()
+        .memory_write_i64(0, MemoryBase::Arg(0), u32::MAX)
+        .is_err());
     Ok(())
 }
 
@@ -494,10 +690,11 @@ fn program_validation_rejects_output_on_a_resultless_export() {
     bindings.exports.insert(
         fref,
         ExportTemplate {
-            exit: vec![EventBlockBuilder::absorbing()
-                .output_i32(0)
+            exit: EventSequenceBuilder::absorbing()
+                .output_i32()
                 .expect("valid block")
-                .finish()],
+                .finish()
+                .expect("valid schedule"),
             ..Default::default()
         },
     );

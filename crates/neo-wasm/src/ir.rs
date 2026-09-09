@@ -114,9 +114,16 @@ impl Default for WasmCountdownState {
 /// `perm_pending` is raised and a group of `HostEventPerm` aux rows runs the
 /// width-12 permutation one round-row at a time (`perm_round` is the position
 /// inside that group, 0 when idle). The group's last row folds the block into
-/// `WasmStepState::comm_chain`.
+/// `WasmStepState::comm_chain`, the active chain for both outer and object blocks.
+/// Entering an object saves the outer chain and prefix and zeros the active chain;
+/// four root-copy slots restore the outer context and leave object mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmEventAbsorbState {
+    /// One suspended event prefix while a static object uses the shared engine.
+    pub outer_prefix: [u64; 4],
+    /// Suspended outer chain, restored after copying the final object-root lane.
+    pub outer_chain: [u64; 4],
+    pub object_active: bool,
     /// The 8-word block currently being filled (already-absorbed slots are
     /// zeroed by the group's first perm row).
     pub evbuf: [u64; 8],
@@ -133,6 +140,9 @@ pub struct WasmEventAbsorbState {
 
 impl WasmEventAbsorbState {
     pub const ZERO: Self = Self {
+        outer_prefix: [0; 4],
+        outer_chain: [0; 4],
+        object_active: false,
         evbuf: [0; 8],
         perm_pending: false,
         perm_round: 0,
@@ -157,10 +167,10 @@ pub struct WasmHostEventState {
     pub turn_export_fref: u32,
     /// Events still owed in the current phase; loaded from the event-count
     /// ROM on the call row (pre) and the result row (post), decremented as
-    /// each block's last slot row stages it. Program rows require zero.
+    /// each group ends at slot seven or an early Enter. Program rows require zero.
     pub events_remaining: u32,
     /// Current event's index within the template (the ROM key component);
-    /// zeroed on the call row, incremented per completed block.
+    /// zeroed on the call row, incremented per completed gather group.
     pub event_index: u32,
     /// Stack slot index of the call's first argument:
     /// `sp_at_call - index_pops - param_count`; latched on the call row.
@@ -266,15 +276,28 @@ pub struct WasmStepState {
     /// (the event absorb) read it only on rows of the event that set it, so
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
-    /// Host-event commitment chain state (canonical Goldilocks limbs; see
-    /// [`crate::comm_chain`]). Genesis is all-zero; the last row of each
-    /// absorbed block's `HostEventPerm` group folds the block in
-    /// (feed-forward); every other row carries it unchanged.
+    /// Active commitment chain (canonical Goldilocks limbs; see [`crate::comm_chain`]).
+    /// Each permutation folds into this chain. Opaque Enter saves it in
+    /// `event_absorb.outer_chain` and resets it to zero; the final root-copy
+    /// restores it. Outside object mode this is the outer transcript commitment.
     pub comm_chain: [u64; 4],
     /// In-circuit host-event absorb machinery (block buffer + perm rows).
     pub event_absorb: WasmEventAbsorbState,
     /// Host-event gather machinery state.
     pub host_events: WasmHostEventState,
+}
+
+impl WasmStepState {
+    /// Execution and its host-event schedule are complete. Only then is
+    /// `comm_chain` the final outer transcript commitment.
+    pub fn is_terminal(self) -> bool {
+        self.halted
+            && !self.event_absorb.object_active
+            && !self.event_absorb.perm_pending
+            && self.event_absorb.perm_round == 0
+            && self.host_events.events_remaining == 0
+            && self.host_events.slot_cursor == 0
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -288,8 +311,8 @@ pub enum WasmAuxOpcode {
     /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
     /// `WasmEventAbsorbState::perm_pending` is raised.
     HostEventPerm,
-    /// Eight rows stage an expanded event block into the absorb buffer, then
-    /// raise `perm_pending` for its permutation group.
+    /// Stage an expanded event slot. A full block raises `perm_pending`;
+    /// opaque Enter ends the prefix group early without hashing it.
     HostEventGather,
     /// Re-entry between export invocations. Requires the previous turn to be
     /// halted and drained, then loads the next export's entry PC and schedule.
@@ -347,10 +370,13 @@ pub enum WasmHostEventSlotKind {
     Output,
     MemoryRead,
     MemoryWrite,
+    EnterOpaque,
+    OpaqueSaved,
+    OpaqueRoot,
 }
 
 impl WasmHostEventSlotKind {
-    pub const COUNT: usize = 7;
+    pub const COUNT: usize = 10;
 
     pub const fn index(self) -> usize {
         self as usize

@@ -240,12 +240,15 @@ fn prepare(candidate: &Path, expected: [u64; 4], fixture: &Path, output: &Path) 
 
 fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
-    if arguments
-        .first()
-        .is_some_and(|mode| matches!(mode.as_str(), "complete-driver" | "child-complete-driver"))
-    {
-        let children = arguments[0] == "child-complete-driver";
-        assert_eq!(arguments.len(), if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-PiCCS-result> [running-prefix] [folded-child-cache] <external-output>");
+    if arguments.first().is_some_and(|mode| {
+        matches!(
+            mode.as_str(),
+            "complete-driver" | "child-complete-driver" | "child-rlc-driver"
+        )
+    }) {
+        let rlc = arguments[0] == "child-rlc-driver";
+        let children = arguments[0] != "complete-driver";
+        assert_eq!(arguments.len(), if rlc { 12 } else if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver|child-rlc-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-phase-result> [running-prefix] [folded-child-cache] [combined-opening] <external-output>");
         let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
         native_driver::generate(
             Path::new(&arguments[1]),
@@ -254,6 +257,7 @@ fn main() {
             Path::new(&arguments[7]),
             children.then(|| Path::new(&arguments[8])),
             children.then(|| Path::new(&arguments[9])),
+            rlc.then(|| Path::new(&arguments[10])),
             Path::new(arguments.last().expect("native prover output")),
         );
         return;
@@ -321,15 +325,20 @@ fn main() {
         );
         return;
     }
-    if arguments.first().is_some_and(|mode| mode == "fold-base") {
-        assert_eq!(arguments.len(), 9, "usage: generate_pi_ccs_fixture fold-base <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-PiCCS-result> <external-output>");
+    if arguments
+        .first()
+        .is_some_and(|mode| matches!(mode.as_str(), "fold-base" | "fold-recursive"))
+    {
+        let recursive = arguments[0] == "fold-recursive";
+        assert_eq!(arguments.len(), if recursive { 10 } else { 9 }, "usage: generate_pi_ccs_fixture <fold-base|fold-recursive> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-PiCCS-result> [folded-child-cache] <external-output>");
         let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
         folded_opening::generate(
             Path::new(&arguments[1]),
             identity,
             Path::new(&arguments[6]),
             Path::new(&arguments[7]),
-            Path::new(&arguments[8]),
+            recursive.then(|| Path::new(&arguments[8])),
+            Path::new(arguments.last().expect("folded opening output")),
         );
         return;
     }

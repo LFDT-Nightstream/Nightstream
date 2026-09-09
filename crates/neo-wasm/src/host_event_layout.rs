@@ -13,14 +13,20 @@ define_column_region! {
     families: pub HOST_EVENT_COLUMN_FAMILIES,
     indices: pub,
     columns: [
+        COL_OBJECT_ACTIVE_BEFORE: Boolean => "static opaque object active before this row",
+        COL_OBJECT_ACTIVE_AFTER: Boolean => "static opaque object active after this row",
+        COL_OUTER_CHAIN_BEFORE: [Field; 4] => "suspended outer chain before this row",
+        COL_OUTER_CHAIN_AFTER: [Field; 4] => "suspended outer chain after this row",
+        COL_OUTER_PREFIX_BEFORE: [Field; 4] => "suspended outer block prefix before this row",
+        COL_OUTER_PREFIX_AFTER: [Field; 4] => "suspended outer block prefix after this row",
         COL_HOST_CALLEE_FREF_BEFORE: U32 =>
             "callee function ref of the most recent host call before this row (event attribution carry)",
         COL_HOST_CALLEE_FREF_AFTER: U32 =>
             "callee function ref of the most recent host call after this row (event attribution carry)",
         COL_TURN_EXPORT_FREF_BEFORE: U32 => "export function ref owning the current host-event turn before this row",
         COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current host-event turn after this row",
-        COL_COMM_CHAIN_BEFORE: [Field; 4] => "host-event commitment chain before this row",
-        COL_COMM_CHAIN_AFTER: [Field; 4] => "host-event commitment chain after this row",
+        COL_COMM_CHAIN_BEFORE: [Field; 4] => "active commitment chain before this row",
+        COL_COMM_CHAIN_AFTER: [Field; 4] => "active commitment chain after this row",
         // The block buffer, pending flag, round cursor, and running state
         // form the carried interface of the permutation rows.
         COL_EVBUF_BEFORE: [Field; 8] => "host-event block buffer before this row",

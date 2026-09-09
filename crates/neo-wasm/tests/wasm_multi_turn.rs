@@ -5,7 +5,9 @@ mod common;
 
 use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding, TurnInputs};
+use neo_wasm::host_event_bindings::{
+    absorbed_blocks, EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding, TurnInputs,
+};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
@@ -213,7 +215,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
         Default::default(),
     )
     .expect("multi-turn bindings trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     MultiTurnSetup {
@@ -233,9 +235,10 @@ fn expected_transcript(
     let template = bindings.exports.get(&add_fref).expect("template");
     let mut blocks = Vec::new();
     for (turn, &output) in turns.iter().zip(outputs) {
-        blocks.extend(neo_wasm::host_event_bindings::expand_export_entry(template, &turn.entry).expect("entry"));
-        blocks
-            .extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((output, 0)), &[]).expect("exit"));
+        let entry = neo_wasm::host_event_bindings::expand_export_entry(template, &turn.entry).expect("entry");
+        blocks.extend(absorbed_blocks(&template.entry, &entry).expect("absorbed entry"));
+        let exit = neo_wasm::host_event_bindings::expand_export_exit(template, Some((output, 0)), &[]).expect("exit");
+        blocks.extend(absorbed_blocks(&template.exit, &exit).expect("absorbed exit"));
     }
     blocks
         .into_iter()
@@ -585,7 +588,7 @@ fn resultless_turn_can_precede_another_turn() {
         Default::default(),
     )
     .expect("resultless-then-value trace");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
     let tb = trace
@@ -615,16 +618,30 @@ fn resultless_turn_can_precede_another_turn() {
 
     let mut blocks =
         neo_wasm::host_event_bindings::expand_export_entry(&bindings.exports[&poke_fref], &[41]).expect("poke entry");
+    blocks = absorbed_blocks(&bindings.exports[&poke_fref].entry, &blocks).expect("absorbed poke entry");
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&poke_fref], None, &[])
-            .expect("resultless poke exit"),
+        absorbed_blocks(
+            &bindings.exports[&poke_fref].exit,
+            &neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&poke_fref], None, &[])
+                .expect("resultless poke exit"),
+        )
+        .expect("absorbed poke exit"),
     );
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_export_entry(&bindings.exports[&read_fref], &[]).expect("read entry"),
+        absorbed_blocks(
+            &bindings.exports[&read_fref].entry,
+            &neo_wasm::host_event_bindings::expand_export_entry(&bindings.exports[&read_fref], &[])
+                .expect("read entry"),
+        )
+        .expect("absorbed read entry"),
     );
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&read_fref], Some((41, 0)), &[])
-            .expect("exit"),
+        absorbed_blocks(
+            &bindings.exports[&read_fref].exit,
+            &neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&read_fref], Some((41, 0)), &[])
+                .expect("exit"),
+        )
+        .expect("absorbed read exit"),
     );
     let lifted: Vec<[p3_goldilocks::Goldilocks; 8]> = blocks
         .into_iter()

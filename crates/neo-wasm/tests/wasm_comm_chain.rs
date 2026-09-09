@@ -96,7 +96,7 @@ fn perm_row_checkpoints_match_commit_event() {
 /// the permutation rows themselves are exercised against the gadget.
 fn two_event_trace() -> Vec<WasmVmStep> {
     let trace = common::host_event_fixture::host_event_lifecycle_setup().trace;
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     trace
 }
@@ -230,18 +230,41 @@ fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
         .all(|event| event.metadata.turn_export_fref == setup.run_fref));
 }
 
-/// The debug checker must reject a forged carried chain state.
 #[test]
-fn comm_chain_checker_rejects_forged_state() {
-    let wasm = wat::parse_str(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#)
-        .expect("wat");
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("trace");
-    let mut trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("untampered chain");
-    let mid = trace.len() / 2;
-    trace[mid].state_after.comm_chain[0] ^= 1;
+fn shared_transcript_fixture_excludes_opaque_internal_blocks() {
+    use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup};
+    use neo_wasm::host_event_bindings::{opaque_value_root, SlotBinding};
+
+    let mut setup = host_event_lifecycle_setup();
+    let mut expected = expected_transcript(&setup.bindings, setup.run_fref);
+    let template = setup.bindings.exports.get_mut(&setup.run_fref).unwrap();
+    let last = expected.len() - 1;
+    for (events, index, value) in [(&mut template.entry, 0, 17), (&mut template.exit, last, 23)] {
+        let schema = [1, 2, 3, 4];
+        let lowered = events[0]
+            .clone()
+            .with_opaque(2, schema, vec![SlotBinding::Const(value)])
+            .unwrap();
+        events.splice(0..1, lowered);
+        expected[index][2..6].copy_from_slice(&opaque_value_root(schema, &[value]).unwrap().map(f));
+    }
+    assert_eq!(expected_transcript(&setup.bindings, setup.run_fref), expected);
+}
+
+/// The native test oracle compares the actual group output, independently of
+/// the row decomposition. It also reports truncated permutation groups.
+#[test]
+fn native_event_hash_check_rejects_forged_output_and_truncation() {
+    let mut trace = two_event_trace();
+    let start = trace
+        .iter()
+        .position(|row| row.row_kind.is_host_event_perm())
+        .unwrap();
+    let tail = start + comm_chain::COMM_CHAIN_PERM_ROWS - 1;
+    assert!(common::check_native_event_hashes(&trace[..tail]).is_err());
+    trace[tail].state_after.comm_chain[0] ^= 1;
     assert!(
-        neo_wasm::comm_chain::sanity_check_comm_chain(&trace).is_err(),
-        "checker must reject a forged chain state"
+        common::check_native_event_hashes(&trace).is_err(),
+        "native compression must disagree with a forged group output"
     );
 }

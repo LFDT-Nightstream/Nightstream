@@ -13,7 +13,7 @@
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
 use crate::ir::{
     function_call_metadata_shape, WasmBuildError, WasmHostEventMemoryBase, WasmHostEventMemoryWidth,
-    WasmHostEventRomVariant,
+    WasmHostEventRomVariant, WasmHostEventSlotKind,
 };
 use crate::WasmProgramTables;
 use p3_field::PrimeField64;
@@ -21,7 +21,9 @@ use p3_goldilocks::Goldilocks;
 use std::collections::BTreeMap;
 
 mod builder;
-pub use builder::{EventBlockBuilder, HostEventBindingsBuilder};
+mod opaque;
+pub use builder::{EventSequenceBuilder, EventSources, HostEventBindingsBuilder};
+pub use opaque::opaque_value_root;
 
 /// Which 32-bit limb of a two-limb value feeds a slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,6 +49,13 @@ pub enum MemoryBase {
 /// How one event slot obtains its value and any associated VM effect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SlotBinding {
+    /// Internal instruction emitted by [`EventBlock::with_opaque`].
+    /// Ends the gather group immediately after its prefix of at most four words.
+    EnterOpaque,
+    /// Internal restoration of a suspended outer word.
+    OpaqueSaved { lane: u8 },
+    /// Internal copy-back of the active root; lane three restores the outer chain and exits object mode.
+    OpaqueRoot { lane: u8 },
     /// Fixed field element (canonical u64): zero padding, function ids,
     /// interface-id limbs, ref sizes, enum tags.
     Const(u64),
@@ -98,6 +107,26 @@ pub enum SlotBinding {
     },
 }
 
+/// ROM kind and source lane for an opaque control instruction.
+pub(crate) fn opaque_control_encoding(slot: &SlotBinding) -> Option<(WasmHostEventSlotKind, u8)> {
+    match *slot {
+        SlotBinding::EnterOpaque => Some((WasmHostEventSlotKind::EnterOpaque, 0)),
+        SlotBinding::OpaqueSaved { lane } => Some((WasmHostEventSlotKind::OpaqueSaved, lane)),
+        SlotBinding::OpaqueRoot { lane } => Some((WasmHostEventSlotKind::OpaqueRoot, lane)),
+        SlotBinding::Const(_)
+        | SlotBinding::ArgElem { .. }
+        | SlotBinding::ResultElem { .. }
+        | SlotBinding::InputLocal { .. }
+        | SlotBinding::OutputElem { .. }
+        | SlotBinding::MemoryRead32 { .. }
+        | SlotBinding::MemoryRead8 { .. }
+        | SlotBinding::MemoryRead16 { .. }
+        | SlotBinding::MemoryWrite32 { .. }
+        | SlotBinding::MemoryWrite8 { .. }
+        | SlotBinding::MemoryWrite16 { .. } => None,
+    }
+}
+
 pub(crate) const fn memory_rom_arg_variant(
     base: MemoryBase,
     width: WasmHostEventMemoryWidth,
@@ -121,6 +150,10 @@ pub(crate) const fn memory_rom_arg_variant(
 /// If `absorb` is false, the gather rows and their VM effects still run,
 /// but the block is omitted from the transcript. The flag is ROM-bound,
 /// and templates may mix absorbing and advice events.
+/// [`Self::with_opaque`] lowers one outer block into several gather groups;
+/// its internal groups build the object root instead of advancing the outer chain.
+/// Enter terminates its prefix group early; subsequent zero placeholders in
+/// that group's eight-slot ROM layout are not executed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EventBlock {
     pub block: [SlotBinding; COMM_CHAIN_BLOCK_WORDS],
@@ -201,6 +234,8 @@ impl ExportTemplate {
     /// output.
     /// The stack-based import sources (`ArgElem`/`ResultElem`) never apply.
     pub fn validate(&self, local_bound: u32, result_count: u8) -> Result<(), WasmBuildError> {
+        opaque::validate(&self.entry)?;
+        opaque::validate(&self.exit)?;
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
         let mut written = std::collections::BTreeSet::new();
         for (phase, events) in [(ExportPhase::Entry, &self.entry), (ExportPhase::Exit, &self.exit)] {
@@ -221,6 +256,8 @@ impl ExportTemplate {
                 };
                 for slot in &event.block {
                     match *slot {
+                        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
+                        }
                         SlotBinding::Const(value) => {
                             if value >= Goldilocks::ORDER_U64 {
                                 return err(ctx("constant is not a canonical field element"));
@@ -403,6 +440,7 @@ impl ImportTemplate {
     /// These order rules are deliberately out-of-circuit: the bindings are
     /// verifier-authored data, audited here rather than in the relation.
     pub fn validate(&self, param_count: u8, result_count: u8) -> Result<(), WasmBuildError> {
+        opaque::validate(&self.events)?;
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
         if self.input_count != 0 && !self.events.iter().any(|event| event.absorb) {
             return err(format!(
@@ -420,6 +458,7 @@ impl ImportTemplate {
                     return err(ctx("advice events may only contain ResultElem and Const slots"));
                 }
                 match *slot {
+                    SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {}
                     SlotBinding::Const(value) => {
                         if value >= Goldilocks::ORDER_U64 {
                             return err(ctx("constant is not a canonical field element"));
@@ -517,6 +556,7 @@ impl ImportTemplate {
 /// Resolve a template into one gather block per event. `args` are `(lo, hi)`
 /// limb pairs in declared parameter order; `inputs` must supply exactly
 /// `template.input_count` canonical words.
+/// Use [`absorbed_blocks`] to select the outer transcript from this schedule.
 pub fn expand_import_events(
     template: &ImportTemplate,
     args: &[(u32, u32)],
@@ -527,7 +567,7 @@ pub fn expand_import_events(
     check_inputs("per-call", inputs, template.input_count)?;
     check_memory_reads("per-call", memory_reads, &template.events)?;
     let mut memory_index = 0usize;
-    template
+    let mut blocks = template
         .events
         .iter()
         .map(|event| {
@@ -537,45 +577,59 @@ pub fn expand_import_events(
             }
             Ok(block)
         })
-        .collect()
+        .collect::<Result<Vec<_>, WasmBuildError>>()?;
+    opaque::replay(&template.events, &mut blocks)?;
+    Ok(blocks)
 }
 
-/// Return the absorbing blocks from a matching template expansion.
+/// Select the outer transcript from an import or export schedule expansion.
+/// Excludes advice and object-internal work, checking root copy-back consistency.
+/// This is not input authentication: the schedule must be verifier-authored and
+/// its expanded inputs must independently be bound to execution or a proof.
 pub fn absorbed_blocks(
-    template: &ImportTemplate,
+    events: &[EventBlock],
     blocks: &[[u64; COMM_CHAIN_BLOCK_WORDS]],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
-    if blocks.len() != template.events.len() {
+    if blocks.len() != events.len() {
         return Err(WasmBuildError::Trace(format!(
             "expansion has {} blocks but the template declares {} events; blocks must come from \
-             expand_import_events on the same template",
+             expansion on the same schedule",
             blocks.len(),
-            template.events.len()
+            events.len()
         )));
     }
-    Ok(template
-        .events
-        .iter()
+    let mut resolved = blocks.to_vec();
+    let mask = opaque::replay(events, &mut resolved)?;
+    if resolved != blocks {
+        return Err(WasmBuildError::Trace(
+            "opaque expansion does not match its computed roots".into(),
+        ));
+    }
+    Ok(mask
+        .into_iter()
         .zip(blocks)
-        .filter(|(event, _)| event.absorb)
+        .filter(|(absorb, _)| *absorb)
         .map(|(_, &block)| block)
         .collect())
 }
 
 /// Resolve an export template's ENTRY phase against the turn's entry input
 /// words. `InputLocal` words must fit the locals lanes (32 bits).
+/// Includes object-internal gather groups; use [`absorbed_blocks`] with `entry`
+/// to select the outer transcript.
 pub fn expand_export_entry(
     template: &ExportTemplate,
     entry_inputs: &[u64],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_inputs("entry", entry_inputs, template.entry_input_count)?;
-    template
+    let mut blocks = template
         .entry
         .iter()
         .map(|event| {
             let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = match *slot {
+                    SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => 0,
                     SlotBinding::Const(value) => value,
                     SlotBinding::InputLocal { input, local, .. } => {
                         let value = entry_inputs[usize::from(input)];
@@ -614,10 +668,14 @@ pub fn expand_export_entry(
             }
             Ok(block)
         })
-        .collect()
+        .collect::<Result<Vec<_>, WasmBuildError>>()?;
+    opaque::replay(&template.entry, &mut blocks)?;
+    Ok(blocks)
 }
 
 /// Resolve an export template's EXIT phase against the captured output.
+/// Includes object-internal gather groups; use [`absorbed_blocks`] with `exit`
+/// to select the outer transcript.
 pub fn expand_export_exit(
     template: &ExportTemplate,
     output: Option<(u32, u32)>,
@@ -625,13 +683,14 @@ pub fn expand_export_exit(
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_memory_reads("exit", memory_reads, &template.exit)?;
     let mut memory_index = 0usize;
-    template
+    let mut blocks = template
         .exit
         .iter()
         .map(|event| {
             let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = match *slot {
+                    SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => 0,
                     SlotBinding::Const(value) => value,
                     SlotBinding::OutputElem { limb } => output
                         .map(|pair| limb_of(pair, limb))
@@ -652,7 +711,9 @@ pub fn expand_export_exit(
             }
             Ok(block)
         })
-        .collect()
+        .collect::<Result<Vec<_>, WasmBuildError>>()?;
+    opaque::replay(&template.exit, &mut blocks)?;
+    Ok(blocks)
 }
 
 /// Input arrays must match the template's declared count exactly and hold
@@ -725,6 +786,7 @@ fn resolve_slot(
     memory_index: &mut usize,
 ) -> Result<u64, WasmBuildError> {
     match slot {
+        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => Ok(0),
         SlotBinding::Const(value) => Ok(value),
         SlotBinding::ArgElem { arg, limb } => args
             .get(usize::from(arg))
@@ -796,6 +858,9 @@ pub(super) fn events_dense_input_count(events: &[EventBlock], context: &str) -> 
             | SlotBinding::MemoryWrite16 { input, .. }
             | SlotBinding::MemoryWrite8 { input, .. } => Some(input),
             SlotBinding::Const(_)
+            | SlotBinding::EnterOpaque
+            | SlotBinding::OpaqueSaved { .. }
+            | SlotBinding::OpaqueRoot { .. }
             | SlotBinding::ArgElem { .. }
             | SlotBinding::ResultElem { .. }
             | SlotBinding::OutputElem { .. }

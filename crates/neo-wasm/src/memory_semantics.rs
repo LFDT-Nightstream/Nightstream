@@ -155,13 +155,17 @@ pub fn preload_host_event_tables(
     preload: &mut WasmMemoryPreload,
     bindings: &crate::host_event_bindings::HostEventBindings,
 ) {
-    use crate::host_event_bindings::{memory_rom_arg_variant, EventBlock, Limb, SlotBinding};
+    use crate::host_event_bindings::{memory_rom_arg_variant, opaque_control_encoding, EventBlock, Limb, SlotBinding};
     use crate::ir::{WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind};
     let limb_variant = |limb| match limb {
         Limb::Lo => WasmHostEventRomVariant::LowLimb,
         Limb::Hi => WasmHostEventRomVariant::HighLimb,
     };
     let encode = |source: &SlotBinding| match *source {
+        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
+            let (kind, arg) = opaque_control_encoding(source).expect("control slot");
+            (kind.code().into(), arg.into(), 0, 0, 0)
+        }
         SlotBinding::Const(value) => (
             u32::from(WasmHostEventSlotKind::Const.code()),
             0,
@@ -275,7 +279,7 @@ pub fn preload_host_event_tables(
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
                 let (kind, arg, variant, immediate0, immediate1) = encode(source);
-                // Bit 3 carries the per-event advice flag.
+                // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);
                 preload.insert(WasmMemoryId::HostEventSlotArg, key.clone(), arg);

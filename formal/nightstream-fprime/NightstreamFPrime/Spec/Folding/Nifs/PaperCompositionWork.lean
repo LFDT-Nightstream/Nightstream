@@ -220,7 +220,7 @@ theorem totalClock_on_prefix {width : Nat}
             (strong context) decode receipt.1) + 1 := by
   simp only [totalClock, callCorrect]
 
-private theorem totalClock_nonnegative (context : Context)
+theorem totalClock_nonnegative (context : Context)
     (alpha : CubePoint K shape.cubeVariables) (gamma : K)
     (point : CubePoint K shape.cubeVariables) :
     0 ≤ totalClock algebra call law checker weak strong decode context alpha gamma point := by

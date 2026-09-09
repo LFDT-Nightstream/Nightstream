@@ -19,10 +19,10 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; reduction after context preparation checked |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; preparation and reduction work checked |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
-| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Open |
-| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Open |
+| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; current PiCCS verifier prefix checked |
+| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current PiCCS commands and outputs retained |
 | `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Open |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
@@ -119,13 +119,86 @@ seven existing export tests, the JavaScript syntax check, and the source
 reference check passed. The other 453 requirement nodes and all previous
 update records were preserved.
 
-## Active criterion
+## Preparation now included
 
-Connect the original context-generation call and its actual preparation
-clock to the same reduction. Include preprocessing against the fixed public
-setup. The current work theorem starts after that context is supplied. Then
-apply only the approved public-seed MSIS premise, with its correct execution
-scope. The approved premise supplies no numerical success bound.
+Proof commit: `d1785fe1f5dd006df68c49818a8d512f82fd29f4`.
+
+`ContextPreparation.run` executes the original preparation call once, passes
+its actual value to the continuation, and retains its work. The preparation
+work contract includes private-coin acquisition and fixed-key preprocessing.
+`contexts_toReal`, `value_hasSum`, and `summable_iff` connect the exact context
+marginal to the original private tapes. They preserve correlation between the
+returned context and its preparation cost.
+
+`BindingProbability.prepared_successProbability_eq` uses that same context
+law. `BindingWork.prepared_expected_work_polynomial_bound` adds the actual
+preparation cost. `SupportedExtraction.msis_probability_and_expected_work`
+now consumes both results and the existing checked-prefix proof. The full
+bound is
+
+`preparationWork + 2 * sourceWork + 3 * coordinateWork + carrierWidth * (accessWork + 6) + 13`.
+
+The extra step is the preparation-to-continuation dispatch and return. No
+uniform bound on individual contexts or calls was added. The NIFS axiom audit
+passed in 4 seconds, and the boundary gate passed. The audit permits only
+`propext`, `Classical.choice`, and `Quot.sound`.
+
+The final theorem still takes the costed extraction primitives, accessor and
+source/parent checker contracts as parameters. The current source has no
+selected construction that discharges all of them. In particular, an
+arbitrary semantic assignment function cannot be assigned unit access cost.
+These are implementation and work-proof obligations. They are not covered by
+the public-seed MSIS assumption. `N.security.binding` remains partial.
+
+## Current honest PiCCS check
+
+Tool commit: `a33deedf8f6c0a782ec6c79e03cff6a836a9acd5`.
+
+The existing input-comparison tool now has `optimized-accept` and
+`optimized-reject` actions. These use the common optimized verifier and the
+complete existing result encoder. The current check used the retained honest
+recursive input from `conformance-fixes-evidence.zip`. The selected package
+was fetched from Git LFS at the reviewed base and its bytes matched the
+retained package. Its source, profile and identity were not substituted with
+a small fixture.
+
+| Executed check | Result |
+|---|---|
+| Current executable Lean on the honest recursive input | Accepted; all 1710813 result bytes match the retained result. The build and run took 290 seconds. |
+| Optimized Rust on the same input and proof | Accepted; all 15 complete phase fields match Lean. The run took 19.385 seconds. |
+| First-round constant coefficient changed by one | Current Lean and optimized Rust reject. Rust stops at round zero, so a complete rejection trace is not claimed. |
+| First output pad coefficient changed by one | The complete result comparison fails at the expected assertion. Exit 134 is the release panic abort, not a timeout. |
+
+The release build took 42.77 seconds. `cargo fmt --all` completed; its stable
+toolchain reported the existing nightly-only import-format setting. Each
+native validation invocation had the 300-second hard cap. Each Lean command
+had the 1500-second hard cap. This work ran no PaperExact action.
+
+The input and proof are concrete and nonzero. The retained source/opening
+checks keep their historical scope. This current run checks the PiCCS
+verifier prefix; it does not run the full optimized prover or close the
+PiRLC, PiDEC, final-output and complete mutation chain. Independent phase
+approvals remain separate.
+
+`NIFS_PREPARATION_AND_PICCS_EVIDENCE.zip` retains the exact source, inputs,
+outputs, mutations and logs, including failed proof attempts. The map updates
+three scoped NIFS records and corrects shifted source lines in two other NIFS
+records. Other requirements and their statuses are preserved.
+
+## Active criteria
+
+Discharge the selected extraction primitive, accessor and checker contracts
+at their existing owners, with work bounds on their actual representations.
+Then apply only the approved same-key MSIS hardness premise. It supplies no
+numerical success bound.
+
+Continue the same honest input through the optimized prover, PiRLC, PiDEC and
+final output, with the complete required mutations. Keep the current PiCCS
+prefix separate from complete NIFS or phase approval.
+
+The lookup for an existing approved Fiat-Shamir model is pending. No new
+Poseidon2 idealization, query budget, or security-transfer assumption was
+introduced.
 
 The older `protocol-contract/security-reduction.md` uses a different
 transcript, sampler, and profile. Its numerical query limits and security

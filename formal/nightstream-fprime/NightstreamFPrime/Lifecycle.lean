@@ -5,6 +5,12 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Lifecycle.ProductionKey
+import NightstreamFPrime.Lifecycle.NifsProfile
+import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
+import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction
+import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
+import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
+import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.PriorStateHash
 import NightstreamFPrime.Lifecycle.OutputHash

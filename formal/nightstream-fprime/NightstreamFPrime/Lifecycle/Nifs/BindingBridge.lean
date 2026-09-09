@@ -24,7 +24,7 @@ variable {logicalWidth : Nat}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-private theorem subtraction_eq
+theorem subtraction_eq
     (left right : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (PaperExtractionAlgebra.extractionAlgebra
       (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right =

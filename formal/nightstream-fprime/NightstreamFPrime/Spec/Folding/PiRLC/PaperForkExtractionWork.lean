@@ -129,7 +129,7 @@ def collect {Assignment : Type uAssignment} : {count : Nat} →
       { value := head.value :: tail.value
         work := head.work + tail.work + 1 }
 
-private theorem collect_values {Assignment : Type uAssignment} : ∀ {count : Nat}
+theorem collect_values {Assignment : Type uAssignment} : ∀ {count : Nat}
     (coordinate : Fin count → Result Assignment),
     (collect coordinate).value = List.ofFn (fun index => (coordinate index).value)
   | 0, _ => rfl
@@ -138,7 +138,7 @@ private theorem collect_values {Assignment : Type uAssignment} : ∀ {count : Na
           (collect (fun index => coordinate index.succ)).value = _
       rw [List.ofFn_succ, collect_values]
 
-private theorem collect_work_le {Assignment : Type uAssignment} (bound : Nat) : ∀ {count : Nat}
+theorem collect_work_le {Assignment : Type uAssignment} (bound : Nat) : ∀ {count : Nat}
     (coordinate : Fin count → Result Assignment),
     (∀ index, (coordinate index).work ≤ bound) →
     (collect coordinate).work ≤ count * (bound + 1) + 1

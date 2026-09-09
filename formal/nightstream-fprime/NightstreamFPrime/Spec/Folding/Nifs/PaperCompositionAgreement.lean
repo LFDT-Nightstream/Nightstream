@@ -153,6 +153,24 @@ theorem pairMean_mono
     (fun second secondSupported => implies first second firstSupported secondSupported)
     otherAlpha otherGamma otherPoint
 
+omit [DecidableEq Endpoint] in
+private theorem endpointMean_mul_const
+    (value : Observation State Endpoint shape → ℝ) (factor : ℝ) :
+    endpointMean firstPhase suffixLaw (fun observation => value observation * factor) =
+      fun alpha gamma point => endpointMean firstPhase suffixLaw value alpha gamma point * factor := by
+  funext alpha gamma point
+  cases returned : InteractivePrefix.run firstPhase alpha gamma point <;>
+    simp only [endpointMean, returned, ← mul_assoc, ← Finset.sum_mul]
+
+omit [DecidableEq Endpoint] in
+/-- Scaling the observable scales the mean of the same independent pair. -/
+theorem pairMean_mul_const
+    (value : Observation State Endpoint shape → Observation State Endpoint shape → ℝ)
+    (factor : ℝ) :
+    pairMean firstPhase suffixLaw (fun left right => value left right * factor) =
+      pairMean firstPhase suffixLaw value * factor := by
+  simp only [pairMean, endpointMean_mul_const, StrongProbability.verifierMean_mul_const]
+
 private theorem endpointMean_const (constant : ℝ) :
     endpointMean firstPhase suffixLaw (fun _ => constant) = fun _ _ _ => constant := by
   funext alpha gamma point
@@ -168,7 +186,7 @@ private theorem endpointMean_const (constant : ℝ) :
         rw [total, ENNReal.toReal_one]
       simp only [endpointMean, returned, ← Finset.sum_mul, weights, one_mul]
 
-private theorem pairMean_const (constant : ℝ) :
+theorem pairMean_const (constant : ℝ) :
     pairMean firstPhase suffixLaw (fun _ _ => constant) = constant := by
   simp only [pairMean, endpointMean_const, StrongProbability.verifierMean_const]
 

@@ -333,6 +333,19 @@ theorem commitmentRow_value (coordinate : Fin 1188) :
     (source_row (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
       PiDECInputCheck.relation coordinate).symm
 
+/-- The complete ordered source data consumed by the retained matrix compiler. -/
+theorem commitmentRow_data (coordinate : Fin 1188) :
+    (commitmentRow coordinate).value =
+      ⟨⟨0, List.ofFn fun child : Fin 16 =>
+        (Spartan.sourceToSpartan (PiDECInputs.childCommitmentStart child + coordinate.val),
+          Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight child)⟩,
+       ⟨1, []⟩,
+       ⟨0, [(Spartan.sourceToSpartan
+         (PiDECSourceSupport.parentCommitmentStart + coordinate.val), 1)]⟩⟩ := by
+  simpa only [rawRow, sourceTerms, Spartan.remapRow, Spartan.remapCombination,
+    List.map_ofFn, List.map_nil, List.map_cons, R1CS.LinearCombination.one,
+    R1CS.LinearCombination.ofVar] using commitmentRow_mapped coordinate
+
 theorem commitmentRow_lengths (coordinate : Fin 1188) :
     (commitmentRow coordinate).value.a.terms.length = 16 ∧
       (commitmentRow coordinate).value.b.terms.length = 0 ∧

@@ -8,8 +8,8 @@ invocation-major SuperNeo family schedule and retained forms used by
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
-open NightstreamFPrime.Export.MatrixProgram.Phi81Product
+open NightstreamFPrime.Layout.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation

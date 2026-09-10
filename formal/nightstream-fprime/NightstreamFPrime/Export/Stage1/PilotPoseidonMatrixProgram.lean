@@ -11,7 +11,7 @@ This module does not select later transcript families or package order.
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1

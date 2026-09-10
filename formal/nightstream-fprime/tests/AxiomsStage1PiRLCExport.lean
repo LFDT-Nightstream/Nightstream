@@ -129,7 +129,7 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry.rejectStart_eq_directRejectStart
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry.symbolStart_eq_directSymbolStart
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.SourceGrid.source_of_form?_some
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceGrid.source_of_form?_some
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerLogicalGrids.segment_bounds
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerLogicalGrids.selected_bounds
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerLogicalGrids.selected_eq

@@ -86,6 +86,11 @@ while IFS= read -r f; do
   done < <(grep -E '^import NightstreamFPrime\.' "$f" || true)
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
 
+# The generic MatrixProgram Export owners contain only canonical codecs.
+if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
+  fail "physical declaration returned to the MatrixProgram codec owner"
+fi
+
 # 9. Every source module must be reachable from one declared library or
 # executable root. An unimported file is not checked by `lake build` and
 # cannot provide assurance evidence.

@@ -14,7 +14,7 @@ the complete PiCCS substitution table or package integration.
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open PiCCSOrdinaryRetainedBlocks

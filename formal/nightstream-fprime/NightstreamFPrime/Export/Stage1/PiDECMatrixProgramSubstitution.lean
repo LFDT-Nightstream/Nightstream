@@ -8,7 +8,7 @@ Lean-authored retained range and equals the proof-oriented direct source map.
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport

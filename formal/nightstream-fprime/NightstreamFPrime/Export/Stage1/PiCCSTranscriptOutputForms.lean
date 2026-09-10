@@ -14,7 +14,7 @@ This module adds no allocation, copy row, or assumption about an assignment.
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1

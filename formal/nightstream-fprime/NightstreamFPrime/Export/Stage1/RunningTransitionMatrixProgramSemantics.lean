@@ -8,7 +8,7 @@ an explicit identity-checked premise.
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1

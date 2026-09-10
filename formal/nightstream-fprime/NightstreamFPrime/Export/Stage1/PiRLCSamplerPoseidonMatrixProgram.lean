@@ -11,7 +11,7 @@ This module does not own sampler digit or selector rows.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec

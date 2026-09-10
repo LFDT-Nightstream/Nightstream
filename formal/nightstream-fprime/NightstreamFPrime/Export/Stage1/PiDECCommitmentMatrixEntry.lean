@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
-import NightstreamFPrime.Export.MatrixProgram.CoefficientWork
+import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
@@ -30,7 +30,7 @@ open _root_.NightstreamFPrime.Lifecycle
 open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-open _root_.NightstreamFPrime.Export.MatrixProgram
+open _root_.NightstreamFPrime.Layout.MatrixProgram
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
 abbrev carrier : Phi81Relation.Shape :=

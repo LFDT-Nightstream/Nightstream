@@ -8,8 +8,8 @@ from pathlib import Path
 import re
 
 
-def imports(text):
-    """Read the import header, ignoring nested Lean comments and strings."""
+def lean_code(text):
+    """Remove nested Lean comments and strings; retain the existing scan rules."""
     clean, index, depth, quoted = [], 0, 0, False
     while index < len(text):
         pair = text[index:index + 2]
@@ -45,8 +45,13 @@ def imports(text):
         else:
             clean.append(char)
             index += 1
+    return ''.join(clean)
+
+
+def imports(text):
+    """Read the import header, ignoring nested Lean comments and strings."""
     names = []
-    for line in ''.join(clean).splitlines():
+    for line in lean_code(text).splitlines():
         match = re.fullmatch(r'\s*(?:(?:public|private|meta)\s+)*import\s+(.+?)\s*', line)
         if match:
             names.extend(match.group(1).split())

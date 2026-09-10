@@ -98,5 +98,65 @@
         "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
       ]
     }
+  },
+  "followup": {
+    "source_commit": "5f944b50db9cde05ecfb53502801730d44be4a9b",
+    "change": "One extra sign-hint cell per scalar; 270 scalar invocations; unchanged constraints/specification",
+    "scope": "Compiler results. Review parent-size failures separately from unrelated phase failures.",
+    "results": [
+      {
+        "label": "leaf",
+        "target": "NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "piccs",
+        "target": "NightstreamFPrime.Layout.PiCCS.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc",
+        "target": "NightstreamFPrime.Layout.PiRLC.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc_input",
+        "target": "NightstreamFPrime.Layout.Stage1.PiRLCInputBounds",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pidec_ranges",
+        "target": "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean:72:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      },
+      {
+        "label": "nifs_consumer",
+        "target": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean:11:58: unsolved goals",
+          "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean:72:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      },
+      {
+        "label": "full",
+        "target": "NightstreamFPrime",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean:11:58: unsolved goals",
+          "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean:72:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      }
+    ],
+    "seconds": 85.32,
+    "peak_kib": 4159588,
+    "interpretation": "The PiDEC ownership literal is fixed. The next reached failure is RunningTransitionLayout.logicalColumnCount_eq = 29040587, imported through the full-prefix Spartan dependency. The selected PublicInputSplit.Values check also fails as expected. Source-range and actual-consumer isolation are not established past that frontier."
   }
 }

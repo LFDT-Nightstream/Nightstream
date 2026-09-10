@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
 import NightstreamFPrime.Export.StreamingIdentity
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Export.MatrixProgram.Program
 
 /-!
 Owns the verifier-owned canonical package for one Lean-authored application.

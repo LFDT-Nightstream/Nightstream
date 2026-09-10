@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Main
 import tests.PerApplicationEmitterFixture
+import NightstreamFPrime.Export.MatrixProgram.Program
 
 /-!
 Test-only full-package byte oracle. It uses the canonical generic codecs for
@@ -8,6 +9,8 @@ the production per-application package writer.
 -/
 
 namespace NightstreamFPrime.Tests.PerApplicationReferenceMain
+
+open NightstreamFPrime.Layout
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export

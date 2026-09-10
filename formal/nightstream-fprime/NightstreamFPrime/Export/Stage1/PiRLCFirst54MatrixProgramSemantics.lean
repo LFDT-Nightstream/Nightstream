@@ -7,8 +7,8 @@ and the canonical Lean `PiRLCFirst54DirectPlan` families.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCFirst54MatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
-open NightstreamFPrime.Export.MatrixProgram.AffineGrid
+open NightstreamFPrime.Layout.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram.AffineGrid
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation

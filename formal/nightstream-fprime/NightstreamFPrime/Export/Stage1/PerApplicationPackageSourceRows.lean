@@ -15,6 +15,8 @@ This module does not select an application or claim final conformance.
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 
+open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)
+
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1

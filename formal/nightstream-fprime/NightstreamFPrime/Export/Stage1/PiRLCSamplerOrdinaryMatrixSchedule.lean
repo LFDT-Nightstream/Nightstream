@@ -11,7 +11,7 @@ This module selects row indices only. It does not compile matrix forms.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout.Stage1
 
 def laneRange (source round : Nat) (lane : Fin 4) : IndexRange where

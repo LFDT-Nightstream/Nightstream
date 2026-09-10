@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.MatrixProgram.Program
+import NightstreamFPrime.Layout.MatrixProgram.Program
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
 /-!
@@ -7,7 +7,7 @@ If two child programs return the exact rows of two child plans, their ordered
 append returns the exact rows of the canonical appended plan.
 -/
 
-namespace NightstreamFPrime.Export.MatrixProgram
+namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
@@ -83,4 +83,4 @@ theorem Program.append_plan_row?
               exact (ProductionRelation.Plan.append_forms_right
                 leftPlan rightPlan planFits rightRow port).symm
 
-end NightstreamFPrime.Export.MatrixProgram
+end NightstreamFPrime.Layout.MatrixProgram

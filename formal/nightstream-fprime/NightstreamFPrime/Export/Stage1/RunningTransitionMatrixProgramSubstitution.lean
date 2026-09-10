@@ -9,7 +9,7 @@ retained range or affine grid.
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1

@@ -215,7 +215,7 @@ theorem shiftSparseCombination_toR1CS
   cases combination
   simp [shiftSparseCombination, shiftSparseTerm,
     SparseCombination.toR1CS, CompactRows.renameCombination,
-    List.map_map, Function.comp_def]
+    Layout.R1CS.mapCombinationColumns, List.map_map, Function.comp_def]
 
 theorem shiftSparseCombination_eval
     (program : Lifecycle.Stage1.Application.Program)

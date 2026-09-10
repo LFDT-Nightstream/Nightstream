@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCandidateWiring
-import NightstreamFPrime.Export.MatrixProgram.SourceGridSupport
+import NightstreamFPrime.Layout.MatrixProgram.SourceGridSupport
 
 /-!
 Owns the compact source grids for digest-lane values. The two decoded symbols
@@ -10,7 +10,7 @@ after the 66-word canonical field decomposition.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerLogicalGrids
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation

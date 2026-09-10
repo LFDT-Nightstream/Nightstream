@@ -1,8 +1,8 @@
-import NightstreamFPrime.Export.MatrixProgram
+import NightstreamFPrime.Layout.MatrixProgram
 
 /-! Exact source coordinates of a successful compact-grid lookup. -/
 
-namespace NightstreamFPrime.Export.MatrixProgram.SourceGrid
+namespace NightstreamFPrime.Layout.MatrixProgram.SourceGrid
 
 theorem source_of_form?_some (grid : SourceGrid) {logicalWidth source : Nat}
     {form : NightstreamFPrime.Layout.ProductionRelation.SparseForm logicalWidth}
@@ -47,4 +47,4 @@ theorem source_of_form?_some (grid : SourceGrid) {logicalWidth source : Nat}
     ((source - grid.sourceStart) % grid.majorSourceStride) grid.minorSourceStride
   nlinarith [Nat.sub_add_cancel after]
 
-end NightstreamFPrime.Export.MatrixProgram.SourceGrid
+end NightstreamFPrime.Layout.MatrixProgram.SourceGrid

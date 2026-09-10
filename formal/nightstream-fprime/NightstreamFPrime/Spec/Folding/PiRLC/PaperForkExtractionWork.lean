@@ -2,13 +2,14 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
 /-!
 Charged execution of SuperNeo v1.1 Appendix B.3 step 5. Each primitive returns
-its value and work from the same call. Primitive work includes dispatch and
-representation work, including any packing inside the assignment operations.
+its value and declared work from the same call. This module sums those clocks;
+it does not infer execution costs from the primitive definitions.
 
 The inverse implementation receives only the scalar difference. It does not
 receive a supplied inverse. Its correctness and work on unit inputs are
-explicit primitive premises. Polynomial primitive bounds therefore remain
-necessary for a polynomial runtime claim.
+explicit primitive premises. Polynomial counter bounds give expected work
+under the declared clock model. A runtime claim also needs a refinement from
+that clock to the chosen execution model.
 
 The driver charges one result return per coordinate and one list construction
 per batch entry, including the final empty list. On a CompleteFork, the proved
@@ -23,7 +24,15 @@ open PaperForkExtraction PaperForkAlgebra
 
 universe uValue uScalar uAssignment uStructure uPublicInput uPoint uEvaluation uCommitment
 
-/-- A primitive result and the work charged by that same invocation. -/
+/-- A result and its declared mathematical clock. `extract` adds the four
+returned primitive clocks and one result-return charge. `collect` adds its
+child clocks and one charge for each cons and the final nil. Other consumers
+count their explicit local charges in the same way. Function application,
+allocation, representation conversion, key generation, and field arithmetic
+are counted only where a callee's clock or a driver charge includes them;
+this record does not measure them automatically. `Correct` constrains values
+and `Bounded` constrains these counters. Neither asserts Lean/Rust runtime or
+machine-operation counts without a separate execution-model refinement. -/
 structure Result (Value : Type uValue) where
   value : Value
   work : Nat

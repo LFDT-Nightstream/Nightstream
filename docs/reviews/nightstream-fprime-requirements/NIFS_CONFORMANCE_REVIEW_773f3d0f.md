@@ -477,3 +477,168 @@ representation/work bounds remain required. This is a source research
 result. No dependency or copied source was added and no build was run.
 Upstream source carries
 [Apache-2.0 licensing and author notices](https://github.com/Verified-zkEVM/CompPoly/blob/050f0bc7e9780703beb8d178ec533e52bd87d649/LICENSE).
+
+**Separate stored-checker and dependency-delta review.** This review covers
+the uncommitted stored-probe and scalar-checker changes based on
+0fdd221fe342519440b486eb30c85de27c12d701. It preserves the original immutable
+cut and its evidence limits. The reviewed file identities are:
+
+| File under NightstreamFPrime | SHA-256 |
+|---|---|
+| Spec/Folding/PiCCS/PaperJoint/StoredProbe.lean | 591110514bc5bd3382edd413dfcdfbdb9bda6231b83d35b1548a37c0b1df8050 |
+| Spec/Folding/PiCCS/PaperJoint/StoredWitnessCheckPrimitives.lean | d544ec7b6ce1ae398a527c7ba070138e9992fa21b528f330a73855d65cb11b0c |
+| Spec/Folding/PiCCS/PaperJoint/StoredWitnessCheckWork.lean | f673a35a11a0282cba73a6f40ef468d1ca64eec03a54c826081923a8a0bae399 |
+| Spec/Folding/PiCCS/PaperJoint/CheckedWitnessExtraction.lean | aba4a0befe922ecaeead74b6038a1a2e43897a294fdf22c39aa3584632613661 |
+| Spec/Folding/PiCCS/PaperJoint/StoredOneRunExtraction.lean | 18eeb81ad5142ced8f6f912281619ddba3db94965b61c3d962809d351c8511f8 |
+| Export/Stage1/PiCCSStoredWitnessCheck.lean | ae9af0401c78c59cbb42907d52c6846be064ae4e68bd3db1a089bfcbd93adfc8 |
+
+I found no value or returned-counter mismatch in this source scope.
+
+| Claim | Independent source check |
+|---|---|
+| Stored probe erasure | [StoredProbe.view](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StoredProbe.lean:29) retains the same public coins and raw certificate. It stores Pad separately from the complete matrix family. It does not truncate malformed certificate messages or replace them with a well-formed certificate. |
+| Actual output reads | padRead and matrixRead select the same coordinates as view. Their counters are four and five named operations respectively. The data comes from nested Vector arrays; no arbitrary output function is assigned a constant access cost. |
+| Scalar operations | [StoredWitnessCheckPrimitives](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StoredWitnessCheckPrimitives.lean:21) implements the existing dot step, K embedding, interpolation, field/extension equality and selected ambient-norm check. Interpolation uses six input coefficient reads, two subtractions, five multiplications, four additions and two output constructions. The stated total is 19. The extension equality has separate six- and ten-operation paths. |
+| Selected public input | [publicInputRead_value](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSStoredWitnessCheck.lean:182) identifies the actual fresh/running array read with the selected statement. Source zero is the one fresh source; the remaining 16 sources retain their running order. The branch counters are six and nine. |
+| Checker value and work | StoredWitnessCheckWork.check_value compares the stored probe's view with the same Boolean checker. check_work_le bounds that invocation's returned counter. The existing Fin.foldl implementation uses a direct increasing index; the successor closure in its proof does not replace the executable loop. |
+| Source return | [scalar_finish_source_iff](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSStoredWitnessCheck.lean:226) retains exact relaxed success and source validity for the same erased outcome. It needs four explicit refinements: the public check, commitment check, Pad entry and matrix entry. Scalar operations and public/probe reads are supplied by the new implementations. |
+| Remaining work premises | scalar_check_work_le still requires bounds for those same four calls. The commitment bound must include the selected key expansion. StoredOneRunExtraction still requires callCorrect and the actual call/check mean; the producer owns construction of both witness and probe arrays. |
+
+These counters use the stated named-operation model. They do not prove a
+bound for compiled Lean execution or complete source production. The older
+List.Vector projection path and its accumulated accessor closures remain an
+open representation/runtime obligation at this reviewed cut. A later copier
+change needs separate review. The remaining primitive and producer premises
+are visible assumptions, not established implementations or protocol defects.
+
+The initial builds failed on a namespace opening and record-update syntax.
+I checked the fixes: they preserve the storage operations and the selected
+program fields. The final selected build in
+[/tmp/nightstream-nifs-stored-probe-3.log](/tmp/nightstream-nifs-stored-probe-3.log)
+passed with exit 0 in three seconds; the selected module job took 1.7 seconds.
+The combined axiom audit later passed, as recorded below. The earlier selected-primitives
+build predates this adaptation and is not used as evidence that this complete
+delta passed. This reviewer ran no build.
+
+The CompPoly dependency is now present in lakefile.toml and lake-manifest.json
+at exactly 050f0bc7e9780703beb8d178ec533e52bd87d649. Mathlib remains at
+c5ea00351c28e24afc9f0f84379aa41082b1188f and the toolchain remains Lean 4.30.0.
+The upstream checkout is clean. I read the 15-file import closure of
+CompPoly.Univariate.EuclideanAlgorithm and compared each file with the pinned
+git object: all 6539 source lines match. No sorry, admit, axiom or unsafe
+declaration occurs in that closure. The new dependency adds no Rust feature,
+environment variable or protocol hash family. Upstream polynomial views are
+proof tools; the candidate executes the array implementation and monic
+remainder. Fuel sufficiency is not a complete work proof.
+
+I also checked the coordinator's explicit candidate hoist in
+[StoredRingInverse.candidate](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Phi81Relation/EvaluationHomomorphism/StoredRingInverse.lean:41).
+The candidate polynomial is computed before Vector.ofFn copies its
+coefficients. This source has SHA-256
+9da9fca9ed9388cbd9be6b5991e8c4f5932c66a1ea46bbadd034d7f394cb4f62.
+The test in
+[/tmp/nightstream-nifs-stored-inverse-test-1.log](/tmp/nightstream-nifs-stored-inverse-test-1.log)
+passed in seven seconds, including the changed candidate build. Its test
+module took 1.3 seconds. Constant 2, X and 1 + X each passed all 54 product
+coefficients through the actual Spec.ringFMul. These checks cover concrete
+normalization, Phi81 reduction and a dense cofactor. They do not prove the
+inverse theorem for all RingF units.
+
+StoredRingInverseCorrect was authored by this reviewer in a separate proof
+task. This section is not an independent review of that file. Its explicit
+polynomial coprimality premise does not close RingF-unit-to-coprime
+correctness. The stopped RingFPolynomial attempt remains a draft and was not
+retried. This section supplies no new C/R/D closure or full runtime approval.
+
+**Separate direct-copier review.** The reviewed
+[CostedWitnessProjection](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/CostedWitnessProjection.lean:34)
+has 191 lines and SHA-256
+2ecd15ffdfb23e0849572911ac13c8d6afde66592415589eadea370e9a35f9ce.
+Its private collector now executes List.ofFnM instead of recursively wrapping
+the accessor with index.succ. I checked the selected Lean 4.30.0 sources:
+[List.ofFnM](/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/src/lean/Init/Data/List/OfFn.lean:40)
+uses Fin.foldlM to call the same action at direct increasing Fin indices,
+prepends each result, then calls List.reverse once.
+[Fin.foldlM](/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/src/lean/Init/Data/Fin/Fold.lean:60)
+advances a Nat index through the original bound.
+[List.reverseAux](/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/src/lean/Init/Data/List/Basic.lean:554)
+is a tail-recursive list traversal. No compiler loop-hoisting assumption is
+needed to remove the old accessor chain.
+
+collect_state_value and collect_get identify every returned coordinate with
+the same read action. The private Type0 restriction includes every actual
+field and nested-list value used here. projectReads_value, project_fresh and
+project_running preserve the exact fresh private tails, full running vectors
+and source order. The SourceWitness list representation is unchanged.
+
+The counter adds three forward-loop operations per element and three reverse
+operations per element, with three initialization/return operations. Thus
+collect_work_le gives n * (accessBound + 6) + 3. Applying the same collector
+to each source gives the new public workBound:
+
+```text
+freshCount * (privateWidth * (accessBound + 6) + 9)
++ runningCount * (carrierWidth * (accessBound + 6) + 9) + 7
+```
+
+The source and the derived returned-counter bound agree. The proof's
+List.ofFnM_succ_last decomposition is not the implementation; it does not
+introduce repeated list appends into the executed copier. The focused build
+in [/tmp/nightstream-nifs-direct-projection-2.log](/tmp/nightstream-nifs-direct-projection-2.log)
+passed with exit 0 in two seconds, including a one-second module job.
+This closes the specific width-sized accessor-chain concern recorded above.
+The bound covers copying and the supplied reader clocks. It does not make
+later indexed use of a returned list constant-time or close the producer and
+full runtime-model obligations.
+
+The first combined audit exposed a required integration repair:
+OneRunExtraction.expected_work_polynomial_bound and
+PaperCompositionWork.expected_work_polynomial_bound still used the old
+copier constants. This was a stale total-work claim, not an open primitive
+premise. The failed record is
+[/tmp/nightstream-nifs-primitives-shortfall-axioms-1.log](/tmp/nightstream-nifs-primitives-shortfall-axioms-1.log).
+The coordinator then updated only the corresponding constants in all six
+affected owners. I checked that source delta: the per-column term is now
+accessPolynomial + 6, the per-source term adds 9, the strong extraction
+total adds 10, and the composed total adds 13. The separate BindingWork
+model is unchanged. The changed exported-work path is:
+
+| Owner | Exported work result |
+|---|---|
+| [Spec OneRunExtraction](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/OneRunExtraction.lean:180) | expected_work_polynomial_bound |
+| [Spec StrongExtraction](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/StrongExtraction.lean:83) | probability_and_expected_work |
+| [PaperCompositionWork](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperCompositionWork.lean:306) | expected_work_polynomial_bound |
+| [Lifecycle StrongExtraction](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Nifs/StrongExtraction.lean:87) | probability_and_expected_work |
+| [InteractiveWork](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Nifs/InteractiveWork.lean:145) | expected_work_polynomial_bound |
+| [SupportedExtraction](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Nifs/SupportedExtraction.lean:180) | probability_and_expected_work and msis_probability_and_expected_work |
+
+The corrected combined audit in
+[/tmp/nightstream-nifs-primitives-shortfall-axioms-2.log](/tmp/nightstream-nifs-primitives-shortfall-axioms-2.log)
+passed with exit 0 in 297 seconds under the 1500-second Lean cap. I read all
+263 printed audit records; they contain only propext, Classical.choice and
+Quot.sound, and the log has no errors. The direct projection value/work
+theorems and the changed lifecycle work exports occur in this audited
+dependency chain. This closes the stale-cost integration finding. It does
+not discharge the explicit primitive, producer or full runtime-model
+premises. No protocol predicate, profile, challenge model or stored source
+value changed in this copier delta.
+
+**Attributed independent inverse-value check.** Worker 1 independently
+reviewed StoredRingInverseCorrect without editing or building it, as reported
+by the coordinator. This is Worker 1's review, not this author's independent
+approval of a file this author wrote. The source identities are:
+
+| File | SHA-256 |
+|---|---|
+| StoredRingInverse.lean | 9da9fca9ed9388cbd9be6b5991e8c4f5932c66a1ea46bbadd034d7f394cb4f62 |
+| StoredRingInverseCorrect.lean | 33c1ae55b640e408227ac813bf3f2f8ac7552e12de815fcb03a0942dc4d8ba15 |
+
+Worker 1 found no defect in the stated value claims. The candidate uses the
+first cofactor from the same executed normXgcd call. Its zero argument is the
+complete-GCD stopping threshold, not a fuel limit. The theorem assumes
+explicit polynomial coprimality over the proved Goldilocks field and uses the
+fixed X^54 + X^27 + 1 divisor. The proved degree bound below 54, together with
+candidate_coeff, prevents omission of a nonzero polynomial coefficient in
+the returned vector. This check supplies no RingF-unit-to-coprime result and
+no operation-work theorem. The three exported polynomial correctness
+theorems also appear in the successful combined audit above.

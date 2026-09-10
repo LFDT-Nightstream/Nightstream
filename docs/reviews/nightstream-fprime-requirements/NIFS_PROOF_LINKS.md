@@ -19,7 +19,7 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; stored checker and arithmetic value/counter proofs checked; primitive and full runtime contracts open |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; concrete scalar/read and direct-copy proofs checked; four checker leaves, ring-unit inversion, producer and full runtime contracts open |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
 | `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Connected for the retained Lean/optimized execution scope; independent review complete for that scope |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
@@ -715,12 +715,122 @@ reference invocation is capped at 300 seconds and still needs approval.
 and failed logs, both stopped drafts, independent review, and model analysis.
 The local map and static exports preserve every other requirement record.
 
+## Stored primitives and scalar failure bounds
+
+Code commit: `aee1232dc47ab98fec64d96237c398976bf3ea3f`.
+
+This update follows the `5b7168f9` milestone above. The source pin, checked
+files, and passed and failed logs are retained in
+[NIFS_PRIMITIVES_AND_SHORTFALL_EVIDENCE.zip](NIFS_PRIMITIVES_AND_SHORTFALL_EVIDENCE.zip).
+The earlier stopped drafts remain historical evidence.
+
+`StoredProbe` now stores Pad and matrix families in separate nested arrays.
+Its semantic view preserves the original public coins and raw certificate.
+It does not turn a malformed certificate into a valid one. Concrete reads
+supply the same Pad and matrix claim values, with four and five counted
+operations. The producer still owns the work to create these arrays.
+
+`StoredWitnessCheckPrimitives` implements the dot step, field embedding,
+interpolation, equality, and norm checks. The selected public-input reader
+uses the actual fresh and running arrays. The selected
+`scalar_finish_source_iff` and `scalar_check_work_le` consumers now need only
+four primitive contracts: the public gate, commitment check, Pad entry, and
+matrix entry. The scalar operations and public/probe reads are proved.
+These remain named operation counts, not compiled-runtime bounds.
+
+`CostedWitnessProjection` now uses `List.ofFnM`: a loop over the original
+indices, followed by one list reversal. It removes the chain of accessor
+functions from the old recursive copier. Its value proof preserves every
+fresh private tail and every full running witness. For access bound `a`,
+the new projection bound is
+
+```text
+freshCount * (privateWidth * (a + 6) + 9)
+  + runningCount * (carrierWidth * (a + 6) + 9) + 7.
+```
+
+The constants count forward branch/index/cons work, reverse traversal,
+initialization, and returns. The displayed polynomial bounds in all six
+strong and composed consumers use these counts. The first combined check
+found the old constants; the repaired combined check passed. This closes
+the direct-copier value/counter link. It does not prove the full producer or
+compiled-runtime contract.
+
+The resumed `StoredSuffix.finish_returns_parent` proof also passed. Given
+its explicit checker correctness premise, it connects the actual stored
+16-child recomposition to the same PiRLC parent opening. The finish counter
+includes abort and rejection and is at most the actual checker counter plus
+`116 * carrierWidth + 615`. A concrete checker and captured producer law
+still have to supply that premise and the actual call work.
+
+The package now pins CompPoly at
+`050f0bc7e9780703beb8d178ec533e52bd87d649`. Its Lean and all existing dependency
+revisions match this package. `StoredRingInverse` executes normalized
+extended GCD and monic reduction modulo `X^54 + X^27 + 1`. It computes the
+candidate polynomial once, then copies its 54 coefficients.
+`StoredRingInverseCorrect.candidatePolynomial_mul_mod` proves the polynomial
+inverse under explicit coprimality. Its degree theorem proves that the copy
+does not discard a nonzero coefficient. The RingF-unit-to-coprime and
+multiplication links remain open, as does the full inverse work bound.
+The RingF polynomial bridge stopped after three failed checks; its source
+is retained in `drafts/NIFS_RING_POLYNOMIAL.lean.txt`.
+
+The new execution test checks the candidate with the protocol's own
+`ringFMul`, for constant 2, X, and 1 + X. These cases cover normalization,
+Phi81 reduction, and a dense cofactor. All 54 product coefficients passed
+in each case. This is executed evidence for those cases, not an all-unit
+inverse theorem.
+
+`ShortfallBound` proves that the 54-of-64 decoder fails exactly when at least
+11 candidates reject. `SamplerShortfall` applies that failure event to the
+actual transcript-derived candidate window. The IID-bit bound is now a
+checked theorem:
+
+```text
+p_scalar <= choose(64, 11) / 65536^11.
+```
+
+`FieldShortfall` proves the same upper bound for 32 independent uniform
+Goldilocks fields. Its finite bijection swaps the low-32 residue with an
+auxiliary uniform lane inside each complete field block. The single final
+field value gives two accepted zero candidates, so it can only remove
+rejections. The proof preserves dependence inside each field pair and adds
+no total-variation penalty to this abort bound. No IID law is assigned to
+Poseidon2. Product bias, batch/retry bounds, and their Fiat-Shamir use remain
+separate obligations.
+
+The further deterministic 32-field/batch link reached three failed target
+checks. The first stopped at the then-unfixed work dependency; the next two
+failed in the batch proof, including kernel recursion errors. They took 128
+and 122 seconds. The draft is retained in
+`drafts/NIFS_SAMPLER_FIELD_LINK.lean.txt`, outside the active package. No
+fourth check was run. The finite field abort bound is proved; this additional
+actual-field/batch consumer is not an audited link.
+
+The independent review checked the stored interface, concrete primitive
+values/counts, direct copier, and all exported work constants. A different
+worker checked the polynomial inverse claims. The combined axiom gate for
+51 new exports and the affected consumers passed in 297 seconds, including
+the dependency rebuild, using only the allowed axioms. Focused primitive,
+copy, suffix, and scalar-shortfall jobs took about one to five seconds each.
+The inverse execution test passed in seven seconds including its rebuild.
+The active source-boundary gate passed. The local map export built all 454
+records and its seven tests passed; 451 requirement records were unchanged.
+No site was published. The PaperExact execution request remains pending.
+
 ## Active criteria
 
-Discharge the selected extraction primitive, accessor and checker contracts
-at their existing owners, with work bounds on their actual representations.
-Then apply only the approved same-key MSIS hardness premise. It supplies no
-numerical success bound.
+The four remaining checker leaves are the public SumCheck gate, dense
+selected-key commitment check, concrete Pad entry, and selected matrix
+entry. The next bounded primitive is the Pad entry at `MatrixSource` and
+`nativeBarEntry`; its coefficient semantics are already owned there.
+Matrix entry work must include actual package-row production and lookup.
+Commitment work must include actual selected-key expansion for arbitrary
+stored witnesses. Preserve the existing seed and MSIS premise.
+
+Also complete ring-unit inversion, the actual stored producer/checker law,
+and the full representation/runtime links. The approved same-key MSIS
+premise supplies no numerical hardness bound.
 
 Keep the complete NIFS replay, exact matrix/raw-assignment records, and
 independent review at their stated scope. Execute the prepared same-input

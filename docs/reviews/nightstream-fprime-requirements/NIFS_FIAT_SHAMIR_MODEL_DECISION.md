@@ -4,9 +4,10 @@ Status: **theorem-to-code match pending; approval question deferred; no model se
 `773f3d0f29209b33e2325538d5f258f541569c25`, branch `nico/nifs-proof-links`.
 This note addresses `N.security.fiat_shamir`. It adds no premise to Lean.
 The current finite-law source is
-`dce69b693fc52ff7e7c138198756f9c1400878d6`. Its source, reviews, passed checks
-and retained failed attempts are in
-[NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip](NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip).
+`692641958134b46d021639aed088d5574e1c68ce`. Its source, reviews, passed checks
+and retained attempts are in
+[NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip](NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip).
+The previous unit/output archive remains unchanged.
 
 The contract is to identify the exact current computation, its approved
 premises, and the missing security transfer. Success means a precise
@@ -229,7 +230,7 @@ The extra `(0,0)` mass still affects the output law.
 | Actual 32-field consumer | Closed by `candidateWindow_eq_fieldCandidates` and `sampleScalar_eq_fieldDecode`, for every initial state and coordinate. |
 | Batch event and finite union bound | Closed by `sampleBatch_none_iff_field_shortfall` and `iid_field_batch_shortfall_probability_le`. The uniform comparison has 17 windows and 544 field coordinates. No independence law is assigned to actual transcript states. |
 | Scalar output bias, including abort | Closed in the stated comparison spaces by `boundedSample_event_frequency_eq_mixture` and `SamplerOutputLaw.field_output_event_error_le`. |
-| Joint batch output law | A complete 17-scalar output comparison is not proved. The scalar event theorem and the batch abort bound have distinct scopes. |
+| Joint batch output law | Closed for 17 independent uniform 32-field windows by `SamplerBatchOutputLaw.field_batch_output_event_error_le`. The bound is `544*(M-1)/(M*q)+17*u`, against uniform successful ordered lists in Option. Actual output/state equalities are separate deterministic results. |
 | Retry and rewinding work | Bound every failed, repeated and aborting call of the actual extractor under symbolic query/work bounds. No retry policy, numerical retry limit or fresh-state law is selected. |
 | Fiat–Shamir use | Prove the exact additive schedule, initialization, total/aborting codec, cache/trace law and classical state-restoration transfer. The scalar comparison is not a distribution theorem for Poseidon2 replay. |
 
@@ -282,7 +283,7 @@ No heartbeat or recursion setting was raised.
 | Statement and domain binding | The digest-only prefix identifies the verifier-selected key, profile, prior running statement, and fresh statement, or produces the existing named Poseidon2 binding/collision event. Prove the typed schedule encoding is unambiguous on the actual accepted domains. | Structural proof and a separately named hash premise; collision resistance alone is not challenge security. |
 | Public-coin comparison | Derive the C coins and R candidate blocks in the chosen ideal experiment, with a joint law for outputs and successor states. Repeated queries return the same result. No fresh-independent-coin premise may be attached directly to deterministic replay. | Mathematical proof under the approved model. |
 | Overwrite/additive match | Chiesa–Orrù uses overwrite absorption; Nightstream adds field words to the current rate lanes. Prove a transfer theorem for this additive schedule or a valid identification with the cited construction. A codec that subtracts the current state is state-dependent and is not automatically covered by a fixed message codec. | Missing mathematical transfer; no silent transcript change or assumed equivalence. |
-| Sampler loss | Use the checked scalar output law, actual decoder links and 17-window abort bound. Complete the joint batch output law where the chosen event map requires it, and cover every adversary/extractor invocation under symbolic query/work bounds. Preserve aborts. | Mathematical proof; no new cryptographic premise. |
+| Sampler loss | Use the checked scalar and independent-batch output laws, actual decoder links and 17-window abort bound. Connect them to the chosen event map and cover every adversary/extractor invocation under symbolic query/work bounds. Preserve aborts. | Mathematical proof; no new cryptographic premise. |
 | C rewinding | Construct the causal oracle/program needed by the existing C extractor. Reprogramming must preserve each earlier message and the bound statement. The second execution must have the exact fresh-coin law used by the pair-agreement proof. | A Fiat–Shamir knowledge proof, not a replay lemma. |
 | R coordinate forks | Obtain a base opening and each one-coordinate fork for the same actual 17-source batch. Changing one R coordinate in the current chained state changes later states; a simulator must preserve or reprogram the other coordinates consistently. Include failed, repeated, and aborting calls. | A Fiat–Shamir knowledge proof; the interactive coordinate algebra alone does not supply the oracle. |
 | Witness and runtime composition | Reuse the actual D child-opening consumer and same-key commitment projection. Prove expected total work for the constructed oracle/extractor, including permutation simulation, queries, rewinds, sampler failures, and witness checks. | Mathematical work on the actual program; same-key MSIS hardness remains the approved external premise. |
@@ -427,8 +428,9 @@ symbolic parameter, not a new numerical limit.
 
 For the current scalar decoder, the independent-field comparison now proves
 `32*(M-1)/(M*q)+u`, where `u=choose(64,11)/65536^11`. Its target is
-`UniformSome`, not uniform on the whole Option type. This distinction still
-prevents direct substitution into Definition 4.1. For `N=5^54`, uniform on
+`UniformSome`, not uniform on the whole Option type. The aborting decoder still cannot be substituted directly into Definition
+4.1. The comparison-only totalization below keeps the target as Scalar;
+its verifier adapter and inverse-fiber work still need proof. For `N=5^54`, uniform on
 `Option Scalar` assigns abort mass `1/(N+1)` and is that distance from
 `UniformSome`; choosing it would require the additional comparison term
 and an interactive abort adapter. Neither that message-type choice nor the
@@ -481,6 +483,81 @@ bound of 18 expected calls concerns a different oracle and a different
 experiment. An expected-time adversary with an unbounded query count needs
 a proved stopped-execution or query-tail transfer; its mean cannot be used
 as a per-run query bound.
+
+## Independent batch output and actual state link
+
+`BatchOutputLaw.independent_batch_event_error_le` proves finite product
+transfer with both input cardinalities explicitly positive. The selected
+`SamplerBatchOutputLaw.field_batch_output_event_error_le` compares 17
+independent uniform 32-field windows with uniform successful ordered
+17-scalar lists embedded in Option. All abort mass remains on the field
+side. With `delta=(M-1)/(M*q)` and `u=choose(64,11)/65536^11`, every output
+event differs by at most `17*(32*delta+u)=544*delta+17*u`. The separate
+abort-only bound remains `a_batch<=17*u`.
+
+`sampleBatch_ring_list_eq_fieldDecodeBatch` identifies the actual ring list
+with the collected scalar list mapped through `embedScalar`, using that
+sampler invocation's own field windows. The output/state theorem also
+preserves the exact `stateAt specification initial count`. These equalities
+hold for every initial state and count, preserve order and retain `none`.
+They do not assign independent field distributions to Poseidon2 states.
+
+The focused product and consumer checks passed in nine and two seconds.
+The combined NIFS gate passed all 328 registered results in two seconds,
+including these four new exports, with only the permitted axioms. An
+independent source review found no defect within these stated claims.
+
+The total/aborting codec, uniform verifier-message target, inverse-codec
+work, additive/overwrite schedule and initialization match, joint cache
+and successor-state law, and classical state-restoration extraction remain
+open. Their symbolic query, retry, abort and rewinding costs remain open.
+Transfer to fixed Poseidon2 still requires a precise separate premise.
+UniformSome is not uniform on the Option message type. This single-batch
+comparison gives no adaptive-query budget and no model approval.
+
+## Scalarwise totalization for comparison only
+
+`SamplerTotalizedOutputLaw` takes any supplied fallback Scalar. Its type
+already enforces the selected alphabet. `totalizedFieldDecode` returns that
+fallback on a scalar shortfall and otherwise keeps the decoded scalar.
+`totalizedFieldBatch` applies this operation separately at each coordinate.
+The actual protocol decoder and its rejection behavior are unchanged.
+
+`scalar_event_error_le` proves the same `32*delta+u` bound against uniform
+Scalar by precomposing the existing Option event. `batch_event_error_le`
+then proves `544*delta+17*u` against uniform ordered Scalar^17 in the
+independent field experiment. This is not replacement of a failed complete
+batch with a fixed list: successful coordinates keep their values.
+`sampleBatch_success_ring_list_eq` agrees with the actual ordered ring
+list when `sampleBatch initial count = some batch`. It claims no equality
+of failed traces or final states. The complete module passed its first
+check in two seconds, and independent source review found no defect in
+these three claims.
+
+This comparison can keep the challenge type Scalar, with no
+`1/(5^54+1)` Option-uniformity term. A later acceptance-inclusion proof
+must use the same statement, proof and permutation calls and show that
+actual acceptance implies acceptance by the totalized comparison verifier.
+The actual early-abort path and the comparison's eager continuation are
+different on failures; successful-list agreement alone is not that full
+verifier theorem. The abort fibers are added to the fallback scalar's
+fiber, so the conditional inverse sampler and its work need an exact proof.
+
+The fixed codec, pure squeeze/absorption schedule, initialization, cache
+and query law, state-restoration extraction and concrete Poseidon2 transfer
+remain open. This mathematical comparison selects no new protocol behavior
+or security model and supplies no complete Chiesa--Orru applicability claim.
+
+The retained `nightstream-nifs-totalized-inverse-codec-plan.md` gives a
+concrete next proof target for the 32-field projection: separate success
+and unrestricted-abort dynamic programs, exact rectangle weights from the
+field preimage counts, a constructive surjectivity witness, and a proposed
+rank/unrank bijection. It does not claim any of those new algorithms are
+verified. Counts fit below `2^2048` because there are 32 Goldilocks fields.
+Stored access, integer operations, exact uniform-rank sampling and its work
+remain explicit obligations. Fair-bit rejection has an expected-time
+bound, not a finite worst-case bound. The complete squeeze representation
+and its unused words still require the separate schedule/fiber match.
 
 ## Primary proof references and their limits
 

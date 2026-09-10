@@ -686,3 +686,78 @@ authority restriction. The selected Lean path's separate Pad and 14-matrix
 proofs do not remove it. The coordinator corrected the overbroad public-path
 claim in `CONSTRAINT_TREE.md`; the route itself is unchanged. No old review
 suite, Stage 2 or proof backend ran.
+
+
+## Coordinator record: public check, finite batch and native guard
+
+Current source: `692641958134b46d021639aed088d5574e1c68ce`.
+The scoped source and validation reviews are retained in
+[NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip](NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip).
+This record does not expand the original complete replay verdict to a new
+full Stage 1 conformance verdict.
+
+| Retained note | Checked claims and scope |
+|---|---|
+| `nightstream-nifs-public-normalization-review.md` | Worker 3 checked the full all-probe public gate, selected-key integration and resumed array normalization. It also checked the root's four Rust helper attributes. |
+| `nightstream-nifs-batch-consumer-review.md` | Worker 3 checked positive finite normalizations, the successful ordered target with abort retained, and exact actual list/state identities. No Poseidon2 product law is claimed. |
+| `nightstream-nifs-ajtai-work-review.md` | Worker 3 checked the actual generator pipeline and the 27,509 named-operation coefficient bound, with the fixed-word range scope explicit. |
+| `nightstream-nifs-stored-ring-arithmetic-review.md` | Worker 2 checked actual stored reads, all 54 materialized coefficients, ring reduction and named counters. The imported builder uses its existing grouped-loop convention. |
+| `nightstream-nifs-public-batch-milestone-review.md` | Worker 3 independently parsed all 328 axiom registrations/results and checked the corrected native-guard text. All 26 additions are present; only permitted axioms occur. |
+| `nightstream-nifs-root-native-quotient-review.md` | Root checked Worker 3's native guard and quotient Frobenius proofs, including test scope and public caller consequences. Root did not independently review its own helper attributes. |
+
+The public gate now removes its value and work premises from the selected
+source-return/checker consumers. Dense commitment and selected matrix entry
+remain their two leaves. The separate stored ring operations and quotient
+power identity do not close a full inverse execution/work proof.
+
+The native header-bundle entry rejects before reading messages or changing
+the builder/transcript. The former body failed the regression; the guarded
+body passed. Four newly unused helpers are test-only, matching their callers.
+Both normal neo-fold-clean and neo-wasm release checks passed. Ordinary
+Nebula profile discovery reaches the error; restored profiles may reach it
+later in recursive synthesis. The entry test makes no claim that an entire
+caller has made no prior change. No package-backed recursive API was added.
+
+The 08:20 checkpoint read both protected review names in both checkouts.
+Only the primary checkout's September 4 PiCCS review was present. Its
+compressed native route finding applies to the guarded entry above. The
+old full review set was not rerun, and the old protected report was not
+changed. Retained Lean/optimized NIFS parity keeps its earlier exact scope.
+No PaperExact execution, Stage 2, proof backend or website publication ran.
+
+The later dense-row and power-candidate proofs also passed their focused
+checks. The power candidate has a 579,844,861-operation bound for its named
+clock; it is not a machine-time theorem. The independent review in
+`nightstream-nifs-stored-power-inverse-review.md` records exact unit scope,
+array materialization and the forced IO timing comparison. All 54 inverse
+coefficients match extended GCD on four inputs, and the stored product has
+all 54 identity coefficients. The power comparison took 10.4--13.2 seconds
+per input versus 15--150 milliseconds for extended GCD; final selection and
+outer representation/primitive installation remain open.
+
+`nightstream-nifs-totalized-decoder-review.md` records the comparison-only
+scalarwise totalizer. Its three finite/successful-list results passed source
+review and the first focused build. It supplies no failed-trace or complete
+verifier adapter and no Chiesa--Orru applicability claim.
+
+The full selected commitment check did not pass validation. Its three
+attempts included two stopped elaboration runs; the final complete draft is
+outside the active package. `nightstream-nifs-selected-commitment-review.md`
+found no source defect but grants no checked theorem, adapter integration
+or conformance closure. The selected checker still has commitment and
+matrix-entry premises. The corrected matrix-entry plan identifies actual
+package-list reconstruction and duplicate-aware sparse coefficient scans
+as work to include, with a final bridge that avoids an import cycle.
+
+The final dependency-aware gate passed 336 complete axiom records, with
+34 new exports and only the permitted axioms, in four seconds. Its
+3,723 jobs completed. Static passed. Worker 3 independently checked the
+exact registration order and every byte count/hash in the 20-file source
+manifest. The stopped selected-check draft is absent from that source and
+its audit registrations.
+
+The map export built all 454 records and its seven tests passed. Only the
+three relevant NIFS leaves changed; their connection statuses remain
+partial/open, and 451 other records are unchanged. At 09:20 UTC both
+protected review paths were read again in both checkouts with unchanged
+contents. No site publication or new approval followed.

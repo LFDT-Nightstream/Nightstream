@@ -1,0 +1,102 @@
+import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import Mathlib.FieldTheory.Finite.Basic
+
+/-!
+Counted coefficient inversion for the stored polynomial inverse. The power
+loop refines the existing GoldilocksPrime.powMod. Its depth is derived from
+the selected modulus's 64-bit exponent, plus the final base case. Counts
+cover named integer operations and control flow, not compiled machine time.
+-/
+
+namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.FieldInverseWork
+
+open NightstreamFPrime.Spec
+open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
+
+private abbrev Base := ZMod goldilocksModulus
+
+local instance : Fact (Nat.Prime goldilocksModulus) :=
+  ⟨GoldilocksPrime.goldilocks_natPrime⟩
+
+/-- The positive step counts dispatch, the zero test and branch, square and
+reduction, division, recursive call, parity reduction/test/branch, value read
+and return. An odd exponent also multiplies and reduces. -/
+private def power (modulus : Nat) : Nat → Nat → Nat → Result Nat
+  | 0, _, _ => ⟨0, 2⟩
+  | fuel + 1, base, exponent =>
+      if exponent = 0 then ⟨1 % modulus, 5⟩
+      else
+        let half := power modulus fuel (base * base % modulus) (exponent / 2)
+        if exponent % 2 = 1 then
+          ⟨half.value * base % modulus, half.work + 14⟩
+        else ⟨half.value, half.work + 12⟩
+
+private theorem power_value (modulus fuel base exponent : Nat) :
+    (power modulus fuel base exponent).value =
+      GoldilocksPrime.powMod modulus fuel base exponent := by
+  induction fuel generalizing base exponent with
+  | zero => rfl
+  | succ fuel ih =>
+      cases exponent with
+      | zero => rfl
+      | succ exponent =>
+          simp only [power, GoldilocksPrime.powMod, Nat.succ_ne_zero, ↓reduceIte]
+          rw [ih]
+          split_ifs <;> rfl
+
+private theorem power_work_le (modulus fuel base exponent : Nat) :
+    (power modulus fuel base exponent).work ≤ 14 * fuel + 5 := by
+  induction fuel generalizing base exponent with
+  | zero => simp [power]
+  | succ fuel ih =>
+      have half := ih (base * base % modulus) (exponent / 2)
+      rw [power]
+      split
+      · dsimp only; omega
+      · split <;> dsimp only <;> omega
+
+/-- Compute the field inverse by the existing repeated-squaring evaluator.
+The wrapper charges constant reads, fuel/exponent arithmetic, the input and
+result projections, the call, field conversion and result construction. -/
+def inverse (value : Base) : Result Base :=
+  let computed := power goldilocksModulus (64 + 1) value.val (goldilocksModulus - 2)
+  ⟨(computed.value : ZMod goldilocksModulus), computed.work + 10⟩
+
+/-- This coefficient primitive refines the same field inverse used by
+CompPoly, including its zero convention. No nonzero input is assumed. -/
+theorem inverse_value (value : Base) : (inverse value).value = value⁻¹ := by
+  have exponentBound : goldilocksModulus - 2 < 2 ^ 64 := by
+    norm_num [goldilocksModulus]
+  have computed : (inverse value).value = value ^ (goldilocksModulus - 2) := by
+    have evaluator := congrArg (fun value : Nat => (value : Base))
+      (power_value goldilocksModulus (64 + 1) value.val (goldilocksModulus - 2))
+    have law := GoldilocksPrime.powMod_cast goldilocksModulus 64 value.val
+      (goldilocksModulus - 2) exponentBound
+    exact evaluator.trans (law.trans (congrArg (fun value : Base =>
+      value ^ (goldilocksModulus - 2)) (ZMod.natCast_zmod_val value)))
+  rw [computed]
+  by_cases zero : value = 0
+  · subst value
+    have positive : goldilocksModulus - 2 ≠ 0 := by norm_num [goldilocksModulus]
+    simp only [zero_pow positive, inv_zero]
+  · have product : value ^ (goldilocksModulus - 2) * value = 1 := by
+      rw [← pow_succ]
+      have exponent : goldilocksModulus - 2 + 1 = goldilocksModulus - 1 := by
+        norm_num [goldilocksModulus]
+      rw [exponent]
+      exact ZMod.pow_card_sub_one_eq_one zero
+    calc
+      value ^ (goldilocksModulus - 2) =
+          (value ^ (goldilocksModulus - 2) * value) * value⁻¹ := by
+        rw [mul_assoc, mul_inv_cancel₀ zero, mul_one]
+      _ = value⁻¹ := by rw [product, one_mul]
+
+/-- The 65 levels follow from the proved 64-bit exponent bound. This is
+an operation bound on the executed primitive, not a supplied cost premise. -/
+theorem inverse_work_le (value : Base) : (inverse value).work ≤ 14 * (64 + 1) + 15 := by
+  have work := power_work_le goldilocksModulus (64 + 1) value.val (goldilocksModulus - 2)
+  change (power goldilocksModulus (64 + 1) value.val (goldilocksModulus - 2)).work + 10 ≤ _
+  omega
+
+end NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.FieldInverseWork

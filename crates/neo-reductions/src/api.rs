@@ -749,7 +749,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+    superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)

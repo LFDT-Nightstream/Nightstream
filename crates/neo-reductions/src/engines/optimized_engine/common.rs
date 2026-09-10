@@ -55,7 +55,7 @@ pub fn dec_reduction_optimized_with_digit_flags<Ff>(
     Z_split: &[Mat<Ff>],
     digit_nonzero: &[bool],
     ell_d: usize,
-    cache: &crate::superneo_eval::SuperneoEvalCache,
+    cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_openings: Option<&[V1_1OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
@@ -74,7 +74,7 @@ where
         parent,
         Z_split,
         ell_d,
-        Some(cache),
+        cache,
         Some(digit_nonzero),
         ring_linear_forms,
         precomputed_openings,

@@ -26,6 +26,8 @@ mod child_commitment;
 mod child_evaluations;
 #[path = "generate_pi_ccs_fixture/folded_opening.rs"]
 mod folded_opening;
+#[path = "generate_pi_ccs_fixture/native_dec.rs"]
+mod native_dec;
 #[path = "generate_pi_ccs_fixture/native_driver.rs"]
 mod native_driver;
 #[path = "generate_pi_ccs_fixture/oracle.rs"]
@@ -243,12 +245,13 @@ fn main() {
     if arguments.first().is_some_and(|mode| {
         matches!(
             mode.as_str(),
-            "complete-driver" | "child-complete-driver" | "child-rlc-driver"
+            "complete-driver" | "child-complete-driver" | "child-rlc-driver" | "child-dec-driver"
         )
     }) {
-        let rlc = arguments[0] == "child-rlc-driver";
+        let dec = arguments[0] == "child-dec-driver";
+        let rlc = dec || arguments[0] == "child-rlc-driver";
         let children = arguments[0] != "complete-driver";
-        assert_eq!(arguments.len(), if rlc { 12 } else if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver|child-rlc-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-phase-result> [running-prefix] [folded-child-cache] [combined-opening] <external-output>");
+        assert_eq!(arguments.len(), if dec { 13 } else if rlc { 12 } else if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver|child-rlc-driver|child-dec-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-phase-result> [running-prefix] [folded-child-cache] [combined-opening] [dec-messages] <external-output>");
         let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
         native_driver::generate(
             Path::new(&arguments[1]),
@@ -258,6 +261,7 @@ fn main() {
             children.then(|| Path::new(&arguments[8])),
             children.then(|| Path::new(&arguments[9])),
             rlc.then(|| Path::new(&arguments[10])),
+            dec.then(|| Path::new(&arguments[11])),
             Path::new(arguments.last().expect("native prover output")),
         );
         return;
@@ -296,16 +300,17 @@ fn main() {
     }
     if arguments
         .first()
-        .is_some_and(|mode| mode == "child-commitment")
+        .is_some_and(|mode| matches!(mode.as_str(), "child-commitment" | "child-commitments"))
     {
-        assert_eq!(arguments.len(), 9, "usage: generate_pi_ccs_fixture child-commitment <candidate> <id0> <id1> <id2> <id3> <folded-cache> <child> <external-output>");
+        let batch = arguments[0] == "child-commitments";
+        assert_eq!(arguments.len(), if batch { 8 } else { 9 }, "usage: generate_pi_ccs_fixture <child-commitment|child-commitments> <candidate> <id0> <id1> <id2> <id3> <folded-cache> [child] <external-output>");
         let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
         child_commitment::generate(
             Path::new(&arguments[1]),
             identity,
             Path::new(&arguments[6]),
-            arguments[7].parse().expect("child index"),
-            Path::new(&arguments[8]),
+            (!batch).then(|| arguments[7].parse().expect("child index")),
+            Path::new(arguments.last().expect("child commitment output")),
         );
         return;
     }

@@ -21,15 +21,15 @@ These are overlapping reading paths through the same IDs. They do not create ext
 
 ## What each status means
 
-| Axis | Meaning | Counts as finished |
+| Axis | Meaning | Visible count categories |
 | --- | --- | --- |
-| Proof (`proof`) | A local Lean result for the stated obligation. | `proved` |
-| Link (`connection`) | Connection to the required local consumer. Read the requirement and evidence to see which connection. | `connected` |
-| Rust (`rust`) | Implementation or scoped execution evidence. | `implemented`, `tested_scoped` |
+| Proof (`proof`) | A local Lean result for the stated obligation. | Proved, Assumed, Open, N/A |
+| Link (`connection`) | Connection to the required local consumer. Read the requirement and evidence to see which connection. | Connected, Open, N/A |
+| Rust (`rust`) | Implementation or scoped execution evidence. | Scoped tests, Code only, Recorded, Open, N/A |
 
-For each axis, the denominator contains applicable leaf requirements. `not_required` and `assumption` are excluded. Leaves with origin `out_of_scope` are excluded from all completion totals. Group records do not earn separate proof credit.
+Each axis accounts for every in-scope leaf. Assumptions and N/A remain visible. These are counts, not a completion percentage. Leaves with origin `out_of_scope` are reported separately. Group records do not earn separate proof credit. The scope filter changes the visible records; the counts still describe the full group.
 
-- `definition`: a definition exists; it is not a finished proof and stays in the Proof denominator.
+- `definition`: a definition exists; it counts as Open on the Proof axis.
 - `partial`: part of the proof or connection remains open.
 - `open`: the required connection or implementation remains open.
 - `assumption`: an explicit assumption, not a proved theorem.
@@ -39,7 +39,7 @@ For each axis, the denominator contains applicable leaf requirements. `not_requi
 - `tested_scoped`: tests passed within the recorded scope; read that scope before using the result.
 - `not_required`: this axis does not apply to this entry.
 
-An entry can have Proof finished while Link is open. Link is the connection between results and the exact values used by a consumer. It can include proof composition, but a compatible interface name or an import alone is not that connection.
+An entry can have Proof proved while Link is open. Link is the connection between results and the exact values used by a consumer. It can include proof composition, but a compatible interface name or an import alone is not that connection. Code only is not a passed Rust test.
 
 Phase assurance uses the owner goal's separate terms: **Compiler-closed**, **Conformance-closed**, and **Production-closed**. These local counters do not assign those statuses. Conformance needs the required current matrix, assignment, complete nonzero result, mutation and independent-review evidence. Production also needs the validated package on the sole production path.
 
@@ -55,9 +55,17 @@ Keep these claim levels separate when reading evidence:
 | Composition | The above results apply to the same protocol, data, parameters and assumptions. |
 | Implementation refinement | The actual program implements the stated mathematical behavior for the claimed inputs. |
 
-The current source has no structured `claim_kind`, per-theorem `claim_scope`, or verified transitive-closure field. Do not infer those fields from a green counter. Use the requirement text, remaining obligation and source references to identify the claim. If they do not establish the scope, report it as unverified.
+Each record has a structured `scope`: model, interactive protocol, implementation evidence, production requirement, or outside Stage 1. This is a reviewed map annotation, not a theorem extracted from Lean. It does not certify transitive proof closure. Use the exact requirement and cited result to check its premises and scope.
 
 A theorem can be proved locally under hypotheses whose application is still open. Following recorded dependencies helps locate those obligations. Even if all recorded dependencies are locally finished, the map alone does not certify complete security: the dependency list may be incomplete, and assumptions still need their stated justification.
+
+## Assumptions, quantitative use and readiness
+
+The [assumption ledger](assumptions.md) separates standard cryptography, model conditions and the unproved low-norm invertibility theorem. Repeated references to one premise share a ledger entry. Each entry records its parameters, approval state and known dependent uses. An unspecified value remains open; it is not zero or an implicit approval.
+
+The [error budget](error-budget.md) gives a conditional example at 100,000,000 uses of a named interactive test. It does not give a complete production false-acceptance bound. The union bound needs the per-test result to apply at each use, including its conditioning requirements. Knowledge-extraction losses, attack-cost estimates, setup bias, Fiat–Shamir transfer and hash collision advantages are separate claims. The example does not select a chain depth or deployment limit.
+
+The [readiness view](readiness.md) records what remains before constraint reduction and complete Rust validation. It reuses requirement IDs and adds no proof credit. A cvc5 candidate still needs a Lean implication proof and the required relation-identity, layout and conformance checks.
 
 ## How to use the export
 
@@ -66,6 +74,6 @@ A theorem can be proved locally under hypotheses whose application is still open
 3. Use **Parent / Contains** for navigation. Use **Depends on / Used by** for recorded dependency edges. A reference to a group is a group-level dependency; it is not an automatically proved connection to every child.
 4. Treat “none recorded” as missing relationship information, not proof of independence. “Used by” reverses only the recorded edges.
 5. Preserve the three status axes, exact assumptions, profile and source snapshot when assessing progress. Counts do not measure time remaining or the chance of completion.
-6. Open the repository-relative paper and code paths in the matching checkout. The export includes citations, not copies of the cited source files. Working-tree updates are not guaranteed to exist at the base commit alone; line numbers can move after a source edit.
+6. Open code paths at the exact protocol code commit. The map commit separately identifies the site source. Local paper references have content hashes in the reference record; the export does not contain those papers. Read [source and evidence](evidence.md) for who ran each check and its authority.
 
-The supplied AI feedback motivated this reading guide and the static export. Its separate repository review is not a fresh verification of this snapshot. The guide does not reclassify entries or adopt a new proof architecture.
+Publication must use committed site inputs and rerun source-reference checks. File and line validity does not prove mathematical meaning. A website build, source hash or publication does not replace an independent protocol review or an approved conformance record.

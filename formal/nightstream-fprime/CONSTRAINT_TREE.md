@@ -233,11 +233,13 @@ Goldilocks profile is:
 | Public-input words | 270 |
 
 `Eval_K` is the separate Pad family. `Eval_A` is the separate 14-matrix
-family. No v1.0 Pad-as-matrix-zero encoding is present on the canonical Lean
-path or a normal-build public F′ path. The retired compressed Rust emitter is
-crate-private reference code. Its unapproved Stage 2 caller is also
-crate-private and is not a production API. Transcript, state, package-identity,
-and verifier-context binding use Poseidon2 only.
+family on the canonical Lean path. The compressed native PiCCS circuit is
+still reachable through publicly reexported Nebula F′ builder types, even
+though their internal module is crate-private. That route remains an open
+authority issue and does not supply v1.1 conformance. See the current
+[NIFS owner review](../../docs/reviews/nightstream-fprime-requirements/NIFS_CONFORMANCE_REVIEW_773f3d0f.md).
+Transcript, state, package-identity, and verifier-context binding use
+Poseidon2 only.
 
 The public digest encoding is exact `encHash`:
 

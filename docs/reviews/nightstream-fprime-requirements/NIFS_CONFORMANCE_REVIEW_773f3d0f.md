@@ -642,3 +642,47 @@ candidate_coeff, prevents omission of a nonzero polynomial coefficient in
 the returned vector. This check supplies no RingF-unit-to-coprime result and
 no operation-work theorem. The three exported polynomial correctness
 theorems also appear in the successful combined audit above.
+
+
+## Coordinator record: ring-unit and output-law milestone
+
+Current source: `dce69b693fc52ff7e7c138198756f9c1400878d6`.
+This section records Worker 3's later source reviews. It does not expand the
+original `773f3d0f` conformance verdict to an untested complete source cut.
+The full notes, exact hashes, final checks and failed attempts are retained in
+[NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip](NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip).
+
+| Retained review | Reviewed claims and limits |
+|---|---|
+| `nightstream-nifs-pad-term-field-review.md` | The exact RingF polynomial quotient and unit-inverse value bridge; all-probe Pad values/counts; unchanged 74-term coefficient/exponent table; 32-field event comparison and 17-window abort bound. No full inverse cost, complete checker or Poseidon2 law is claimed. |
+| `nightstream-nifs-output-consumer-review.md` | Equal bit-decoder successful fibers, the full abort mixture, the field output bound and actual scalar-conversion consumer. The live public compressed-circuit route remains an authority limitation. |
+| `nightstream-nifs-co25-additive-review.md` | Exact state equations and candidate cursor lengths. Fixed-codec, initialization, cache/trace, decoder and work obligations remain unproved. |
+| `nightstream-nifs-state-restoration-review.md` | Coordinator game-to-source map, checked independently by Worker 3. It preserves the distinction between public acceptance and valid final child witnesses. No game adapter is asserted. |
+
+The coordinator's complete before/after term dump matched all 74 ordered
+coefficients and 1,036 exponents. Both commands took two seconds. This is
+exact term-data evidence, not a new full package-emission or Rust parity run.
+`RowSemantics` and `CcsTerminal` were also rebuilt successfully.
+
+The final NIFS audit ran alone and passed in 26 seconds: 302 complete records,
+39 new exports, and only `propext`, `Classical.choice` and `Quot.sound`.
+The boundary gate passed. The earlier focused unit build briefly overlapped
+one field-batch job because of a coordinator queue error; its timing is not
+used as serial performance evidence. The final combined check supersedes
+that scheduling defect for the included source proof validation.
+
+The full public gate and normalization-work attempts each stopped after
+three failed checks. Their complete byte-identical drafts are outside the
+active package, with no fourth or narrowed build. They have no review or
+audit approval. The selected checker retains three explicit leaves: public
+gate, dense commitment check and selected matrix entry.
+
+The mandatory 07:20 checkpoint also read the September 4 external review
+from the original checkout. Current source still publicly reexports the
+Nebula F-prime profile, preprocessing and builder types. They reach the
+native NIFS circuit and its compressed `eval_a.len()+1` PiCCS condition.
+That route remains an unresolved `N.conformance.owners` / broader Stage 1
+authority restriction. The selected Lean path's separate Pad and 14-matrix
+proofs do not remove it. The coordinator corrected the overbroad public-path
+claim in `CONSTRAINT_TREE.md`; the route itself is unchanged. No old review
+suite, Stage 2 or proof backend ran.

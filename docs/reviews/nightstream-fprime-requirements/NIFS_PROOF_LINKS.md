@@ -818,41 +818,133 @@ The active source-boundary gate passed. The local map export built all 454
 records and its seven tests passed; 451 requirement records were unchanged.
 No site was published. The PaperExact execution request remains pending.
 
+## Ring-unit correctness, Pad checks and scalar output laws
+
+Code commit: `dce69b693fc52ff7e7c138198756f9c1400878d6`.
+
+The checked source, reviews, complete passed and failed logs, and two new
+stopped drafts are retained in
+[NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip](NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip).
+This milestone follows `4b4a8ddf`; older archives and drafts are unchanged.
+
+`RingFPolynomial.toPolynomial_ringFMul_mod` proves that the actual
+54-coefficient ring product agrees with polynomial multiplication modulo
+`X^54 + X^27 + 1`. The coefficient map is injective. The proof makes no
+irreducibility assumption about this quotient.
+`StoredRingInverseUnit.candidate_eq_unitInverse` then proves correctness
+for every unit input of the existing executed candidate. Coprimality is
+derived from the unit witness in the proof; the implementation does not
+receive an inverse. The original candidate algorithm and its three executed
+examples are unchanged. Full inverse work and scalar/storage conversion
+work remain open.
+
+`StoredWitnessCheckEntries` now computes the canonical Pad entry, including
+native-bar branches, Phi81 kernel sums and Boolean vertex traversal. Its
+value and operation-count proofs reach the selected source-return and
+work consumers. The selected checker now has three remaining primitive
+contracts: public check, dense commitment check and CCS matrix entry.
+The Pad result applies to every typed probe and stored witness; it does not
+assume an honest transcript or a valid opening.
+
+`SelectivePolynomial` now keeps one table of coefficient/exponent records.
+The old semantic monomials are its erasure view. The before/after execution
+check compared all 74 ordered coefficients and all 1,036 exponents exactly;
+both commands took two seconds. The row-semantics and terminal-consumer
+checks passed. This is a storage change, with no new polynomial or relation
+identity. It supplies the term reads needed by the unfinished public gate.
+
+The sampler now has both actual-input links and finite output laws:
+
+- `SamplerFieldShortfall.candidateWindow_eq_fieldCandidates` identifies all
+  32 ordered field lanes and their 64 low/high candidates. Its selected
+  batch theorem equates actual failure with the same field-shortfall event.
+- `FieldBatchShortfall.iid_field_batch_shortfall_probability_le` gives
+  `a_batch <= 17*u` in the explicit 17-window uniform experiment, where
+  `u = choose(64,11)/65536^11`.
+- `BitOutputLaw.boundedSample_event_frequency_eq_mixture` proves the exact
+  bit-decoder law `(1-a_bits)*UniformSome + a_bits*PointMass(none)`.
+- `SamplerOutputLaw.field_output_event_error_le` connects the current scalar
+  conversion to the comparison with a uniform successful scalar. For every
+  event, its error is at most `32*(M-1)/(M*q) + u`, where `M=2^32` and `q` is
+  the Goldilocks prime. It retains abort.
+
+No probability law is assigned to Poseidon2. Uniform successful scalars in
+Option have zero abort mass; they are not uniform on the complete Option
+type. The total/aborting codec and its interactive adapter remain open.
+The model note also retains the exact additive/overwrite equations, the
+candidate 12-word C and 36-word R cursor schedules, and the missing joint
+prefix/cache, initialization, state-restoration and work proofs. No model,
+query budget, retry policy or concrete Poseidon2 transfer was approved.
+
+Two complete attempts stopped under the three-round rule:
+
+| Draft | Final unresolved proof | Retained identity |
+|---|---|---|
+| `drafts/NIFS_INVERSE_NORMALIZATION_WORK.lean.txt` | The zero-index Array.findIdxRev? scan equation. Full inverse cost remains unproved. | 7,872 bytes; SHA-256 `eb7fe331c7bd0f58ddcdd534891542ff54487c139273d5b11fb1e991b0d82d1b` |
+| `drafts/NIFS_STORED_PUBLIC_CHECK.lean.txt` | The 14 port-reader work cases retain free data in unreduced branches before `decide`. The full public gate and its selected integration remain unproved. | 48,887 bytes; SHA-256 `f59264a30d3d069a04b2d18977f6a7099df58ebc0fdabc5a1afaad6a6c715f86` |
+
+Both final files were copied byte for byte outside the active package. No
+fourth or narrowed build was run, and no resource setting was raised. The
+raw-round foundation had passed earlier; the full public-gate module was
+removed after its third failed build. Its passing Pad and term owners stay
+active at their own proved scope.
+
+The final combined NIFS audit passed alone in 26 seconds, with 302 complete
+records and 39 new exports, using only the allowed axioms. The active
+boundary gate passed. The focused output-law and actual-decoder checks took
+three seconds each. Independent review found no defect in the new unit,
+Pad, term and finite-law claims. The evidence also records a coordinator
+queue error: the final focused unit build briefly overlapped the first
+field-batch attempt. That timing is not serial performance evidence; the
+final combined audit was run alone.
+
+At the 07:20 UTC checkpoint, both external-review files were absent from
+this worktree. The original checkout contained the September 4 PiCCS review.
+Its public compressed-circuit finding still applies: `nebula/mod.rs`
+reexports public F-prime builders that reach the native NIFS circuit and
+`padded_row.rs`'s `eval_a.len()+1` check. The selected Lean path keeps Pad and
+all 14 matrices separate, but the alternate public route remains a live
+authority issue. `N.conformance.owners` stays partial. The overbroad public-path
+claim in `CONSTRAINT_TREE.md` was corrected. The old review suite and proof
+backends were not run.
+
+The local map update retains all 454 records and changes only the three
+relevant NIFS leaves. Its build and seven tests passed. No site was
+published. The prepared PaperExact execution remains pending approval.
+
 ## Active criteria
 
-The four remaining checker leaves are the public SumCheck gate, dense
-selected-key commitment check, concrete Pad entry, and selected matrix
-entry. The next bounded primitive is the Pad entry at `MatrixSource` and
-`nativeBarEntry`; its coefficient semantics are already owned there.
-Matrix entry work must include actual package-row production and lookup.
-Commitment work must include actual selected-key expansion for arbitrary
-stored witnesses. Preserve the existing seed and MSIS premise.
+Complete the three checker leaves: the public SumCheck gate, dense selected-key
+commitment check and selected matrix entry. The full public-check draft is
+retained above. Commitment work must include actual key expansion for
+arbitrary stored witnesses, and matrix work must include package-row
+production and lookup. The retained dense-commitment preparation gives a
+structural route using one 54-lane key block at a time, with no sparse-witness
+premise or full-key table.
 
-Also complete ring-unit inversion, the actual stored producer/checker law,
-and the full representation/runtime links. The approved same-key MSIS
-premise supplies no numerical hardness bound.
+Complete the actual stored producer/checker law, inverse and conversion work,
+and the full representation/runtime links. The inverse value theorem is now
+proved for units; the normalization-work draft remains a separate failed
+attempt. Preserve the approved seed and same-key MSIS premise, which supplies
+no numerical hardness bound.
 
-Keep the complete NIFS replay, exact matrix/raw-assignment records, and
-independent review at their stated scope. Execute the prepared same-input
-PaperExact R/D comparison only after explicit approval, before claiming the
-broader per-phase conformance result.
+Keep the exact replay, matrix/raw-assignment evidence and independent review
+at their stated scope. Before closing the owner boundary, remove public
+reachability of the compressed native PiCCS relation or make that route
+consume the authoritative v1.1 relation. This does not authorize Stage 2 or
+backend implementation. The prepared same-input PaperExact R/D comparison
+still needs explicit approval before execution and broader per-phase closure.
 
-Use the checked R-parent and weak-success connection to discharge the
-remaining concrete extraction contracts at their existing owners.
-
-The theorem-to-code analysis found no approved exact Fiat–Shamir model.
-Complete the mathematical schedule, codec, state-restoration, and error/work
-connections before requesting a precise owner decision. No new Poseidon2
-idealization, query budget, or security-transfer assumption was introduced.
+Complete the mathematical transcript, codec, state-restoration and error/work
+connections before requesting a precise Fiat–Shamir model decision. The
+scalar output comparison and 17-window abort bound are proved. A joint batch
+output law, adaptive/retry law and exact Poseidon2 transfer are not proved.
 
 The older `protocol-contract/security-reduction.md` uses a different
-transcript, sampler, and profile. Its numerical query limits and security
-terms are not evidence for this selected NIFS instance.
+transcript, sampler and profile; its numerical limits are not evidence for
+this instance. Use the normative paper in the primary checkout. The frozen
+Lean corpus remains unused.
 
-The primary checkout contains the local normative paper files. The isolated
-worktree uses those files for reading. The frozen package instructions are
-absent from both checkouts; no frozen proof files are used.
-
-Full HyperNova history extraction, Stage 2, proof-backend execution, and site
-publication remain outside this task. Pending independent approvals must not
-be replaced by local diagnostic results.
+Full HyperNova history extraction, Stage 2, proof-backend execution and site
+publication remain outside this task. Local diagnostics do not replace
+independent review or required owner approval.

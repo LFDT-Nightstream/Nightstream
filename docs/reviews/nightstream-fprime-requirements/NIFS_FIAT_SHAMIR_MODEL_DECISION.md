@@ -1,34 +1,24 @@
 # NIFS Fiat–Shamir model decision
 
-Status: **theorem-to-code match pending; approval question deferred; no model selected**. Transcript review cut:
-`773f3d0f29209b33e2325538d5f258f541569c25`, branch `nico/nifs-proof-links`.
-This note addresses `N.security.fiat_shamir`. It adds no premise to Lean.
-The current comparison and stored-fiber source is `286dc71a543d28d52e430e9466ab5cecea01de7d`.
-Its source, scoped reviews and checks are in [NIFS_CONSUMERS_EVIDENCE.zip](NIFS_CONSUMERS_EVIDENCE.zip).
-Earlier evidence archives remain unchanged.
+Status: **historical analysis; current conditional bridge checked; model approval pending**.
+The active proposal is [FIAT_SHAMIR_MODEL.md](FIAT_SHAMIR_MODEL.md).
+The selected consumer is checked at `88d394fb4b24cfba21fd1a995bff16c3449312a8`.
+It uses the actual verifier and exact child-witness event, supplies the selected
+checker and primitive correctness, and retains an explicit FS/SuperNeo
+success-transfer hypothesis. No model instance or numerical security level
+is asserted. Its source and gates are in [NIFS_CLOSURE_EVIDENCE.zip](NIFS_CLOSURE_EVIDENCE.zip).
 
-The contract is to identify the exact current computation, its approved
-premises, and the missing security transfer. Success means a precise
-conditional statement for owner review, before any later model decision.
-No transcript, sampler, profile, query budget, or security level is selected
-by this analysis.
+The owner narrowed the work to implementation assurance, declared extractor
+clocks and relevant quantitative error bounds. The global inverse sampler,
+custom oracle simulator and runtime refinement discussed below are historical
+proof-route work, not active prerequisites for that scope. These sections
+preserve their findings; they do not claim the printed overwrite-sponge
+result applies to the actual additive transcript.
 
-## Candidate proof boundaries; no decision requested yet
-
-The current source does not supply an approved Fiat–Shamir security model.
-The owner has asked for the exact theorem-to-code match before any request
-to approve a model. These are candidate boundaries for that analysis:
-
-| Choice | Exact new premise | Proof work that remains |
-|---|---|---|
-| Ideal-permutation route | Model the selected width-8, rate-4, capacity-4 Goldilocks Poseidon2 permutation as one public ideal permutation, with classical forward and inverse oracle access. Keep the current additive absorption, statement digest, labels, state transitions, and 54-of-64 sampler. Any claim about the concrete fixed Poseidon2 implementation must retain a separate, explicit premise that transfers the resulting knowledge claim to that implementation. | Prove the security transfer for this exact schedule, its statement initialization and shared hash uses; prove the sampler law; and connect a classical extractor with its query and work bounds. An ideal-permutation theorem alone is not a concrete Poseidon2 theorem. |
-| Concrete-transcript route | Assume a classical knowledge reduction for this exact fixed-key NIFS verifier and Poseidon2 transcript, including the bounded sampler. The premise must give an extractor, a success-loss function, and expected-work obligations; it must preserve the selected input, source order, actual final child witnesses, and same commitment projection. | Connect that named premise to actual acceptance and the existing C/R/D witness consumers. Keep the premise visible. No random-oracle conclusion or numerical security bound follows from its name. |
-
-No approval question is active in this note. First identify the exact
-absorption, initialization, codec, state-restoration, and error interfaces.
-Then present one integrated conditional statement for owner review. Until
-that work is complete, the leaf stays open. Finite sampling facts do not
-require a new security model.
+The finite density result is now checked in
+`SamplerDensityLaw.field_output_event_le`. The repeated-call test/abort
+budget is checked in `VerifierErrorBudget`; neither result assigns a law to
+Poseidon2. Earlier evidence archives and their proof scopes remain unchanged.
 
 ## Authority already present
 
@@ -629,6 +619,33 @@ transport, the additive schedule and initialization, state restoration, and
 the fixed-Poseidon2 security transfer. No approved model or numerical security
 level follows from the new deterministic link. Checked source is `286dc71a543d28d52e430e9466ab5cecea01de7d`;
 scoped reviews and complete checks are retained in `NIFS_CONSUMERS_EVIDENCE.zip`.
+
+## Additive online proof route and current limits — `361a4d7f`
+
+The retained CO25 analysis gives a concrete next route: decode an additive
+capacity-graph edge by subtracting the preceding rate state, then prove an
+online correspondence between semantic prefixes and translated prefixes.
+The correspondence must be chosen before each fresh answer, extend injectively,
+and preserve every cached answer on retries. The elementary coupling proof and
+counterexamples to weaker conditions are in `NIFS_MATRIX_ENTRY_EVIDENCE.zip`. They are mathematical
+analysis, not new checked Lean theorems or an approved model.
+
+The joint decoded-challenge/raw-preimage distance equals the decoder's output
+bias when sampling uniformly inside each nonempty fiber. Thus the proposed
+coupling charges that bias once per fresh prefix, while repeats reuse the same
+raw sample and complete state chain. Visible and pending permutation edges
+still need one consistency and revelation invariant. The paper's fixed codec
+does not directly accept the state-dependent encoder. Exact source-call/cursor
+and permutation-edge offsets must be derived from executable control flow;
+the retained analysis identifies a literal discrepancy in the printed count
+and cursor formulas. This is not a refutation of its security theorem.
+
+No global inverse, uniform-rank generator, cache game, state-restoration
+knowledge theorem or fixed-Poseidon2 transfer is established. The new inverse
+interface drafts failed their complete three-check criterion and are inactive.
+The earlier exact cardinalities, stored table values and accepted-output
+comparison remain checked. Declared counters also still need their concrete
+source/runtime refinement. No model or numerical security level is selected.
 
 ## Primary proof references and their limits
 

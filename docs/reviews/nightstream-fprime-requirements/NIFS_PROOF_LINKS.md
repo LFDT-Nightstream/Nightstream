@@ -23,7 +23,7 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
 | `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; selected C/R/D values and witnesses checked |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current C/R/D commands and outputs retained |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; selected PiDEC knowledge consumer now checked |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; exact R-parent and strong/weak interface connection checked |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -445,6 +445,40 @@ and logs are retained in the same archive. The full connection remains
 unproved and outside the active formal project. A pointwise width lemma is
 the next proof step to check; no recursion limit was raised.
 
+## Checked R-parent and weak-success connection
+
+Code commit: `7c841ac1135851a54231154893aa8a3bf9f9dd27`.
+
+`PiRLCParent.computedParent_eq_combined` proves that the exact materialized
+R endpoint passed to D is the paper's combined R claim. It covers the selected
+relation, commitment, public input, point, both evaluation families and stage.
+`computedParent_outgoing` preserves the complete sampler endpoint.
+
+`checked_children_imply_rlc_success` consumes this equality and the existing
+PiDEC knowledge reduction. Its premises are the successful sampler replay,
+the returned materialized parent, accepted D messages, and valid openings for
+the actual D children. It derives validity of the R-parent opening and supplies
+the existing `PaperForkExtraction.Response.Success` witness. Parent opening
+validity is a conclusion, not an extra premise.
+
+The same theorem consumes `inputBatch_phi_eq_probe`: the actual batch has
+the exact commitment projection used by the existing strong-prefix interface
+for every probe. The proof does not assign a probability law to sampler replay
+or discharge the remaining extraction work contracts.
+
+A coordinate-level width lemma resolved the earlier recursion failure. It
+proves that the five-ring public combination is independent of the private
+carrier width. The module built in 3 seconds; the final four-theorem axiom
+audit passed in 5 seconds and permits only `propext`, `Classical.choice` and
+`Quot.sound`. The source boundary gate passed. No recursion or heartbeat
+override was added.
+
+`NIFS_RLC_PARENT_EVIDENCE.zip` retains the checked source, commands and logs.
+It supersedes the earlier draft's unproved status. Native protocol behavior
+is unchanged, so the retained C/R/D execution checks still have their stated
+scope. Full native NIFS replay, concrete extraction contracts, Fiat-Shamir
+security and independent review remain open.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -458,8 +492,8 @@ retained exact matrix and raw-assignment results at their stated scope and
 complete any remaining gates. Keep local execution evidence separate from
 independent phase approval.
 
-Finish the structural R-parent equality and its audited weak-success
-consumer. The unproved draft is retained in the cache-width evidence archive.
+Use the checked R-parent and weak-success connection to discharge the
+remaining concrete extraction contracts at their existing owners.
 
 The lookup for an existing approved Fiat-Shamir model is pending. No new
 Poseidon2 idealization, query budget, or security-transfer assumption was

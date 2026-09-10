@@ -406,6 +406,38 @@ contents, and no matching verified cache artifact was found in the checkout.
 Creating a self-consistent receipt would not establish cache correctness.
 That caller boundary remains open.
 
+## Verified-cache width correction
+
+Code commit: `35c1318c2726222ef09a950e93a3bf9762b036c9`.
+
+`OptimizedStructureCache::from_verified_artifact` compared the cache's padded
+column count with the header's logical count. That rejects a correct cache
+when the relation ends inside a ring. The selected relation has 254260583
+logical columns and a 254260620-column carrier, with 37 padding columns.
+The loader now compares the cache with the padded width and retains the exact
+logical shape for later header validation.
+
+The new regression uses `D + 1` logical columns and checks a nonzero
+evaluation across both rings. It failed at the old shape check, with exit
+101. After the fix, all five cache-artifact tests pass in 0.07 seconds after
+a 10.57-second release build. The regression also rejects a later logical
+width change within the same padded ring. Existing tamper, size, shape and
+round-trip checks pass. Every test command used the 300-second cap, and Rust
+formatting completed.
+
+The R-parent proof draft checks the handoff fields, then attempts to identify
+the complete parent with the paper R output and consume PiDEC's reconstructed
+opening as weak-extraction success. Its combined-output proof remains
+unproved. After three build attempts, Lean still reaches its recursion limit
+at the public-input combination equality. The project stop-and-report rule
+applies. The draft is retained outside the active formal project; it adds no
+proved theorem or requirements closure.
+
+`NIFS_CACHE_WIDTH_AND_PARENT_DRAFT.zip` retains the checked Rust source,
+regression logs, proof draft and failed proof logs. No recursion override,
+Fiat-Shamir law, or new cryptographic assumption was added. The actual selected
+cache and complete native NIFS replay remain open.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -418,6 +450,9 @@ the selected matrix-cache and prior-parent authority checks. Consume the
 retained exact matrix and raw-assignment results at their stated scope and
 complete any remaining gates. Keep local execution evidence separate from
 independent phase approval.
+
+Finish the structural R-parent equality and its audited weak-success
+consumer. The unproved draft is retained in the cache-width evidence archive.
 
 The lookup for an existing approved Fiat-Shamir model is pending. No new
 Poseidon2 idealization, query budget, or security-transfer assumption was

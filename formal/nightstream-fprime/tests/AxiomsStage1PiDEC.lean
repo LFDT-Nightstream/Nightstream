@@ -42,6 +42,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_reduces_knowledge
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_outgoing
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.inputBatch_phi_eq_probe
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.inputBatch_eq_probe
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_eq_combined
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_correct
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.checked_children_imply_rlc_success

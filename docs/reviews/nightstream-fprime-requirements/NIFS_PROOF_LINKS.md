@@ -21,9 +21,9 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
 | `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; preparation and reduction work checked |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
-| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; selected C/R/D values and witnesses checked |
-| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current C/R/D commands and outputs retained |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; exact R-parent and strong/weak interface connection checked |
+| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; full native NIFS output and canonical proof bytes checked; independent review open |
+| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; full native replay uses the selected header and checks the prior parent; security contracts and independent review open |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -400,11 +400,11 @@ The record retains each original command, elapsed time, result and archive
 member identity.
 
 This supplies the stated matrix and raw-caller evidence for the same fresh
-assignment used by the current C/R/D run. The full native `nifs::verify`
-entry point also requires a selected matrix cache. Its header has no matrix
-contents, and no matching verified cache artifact was found in the checkout.
-Creating a self-consistent receipt would not establish cache correctness.
-That caller boundary remains open.
+assignment used by the current C/R/D run. At this cut, the native
+`nifs::verify` interface required a matrix cache. The later complete-NIFS
+change below removes this unused public-verifier dependency and retains cache
+consistency checks at the callers that own preprocessing. No cache receipt
+is used as proof of matrix correctness.
 
 ## Verified-cache width correction
 
@@ -488,6 +488,77 @@ cannot take the incomplete-parent branch. All five theorem audits pass in
 4 seconds, and the boundary gate passes. The same evidence archive contains
 the updated source and logs, including the first failed totality-proof attempt.
 
+## Complete native NIFS replay
+
+Code commit: `9dcb4e7b9d7b16ac15e7f19c2ab4a4db007708f5`.
+
+The public v1.1 PiCCS verifier does not read a matrix evaluator cache. Its
+cached wrapper checked cache consistency, then ran the same public protocol.
+The NIFS verifier now takes the caller-selected relation header directly.
+Fixed NIFS, F′, finalization and cross-check callers retain cache validation
+where they own preprocessing. The selected relation and key remain inputs
+chosen by the caller. All C/R/D equations and the prior-parent check remain.
+This supersedes the earlier requirement to construct a cache for public NIFS
+replay; it does not replace the exact matrix evidence.
+
+The new `child-nifs-driver` runs the actual optimized C prover, native R and D
+provers, and the complete `nifs::verify` entry point on the retained nonzero
+input. It checks all 16 prior claims against the prior R parent, then compares
+every final child, the returned parent cache, the full eight-word transcript
+state, and the empty verifier witness list. The final output matches Lean.
+
+The native legacy `fold_digest` on the incoming parent cache is the same
+incoming F′ frame digest as on the authoritative prior children. It is not an
+extra formal CE coordinate or the previous C transcript endpoint. The prior
+commitment, public input, point and evaluations come from the checked prior
+C/R result. The complete prior-parent equations are checked; digest agreement
+alone is not the acceptance evidence.
+
+All 945983 canonical NIFS proof bytes match a separate encoder that reads raw
+Lean fields. That encoder does not call the native proof encoder. The C,
+R and D output files retain their previous exact bytes: 662424, 61612 and
+446109 bytes. The full verifier rejects 43 mutations covering the prior
+parent, all 16 prior child commitments, fresh public input and C/R/D proof
+outputs. The same run rejects all 55 native D mutations. The C/R execution
+took 88.68 seconds, D took 12.03 seconds, and the full verifier, wire comparison
+and NIFS mutations took 0.116 seconds.
+
+The optimized fixed-NIFS, round-trip and cache-substitution suites pass
+3, 9 and 1 tests. The final fixed-NIFS test also rejects a same-shape cache
+from another relation. Six affected core test targets compile in release
+mode. The historical empty-running failure remains recorded; that test was
+compiled but not rerun. The Metal test changes only remove the obsolete
+argument; no backend was executed. Rust formatting and the source boundary
+gate pass. No Lean source changed in this cut.
+
+`NIFS_COMPLETE_REPLAY_EVIDENCE.zip` retains the exact source, common inputs,
+complete proof and output bytes, mutation outcomes, commands and logs. It
+links the previous matrix, assignment, opening and Lean phase evidence.
+Large input buffers retain their recorded external identities and regeneration
+commands. The first artifact-log check passed the byte and field comparisons
+but used the wrong PiDEC log prefix; its failed diagnostic and corrected check
+are both retained.
+
+`N.conformance.executed` is connected only for this recorded execution scope.
+The chain and owner links remain partial. Independent phase review is still
+required by `FPRIME_STAGE1_GOAL.md`; this local evidence does not grant it.
+The local export, seven export tests and JavaScript syntax check pass. All 71
+affected source references resolve. One existing reference moved from line
+111 to 112 and was corrected. All other 451 nodes and all prior update records
+are unchanged.
+
+## External proof references
+
+The online review found [ArkLib](https://github.com/Verified-zkEVM/ArkLib)
+and [VCVio](https://github.com/Verified-zkEVM/VCVio). VCVio's
+[cost reduction interface](https://github.com/Verified-zkEVM/VCVio/blob/main/VCVio/CryptoFoundations/Asymptotics/ReductionCost.lean)
+requires a proof of the concrete cost bound. Its
+[stateful Fiat–Shamir bridge](https://github.com/Verified-zkEVM/VCVio/blob/main/VCVio/CryptoFoundations/FiatShamir/Sigma/Stateful/Bridge.lean)
+uses a random-oracle interface for a Sigma protocol. These are useful proof
+references. They do not supply the missing Nightstream representation-cost
+proof or authorize a random-oracle model for this Poseidon2 transcript.
+No dependency or new cryptographic assumption was added.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -495,11 +566,9 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Connect the same checked C/R/D proof to the complete NIFS caller, including
-the selected matrix-cache and prior-parent authority checks. Consume the
-retained exact matrix and raw-assignment results at their stated scope and
-complete any remaining gates. Keep local execution evidence separate from
-independent phase approval.
+Keep the complete NIFS replay and retained exact matrix and raw-assignment
+results at their stated scope. Complete the required independent conformance
+review before claiming phase closure.
 
 Use the checked R-parent and weak-success connection to discharge the
 remaining concrete extraction contracts at their existing owners.

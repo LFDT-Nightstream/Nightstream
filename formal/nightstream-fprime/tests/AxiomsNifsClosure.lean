@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
 import NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
@@ -561,3 +562,5 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.any_test_or_sampler_abort_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.hundred_million_budget_le
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsFiatShamir.finishValue_probability_and_expected_work

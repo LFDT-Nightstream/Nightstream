@@ -114,7 +114,7 @@ theorem modulus_monic : modulus.Monic := by
   rw [degree_lower]
   decide
 
-private theorem degree_modulus : modulus.degree = (ringDegree : WithBot Nat) := by
+theorem degree_modulus : modulus.degree = (ringDegree : WithBot Nat) := by
   rw [modulus, degree_add_eq_left_of_degree_lt]
   · exact degree_X_pow ringDegree
   · rw [degree_lower, degree_X_pow]
@@ -130,10 +130,19 @@ private theorem toPolynomial_mod (value : RingF) :
   rw [degree_modulus]
   exact degree_toPolynomial value
 
-private abbrev QuotientRing := AdjoinRoot modulus
+abbrev QuotientRing := AdjoinRoot modulus
 
-private noncomputable def image (value : RingF) : QuotientRing :=
+noncomputable def image (value : RingF) : QuotientRing :=
   AdjoinRoot.mk modulus (toPolynomial value)
+
+theorem image_injective : Function.Injective image := by
+  intro left right equal
+  apply toPolynomial_injective
+  have remainder := congrArg (AdjoinRoot.modByMonicHom modulus_monic) equal
+  simpa only [image, AdjoinRoot.modByMonicHom_mk, toPolynomial_mod] using remainder
+
+theorem image_one : image ringFOne = 1 := by
+  rw [image, toPolynomial_one, map_one]
 
 private theorem image_zero : image ringFZero = 0 := by
   rw [image, toPolynomial_zero, map_zero]
@@ -166,7 +175,7 @@ private theorem root_period : AdjoinRoot.root modulus ^ 81 = 1 := by
         (AdjoinRoot.root modulus ^ 54 + (AdjoinRoot.root modulus ^ 27 + 1)) := by ring
     _ = 0 := by rw [root_relation, mul_zero]
 
-private theorem root_pow_mod (degree : Nat) :
+theorem root_pow_mod (degree : Nat) :
     AdjoinRoot.root modulus ^ degree = AdjoinRoot.root modulus ^ (degree % 81) := by
   conv_lhs => rw [← Nat.mod_add_div degree 81]
   rw [pow_add, pow_mul, root_period, one_pow, mul_one]
@@ -261,7 +270,7 @@ private theorem image_mul_basis (index : Fin ringDegree) (value : RingF) :
     rw [RingFLaws.ringFMul_basis_basis, image_monomialReduce,
       image_basis _ index.isLt, image_basis _ other.isLt, pow_add]
 
-private theorem image_mul (left right : RingF) :
+theorem image_mul (left right : RingF) :
     image (ringFMul left right) = image left * image right := by
   apply linear_image_eq
     (fun value => image (ringFMul value right))

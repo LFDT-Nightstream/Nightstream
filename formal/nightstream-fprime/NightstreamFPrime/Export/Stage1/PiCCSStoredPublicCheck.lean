@@ -1,0 +1,949 @@
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckPrimitives
+import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
+import Mathlib.Tactic.SplitIfs
+
+/-!
+Counted public PiCCS verification over stored output coefficients and raw
+SumCheck messages. Counts use the existing named-operation model. The raw
+checker rejects excess or missing data without traversing an unbounded tail.
+-/
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSStoredPublicCheck
+
+open NightstreamFPrime.Spec
+open Folding.PiCCS.PaperJoint
+open ConcreteCarrier
+open NightstreamFPrime.Lifecycle
+open UnifiedSources
+open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
+
+private def add (left right : K) : Result K :=
+  let left0 := left.c0
+  let left1 := left.c1
+  let right0 := right.c0
+  let right1 := right.c1
+  ⟨⟨left0 + right0, left1 + right1⟩, 4 + 2 + 2⟩
+
+private def mul (left right : K) : Result K :=
+  let left0 := left.c0
+  let left1 := left.c1
+  let right0 := right.c0
+  let right1 := right.c1
+  ⟨⟨left0 * right0 + 7 * left1 * right1, left0 * right1 + left1 * right0⟩, 4 + 5 + 2 + 2⟩
+
+private theorem add_value (left right : K) : (add left right).value = extensionOps.add left right := rfl
+private theorem mul_value (left right : K) : (mul left right).value = extensionOps.mul left right := rfl
+
+/-- The loop consumes one coefficient at a time. Each cons step reads head
+and tail, dispatches, and returns; the scalar calls include their own work. -/
+private def horner (point : K) : List K → Result K
+  | [] => ⟨K.zero, 3⟩
+  | coefficient :: coefficients =>
+      let tail := horner point coefficients
+      let product := mul point tail.value
+      let value := add coefficient product.value
+      ⟨value.value, tail.work + product.work + value.work + 4⟩
+
+private theorem horner_value (point : K) (coefficients : List K) :
+    (horner point coefficients).value =
+      SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps point coefficients := by
+  induction coefficients with
+  | nil => rfl
+  | cons coefficient coefficients ih =>
+      simp only [horner, add_value, mul_value, ih, SumCheck.Finite.Message.evaluateCoefficients]
+
+private theorem horner_work (point : K) (coefficients : List K) :
+    (horner point coefficients).work = coefficients.length * 25 + 3 := by
+  induction coefficients with
+  | nil => rfl
+  | cons coefficient coefficients ih =>
+      simp only [horner, add, mul, ih, List.length_cons, Nat.add_mul, Nat.one_mul]
+
+/-- Inspect at most the expected prefix and one additional list constructor.
+The expected length is verifier-owned; no full length computation is used. -/
+private def exactLength {Value : Type} : Nat → List Value → Result Bool
+  | 0, [] => ⟨true, 3⟩
+  | 0, _ :: _ => ⟨false, 3⟩
+  | _ + 1, [] => ⟨false, 3⟩
+  | count + 1, _ :: values =>
+      let tail := exactLength count values
+      ⟨tail.value, tail.work + 5⟩
+
+private theorem exactLength_value {Value : Type} (count : Nat) (values : List Value) :
+    (exactLength count values).value = decide (values.length = count) := by
+  induction count generalizing values with
+  | zero => cases values <;> simp [exactLength]
+  | succ count ih => cases values <;> simp [exactLength, ih]
+
+private theorem exactLength_work_le {Value : Type} (count : Nat) (values : List Value) :
+    (exactLength count values).work ≤ count * 5 + 3 := by
+  induction count generalizing values with
+  | zero => cases values <;> simp [exactLength]
+  | succ count ih =>
+      cases values with
+      | nil => simp only [exactLength, Nat.add_mul, Nat.one_mul]; omega
+      | cons value values =>
+          have tail := ih values
+          simp only [exactLength, Nat.add_mul, Nat.one_mul]
+          omega
+
+private def andThen (left : Result Bool) (right : Unit → Result Bool) : Result Bool :=
+  if left.value then
+    let next := right ()
+    ⟨next.value, left.work + next.work + 3⟩
+  else ⟨false, left.work + 3⟩
+
+private theorem andThen_value (left : Result Bool) (right : Unit → Result Bool) :
+    (andThen left right).value = (left.value && (right ()).value) := by
+  cases checked : left.value <;> simp [andThen, checked]
+
+/-- The zero/one extension constants and the two result constructors add
+four operations to the three Horner calls, sum, and equality check. -/
+private def roundCheck (current challenge : K) (coefficients : List K) : Result (Bool × K) :=
+  let zero := horner K.zero coefficients
+  let one := horner K.one coefficients
+  let next := horner challenge coefficients
+  let total := add zero.value one.value
+  let checked := StoredWitnessCheckPrimitives.equalK current total.value
+  ⟨(checked.value, next.value), zero.work + one.work + next.work + total.work + checked.work + 4⟩
+
+private theorem roundCheck_value (current challenge : K) (coefficients : List K) :
+    (roundCheck current challenge coefficients).value =
+      (decide (current = extensionOps.add
+        (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps K.zero coefficients)
+        (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps K.one coefficients)),
+       SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps challenge coefficients) := by
+  simp only [roundCheck, StoredWitnessCheckPrimitives.equalK_value, add_value, horner_value]
+
+private theorem roundCheck_work_le (current challenge : K) (coefficients : List K)
+    (width : coefficients.length = 10) : (roundCheck current challenge coefficients).work ≤ 781 := by
+  have compared := StoredWitnessCheckPrimitives.equalK_work_le current
+    (add (horner K.zero coefficients).value (horner K.one coefficients).value).value
+  dsimp only [roundCheck]
+  simp only [horner_work, width, add] at compared ⊢
+  omega
+
+/-- Each recursive call consumes a verifier challenge. Excess raw rounds
+therefore reject immediately. The width gate precedes every Horner call. -/
+private def checkRounds (current terminal : K) :
+    List K → List (SumCheck.Finite.Message K) → Result Bool
+  | [], [] =>
+      let checked := StoredWitnessCheckPrimitives.equalK current terminal
+      ⟨checked.value, checked.work + 3⟩
+  | challenge :: challenges, message :: messages =>
+      let coefficients := message.coefficients
+      let checked := andThen (exactLength 10 coefficients) fun _ =>
+        let round := roundCheck current challenge coefficients
+        if round.value.1 then
+          let tail := checkRounds round.value.2 terminal challenges messages
+          ⟨tail.value, round.work + tail.work + 4⟩
+        else ⟨false, round.work + 3⟩
+      ⟨checked.value, checked.work + 8⟩
+  | _, _ => ⟨false, 3⟩
+
+private theorem rawCheck_nil (current terminal : K) (messages : List (SumCheck.Finite.Message K)) :
+    SumCheck.Finite.FixedPhase.RawCertificate.check extensionOps.toOps 9 current [] terminal
+      { rounds := messages } =
+        match messages with
+        | [] => decide (current = terminal)
+        | _ :: _ => false := by
+  cases messages with
+  | nil => rfl
+  | cons message messages =>
+      unfold SumCheck.Finite.FixedPhase.RawCertificate.check SumCheck.Finite.FixedPhase.RawCertificate.decode
+      simp only [SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds]
+      cases head : SumCheck.Finite.FixedPhase.RawCertificate.decodeMessage 9 message <;>
+        cases tail : SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds 9 messages <;>
+        simp [head, tail, SumCheck.Finite.FixedPhase.checkChain]
+
+private theorem rawCheck_cons (current terminal challenge : K) (challenges : List K)
+    (message : SumCheck.Finite.Message K) (messages : List (SumCheck.Finite.Message K)) :
+    SumCheck.Finite.FixedPhase.RawCertificate.check extensionOps.toOps 9 current
+      (challenge :: challenges) terminal { rounds := message :: messages } =
+      if message.coefficients.length = 10 then
+        decide (current = extensionOps.add
+          (message.evaluate extensionOps.toOps K.zero) (message.evaluate extensionOps.toOps K.one)) &&
+        SumCheck.Finite.FixedPhase.RawCertificate.check extensionOps.toOps 9
+          (message.evaluate extensionOps.toOps challenge) challenges terminal { rounds := messages }
+      else false := by
+  by_cases width : message.coefficients.length = 10
+  · cases tail : SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds 9 messages <;>
+      simp [SumCheck.Finite.FixedPhase.RawCertificate.check, SumCheck.Finite.FixedPhase.RawCertificate.decode,
+        SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds, SumCheck.Finite.FixedPhase.RawCertificate.decodeMessage,
+        width, tail, SumCheck.Finite.FixedPhase.checkChain, SumCheck.Finite.FixedPolynomial.evaluate,
+        SumCheck.Finite.FixedPolynomial.toMessage, SumCheck.Finite.Message.evaluate] <;> rfl
+  · simp [SumCheck.Finite.FixedPhase.RawCertificate.check, SumCheck.Finite.FixedPhase.RawCertificate.decode,
+      SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds, SumCheck.Finite.FixedPhase.RawCertificate.decodeMessage,
+      width]
+
+private theorem checkRounds_value (current terminal : K) (challenges : List K)
+    (messages : List (SumCheck.Finite.Message K)) :
+    (checkRounds current terminal challenges messages).value =
+      SumCheck.Finite.FixedPhase.RawCertificate.check extensionOps.toOps 9 current challenges terminal
+        { rounds := messages } := by
+  induction challenges generalizing current messages with
+  | nil =>
+      cases messages <;>
+        simp [checkRounds, rawCheck_nil, StoredWitnessCheckPrimitives.equalK_value]
+  | cons challenge challenges ih =>
+      cases messages with
+      | nil =>
+          simp [checkRounds, SumCheck.Finite.FixedPhase.RawCertificate.check,
+            SumCheck.Finite.FixedPhase.RawCertificate.decode, SumCheck.Finite.FixedPhase.RawCertificate.decodeRounds,
+            SumCheck.Finite.FixedPhase.checkChain]
+      | cons message messages =>
+          rw [rawCheck_cons]
+          by_cases width : message.coefficients.length = 10
+          · by_cases accepted : current = extensionOps.add
+                (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps K.zero message.coefficients)
+                (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps K.one message.coefficients) <;>
+              simp [checkRounds, andThen, exactLength_value, width, roundCheck_value,
+                SumCheck.Finite.Message.evaluate, accepted, ih]
+          · simp [checkRounds, andThen, exactLength_value, width]
+
+private theorem checkRounds_work_le (current terminal : K) (challenges : List K)
+    (messages : List (SumCheck.Finite.Message K)) :
+    (checkRounds current terminal challenges messages).work ≤ challenges.length * 849 + 13 := by
+  induction challenges generalizing current messages with
+  | nil =>
+      cases messages with
+      | nil =>
+          have compared := StoredWitnessCheckPrimitives.equalK_work_le current terminal
+          simp only [checkRounds, List.length_nil, Nat.zero_mul, Nat.zero_add]
+          omega
+      | cons message messages => simp [checkRounds]
+  | cons challenge challenges ih =>
+      cases messages with
+      | nil => simp only [checkRounds, List.length_cons, Nat.add_mul, Nat.one_mul]; omega
+      | cons message messages =>
+          have sized := exactLength_work_le 10 message.coefficients
+          by_cases width : message.coefficients.length = 10
+          · have round := roundCheck_work_le current challenge message.coefficients width
+            have tail := ih (roundCheck current challenge message.coefficients).value.2 messages
+            simp only [checkRounds, andThen, exactLength_value, width, decide_true, ↓reduceIte,
+              List.length_cons, Nat.add_mul, Nat.one_mul]
+            split <;> dsimp only <;> omega
+          · simp only [checkRounds, andThen, exactLength_value, width, decide_false, Bool.false_eq_true,
+              ↓reduceIte, List.length_cons, Nat.add_mul, Nat.one_mul]
+            omega
+
+private def sub (left right : K) : Result K :=
+  let left0 := left.c0
+  let left1 := left.c1
+  let right0 := right.c0
+  let right1 := right.c1
+  ⟨⟨left0 - right0, left1 - right1⟩, 4 + 2 + 2⟩
+
+private theorem sub_value (left right : K) :
+    (sub left right).value = extensionOps.sub left right :=
+  (derived_sub_eq_concrete_sub left right).symm
+
+private def powerLoop (value : K) : Nat → Result K → Result K
+  | 0, accumulated => ⟨accumulated.value, accumulated.work + 2⟩
+  | count + 1, accumulated =>
+      let product := mul value accumulated.value
+      powerLoop value count ⟨product.value, accumulated.work + product.work + 3⟩
+
+private def power (value : K) (count : Nat) : Result K :=
+  powerLoop value count ⟨K.one, 2⟩
+
+private theorem powerLoop_value (value : K) (count : Nat) : ∀ exponent work,
+    (powerLoop value count ⟨TargetPolynomial.power extensionOps.toOps value exponent, work⟩).value =
+      TargetPolynomial.power extensionOps.toOps value (count + exponent) := by
+  induction count with
+  | zero => intros; simp [powerLoop]
+  | succ count ih =>
+      intro exponent work
+      rw [powerLoop]
+      change (powerLoop value count
+        ⟨TargetPolynomial.power extensionOps.toOps value (exponent + 1), _⟩).value = _
+      rw [ih]
+      congr 1
+      omega
+
+private theorem power_value (value : K) (count : Nat) :
+    (power value count).value = TargetPolynomial.power extensionOps.toOps value count := by
+  simpa only [power, TargetPolynomial.power, Nat.add_zero] using powerLoop_value value count 0 2
+
+private theorem powerLoop_work (value : K) (count : Nat) (initial : Result K) :
+    (powerLoop value count initial).work = initial.work + count * 16 + 2 := by
+  induction count generalizing initial with
+  | zero => simp [powerLoop]
+  | succ count ih => simp only [powerLoop, ih, mul, Nat.add_mul, Nat.one_mul]; omega
+
+private theorem power_work (value : K) (count : Nat) :
+    (power value count).work = count * 16 + 4 := by
+  simp only [power, powerLoop_work]
+  omega
+
+private theorem power_eq_pow (value : K) (count : Nat) :
+    (power value count).value = CCSResidualTable.pow extensionOps value count := by
+  rw [power_value]
+  induction count with
+  | zero => rfl
+  | succ count ih =>
+      simp only [TargetPolynomial.power, CCSResidualTable.pow, ih]
+      exact extensionLaws.mul_comm _ _
+
+/-- Direct finite indices. The loop charges branch, index movement, state
+construction, initialization, and return in addition to its executed step. -/
+private def foldStep {count : Nat} (step : K → Fin count → Result K)
+    (accumulated : Result K) (index : Fin count) : Result K :=
+  let next := step accumulated.value index
+  ⟨next.value, accumulated.work + next.work + 3⟩
+
+private def fold {count : Nat} (step : K → Fin count → Result K) (initial : K) : Result K :=
+  let result := Fin.foldl count (foldStep step) ⟨initial, 1⟩
+  ⟨result.value, result.work + 2⟩
+
+private theorem foldCore_value : ∀ {count : Nat}
+    (step : K → Fin count → Result K) (initial : Result K),
+    (Fin.foldl count (foldStep step) initial).value =
+      Fin.foldl count (fun value index => (step value index).value) initial.value
+  | 0, _, _ => by simp only [Fin.foldl_zero]
+  | _ + 1, step, initial => by
+      rw [Fin.foldl_succ, Fin.foldl_succ]
+      exact foldCore_value (fun value index => step value index.succ) (foldStep step initial 0)
+
+private theorem fold_value {count : Nat} (step : K → Fin count → Result K) (initial : K) :
+    (fold step initial).value = Fin.foldl count (fun value index => (step value index).value) initial :=
+  foldCore_value step ⟨initial, 1⟩
+
+private theorem fold_value_list {count : Nat} (step : K → Fin count → Result K) (initial : K) :
+    (fold step initial).value =
+      (canonicalFinIndices count).foldl (fun value index => (step value index).value) initial := by
+  rw [fold_value, Fin.foldl_eq_finRange_foldl]
+  rfl
+
+private theorem foldCore_work_le (bound : Nat) : ∀ {count : Nat}
+    (step : K → Fin count → Result K) (initial : Result K),
+    (∀ value index, (step value index).work ≤ bound) →
+    (Fin.foldl count (foldStep step) initial).work ≤ initial.work + count * (bound + 3)
+  | 0, _, _, _ => by simp
+  | count + 1, step, initial, bounded => by
+      rw [Fin.foldl_succ]
+      have tail := foldCore_work_le bound (fun value index => step value index.succ)
+        (foldStep step initial 0) (fun value index => bounded value index.succ)
+      have head := bounded initial.value 0
+      exact le_trans tail (by simp only [foldStep, Nat.add_mul, Nat.one_mul]; omega)
+
+private theorem fold_work_le {count : Nat} (step : K → Fin count → Result K) (initial : K)
+    (bound : Nat) (bounded : ∀ value index, (step value index).work ≤ bound) :
+    (fold step initial).work ≤ count * (bound + 3) + 3 := by
+  have total := foldCore_work_le bound step (⟨initial, 1⟩ : Result K) bounded
+  dsimp only [fold]
+  dsimp only at total
+  omega
+
+/-- Reverse an index by reading it, adding one, subtracting from the count,
+and constructing the index and result. No coordinate list is built. -/
+private def foldRight {count : Nat} (step : Fin count → K → Result K) (initial : K) : Result K :=
+  fold (fun value index =>
+    let next := step index.rev value
+    ⟨next.value, next.work + 5⟩) initial
+
+private theorem foldRight_value {count : Nat} (step : Fin count → K → Result K) (initial : K) :
+    (foldRight step initial).value =
+      (canonicalFinIndices count).foldr (fun index value => (step index value).value) initial := by
+  simp only [foldRight, fold_value]
+  rw [Fin.foldl_rev (fun index value => (step index value).value) initial,
+    Fin.foldr_eq_finRange_foldr]
+  rfl
+
+private theorem foldRight_work_le {count : Nat} (step : Fin count → K → Result K) (initial : K)
+    (bound : Nat) (bounded : ∀ index value, (step index value).work ≤ bound) :
+    (foldRight step initial).work ≤ count * (bound + 8) + 3 := by
+  apply fold_work_le _ _ (bound + 5)
+  intro value index
+  have next := bounded index.rev value
+  dsimp only
+  omega
+
+private def hornerStep (gamma : K) (coefficient : Result K) (tail : K) : Result K :=
+  let product := mul gamma tail
+  let total := add coefficient.value product.value
+  ⟨total.value, coefficient.work + product.work + total.work + 1⟩
+
+private theorem hornerStep_value (gamma : K) (coefficient : Result K) (tail : K) :
+    (hornerStep gamma coefficient tail).value =
+      extensionOps.add coefficient.value (extensionOps.mul gamma tail) := rfl
+
+private theorem hornerStep_work (gamma : K) (coefficient : Result K) (tail : K) :
+    (hornerStep gamma coefficient tail).work = coefficient.work + 22 := rfl
+
+private def padHorner (gamma : K) (read : Fin 16 → Fin 54 → Result K) (initial : K) : Result K :=
+  foldRight (fun coefficient tail =>
+    foldRight (fun running accumulated => hornerStep gamma (read running coefficient) accumulated) tail) initial
+
+private def matrixHorner (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+    (initial : K) : Result K :=
+  foldRight (fun coefficient tail =>
+    foldRight (fun matrix accumulated =>
+      foldRight (fun running next => hornerStep gamma (read running matrix coefficient) next) accumulated) tail) initial
+
+private theorem padHorner_value (gamma : K) (read : Fin 16 → Fin 54 → Result K) (initial : K) :
+    (padHorner gamma read initial).value =
+      (canonicalPadCoordinates productionShape).foldr
+        (fun coordinate tail => extensionOps.add (read coordinate.running coordinate.coefficient).value
+          (extensionOps.mul gamma tail)) initial := by
+  simp only [padHorner, foldRight_value, hornerStep_value, canonicalPadCoordinates,
+    List.foldr_flatMap, List.foldr_map]
+  rfl
+
+private theorem matrixHorner_value (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+    (initial : K) :
+    (matrixHorner gamma read initial).value =
+      (canonicalMatrixCoordinates productionShape).foldr
+        (fun coordinate tail => extensionOps.add
+          (read coordinate.running coordinate.matrix coordinate.coefficient).value
+          (extensionOps.mul gamma tail)) initial := by
+  simp only [matrixHorner, foldRight_value, hornerStep_value, canonicalMatrixCoordinates,
+    List.foldr_flatMap, List.foldr_map]
+  rfl
+
+private def padHornerWork (readWork : Nat) := 54 * (16 * (readWork + 30) + 11) + 3
+private def matrixHornerWork (readWork : Nat) := 54 * (14 * (16 * (readWork + 30) + 11) + 11) + 3
+
+private theorem padHorner_work_le (gamma : K) (read : Fin 16 → Fin 54 → Result K)
+    (initial : K) (bound : Nat) (bounded : ∀ running coefficient, (read running coefficient).work ≤ bound) :
+    (padHorner gamma read initial).work ≤ padHornerWork bound := by
+  apply foldRight_work_le _ _ (16 * (bound + 30) + 3)
+  intro coefficient tail
+  apply foldRight_work_le _ _ (bound + 22)
+  intro running accumulated
+  rw [hornerStep_work]
+  exact Nat.add_le_add_right (bounded running coefficient) 22
+
+private theorem matrixHorner_work_le (gamma : K) (read : Fin 16 → Fin 14 → Fin 54 → Result K)
+    (initial : K) (bound : Nat)
+    (bounded : ∀ running matrix coefficient, (read running matrix coefficient).work ≤ bound) :
+    (matrixHorner gamma read initial).work ≤ matrixHornerWork bound := by
+  apply foldRight_work_le _ _ (14 * (16 * (bound + 30) + 11) + 3)
+  intro coefficient tail
+  apply foldRight_work_le _ _ (16 * (bound + 30) + 3)
+  intro matrix accumulated
+  apply foldRight_work_le _ _ (bound + 22)
+  intro running next
+  rw [hornerStep_work]
+  exact Nat.add_le_add_right (bounded running matrix coefficient) 22
+
+private theorem evaluateCoefficients_foldr (gamma : K) (coefficients : List K) :
+    SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma coefficients =
+      coefficients.foldr (fun coefficient tail => extensionOps.add coefficient (extensionOps.mul gamma tail)) K.zero := by
+  induction coefficients with
+  | nil => rfl
+  | cons coefficient coefficients ih => simp only [SumCheck.Finite.Message.evaluateCoefficients, List.foldr, ih]
+
+/-- The two record reads and the actual two/three array lookups are charged. -/
+private def priorPad (input : PiCCSInputCheck.Input) (running : Fin 16) (coefficient : Fin 54) : Result K :=
+  let prior := input.running
+  let values := prior.evalK
+  ⟨(values.get running).get coefficient, 2 + 2 + 1⟩
+
+private def priorMatrix (input : PiCCSInputCheck.Input) (running : Fin 16)
+    (matrix : Fin 14) (coefficient : Fin 54) : Result K :=
+  let prior := input.running
+  let values := prior.evalA
+  ⟨((values.get running).get matrix).get coefficient, 2 + 3 + 1⟩
+
+private def outputPad (probe : StoredProbe productionShape) (running : Fin 16)
+    (coefficient : Fin 54) : Result K :=
+  let source : Fin 17 := ⟨1 + running.val, by have bound := running.isLt; omega⟩
+  let value := probe.padRead source coefficient
+  ⟨value.value, value.work + 4⟩
+
+private def outputMatrix (probe : StoredProbe productionShape) (running : Fin 16)
+    (matrix : Fin 14) (coefficient : Fin 54) : Result K :=
+  let source : Fin 17 := ⟨1 + running.val, by have bound := running.isLt; omega⟩
+  let value := probe.matrixRead source matrix coefficient
+  ⟨value.value, value.work + 4⟩
+
+/-- Semantic view only. Runtime reads use the same retained arrays above. -/
+def outputMessage (probe : StoredProbe productionShape) : ProtocolPolynomial.OutputMessage K productionShape where
+  freshMatrixImage := fun source matrix => probe.view.response.fullOutput.matrixCoordinate
+    (freshSourceIndex source) matrix Phi81CoefficientKernel.constant
+  sourceAssignment := fun source => probe.view.response.fullOutput.padCoordinate source Phi81CoefficientKernel.constant
+  padImage := fun coordinate => probe.view.response.fullOutput.padCoordinate
+    (runningSourceIndex coordinate.running) coordinate.coefficient
+  matrixImage := fun coordinate => probe.view.response.fullOutput.matrixCoordinate
+    (runningSourceIndex coordinate.running) coordinate.matrix coordinate.coefficient
+
+private def initialClaim (input : PiCCSInputCheck.Input) (gamma : K) : Result K :=
+  let matrix := matrixHorner gamma (priorMatrix input) K.zero
+  let pad := padHorner gamma (priorPad input) matrix.value
+  ⟨pad.value, matrix.work + pad.work + 4⟩
+
+private theorem initialClaim_value (input : PiCCSInputCheck.Input) (gamma : K) :
+    (initialClaim input gamma).value = (PiCCSInputCheck.verifierInput input).initial extensionOps gamma := by
+  rw [← PiCCSInputCheck.initialClaimFast_eq_initial]
+  simp only [initialClaim, matrixHorner_value, padHorner_value, PiCCSInputCheck.initialClaimFast,
+    Folding.PiCCS.FinalIdentity.targetCoefficientList, evaluateCoefficients_foldr,
+    List.foldr_append, List.foldr_map]
+  rfl
+
+private theorem initialClaim_work_le (input : PiCCSInputCheck.Input) (gamma : K) :
+    (initialClaim input gamma).work ≤ matrixHornerWork 6 + padHornerWork 5 + 4 := by
+  have matrix := matrixHorner_work_le gamma (priorMatrix input) K.zero 6 (by intros; exact Nat.le_refl 6)
+  have pad := padHorner_work_le gamma (priorPad input)
+    (matrixHorner gamma (priorMatrix input) K.zero).value 5 (by intros; exact Nat.le_refl 5)
+  dsimp only [initialClaim]
+  omega
+
+/-- Build the one prior-point list by direct array indices. The forward loop
+charges lookup/branch/index/cons; the library's final reverse costs three
+operations per coordinate. No list-index closure is composed. -/
+private def pointAction {count : Nat} (values : Vector K count) (index : Fin count) : StateM Nat K :=
+  fun work => (values.get index, work + 4)
+
+private theorem pointList_state_value {count : Nat} (values : Vector K count) (initial : Nat) :
+    ((List.ofFnM (pointAction values)).run initial).1 = List.ofFn values.get := by
+  have generic : ∀ {size : Nat} (read : Fin size → K) (start : Nat),
+      ((List.ofFnM (m := StateM Nat) (fun index => fun work => (read index, work + 4))).run start).1 =
+        List.ofFn read := by
+    intro size read start
+    induction size generalizing start with
+    | zero => rw [List.ofFnM_zero, List.ofFn_zero]; rfl
+    | succ size ih =>
+        rw [List.ofFnM_succ_last, List.ofFn_succ_last]
+        simp only [StateT.run_bind, StateT.run_pure]
+        change (((List.ofFnM (m := StateM Nat)
+          (fun index => fun work => (read index.castSucc, work + 4))).run start).1) ++
+          [read (Fin.last size)] = _
+        rw [ih]
+  exact generic values.get initial
+
+private theorem pointList_state_work {count : Nat} (values : Vector K count) (initial : Nat) :
+    ((List.ofFnM (pointAction values)).run initial).2 = initial + count * 4 := by
+  have generic : ∀ {size : Nat} (read : Fin size → K) (start : Nat),
+      ((List.ofFnM (m := StateM Nat) (fun index => fun work => (read index, work + 4))).run start).2 =
+        start + size * 4 := by
+    intro size read start
+    induction size generalizing start with
+    | zero => rw [List.ofFnM_zero]; rfl
+    | succ size ih =>
+        rw [List.ofFnM_succ_last]
+        simp only [StateT.run_bind, StateT.run_pure]
+        change ((List.ofFnM (m := StateM Nat)
+          (fun index => fun work => (read index.castSucc, work + 4))).run start).2 + 4 = _
+        rw [ih]
+        omega
+  exact generic values.get initial
+
+private def pointList {count : Nat} (values : Vector K count) : Result (List K) :=
+  let result := (List.ofFnM (pointAction values)).run 1
+  ⟨result.1, result.2 + count * 3 + 2⟩
+
+private theorem pointList_value {count : Nat} (values : Vector K count) :
+    (pointList values).value = values.toList := by
+  change ((List.ofFnM (pointAction values)).run 1).1 = values.toList
+  rw [pointList_state_value, ← Vector.toList_ofFn]
+  have vector : Vector.ofFn values.get = values := by
+    change Vector.ofFn (fun index : Fin count => values[index.val]) = values
+    exact Vector.ofFn_getElem
+  exact congrArg Vector.toList vector
+
+private theorem pointList_work {count : Nat} (values : Vector K count) :
+    (pointList values).work = count * 7 + 3 := by
+  simp only [pointList, pointList_state_work]
+  omega
+
+private def equalityFactor (left right : K) : Result K :=
+  let lowLeft := sub K.one left
+  let lowRight := sub K.one right
+  let low := mul lowLeft.value lowRight.value
+  let high := mul left right
+  let total := add low.value high.value
+  ⟨total.value, lowLeft.work + lowRight.work + low.work + high.work + total.work + 3⟩
+
+private theorem equalityFactor_value (left right : K) :
+    (equalityFactor left right).value = SumCheckTruthPath.equalityFactor extensionOps left right := by
+  simp only [equalityFactor, add_value, mul_value, sub_value, SumCheckTruthPath.equalityFactor]
+  rfl
+
+private theorem equalityFactor_work (left right : K) : (equalityFactor left right).work = 53 := rfl
+
+private def pointEquality : List K → List K → Result K
+  | [], [] => ⟨K.one, 4⟩
+  | left :: lefts, right :: rights =>
+      let factor := equalityFactor left right
+      let tail := pointEquality lefts rights
+      let product := mul factor.value tail.value
+      ⟨product.value, factor.work + tail.work + product.work + 7⟩
+  | _, _ => ⟨K.zero, 4⟩
+
+private theorem pointEquality_value (left right : List K) :
+    (pointEquality left right).value = SumCheckTruthPath.pointEqualityCoordinates extensionOps left right := by
+  induction left generalizing right with
+  | nil => cases right <;> rfl
+  | cons value values ih =>
+      cases right <;> simp only [pointEquality, mul_value, equalityFactor_value, ih,
+        SumCheckTruthPath.pointEqualityCoordinates] <;> rfl
+
+private theorem pointEquality_work_le (left right : List K) :
+    (pointEquality left right).work ≤ left.length * 73 + 4 := by
+  induction left generalizing right with
+  | nil => cases right <;> simp [pointEquality]
+  | cons value values ih =>
+      cases right with
+      | nil => simp only [pointEquality, List.length_cons]; omega
+      | cons other others =>
+          have tail := ih others
+          simp only [pointEquality, equalityFactor_work, mul, List.length_cons, Nat.add_mul, Nat.one_mul]
+          omega
+
+private def normTerm (probe : StoredProbe productionShape) (gamma : K) (source : Fin 17) : Result K :=
+  let value := probe.padRead source Phi81CoefficientKernel.constant
+  let upper := add value.value K.one
+  let lower := sub value.value K.one
+  let first := mul upper.value value.value
+  let cubic := mul first.value lower.value
+  let weight := power gamma source.val
+  let weighted := mul weight.value cubic.value
+  ⟨weighted.value, value.work + upper.work + lower.work + first.work + cubic.work + weight.work + weighted.work + 5⟩
+
+private theorem normTerm_value (probe : StoredProbe productionShape) (gamma : K) (source : Fin 17) :
+    (normTerm probe gamma source).value = SignedJointIdentity.gammaTerm extensionOps gamma source.val
+      (ProtocolPolynomial.strictNormResidual extensionOps ((outputMessage probe).sourceAssignment source)) := by
+  simp only [normTerm, mul_value, add_value, sub_value, power_value, StoredProbe.padRead_value,
+    SignedJointIdentity.gammaTerm, ProtocolPolynomial.strictNormResidual, outputMessage]
+  rfl
+
+private theorem normTerm_work_le (probe : StoredProbe productionShape) (gamma : K) (source : Fin 17) :
+    (normTerm probe gamma source).work ≤ 324 := by
+  have index := source.isLt
+  simp only [normTerm, StoredProbe.padRead_work, add, sub, mul, power_work]
+  omega
+
+private def normClaim (probe : StoredProbe productionShape) (gamma : K) : Result K :=
+  let value := foldRight (fun source tail =>
+    let term := normTerm probe gamma source
+    let total := add term.value tail
+    ⟨total.value, term.work + total.work + 1⟩) K.zero
+  ⟨value.value, value.work + 2⟩
+
+private theorem finiteSum_foldr (values : List K) :
+    BooleanTable.finiteSum extensionOps values = values.foldr extensionOps.add K.zero := by
+  induction values with
+  | nil => rfl
+  | cons value values ih => simp only [BooleanTable.finiteSum, List.foldr, ih]
+
+private theorem normClaim_value (probe : StoredProbe productionShape) (gamma : K) :
+    (normClaim probe gamma).value = ProtocolPolynomial.normAtMessage extensionOps gamma (outputMessage probe) := by
+  simp only [normClaim, foldRight_value, add_value, normTerm_value, ProtocolPolynomial.normAtMessage,
+    SignedJointIdentity.sumMap, finiteSum_foldr, List.foldr_map]
+  rfl
+
+private theorem normClaim_work_le (probe : StoredProbe productionShape) (gamma : K) :
+    (normClaim probe gamma).work ≤ 17 * 341 + 5 := by
+  have folded := foldRight_work_le (fun source tail =>
+    let term := normTerm probe gamma source
+    let total := add term.value tail
+    (⟨total.value, term.work + total.work + 1⟩ : Result K)) K.zero 333 (by
+      intro source tail
+      have term := normTerm_work_le probe gamma source
+      dsimp only [add]
+      omega)
+  dsimp only at folded
+  dsimp only [normClaim]
+  omega
+
+private abbrev Term := ProductionRelation.SelectivePolynomial.Term
+private abbrev PortExponents := ProductionRelation.SelectivePolynomial.PortExponents
+
+/-- Execute the selected record lookup. Each tested index costs equality
+and branch; the selected arm reads its field. The zero slot reads no field. -/
+private def portRead (powers : PortExponents) (index : Fin 14) : Result Nat :=
+  let port := index.val
+  if port = 0 then ⟨powers.bit, 5⟩
+  else if port = 1 then ⟨powers.generalSelector, 7⟩
+  else if port = 2 then ⟨powers.a, 9⟩
+  else if port = 3 then ⟨powers.b, 11⟩
+  else if port = 4 then ⟨powers.c, 13⟩
+  else if port = 5 then ⟨powers.sboxInput, 15⟩
+  else if port = 6 then ⟨powers.centeredUnit, 17⟩
+  else if port = 7 then ⟨powers.evalSelector, 19⟩
+  else if port = 8 then ⟨powers.class0, 21⟩
+  else if port = 9 then ⟨powers.class1, 23⟩
+  else if port = 10 then ⟨powers.class2, 25⟩
+  else if port = 11 then ⟨powers.class3, 27⟩
+  else if port = 12 then ⟨powers.class4, 29⟩
+  else ⟨0, 28⟩
+
+private theorem portRead_value (powers : PortExponents) (index : Fin 14) :
+    (portRead powers index).value = powers.get index := by
+  fin_cases index <;> rfl
+
+private theorem portRead_work_le (powers : PortExponents) (index : Fin 14) :
+    (portRead powers index).work ≤ 29 := by
+  fin_cases index <;> simp only [portRead, Nat.reduceEqDiff, ↓reduceIte] <;> decide
+
+private theorem member_le_sum (values : List Nat) (value : Nat) (member : value ∈ values) :
+    value ≤ values.sum := by
+  induction values with
+  | nil => simp at member
+  | cons head tail ih =>
+      simp only [List.mem_cons] at member
+      rcases member with rfl | member
+      · simp only [List.sum_cons]; omega
+      · have bound := ih member
+        simp only [List.sum_cons]
+        omega
+
+private theorem term_exponent_le (term : Term)
+    (member : term ∈ ProductionRelation.SelectivePolynomial.termData) (index : Fin 14) :
+    term.powers.get index ≤ 8 := by
+  have erased : term.toMonomial ∈ ProductionRelation.SelectivePolynomial.terms := by
+    rw [← ProductionRelation.SelectivePolynomial.termData_toMonomial]
+    exact List.mem_map_of_mem member
+  have degree := ProductionRelation.SelectivePolynomial.term_totalDegree_le_eight term.toMonomial erased
+  have indexMember : index ∈ canonicalFinIndices 14 := by
+    exact List.mem_ofFn.mpr ⟨index, rfl⟩
+  have exponent := member_le_sum ((canonicalFinIndices 14).map term.toMonomial.exponents)
+    (term.toMonomial.exponents index) (List.mem_map_of_mem indexMember)
+  exact Nat.le_trans exponent degree
+
+private def termValue (probe : StoredProbe productionShape) (term : Term) : Result K :=
+  let coefficient := term.coefficient
+  let powers := term.powers
+  let embedded := StoredWitnessCheckPrimitives.embed coefficient
+  let source : Fin 17 := 0
+  let constant : Fin 54 := Phi81CoefficientKernel.constant
+  let value := fold (fun accumulated matrix =>
+    let image := probe.matrixRead source matrix constant
+    let exponent := portRead powers matrix
+    let raised := power image.value exponent.value
+    let product := mul accumulated raised.value
+    ⟨product.value, image.work + exponent.work + raised.work + product.work + 1⟩) embedded.value
+  ⟨value.value, embedded.work + value.work + 5⟩
+
+private theorem termValue_value (probe : StoredProbe productionShape) (term : Term) :
+    (termValue probe term).value = CCSResidualTable.evaluateMonomial extensionOps
+      (ConstraintPolynomialLift.liftMonomial K.embed term.toMonomial)
+      ((outputMessage probe).freshMatrixImage (0 : Fin 1)) := by
+  simp only [termValue, fold_value_list, mul_value, power_eq_pow, portRead_value,
+    StoredWitnessCheckPrimitives.embed_value, StoredProbe.matrixRead_value,
+    CCSResidualTable.evaluateMonomial, ConstraintPolynomialLift.liftMonomial,
+    ProductionRelation.SelectivePolynomial.Term.toMonomial, ProductionRelation.SelectivePolynomial.monomial]
+  apply congrArg (fun step : K → Fin 14 → K =>
+    (canonicalFinIndices 14).foldl step (K.embed term.coefficient))
+  funext accumulated matrix
+  rfl
+
+private theorem termValue_work_le (probe : StoredProbe productionShape) (term : Term)
+    (member : term ∈ ProductionRelation.SelectivePolynomial.termData) :
+    (termValue probe term).work ≤ 2572 := by
+  have folded := fold_work_le (fun accumulated matrix =>
+    let image := probe.matrixRead (0 : Fin 17) matrix Phi81CoefficientKernel.constant
+    let exponent := portRead term.powers matrix
+    let raised := power image.value exponent.value
+    let product := mul accumulated raised.value
+    (⟨product.value, image.work + exponent.work + raised.work + product.work + 1⟩ : Result K))
+    (StoredWitnessCheckPrimitives.embed term.coefficient).value 180 (by
+      intro accumulated matrix
+      have read := portRead_work_le term.powers matrix
+      have degree := term_exponent_le term member matrix
+      simp only [StoredProbe.matrixRead_work, power_work, portRead_value, mul]
+      omega)
+  dsimp only at folded
+  dsimp only [termValue]
+  rw [StoredWitnessCheckPrimitives.embed_work]
+  have count : productionShape.matrixCount = 14 := rfl
+  omega
+
+private def polynomialLoop (probe : StoredProbe productionShape) : List Term → Result K → Result K
+  | [], accumulated => ⟨accumulated.value, accumulated.work + 2⟩
+  | term :: terms, accumulated =>
+      let value := termValue probe term
+      let total := add accumulated.value value.value
+      polynomialLoop probe terms ⟨total.value, accumulated.work + value.work + total.work + 5⟩
+
+private theorem polynomialLoop_value (probe : StoredProbe productionShape) (terms : List Term)
+    (initial : Result K) :
+    (polynomialLoop probe terms initial).value = terms.foldl
+      (fun accumulated term => extensionOps.add accumulated
+        (CCSResidualTable.evaluateMonomial extensionOps
+          (ConstraintPolynomialLift.liftMonomial K.embed term.toMonomial)
+          ((outputMessage probe).freshMatrixImage (0 : Fin 1)))) initial.value := by
+  induction terms generalizing initial with
+  | nil => rfl
+  | cons term terms ih =>
+      simp only [polynomialLoop, ih, add_value, termValue_value, List.foldl_cons]
+      rfl
+
+private theorem polynomialLoop_work_le (probe : StoredProbe productionShape) (terms : List Term)
+    (members : ∀ term ∈ terms, term ∈ ProductionRelation.SelectivePolynomial.termData) (initial : Result K) :
+    (polynomialLoop probe terms initial).work ≤ initial.work + terms.length * 2585 + 2 := by
+  induction terms generalizing initial with
+  | nil => simp [polynomialLoop]
+  | cons term terms ih =>
+      have value := termValue_work_le probe term (members term (by simp))
+      have tail := ih (fun item member => members item (by simp [member]))
+        (⟨(add initial.value (termValue probe term).value).value,
+          initial.work + (termValue probe term).work + (add initial.value (termValue probe term).value).work + 5⟩ : Result K)
+      dsimp only [polynomialLoop]
+      simp only [add, List.length_cons, Nat.add_mul, Nat.one_mul] at tail ⊢
+      omega
+
+/-- The retained owner table is read once; every list cell, coefficient,
+exponent record, matrix value, and field operation is charged by this call. -/
+private def polynomialValue (probe : StoredProbe productionShape) : Result K :=
+  let terms := ProductionRelation.SelectivePolynomial.termData
+  let value := polynomialLoop probe terms ⟨K.zero, 2⟩
+  ⟨value.value, value.work + 2⟩
+
+private theorem polynomialValue_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (polynomialValue probe).value = CCSResidualTable.evaluatePolynomial extensionOps
+      (PiCCSInputCheck.verifierInput input).constraintPolynomial
+      ((outputMessage probe).freshMatrixImage (0 : Fin 1)) := by
+  simp only [polynomialValue, polynomialLoop_value, PiCCSInputCheck.verifierInput,
+    CCSResidualTable.evaluatePolynomial, ConstraintPolynomialLift.liftConstraintPolynomial,
+    ProductionRelation.polynomial, ProductionRelation.SelectivePolynomial.polynomial,
+    ← ProductionRelation.SelectivePolynomial.termData_toMonomial]
+  simp only [List.foldl_map] <;> rfl
+
+private theorem polynomialValue_work_le (probe : StoredProbe productionShape) :
+    (polynomialValue probe).work ≤ 74 * 2585 + 6 := by
+  have value := polynomialLoop_work_le probe ProductionRelation.SelectivePolynomial.termData
+    (fun _ member => member) (⟨K.zero, 2⟩ : Result K)
+  simp only [ProductionRelation.SelectivePolynomial.termData_length] at value
+  dsimp only [polynomialValue] at value ⊢
+  omega
+
+private theorem ccsClaim_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) (gamma : K) :
+    (polynomialValue probe).value =
+      ProtocolPolynomial.ccsAtMessage extensionOps (PiCCSInputCheck.verifierInput input) gamma (outputMessage probe) := by
+  rw [polynomialValue_value input]
+  change _ = extensionOps.add (extensionOps.mul extensionOps.one _) extensionOps.zero
+  rw [extensionLaws.one_mul, extensionLaws.add_zero]
+  rfl
+
+private theorem padCoefficients_value (probe : StoredProbe productionShape) (gamma : K) :
+    (padHorner gamma (outputPad probe) K.zero).value =
+      SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma
+        (Folding.PiCCS.FinalIdentity.outputPadCoefficientList (outputMessage probe)) := by
+  simp only [padHorner_value, Folding.PiCCS.FinalIdentity.outputPadCoefficientList,
+    evaluateCoefficients_foldr, List.foldr_map]
+  rfl
+
+private theorem matrixCoefficients_value (probe : StoredProbe productionShape) (gamma : K) :
+    (matrixHorner gamma (outputMatrix probe) K.zero).value =
+      SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma
+        (Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList (outputMessage probe)) := by
+  simp only [matrixHorner_value, Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList,
+    evaluateCoefficients_foldr, List.foldr_map]
+  rfl
+
+private def terminalClaim (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) : Result K :=
+  let coins := probe.coins
+  let gamma := coins.gamma
+  let point := coins.roundPoint
+  let alpha := coins.alpha
+  let coordinates := point.coordinates
+  let alphaCoordinates := alpha.coordinates
+  let prior := input.running
+  let priorPoint := prior.point
+  let priorCoordinates := pointList priorPoint
+  let priorEquality := pointEquality coordinates priorCoordinates.value
+  let alphaEquality := pointEquality coordinates alphaCoordinates
+  let padCoefficients := padHorner gamma (outputPad probe) K.zero
+  let matrixCoefficients := matrixHorner gamma (outputMatrix probe) K.zero
+  let pad := mul priorEquality.value padCoefficients.value
+  let matrix := mul priorEquality.value matrixCoefficients.value
+  let ccs := polynomialValue probe
+  let norm := normClaim probe gamma
+  let matrixWeight := power gamma 864
+  let constraintWeight := power gamma 12960
+  let normWeight := power gamma 1
+  let weightedNorm := mul normWeight.value norm.value
+  let inner := add ccs.value weightedNorm.value
+  let gated := mul alphaEquality.value inner.value
+  let constraints := mul constraintWeight.value gated.value
+  let weightedMatrix := mul matrixWeight.value matrix.value
+  let tail := add weightedMatrix.value constraints.value
+  let total := add pad.value tail.value
+  ⟨total.value, priorCoordinates.work + priorEquality.work + alphaEquality.work +
+    padCoefficients.work + matrixCoefficients.work + pad.work + matrix.work + ccs.work + norm.work +
+    matrixWeight.work + constraintWeight.work + normWeight.work + weightedNorm.work + inner.work +
+    gated.work + constraints.work + weightedMatrix.work + tail.work + total.work + 11⟩
+
+private theorem terminalClaim_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (terminalClaim input probe).value = ProtocolPolynomial.terminalFromMessage extensionOps
+      (PiCCSInputCheck.verifierInput input) probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+      (outputMessage probe) := by
+  rw [← PiCCSInputCheck.terminalFast_eq_paper]
+  simp only [terminalClaim, mul_value, add_value, power_value, pointEquality_value,
+    pointList_value, padCoefficients_value, matrixCoefficients_value, normClaim_value,
+    ccsClaim_value input probe probe.coins.gamma, PiCCSInputCheck.terminalFast,
+    PiCCSInputCheck.powerFast_eq_power, PiCCSInputCheck.padTerminalFast, PiCCSInputCheck.matrixTerminalFast,
+    SumCheckTruthPath.pointEquality]
+  rfl
+
+private def terminalWork : Nat :=
+  (28 * 7 + 3) + 2 * (28 * 73 + 4) + padHornerWork 8 + matrixHornerWork 9 +
+    (74 * 2585 + 6) + (17 * 341 + 5) + (864 * 16 + 4) + (12960 * 16 + 4) + (1 * 16 + 4) +
+    6 * 13 + 3 * 8 + 11
+
+private theorem terminalClaim_work_le (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (terminalClaim input probe).work ≤ terminalWork := by
+  have prior := pointEquality_work_le probe.coins.roundPoint.coordinates (pointList input.running.point).value
+  have alpha := pointEquality_work_le probe.coins.roundPoint.coordinates probe.coins.alpha.coordinates
+  have length : probe.coins.roundPoint.coordinates.length = 28 := probe.coins.roundPoint.dimension
+  rw [length] at prior alpha
+  have pad := padHorner_work_le probe.coins.gamma (outputPad probe) K.zero 8 (by
+    intro running coefficient
+    exact Nat.le_refl 8)
+  have matrix := matrixHorner_work_le probe.coins.gamma (outputMatrix probe) K.zero 9 (by
+    intro running matrix coefficient
+    exact Nat.le_refl 9)
+  have ccs := polynomialValue_work_le probe
+  have norm := normClaim_work_le probe probe.coins.gamma
+  dsimp only [terminalClaim]
+  simp only [pointList_work, power_work, mul, add]
+  unfold terminalWork
+  omega
+
+/-- Execute the complete selected public gate for every stored probe. The
+raw certificate is passed unchanged to the width/round checker. Seven field
+reads/returns surround the claim calls and the raw-round traversal. -/
+def check (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) : Result Bool :=
+  let coins := probe.coins
+  let gamma := coins.gamma
+  let point := coins.roundPoint
+  let challenges := point.coordinates
+  let certificate := probe.certificate
+  let messages := certificate.rounds
+  let initial := initialClaim input gamma
+  let terminal := terminalClaim input probe
+  let checked := checkRounds initial.value terminal.value challenges messages
+  ⟨checked.value, initial.work + terminal.work + checked.work + 7⟩
+
+/-- Cost erasure is the exact selected degree-nine public predicate. No
+opening validity, transcript distribution, or certificate well-formedness
+is assumed. The output coefficients are those of this stored probe. -/
+theorem check_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (check input probe).value = ProtocolPolynomial.FixedWidth.check extensionOps 9
+      (PiCCSInputCheck.verifierInput input) probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+      (outputMessage probe) probe.certificate := by
+  simp only [check, checkRounds_value, initialClaim_value, terminalClaim_value,
+    ProtocolPolynomial.FixedWidth.check]
+
+/-- A uniform bound on the executed named operations. The 28 challenges,
+ten coefficients, 17 sources, and retained 74-term table determine it. -/
+def workBound : Nat :=
+  matrixHornerWork 6 + padHornerWork 5 + 4 + terminalWork + (28 * 849 + 13) + 7
+
+theorem check_work_le (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (check input probe).work ≤ workBound := by
+  have initial := initialClaim_work_le input probe.coins.gamma
+  have terminal := terminalClaim_work_le input probe
+  have rounds := checkRounds_work_le (initialClaim input probe.coins.gamma).value
+    (terminalClaim input probe).value probe.coins.roundPoint.coordinates probe.certificate.rounds
+  have length : probe.coins.roundPoint.coordinates.length = 28 := probe.coins.roundPoint.dimension
+  rw [length] at rounds
+  dsimp only [check]
+  unfold workBound
+  omega
+
+end NightstreamFPrime.Export.Stage1.PiCCSStoredPublicCheck

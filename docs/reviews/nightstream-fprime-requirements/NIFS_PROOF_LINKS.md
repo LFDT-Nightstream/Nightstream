@@ -19,7 +19,7 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; concrete scalar/read and direct-copy proofs checked; four checker leaves, ring-unit inversion, producer and full runtime contracts open |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; public and Pad checks, coefficient generation and stored arithmetic checked; dense commitment, matrix entry, producer and full runtime contracts open |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
 | `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Connected for the retained Lean/optimized execution scope; independent review complete for that scope |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
@@ -912,33 +912,165 @@ The local map update retains all 454 records and changes only the three
 relevant NIFS leaves. Its build and seven tests passed. No site was
 published. The prepared PaperExact execution remains pending approval.
 
+## Stored public check, batch output and native authority guard
+
+Code commit: `692641958134b46d021639aed088d5574e1c68ce`.
+
+The full public checker's value and work theorems now hold for every typed
+stored probe, including arbitrary raw round lists and candidate output values.
+`PiCCSStoredPublicCheck.check_value` reaches the existing public predicate;
+`check_work_le` bounds the executed named-operation clock by 1,435,806.
+The program checks all 28 rounds with width 10, keeps Pad separate from
+all 14 genuine matrix families, reads prior claims, checks both points,
+and evaluates the retained 74-term table and all 17 norm terms.
+`PiCCSStoredWitnessCheck.publicCheck_value` installs this implementation
+at the selected key. `scalar_finish_source_iff` and `scalar_check_work_le`
+now retain only commitment-check and matrix-entry premises.
+
+`AjtaiSetupV1.Work.coefficient_value` computes the current setup key entry.
+Its 27,509-operation bound covers byte reads, all 80 quarter rounds,
+shared-array copies, all 16 feed-forward words, first-256-bit packing and
+Goldilocks reduction. Fixed-word interpretation retains row and block
+range facts; selected dimensions 22 and 4,708,530 satisfy them. This is one
+coefficient, not the complete commitment checker.
+
+`StoredCommitment.row_value` now constructs the exact dense Ajtai row from
+that generator and the complete stored carrier. The executed direct fold
+keeps one key block, witness block, product and accumulator. Its bound is
+`223 + blockCount*1,654,418`; it needs no sparse-witness or zero-tail premise.
+The row's value and work proofs passed in one second. The selected public
+commitment comparison is a separate consumer.
+
+The complete selected-check draft stopped after three full attempts. The
+first exposed namespace, fold-bound and index-reduction errors. The next
+two were stopped during prolonged elaboration of the selected row path;
+no checked selected theorem was produced. The final 14,057-byte, 273-line
+file is retained unchanged at `drafts/NIFS_STORED_COMMITMENT_CHECK.lean.txt`
+(SHA-256 `4089ad6a02977033253203275054ae5a268c38772677f3e99cd9d53424a9feb3`).
+It is outside the active package, has no audit registration and was not
+installed in the adapter. No fourth or narrowed check was run. Its source
+review is not a validation or approval of its theorems.
+
+`StoredRingArithmetic` materializes every ring result as 54 coefficients.
+Its multiplication and addition agree with `ringFMul` and `ringFAdd`, and
+its identity agrees with `ringFOne`. The operation bounds are 167,674,
+490 and 382 respectively. The imported builder retains its grouped loop
+counter. These are proved invocation clocks, not compiled runtime or gas.
+The resumed normalization proof also establishes the executed array scan
+and copy used by the existing polynomial encoding; full inverse work is
+still a separate obligation.
+
+`RingFFrobenius.quotient_pow_card_pow` proves `a^(q^27)=a` in the existing
+Phi81 polynomial quotient. `unit_inverse_product` derives the unit inverse
+power identity. The proof derives the quotient characteristic, checks
+`q^27 mod 81=1`, and uses the coefficient and root maps. It assumes no
+irreducibility and uses no pointwise RingF power. This algebra result does
+not itself validate an executable inverse or its work.
+
+`StoredRingPowerInverse` supplies a separate executed binary-power candidate.
+It proves the returned unit inverse and a bound of 579,844,861 named
+operations, including exponent construction. It receives only the input
+array. Symbolic wrapper and result lemmas prevent the proof from unfolding
+the 1,729-level selected call. Two attempts were stopped after rapid memory
+growth; the structural third attempt passed in two seconds without a
+resource-setting increase.
+
+The executed comparison matched all 54 inverse and product coefficients
+for `2`, `X`, `1+X`, and a dense `(1+X)^53` coefficient vector. All recorded
+clocks were 292,431,123, within the proved bound. Timed IO stores force each
+complete result before the end timer. The power routine took 10.4--13.2
+seconds per input; extended GCD took 15--150 milliseconds. The complete
+comparison passed in 50 seconds. An earlier pure-let timing was invalid
+and is retained only as functional evidence. This substantial cost
+difference is explicit: no existing inverse path was replaced, and the
+extractor's final inverse choice and representation link remain open.
+
+The finite batch law and its actual sampler consumers also pass. For 17
+independent uniform 32-field windows, every output event differs from a
+uniform successful ordered scalar list in Option by at most
+`544*(M-1)/(M*q)+17*u`, where `M=2^32` and
+`u=choose(64,11)/65536^11`. The stronger separate abort-only bound stays
+`17*u`. The actual sampler list and successful final state equal those of
+the same ordered field decoder. These deterministic identities give no
+independence law for Poseidon2 and no adaptive-query or rewinding law.
+The precise remaining transfer obligations stay in the model note.
+
+The new comparison-only scalarwise totalizer also passes. For any supplied
+valid fallback scalar, its one-scalar and 17-scalar error bounds are the
+same. The actual successful batch's ring list agrees with that comparison.
+Failed traces, full verifier acceptance inclusion, inverse-codec fibers
+and their work, and the ideal permutation transfer remain open. This
+comparison changes no actual sampler behavior and selects no new model.
+
+The normal native NIFS header-bundle entry now rejects with an explicit
+unsupported-circuit error. It cannot call the compressed PiCCS composition;
+that body and its helper callers are test-only. The regression failed
+against the former body, then passed against the guard. It checks the exact
+error and unchanged rows, columns, all matrix triplets, witness, encoding
+trace, transcript state, cursor and bindings at this entry.
+
+Public Nebula F-prime types remain available. Ordinary profile discovery
+fails at the guard; an artifact-restored profile can reach it later during
+recursive synthesis. Existing error paths also reach the WASM caller. This
+is an intentional rejection of the unsupported circuit, with no replacement
+backend or recursive implementation. The enclosing caller can have changed
+its own prelude before calling NIFS, so the entry's unchanged-state test is
+not an atomicity claim about the complete caller.
+
+The focused Rust regression passed in 19.38 seconds including compilation;
+its executed test took under 0.01 seconds. The normal release check for
+`neo-fold-clean` and `neo-wasm` passed in 8.27 seconds. `cargo fmt --all`
+passed. Four helper methods with only test callers now have `cfg(test)`;
+their source review passed. The 08:20 UTC checkpoint read both review paths
+in both checkouts. The primary checkout's September 4 finding motivated
+this guard. The old complete review suite and proof backends did not run,
+and no new broad conformance verdict is claimed.
+
+The initial combined NIFS axiom check passed all 328 registrations,
+including 26 new exports, in two seconds, using only the allowed axioms.
+The final gate also includes the dense row, power inverse and totalized
+comparison exports; its outcome is recorded below. Independent
+reviews checked the public gate, selected integration, finite batch laws,
+coefficient generator, stored arithmetic and complete audit records. The
+coordinator separately checked the quotient proof and native guard source.
+Source, reviews and full validation records are retained in
+[NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip](NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip).
+
+The final dependency-aware NIFS axiom build passed all 336 records,
+including 34 new exports, in four seconds (3,723 jobs). The source-boundary
+gate also passed after the stopped draft was removed. A separate worker
+verified complete audit coverage and all 20 committed source hashes.
+
+The local map build produced all 454 records and its seven tests passed.
+Only the three relevant NIFS records changed; the other 451 records and
+the three records' connection statuses are preserved. At 09:20 UTC, both
+protected review paths were read again in both checkouts; their contents
+were unchanged. No site was published or model approved.
+
 ## Active criteria
 
-Complete the three checker leaves: the public SumCheck gate, dense selected-key
-commitment check and selected matrix entry. The full public-check draft is
-retained above. Commitment work must include actual key expansion for
+Complete the two checker leaves: dense selected-key commitment check and
+selected matrix entry. The public SumCheck gate is now proved and installed. Commitment work must include actual key expansion for
 arbitrary stored witnesses, and matrix work must include package-row
 production and lookup. The retained dense-commitment preparation gives a
 structural route using one 54-lane key block at a time, with no sparse-witness
 premise or full-key table.
 
 Complete the actual stored producer/checker law, inverse and conversion work,
-and the full representation/runtime links. The inverse value theorem is now
-proved for units; the normalization-work draft remains a separate failed
-attempt. Preserve the approved seed and same-key MSIS premise, which supplies
+and the full representation/runtime links. The existing inverse value theorem and resumed normalization work are
+proved; full inverse work and its chosen executable consumer remain open. Preserve the approved seed and same-key MSIS premise, which supplies
 no numerical hardness bound.
 
 Keep the exact replay, matrix/raw-assignment evidence and independent review
-at their stated scope. Before closing the owner boundary, remove public
-reachability of the compressed native PiCCS relation or make that route
-consume the authoritative v1.1 relation. This does not authorize Stage 2 or
-backend implementation. The prepared same-input PaperExact R/D comparison
+at their stated scope. The normal native NIFS entry now rejects the compressed composition.
+This scoped guard does not authorize Stage 2, supply a replacement backend
+or grant a new complete conformance verdict. The prepared same-input PaperExact R/D comparison
 still needs explicit approval before execution and broader per-phase closure.
 
 Complete the mathematical transcript, codec, state-restoration and error/work
-connections before requesting a precise Fiat–Shamir model decision. The
-scalar output comparison and 17-window abort bound are proved. A joint batch
-output law, adaptive/retry law and exact Poseidon2 transfer are not proved.
+connections before requesting a precise Fiat–Shamir model decision. The scalar and independent-batch output comparisons and 17-window abort
+bound are proved. The actual-state joint law, adaptive/retry law and exact
+Poseidon2 transfer are not proved.
 
 The older `protocol-contract/security-reduction.md` uses a different
 transcript, sampler and profile; its numerical limits are not evidence for

@@ -193,7 +193,6 @@ pub(crate) fn prove_paper_exact(
 pub fn prove_from_split_material(
     pp: &Params,
     s: &Structure,
-    cache: &OptimizedStructureCache,
     lanes: Option<&LaneScheme>,
     child_adv: Option<Vec<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>>,
     combine: DecMixer,
@@ -229,7 +228,6 @@ pub fn prove_from_split_material(
     let (mut children, witnesses) = engine::prove_pi_dec_from_split(
         pp,
         s,
-        cache,
         parent,
         z_split,
         digit_nonzero,

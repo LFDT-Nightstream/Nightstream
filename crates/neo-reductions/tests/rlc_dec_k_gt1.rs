@@ -674,7 +674,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
 
 #[test]
 fn dec_children_trusted_split_digits_matches_checked_path() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_goldilocks_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -731,7 +731,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         ell_d,
         &child_commitments,
         combine_commitments_b_pows,
-        &superneo_cache,
+        Some(&superneo_cache),
         None,
         None,
     );
@@ -741,6 +741,36 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
     assert_eq!(trusted.3, checked.3, "ok_c mismatch");
     assert_eq!(trusted.0, checked.0, "trusted split DEC children diverged");
     assert!(trusted.1 && trusted.2 && trusted.3, "trusted split DEC must verify");
+    let openings = checked
+        .0
+        .iter()
+        .map(|child| neo_ccs::V1_1Evaluations {
+            eval_k: child.eval_k[..D].to_vec(),
+            eval_a: child
+                .eval_a
+                .iter()
+                .map(|matrix| matrix[..D].to_vec())
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    let uncached = dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &parent,
+        &z_split,
+        &digit_nonzero,
+        ell_d,
+        &child_commitments,
+        combine_commitments_b_pows,
+        None,
+        None,
+        Some(&openings),
+    );
+    assert_eq!(
+        uncached, checked,
+        "prepared openings preserve every child and check without a matrix cache"
+    );
 }
 
 #[cfg(feature = "paper-exact")]

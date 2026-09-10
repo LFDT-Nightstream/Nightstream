@@ -174,7 +174,7 @@ impl OptimizedRlcDec {
             Z_split,
             digit_nonzero,
             ell_d,
-            superneo_cache,
+            Some(superneo_cache),
             ring_linear_forms,
             precomputed_openings,
         );
@@ -202,7 +202,7 @@ impl OptimizedRlcDec {
         ell_d: usize,
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
-        superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+        superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
         ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
         precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)

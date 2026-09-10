@@ -536,7 +536,7 @@ where
         ell_d(),
         &child_commitments,
         combine_b_pows,
-        cache.superneo(),
+        Some(cache.superneo()),
         None,
         precomputed_y_ring.as_deref(),
     );
@@ -562,7 +562,6 @@ where
 pub fn prove_pi_dec_from_split<MB>(
     pp: &Params,
     s: &Structure,
-    cache: &OptimizedStructureCache,
     parent: &CeClaim,
     z_split: Vec<Mat<F>>,
     digit_nonzero: Vec<bool>,
@@ -590,7 +589,7 @@ where
         ell_d(),
         &child_commitments,
         combine_b_pows,
-        cache.superneo(),
+        None,
         None,
         Some(precomputed_openings),
     );

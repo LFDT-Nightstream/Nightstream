@@ -221,24 +221,28 @@ def proofValues (input : Input) : PiCCSProofInputs.ProofValues where
   outputEval_A := fun source matrix coefficient =>
     ((input.evalA.get source).get matrix).get coefficient
 
-def running (input : Input) :
+def runningFromInput (input : RunningInput) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := {
-    coordinates := input.running.point.toList
+    coordinates := input.point.toList
     dimension := by
-      change input.running.point.toList.length = 28
+      change input.point.toList.length = 28
       simp }
   commitments := fun source row coefficient =>
-    (input.running.commitments.get source).get
+    (input.commitments.get source).get
       ⟨row.val * ringDegree + coefficient.val, by
         have rowBound : row.val < 22 := row.isLt
         have coefficientBound : coefficient.val < 54 := coefficient.isLt
         change row.val * 54 + coefficient.val < 1188
         omega⟩
-  publicInputs := fun source => (input.running.publicInputs.get source).get
+  publicInputs := fun source => (input.publicInputs.get source).get
   evaluations := fun source => {
-    pad := (input.running.evalK.get source).get
-    matrix := fun matrix => ((input.running.evalA.get source).get matrix).get }
+    pad := (input.evalK.get source).get
+    matrix := fun matrix => ((input.evalA.get source).get matrix).get }
+
+def running (input : Input) :
+    Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+  runningFromInput input.running
 
 def fresh (input : Input) :
     Fresh (logicalWidth := logicalWidth) (publicFits := publicFits) where

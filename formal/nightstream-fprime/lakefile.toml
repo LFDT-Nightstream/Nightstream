@@ -62,6 +62,16 @@ root = "NightstreamFPrime.Export.PiRLCInputCheckMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "checkPiDECInput"
+root = "NightstreamFPrime.Export.PiDECInputCheckMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkPiDECActualMutations"
+root = "tests.PiDECActualMutations"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitPiRlcSamplerParity"
 root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

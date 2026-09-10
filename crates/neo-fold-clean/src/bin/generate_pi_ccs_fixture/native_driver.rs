@@ -31,7 +31,7 @@ const PUBLIC: usize = 270;
 const RUNNING: usize = 16;
 type Claim = CeClaim<Commitment, F, K>;
 
-fn canonical(value: &Value) {
+pub(super) fn canonical(value: &Value) {
     match value {
         Value::Array(values) => values.iter().for_each(canonical),
         Value::Number(number) => assert!(
@@ -59,14 +59,14 @@ fn extensions(value: &Value) -> Vec<K> {
         .collect()
 }
 
-fn words(values: &[K]) -> Vec<[u64; 2]> {
+pub(super) fn words(values: &[K]) -> Vec<[u64; 2]> {
     values
         .iter()
         .map(|value| <[u64; 2]>::from(value.to_limbs_u64()))
         .collect()
 }
 
-fn fields(values: &[F]) -> Vec<u64> {
+pub(super) fn fields(values: &[F]) -> Vec<u64> {
     values
         .iter()
         .map(|value| value.as_canonical_u64())
@@ -101,7 +101,7 @@ fn public_matrix(value: &Value) -> Mat<F> {
     result
 }
 
-fn public_words(value: &Mat<F>) -> Vec<u64> {
+pub(super) fn public_words(value: &Mat<F>) -> Vec<u64> {
     (0..PUBLIC)
         .map(|column| value[(column % D, column / D)].as_canonical_u64())
         .collect()
@@ -114,7 +114,7 @@ fn padded(value: &Value) -> Vec<K> {
     values
 }
 
-fn running_claims(value: &Value, prior_digest: [u64; 4]) -> Vec<Claim> {
+pub(super) fn running_claims(value: &Value, prior_digest: [u64; 4]) -> Vec<Claim> {
     assert_eq!(value.as_array().expect("running statement").len(), 5);
     for field in 1..5 {
         assert_eq!(
@@ -174,6 +174,7 @@ pub fn generate(
     running_prefix: Option<&Path>,
     folded_children: Option<&Path>,
     combined_opening: Option<&Path>,
+    dec_messages: Option<&Path>,
     output: &Path,
 ) {
     let started = Instant::now();
@@ -399,7 +400,10 @@ pub fn generate(
         started.elapsed()
     );
     if let Some(folded) = combined_opening {
-        assert_eq!(phase.as_array().expect("complete C/R reference").len(), 8);
+        assert_eq!(
+            phase.as_array().expect("complete phase reference").len(),
+            if dec_messages.is_some() { 10 } else { 8 }
+        );
         assert_eq!(phase[7].as_array().expect("complete R result").len(), 11);
         assert_eq!(phase[7][0], 1);
         let initial = Poseidon2TranscriptSnapshot::from_state_and_absorbed(transcript.state(), transcript.absorbed());
@@ -507,5 +511,19 @@ pub fn generate(
             proof_path.display(),
             started.elapsed()
         );
+        if let Some(messages) = dec_messages {
+            super::native_dec::prove(
+                &params,
+                &structure,
+                &verified,
+                combined.witness,
+                &raw,
+                rlc_transcript.snapshot().state(),
+                messages,
+                &phase[8],
+                &phase[9],
+                &output.with_extension("dec.json"),
+            );
+        }
     }
 }

@@ -1,4 +1,5 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
@@ -29,6 +30,15 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 
 /-! Axiom audits for the strict production PiDEC public split. -/
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_implies_paper
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_implies_outputMatches
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.rejected_on_unbounded
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_point
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_structure
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_publicInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_reduces_knowledge
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.terminalHolds_supplies_childOpenings

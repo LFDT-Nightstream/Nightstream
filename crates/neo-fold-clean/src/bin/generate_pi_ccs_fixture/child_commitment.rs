@@ -66,50 +66,66 @@ fn selected_metadata(candidate: &Path, expected: [u64; 4], cache: &Path) -> Valu
     meta
 }
 
-pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, child: usize, output: &Path) {
+pub fn generate(candidate: &Path, expected: [u64; 4], cache: &Path, child: Option<usize>, output: &Path) {
     let started = Instant::now();
-    assert!(child < DIGITS);
+    let batch = child.is_none();
+    let children = match child {
+        Some(child) => {
+            assert!(child < DIGITS);
+            vec![child]
+        }
+        None => (0..DIGITS).collect(),
+    };
     assert!(!output.exists(), "use a fresh external child commitment file");
     let meta = selected_metadata(candidate, expected, cache);
     let bound = meta[8].as_u64().expect("folded bound");
     let bytes = fs::read(cache.join("folded.i16")).expect("complete folded carrier");
     assert_eq!(bytes.len(), PRODUCTION_CARRIER_WIDTH * 2);
-    let carrier: Vec<i8> = bytes
-        .par_chunks_exact(2)
-        .map(|word| {
-            let value = i16::from_le_bytes(word.try_into().expect("signed coefficient"));
-            assert!(u64::from(value.unsigned_abs()) <= bound);
-            signed_digits(i32::from(value)).expect("strict parent bound")[child]
-        })
-        .collect();
-    drop(bytes);
-    let public: Vec<i8> = serde_json::from_value(meta[11][child].clone()).expect("child public digits");
-    assert_eq!(public.len(), PUBLIC);
-    assert_eq!(&carrier[..PUBLIC], public);
-    let nonzero = carrier.par_iter().filter(|&&value| value != 0).count();
-    println!(
-        "child={child} signed coordinates={nonzero} input_time={:?}",
-        started.elapsed()
-    );
-    let commitment = commit_production_signed_units(&carrier).expect("selected-key child commitment");
-    assert_eq!((commitment.d, commitment.kappa), (D, PRODUCTION_VERIFIER_ROWS as usize));
-    let commitment: Vec<u64> = commitment
-        .data
-        .iter()
-        .map(|value| value.as_canonical_u64())
-        .collect();
-    let public: Vec<u64> = public
-        .into_iter()
-        .map(|value| signed(i32::from(value)).as_canonical_u64())
-        .collect();
-    let result = json!([1, expected, meta[2], child, meta[12], public, commitment]);
-    let mut encoded = serde_json::to_vec(&result).expect("canonical child commitment JSON");
-    encoded.push(b'\n');
-    fs::write(output, encoded).expect("child commitment sink");
-    println!(
-        "child_commitment={child} coefficients={COMMITMENT} elapsed={:?}",
-        started.elapsed()
-    );
+    if batch {
+        fs::create_dir(output).expect("fresh child commitment directory");
+    }
+    for child in children {
+        let carrier: Vec<i8> = bytes
+            .par_chunks_exact(2)
+            .map(|word| {
+                let value = i16::from_le_bytes(word.try_into().expect("signed coefficient"));
+                assert!(u64::from(value.unsigned_abs()) <= bound);
+                signed_digits(i32::from(value)).expect("strict parent bound")[child]
+            })
+            .collect();
+        let public: Vec<i8> = serde_json::from_value(meta[11][child].clone()).expect("child public digits");
+        assert_eq!(public.len(), PUBLIC);
+        assert_eq!(&carrier[..PUBLIC], public);
+        let nonzero = carrier.par_iter().filter(|&&value| value != 0).count();
+        println!(
+            "child={child} signed coordinates={nonzero} input_time={:?}",
+            started.elapsed()
+        );
+        let commitment = commit_production_signed_units(&carrier).expect("selected-key child commitment");
+        assert_eq!((commitment.d, commitment.kappa), (D, PRODUCTION_VERIFIER_ROWS as usize));
+        let commitment: Vec<u64> = commitment
+            .data
+            .iter()
+            .map(|value| value.as_canonical_u64())
+            .collect();
+        let public: Vec<u64> = public
+            .into_iter()
+            .map(|value| signed(i32::from(value)).as_canonical_u64())
+            .collect();
+        let result = json!([1, expected, meta[2], child, meta[12], public, commitment]);
+        let mut encoded = serde_json::to_vec(&result).expect("canonical child commitment JSON");
+        encoded.push(b'\n');
+        let target = if batch {
+            output.join(format!("child-{child}.json"))
+        } else {
+            output.to_path_buf()
+        };
+        fs::write(target, encoded).expect("child commitment sink");
+        println!(
+            "child_commitment={child} coefficients={COMMITMENT} elapsed={:?}",
+            started.elapsed()
+        );
+    }
     println!("independent_child_openings_and_parent_assignment=still_required");
 }
 

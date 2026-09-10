@@ -15,6 +15,8 @@
 #   validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
 #   validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>
+#   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
+#   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh pi-rlc-parity <context[4]> <package[4]> <path>
@@ -159,6 +161,14 @@ case "$phase" in
     shift
     capped lake exe emitPiRLCParity -- "$@"
     ;;
+  pi-dec-input-check)
+    if (( $# != 8 )); then
+      echo "usage: validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe checkPiDECInput -- "$@"
+    ;;
   pi-dec-parity)
     if (( $# != 10 )); then
       echo "usage: validate.sh pi-dec-parity <context[4]> <package[4]> <path>" >&2
@@ -166,6 +176,14 @@ case "$phase" in
     fi
     shift
     capped lake exe emitPiDECParity -- "$@"
+    ;;
+  pi-dec-mutations)
+    if (( $# != 9 )); then
+      echo "usage: validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>" >&2
+      exit 2
+    fi
+    shift
+    capped lake exe checkPiDECActualMutations "$@"
     ;;
   foundation-parity)
     if (( $# != 2 )); then echo "usage: validate.sh foundation-parity <directory>" >&2; exit 2; fi

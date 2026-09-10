@@ -115,17 +115,51 @@ def inputsNonzero (input : Input) : Bool :=
       PiRLCParity.publicInputHasNonzero (publicInputs input source) &&
       PiRLCParity.evaluationHasNonzero (evaluations input source)
 
+/-- Typed final values for the next reduction. They come from the same
+materialized traces as the complete encoded R result. -/
+structure ParentValues where
+  point : PaperAlgebra.Point
+  commitment : MaterializedCommitment
+  publicInput : MaterializedPublicInput
+  evalK : MaterializedRingK
+  evalA : Vector MaterializedRingK productionShape.matrixCount
+  outgoing : Transcript.State
+
+def finalParent (point : PaperAlgebra.Point)
+    (batch : Transcript.PiRlcSampler.Batch SourceCount)
+    (commitments : List MaterializedCommitment)
+    (publicInputs : List MaterializedPublicInput)
+    (evalKs : List MaterializedRingK)
+    (evalAsByMatrix : List (List MaterializedRingK)) : Option ParentValues := do
+  let commitment ← commitments.getLast?
+  let publicInput ← publicInputs.getLast?
+  let evalK ← evalKs.getLast?
+  let evalA ← evalAsByMatrix.mapM List.getLast?
+  if exactSize : evalA.length = productionShape.matrixCount then
+    pure {
+      point := point
+      commitment := commitment
+      publicInput := publicInput
+      evalK := evalK
+      evalA := ⟨evalA.toArray, by simpa using exactSize⟩
+      outgoing := batch.finalState }
+  else none
+
+structure Execution where
+  fields : List Value
+  parent : Option ParentValues
+
 /-- The complete C prefix remains in fields 0..5. Fields 6 and 7 are the
 actual R input and result. Parallel work only materializes independent
 families; all prefix values remain in their original source order. -/
-def checkValueIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Value := do
+def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Execution := do
   let ccsResult := PiCCSInputCheck.execute input
   let fields := PiCCSInputCheck.checkFields input ccsResult
   let rlcInput := inputValue input ccsResult packageIdentity
   if !ccsResult.accepted then
-    return .array (fields ++ [rlcInput, .array [.atom 0]])
+    return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
   match Transcript.PiRlcSampler.piRlcChallengesWithState ccsResult.outgoing SourceCount with
-  | none => return .array (fields ++ [rlcInput, .array [.atom 0]])
+  | none => return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
   | some batch =>
       let commitmentTask ← IO.asTask (PiRLCParity.prepare fun _ =>
         commitmentPartials batch.challenges (commitments input))
@@ -142,7 +176,14 @@ def checkValueIO (input : Input) (packageIdentity : VerifierContext.Digest4) : I
       let matrixValues ← matrixTasks.mapM PiRLCParity.prepared
       match PiRLCParity.resultValueFromPartials ccsResult.point batch (inputsNonzero input)
           commitmentValues publicValues padValues matrixValues with
-      | some result => return .array (fields ++ [rlcInput, result])
+      | some result =>
+          match finalParent ccsResult.point batch commitmentValues publicValues padValues matrixValues with
+          | some parent => return ⟨fields ++ [rlcInput, result], some parent⟩
+          | none => throw (IO.userError "incomplete actual PiRLC parent")
       | none => throw (IO.userError "incomplete actual PiRLC indexed trace")
+
+def checkValueIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Value := do
+  let execution ← checkIO input packageIdentity
+  return .array execution.fields
 
 end NightstreamFPrime.Export.Stage1.PiRLCInputCheck

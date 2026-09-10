@@ -170,11 +170,11 @@ theorem noBoundaryRows
       orderedConstraints relation interface offset :=
   logicalConstraints_eq_ordered relation interface offset
 
-/-- The parent's exact logical interval contains only the 270 sign cells. -/
+/-- The parent's logical interval contains exactly the child-owned cells. -/
 theorem noBoundaryColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
-    logicalColumnCount relation interface offset = offset + 270 :=
+    logicalColumnCount relation interface offset = offset + Formal.logicalPrivateCount :=
   logicalColumnCount_eq_production relation interface offset
 
 inductive ColumnOwner where

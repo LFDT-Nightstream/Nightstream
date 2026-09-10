@@ -347,11 +347,14 @@ pub(crate) fn verify_final_fold(
                 )?;
             }
             let mut tr = final_fold_transcript();
+            cache
+                .validate_structure(s)
+                .map_err(crate::engine::optimized::Error::from)
+                .map_err(crate::paper::pi_ccs::Error::from)?;
             nifs::verify(
                 &mut tr,
                 pp,
                 s,
-                cache,
                 mix_rhos_commits,
                 combine_b_pows,
                 &latest.claims(),

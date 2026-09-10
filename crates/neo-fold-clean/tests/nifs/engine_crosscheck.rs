@@ -342,7 +342,6 @@ fn crosscheck_nifs_covers_a_carried_accumulator() {
         &mut verifier_transcript,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,

@@ -98,7 +98,6 @@ fn verify_fold(
         &mut tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh_claims,

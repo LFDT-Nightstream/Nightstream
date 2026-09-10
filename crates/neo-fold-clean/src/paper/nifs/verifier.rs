@@ -18,8 +18,6 @@
 //! | Reduction replay | [`verify`] | no | Pi_CCS, Pi_RLC, and Pi_DEC verifiers |
 //! | Output accumulator | [`verify`] | no | Exact ordered child claims |
 
-use neo_reductions::optimized_engine::OptimizedStructureCache;
-
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::{Error, NifsProof};
@@ -30,11 +28,11 @@ use crate::paper::{pi_ccs, pi_dec, pi_rlc};
 /// Run the three verifier checks in order on the recorded proofs. Returns
 /// the verifier-side k-claim accumulator (claims only — witnesses are
 /// prover-only and never cross this boundary).
+/// The caller selects `pp` and `s`; preprocessing owns evaluator-cache checks.
 pub fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    cache: &OptimizedStructureCache,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     fresh_claims: &[CcsClaim],
@@ -54,7 +52,7 @@ pub fn verify(
     //    sees them on the wire (no placeholder, no replay).
     #[cfg(feature = "perf-timers")]
     let pi_ccs_started = std::time::Instant::now();
-    let ccs_out_claims = pi_ccs::verify(tr, pp, s, cache, fresh_claims, running, &proof.pi_ccs)?;
+    let ccs_out_claims = pi_ccs::verify(tr, pp, s, fresh_claims, running, &proof.pi_ccs)?;
     #[cfg(feature = "perf-timers")]
     let pi_ccs_elapsed = pi_ccs_started.elapsed();
     #[cfg(feature = "perf-timers")]

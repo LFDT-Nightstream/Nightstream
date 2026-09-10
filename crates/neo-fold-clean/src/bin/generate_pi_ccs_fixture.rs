@@ -30,6 +30,8 @@ mod folded_opening;
 mod native_dec;
 #[path = "generate_pi_ccs_fixture/native_driver.rs"]
 mod native_driver;
+#[path = "generate_pi_ccs_fixture/native_nifs.rs"]
+mod native_nifs;
 #[path = "generate_pi_ccs_fixture/oracle.rs"]
 mod oracle;
 #[path = "generate_pi_ccs_fixture/ring_output.rs"]
@@ -245,13 +247,14 @@ fn main() {
     if arguments.first().is_some_and(|mode| {
         matches!(
             mode.as_str(),
-            "complete-driver" | "child-complete-driver" | "child-rlc-driver" | "child-dec-driver"
+            "complete-driver" | "child-complete-driver" | "child-rlc-driver" | "child-dec-driver" | "child-nifs-driver"
         )
     }) {
-        let dec = arguments[0] == "child-dec-driver";
+        let nifs = arguments[0] == "child-nifs-driver";
+        let dec = nifs || arguments[0] == "child-dec-driver";
         let rlc = dec || arguments[0] == "child-rlc-driver";
         let children = arguments[0] != "complete-driver";
-        assert_eq!(arguments.len(), if dec { 13 } else if rlc { 12 } else if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver|child-rlc-driver|child-dec-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-phase-result> [running-prefix] [folded-child-cache] [combined-opening] [dec-messages] <external-output>");
+        assert_eq!(arguments.len(), if nifs { 14 } else if dec { 13 } else if rlc { 12 } else if children { 11 } else { 9 }, "usage: generate_pi_ccs_fixture <complete-driver|child-complete-driver|child-rlc-driver|child-dec-driver|child-nifs-driver> <candidate> <id0> <id1> <id2> <id3> <opening-cache> <Lean-phase-result> [running-prefix] [folded-child-cache] [combined-opening] [dec-messages] [prior-C/R-result] <external-output>");
         let identity = std::array::from_fn(|lane| arguments[lane + 2].parse().expect("identity word"));
         native_driver::generate(
             Path::new(&arguments[1]),
@@ -262,6 +265,7 @@ fn main() {
             children.then(|| Path::new(&arguments[9])),
             rlc.then(|| Path::new(&arguments[10])),
             dec.then(|| Path::new(&arguments[11])),
+            nifs.then(|| Path::new(&arguments[12])),
             Path::new(arguments.last().expect("native prover output")),
         );
         return;

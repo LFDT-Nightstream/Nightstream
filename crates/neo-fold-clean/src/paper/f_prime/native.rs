@@ -1100,11 +1100,14 @@ fn verify_core<R: VerifyStepRecorder>(
             let mut tr = f_prime_step_transcript_recorded(vk, structure_digest, &state_in, chunk_digest, recorder);
             recorder.transcript_prefix(tr.snapshot());
             let fresh_claims = latest.claims();
+            cache
+                .validate_structure(s)
+                .map_err(crate::engine::optimized::Error::from)
+                .map_err(crate::paper::pi_ccs::Error::from)?;
             let result = nifs::verify(
                 &mut tr,
                 pp,
                 s,
-                cache,
                 mix_rhos_commits,
                 combine_b_pows,
                 &fresh_claims,

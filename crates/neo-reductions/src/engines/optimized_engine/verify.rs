@@ -35,6 +35,8 @@ pub fn optimized_verify_with_trace(
     )
 }
 
+/// Replay the public protocol against the caller-selected relation header.
+/// Matrix evaluator caches belong to preprocessing and proving.
 pub fn optimized_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -44,8 +46,7 @@ pub fn optimized_verify(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
-    let cache = OptimizedStructureCache::build(structure)?;
-    optimized_verify_with_cache(
+    Ok(optimized_verify_with_trace(
         transcript,
         params,
         structure,
@@ -53,8 +54,8 @@ pub fn optimized_verify(
         running_claims,
         outputs,
         proof,
-        &cache,
-    )
+    )?
+    .0)
 }
 
 #[allow(clippy::too_many_arguments)]

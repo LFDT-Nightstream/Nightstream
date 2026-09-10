@@ -58,6 +58,28 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
 
     assert_eq!(next.claims(), verified.claims());
     assert_eq!(next.claims().len(), prep.params().k_rho() as usize);
+
+    let selected = prep.structure();
+    let different = neo_ccs::CcsStructure::new(
+        vec![neo_ccs::Mat::zero(selected.n, selected.m, F::ZERO)],
+        selected.f.clone(),
+    )
+    .expect("different matrix with the same public shape");
+    let wrong_cache = neo_reductions::optimized_engine::OptimizedStructureCache::build(&different)
+        .expect("different preprocessing cache");
+    let mut wrong_cache_transcript = Transcript::session();
+    verify_fixed(
+        &mut wrong_cache_transcript,
+        prep.params(),
+        selected,
+        &wrong_cache,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &fresh_claim,
+        &zero_verifier,
+        &proof,
+    )
+    .expect_err("the preprocessing caller must reject a cache from another relation");
 }
 
 #[test]

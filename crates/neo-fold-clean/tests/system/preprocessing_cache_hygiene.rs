@@ -169,7 +169,6 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
             &mut verify_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &[fresh.claim],

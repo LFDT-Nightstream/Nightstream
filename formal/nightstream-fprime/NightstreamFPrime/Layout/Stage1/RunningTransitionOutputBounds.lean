@@ -105,10 +105,13 @@ theorem outputRunningBelow
     RunningTransition.RunningBelow (outputRunningExpr logicalWidth publicFits)
       phaseOffset := by
   apply (outputRunningBelowOutputDigestStart logicalWidth publicFits).mono
+  apply Nat.le_trans (m := PiDECInputs.phaseOffset) ?_ piDecPhaseOffset_le
   norm_num [PilotProduction.outputDigestStart,
     PilotProduction.outputPreimageStart,
     PilotProduction.priorPublicInputStart,
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-    PriorStateHash.publicWidth_eq, phaseOffset]
+    PriorStateHash.publicWidth_eq, PiDECInputs.phaseOffset,
+    PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount_eq,
+    PiRLCStarts.finalBoundaries_eq.2]
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

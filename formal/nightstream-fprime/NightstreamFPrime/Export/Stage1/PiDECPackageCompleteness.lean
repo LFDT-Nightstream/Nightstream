@@ -36,6 +36,37 @@ def runningTransitionInterface :
       Data.logicalWidth Data.publicFits :=
   RunningTransitionInputs.interface Data.logicalWidth Data.publicFits
 
+private theorem proofInputStart_le_phaseOffset :
+    PiDECInputs.proofInputStart ≤ PiDECInputs.phaseOffset :=
+  Nat.le_add_right _ _
+
+private theorem piRlcPhase_lt_piDec :
+    PiRLCInputs.phaseOffset < PiDECInputs.phaseOffset := by
+  apply lt_of_lt_of_le ?_ proofInputStart_le_phaseOffset
+  change PiRLCInputs.phaseOffset < PiRLCStarts.outputFreshStart
+  rw [PiRLCStarts.finalBoundaries_eq.2]
+  norm_num [PiRLCInputs.phaseOffset]
+
+private theorem piDecStartLocal :
+    Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset := by
+  apply Nat.le_trans ?_ piRlcPhase_lt_piDec.le
+  norm_num [Spartan.piCcsPhaseOffset, PiRLCInputs.phaseOffset]
+
+private theorem piDecEnd_eq
+    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits) :
+    PiDECInputs.phaseOffset +
+        (Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount +
+          Layout.PiDEC.v1_1.exactFreshCount) =
+      RunningTransitionInputs.phaseOffset := by
+  have endpoint := RunningTransitionInputs.phaseOffset_matches_piDec relation
+  rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount,
+    Layout.PiDEC.v1_1.physicalColumnCount_eq_production relation
+      (PiDECInputs.interface Data.logicalWidth Data.publicFits)
+      PilotPiCCSPiRLCPiDEC.piDecOffset (PiDECInputs.inputShapes relation)] at endpoint
+  dsimp only [PilotPiCCSPiRLCPiDEC.piDecOffset] at endpoint
+  rw [Nat.max_eq_right (Nat.le_add_right _ _)] at endpoint
+  exact endpoint.symm
+
 theorem targetStart_eq :
     Spartan.sourceToSpartan PiDECInputs.phaseOffset =
       Data.piDecWitnessStart := by
@@ -50,6 +81,15 @@ theorem runningTransitionTargetStart_eq :
     Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset =
       Data.runningTransitionWitnessStart := by
   rfl
+
+private theorem targetLength_eq
+    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits) :
+    Data.piDecWitnessLength = Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount +
+      Layout.PiDEC.v1_1.exactFreshCount := by
+  unfold Data.piDecWitnessLength
+  rw [← runningTransitionTargetStart_eq, ← targetStart_eq, ← piDecEnd_eq relation,
+    Spartan.sourceToSpartan_add_of_piCcsLocal _ _ piDecStartLocal]
+  exact Nat.add_sub_cancel_left _ _
 
 theorem runningTransitionTargetLength_eq :
     Data.runningTransitionWitnessLength = 296138 := by
@@ -92,8 +132,7 @@ theorem completeRunningTransitionRows
       Data.runningTransitionWitnessLength
   have startLocal :
       Spartan.piCcsPhaseOffset ≤ RunningTransitionInputs.phaseOffset := by
-    norm_num [Spartan.piCcsPhaseOffset,
-      RunningTransitionInputs.phaseOffset]
+    exact piDecStartLocal.trans RunningTransitionInputs.piDecPhaseOffset_le
   have targetPrivate :
       Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset +
           Data.runningTransitionWitnessLength ≤
@@ -150,12 +189,11 @@ theorem completeRows
     rw [← targetStart_eq]
     exact Spartan.copyMappedInterval_agreesOutside env source
       PiDECInputs.phaseOffset Data.piDecWitnessLength
-  have startLocal : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset := by
-    norm_num [Spartan.piCcsPhaseOffset, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild]
+  have startLocal := piDecStartLocal
+  have sourceAgreesExact : AgreesOutside (Spartan.pullback env) source
+      PiDECInputs.phaseOffset Data.piDecWitnessLength := by
+    rw [targetLength_eq relation]
+    exact sourceAgrees
   have targetPrivate :
       Spartan.sourceToSpartan PiDECInputs.phaseOffset +
           Data.piDecWitnessLength ≤
@@ -173,7 +211,7 @@ theorem completeRows
         phaseInterface PiDECInputs.phaseOffset)
       env source PiDECInputs.phaseOffset Data.piDecWitnessLength startLocal
       targetPrivate
-      sourceAgrees sourceRows
+      sourceAgreesExact sourceRows
   have exactRows := PiDECArithmetic.Plan.rows_to_layout
     (PiDECArithmetic.canonicalPlan Data.logicalWidth Data.publicFits)
     (PiDECArithmetic.canonicalLayoutPlan relation)
@@ -209,15 +247,10 @@ theorem targetAgrees_implies_phaseSuffix
     AgreesOutside before after PackageCompleteness.phaseSuffixStart
       PackageCompleteness.phaseSuffixLength := by
   apply agreesOutside_widen agrees
-  · norm_num [PackageCompleteness.phaseSuffixStart,
-      Data.piDecWitnessStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild,
-      Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart, PiRLCInputs.phaseOffset]
+  · exact (Spartan.sourceToSpartan_lt_of_piCcsLocal
+      PiRLCInputs.phaseOffset PiDECInputs.phaseOffset (by
+        norm_num [Spartan.piCcsPhaseOffset, PiRLCInputs.phaseOffset])
+      piRlcPhase_lt_piDec).le
   · rw [targetEnd_eq, PackageCompleteness.phaseSuffixEnd_eq]
     have transitionEnd :=
       Data.piDecPrivateSegments_contiguous.2.2.2.2.2.2
@@ -231,13 +264,11 @@ theorem runningTransitionTargetAgrees_implies_phaseSuffix
     AgreesOutside before after PackageCompleteness.phaseSuffixStart
       PackageCompleteness.phaseSuffixLength := by
   apply agreesOutside_widen agrees
-  · norm_num [PackageCompleteness.phaseSuffixStart,
-      Data.runningTransitionWitnessStart,
-      RunningTransitionInputs.phaseOffset,
-      PiRLCInputs.phaseOffset,
-      Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
+  · exact (Spartan.sourceToSpartan_lt_of_piCcsLocal
+      PiRLCInputs.phaseOffset RunningTransitionInputs.phaseOffset (by
+        norm_num [Spartan.piCcsPhaseOffset, PiRLCInputs.phaseOffset])
+      (lt_of_lt_of_le piRlcPhase_lt_piDec
+        RunningTransitionInputs.piDecPhaseOffset_le)).le
   · rw [runningTransitionTargetEnd_eq,
       PackageCompleteness.phaseSuffixEnd_eq]
 
@@ -251,12 +282,7 @@ private theorem pullback_agreesBelow_piDec
   unfold Spartan.pullback
   apply agrees
   rcases Spartan.sourceToSpartan_before_piCcsLocal index
-      PiDECInputs.phaseOffset (by
-        norm_num [Spartan.piCcsPhaseOffset, PiDECInputs.phaseOffset,
-          PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-          PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-          PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-          PiDECInputs.publicInputWordsPerChild]) below with
+      PiDECInputs.phaseOffset piDecStartLocal below with
     mappedBefore | mappedPublic
   · apply Or.inl
     rw [← targetStart_eq]
@@ -278,9 +304,8 @@ private theorem pullback_agreesBelow_runningTransition
   unfold Spartan.pullback
   apply agrees
   rcases Spartan.sourceToSpartan_before_piCcsLocal index
-      RunningTransitionInputs.phaseOffset (by
-        norm_num [Spartan.piCcsPhaseOffset,
-          RunningTransitionInputs.phaseOffset]) below with
+      RunningTransitionInputs.phaseOffset
+      (piDecStartLocal.trans RunningTransitionInputs.piDecPhaseOffset_le) below with
     mappedBefore | mappedPublic
   · apply Or.inl
     rw [← runningTransitionTargetStart_eq]
@@ -343,15 +368,11 @@ private def outputRunningBelowPiDec :
   apply
     (RunningTransitionInputs.outputRunningBelowOutputDigestStart
       Data.logicalWidth Data.publicFits).mono
-  norm_num [PilotProduction.outputDigestStart,
-    PilotProduction.outputPreimageStart,
-    PilotProduction.priorPublicInputStart,
-    PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-    PriorStateHash.publicWidth_eq, PiDECInputs.phaseOffset,
-    PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-    PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-    PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-    PiDECInputs.publicInputWordsPerChild]
+  apply Nat.le_trans ?_ piDecStartLocal
+  norm_num [PilotProduction.outputDigestStart, PilotProduction.outputPreimageStart,
+    PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,
+    PilotProduction.stateHashWords_eq, PriorStateHash.publicWidth_eq,
+    Spartan.piCcsPhaseOffset]
 
 private theorem transitionSpec_of_piDecAgreesOutside
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -377,15 +398,13 @@ private theorem transitionSpec_of_piDecAgreesOutside
       (runningTransitionInterface.iteration
         RunningTransitionInputs.phaseOffset).VarsBelow
           PiDECInputs.phaseOffset := by
-    norm_num [runningTransitionInterface, RunningTransitionInputs.interface,
+    have phaseLower := piDecStartLocal
+    norm_num [Spartan.piCcsPhaseOffset] at phaseLower
+    simp only [runningTransitionInterface, RunningTransitionInputs.interface,
       RunningTransitionInputs.iterationExpr,
       RunningTransitionInputs.iterationWordIndex, Expr.VarsBelow,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild,
       PilotProduction.priorPreimageStart]
+    omega
   have recursiveBelow := recursiveRunningBelowPiDec relation before assumptions
   have iterationEq :
       NightstreamFPrime.Lifecycle.Stage1.RunningTransition.iterationValue
@@ -409,13 +428,9 @@ private theorem transitionSpec_of_piDecAgreesOutside
         RunningTransitionInputs.initialStateWordStart,
         PilotProduction.priorPreimageStart]
       have bound := index.isLt
-      norm_num [
-        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount,
-        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild] at bound ⊢
+      have phaseLower := piDecStartLocal
+      norm_num [Spartan.piCcsPhaseOffset,
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount] at bound phaseLower
       omega
     · exact sourceAgrees
   have currentStateEq : ∀ index,
@@ -431,13 +446,9 @@ private theorem transitionSpec_of_piDecAgreesOutside
         RunningTransitionInputs.currentStateWordStart,
         PilotProduction.priorPreimageStart]
       have bound := index.isLt
-      norm_num [
-        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount,
-        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild] at bound ⊢
+      have phaseLower := piDecStartLocal
+      norm_num [Spartan.piCcsPhaseOffset,
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.stateWordCount] at bound phaseLower
       omega
     · exact sourceAgrees
   have recursiveEq : ∀ index,
@@ -523,14 +534,9 @@ theorem piRlcPhysicalRows_varsBelow
       NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount relation
           piRlcInterface PiRLCInputs.phaseOffset ≤
         PiDECInputs.phaseOffset := by
-    rw [NightstreamFPrime.Layout.PiRLC.v1_1.physicalColumnCount_eq_production
-      relation piRlcInterface PiRLCInputs.phaseOffset
-      (PiRLCInputs.inputShapes relation)]
-    norm_num [PiRLCInputs.phaseOffset, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild]
+    apply Nat.le_trans ?_ proofInputStart_le_phaseOffset
+    rw [PiDECInputs.proofInputStart_matches_piRlc relation]
+    exact Nat.le_max_right _ _
   intro row member
   exact (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows_varsBelow_of_phase
     relation ajtai piRlcInterface PiRLCInputs.phaseOffset
@@ -590,13 +596,7 @@ theorem piRlcPhysicalRows_of_transitionAgreesOutside
       Spartan.pullback after index = Spartan.pullback before index := by
     intro index below
     apply pullback_agreesBelow_runningTransition before after agrees index
-    exact lt_of_lt_of_le below (by
-      norm_num [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild,
-        PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild,
-        RunningTransitionInputs.phaseOffset])
+    exact lt_of_lt_of_le below RunningTransitionInputs.piDecPhaseOffset_le
   have sourceAfter := R1CS.rowsHold_of_agree_below
     (NightstreamFPrime.Layout.PiRLC.v1_1.physicalRows relation
       piRlcInterface PiRLCInputs.phaseOffset)
@@ -640,12 +640,7 @@ theorem piDecRows_of_transitionAgreesOutside
     rw [NightstreamFPrime.Layout.PiDEC.v1_1.physicalColumnCount_eq_production
         relation phaseInterface
         PiDECInputs.phaseOffset (PiDECInputs.inputShapes relation)]
-    norm_num [phaseInterface, PiDECArithmetic.phaseInterface,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-      PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-      RunningTransitionInputs.phaseOffset]
+    exact piDecEnd_eq relation
   rw [endpoint] at sourceScope
   have sourceAfter := R1CS.rowsHold_of_agree_below
     (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRows relation

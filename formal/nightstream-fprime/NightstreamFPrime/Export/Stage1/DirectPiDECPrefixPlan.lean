@@ -5,6 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
+import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 
 /-!
 Owns the first complete ordered direct 14-matrix prefix through PiDEC and the
@@ -395,7 +396,8 @@ private theorem piDecPrefixRowCount_le
         (piDecPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
   rw [piRlcPrefixPlan_rowCount]
-  rw [piDecPlan, PiDECDirectPlan.plan_rowCount]
+  rw [piDecPlan, PiDECDirectPlan.plan_rowCount,
+    Layout.PiDEC.v1_1.exactRowCount_value]
   norm_num [Lifecycle.cubeVariables]
 
 def piDecPrefixPlan
@@ -413,7 +415,7 @@ def piDecPrefixPlan
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
     (piDecPrefixPlan relation geometry).rowCount = 5803474 := by
-  simp [piDecPrefixPlan, piDecPlan]
+  simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 private theorem totalRowCount_le
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

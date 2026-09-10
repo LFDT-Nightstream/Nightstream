@@ -50,6 +50,9 @@ run_target piccs NightstreamFPrime.Layout.PiCCS.v1_1.Lowering || control_failed=
 run_target pirlc NightstreamFPrime.Layout.PiRLC.v1_1.Lowering || control_failed=1
 run_target pirlc_input NightstreamFPrime.Layout.Stage1.PiRLCInputBounds || control_failed=1
 full_failed=0
+# Distinguish interface/consumer failures from value-only default-profile checks.
+run_target pidec_ranges NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData || full_failed=1
+run_target nifs_consumer NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry || full_failed=1
 run_target full NightstreamFPrime || full_failed=1
 
 python3 -B - "$evidence" <<'PY'

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 
 /-!
@@ -34,28 +34,20 @@ def sourceFieldBlock (program : Lifecycle.Stage1.Application.Program)
 def parentCommitmentBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PiDECInputs.commitmentWordsPerChild
-    parentCommitmentStart (by
-      rw [parentCommitmentStart_eq, Spartan.sourceColumnCount_eq]
-      norm_num [PiDECInputs.commitmentWordsPerChild])
+    parentCommitmentStart (by decide)
 
 def parentPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PiDECInputs.publicInputWordsPerChild
-    parentPublicInputStart (by
-      rw [parentPublicInputStart_eq, Spartan.sourceColumnCount_eq]
-      norm_num [PiDECInputs.publicInputWordsPerChild])
+    parentPublicInputStart (by decide)
 
 def parentEvalKBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program PiDECInputs.evalKWordsPerChild parentEvalKStart (by
-    rw [parentEvalKStart_eq, Spartan.sourceColumnCount_eq]
-    norm_num [PiDECInputs.evalKWordsPerChild])
+  sourceFieldBlock program PiDECInputs.evalKWordsPerChild parentEvalKStart (by decide)
 
 def parentEvalABlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program PiDECInputs.evalAWordsPerChild parentEvalAStart (by
-    rw [parentEvalAStart_eq, Spartan.sourceColumnCount_eq]
-    norm_num [PiDECInputs.evalAWordsPerChild])
+  sourceFieldBlock program PiDECInputs.evalAWordsPerChild parentEvalAStart (by decide)
 
 def proofBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
@@ -63,50 +55,32 @@ def proofBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def logicalBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program 270 PiDECStarts.phaseLogicalStart (by
-    rw [Spartan.sourceColumnCount_eq]
-    norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild])
+  sourceFieldBlock program logicalCount PiDECStarts.phaseLogicalStart
+    logical_end_le_sourceColumnCount
 
 def freshBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program freshCount PiDECStarts.phaseFreshStart (by
-    rw [Spartan.sourceColumnCount_eq]
-    norm_num [freshCount, PiDECStarts.phaseFreshStart,
-      PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild, PiDEC.v1_1.Formal.logicalPrivateCount])
+  sourceFieldBlock program freshCount PiDECStarts.phaseFreshStart
+    fresh_end_le_sourceColumnCount
 
+/-- Retained slots follow the logical and fresh allocation owners. -/
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-            (logicalBlock program).slotCount +
-      (freshBlock program).slotCount = 18090 := by
-  norm_num [parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
-    parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock,
-    freshCount, PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
+    (logicalBlock program).slotCount + (freshBlock program).slotCount =
+      logicalCount + freshCount := by
+  rfl
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
     Nat :=
           (logicalBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
+/-- Each retained field slot uses the existing balanced-ternary encoding. -/
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 741690 := by
+    retainedCoordinateCount program =
+      (logicalCount + freshCount) * LowNormSlot.Kind.field.width := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
-    parentCommitmentBlock, parentPublicInputBlock, parentEvalKBlock,
-    parentEvalABlock, logicalBlock, freshBlock, sourceFieldBlock]
-  norm_num [freshCount, PiDECInputs.proofInputColumnCount,
-    PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-    PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-    PiDECInputs.publicInputWordsPerChild, LowNormSlot.Kind.width,
-    BalancedTernary.width]
+    logicalBlock, freshBlock, sourceFieldBlock, Nat.add_mul]
 
 end NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks

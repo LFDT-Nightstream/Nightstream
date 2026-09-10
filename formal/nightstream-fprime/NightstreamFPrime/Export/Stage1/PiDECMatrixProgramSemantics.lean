@@ -23,22 +23,22 @@ variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-theorem publicSchedule_index? (index : Fin 22680) :
+theorem publicSchedule_index? (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     publicSchedule.index? index.val =
       some (PiDECStarts.publicInputRowStart + index.val) := by
   simp [publicSchedule, index.isLt]
 
-theorem commitmentSchedule_index? (index : Fin 1188) :
+theorem commitmentSchedule_index? (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     commitmentSchedule.index? index.val =
       some (PiDECStarts.commitmentRowStart + index.val) := by
   simp [commitmentSchedule, index.isLt]
 
-theorem evalKSchedule_index? (index : Fin 108) :
+theorem evalKSchedule_index? (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     evalKSchedule.index? index.val =
       some (PiDECStarts.evalKRowStart + index.val) := by
   simp [evalKSchedule, index.isLt]
 
-theorem evalASchedule_index? (index : Fin 1512) :
+theorem evalASchedule_index? (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     evalASchedule.index? index.val =
       some (PiDECStarts.evalARowStart + index.val) := by
   simp [evalASchedule, index.isLt]
@@ -80,7 +80,7 @@ def publicDirectForms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 22680) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiDECDirectPlan.sourceMap geometry)
     (oneColumn geometry) (PiDECOrdinaryDirectSource.publicProgramRow relation index)
@@ -90,7 +90,7 @@ def commitmentDirectForms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 1188) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiDECDirectPlan.sourceMap geometry)
     (oneColumn geometry)
@@ -101,7 +101,7 @@ def evalKDirectForms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 108) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiDECDirectPlan.sourceMap geometry)
     (oneColumn geometry) (PiDECOrdinaryDirectSource.evalKProgramRow relation index)
@@ -111,7 +111,7 @@ def evalADirectForms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 1512) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiDECDirectPlan.sourceMap geometry)
     (oneColumn geometry) (PiDECOrdinaryDirectSource.evalAProgramRow relation index)
@@ -121,7 +121,7 @@ theorem publicPlan_forms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 22680) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     (PiDECDirectPlan.publicPlan relation geometry).forms index =
       (publicDirectForms relation geometry index).meaningfulForm := by
   simpa only [PiDECDirectPlan.publicPlan, publicDirectForms,
@@ -136,7 +136,7 @@ theorem commitmentPlan_forms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 1188) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     (PiDECDirectPlan.commitmentPlan relation geometry).forms index =
       (commitmentDirectForms relation geometry index).meaningfulForm := by
   simpa only [PiDECDirectPlan.commitmentPlan, commitmentDirectForms,
@@ -151,7 +151,7 @@ theorem evalKPlan_forms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 108) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     (PiDECDirectPlan.evalKPlan relation geometry).forms index =
       (evalKDirectForms relation geometry index).meaningfulForm := by
   simpa only [PiDECDirectPlan.evalKPlan, evalKDirectForms,
@@ -166,7 +166,7 @@ theorem evalAPlan_forms
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 1512) :
+    (geometry : Geometry program logicalWidth) (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     (PiDECDirectPlan.evalAPlan relation geometry).forms index =
       (evalADirectForms relation geometry index).meaningfulForm := by
   simpa only [PiDECDirectPlan.evalAPlan, evalADirectForms,
@@ -182,7 +182,7 @@ theorem publicBlock_row?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 22680)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount)
     (loaded : sourceRow (PiDECStarts.publicInputRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow program
         (PiDECOrdinaryDirectSource.publicProgramRow relation index))) :
@@ -208,7 +208,7 @@ theorem commitmentBlock_row?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 1188)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount)
     (loaded : sourceRow (PiDECStarts.commitmentRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow program
         (PiDECOrdinaryDirectSource.commitmentProgramRow relation index))) :
@@ -233,7 +233,7 @@ theorem evalKBlock_row?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 108)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount)
     (loaded : sourceRow (PiDECStarts.evalKRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow program
         (PiDECOrdinaryDirectSource.evalKProgramRow relation index))) :
@@ -259,7 +259,7 @@ theorem evalABlock_row?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 1512)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount)
     (loaded : sourceRow (PiDECStarts.evalARowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow program
         (PiDECOrdinaryDirectSource.evalAProgramRow relation index))) :
@@ -286,17 +286,17 @@ theorem publicProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 22680,
+    (loaded : ∀ index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount,
       sourceRow (PiDECStarts.publicInputRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.publicProgramRow relation index)))
     (index : Fin (PiDECDirectPlan.publicPlan relation geometry).rowCount) :
     (publicProgram geometry).row? logicalWidth sourceRow index.val =
       some ((PiDECDirectPlan.publicPlan relation geometry).forms index) := by
-  change Fin 22680 at index
+  change Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount at index
   have blockBound : index.val <
       (MatrixProgram.Block.ordinary (publicBlock geometry)).rowCount := by
-    change index.val < 22680
+    change index.val < Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount
     exact index.isLt
   rw [show publicProgram geometry =
       MatrixProgram.Program.mk [.ordinary (publicBlock geometry)] by rfl]
@@ -314,17 +314,17 @@ theorem commitmentProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 1188,
+    (loaded : ∀ index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))
     (index : Fin (PiDECDirectPlan.commitmentPlan relation geometry).rowCount) :
     (commitmentProgram geometry).row? logicalWidth sourceRow index.val =
       some ((PiDECDirectPlan.commitmentPlan relation geometry).forms index) := by
-  change Fin 1188 at index
+  change Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount at index
   have blockBound : index.val <
       (MatrixProgram.Block.ordinary (commitmentBlock geometry)).rowCount := by
-    change index.val < 1188
+    change index.val < Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount
     exact index.isLt
   rw [show commitmentProgram geometry =
       MatrixProgram.Program.mk [.ordinary (commitmentBlock geometry)] by rfl]
@@ -342,17 +342,17 @@ theorem evalKProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 108,
+    (loaded : ∀ index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalKRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalKProgramRow relation index)))
     (index : Fin (PiDECDirectPlan.evalKPlan relation geometry).rowCount) :
     (evalKProgram geometry).row? logicalWidth sourceRow index.val =
       some ((PiDECDirectPlan.evalKPlan relation geometry).forms index) := by
-  change Fin 108 at index
+  change Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount at index
   have blockBound : index.val <
       (MatrixProgram.Block.ordinary (evalKBlock geometry)).rowCount := by
-    change index.val < 108
+    change index.val < Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount
     exact index.isLt
   rw [show evalKProgram geometry =
       MatrixProgram.Program.mk [.ordinary (evalKBlock geometry)] by rfl]
@@ -370,17 +370,17 @@ theorem evalAProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 1512,
+    (loaded : ∀ index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalARowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalAProgramRow relation index)))
     (index : Fin (PiDECDirectPlan.evalAPlan relation geometry).rowCount) :
     (evalAProgram geometry).row? logicalWidth sourceRow index.val =
       some ((PiDECDirectPlan.evalAPlan relation geometry).forms index) := by
-  change Fin 1512 at index
+  change Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount at index
   have blockBound : index.val <
       (MatrixProgram.Block.ordinary (evalABlock geometry)).rowCount := by
-    change index.val < 1512
+    change index.val < Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount
     exact index.isLt
   rw [show evalAProgram geometry =
       MatrixProgram.Program.mk [.ordinary (evalABlock geometry)] by rfl]
@@ -400,7 +400,8 @@ private theorem evalPlans_fit
     (PiDECDirectPlan.evalKPlan relation geometry).rowCount +
         (PiDECDirectPlan.evalAPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
-  simp [Lifecycle.cubeVariables]
+  rw [PiDECDirectPlan.evalKPlan_rowCount, PiDECDirectPlan.evalAPlan_rowCount]
+  decide
 
 private theorem recompositionPlans_fit
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -410,7 +411,8 @@ private theorem recompositionPlans_fit
     (PiDECDirectPlan.commitmentPlan relation geometry).rowCount +
         (PiDECDirectPlan.evaluationPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
-  simp [Lifecycle.cubeVariables]
+  rw [PiDECDirectPlan.commitmentPlan_rowCount, PiDECDirectPlan.evaluationPlan_rowCount]
+  decide
 
 private theorem allPlans_fit
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -420,7 +422,8 @@ private theorem allPlans_fit
     (PiDECDirectPlan.publicPlan relation geometry).rowCount +
         (PiDECDirectPlan.recompositionPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
-  simp [Lifecycle.cubeVariables]
+  rw [PiDECDirectPlan.publicPlan_rowCount, PiDECDirectPlan.recompositionPlan_rowCount]
+  decide
 
 theorem evaluationProgram_row?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -428,11 +431,11 @@ theorem evaluationProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loadedK : ∀ index : Fin 108,
+    (loadedK : ∀ index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalKRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalKProgramRow relation index)))
-    (loadedA : ∀ index : Fin 1512,
+    (loadedA : ∀ index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalARowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalAProgramRow relation index)))
@@ -455,15 +458,15 @@ theorem recompositionProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loadedCommitment : ∀ index : Fin 1188,
+    (loadedCommitment : ∀ index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))
-    (loadedK : ∀ index : Fin 108,
+    (loadedK : ∀ index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalKRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalKProgramRow relation index)))
-    (loadedA : ∀ index : Fin 1512,
+    (loadedA : ∀ index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalARowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalAProgramRow relation index)))
@@ -491,19 +494,19 @@ theorem matrixProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loadedPublic : ∀ index : Fin 22680,
+    (loadedPublic : ∀ index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount,
       sourceRow (PiDECStarts.publicInputRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.publicProgramRow relation index)))
-    (loadedCommitment : ∀ index : Fin 1188,
+    (loadedCommitment : ∀ index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.commitmentRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.commitmentProgramRow relation index)))
-    (loadedK : ∀ index : Fin 108,
+    (loadedK : ∀ index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalKRowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalKProgramRow relation index)))
-    (loadedA : ∀ index : Fin 1512,
+    (loadedA : ∀ index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount,
       sourceRow (PiDECStarts.evalARowStart + index.val) =
         some (PerApplicationSourceProjection.basePackageRow program
           (PiDECOrdinaryDirectSource.evalAProgramRow relation index)))

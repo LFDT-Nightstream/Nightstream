@@ -42,7 +42,20 @@ abbrev logicalPrivateCount :=
 abbrev localLength_eq :=
   @NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.localLength_eq
 
+abbrev exactCoordinateCount :=
+  NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.exactCoordinateCount
+abbrev exactPrivateCount :=
+  NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount
+
 end Logical
+
+/-- Coordinate multiplicity and scalar physical cost are separate from the
+number of logical private cells used by each scalar child. -/
+def freshColumnCount : Nat :=
+  Logical.exactCoordinateCount * Leaves.SignedSplitScalar.freshColumnCount
+
+def physicalRowCount : Nat :=
+  Logical.exactCoordinateCount * Leaves.SignedSplitScalar.physicalRowCount
 
 /-- Exact affine/nonconstant shape of the parent and child public-input
 wires supplied by the PiDEC phase. -/
@@ -153,7 +166,7 @@ private theorem childFreshCount_eq
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (source : Nat) (sourceLt : source < Logical.coordinateCount logicalWidth publicFits) :
-    R1CS.totalFreshCount (childConstraints interface offset source) = 66 := by
+    R1CS.totalFreshCount (childConstraints interface offset source) = Leaves.SignedSplitScalar.freshColumnCount := by
   unfold childConstraints
   have childEq : Logical.childOp interface offset source =
       NightstreamFPrime.Circuit.Sequence.childOp
@@ -177,7 +190,7 @@ private theorem childRowCount_eq
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (source : Nat) (sourceLt : source < Logical.coordinateCount logicalWidth publicFits) :
-    R1CS.totalRowCount (childConstraints interface offset source) = 84 := by
+    R1CS.totalRowCount (childConstraints interface offset source) = Leaves.SignedSplitScalar.physicalRowCount := by
   unfold childConstraints
   have childEq : Logical.childOp interface offset source =
       NightstreamFPrime.Circuit.Sequence.childOp
@@ -205,7 +218,7 @@ private theorem totalFreshCount_sources
       source < Logical.coordinateCount logicalWidth publicFits) :
     R1CS.totalFreshCount
         ((sources.map (childConstraints interface offset)).flatten) =
-      sources.length * 66 := by
+      sources.length * Leaves.SignedSplitScalar.freshColumnCount := by
   induction sources with
   | nil => rfl
   | cons source rest inductionHypothesis =>
@@ -218,7 +231,7 @@ private theorem totalFreshCount_sources
         R1CS.totalFreshCount_append,
         childFreshCount_eq interface offset inputs source sourceLt,
         inductionHypothesis restBounded, List.length_cons]
-      omega
+      simp only [Nat.succ_mul, Nat.add_comm]
 
 private theorem totalRowCount_sources
     {logicalWidth : Nat}
@@ -231,7 +244,7 @@ private theorem totalRowCount_sources
       source < Logical.coordinateCount logicalWidth publicFits) :
     R1CS.totalRowCount
         ((sources.map (childConstraints interface offset)).flatten) =
-      sources.length * 84 := by
+      sources.length * Leaves.SignedSplitScalar.physicalRowCount := by
   induction sources with
   | nil => rfl
   | cons source rest inductionHypothesis =>
@@ -244,45 +257,49 @@ private theorem totalRowCount_sources
         R1CS.totalRowCount_append,
         childRowCount_eq interface offset inputs source sourceLt,
         inductionHypothesis restBounded, List.length_cons]
-      omega
+      simp only [Nat.succ_mul, Nat.add_comm]
 
-/-- Exact R1CS multiplication-column count for all 270 scalar splits. -/
+/-- Exact fresh count from the ordered coordinate children. -/
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 17820 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) =
+      freshColumnCount := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalFreshCount_sources interface offset inputs]
-  · simp only [List.length_range]
+  · rw [List.length_range]
     change NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
-        logicalWidth publicFits * 66 = 17820
-    rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
+        logicalWidth publicFits * Leaves.SignedSplitScalar.freshColumnCount =
+      Logical.exactCoordinateCount * Leaves.SignedSplitScalar.freshColumnCount
+    rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq_exact]
   · intro source member
     exact List.mem_range.mp member
 
-/-- Exact physical-row count for all 270 scalar splits. -/
+/-- Exact physical rows from the same ordered coordinate children. -/
 theorem totalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 22680 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) =
+      physicalRowCount := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalRowCount_sources interface offset inputs]
-  · simp only [List.length_range]
+  · rw [List.length_range]
     change NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount
-        logicalWidth publicFits * 84 = 22680
-    rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq]
+        logicalWidth publicFits * Leaves.SignedSplitScalar.physicalRowCount =
+      Logical.exactCoordinateCount * Leaves.SignedSplitScalar.physicalRowCount
+    rw [NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq_exact]
   · intro source member
     exact List.mem_range.mp member
 
-/-- Exact logical-plus-R1CS private-column count for the split parent. -/
+/-- Logical cells and R1CS intermediates have distinct owner counts. -/
 theorem physicalPrivateColumnCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -290,7 +307,8 @@ theorem physicalPrivateColumnCount_eq
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +
-      R1CS.totalFreshCount (logicalConstraints interface offset) = 18090 := by
+      R1CS.totalFreshCount (logicalConstraints interface offset) =
+      Logical.exactPrivateCount + freshColumnCount := by
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs,
     NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.logicalPrivateCount_eq]
 
@@ -301,8 +319,8 @@ def footprint
     (interface : Logical.Interface logicalWidth publicFits)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 17820
-  physicalRowCount := fun _ => 22680
+  freshColumnCount := fun _ => freshColumnCount
+  physicalRowCount := fun _ => physicalRowCount
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

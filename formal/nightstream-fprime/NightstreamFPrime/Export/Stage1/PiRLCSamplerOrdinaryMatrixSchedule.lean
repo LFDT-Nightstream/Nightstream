@@ -120,6 +120,9 @@ theorem rowSchedule_valid : rowSchedule.valid 27584200 = true := by
 theorem rowSchedule_valid_between :
     validIndexRanges PiDECStarts.phaseRowStart PiRLCStarts.phaseRowStart
       ranges = true := by
+  have boundary : PiDECStarts.phaseRowStart = 28847041 :=
+    PiRLCStarts.finalBoundaries_eq.1
+  rw [boundary]
   rw [ranges]
   rw [show List.range PiRLCSamplerOrdinaryRows.sourceCount =
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] by

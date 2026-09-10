@@ -56,7 +56,7 @@ def proofRange (program : ApplicationProgram) : SourceRange :=
 
 def logicalRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (logicalBlock program) (logicalStart program)
-    (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) 270 0
+    (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) logicalCount 0
 
 def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
@@ -70,27 +70,31 @@ def substitution (program : ApplicationProgram) : SourceSubstitution where
     logicalRange program, freshRange program]
 
 def publicSchedule : IndexSchedule :=
-  .rangeList [⟨PiDECStarts.publicInputRowStart, 22680⟩]
+  .rangeList [⟨PiDECStarts.publicInputRowStart, Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount⟩]
 
 def commitmentSchedule : IndexSchedule :=
-  .rangeList [⟨PiDECStarts.commitmentRowStart, 1188⟩]
+  .rangeList [⟨PiDECStarts.commitmentRowStart, Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount⟩]
 
 def evalKSchedule : IndexSchedule :=
-  .rangeList [⟨PiDECStarts.evalKRowStart, 108⟩]
+  .rangeList [⟨PiDECStarts.evalKRowStart, Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount⟩]
 
 def evalASchedule : IndexSchedule :=
-  .rangeList [⟨PiDECStarts.evalARowStart, 1512⟩]
+  .rangeList [⟨PiDECStarts.evalARowStart, Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount⟩]
 
-@[simp] theorem publicSchedule_count : publicSchedule.count = 22680 := by
+@[simp] theorem publicSchedule_count : publicSchedule.count =
+    Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
   rfl
 
-@[simp] theorem commitmentSchedule_count : commitmentSchedule.count = 1188 := by
+@[simp] theorem commitmentSchedule_count : commitmentSchedule.count =
+    Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
   rfl
 
-@[simp] theorem evalKSchedule_count : evalKSchedule.count = 108 := by
+@[simp] theorem evalKSchedule_count : evalKSchedule.count =
+    Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
   rfl
 
-@[simp] theorem evalASchedule_count : evalASchedule.count = 1512 := by
+@[simp] theorem evalASchedule_count : evalASchedule.count =
+    Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   rfl
 
 def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
@@ -152,48 +156,59 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem publicProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (publicProgram geometry).rowCount = 22680 := by
+    (publicProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
   rfl
 
 @[simp] theorem commitmentProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (commitmentProgram geometry).rowCount = 1188 := by
+    (commitmentProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalKProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (evalKProgram geometry).rowCount = 108 := by
+    (evalKProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalAProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (evalAProgram geometry).rowCount = 1512 := by
+    (evalAProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evaluationProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (evaluationProgram geometry).rowCount = 1620 := by
+    (evaluationProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
+        Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   simp [evaluationProgram]
 
 @[simp] theorem recompositionProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (recompositionProgram geometry).rowCount = 2808 := by
+    (recompositionProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount +
+        (Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
+          Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) := by
   simp [recompositionProgram]
 
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 25488 := by
+    (matrixProgram geometry).rowCount =
+      Layout.PiDEC.v1_1.exactRowCount := by
   simp [matrixProgram, recompositionProgram, evaluationProgram,
     publicProgram, commitmentProgram, evalKProgram, evalAProgram,
     singletonProgram, publicBlock, commitmentBlock, evalKBlock, evalABlock,
     ordinaryBlock, MatrixProgram.Block.rowCount, Ordinary.Block.rowCount,
     publicSchedule, commitmentSchedule, evalKSchedule, evalASchedule,
-    IndexSchedule.count]
+    IndexSchedule.count, Layout.PiDEC.v1_1.exactRowCount,
+    Layout.PiDEC.v1_1.exactRowDeltas, Nat.add_assoc]
 
 end NightstreamFPrime.Export.Stage1.PiDECMatrixProgram

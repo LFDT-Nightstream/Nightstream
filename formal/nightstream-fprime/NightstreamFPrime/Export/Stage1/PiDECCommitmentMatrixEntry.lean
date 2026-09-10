@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.MatrixProgram.CoefficientWork
@@ -86,7 +87,8 @@ private theorem fullRow_val (row : Fin 1188) :
     (fullRow relation fits geometry row).val = 6021547 + row.val := by
   simp only [fullRow, ProductionRelation.Plan.leftIndex_val, ProductionRelation.Plan.rightIndex_val,
     PiDECDirectPlan.publicPlan_rowCount,
-    DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan_rowCount]
+    DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan_rowCount,
+    Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount_value]
   omega
 
 private theorem fullRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRelation.matrixCount) :

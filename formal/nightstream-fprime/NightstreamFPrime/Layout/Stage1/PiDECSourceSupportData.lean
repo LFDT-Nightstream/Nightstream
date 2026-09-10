@@ -45,11 +45,14 @@ def External (column : Nat) : Prop :=
   Parent column ∨
     InRange PiDECInputs.proofInputStart PiDECInputs.proofInputColumnCount column
 
+/-- Logical cells allocated by the PiDEC phase. -/
+def logicalCount : Nat := PiDEC.v1_1.Formal.logicalPrivateCount
+
 def Logical (column : Nat) : Prop :=
   External column ∨
-    InRange PiDECStarts.phaseLogicalStart 270 column
+    InRange PiDECStarts.phaseLogicalStart logicalCount column
 
-def freshCount : Nat := 17820
+def freshCount : Nat := NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshCount
 
 def Source (column : Nat) : Prop :=
   Logical column ∨
@@ -107,7 +110,7 @@ theorem proof_source (column : Nat)
   Or.inl (Or.inl (Or.inr support))
 
 theorem logical_source (column : Nat)
-    (support : InRange PiDECStarts.phaseLogicalStart 270 column) :
+    (support : InRange PiDECStarts.phaseLogicalStart logicalCount column) :
     Source column :=
   Or.inl (Or.inr support)
 
@@ -132,60 +135,109 @@ theorem source_ranges_ordered :
     parentEvalAStart + PiDECInputs.evalAWordsPerChild ≤ PiDECInputs.proofInputStart ∧
     PiDECInputs.proofInputStart + PiDECInputs.proofInputColumnCount =
       PiDECStarts.phaseLogicalStart ∧
-    PiDECStarts.phaseLogicalStart + 270 = PiDECStarts.phaseFreshStart := by
-  have proofStart : PiDECInputs.proofInputStart = 28973248 :=
-    (List.cons.inj PiDECInputs.inputStarts_eq).1
-  have logicalStart : PiDECStarts.phaseLogicalStart = 29022496 :=
-    (List.cons.inj PiDECStarts.phaseStarts_eq).1
-  have freshStart : PiDECStarts.phaseFreshStart = 29022766 :=
-    (List.cons.inj (List.cons.inj (List.cons.inj
-      PiDECStarts.phaseStarts_eq).2).2).1
-  norm_num [parentCommitmentStart_eq, parentPublicInputStart_eq,
-    parentEvalKStart_eq, parentEvalAStart_eq, proofStart, logicalStart,
-    freshStart, PiDECInputs.proofInputColumnCount_eq,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-    PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-    Spartan.piCcsPhaseOffset]
+    PiDECStarts.phaseLogicalStart + logicalCount = PiDECStarts.phaseFreshStart := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, rfl, rfl⟩ <;> decide
+
+/-- The logical interval fits in the declared Stage 1 source capacity. -/
+theorem logical_end_le_sourceColumnCount :
+    PiDECStarts.phaseLogicalStart + logicalCount ≤ Spartan.SourceColumnCount := by
+  decide
+
+/-- The fresh interval fits in the declared Stage 1 source capacity. -/
+theorem fresh_end_le_sourceColumnCount :
+    PiDECStarts.phaseFreshStart + freshCount ≤ Spartan.SourceColumnCount := by
+  decide
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   rcases support with ((parent | proof) | logical) | fresh
   · rcases parent with commitment | publicInput | evalK | evalA
-    · exact Nat.lt_of_lt_of_le commitment.2 (by
-        rw [parentCommitmentStart_eq]
-        norm_num [PiDECInputs.commitmentWordsPerChild,
-          Spartan.SourceColumnCount])
-    · exact Nat.lt_of_lt_of_le publicInput.2 (by
-        rw [parentPublicInputStart_eq]
-        norm_num [PiDECInputs.publicInputWordsPerChild,
-          Spartan.SourceColumnCount])
-    · exact Nat.lt_of_lt_of_le evalK.2 (by
-        rw [parentEvalKStart_eq]
-        norm_num [PiDECInputs.evalKWordsPerChild,
-          Spartan.SourceColumnCount])
-    · exact Nat.lt_of_lt_of_le evalA.2 (by
-        rw [parentEvalAStart_eq]
-        norm_num [PiDECInputs.evalAWordsPerChild,
-          Spartan.SourceColumnCount])
-  · exact Nat.lt_of_lt_of_le proof.2 (by
-      norm_num [PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-        Spartan.SourceColumnCount])
-  · exact Nat.lt_of_lt_of_le logical.2 (by
-      norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-        PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-        PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-        PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild, Spartan.SourceColumnCount])
-  · exact Nat.lt_of_lt_of_le fresh.2 (by
-      norm_num [PiDECStarts.phaseFreshStart, PiDECStarts.phaseLogicalStart,
-        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-        freshCount, PiDEC.v1_1.Formal.logicalPrivateCount,
-        Spartan.SourceColumnCount])
+    · exact Nat.lt_of_lt_of_le commitment.2 (by decide)
+    · exact Nat.lt_of_lt_of_le publicInput.2 (by decide)
+    · exact Nat.lt_of_lt_of_le evalK.2 (by decide)
+    · exact Nat.lt_of_lt_of_le evalA.2 (by decide)
+  · exact Nat.lt_of_lt_of_le proof.2 (by decide)
+  · exact Nat.lt_of_lt_of_le logical.2 logical_end_le_sourceColumnCount
+  · exact Nat.lt_of_lt_of_le fresh.2 fresh_end_le_sourceColumnCount
+
+/-- The four protocol input families remain adjacent after Spartan mapping. -/
+theorem mapped_input_ranges_contiguous :
+    Spartan.sourceToSpartan PiDECInputs.commitmentInputStart +
+        PiDECInputs.childCount * PiDECInputs.commitmentWordsPerChild =
+      Spartan.sourceToSpartan PiDECInputs.evalKInputStart ∧
+    Spartan.sourceToSpartan PiDECInputs.evalKInputStart +
+        PiDECInputs.childCount * PiDECInputs.evalKWordsPerChild =
+      Spartan.sourceToSpartan PiDECInputs.evalAInputStart ∧
+    Spartan.sourceToSpartan PiDECInputs.evalAInputStart +
+        PiDECInputs.childCount * PiDECInputs.evalAWordsPerChild =
+      Spartan.sourceToSpartan PiDECInputs.publicInputStart ∧
+    Spartan.sourceToSpartan PiDECInputs.publicInputStart +
+        PiDECInputs.childCount * PiDECInputs.publicInputWordsPerChild =
+      Spartan.sourceToSpartan PiDECInputs.phaseOffset := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+    rfl
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+    rfl
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+    rfl
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+    simp only [PiDECInputs.publicInputStart, PiDECInputs.evalAInputStart,
+      PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
+      PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount,
+      Nat.mul_add, Nat.add_assoc]
+
+/-- The mapped logical interval ends no later than the next phase begins. -/
+theorem mapped_logical_start_le_output :
+    Spartan.sourceToSpartan PiDECInputs.phaseOffset ≤
+      Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset := by
+  rcases Nat.eq_or_lt_of_le RunningTransitionInputs.piDecPhaseOffset_le with
+    same | before
+  · rw [same]
+  · exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _
+      (by decide) before)
+
+/-- The next phase starts inside the declared private source capacity. -/
+theorem mapped_output_le_private :
+    Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset ≤
+      Spartan.privateColumnCount := by
+  decide
+
+/-- Every retained source is at or after the first parent interval. -/
+theorem parentStart_le_source {column : Nat} (support : Source column) :
+    parentCommitmentStart ≤ column := by
+  rcases source_ranges_ordered with
+    ⟨_, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
+      proofLogical, logicalFresh⟩
+  have publicBound : parentCommitmentStart ≤ parentPublicInputStart :=
+    Nat.le_trans (Nat.le_add_right _ _) commitmentPublic
+  have evalKBound : parentCommitmentStart ≤ parentEvalKStart :=
+    Nat.le_trans publicBound (Nat.le_trans (Nat.le_add_right _ _) publicEvalK)
+  have evalABound : parentCommitmentStart ≤ parentEvalAStart :=
+    Nat.le_trans evalKBound (Nat.le_trans (Nat.le_add_right _ _) evalKEvalA)
+  have proofBound : parentCommitmentStart ≤ PiDECInputs.proofInputStart :=
+    Nat.le_trans evalABound (Nat.le_trans (Nat.le_add_right _ _) evalAProof)
+  have logicalBound : parentCommitmentStart ≤ PiDECStarts.phaseLogicalStart := by
+    rw [← proofLogical]
+    exact Nat.le_trans proofBound (Nat.le_add_right _ _)
+  have freshBound : parentCommitmentStart ≤ PiDECStarts.phaseFreshStart := by
+    rw [← logicalFresh]
+    exact Nat.le_trans logicalBound (Nat.le_add_right _ _)
+  rcases support with ((parent | proof) | logical) | fresh
+  · rcases parent with commitment | publicInput | evalK | evalA
+    · exact commitment.1
+    · exact Nat.le_trans publicBound publicInput.1
+    · exact Nat.le_trans evalKBound evalK.1
+    · exact Nat.le_trans evalABound evalA.1
+  · exact Nat.le_trans proofBound proof.1
+  · exact Nat.le_trans logicalBound logical.1
+  · exact Nat.le_trans freshBound fresh.1
+
+/-- Parent input ranges lie within the PiRLC combination allocation. -/
+theorem parent_within_piRlc {column : Nat} (support : Parent column) :
+    PiRLCStarts.commitmentLogicalStart ≤ column ∧
+      column < PiRLCStarts.phaseFreshStart := by
+  rcases support with h | h | h | h <;>
+    exact ⟨Nat.le_trans (by decide) h.1, Nat.lt_of_lt_of_le h.2 (by decide)⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECSourceSupport

@@ -18,6 +18,24 @@ open NightstreamFPrime.Lifecycle.PiDEC.v1_1
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
+/-- Fresh intermediates for each certified scalar constraint group. -/
+def signFreshCount : Nat := 2
+def digitFreshCount : Nat := 4
+def recompositionFreshCount : Nat := 0
+
+/-- Each logical constraint adds its assertion row to its fresh rows. -/
+def signRowCount : Nat := signFreshCount + 1
+def digitRowCount : Nat := digitFreshCount + 1
+def recompositionRowCount : Nat := recompositionFreshCount + 1
+
+def freshColumnCount : Nat :=
+  signFreshCount + productionGlobalParams.k * digitFreshCount +
+    recompositionFreshCount
+
+def physicalRowCount : Nat :=
+  signRowCount + productionGlobalParams.k * digitRowCount +
+    recompositionRowCount
+
 /-- Stable affine input shape supplied by the PiDEC parent. The digit
 non-constant condition excludes a literal coefficient from changing the
 canonical product lowering path. -/
@@ -70,28 +88,28 @@ private theorem digit_directConstraint_eq_none
   unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
   simp [R1CS.directConstraint, R1CS.affineConstraint, nonAffine]
 
-private theorem sign_freshCount_eq (offset : Nat) :
+theorem sign_freshCount_eq (offset : Nat) :
     R1CS.constraintFreshCount
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) = 2 := by
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) = signFreshCount := by
   unfold R1CS.constraintFreshCount
   rw [sign_directConstraint_eq_none]
   simp [Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint,
     Lifecycle.PiDEC.v1_1.SignedSplitScalar.signBitExpr,
-    R1CS.mulCount, mulCount_sub]
+    R1CS.mulCount, mulCount_sub, signFreshCount]
 
-private theorem digit_freshCount_eq
+theorem digit_freshCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
     (offset : Nat) (index : Radix.ChildIndex)
     (inputs : InputsLinear interface offset) :
     R1CS.constraintFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
-        interface offset index) = 4 := by
+        interface offset index) = digitFreshCount := by
   unfold R1CS.constraintFreshCount
   rw [digit_directConstraint_eq_none interface offset index inputs]
   simp [Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint,
     Lifecycle.PiDEC.v1_1.SignedSplitScalar.signExpr,
     Lifecycle.PiDEC.v1_1.SignedSplitScalar.signBitExpr,
-    R1CS.mulCount, mulCount_sub, inputs.digit_mulCount index]
+    R1CS.mulCount, mulCount_sub, inputs.digit_mulCount index, digitFreshCount]
 
 private theorem weightedFold_affine :
     ∀ (values : List Expr) (weights : List F),
@@ -136,12 +154,12 @@ private theorem recompositionConstraint_affine
   · exact R1CS.IsAffine.const_mul (-1)
       (isAffine_of_mulCount_zero _ inputs.parent_mulCount)
 
-private theorem recomposition_freshCount_eq
+theorem recomposition_freshCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.constraintFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint
-        interface offset) = 0 :=
+        interface offset) = recompositionFreshCount :=
   R1CS.constraintFreshCount_eq_zero_of_affine _
     (recompositionConstraint_affine interface offset inputs)
 
@@ -163,53 +181,88 @@ private theorem digitConstraints_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints
-        interface offset) = 64 := by
+        interface offset) = productionGlobalParams.k * digitFreshCount := by
   unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints
-  rw [totalFreshCount_ofFn _ (fun _ => 4)
+  rw [totalFreshCount_ofFn _ (fun _ => digitFreshCount)
     (fun index => digit_freshCount_eq interface offset index inputs)]
-  rfl
+  rw [List.ofFn_const, List.sum_const_nat]
 
-/-- Exact fresh intermediate count for one signed scalar split. -/
+theorem sign_rowCount_eq (offset : Nat) :
+    R1CS.constraintRowCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) =
+      signRowCount := by
+  simpa only [signRowCount, sign_freshCount_eq] using
+    R1CS.constraintRowCount_eq_fresh_add_one
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset)
+
+theorem digit_rowCount_eq
+    (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
+    (offset : Nat) (index : Radix.ChildIndex)
+    (inputs : InputsLinear interface offset) :
+    R1CS.constraintRowCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
+        interface offset index) = digitRowCount := by
+  simpa only [digitRowCount, digit_freshCount_eq interface offset index inputs] using
+    R1CS.constraintRowCount_eq_fresh_add_one
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint interface offset index)
+
+theorem recomposition_rowCount_eq
+    (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
+    (offset : Nat) (inputs : InputsLinear interface offset) :
+    R1CS.constraintRowCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint
+        interface offset) = recompositionRowCount := by
+  simpa only [recompositionRowCount,
+    recomposition_freshCount_eq interface offset inputs] using
+    R1CS.constraintRowCount_eq_fresh_add_one
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint interface offset)
+
+/-- Exact fresh intermediate count from the three scalar constraint groups. -/
 theorem totalFreshCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.constraints
-        interface offset) = 66 := by
+        interface offset) = freshColumnCount := by
   change R1CS.totalFreshCount
     ([Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset] ++
       Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints
         interface offset ++
       [Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint
-        interface offset]) = 66
+        interface offset]) = freshColumnCount
   rw [R1CS.totalFreshCount_append, R1CS.totalFreshCount_append]
-  simp only [R1CS.totalFreshCount, List.map_singleton, List.sum_singleton]
-  rw [sign_freshCount_eq]
-  change 2 + R1CS.totalFreshCount
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints
-        interface offset) +
-      R1CS.constraintFreshCount
-        (Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint
-          interface offset) = 66
-  rw [digitConstraints_totalFreshCount interface offset inputs,
+  change R1CS.constraintFreshCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.signConstraint offset) +
+    R1CS.totalFreshCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints interface offset) +
+    R1CS.constraintFreshCount
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.recompositionConstraint
+        interface offset) = freshColumnCount
+  simp only [freshColumnCount, sign_freshCount_eq,
+    digitConstraints_totalFreshCount interface offset inputs,
     recomposition_freshCount_eq interface offset inputs]
 
-/-- Exact physical row count for one signed scalar split. -/
+/-- Exact physical rows from the same ordered scalar constraint groups. -/
 theorem totalRowCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.constraints
-        interface offset) = 84 := by
+        interface offset) = physicalRowCount := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq interface offset inputs]
   have lengthEq :
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.constraints
-        interface offset).length = 18 := by
-    rw [← Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_operations]
-    exact Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_length_eq
-      interface offset
+        interface offset).length = 1 + productionGlobalParams.k + 1 := by
+    simp only [Lifecycle.PiDEC.v1_1.SignedSplitScalar.constraints,
+      Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraints,
+      List.length_cons, List.length_append, List.length_nil,
+      List.length_ofFn]
+    omega
   rw [lengthEq]
+  simp only [freshColumnCount, physicalRowCount, signRowCount, digitRowCount,
+    recompositionRowCount, Nat.mul_add, Nat.mul_one]
+  omega
 
 private theorem circuit_totalFreshCount_eq
     (interface : Lifecycle.PiDEC.v1_1.SignedSplitScalar.Interface)
@@ -217,10 +270,10 @@ private theorem circuit_totalFreshCount_eq
     R1CS.totalFreshCount
       (flatConstraints (Circuit.ops
         (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
-        offset)) = 66 := by
+        offset)) = freshColumnCount := by
   change R1CS.totalFreshCount
     (flatConstraints
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = 66
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = freshColumnCount
   rw [Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_operations]
   exact totalFreshCount_eq interface offset inputs
 
@@ -230,10 +283,10 @@ private theorem circuit_totalRowCount_eq
     R1CS.totalRowCount
       (flatConstraints (Circuit.ops
         (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
-        offset)) = 84 := by
+        offset)) = physicalRowCount := by
   change R1CS.totalRowCount
     (flatConstraints
-      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = 84
+      (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = physicalRowCount
   rw [Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_operations]
   exact totalRowCount_eq interface offset inputs
 
@@ -244,8 +297,8 @@ def footprint
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface) where
-  freshColumnCount := fun _ => 66
-  physicalRowCount := fun _ => 84
+  freshColumnCount := fun _ => freshColumnCount
+  physicalRowCount := fun _ => physicalRowCount
   freshColumnCount_eq := by
     intro offset
     exact circuit_totalFreshCount_eq interface offset (inputs offset)
@@ -260,7 +313,7 @@ theorem freshColumnCount_eq
     R1CS.totalFreshCount
       (flatConstraints (Circuit.ops
         (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
-        offset)) = 66 :=
+        offset)) = freshColumnCount :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -270,7 +323,7 @@ theorem physicalRowCount_eq
     R1CS.totalRowCount
       (flatConstraints (Circuit.ops
         (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
-        offset)) = 84 :=
+        offset)) = physicalRowCount :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -283,15 +336,16 @@ theorem physicalPrivateColumnCount_eq
       R1CS.totalFreshCount
         (flatConstraints (Circuit.ops
           (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
-          offset)) = 67 := by
+          offset)) =
+      Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount + freshColumnCount := by
   change localLength
       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset) +
     R1CS.totalFreshCount
       (flatConstraints
-        (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = 67
+        (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) =
+      Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount + freshColumnCount
   rw [Lifecycle.PiDEC.v1_1.SignedSplitScalar.localLength_eq,
     Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_operations,
     totalFreshCount_eq interface offset (inputs offset)]
-  rfl
 
 end NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar

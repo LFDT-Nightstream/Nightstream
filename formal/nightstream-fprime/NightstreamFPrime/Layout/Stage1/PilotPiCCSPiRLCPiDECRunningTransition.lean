@@ -66,6 +66,7 @@ theorem physicalRowCount_eq
     RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 29218024
   rw [PilotPiCCSPiRLCPiDEC.physicalRowCount_eq relation,
     RunningTransitionLayout.physicalRowCount_eq relation]
+  rfl
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -73,7 +74,8 @@ theorem physicalColumnCount_eq
   unfold physicalColumnCount
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation,
     RunningTransitionLayout.physicalColumnCount_eq relation]
-  norm_num
+  apply Nat.max_eq_right
+  decide
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -105,26 +107,5 @@ def cumulativeJointDomains
     List Nat :=
   PilotPiCCSPiRLCPiDEC.cumulativeJointDomains relation ++
     [jointDomain relation]
-
-theorem cumulativeFootprints_eq
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    cumulativePhysicalRows relation =
-        [28847041, 28869721, 28870909, 28871017, 28872529, 28872529,
-          29218024] ∧
-      cumulativePhysicalColumns relation =
-        [29022496, 29040586, 29040586, 29040586, 29040586, 29040586,
-          29336724] ∧
-      cumulativeJointDomains relation =
-        [29022496, 29040586, 29040586, 29040586, 29040586, 29040586,
-          29336724] := by
-  rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with
-    ⟨_rowDeltas, _columnDeltas, rows, columns, joint⟩
-  refine ⟨?_, ?_, ?_⟩
-  · rw [cumulativePhysicalRows, rows, physicalRowCount_eq relation]
-    rfl
-  · rw [cumulativePhysicalColumns, columns, physicalColumnCount_eq relation]
-    rfl
-  · rw [cumulativeJointDomains, joint, jointDomain_eq relation]
-    rfl
 
 end NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition

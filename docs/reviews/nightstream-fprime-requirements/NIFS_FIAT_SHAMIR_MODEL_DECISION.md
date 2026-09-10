@@ -3,9 +3,10 @@
 Status: **theorem-to-code match pending; approval question deferred; no model selected**. Transcript review cut:
 `773f3d0f29209b33e2325538d5f258f541569c25`, branch `nico/nifs-proof-links`.
 This note addresses `N.security.fiat_shamir`. It adds no premise to Lean.
-The finite-law milestone below records the coordinator's continuation from
-`0fdd221fe342519440b486eb30c85de27c12d701`; its source and audit scope are
-recorded in the main progress report.
+The current finite-law source is
+`dce69b693fc52ff7e7c138198756f9c1400878d6`. Its source, reviews, passed checks
+and retained failed attempts are in
+[NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip](NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip).
 
 The contract is to identify the exact current computation, its approved
 premises, and the missing security transfer. Success means a precise
@@ -121,11 +122,23 @@ checked owners:
 | [SamplerShortfall](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/v1_1/SamplerShortfall.lean) | The actual `sampleScalar` uses the bounded decoder on its own `sourceAt` prefix; failure is exactly that prefix's 11-rejection event. The same decoder has the stated bound when its input is replaced by the explicit IID-bit comparison. | [Round 2](/tmp/nightstream-nifs-sampler-shortfall-2.log), two seconds. |
 | [FieldShortfall](/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/NonInteractive/PiRlcSampler/FieldShortfall.lean) | A structural bijection and rejection inclusion prove `a_field <= a_bits` for 32 IID uniform fields, retaining each ordered pair's dependence. The scalar abort bound has no added variation term. | [Round 3](/tmp/nightstream-nifs-field-shortfall-3.log), two seconds. |
 
-The [current combined axiom gate](/tmp/nightstream-nifs-primitives-shortfall-axioms-2.log)
-passed in 297 seconds, including the dependency rebuild. It covers 51 new
-exports and their affected consumers, with 263 audit records. It uses only
-`propext`, `Classical.choice`, and `Quot.sound`. The failed actual-field/batch
-draft described below is outside this checked scope.
+The current additions are:
+
+| Owner | Checked result | Focused passing record |
+|---|---|---|
+| `SamplerFieldShortfall` | Actual eight-state, 32-field window; exact scalar and selected batch failure events. | `nightstream-nifs-field-batch-consumer-1.log`, three seconds. |
+| `FieldBatchShortfall` | The explicit 17-window uniform comparison has abort probability at most `17*u`. | `nightstream-nifs-field-batch-2.log` and the consumer check. |
+| `FieldOutputLaw` | Every decoder event differs between 32 uniform fields and 64 uniform chunks by at most `32*(M-1)/(M*q)`, including abort. | `nightstream-nifs-field-output-2.log`, one second. |
+| `BitOutputLaw` | Equal successful fibers, the full Option mixture, and the field-to-uniform-success error bound below. | `nightstream-nifs-bit-output-law-2.log`, three seconds. |
+| `SamplerOutputLaw` | Actual scalar conversion and field-window equality; the same comparison bound on the selected scalar type. | `nightstream-nifs-sampler-output-consumer-1.log`, three seconds. |
+
+The [current combined axiom gate](/tmp/nightstream-nifs-unit-output-axioms-1.log)
+passed alone in 26 seconds. It covers 39 new exports and affected consumers,
+with 302 audit records, using only `propext`, `Classical.choice` and
+`Quot.sound`. The boundary gate passed. Independent source review found no
+defect in these finite-law claims. The historical actual-field draft below
+has now been completed in the active package; it remains unchanged as a
+record of its earlier stopped attempt.
 
 Let `M=2^32`, `h=2^16`, and `q=M*(M-1)+1`. For uniform `X` in `F`, write
 `Y=X.val mod M`. Each nonzero `Y` has `M-1` preimages; zero has `M`.
@@ -160,9 +173,29 @@ u = choose(64,11)/h^11
 a_bits <= u.
 ```
 
-The further claim that the 54 coefficients are independent uniform symbols
-conditional on bit-sampler success still needs its finite decoder proof.
-Keep the abort outcome when transporting that claim to the challenge space.
+`BitOutputLaw` now proves the successful-output law. A permutation of
+accepted symbols, indexed by their accepted rank, preserves every rejection
+flag and gives equal fibers for all `5^54` scalar outputs. Thus the exact
+law on the common Option space is
+
+```text
+Law(bitDecode) = (1-a_bits)*UniformSome + a_bits*PointMass(none).
+```
+
+`UniformSome` is uniform on successful scalars and assigns zero mass to
+abort. The checked field/bit coupling and the triangle inequality give,
+for every event on the selected scalar type,
+
+```text
+|Pr[fieldDecode in event] - Pr[UniformSome in event]|
+  <= 32*(M-1)/(M*q) + a_bits
+  <= 32*(M-1)/(M*q) + u.
+```
+
+`SamplerOutputLaw` uses the actual `scalarOfList` conversion, proves that
+its default is unreachable on a successful list, and identifies actual
+`sampleScalar` with this decoder on its own field window. The frequency
+bound still refers only to the explicit independent-field experiment.
 
 For 32 independent uniform field lanes, let `[z^j]` mean coefficient `j`.
 The exact shortfall law retains the dependence inside each pair:
@@ -189,20 +222,21 @@ This proof uses no field-sized enumeration and no arbitrary-event variation
 bound. It does not prove that the successful field-decoded scalar is uniform.
 The extra `(0,0)` mass still affects the output law.
 
-### Remaining sampler consumers and error terms
+### Sampler consumers and remaining transfer terms
 
-| Obligation | Exact remaining statement |
+| Obligation | Checked scope and remaining work |
 |---|---|
-| Actual 32-field consumer | Prove `SamplerShortfall.candidateWindow initial i = FieldShortfall.fieldCandidates (fieldWindow initial i)`, where `fieldWindow` reads lanes 0–3 of each of the eight actual pre-permutation states. The stopped draft contains this definition and proposed equality. The active package has no audited theorem for this additional link. |
-| Batch event and finite union bound | Prove `sampleBatch initial count = none` iff some `Fin count` scalar returns `none`. For the separate uniform comparison `Fin 17 -> FieldShortfall.FieldWindow`, prove `a_batch <= 17*a_field <= 17*u`. The space has 544 field coordinates. A union bound needs per-coordinate event bounds; it does not require an added independence claim about actual scalar transcripts. |
-| Output bias, including abort | Prove the product event/variation transport and the successful IID-bit decoder law. The proposed bounds are `32*(M-1)/(M*q)` for one scalar's candidate-law difference and `544*(M-1)/(M*q)` for the complete comparison batch. Single-pair transport and the scalar abort bound are checked; these product/output statements are not. |
-| Retry and rewinding work | Bound failed, repeated, and aborting calls in the actual extractor program, using its symbolic query and work functions. Actual batch shortfall rejects that attempt. Any restart must be part of the constructed extractor and its proof. No retry policy, numerical retry bound, or fresh-state law is selected here. |
-| Fiat–Shamir use | Supply the model, additive-schedule comparison, cache/trace law, aborting codec, and classical state-restoration knowledge transfer below. A scalar comparison bound cannot be assigned directly to deterministic Poseidon2 replay. |
+| Actual 32-field consumer | Closed by `candidateWindow_eq_fieldCandidates` and `sampleScalar_eq_fieldDecode`, for every initial state and coordinate. |
+| Batch event and finite union bound | Closed by `sampleBatch_none_iff_field_shortfall` and `iid_field_batch_shortfall_probability_le`. The uniform comparison has 17 windows and 544 field coordinates. No independence law is assigned to actual transcript states. |
+| Scalar output bias, including abort | Closed in the stated comparison spaces by `boundedSample_event_frequency_eq_mixture` and `SamplerOutputLaw.field_output_event_error_le`. |
+| Joint batch output law | A complete 17-scalar output comparison is not proved. The scalar event theorem and the batch abort bound have distinct scopes. |
+| Retry and rewinding work | Bound every failed, repeated and aborting call of the actual extractor under symbolic query/work bounds. No retry policy, numerical retry limit or fresh-state law is selected. |
+| Fiat–Shamir use | Prove the exact additive schedule, initialization, total/aborting codec, cache/trace law and classical state-restoration transfer. The scalar comparison is not a distribution theorem for Poseidon2 replay. |
 
-In the fully independent batch comparison, the exact product identity
-`a_batch = 1-(1-a_field)^17` is also unformalized. It is not needed to use the
-proposed union bound. One comparison batch's errors do not account for an
-adversary's search or the extractor's rewound calls.
+The optional exact identities for scalar binomial failure, the field
+polynomial, and `a_batch = 1-(1-a_field)^17` remain unformalized. The checked
+bounds do not need them. One comparison batch does not cover an adversary's
+search or the extractor's rewound calls.
 
 ### Retained attempts and stopping record
 
@@ -233,8 +267,12 @@ setting was raised. The complete final source was retained byte for byte
 outside the active Lean package, and only its new active module was removed.
 The draft has 5,978 bytes and SHA-256
 `0d188007c24f907ee9055093522e39c0ff18527f86810d126912c007d0ebbf6d`.
-It supplies no audited actual-field or batch theorem. All jobs used the
-coordinator's single build queue under the 1500-second Lean cap.
+That stopped draft supplied no audited theorem at its original cut.
+A later continuation completed the actual-field and batch links in
+`SamplerFieldShortfall`; the current passing records are listed above.
+Its second resume avoided the large fixed-size kernel expansion by first
+generalizing the Option values and successor state. The third resume passed.
+No heartbeat or recursion setting was raised.
 
 ## Exact transfer and extraction obligations
 
@@ -244,7 +282,7 @@ coordinator's single build queue under the 1500-second Lean cap.
 | Statement and domain binding | The digest-only prefix identifies the verifier-selected key, profile, prior running statement, and fresh statement, or produces the existing named Poseidon2 binding/collision event. Prove the typed schedule encoding is unambiguous on the actual accepted domains. | Structural proof and a separately named hash premise; collision resistance alone is not challenge security. |
 | Public-coin comparison | Derive the C coins and R candidate blocks in the chosen ideal experiment, with a joint law for outputs and successor states. Repeated queries return the same result. No fresh-independent-coin premise may be attached directly to deterministic replay. | Mathematical proof under the approved model. |
 | Overwrite/additive match | Chiesa–Orrù uses overwrite absorption; Nightstream adds field words to the current rate lanes. Prove a transfer theorem for this additive schedule or a valid identification with the cited construction. A codec that subtracts the current state is state-dependent and is not automatically covered by a fixed message codec. | Missing mathematical transfer; no silent transcript change or assumed equivalence. |
-| Sampler loss | Use the checked single-lane law and scalar abort bound. Complete the actual-field/batch consumers, product/output law, and all sampler invocations of the adversary and extractor under symbolic query/work bounds. Preserve aborts. | Mathematical proof; no new cryptographic premise. |
+| Sampler loss | Use the checked scalar output law, actual decoder links and 17-window abort bound. Complete the joint batch output law where the chosen event map requires it, and cover every adversary/extractor invocation under symbolic query/work bounds. Preserve aborts. | Mathematical proof; no new cryptographic premise. |
 | C rewinding | Construct the causal oracle/program needed by the existing C extractor. Reprogramming must preserve each earlier message and the bound statement. The second execution must have the exact fresh-coin law used by the pair-agreement proof. | A Fiat–Shamir knowledge proof, not a replay lemma. |
 | R coordinate forks | Obtain a base opening and each one-coordinate fork for the same actual 17-source batch. Changing one R coordinate in the current chained state changes later states; a simulator must preserve or reprogram the other coordinates consistently. Include failed, repeated, and aborting calls. | A Fiat–Shamir knowledge proof; the interactive coordinate algebra alone does not supply the oracle. |
 | Witness and runtime composition | Reuse the actual D child-opening consumer and same-key commitment projection. Prove expected total work for the constructed oracle/extractor, including permutation simulation, queries, rewinds, sampler failures, and witness checks. | Mathematical work on the actual program; same-key MSIS hardness remains the approved external premise. |
@@ -293,6 +331,42 @@ knowledge are 3.8 and 3.16. The current simplified error is equation (58).
 The table is a theorem applicability check. It does not adopt the ideal
 experiment. The pending additive-absorption proof cannot be replaced by the
 general claim that a sponge is indistinguishable from a random oracle.
+
+### Additive schedule and state-restoration review
+
+The retained independent review gives a concrete deterministic candidate.
+For a state `S=(S_R,S_C)` and a four-word padded block `b`, use
+`E_S(b)=S_R+b`. Overwrite followed by permutation then agrees with the actual
+additive block. The inverse subtracts the reconstructed prior rate state.
+This is a triangular bijection for a fixed permutation and prior state;
+it is not Definition 4.1's fixed message encoder.
+
+The cursor schedule also matters. After translated absorption, a paper
+squeeze of 12 field words can retain positions 0 and 4 to match one current
+K squeeze and its eager final permutation. A 36-word comparison can retain
+the first 32 words to match the eight R digest steps and final state. These
+lengths are derived comparison candidates, not protocol changes or proved
+Lean schedule equalities. Framed partial blocks must retain their padding
+and call boundaries.
+
+Claim 5.23 uses fixed message relabeling. A replacement needs a joint cache
+invariant for the original prefix, encoded prefix, raw output and full
+sponge state. Decoded C coins alone omit rate lanes and capacity values.
+Image tests, prefix inversion, arbitrary forward/inverse query order,
+repeated queries and all additional work must be covered. Initialization
+with the actual shared Poseidon2 digest prefix remains a separate obligation.
+The detailed interfaces and source hashes are retained in
+`nightstream-nifs-co25-additive-review.md` inside the evidence archive.
+
+The retained state-restoration review maps Definitions 3.12–3.16 to
+`CausalExecution`, selected `StrongExtraction`, `PaperWeakOracle`,
+`PaperWeakExtraction` and `PaperCompositionProbability`. The missing adapter
+must preserve adaptive statement selection and cached prefix replies while
+constructing the exact causal C calls and captured R/D suffix calls.
+`FinalOutputSuccess` includes the same invocation's valid final child
+witnesses. Public acceptance alone does not provide them. A terminal
+witness-bearing game map is proposed but unproved. Its review is retained
+as `nightstream-nifs-state-restoration-review.md` in the archive.
 
 ### Symbolic error and work interfaces
 
@@ -351,15 +425,18 @@ The printed simplification citing `S<=T` alone does not supply the needed
 bound on verifier work. This is a mathematical condition on the chosen
 symbolic parameter, not a new numerical limit.
 
-For the current scalar decoder, the proposed independent-field comparison
-uses `32*(M-1)/(M*q)` for the product field-to-bits error and the checked
-`u=choose(64,11)/65536^11` for scalar shortfall. Its required comparison with
-a uniform strong-set scalar, in a common space containing abort, has target
-bound `32*(M-1)/(M*q)+u`. The product variation and successful bit-decoder
-proofs remain open. Transport into `eps_i` also needs the missing
-codec-with-abort and state-transition proof. The final formula must include
-adversary queries;
-`544*(M-1)/(M*q)` from one honest batch cannot replace
+For the current scalar decoder, the independent-field comparison now proves
+`32*(M-1)/(M*q)+u`, where `u=choose(64,11)/65536^11`. Its target is
+`UniformSome`, not uniform on the whole Option type. This distinction still
+prevents direct substitution into Definition 4.1. For `N=5^54`, uniform on
+`Option Scalar` assigns abort mass `1/(N+1)` and is that distance from
+`UniformSome`; choosing it would require the additional comparison term
+and an interactive abort adapter. Neither that message-type choice nor the
+adapter has been adopted or proved here.
+
+Transport into `eps_i` needs the missing total/aborting codec and joint
+state-transition proof. The final formula must cover adversary queries;
+`544*(M-1)/(M*q)` from one comparison batch cannot replace
 `T*max_i eps_i + sum_i eps_i`.
 
 An abort is rejection, so it is not automatically an additional accepted
@@ -430,7 +507,6 @@ use a transcript-prefix random-oracle model and mark the relevant security
 transfer proofs as work in progress. Neither supplies owner approval.
 
 The sampler modules use the coordinator's shared Lean build queue; their
-checked status is recorded above. This worker ran no Lean/Rust command, test,
-generator, backend, dependency change, commit, or publication. Protected
-owner files and other workers' review files were not changed. Frozen Lean
-sources were not read.
+checked status is recorded above. The proof workers ran no Lean/Rust build; the coordinator ran the recorded
+checks through the shared queue. Protected owner files were not changed.
+Frozen Lean sources were not read, and no site was published.

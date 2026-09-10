@@ -20,7 +20,7 @@ The implementation must use their exact interfaces and satisfy their
 hypotheses. A missing check, value equality, or parameter bound cannot become
 a cryptographic assumption. The fixed-seed MSIS premise is recorded in the
 [approved assumption](../../docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md).
-The [Fiat–Shamir model note](../../docs/reviews/nightstream-fprime-requirements/NIFS_FIAT_SHAMIR_MODEL_DECISION.md)
+The [Fiat–Shamir model note](../../docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md)
 records the current transfer boundary; an additive Poseidon2 transcript does
 not by itself establish a published overwrite-sponge theorem's hypotheses.
 

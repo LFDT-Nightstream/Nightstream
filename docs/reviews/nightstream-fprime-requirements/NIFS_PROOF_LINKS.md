@@ -438,6 +438,13 @@ regression logs, proof draft and failed proof logs. No recursion override,
 Fiat-Shamir law, or new cryptographic assumption was added. The actual selected
 cache and complete native NIFS replay remain open.
 
+The next R-parent attempt added a structural width-independence lemma and
+made the public equality explicit. Three further checks still failed when
+applying that function equality to a public coordinate. The updated draft
+and logs are retained in the same archive. The full connection remains
+unproved and outside the active formal project. A pointwise width lemma is
+the next proof step to check; no recursion limit was raised.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts

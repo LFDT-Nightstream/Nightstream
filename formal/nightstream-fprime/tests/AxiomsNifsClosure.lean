@@ -31,9 +31,22 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
 import NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling
 import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinSpace
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
 
 /-! Axiom audits for the selected NIFS profile and interactive composition. -/
+
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.projectReads_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.projectReads_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection.project_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection.project_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection.reconstruct_project
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finishStored_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction.finishStored_source_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction.run_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction.run_source_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction.expected_work_bound
 
 #audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.selected_relation
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement.paired_executionMean_eq

@@ -61,15 +61,21 @@ private theorem collect_work_le {Value : Type*} (bound : Nat) : ∀ {count : Nat
       rw [Nat.add_mul, Nat.one_mul]
       omega
 
-/-- Execute the accessor once at each returned coordinate, in source order. -/
-def project {shape : Shape} {carrier : Phi81Relation.Shape}
-    (access : Accessor shape carrier) (witness : OutputWitness shape carrier.carrierWidth) :
+/-- Copy one concrete read program in source order. The read program can
+retain its actual array representation instead of an erased function. -/
+def projectReads {shape : Shape} {carrier : Phi81Relation.Shape}
+    (read : Fin shape.sourceCount → Fin carrier.carrierWidth → Result F) :
     Result (SourceWitness shape carrier) :=
   let fresh := collect (fun source : Fin shape.freshCount =>
-    collect (fun column => access witness (freshSourceIndex source) (privateColumn carrier column)))
+    collect (fun column => read (freshSourceIndex source) (privateColumn carrier column)))
   let running := collect (fun source : Fin shape.runningCount =>
-    collect (access witness (runningSourceIndex source)))
+    collect (read (runningSourceIndex source)))
   ⟨⟨fresh.value, running.value⟩, fresh.work + running.work + 1⟩
+
+/-- Execute the supplied semantic-witness accessor through the same copier. -/
+def project {shape : Shape} {carrier : Phi81Relation.Shape}
+    (access : Accessor shape carrier) (witness : OutputWitness shape carrier.carrierWidth) :
+    Result (SourceWitness shape carrier) := projectReads (access witness)
 
 theorem project_fresh {shape : Shape} {carrier : Phi81Relation.Shape}
     (access : Accessor shape carrier) (correct : Correct access)
@@ -77,7 +83,7 @@ theorem project_fresh {shape : Shape} {carrier : Phi81Relation.Shape}
     (source : Fin shape.freshCount) (column : Fin (privateWidth carrier)) :
     ((project access witness).value.fresh.get source).get column =
       witness.assignments (freshSourceIndex source) (privateColumn carrier column) := by
-  simp only [project, collect_get]
+  simp only [project, projectReads, collect_get]
   exact correct witness (freshSourceIndex source) (privateColumn carrier column)
 
 theorem project_running {shape : Shape} {carrier : Phi81Relation.Shape}
@@ -86,7 +92,7 @@ theorem project_running {shape : Shape} {carrier : Phi81Relation.Shape}
     (source : Fin shape.runningCount) (column : Fin carrier.carrierWidth) :
     ((project access witness).value.running.get source).get column =
       witness.assignments (runningSourceIndex source) column := by
-  simp only [project, collect_get]
+  simp only [project, projectReads, collect_get]
   exact correct witness (runningSourceIndex source) column
 
 private theorem sourceWitness_ext {shape : Shape} {carrier : Phi81Relation.Shape}
@@ -99,43 +105,56 @@ private theorem sourceWitness_ext {shape : Shape} {carrier : Phi81Relation.Shape
   rfl
 
 /-- Cost erasure returns exactly the canonical tails and full running vectors. -/
-theorem project_value {shape : Shape} {carrier : Phi81Relation.Shape}
-    (access : Accessor shape carrier) (correct : Correct access)
-    (witness : OutputWitness shape carrier.carrierWidth) :
-    (project access witness).value = (WitnessProjection.project carrier witness).value := by
+theorem projectReads_value {shape : Shape} {carrier : Phi81Relation.Shape}
+    (read : Fin shape.sourceCount → Fin carrier.carrierWidth → Result F)
+    (witness : OutputWitness shape carrier.carrierWidth)
+    (correct : ∀ source column, (read source column).value = witness.assignments source column) :
+    (projectReads read).value = (WitnessProjection.project carrier witness).value := by
   apply sourceWitness_ext
   · apply List.Vector.ext
     intro source
     apply List.Vector.ext
     intro column
-    rw [project_fresh access correct, WitnessProjection.project_fresh]
+    simp only [projectReads, collect_get, WitnessProjection.project_fresh, correct]
   · apply List.Vector.ext
     intro source
     apply List.Vector.ext
     intro column
-    rw [project_running access correct, WitnessProjection.project_running]
+    simp only [projectReads, collect_get, WitnessProjection.project_running, correct]
+
+theorem project_value {shape : Shape} {carrier : Phi81Relation.Shape}
+    (access : Accessor shape carrier) (correct : Correct access)
+    (witness : OutputWitness shape carrier.carrierWidth) :
+    (project access witness).value = (WitnessProjection.project carrier witness).value :=
+  projectReads_value (access witness) witness (correct witness)
 
 /-- Reads, constructors, and result return for the actual access bound. -/
 def workBound (shape : Shape) (carrier : Phi81Relation.Shape) (accessBound : Nat) : Nat :=
   shape.freshCount * (privateWidth carrier * (accessBound + 1) + 2) +
     shape.runningCount * (carrier.carrierWidth * (accessBound + 1) + 2) + 3
 
-theorem project_work_le {shape : Shape} {carrier : Phi81Relation.Shape}
-    (access : Accessor shape carrier) (accessBound : Nat) (bounded : Bounded access accessBound)
-    (witness : OutputWitness shape carrier.carrierWidth) :
-    (project access witness).work ≤ workBound shape carrier accessBound := by
+theorem projectReads_work_le {shape : Shape} {carrier : Phi81Relation.Shape}
+    (read : Fin shape.sourceCount → Fin carrier.carrierWidth → Result F)
+    (accessBound : Nat) (bounded : ∀ source column, (read source column).work ≤ accessBound) :
+    (projectReads read).work ≤ workBound shape carrier accessBound := by
   have freshWork := collect_work_le (privateWidth carrier * (accessBound + 1) + 1)
     (fun source : Fin shape.freshCount => collect (fun column =>
-      access witness (freshSourceIndex source) (privateColumn carrier column)))
+      read (freshSourceIndex source) (privateColumn carrier column)))
     (fun source => collect_work_le accessBound _
-      (fun column => bounded witness (freshSourceIndex source) (privateColumn carrier column)))
+      (fun column => bounded (freshSourceIndex source) (privateColumn carrier column)))
   have runningWork := collect_work_le (carrier.carrierWidth * (accessBound + 1) + 1)
-    (fun source : Fin shape.runningCount => collect (access witness (runningSourceIndex source)))
+    (fun source : Fin shape.runningCount => collect (read (runningSourceIndex source)))
     (fun source => collect_work_le accessBound _
-      (fun column => bounded witness (runningSourceIndex source) column))
-  dsimp only [project]
+      (fun column => bounded (runningSourceIndex source) column))
+  dsimp only [projectReads]
   unfold workBound
   simp only [Nat.add_assoc, Nat.reduceAdd] at freshWork runningWork
   omega
+
+theorem project_work_le {shape : Shape} {carrier : Phi81Relation.Shape}
+    (access : Accessor shape carrier) (accessBound : Nat) (bounded : Bounded access accessBound)
+    (witness : OutputWitness shape carrier.carrierWidth) :
+    (project access witness).work ≤ workBound shape carrier accessBound :=
+  projectReads_work_le (access witness) accessBound (bounded witness)
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection

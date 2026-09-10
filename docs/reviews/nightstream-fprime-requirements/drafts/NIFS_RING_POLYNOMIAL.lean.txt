@@ -1,0 +1,126 @@
+import Mathlib.Data.ZMod.Basic
+import Mathlib.RingTheory.AdjoinRoot
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
+
+/-! Polynomial views of the existing 54-coefficient RingF carrier. These
+noncomputable views serve only the multiplication and inverse correctness
+proofs. They define no executable inverse or protocol operation. -/
+
+namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+
+open NightstreamFPrime.Spec
+open Polynomial
+
+local instance : Fact (1 < goldilocksModulus) := ⟨by decide⟩
+
+private abbrev Base := ZMod goldilocksModulus
+
+local instance : Nontrivial Base := ZMod.nontrivial goldilocksModulus
+
+noncomputable def modulus : Polynomial Base :=
+  X ^ ringDegree + (X ^ ringMiddleDegree + 1)
+
+noncomputable def toPolynomial (value : RingF) : Polynomial Base :=
+  ∑ index : Fin ringDegree, C (R := Base) (value index) * X ^ index.val
+
+theorem coeff_toPolynomial (value : RingF) (index : Fin ringDegree) :
+    (toPolynomial value).coeff index.val = value index := by
+  classical
+  simp only [toPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial,
+    coeff_monomial]
+  rw [Finset.sum_eq_single index]
+  · simp
+  · intro other _ different
+    exact if_neg (fun equal => different (Fin.ext equal))
+  · simp
+
+private theorem coeff_toPolynomial_of_ge (value : RingF) (index : Nat)
+    (outside : ringDegree ≤ index) : (toPolynomial value).coeff index = 0 := by
+  classical
+  simp only [toPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial,
+    coeff_monomial]
+  apply Finset.sum_eq_zero
+  intro other _
+  exact if_neg (by have := other.isLt; omega)
+
+theorem toPolynomial_injective : Function.Injective toPolynomial := by
+  intro left right equal
+  funext index
+  have atIndex := congrArg (fun p => p.coeff index.val) equal
+  simpa only [coeff_toPolynomial] using atIndex
+
+theorem toPolynomial_zero : toPolynomial ringFZero = 0 := by
+  ext index
+  rw [coeff_zero]
+  by_cases inside : index < ringDegree
+  · exact coeff_toPolynomial ringFZero ⟨index, inside⟩
+  · exact coeff_toPolynomial_of_ge ringFZero index (Nat.le_of_not_gt inside)
+
+private theorem toPolynomial_basis (degree : Nat) (inside : degree < ringDegree) :
+    toPolynomial (RingFLaws.basis degree) = X ^ degree := by
+  ext index
+  by_cases indexInside : index < ringDegree
+  · rw [coeff_toPolynomial _ ⟨index, indexInside⟩]
+    simp [RingFLaws.basis, ringFMonomial, coeff_X_pow, eq_comm]
+  · rw [coeff_toPolynomial_of_ge _ index (Nat.le_of_not_gt indexInside)]
+    symm
+    apply coeff_eq_zero_of_degree_lt
+    rw [degree_X_pow]
+    exact_mod_cast (show degree < index by omega)
+
+theorem toPolynomial_one : toPolynomial ringFOne = 1 := by
+  change toPolynomial (RingFLaws.basis 0) = 1
+  rw [toPolynomial_basis 0 (by decide), pow_zero]
+
+private theorem toPolynomial_add (left right : RingF) :
+    toPolynomial (ringFAdd left right) = toPolynomial left + toPolynomial right := by
+  ext index
+  rw [coeff_add]
+  by_cases inside : index < ringDegree
+  · rw [coeff_toPolynomial _ ⟨index, inside⟩,
+      coeff_toPolynomial _ ⟨index, inside⟩, coeff_toPolynomial _ ⟨index, inside⟩]
+    rfl
+  · have outside := Nat.le_of_not_gt inside
+    rw [coeff_toPolynomial_of_ge _ index outside,
+      coeff_toPolynomial_of_ge _ index outside, coeff_toPolynomial_of_ge _ index outside,
+      add_zero]
+
+private theorem toPolynomial_scale (scalar : F) (value : RingF) :
+    toPolynomial (CarrierAction.ringFScale scalar value) =
+      C (R := Base) scalar * toPolynomial value := by
+  ext index
+  rw [coeff_C_mul]
+  by_cases inside : index < ringDegree
+  · rw [coeff_toPolynomial _ ⟨index, inside⟩, coeff_toPolynomial _ ⟨index, inside⟩]
+    rfl
+  · have outside := Nat.le_of_not_gt inside
+    rw [coeff_toPolynomial_of_ge _ index outside,
+      coeff_toPolynomial_of_ge _ index outside, mul_zero]
+
+private theorem degree_lower :
+    (X ^ ringMiddleDegree + 1 : Polynomial Base).degree = (27 : WithBot Nat) := by
+  simpa [ringMiddleDegree] using
+    (degree_X_pow_add_C (R := Base) (n := 27) (by decide) (1 : Base))
+
+theorem modulus_monic : modulus.Monic := by
+  apply monic_X_pow_add
+  rw [degree_lower]
+  decide
+
+private theorem degree_modulus : modulus.degree = (ringDegree : WithBot Nat) := by
+  rw [modulus, degree_add_eq_left_of_degree_lt]
+  · exact degree_X_pow ringDegree
+  · rw [degree_lower, degree_X_pow]
+    decide
+
+private theorem degree_toPolynomial (value : RingF) :
+    (toPolynomial value).degree < (ringDegree : WithBot Nat) :=
+  degree_sum_fin_lt (R := Base) value
+
+private theorem toPolynomial_mod (value : RingF) :
+    toPolynomial value %ₘ modulus = toPolynomial value := by
+  apply (modByMonic_eq_self_iff modulus_monic).mpr
+  rw [degree_modulus]
+  exact degree_toPolynomial value
+
+end NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial

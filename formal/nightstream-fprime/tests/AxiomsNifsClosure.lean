@@ -1,3 +1,7 @@
+import NightstreamFPrime.Export.MatrixProgram.RetainedWork
+import NightstreamFPrime.Export.MatrixProgram.CoefficientWork
+import NightstreamFPrime.Export.MatrixProgram.SparseWork
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerTotalizedOutputLaw
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingPowerInverse
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.StoredCommitment
@@ -437,3 +441,31 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerTotalizedOutputLaw.scalar_event_error_le
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerTotalizedOutputLaw.batch_event_error_le
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerTotalizedOutputLaw.sampleBatch_success_ring_list_eq
+
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.empty_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.empty_work
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.singleton_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.singleton_work
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.add_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.add_work
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.scale_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.scale_work
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.coefficient_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.SparseWork.coefficient_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.ChunkClass.index_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.ChunkClass.member_zero_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.ChunkClass.member_card
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.common_rank_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.common_unrank_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.extra_rank_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.extra_unrank_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.rank_unrank
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.unrank_rank
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPreimageRectangle.rectangle_card
+
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.CoefficientWork.coefficient_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.CoefficientWork.coefficient_work_le
+
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_value
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_length
+#audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_work_le

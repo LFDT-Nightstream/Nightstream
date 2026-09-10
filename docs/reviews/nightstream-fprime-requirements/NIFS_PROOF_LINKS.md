@@ -479,6 +479,15 @@ is unchanged, so the retained C/R/D execution checks still have their stated
 scope. Full native NIFS replay, concrete extraction contracts, Fiat-Shamir
 security and independent review remain open.
 
+Commit `7a1f046772d188c0236471a98774057b0426c486` adds
+`computedParent_correct`. For every input and batch, the canonical 17-source
+traces return a parent with the exact paper claim and complete sampler state.
+The theorem has no successful-return premise. The source traces are nonempty,
+and all 14 matrix endpoints have the required size, so this construction
+cannot take the incomplete-parent branch. All five theorem audits pass in
+4 seconds, and the boundary gate passes. The same evidence archive contains
+the updated source and logs, including the first failed totality-proof attempt.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts

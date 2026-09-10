@@ -44,7 +44,7 @@ sha2 = "0.10"
 spartan2 = { workspace = true }
 thiserror = { workspace = true }
 wasmparser = "0.240"
-wasmtime = { version = "47.0.0", features = ["debug", "cranelift"] }
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "56cce8cfef552f458c2044187ad2ba1512e3e2df", features = ["debug", "cranelift"] }
 
 [dev-dependencies]
 object = "0.37"

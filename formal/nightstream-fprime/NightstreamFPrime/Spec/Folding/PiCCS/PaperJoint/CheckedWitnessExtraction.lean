@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredProbe
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
 
 /-!
@@ -181,22 +182,22 @@ theorem finish_work_le (accessBound : Nat)
 /-- The producing call returns storage, not an erased function to be read
 later at an unknown cost. Its clock includes constructing these arrays. -/
 abbrev StoredOutcome (shape : Shape) (carrier : Phi81Relation.Shape) :=
-  Option (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier)
+  Option (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier)
 
 def finishStored {shape : Shape} {carrier : Phi81Relation.Shape}
-    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool) :
+    (check : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool) :
     StoredOutcome shape carrier → Result (Option (SourceWitness shape carrier)) :=
   finishChecked check (fun candidate => StoredWitnessProjection.project candidate.2)
 
 /-- Storage is erased only for the existing semantic success events. -/
 def storedView {shape : Shape} {carrier : Phi81Relation.Shape}
     (outcome : StoredOutcome shape carrier) : Outcome shape carrier :=
-  outcome.map (fun candidate => (candidate.1, StoredWitnessProjection.view candidate.2))
+  outcome.map (fun candidate => (candidate.1.view, StoredWitnessProjection.view candidate.2))
 
 /-- The concrete projection bound applies on every branch. The checker work
 remains charged to the actual call; it is not replaced by an assumed constant. -/
 theorem finishStored_work_le {shape : Shape} {carrier : Phi81Relation.Shape}
-    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
+    (check : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
     (outcome : StoredOutcome shape carrier) :
     (finishStored check outcome).work ≤
       (match outcome with | none => 0 | some candidate => (check candidate).work) +
@@ -213,13 +214,13 @@ Only correctness of the actual public/ambient checker remains a premise;
 the array access and source projection are implemented and proved here. -/
 theorem finishStored_source_iff {Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
     {blockCount width : Nat}
-    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
+    (check : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
     (commit : Phi81Relation.Assignment carrier → Commitment) (params : GlobalParams)
     (statement : Statement K Commitment (Phi81Relation.PublicInput carrier)
       shape carrier.carrierWidth blockCount baseOps)
     (checked : ∀ probe stored, (check (probe, stored)).value = true ↔
-      probe.FixedWidthAccepted extensionOps K.embed statement width ∧
-        AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe
+      probe.view.FixedWidthAccepted extensionOps K.embed statement width ∧
+        AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe.view
           (StoredWitnessProjection.view stored))
     (outcome : StoredOutcome shape carrier) :
     SourceReturned commit params statement (finishStored check outcome).value ↔
@@ -238,8 +239,8 @@ theorem finishStored_source_iff {Commitment : Type*} {shape : Shape} {carrier : 
         simp [finishStored, finishChecked, accepted, SourceReturned, storedView,
           StrongProbability.RelaxedSuccess, StrongProbability.SourceValid,
           valid.1, valid.2, reconstructed]
-      · have rejected : ¬ (probe.FixedWidthAccepted extensionOps K.embed statement width ∧
-            AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe
+      · have rejected : ¬ (probe.view.FixedWidthAccepted extensionOps K.embed statement width ∧
+            AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe.view
               (StoredWitnessProjection.view stored)) := fun valid => accepted ((checked probe stored).mpr valid)
         simp [finishStored, finishChecked, accepted, SourceReturned, storedView,
           StrongProbability.RelaxedSuccess, StrongProbability.SourceValid, rejected]

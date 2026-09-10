@@ -6,6 +6,11 @@ name = "mathlib"
 scope = "leanprover-community"
 rev = "v4.30.0"
 
+[[require]]
+name = "CompPoly"
+git = "https://github.com/Verified-zkEVM/CompPoly"
+rev = "050f0bc7e9780703beb8d178ec533e52bd87d649"
+
 [[lean_lib]]
 name = "NightstreamFPrime"
 roots = ["NightstreamFPrime"]
@@ -13,7 +18,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.PiRLCSamplerCandidateWiring", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.PerApplicationEmitterFixture", "tests.EvidenceMetadata", "tests.EvidenceTargets", "tests.EvidenceAcceptance", "tests.EvidenceContractChecks"]
+roots = ["tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.PiRLCSamplerCandidateWiring", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.StoredRingInverse", "tests.PerApplicationEmitterFixture", "tests.EvidenceMetadata", "tests.EvidenceTargets", "tests.EvidenceAcceptance", "tests.EvidenceContractChecks"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

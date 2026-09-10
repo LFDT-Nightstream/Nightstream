@@ -161,11 +161,11 @@ theorem expected_work_polynomial_bound (contexts : PMF Context)
         Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
         Polynomial.C (productionShape.freshCount : ℝ) *
           (Polynomial.C (WitnessProjection.privateWidth (FullShape logicalWidth publicFits) : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
         Polynomial.C (productionShape.runningCount : ℝ) *
           (Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
-        Polynomial.C 9).eval (securityParameter : ℝ) := by
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
+        Polynomial.C 13).eval (securityParameter : ℝ) := by
   exact PaperCompositionWork.expected_work_polynomial_bound
     (ProductionKey.key relation ajtai).piRlcAlgebra call
     (law relation ajtai running fresh continuation)

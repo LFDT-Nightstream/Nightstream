@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 
 /-!
-B.2 extraction from a call that returns actual field arrays. The call owns
-array creation and coin-reading work. The checker owns public and ambient
+B.2 extraction from a call that returns stored probes and field arrays. The
+call owns array creation and coin-reading work. The checker owns public and ambient
 witness validation. Projection uses the proved array reader, so its work
 bound has no arbitrary-function access premise.
 -/
@@ -20,7 +20,7 @@ abbrev Call (Tape : Type*) (shape : Shape) (carrier : Phi81Relation.Shape) :=
     Result (StoredOutcome shape carrier)
 
 abbrev Check (shape : Shape) (carrier : Phi81Relation.Shape) :=
-  (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool
+  (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool
 
 def run {Tape : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
     (call : Call Tape shape carrier) (check : Check shape carrier)
@@ -75,8 +75,8 @@ variable {Tape Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.Shap
   (statement : Statement K Commitment (Phi81Relation.PublicInput carrier)
     shape carrier.carrierWidth blockCount baseOps)
   (checkCorrect : ∀ probe stored, (check (probe, stored)).value = true ↔
-    probe.FixedWidthAccepted extensionOps K.embed statement width ∧
-      AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe
+    probe.view.FixedWidthAccepted extensionOps K.embed statement width ∧
+      AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe.view
         (StoredWitnessProjection.view stored))
 
 include callCorrect checkCorrect in

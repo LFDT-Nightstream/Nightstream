@@ -111,11 +111,11 @@ theorem probability_and_expected_work
         (callPolynomial +
           Polynomial.C (productionShape.freshCount : ℝ) *
             (Polynomial.C (privateWidth (FullShape logicalWidth publicFits) : ℝ) *
-              (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+              (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
           Polynomial.C (productionShape.runningCount : ℝ) *
             (Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
-              (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
-          Polynomial.C 6).eval (securityParameter : ℝ)) := by
+              (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
+          Polynomial.C 10).eval (securityParameter : ℝ)) := by
   exact _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction.probability_and_expected_work contexts tapes call program prover
     (fun context => (PaperAlgebra.openingMaps (ajtai context)).commit) productionGlobalParams
     (statement relation ajtai running fresh) callCorrect correct rfl

@@ -1,0 +1,135 @@
+import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
+import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
+import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
+
+/-!
+One checked PiDEC reply produces the stored parent used by PiRLC extraction.
+The child arrays and binary recomposition are executed here. The checker
+retains its actual returned clock and a separate correctness obligation.
+Its work counter is an operation model, not a machine-time measurement.
+-/
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Lifecycle.Nifs.StoredSuffix
+
+open NightstreamFPrime.Spec
+open _root_.NightstreamFPrime.Spec.Folding
+open PiRLC.CoordinateForkLaw PiRLC.PaperForkExtraction
+open Nifs.StoredAssignmentArithmetic (StoredAssignment view)
+open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
+open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+/-- All 16 final child messages and their actual stored full assignments. -/
+structure Reply (logicalWidth : Nat) where
+  messages : Fin productionGlobalParams.k →
+    PiDEC.PaperVerifier.ChildMessage PaperAlgebra.Evaluation PaperAlgebra.Commitment
+  assignments : Vector (StoredAssignment (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionGlobalParams.k
+
+def viewReply {logicalWidth : Nat} (reply : Reply logicalWidth) :
+    Nifs.PaperWeakSuffix.Reply
+      (Fin (Phi81CarrierLayout.carrierWidth logicalWidth) → F)
+      PaperAlgebra.Evaluation PaperAlgebra.Commitment productionGlobalParams where
+  messages := reply.messages
+  assignments := fun child => view (reply.assignments.get child)
+
+abbrev Check (logicalWidth : Nat) := Reply logicalWidth → Result Bool
+
+/-- Abort, check, and recomposition all use this invocation's own reply. -/
+def finish {logicalWidth : Nat} (check : Check logicalWidth) :
+    Option (Reply logicalWidth) → Result (Option (StoredAssignment
+      (Phi81CarrierLayout.carrierWidth logicalWidth)))
+  | none => ⟨none, 1⟩
+  | some reply =>
+      let checked := check reply
+      if checked.value then
+        let parent := Nifs.StoredAssignmentArithmetic.recompose reply.assignments
+        ⟨some parent.value, checked.work + parent.work + 2⟩
+      else ⟨none, checked.work + 2⟩
+
+def checkerWork {logicalWidth : Nat} (check : Check logicalWidth) :
+    Option (Reply logicalWidth) → Nat
+  | none => 0
+  | some reply => (check reply).work
+
+theorem finish_return_iff {logicalWidth : Nat} (check : Check logicalWidth)
+    (outcome : Option (Reply logicalWidth))
+    (parent : StoredAssignment (Phi81CarrierLayout.carrierWidth logicalWidth)) :
+    (finish check outcome).value = some parent ↔
+      ∃ reply, outcome = some reply ∧ (check reply).value = true ∧
+        (Nifs.StoredAssignmentArithmetic.recompose reply.assignments).value = parent := by
+  cases outcome with
+  | none => simp [finish]
+  | some reply =>
+      cases checked : (check reply).value <;> simp [finish, checked]
+
+/-- The constants are the preceding program's 16-child work bound: 116
+steps per stored column, 613 weight/return steps, and two finish steps. -/
+theorem finish_work_le {logicalWidth : Nat} (check : Check logicalWidth)
+    (outcome : Option (Reply logicalWidth)) :
+    (finish check outcome).work ≤ checkerWork check outcome +
+      116 * Phi81CarrierLayout.carrierWidth logicalWidth + 615 := by
+  cases outcome with
+  | none => simp only [finish, checkerWork]; omega
+  | some reply =>
+      have recomposition := Nifs.StoredAssignmentArithmetic.recompose_work_le reply.assignments
+      simp only [productionGlobalParams] at recomposition
+      cases checked : (check reply).value <;>
+        simp only [finish, checkerWork, checked, Bool.false_eq_true, ↓reduceIte] <;> omega
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+  (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (batch : InputBatch (PaperAlgebra.Structure logicalWidth)
+    (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+    PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment
+    productionGlobalParams Nifs.PaperProfile.arity)
+
+abbrev Coins := Fin Nifs.PaperProfile.arity.total → Challenge (PaperAlgebra.piRlcAlgebra ajtai)
+
+/-- Only a successful final-output relation enables the parent return. -/
+def CheckCorrect (vector : Coins ajtai) (check : Check logicalWidth) : Prop :=
+  ∀ reply, (check reply).value = true ↔
+    PiDEC.PaperVerifier.Accepted (PaperAlgebra.piDecAlgebra ajtai)
+      (PaperAlgebra.publicInputSplit ajtai) (PaperAlgebra.evaluationArity ajtai)
+      (Nifs.PaperWeakSuffix.attempt (PaperAlgebra.piRlcAlgebra ajtai) batch vector (viewReply reply)) ∧
+    ∀ child, CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
+      (PiDEC.PaperVerifier.children (PaperAlgebra.publicInputSplit ajtai)
+        (Nifs.PaperWeakSuffix.attempt (PaperAlgebra.piRlcAlgebra ajtai) batch vector (viewReply reply)) child)
+      (view (reply.assignments.get child))
+
+/-- The actual stored recomposition opens this same verifier-computed
+parent. The proof supplies no free inverse, assignment accessor, or clock. -/
+theorem finish_returns_parent (vector : Coins ajtai) (check : Check logicalWidth)
+    (correct : CheckCorrect ajtai batch vector check) (outcome : Option (Reply logicalWidth))
+    (parent : StoredAssignment (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (returned : (finish check outcome).value = some parent) :
+    (response (PaperAlgebra.piRlcAlgebra ajtai) vector (view parent)).Success
+      (PaperAlgebra.semantics ajtai) productionGlobalParams (PaperAlgebra.piRlcAlgebra ajtai) batch := by
+  rcases (finish_return_iff check outcome parent).mp returned with
+    ⟨reply, _issued, checked, recomposed⟩
+  have accepted := (correct reply).mp checked
+  have valid := PiDEC.PaperVerifier.reduce_knowledge
+    (PaperAlgebra.semantics ajtai) productionGlobalParams (PaperAlgebra.piDecAlgebra ajtai)
+    (PaperAlgebra.publicInputSplit ajtai) (PaperAlgebra.evaluationArity ajtai)
+    (Nifs.PaperWeakSuffix.attempt (PaperAlgebra.piRlcAlgebra ajtai) batch vector (viewReply reply))
+    (viewReply reply).assignments (by decide) accepted.1 accepted.2
+  change CE.Holds _ _
+    (Nifs.PaperWeakSuffix.attempt (PaperAlgebra.piRlcAlgebra ajtai) batch vector (viewReply reply)).parent
+    (view parent)
+  have same : view parent =
+      (PaperAlgebra.piDecAlgebra ajtai).recomposeAssignment (viewReply reply).assignments := by
+    calc
+      view parent = view (Nifs.StoredAssignmentArithmetic.recompose reply.assignments).value :=
+        congrArg view recomposed.symm
+      _ = Phi81Relation.EvaluationHomomorphism.PiDEC.Raw.recomposeAssignment
+          (viewReply reply).assignments :=
+        Nifs.StoredAssignmentArithmetic.recompose_value reply.assignments
+      _ = _ := Phi81Relation.EvaluationHomomorphism.PiDEC.raw_recomposeAssignment_eq
+        (shape := PaperAlgebra.FullShape logicalWidth publicFits) (viewReply reply).assignments
+  exact same.symm ▸ valid
+
+end NightstreamFPrime.Lifecycle.Nifs.StoredSuffix

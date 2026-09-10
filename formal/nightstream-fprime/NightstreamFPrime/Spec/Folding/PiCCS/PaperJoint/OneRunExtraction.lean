@@ -189,10 +189,10 @@ theorem expected_work_polynomial_bound (accessBound : Nat)
       StrongProbability.clockMean tapes (totalClock call program) ≤
         (callPolynomial +
           Polynomial.C (shape.freshCount : ℝ) *
-            (Polynomial.C (privateWidth carrier : ℝ) * (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+            (Polynomial.C (privateWidth carrier : ℝ) * (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
           Polynomial.C (shape.runningCount : ℝ) *
-            (Polynomial.C (carrier.carrierWidth : ℝ) * (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
-          Polynomial.C 6).eval (securityParameter : ℝ) := by
+            (Polynomial.C (carrier.carrierWidth : ℝ) * (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
+          Polynomial.C 10).eval (securityParameter : ℝ) := by
   have actual := expected_work_bound tapes call program accessBound bounded baseSummable
   refine ⟨actual.1, ?_⟩
   have fresh := mul_le_mul_of_nonneg_left accessPPT

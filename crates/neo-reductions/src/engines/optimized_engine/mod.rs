@@ -124,7 +124,12 @@ impl OptimizedStructureCache {
     ) -> Result<Self, PiCcsError> {
         let (superneo, receipt) = artifact.into_parts();
         let expected_shape = (structure.n, structure.m, structure.t());
-        if superneo.relation_shape() != Some(expected_shape) || receipt.matrix_count() != structure.t() {
+        let expected_cache_shape = (
+            structure.n,
+            crate::common::superneo_carrier_width(structure.m),
+            structure.t(),
+        );
+        if superneo.relation_shape() != Some(expected_cache_shape) || receipt.matrix_count() != structure.t() {
             return Err(PiCcsError::InvalidInput(
                 "compact cache artifact shape does not match the selected CCS header".into(),
             ));

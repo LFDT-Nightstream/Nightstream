@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, SeededPhi81LinearBlock, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
+use neo_reductions::engines::utils::digest_ccs_matrices;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_reductions::superneo_eval::{
     build_superneo_eval_cache, eval_all_mats_cached, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
@@ -166,5 +167,67 @@ fn verified_cache_artifact_rejects_a_different_ccs_shape() {
     assert!(
         OptimizedStructureCache::from_verified_artifact(Arc::new(wrong_structure), verified).is_err(),
         "a verified cache artifact must not install under a different CCS header",
+    );
+}
+
+#[test]
+fn verified_cache_artifact_preserves_a_partial_final_ring() {
+    // The selected Nightstream relation also ends inside its final ring.
+    // D + 1 is the first width that needs both a full ring and a partial ring.
+    let logical_columns = D + 1;
+    let padded_columns = 2 * D;
+    let matrix = CcsMatrix::Csc(CscMat::from_triplets(
+        vec![(0, 0, F::ONE), (1, D, -F::ONE)],
+        2,
+        logical_columns,
+    ));
+    let structure =
+        CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, vec![])).expect("relation with a partial final ring");
+    let cache = build_superneo_eval_cache(&structure).expect("padded SuperNeo cache");
+    let matrix_digest = digest_ccs_matrices(&structure)
+        .try_into()
+        .expect("matrix digest words");
+    let mut bytes = Vec::new();
+    let receipt = cache
+        .write_artifact(&mut bytes, matrix_digest)
+        .expect("selected matrix artifact");
+    let loaded = neo_reductions::superneo_eval::SuperneoEvalCache::read_verified_artifact(
+        Cursor::new(bytes),
+        &receipt,
+        SuperneoCacheArtifactLimits::new(receipt.artifact_bytes(), structure.n, padded_columns, structure.t()),
+    )
+    .expect("verified padded cache");
+    let header = Arc::new(
+        CcsStructure::new_verifier_artifact_header(structure.n, logical_columns, structure.t(), structure.f.clone())
+            .expect("exact logical relation header"),
+    );
+    let installed = OptimizedStructureCache::from_verified_artifact(Arc::clone(&header), loaded)
+        .expect("padded cache must install under its logical header");
+    assert_eq!(installed.superneo().relation_shape(), Some((2, padded_columns, 1)));
+    installed
+        .validate_structure(&header)
+        .expect("retain the logical source shape");
+
+    let mut assignment = (0..logical_columns)
+        .map(|column| K::from(F::from_u64(column as u64 + 1)))
+        .collect::<Vec<_>>();
+    assignment.resize(padded_columns, K::ZERO);
+    assert_eq!(
+        eval_all_mats_cached(installed.superneo(), &assignment, &[K::ONE, K::ONE], 2),
+        vec![-K::from(F::from_u64(D as u64))],
+        "the loaded cache preserves both logical entries and zero padding",
+    );
+    let different_logical_width = CcsStructure::new_verifier_artifact_header(
+        structure.n,
+        logical_columns + 1,
+        structure.t(),
+        structure.f.clone(),
+    )
+    .expect("different width in the same padded ring");
+    assert!(
+        installed
+            .validate_structure(&different_logical_width)
+            .is_err(),
+        "installation must retain the exact logical width, not only its padding"
     );
 }

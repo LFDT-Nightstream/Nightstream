@@ -97,6 +97,82 @@ theorem check_eq_true_iff (input : PiCCSInputCheck.Input)
     commit productionGlobalParams (statement input)
     (ProductionKey.degreeBound PiDECInputCheck.relation) probe.view stored
 
+private def checkedSourceValue {shape : Shape} {carrier : Phi81Relation.Shape}
+    (checked : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Bool) :
+    StoredOutcome shape carrier → Option (WitnessProjection.SourceWitness shape carrier)
+  | none => none
+  | some candidate =>
+      if checked candidate then some (StoredWitnessProjection.project candidate.2).value
+      else none
+
+private theorem checkedSourceValue_source_iff
+    {Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
+    {blockCount width : Nat}
+    (checked : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Bool)
+    (commit : Phi81Relation.Assignment carrier → Commitment) (params : GlobalParams)
+    (statement : Statement K Commitment (Phi81Relation.PublicInput carrier)
+      shape carrier.carrierWidth blockCount baseOps)
+    (correct : ∀ probe stored, checked (probe, stored) = true ↔
+      probe.view.FixedWidthAccepted extensionOps K.embed statement width ∧
+        AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe.view
+          (StoredWitnessProjection.view stored))
+    (outcome : StoredOutcome shape carrier) :
+    SourceReturned commit params statement (checkedSourceValue checked outcome) ↔
+      StrongProbability.RelaxedSuccess (width := width) (openingMaps commit) params statement (storedView outcome) ∧
+        StrongProbability.SourceValid (openingMaps commit) params statement (storedView outcome) := by
+  cases outcome with
+  | none =>
+      simp [checkedSourceValue, SourceReturned, storedView,
+        StrongProbability.RelaxedSuccess, StrongProbability.SourceValid]
+  | some candidate =>
+      rcases candidate with ⟨probe, stored⟩
+      by_cases accepted : checked (probe, stored) = true
+      · have valid := (correct probe stored).mp accepted
+        have reconstructed := StoredWitnessProjection.reconstruct_project statement.publicInputs stored
+          (fun source => (valid.2 (UnifiedSources.freshSourceIndex source)).1.2.1)
+        simp [checkedSourceValue, accepted, SourceReturned, storedView,
+          StrongProbability.RelaxedSuccess, StrongProbability.SourceValid,
+          valid.1, valid.2, reconstructed]
+      · have rejected : ¬ (probe.view.FixedWidthAccepted extensionOps K.embed statement width ∧
+            AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe.view
+              (StoredWitnessProjection.view stored)) := fun valid => accepted ((correct probe stored).mpr valid)
+        simp [checkedSourceValue, accepted, SourceReturned, storedView,
+          StrongProbability.RelaxedSuccess, StrongProbability.SourceValid, rejected]
+
+/-- Execute the selected public/ambient Boolean check on the actual stored
+candidate. Abort and rejection return none. Acceptance returns the existing
+source projection. This value-only entrypoint assigns no checker clock. -/
+def finishValue (input : PiCCSInputCheck.Input) (outcome : StoredOutcome productionShape carrier) :
+    Option (WitnessProjection.SourceWitness productionShape carrier) :=
+  checkedSourceValue (check input) outcome
+
+/-- The selected checked return has exactly the existing B.2 source event,
+with the actual Ajtai key and all matrix entries. SourceReturned uses the
+original source relation and verifier-owned public prefixes. No checker or
+primitive correctness premise remains; no work or EPT claim is made. -/
+theorem finishValue_source_iff (input : PiCCSInputCheck.Input)
+    (outcome : StoredOutcome productionShape carrier) :
+    SourceReturned (shape := productionShape) (carrier := carrier)
+      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
+      commit productionGlobalParams (statement input) (finishValue input outcome) ↔
+      StrongProbability.RelaxedSuccess
+        (width := ProductionKey.degreeBound PiDECInputCheck.relation)
+        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
+        (statement input) (storedView outcome) ∧
+      StrongProbability.SourceValid
+        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
+        (statement input) (storedView outcome) := by
+  rw [← selected_openingMaps]
+  exact checkedSourceValue_source_iff (shape := productionShape) (carrier := carrier)
+    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
+    (width := ProductionKey.degreeBound PiDECInputCheck.relation)
+    (check input) commit productionGlobalParams (statement input)
+    (fun probe stored => StoredWitnessCheck.check_eq_true_iff
+      (shape := productionShape) (carrier := carrier)
+      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
+      commit productionGlobalParams (statement input)
+      (ProductionKey.degreeBound PiDECInputCheck.relation) probe.view stored) outcome
+
 /-- The remaining value-refinement obligation is equality to an implemented
 Boolean check. The charged call's work is retained without a proposed bound. -/
 theorem chargedCheck_correct (input : PiCCSInputCheck.Input)

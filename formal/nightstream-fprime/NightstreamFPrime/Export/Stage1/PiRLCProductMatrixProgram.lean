@@ -13,7 +13,7 @@ This module does not assemble later PiRLC or Stage 1 blocks.
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
 open NightstreamFPrime.Export
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle.PiRLC.v1_1
 open NightstreamFPrime.Spec

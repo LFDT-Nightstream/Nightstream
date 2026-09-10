@@ -962,11 +962,11 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationDirectPlan.Location.output_form_eq_pilot
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment.transitionExpectedContext
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment.semantics_imply_contextKey
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.Affine.Form.semantic?_ofSemantic
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.Affine.Table.combination?_ofSemantic
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.Affine.Table.compile?_ofSemantic
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_eq
-#audit_axioms NightstreamFPrime.Export.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_ne
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Form.semantic?_ofSemantic
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.combination?_ofSemantic
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.compile?_ofSemantic
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_eq
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.taggedAffine_form?_of_ne
 
 -- Shared-value repair obligations; a failed build leaves this audit open.
 #audit_axioms NightstreamFPrime.Export.AffineRuns.sourceAt_eq_expand_getD

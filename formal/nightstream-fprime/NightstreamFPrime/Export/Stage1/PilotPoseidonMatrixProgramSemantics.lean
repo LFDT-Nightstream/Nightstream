@@ -7,7 +7,7 @@ semantic prior-state and output-state hash inputs.
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1

@@ -7,10 +7,13 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
+import NightstreamFPrime.Export.MatrixProgram.Program
 
 /-! Executable entry point for the canonical Stage 1 circuit-package emitter. -/
 
 namespace NightstreamFPrime.Export.Main
+
+open NightstreamFPrime.Layout
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export

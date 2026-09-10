@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.MatrixProgram.PlanBridge
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
@@ -11,7 +11,7 @@ selects the final five rows of the Lean-authored per-application package.
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimageMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1

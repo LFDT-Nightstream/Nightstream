@@ -9,7 +9,7 @@ import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.PoseidonInput
 import NightstreamFPrime.Export.MatrixProgram.Poseidon
 import NightstreamFPrime.Export.MatrixProgram.Program
-import NightstreamFPrime.Export.MatrixProgram.PlanBridge
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Export.PilotData

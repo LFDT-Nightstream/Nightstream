@@ -1,5 +1,5 @@
-import NightstreamFPrime.Export.MatrixProgram
-import NightstreamFPrime.Export.MatrixProgram.SparseWork
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.MatrixProgram.SparseWork
 
 /-!
 Counted construction of one retained slot's sparse reconstruction form.
@@ -10,7 +10,7 @@ traversals; it does not measure machine execution or generate a whole block.
 
 set_option autoImplicit false
 
-namespace NightstreamFPrime.Export.MatrixProgram.RetainedWork
+namespace NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 
 open _root_.NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Layout
@@ -126,4 +126,4 @@ theorem form?_work_le (block : RetainedBlock) (logicalWidth slot : Nat) :
   · change (5 : Nat) ≤ _
     omega
 
-end NightstreamFPrime.Export.MatrixProgram.RetainedWork
+end NightstreamFPrime.Layout.MatrixProgram.RetainedWork

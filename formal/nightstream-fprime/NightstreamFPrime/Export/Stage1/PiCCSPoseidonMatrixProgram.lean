@@ -12,7 +12,7 @@ This module does not select PiCCS actions or close package conformance.
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 

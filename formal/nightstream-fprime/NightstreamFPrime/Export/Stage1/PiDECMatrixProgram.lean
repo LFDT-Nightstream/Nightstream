@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.MatrixProgram.PlanBridge
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
@@ -13,7 +13,7 @@ PiDEC plan is proved separately.
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport

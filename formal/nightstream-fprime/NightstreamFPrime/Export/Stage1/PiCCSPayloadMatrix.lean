@@ -10,20 +10,20 @@ The proofs preserve ordered entries before any field evaluation.
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec
 
 def combination (index : Fin PiCCSActionPayloadBlock.payloadCount) : R1CS.LinearCombination :=
-  Package.mapCombinationColumns Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.R1CS.mapCombinationColumns Spartan.sourceToSpartan
     (PiCCSPayloadWiring.lowering index).combination
 
 private def compileWord? (expression : Circuit.Expr) : Option Affine.Form := do
   let lowered ← SourceCompiler.lowerAffine? Spartan.SourceColumnCount expression
   pure <| Affine.Form.ofSemantic <|
-    Package.mapCombinationColumns Spartan.sourceToSpartan lowered.combination
+    NightstreamFPrime.Layout.R1CS.mapCombinationColumns Spartan.sourceToSpartan lowered.combination
 
 private theorem compileWord?_payload (index : Fin PiCCSActionPayloadBlock.payloadCount) :
     compileWord? (PiCCSActionPayloadBlock.payloadExpression index) =
@@ -105,7 +105,7 @@ theorem compileCombination_eq
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (combination index) =
       some (PiCCSPayloadWiring.form geometry index) := by
   rw [PiCCSPayloadWiring.form_eq_compileCombination]
-  unfold Ordinary.compileCombination? combination Package.mapCombinationColumns
+  unfold Ordinary.compileCombination? combination NightstreamFPrime.Layout.R1CS.mapCombinationColumns
   rw [compileMappedTerms geometry (PiCCSPayloadWiring.lowering index).combination.terms
     (PiCCSPayloadWiring.lowering index).bounded (PiCCSPayloadWiring.lowering_supported index)]
   rfl

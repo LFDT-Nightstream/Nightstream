@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Layout.R1CS.ColumnMap
 
 /-!
 Owns the generic compact-row template compiler and its lossless expansion
@@ -65,27 +66,25 @@ theorem renameExpr_congr {bound : Nat} (left right : Nat → Nat)
   | mul left right leftIH rightIH =>
       simp [renameExpr, R1CS.mulCount, leftIH, rightIH]
 
-def renameCombination (column : Nat → Nat)
+abbrev renameCombination (column : Nat → Nat)
     (combination : R1CS.LinearCombination) : R1CS.LinearCombination :=
-  ⟨combination.constant,
-    combination.terms.map fun term => (column term.1, term.2)⟩
+  R1CS.mapCombinationColumns column combination
 
-def renameRow (column : Nat → Nat) (row : R1CS.Row) : R1CS.Row :=
-  ⟨renameCombination column row.a, renameCombination column row.b,
-    renameCombination column row.c⟩
+abbrev renameRow (column : Nat → Nat) (row : R1CS.Row) : R1CS.Row :=
+  R1CS.mapRowColumns column row
 
 theorem renameCombination_comp (outer inner : Nat → Nat)
     (combination : R1CS.LinearCombination) :
     renameCombination outer (renameCombination inner combination) =
       renameCombination (outer ∘ inner) combination := by
   cases combination
-  simp [renameCombination, List.map_map, Function.comp_def]
+  simp [renameCombination, R1CS.mapCombinationColumns, List.map_map, Function.comp_def]
 
 theorem renameRow_comp (outer inner : Nat → Nat) (row : R1CS.Row) :
     renameRow outer (renameRow inner row) =
       renameRow (outer ∘ inner) row := by
   cases row
-  simp [renameRow, renameCombination_comp]
+  simp [renameRow, R1CS.mapRowColumns, renameCombination_comp]
 
 def relocate (inputCount shift : Nat) (inputColumn : Nat → Nat)
     (column : Nat) : Nat :=
@@ -128,7 +127,8 @@ def relocate (inputCount shift : Nat) (inputColumn : Nat → Nat)
         (renameCombination column right) := by
   cases left
   cases right
-  simp [renameCombination, R1CS.LinearCombination.add, List.map_append]
+  simp [renameCombination, R1CS.mapCombinationColumns,
+    R1CS.LinearCombination.add, List.map_append]
 
 private theorem varsBelow_left {left right : Expr} {bound : Nat}
     (scope : (left + right).VarsBelow bound) : left.VarsBelow bound := by
@@ -246,7 +246,7 @@ theorem lowerExpression_rows_rename (inputCount start shift : Nat)
         lowerExpression_next_rename inputCount
           (R1CS.lowerExpression left start).next shift inputColumn right,
         List.map_append, List.map_singleton]
-      simp [renameRow, renameCombination_ofVar]
+      simp [renameRow, R1CS.mapRowColumns, renameCombination_ofVar]
       rw [relocate_local inputCount shift inputColumn
         (start + R1CS.mulCount left + R1CS.mulCount right) (by omega)]
 
@@ -281,7 +281,7 @@ theorem lowerGenericConstraint_rename (inputCount start shift : Nat)
           c := R1CS.LinearCombination.zero } : R1CS.Row)]).map
       (renameRow (relocate inputCount shift inputColumn))
   rw [rowsEq, valueEq, List.map_append, List.map_singleton]
-  simp [renameRow]
+  simp [renameRow, R1CS.mapRowColumns]
 
 def abstractColumn (inputCount : Nat) (column : Nat) : ColumnRef :=
   if column < inputCount then .input column else .local (column - inputCount)
@@ -386,6 +386,7 @@ theorem instantiate_abstractCombination (inputCount shift : Nat)
   cases combination with
   | mk constant terms =>
       unfold instantiateCombination abstractCombination renameCombination
+        R1CS.mapCombinationColumns
       simp only [Rows.fieldValue_val, List.map_map]
       congr 1
       apply List.map_congr_left
@@ -400,7 +401,7 @@ theorem instantiate_abstractRow (inputCount shift : Nat)
         (abstractRow inputCount row) =
       renameRow (relocate inputCount shift inputColumn) row := by
   cases row
-  simp [instantiateRow, abstractRow, renameRow,
+  simp [instantiateRow, abstractRow, renameRow, R1CS.mapRowColumns,
     instantiate_abstractCombination]
 
 private theorem instantiate_abstractColumn_congr (inputCount localStart : Nat)
@@ -485,7 +486,8 @@ theorem renameCombination_eval (column : Nat → Nat)
     (renameCombination column combination).eval env =
       combination.eval (fun index => env (column index)) := by
   cases combination
-  simp [renameCombination, R1CS.LinearCombination.eval, List.map_map,
+  simp [renameCombination, R1CS.mapCombinationColumns,
+    R1CS.LinearCombination.eval, List.map_map,
     Function.comp_def]
 
 theorem renameRow_holds (column : Nat → Nat) (row : R1CS.Row)
@@ -493,7 +495,8 @@ theorem renameRow_holds (column : Nat → Nat) (row : R1CS.Row)
     (renameRow column row).Holds env ↔
       row.Holds (fun index => env (column index)) := by
   cases row
-  simp [renameRow, R1CS.Row.Holds, renameCombination_eval]
+  simp [renameRow, R1CS.mapRowColumns,
+    R1CS.Row.Holds, renameCombination_eval]
 
 theorem rowsHold_map_renameRow (column : Nat → Nat)
     (rows : List R1CS.Row) (env : Env)

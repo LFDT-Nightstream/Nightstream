@@ -7,7 +7,7 @@ action-driven input states and squeeze-binding rows.
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec

@@ -9,7 +9,7 @@ This module does not allocate value copies or construct product rows.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle.PiRLC.v1_1

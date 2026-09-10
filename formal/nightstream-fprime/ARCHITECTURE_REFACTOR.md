@@ -103,3 +103,20 @@ The next checkpoint derives the PiDEC sizes and starts from their child owners;
 The actual NIFS matrix-entry consumer, library, axiom audit and canonical identity
 gate pass. The allocation test remains a separate claim. Source import reachability
 has not decreased.
+
+## Shared matrix interpreter
+
+`Layout/MatrixProgram` owns the existing operands, block interpreters, source
+projection, schedule laws and declared-work functions. `Layout/R1CS/ColumnMap`
+owns the column-map implementation; the existing compact-row names are aliases.
+The corresponding `Export/MatrixProgram` modules contain only `Format` codecs.
+The static boundary gate enforces that codec-only scope.
+
+The [rename map](architecture/matrix-owner-renames.json) records this cut. It does
+not mean that all Stage 1 physical geometry has moved. The
+[constraint change checks](CONSTRAINT_CHANGE_CHECKS.md) give the required proof,
+identity and consumer checks for later changes.
+
+The extra-cell probe still reaches a fixed running-transition endpoint through
+Spartan, plus the selected default Values check. Full allocation isolation remains
+open; see [the probe record](architecture/pidec-allocation.json).

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.MatrixProgram.SparseWork
+import NightstreamFPrime.Layout.MatrixProgram.SparseWork
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 
 /-!
@@ -11,7 +11,7 @@ caller cost. No matrix function is executed by this program.
 
 set_option autoImplicit false
 
-namespace NightstreamFPrime.Export.MatrixProgram.CoefficientWork
+namespace NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 open _root_.NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Layout.ProductionRelation
@@ -157,4 +157,4 @@ theorem coefficient_value (arity freshCount runningCount matrixCount logicalWidt
     simp only [encoded] at termEq ⊢ <;>
     simpa only [Phi81ColumnLayout.decode] using termEq
 
-end NightstreamFPrime.Export.MatrixProgram.CoefficientWork
+end NightstreamFPrime.Layout.MatrixProgram.CoefficientWork

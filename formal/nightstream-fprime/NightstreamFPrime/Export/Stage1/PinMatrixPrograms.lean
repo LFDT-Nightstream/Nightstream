@@ -13,7 +13,9 @@ claim final package integration.
 
 namespace NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout
+
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout.Stage1
 
 abbrev Program := Lifecycle.Stage1.Application.Program

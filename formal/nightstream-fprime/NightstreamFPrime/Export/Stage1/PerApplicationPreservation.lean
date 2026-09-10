@@ -12,6 +12,8 @@ production theorem must construct this object from the canonical generators.
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 
+open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)
+
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Lifecycle

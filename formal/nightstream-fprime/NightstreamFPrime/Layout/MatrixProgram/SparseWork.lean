@@ -10,7 +10,7 @@ operation clocks; source generation and machine-runtime costs are separate.
 
 set_option autoImplicit false
 
-namespace NightstreamFPrime.Export.MatrixProgram.SparseWork
+namespace NightstreamFPrime.Layout.MatrixProgram.SparseWork
 
 open _root_.NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Layout.ProductionRelation
@@ -161,4 +161,4 @@ theorem coefficient_work_le {columns : Nat} (form : SparseForm columns) (column 
   change (coefficientLoop column.val form.entries 0 0).work + 6 ≤ _
   omega
 
-end NightstreamFPrime.Export.MatrixProgram.SparseWork
+end NightstreamFPrime.Layout.MatrixProgram.SparseWork

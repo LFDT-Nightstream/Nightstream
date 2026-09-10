@@ -138,5 +138,9 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
+import NightstreamFPrime.Layout.MatrixProgram.SourceGridSupport
+import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
+import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

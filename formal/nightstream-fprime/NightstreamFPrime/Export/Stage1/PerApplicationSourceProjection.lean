@@ -10,7 +10,9 @@ Application rows are already expressed in their final package coordinates.
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)
+
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1

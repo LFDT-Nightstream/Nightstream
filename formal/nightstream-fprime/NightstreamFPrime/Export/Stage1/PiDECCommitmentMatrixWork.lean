@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
-import NightstreamFPrime.Export.MatrixProgram.RetainedWork
+import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 
 /-!
 Counted retained compilation of the selected 1188 PiDEC commitment rows.
@@ -25,7 +25,7 @@ open _root_.NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Layout
 open _root_.NightstreamFPrime.Layout.Stage1
 open _root_.NightstreamFPrime.Layout.ProductionRelation
-open _root_.NightstreamFPrime.Export.MatrixProgram
+open _root_.NightstreamFPrime.Layout.MatrixProgram
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
 attribute [local irreducible] PiDECOrdinarySourceWork.commitmentRow

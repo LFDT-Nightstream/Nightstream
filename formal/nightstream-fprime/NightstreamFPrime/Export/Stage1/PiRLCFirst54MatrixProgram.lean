@@ -12,8 +12,8 @@ module owns that bridge.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCFirst54MatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
-open NightstreamFPrime.Export.MatrixProgram.AffineGrid
+open NightstreamFPrime.Layout.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram.AffineGrid
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec

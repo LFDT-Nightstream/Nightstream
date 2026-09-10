@@ -9,7 +9,7 @@ This module does not compose the preceding PiRLC product family.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCFirst54MatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 

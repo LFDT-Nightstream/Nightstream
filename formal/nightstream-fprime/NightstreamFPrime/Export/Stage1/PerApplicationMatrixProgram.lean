@@ -23,7 +23,7 @@ This module selects no package bytes, verification key, or Rust consumer.
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 
 abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 

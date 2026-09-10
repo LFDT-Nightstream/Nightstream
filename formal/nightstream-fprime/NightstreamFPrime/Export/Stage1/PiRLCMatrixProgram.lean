@@ -10,7 +10,7 @@ This module does not compose the PiRLC sampler rows or later Stage 1 phases.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open PiRLCProductMatrixProgram

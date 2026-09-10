@@ -12,7 +12,9 @@ This module does not close PiRLC status or select a final package identity.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout
+
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 open PiRLCSamplerOrdinaryMatrixSchedule

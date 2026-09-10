@@ -14,7 +14,7 @@ complete substitution theorem are proved in this module.
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 
-open NightstreamFPrime.Export.MatrixProgram
+open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation

@@ -356,7 +356,9 @@ private theorem expression_is_add
     ProductionRelation.polynomial,
     ProductionRelation.SelectivePolynomial.polynomial,
     ProductionRelation.SelectivePolynomial.terms,
-    ProductionRelation.SelectivePolynomial.baseTerms]
+    ProductionRelation.SelectivePolynomial.baseTerms,
+    ProductionRelation.SelectivePolynomial.baseTermData,
+    ProductionRelation.SelectivePolynomial.Term.toMonomial]
 
 private theorem c0_directConstraint_eq_none
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

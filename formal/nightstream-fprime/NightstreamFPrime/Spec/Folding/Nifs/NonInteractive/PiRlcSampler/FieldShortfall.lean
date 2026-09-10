@@ -79,6 +79,36 @@ theorem lane_coupling_residue (value : F) (auxiliary : Fin pairModulus) :
     simp [laneCoupling, blockSwap, swapBlocks]
   · exact Or.inr (low32_final_block last)
 
+/-- The coupled pair differs only at the single final field value and a
+nonzero auxiliary residue. This retains the exact single-pair variation. -/
+theorem lane_coupling_disagrees_iff (value : F) (auxiliary : Fin pairModulus) :
+    low32 value ≠ (laneCoupling (value, auxiliary)).2 ↔
+      value.val = goldilocksModulus - 1 ∧ auxiliary.val ≠ 0 := by
+  obtain ⟨block, rfl⟩ := fieldBlocks.surjective value
+  rcases block with ⟨block, residue⟩ | last
+  · have below : (fieldBlocks (Sum.inl (block, residue))).val < goldilocksModulus - 1 := by
+      change residue.val + pairModulus * block.val < goldilocksModulus - 1
+      rw [goldilocks_decomposition, Nat.add_sub_cancel,
+        Nat.mul_comm pairModulus (pairModulus - 1)]
+      exact (finProdFinEquiv (block, residue)).isLt
+    simp [low32_complete_block, laneCoupling, blockSwap, swapBlocks, ne_of_lt below]
+  · have final : (fieldBlocks (Sum.inr last)).val = goldilocksModulus - 1 := by
+      have zero : last.val = 0 := by omega
+      change (pairModulus - 1) * pairModulus + last.val = goldilocksModulus - 1
+      rw [zero, Nat.add_zero, goldilocks_decomposition, Nat.add_sub_cancel,
+        Nat.mul_comm pairModulus (pairModulus - 1)]
+    have coupled : (laneCoupling (fieldBlocks (Sum.inr last), auxiliary)).2 = auxiliary := by
+      simp [laneCoupling, blockSwap, swapBlocks]
+    rw [low32_final_block, coupled, final]
+    simp only [eq_self_iff_true, true_and]
+    constructor
+    · intro different zero
+      apply different
+      apply Fin.ext
+      exact zero.symm
+    · intro nonzero equal
+      exact nonzero (congrArg Fin.val equal).symm
+
 /-- Independent copies of the finite lane bijection. -/
 def windowCoupling : FieldWindow × PairWindow ≃ FieldWindow × PairWindow :=
   let split := Equiv.arrowProdEquivProdArrow (Fin fieldLaneCount)

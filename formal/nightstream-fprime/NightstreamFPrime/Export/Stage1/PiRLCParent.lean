@@ -210,6 +210,70 @@ theorem computedParent_eq_combined (input : Input) (batch : Batch) (values : Val
     exact congrArg (fun value : PaperAlgebra.Evaluation => #[value]) family
   · rfl
 
+private theorem source_trace_last {Alpha : Type} (xs : List Alpha)
+    (size : xs.length = SourceCount) : ∃ value, xs.getLast? = some value := by
+  cases returned : xs.getLast? with
+  | some value => exact ⟨value, rfl⟩
+  | none =>
+      have empty := List.getLast?_eq_none_iff.mp returned
+      have zero : SourceCount = 0 := by simpa [empty] using size.symm
+      exact False.elim ((by decide : SourceCount ≠ 0) zero)
+
+private theorem mapM_returns {Alpha Beta : Type} (f : Alpha → Option Beta)
+    (xs : List Alpha) (total : ∀ x ∈ xs, ∃ y, f x = some y) :
+    ∃ ys, xs.mapM f = some ys := by
+  induction xs with
+  | nil => exact ⟨[], rfl⟩
+  | cons x xs ih =>
+      obtain ⟨y, hy⟩ := total x (by simp)
+      obtain ⟨ys, hys⟩ := ih (fun value member => total value (by simp [member]))
+      exact ⟨y :: ys, by simp [List.mapM_cons, hy, hys]⟩
+
+private theorem computedParent_returns (input : Input) (batch : Batch) :
+    ∃ values, computedParent input batch = some values := by
+  obtain ⟨c, hc⟩ := source_trace_last
+    (commitmentPartials batch.challenges (PiRLCInputCheck.commitments input))
+    (by simp only [commitmentPartials, scan_length])
+  obtain ⟨x, hx⟩ := source_trace_last
+    (publicInputPartials batch.challenges (PiRLCInputCheck.publicInputs input))
+    (by simp only [publicInputPartials, scan_length])
+  obtain ⟨k, hk⟩ := source_trace_last
+    (evaluationPartials batch.challenges fun source => (PiRLCInputCheck.evaluations input source).pad)
+    (by simp only [evaluationPartials, scan_length])
+  let traces := (List.finRange productionShape.matrixCount).map fun matrix =>
+    evaluationPartials batch.challenges fun source => (PiRLCInputCheck.evaluations input source).matrix matrix
+  have total : ∀ xs ∈ traces, ∃ y, xs.getLast? = some y := by
+    intro xs member
+    obtain ⟨matrix, _, rfl⟩ := List.mem_map.mp member
+    exact source_trace_last _ (by simp only [evaluationPartials, scan_length])
+  obtain ⟨a, ha⟩ := mapM_returns List.getLast? traces total
+  have size : a.length = productionShape.matrixCount :=
+    (mapM_some_pairs List.getLast? traces a ha).length_eq.symm.trans (by simp [traces])
+  dsimp only [traces] at ha
+  refine ⟨{
+    point := (PiCCSInputCheck.execute input).point
+    commitment := c
+    publicInput := x
+    evalK := k
+    evalA := ⟨a.toArray, by simpa using size⟩
+    outgoing := batch.finalState }, ?_⟩
+  simp only [computedParent, PiRLCInputCheck.finalParent, Option.bind_eq_bind,
+    hc, hx, hk, ha, Option.bind_some, dif_pos size, Option.pure_apply]
+
+/-- Canonical traces cannot take the incomplete-parent branch. The returned
+value is the exact paper output and retains the sampler's full endpoint. -/
+theorem computedParent_correct (input : Input) (batch : Batch) :
+    ∃ values, computedParent input batch = some values ∧
+      PiDECInputCheck.parent values =
+        PiRLC.combinedOutput (arity := Nifs.PaperProfile.arity)
+          (piRlcAlgebra Poseidon2HashChainV1Setup.productionAjtaiKey)
+          (inputBatch input).system (inputBatch input).point (inputBatch input).inputs
+          batch.challenges ∧
+      values.outgoing = batch.finalState := by
+  obtain ⟨values, returned⟩ := computedParent_returns input batch
+  exact ⟨values, returned, computedParent_eq_combined input batch values returned,
+    computedParent_outgoing input batch values returned⟩
+
 /-- Accepted D children supply the exact weak-extraction success witness
 for this checked C/R run. Sampler replay is connected without assigning it
 an interactive or Fiat–Shamir coin law. -/

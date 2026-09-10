@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerDensityLaw
 import NightstreamFPrime.Export.Stage1.NifsBinding
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry
@@ -539,3 +540,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDensityLaw.boundedSample_success_event_le
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerDensityLaw.field_output_event_le
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.storeOutcome_view
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.sourceProgram_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.finish_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_sourceProbability

@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.NifsBinding
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.StoredSamplerFiberTables
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.StoredFiberTables
@@ -530,3 +531,5 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.globalRow_val
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_work_le
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsBinding.bindingEvent_to_shortKernel

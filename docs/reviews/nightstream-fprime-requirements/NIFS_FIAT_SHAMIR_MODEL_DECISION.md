@@ -584,6 +584,29 @@ XOF interface and general security requirements do not replace the missing
 schedule, cache, state-restoration or concrete-permutation transfer proofs.
 No model, quantum claim or new protocol behavior is approved here.
 
+## Complete 32-field scalar preimages — `ee24bd0c`
+
+The mathematical success and unrestricted-abort recurrences now equal the
+cardinalities of the existing bounded decoder's full field-window preimages.
+The selected list-view theorem preserves all 64 low/high candidates from
+32 fields. The exact-length scalar codec inverse and the consumer theorem
+`SamplerFiberCount.totalized_fiber_card` establish, for every full scalar
+`s` and fallback `f`, the exact count
+`successCount 32 (List.ofFn s) + if s=f then abortCount 32 54 else 0`.
+This adds every aborting window only to the fallback's fiber. It does not
+restrict accepted symbols on aborting prefixes. Raw alphabet index zero
+continues to mean centered -2. All fourteen exports passed the complete
+consumer build and the 378-record NIFS audit at `ee24bd0c02930ac068941c9be4f92c2e6200b798`.
+
+These recursive count specifications do not establish efficient table
+execution. The next inverse obligations are positive-fiber witnesses, stored
+DP value/work, global weighted rank/unrank, exact uniform-rank sampling with
+an explicit time contract, joint resampling/cache laws and the 17-scalar
+product transport. The actual sampler is unchanged; complete verifier
+acceptance inclusion, additive schedule and initialization, state restoration
+and fixed-Poseidon2 transfer remain open. Evidence and scoped reviews are in
+`NIFS_ROWS_AND_FIBERS_EVIDENCE.zip`.
+
 ## Primary proof references and their limits
 
 [Chiesa–Orrù, ePrint 2025/536](https://eprint.iacr.org/2025/536),

@@ -1105,13 +1105,60 @@ were read at resumption at 15:35 UTC in both checkouts and were unchanged.
 No Rust behavior, protocol profile, security assumption, backend or site
 publication changed in this milestone.
 
+## Indexed PiDEC rows and complete scalar fibers — `ee24bd0c`
+
+The checked source is `ee24bd0c02930ac068941c9be4f92c2e6200b798`. Three new owners add 17 exports; the
+combined NIFS audit passes with 378 complete records, only permitted axioms,
+and a two-second dependency build. Static checks pass. The full PiDEC target
+passed its third round in two seconds; the complete Spec-plus-Lifecycle fiber
+target passed its second round in three seconds. Independent scoped source
+and audit reviews are retained with all failed and successful checks in
+[NIFS_ROWS_AND_FIBERS_EVIDENCE.zip](NIFS_ROWS_AND_FIBERS_EVIDENCE.zip).
+
+`PiDECOrdinarySourceWork.commitmentRow_value` proves the generated row equals
+`PiDECOrdinaryDirectSource.commitmentProgramRow` for every `Fin 1188` index
+at the selected relation. A contains the 16 ordered child terms with binary
+weights, B is constant one with no terms, and C contains the parent term.
+The generator constructs only the requested row and computes its weights
+and selected Spartan column addresses. It neither builds nor searches the
+complete package. The final work bound is 2,218 named operations. Review
+replaced the initial grouped counts with explicit calls, value reads, scalar
+operations and constructors; clock instrumentation is excluded. The actual
+selected matrix block still needs retained substitution, row dispatch and
+compilation, so this is not a complete matrix-entry bound.
+
+`FieldDecoderFiberCount` proves exact success and abort cardinalities for
+every symbolic field-window length. Its selected candidate-list theorem
+matches all 64 candidates from the actual 32-field window, low then high.
+Success counts constrain only the remaining requested symbols. When the low
+candidate completes the output, the high candidate is unrestricted. Abort
+counts impose no symbol restrictions. All unused later fields are retained.
+`SamplerFiberCount` proves the inverse conversion for lists of length 54 and
+connects the counts to the existing `fieldDecode`. For every complete scalar
+`s` and comparison fallback `f`, the totalized preimage count is exactly
+`successCount 32 (List.ofFn s) + if s=f then abortCount 32 54 else 0`.
+Thus the fallback receives all aborting windows as well as its successful
+windows. The actual production sampler still aborts on shortfall.
+
+The count recurrences are mathematical specifications, not a proved efficient
+DP implementation. Positive-fiber witnesses, stored tables and their work,
+weighted global rank/unrank, exact uniform-rank sampling/time, the joint
+resampling/cache law and the 17-coordinate product transport remain open.
+No actual Poseidon2 distribution or Fiat–Shamir model is assumed. The stopped
+commitment and full comparison drafts remain inactive. The 16:20 protected
+review checkpoint found unchanged contents in both checkouts; its old native
+finding remains covered only by the previously checked guard. No new Rust,
+PaperExact, backend or website execution was added.
+
 ## Active criteria
 
 Complete the two checker leaves: dense selected-key commitment check and
 selected matrix entry. The public SumCheck gate is now proved and installed. Commitment work must include actual key expansion for
 arbitrary stored witnesses, and matrix work must include package-row
 production and lookup. Stored sparse operations, retained-slot construction
-and 54-lane coefficient expansion now have checked value/work proofs. The retained dense-commitment preparation gives a
+and 54-lane coefficient expansion now have checked value/work proofs. The
+1,188-row PiDEC commitment packet now has a direct counted source generator;
+its selected retained-form consumer and other source families remain open. The retained dense-commitment preparation gives a
 structural route using one 54-lane key block at a time, with no sparse-witness
 premise or full-key table.
 
@@ -1128,8 +1175,9 @@ still needs explicit approval before execution and broader per-phase closure.
 
 Complete the mathematical transcript, codec, state-restoration and error/work
 connections before requesting a precise Fiat–Shamir model decision. The scalar and independent-batch output comparisons and 17-window abort
-bound are proved. The actual-state joint law, adaptive/retry law and exact
-Poseidon2 transfer are not proved.
+bound are proved. The complete single-scalar success/abort and totalized fiber counts are now
+proved. An efficient inverse sampler, the actual-state joint law,
+adaptive/retry law and exact Poseidon2 transfer are not proved.
 
 The older `protocol-contract/security-reduction.md` uses a different
 transcript, sampler and profile; its numerical limits are not evidence for

@@ -779,3 +779,19 @@ producer and representation links, and Fiat–Shamir transfer remain open.
 The already checked normal native entry guard and earlier Lean/optimized
 conformance evidence retain their existing scope. No PaperExact or backend
 execution occurred, and no new full conformance verdict is granted.
+
+## Indexed source and scalar-fiber scope at `ee24bd0c`
+
+The selected PiDEC commitment-row generator and complete scalar-fiber
+Spec/Lifecycle pair passed at `ee24bd0c02930ac068941c9be4f92c2e6200b798`. The combined audit contains
+378 complete records, including these 17 additions, with only allowed
+axioms. Static checks pass. Source review confirms all 1,188 exact rows,
+A16/B0/C1 shape and the derived 2,218-operation clock; the fiber review
+confirms the full ordered 32-field/54-coefficient domain and all aborts.
+
+The indexed row still needs its selected retained-form and row-dispatch
+consumer. The scalar-fiber counts still need an efficient random inverse
+and its work/law. Neither result grants a new Rust, full NIFS, full Stage 1,
+backend or Fiat–Shamir claim. Both stopped adapters remain inactive. The
+16:20 protected reviews were read in both checkouts and were unchanged.
+`NIFS_ROWS_AND_FIBERS_EVIDENCE.zip` retains the exact cut and scoped evidence.

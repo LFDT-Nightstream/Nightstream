@@ -29,15 +29,15 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
 /-- The remaining implementation owners. All costs include their own calls
 and representation work, including any key expansion inside commitment. -/
 structure Program (shape : Shape) (carrier : Phi81Relation.Shape) where
-  publicCheck : Probe K shape → Result Bool
+  publicCheck : StoredProbe shape → Result Bool
   commitmentCheck : StoredWitness shape carrier → Fin shape.sourceCount → Result Bool
   publicInput : Fin shape.sourceCount → Fin carrier.publicWidth → Result F
   padEntry : Fin shape.coefficientCount → BooleanVertex shape.cubeVariables →
     Fin carrier.carrierWidth → Result F
   matrixEntry : Fin shape.matrixCount → Fin shape.coefficientCount →
     BooleanVertex shape.cubeVariables → Fin carrier.carrierWidth → Result F
-  padClaim : Probe K shape → Fin shape.sourceCount → Fin shape.coefficientCount → Result K
-  matrixClaim : Probe K shape → Fin shape.sourceCount → Fin shape.matrixCount →
+  padClaim : StoredProbe shape → Fin shape.sourceCount → Fin shape.coefficientCount → Result K
+  matrixClaim : StoredProbe shape → Fin shape.sourceCount → Fin shape.matrixCount →
     Fin shape.coefficientCount → Result K
   dotStep : F → F → F → Result F
   embed : F → Result K
@@ -95,7 +95,7 @@ structure Correct {Commitment : Type*} [DecidableEq Commitment]
   publicCheck : ∀ probe, (program.publicCheck probe).value =
     ProtocolPolynomial.FixedWidth.check extensionOps width (statement.verifierInput K.embed)
       probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
-      (statement.projectOutput probe.response.fullOutput) probe.response.rounds
+      (statement.projectOutput probe.view.response.fullOutput) probe.certificate
   commitmentCheck : ∀ stored source, (program.commitmentCheck stored source).value =
     decide (commit (stored.get source).get = statement.commitments source)
   publicInput : ∀ source column, (program.publicInput source column).value =
@@ -108,10 +108,10 @@ structure Correct {Commitment : Type*} [DecidableEq Commitment]
     (program.matrixEntry matrix coefficient vertex column).value =
       statement.matrixSource.coefficientMatrix baseOps matrix coefficient vertex column
   padClaim : ∀ probe source coefficient, (program.padClaim probe source coefficient).value =
-    probe.response.fullOutput.padCoordinate source coefficient
+    probe.view.response.fullOutput.padCoordinate source coefficient
   matrixClaim : ∀ probe source matrix coefficient,
     (program.matrixClaim probe source matrix coefficient).value =
-      probe.response.fullOutput.matrixCoordinate source matrix coefficient
+      probe.view.response.fullOutput.matrixCoordinate source matrix coefficient
   dotStep : ∀ accumulated matrix value, (program.dotStep accumulated matrix value).value =
     baseOps.add accumulated (baseOps.mul matrix value)
   embed : ∀ value, (program.embed value).value = K.embed value
@@ -266,7 +266,7 @@ private def compareEvaluation (program : Program shape carrier)
   let checked := program.equalK expected.value received.value
   ⟨checked.value, expected.work + received.work + checked.work + 1⟩
 
-private def evaluation (program : Program shape carrier) (probe : Probe K shape)
+private def evaluation (program : Program shape carrier) (probe : StoredProbe shape)
     (stored : StoredWitness shape carrier) (source : Fin shape.sourceCount)
     (coordinates : List K) : Result Bool :=
   andThen (allFin fun index : Fin shape.coefficientCount =>
@@ -279,10 +279,10 @@ private def evaluation (program : Program shape carrier) (probe : Probe K shape)
           (program.matrixClaim probe source matrix index)
 
 /-- Three record projections and one result; the coordinate list is shared. -/
-private def pointCoordinates (probe : Probe K shape) : Result (List K) :=
+private def pointCoordinates (probe : StoredProbe shape) : Result (List K) :=
   ⟨probe.coins.roundPoint.coordinates, 1 + 1 + 1 + 1⟩
 
-private def ambient (program : Program shape carrier) (probe : Probe K shape)
+private def ambient (program : Program shape carrier) (probe : StoredProbe shape)
     (stored : StoredWitness shape carrier) : Result Bool :=
   let point := pointCoordinates probe
   let checked := allFin fun source : Fin shape.sourceCount =>
@@ -292,7 +292,7 @@ private def ambient (program : Program shape carrier) (probe : Probe K shape)
 
 /-- The public check executes first. Rejection skips ambient witness work. -/
 def check (program : Program shape carrier)
-    (candidate : Probe K shape × StoredWitness shape carrier) : Result Bool :=
+    (candidate : StoredProbe shape × StoredWitness shape carrier) : Result Bool :=
   andThen (program.publicCheck candidate.1) fun _ => ambient program candidate.1 candidate.2
 
 section Values
@@ -341,19 +341,19 @@ private theorem coefficient_value
   rfl
 
 include correct in
-private theorem pad_value (probe : Probe K shape) (stored : StoredWitness shape carrier)
+private theorem pad_value (probe : StoredProbe shape) (stored : StoredWitness shape carrier)
     (source : Fin shape.sourceCount) (index : Fin shape.coefficientCount) :
     (coefficient program (program.padEntry index) stored source probe.coins.roundPoint.coordinates).value =
-      (StoredWitnessCheck.evaluations statement probe stored).padCoordinate source index := by
+      (StoredWitnessCheck.evaluations statement probe.view stored).padCoordinate source index := by
   rw [coefficient_value program commit params statement correct, StoredWitnessCheck.evaluations_eq_honestAt]
   simp only [correct.padEntry]
   rfl
 
 include correct in
-private theorem matrix_value (probe : Probe K shape) (stored : StoredWitness shape carrier)
+private theorem matrix_value (probe : StoredProbe shape) (stored : StoredWitness shape carrier)
     (source : Fin shape.sourceCount) (matrix : Fin shape.matrixCount) (index : Fin shape.coefficientCount) :
     (coefficient program (program.matrixEntry matrix index) stored source probe.coins.roundPoint.coordinates).value =
-      (StoredWitnessCheck.evaluations statement probe stored).matrixCoordinate source matrix index := by
+      (StoredWitnessCheck.evaluations statement probe.view stored).matrixCoordinate source matrix index := by
   rw [coefficient_value program commit params statement correct, StoredWitnessCheck.evaluations_eq_honestAt]
   simp only [correct.matrixEntry]
   rfl
@@ -366,19 +366,19 @@ private theorem opening_value (stored : StoredWitness shape carrier) (source : F
   rfl
 
 include correct in
-private theorem evaluation_value (probe : Probe K shape) (stored : StoredWitness shape carrier)
+private theorem evaluation_value (probe : StoredProbe shape) (stored : StoredWitness shape carrier)
     (source : Fin shape.sourceCount) :
     (evaluation program probe stored source probe.coins.roundPoint.coordinates).value =
-      StoredWitnessCheck.evaluationCheck (StoredWitnessCheck.evaluations statement probe stored)
-        probe.response.fullOutput source := by
+      StoredWitnessCheck.evaluationCheck (StoredWitnessCheck.evaluations statement probe.view stored)
+        probe.view.response.fullOutput source := by
   simp only [evaluation, andThen_value, allFin_value, compareEvaluation, correct.equalK,
     correct.padClaim, correct.matrixClaim, pad_value program commit params statement correct,
     matrix_value program commit params statement correct]
   rfl
 
 include correct in
-private theorem ambient_value (probe : Probe K shape) (stored : StoredWitness shape carrier) :
-    (ambient program probe stored).value = StoredWitnessCheck.ambientCheck commit params statement probe stored := by
+private theorem ambient_value (probe : StoredProbe shape) (stored : StoredWitness shape carrier) :
+    (ambient program probe stored).value = StoredWitnessCheck.ambientCheck commit params statement probe.view stored := by
   simp only [ambient, pointCoordinates, allFin_value, andThen_value,
     opening_value program commit params statement correct,
     evaluation_value program commit params statement correct]
@@ -386,8 +386,9 @@ private theorem ambient_value (probe : Probe K shape) (stored : StoredWitness sh
 
 include correct in
 /-- Erasing the actual invocation's work gives the already proved Boolean checker. -/
-theorem check_value (candidate : Probe K shape × StoredWitness shape carrier) :
-    (check program candidate).value = StoredWitnessCheck.check commit params statement width candidate := by
+theorem check_value (candidate : StoredProbe shape × StoredWitness shape carrier) :
+    (check program candidate).value =
+      StoredWitnessCheck.check commit params statement width (candidate.1.view, candidate.2) := by
   simp only [check, andThen_value, correct.publicCheck, ambient_value program commit params statement correct]
   rfl
 
@@ -549,7 +550,7 @@ private theorem compareEvaluation_work_le (expected received : Result K) :
   omega
 
 include bounded in
-private theorem evaluation_work_le (probe : Probe K shape) (stored : StoredWitness shape carrier)
+private theorem evaluation_work_le (probe : StoredProbe shape) (stored : StoredWitness shape carrier)
     (source : Fin shape.sourceCount) (coordinates : List K) :
     (evaluation program probe stored source coordinates).work ≤ evaluationWork shape carrier bounds := by
   have padEach (index : Fin shape.coefficientCount) :
@@ -592,7 +593,7 @@ private theorem evaluation_work_le (probe : Probe K shape) (stored : StoredWitne
   omega
 
 include bounded in
-private theorem ambient_work_le (probe : Probe K shape) (stored : StoredWitness shape carrier) :
+private theorem ambient_work_le (probe : StoredProbe shape) (stored : StoredWitness shape carrier) :
     (ambient program probe stored).work ≤
       shape.sourceCount * (openingWork carrier bounds + evaluationWork shape carrier bounds + 8) + 8 := by
   have each (source : Fin shape.sourceCount) :
@@ -612,7 +613,7 @@ private theorem ambient_work_le (probe : Probe K shape) (stored : StoredWitness 
 include bounded in
 /-- Bound the executed checker, including rejected inputs, from actual
 primitive bounds and the proved finite-loop and MLE counts. -/
-theorem check_work_le (candidate : Probe K shape × StoredWitness shape carrier) :
+theorem check_work_le (candidate : StoredProbe shape × StoredWitness shape carrier) :
     (check program candidate).work ≤ workBound shape carrier bounds := by
   have publicWork := bounded.publicCheck candidate.1
   have witnessWork := ambient_work_le program bounds bounded candidate.1 candidate.2

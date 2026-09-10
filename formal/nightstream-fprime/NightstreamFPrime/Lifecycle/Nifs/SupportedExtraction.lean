@@ -221,11 +221,11 @@ theorem probability_and_expected_work
         Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
         Polynomial.C (productionShape.freshCount : ℝ) *
           (Polynomial.C (WitnessProjection.privateWidth (FullShape logicalWidth publicFits) : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
         Polynomial.C (productionShape.runningCount : ℝ) *
           (Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
-        Polynomial.C 9).eval (securityParameter : ℝ) := by
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
+        Polynomial.C 13).eval (securityParameter : ℝ) := by
   dsimp only
   intro baseSummable basePPT primitivePPT accessPPT
   let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
@@ -276,10 +276,10 @@ theorem msis_probability_and_expected_work {SetupTape : Type*}
       Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
       Polynomial.C (productionShape.freshCount : ℝ) *
         (Polynomial.C (WitnessProjection.privateWidth (FullShape logicalWidth publicFits) : ℝ) *
-          (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+          (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
       Polynomial.C (productionShape.runningCount : ℝ) *
         (Polynomial.C ((FullShape logicalWidth publicFits).carrierWidth : ℝ) *
-          (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) + Polynomial.C 9
+          (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) + Polynomial.C 13
     Summable (fun context => (contexts context).toReal * StrongProbability.verifierMean (base context)) →
     StrongProbability.clockMean contexts base ≤ basePolynomial.eval (securityParameter : ℝ) →
     (bounds.coordinateWork : ℝ) ≤ primitivePolynomial.eval (securityParameter : ℝ) →

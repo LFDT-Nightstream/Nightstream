@@ -320,11 +320,11 @@ theorem expected_work_polynomial_bound (contexts : PMF Context)
         Polynomial.C (arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
         Polynomial.C (shape.freshCount : ℝ) *
           (Polynomial.C (WitnessProjection.privateWidth carrier : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
         Polynomial.C (shape.runningCount : ℝ) *
           (Polynomial.C (carrier.carrierWidth : ℝ) *
-            (accessPolynomial + Polynomial.C 1) + Polynomial.C 2) +
-        Polynomial.C 9).eval (securityParameter : ℝ) := by
+            (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
+        Polynomial.C 13).eval (securityParameter : ℝ) := by
   have actual := expected_work_bound algebra call law checker weak strong decode laws strongSet
     correct bounds bounded accessBound accessBounded contexts baseSummable
   refine ⟨actual.1, ?_⟩

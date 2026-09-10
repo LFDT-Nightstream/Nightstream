@@ -3,6 +3,7 @@
 #   validate.sh static            boundary checks only (no Lean)
 #   validate.sh build [target]    lake build (default: the two libraries)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
+#   validate.sh identity          recompute canonical binding and compare pins
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
@@ -66,6 +67,13 @@ case "$phase" in
   static) bash scripts/check-boundaries.sh ;;
   build)  capped lake build "${2:-NightstreamFPrime}" ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
+  identity)
+    if (( $# != 1 )); then echo "usage: validate.sh identity" >&2; exit 2; fi
+    identity_output="$(mktemp "${TMPDIR:-/tmp}/nightstream-fprime-identity.XXXXXX.json")"
+    trap 'rm -f -- "$identity_output"' EXIT
+    capped lake exe emitPoseidon2HashChainV1BindingParity -- "$identity_output"
+    timeout --signal=KILL 300s python3 -B scripts/check_identity.py "$identity_output"
+    ;;
   stage1-axioms)
     for audit in \
       tests/AxiomsAjtaiSetupV1.lean \

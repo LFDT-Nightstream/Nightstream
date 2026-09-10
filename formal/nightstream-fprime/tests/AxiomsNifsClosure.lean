@@ -533,3 +533,5 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_work_le
 
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsBinding.bindingEvent_to_shortKernel
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.finishValue_source_iff

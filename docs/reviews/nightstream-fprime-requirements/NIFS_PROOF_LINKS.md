@@ -547,6 +547,31 @@ affected source references resolve. One existing reference moved from line
 111 to 112 and was corrected. All other 451 nodes and all prior update records
 are unchanged.
 
+## Executed PiCCS acceptance and strong probe
+
+Code commit: `bec2bc96f49c4bc0253bbe08efb6ba32d2f3b676`.
+
+`PiCCSInputCheck.execute_accepted_iff` identifies the executed acceptance bit
+with `Probe.FixedWidthAccepted` for the exact supplied rounds, full output,
+and derived challenges. It consumes the checked fast initial and terminal
+equations and the existing fixed-width raw-certificate theorem. The selected
+statement and key remain the same.
+
+`PiRLCInputCheck.sampled_fixedWidthAccepted` consumes this equivalence. Every
+successful actual C/R handoff now supplies the accepted probe used by the
+strong extraction theorem. It does not assume that probe acceptance.
+The first draft had record syntax and namespace errors; both are corrected.
+The C/R audit passes in 4 seconds, the C audit in 3 seconds, and the boundary
+gate passes. Both new theorem audits contain only the permitted axioms.
+`NIFS_EXECUTED_PROBE_EVIDENCE.zip` retains the exact source and all proof logs.
+
+This is a deterministic connection for actual checked inputs. The existing
+execution functions are unchanged. It supplies no challenge distribution,
+ambient-witness checker, primitive cost bound or Fiat–Shamir transfer.
+The retained-source check confirms that all previous C/R declarations have
+identical bytes. The local export and all seven export tests pass; all 73
+affected source references resolve, with the other 451 nodes preserved.
+
 ## External proof references
 
 The online review found [ArkLib](https://github.com/Verified-zkEVM/ArkLib)

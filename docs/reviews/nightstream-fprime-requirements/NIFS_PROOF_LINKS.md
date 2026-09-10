@@ -21,9 +21,9 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
 | `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; preparation and reduction work checked |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
-| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; current PiCCS-to-PiRLC verifier prefix checked |
-| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current PiCCS-to-PiRLC commands and outputs retained |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; current C-to-R owner links checked |
+| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; selected C/R/D values and witnesses checked |
+| `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Partial; current C/R/D commands and outputs retained |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; selected PiDEC knowledge consumer now checked |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -324,6 +324,61 @@ remain at the recorded external paths with byte identities and generation
 commands. PiDEC, final output and complete matrix/assignment conformance
 remain open, as do the separate extraction-cost and Fiat-Shamir obligations.
 
+## Actual PiDEC and final running output
+
+Code commit: `1666d816c321dbbd121d0506af7e1435342bc2b0`.
+
+`PiDECInputCheck` now consumes the typed final values from the same executable
+PiRLC trace. It uses the existing paper verifier, strict public bound,
+canonical public split, and the selected relation and key. The supplied point
+and every child public input must match the verifier's output. Its
+`accepted_reduces_knowledge` theorem consumes the existing reduction: valid
+openings for these actual children reconstruct an opening for this actual
+parent. It does not assume parent opening validity. `child_structure` consumes
+the proof that the lazy matrix accessor equals the selected application plan.
+
+The full Lean C/R/D check passed in 15 seconds. Its C/R prefix is unchanged.
+It accepts PiDEC and produces the exact supplied 16-child running output.
+The earlier runtime constructed the full relation before it was needed and
+was stopped. The checked lazy accessor removes that work from public checks;
+it does not substitute a smaller relation.
+
+The actual R witness has maximum norm 113. Its 16 signed binary children use
+the unchanged Nightstream Goldilocks profile, `b = 2`, `k_rho = 16`,
+`B = 65536`. All 19008 child commitment coefficients pass an independent
+selected-key check in 88.65 seconds. All 12960 child evaluation coefficients,
+including the pad and all 14 matrix families, pass the independent evaluator
+and its existing mutation checks in 135.86 seconds.
+
+`child-dec-driver` continues the actual optimized C/R execution through the
+native PiDEC split, prover and verifier. Every private digit agrees with the
+independent integer witness. Seven digit planes are nonzero; the other nine
+are checked through their exact constant-zero representation. All 17 public
+result fields agree with Lean. The C proof bytes and R result bytes are
+unchanged, and all 446109 final running-output bytes agree. C/R took 88.54
+seconds; D took 11.71 seconds. The first comparison used a dense accessor on
+a compact matrix and aborted. The corrected indexed comparison passed.
+
+All 55 native D mutations reject. The Lean test rejects 34 public mutations
+and 10 encoding errors, the public norm boundary, and a rejected C prefix
+that would otherwise supply a D parent. It passed in 20 seconds. The native
+prepared-opening path now omits its unused matrix cache; a focused release
+regression compares it with the checked cached path and passes.
+
+The final C, R and D axiom audits passed in 8, 2 and 3 seconds. They permit
+only `propext`, `Classical.choice` and `Quot.sound`. The source boundary gate
+passed. `NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip` retains source, commands,
+complete input/output records, mutation files and logs, including failed
+diagnostics. Raw caches keep their recorded external paths and regeneration
+commands. Every native test uses the 300-second cap, and every Lean command
+uses the 1500-second cap. No PaperExact action ran.
+
+These checks establish the stated selected phase execution. Complete NIFS
+caller replay, full expanded-matrix/assignment checks and independent review
+remain separate requirements. The three NIFS conformance links stay partial.
+The local requirements export, all seven export tests, JavaScript syntax and
+affected source references pass. All other 451 requirement nodes are preserved.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -331,10 +386,10 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Continue the same honest input through PiDEC and final output, with the
-complete required mutations and assignment/matrix checks.
-Keep the current PiCCS-to-PiRLC verifier prefix separate from complete NIFS
-or phase approval.
+Connect the same checked C/R/D proof to the complete NIFS caller, including
+the prior-parent authority check. Complete the required expanded-matrix and
+raw-assignment checks at their existing owners. Keep local execution evidence
+separate from independent phase approval.
 
 The lookup for an existing approved Fiat-Shamir model is pending. No new
 Poseidon2 idealization, query budget, or security-transfer assumption was

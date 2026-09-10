@@ -19,7 +19,7 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; preparation and reduction work checked |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; selected public checker, preparation and reduction work checked |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
 | `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; full native NIFS output and canonical proof bytes checked; independent review open |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
@@ -571,6 +571,43 @@ ambient-witness checker, primitive cost bound or Fiat–Shamir transfer.
 The retained-source check confirms that all previous C/R declarations have
 identical bytes. The local export and all seven export tests pass; all 73
 affected source references resolve, with the other 451 nodes preserved.
+
+## Complete strong-probe batch and selected public checker
+
+Code commit: `2876011e105da37b60f7d86b3ed33125dcbe0435`.
+
+`PiRLCParent.inputBatch_eq_probe` identifies the entire actual R input with
+the batch of the executed C probe. Equality includes all 17 ordered claims,
+the selected relation, point, public inputs, commitments and both evaluation
+families. `checked_children_imply_rlc_success` now returns the accepted strong
+probe and weak-response success for that exact batch. It consumes the checked
+C acceptance link and D opening reconstruction. Its remaining witness premise
+is validity of the actual final child openings.
+
+`SupportedExtraction.publicCheck` now computes the selected fixed-width public
+check from the running fields and the returned probe. It uses the existing
+polynomial, coefficient projections and verifier equations. It does not
+construct the noncomputable semantic key. `publicCheck_correct` proves its
+equivalence to the selected predicate for every probe, including malformed
+messages. All five supported extraction results consume this checker. They
+no longer take an arbitrary public checker or its correctness as premises.
+
+The actual-batch audit and the NIFS extraction audit each pass in 4 seconds.
+The boundary gate passes. The retained failed drafts show one unsimplified
+record projection and one attempted computational use of the semantic key;
+both are corrected. `NIFS_SELECTED_CHECKER_EVIDENCE.zip` retains the checked
+source and logs. The earlier goal turn made progress through committed native
+conformance and executed-probe proofs; this turn removes a concrete checker
+premise and connects the full weak input.
+
+The witness-operation implementations, ambient witness checker, accessors
+and their work bounds remain separate obligations. No new hardness premise,
+challenge law, or Fiat–Shamir model was introduced. These two map links remain
+partial.
+The local export and all seven export tests pass. All 55 affected source
+references resolve. The weak-extraction and composition records only refresh
+source lines; their proved and connected statuses are unchanged. All other
+450 nodes and all earlier update records are preserved.
 
 ## External proof references
 

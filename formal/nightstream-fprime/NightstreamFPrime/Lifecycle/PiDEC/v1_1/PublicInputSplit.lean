@@ -35,10 +35,25 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
+def exactCoordinateCount : Nat := ringDegree * publicRingColumns
+
+def exactPrivateCount : Nat :=
+  exactCoordinateCount * SignedSplitScalar.exactPrivateCount
+
+def exactRowCount : Nat :=
+  exactCoordinateCount * SignedSplitScalar.exactRowCount
+
 def coordinateCount (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
   (FullShape logicalWidth publicFits).publicWidth
+
+theorem coordinateCount_eq_exact
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    coordinateCount logicalWidth publicFits = exactCoordinateCount := by
+  rfl
 
 theorem coordinateCount_eq
     (logicalWidth : Nat)
@@ -65,17 +80,17 @@ theorem logicalPrivateCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    logicalPrivateCount logicalWidth publicFits = 270 := by
-  rw [logicalPrivateCount, coordinateCount_eq]
+    logicalPrivateCount logicalWidth publicFits = exactPrivateCount := by
+  rw [logicalPrivateCount, coordinateCount_eq_exact]
   rfl
 
 theorem logicalRowCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    logicalRowCount logicalWidth publicFits = 4860 := by
-  rw [logicalRowCount, coordinateCount_eq]
-  norm_num [SignedSplitScalar.exactRowCount]
+    logicalRowCount logicalWidth publicFits = exactRowCount := by
+  rw [logicalRowCount, coordinateCount_eq_exact]
+  rfl
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

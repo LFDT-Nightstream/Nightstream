@@ -70,15 +70,10 @@ theorem decodedEnv_location
 
 private theorem location_afterPiCCS (location : PiDECDirectPlan.Location) :
     PiRLCInputs.phaseOffset ≤ location.sourceColumn := by
-  cases location <;>
-    simp only [PiDECDirectPlan.Location.sourceColumn,
-      PiDECSourceSupport.parentCommitmentStart_eq,
-      PiDECSourceSupport.parentPublicInputStart_eq,
-      PiDECSourceSupport.parentEvalKStart_eq, PiDECSourceSupport.parentEvalAStart_eq] <;>
-    norm_num [PiRLCInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECStarts.phaseLogicalStart, PiDECStarts.phaseFreshStart,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount_eq,
-      Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount] <;> omega
+  apply Nat.le_trans (m := PiDECSourceSupport.parentCommitmentStart)
+  · rw [PiDECSourceSupport.parentCommitmentStart_eq]
+    norm_num [PiRLCInputs.phaseOffset]
+  · exact PiDECSourceSupport.parentStart_le_source location.sourceSupport
 
 private theorem decodedEnv_beforePiRLC
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)

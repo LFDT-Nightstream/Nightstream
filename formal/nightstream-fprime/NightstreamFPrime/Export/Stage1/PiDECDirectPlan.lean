@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.PiDEC.v1_1.Preservation
@@ -29,7 +30,7 @@ inductive Location where
   | parentEvalK (index : Fin PiDECInputs.evalKWordsPerChild)
   | parentEvalA (index : Fin PiDECInputs.evalAWordsPerChild)
   | proof (index : Fin PiDECInputs.proofInputColumnCount)
-  | logical (index : Fin 270)
+  | logical (index : Fin logicalCount)
   | fresh (index : Fin freshCount)
 
 namespace Location
@@ -110,7 +111,7 @@ theorem sourceSupport (location : Location) : Source location.sourceColumn := by
           PiDECStarts.phaseLogicalStart + index.val
         omega
       · change PiDECStarts.phaseLogicalStart + index.val <
-          PiDECStarts.phaseLogicalStart + 270
+          PiDECStarts.phaseLogicalStart + logicalCount
         have bound := index.isLt
         omega
   | fresh index =>
@@ -255,7 +256,7 @@ def classifySource (column : Nat) : Option (Located column) :=
       PiDECInputs.proofInputColumnCount column then
     some ⟨.proof (rangeIndex proof), by
       rw [Location.sourceColumn, rangeIndex_source proof]⟩
-  else if logical : InRange PiDECStarts.phaseLogicalStart 270 column then
+  else if logical : InRange PiDECStarts.phaseLogicalStart logicalCount column then
     some ⟨.logical (rangeIndex logical), by
       rw [Location.sourceColumn, rangeIndex_source logical]⟩
   else if fresh : InRange PiDECStarts.phaseFreshStart freshCount column then
@@ -292,7 +293,7 @@ theorem classifySource_complete {column : Nat} (support : Source column) :
     rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_neg evalA,
       dif_pos proof]
     rfl
-  by_cases logical : InRange PiDECStarts.phaseLogicalStart 270 column
+  by_cases logical : InRange PiDECStarts.phaseLogicalStart logicalCount column
   · unfold classifySource
     rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_neg evalA,
       dif_neg proof, dif_pos logical]
@@ -353,15 +354,11 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
 private theorem Location.sourceColumn_afterTranscript (location : Location) :
     PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
       location.sourceColumn := by
-  cases location <;>
-    simp only [Location.sourceColumn, PiCCSInputs.phaseOffset_eq,
-      PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
-      PiDECSourceSupport.parentCommitmentStart_eq,
-      PiDECSourceSupport.parentPublicInputStart_eq,
-      PiDECSourceSupport.parentEvalKStart_eq,
-      PiDECSourceSupport.parentEvalAStart_eq,
-      PiDECInputs.proofInputStart, PiDECInputs.phaseOffset,
-      PiDECStarts.phaseLogicalStart, PiDECStarts.phaseFreshStart] <;> omega
+  have first : PiCCSInputs.phaseOffset +
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+        PiDECSourceSupport.parentCommitmentStart := by decide
+  exact Nat.le_trans first
+    (PiDECSourceSupport.parentStart_le_source location.sourceSupport)
 
 theorem sourceMap_form_eval_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -473,8 +470,8 @@ def publicSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.publicRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := 22680
-  rowCount_le := by norm_num [Lifecycle.cubeVariables]
+  rowCount := Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount
+  rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.publicProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.publicProgramRows_eq relation
   supported := PiDECOrdinaryDirectSource.publicProgramRow_varsSatisfy relation
@@ -484,8 +481,8 @@ def commitmentSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.commitmentRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := 1188
-  rowCount_le := by norm_num [Lifecycle.cubeVariables]
+  rowCount := Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount
+  rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.commitmentProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.commitmentProgramRows_eq relation
   supported := PiDECOrdinaryDirectSource.commitmentProgramRow_varsSatisfy relation
@@ -495,8 +492,8 @@ def evalKSource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.evalKRows
       relationLogicalWidth relationPublicFits) where
-  rowCount := 108
-  rowCount_le := by norm_num [Lifecycle.cubeVariables]
+  rowCount := Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount
+  rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.evalKProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.evalKProgramRows_eq relation
   supported := PiDECOrdinaryDirectSource.evalKProgramRow_varsSatisfy relation
@@ -506,8 +503,8 @@ def evalASource
       relationPublicFits) :
     SupportedProgram (PiDECOrdinaryDirectSource.evalARows
       relationLogicalWidth relationPublicFits) where
-  rowCount := 1512
-  rowCount_le := by norm_num [Lifecycle.cubeVariables]
+  rowCount := Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount
+  rowCount_le := by decide
   row := PiDECOrdinaryDirectSource.evalAProgramRow relation
   exactRows := PiDECOrdinaryDirectSource.evalAProgramRows_eq relation
   supported := PiDECOrdinaryDirectSource.evalAProgramRow_varsSatisfy relation
@@ -549,7 +546,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (publicPlan relation geometry).rowCount = 22680 := by
+    (publicPlan relation geometry).rowCount = Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
   rfl
 
 @[simp] theorem commitmentPlan_rowCount
@@ -557,7 +554,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (commitmentPlan relation geometry).rowCount = 1188 := by
+    (commitmentPlan relation geometry).rowCount = Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalKPlan_rowCount
@@ -565,7 +562,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (evalKPlan relation geometry).rowCount = 108 := by
+    (evalKPlan relation geometry).rowCount = Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
   rfl
 
 @[simp] theorem evalAPlan_rowCount
@@ -573,7 +570,7 @@ def evalAPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (evalAPlan relation geometry).rowCount = 1512 := by
+    (evalAPlan relation geometry).rowCount = Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   rfl
 
 private theorem evalPlans_fit
@@ -584,7 +581,7 @@ private theorem evalPlans_fit
     (evalKPlan relation geometry).rowCount + (evalAPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
   rw [evalKPlan_rowCount, evalAPlan_rowCount]
-  norm_num [Lifecycle.cubeVariables]
+  decide
 
 def evaluationPlan {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -599,7 +596,9 @@ def evaluationPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (evaluationPlan relation geometry).rowCount = 1620 := by
+    (evaluationPlan relation geometry).rowCount =
+      Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
+        Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   simp [evaluationPlan]
 
 private theorem recompositionPlans_fit
@@ -611,7 +610,7 @@ private theorem recompositionPlans_fit
         (evaluationPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
   rw [commitmentPlan_rowCount, evaluationPlan_rowCount]
-  norm_num [Lifecycle.cubeVariables]
+  decide
 
 def recompositionPlan {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -626,7 +625,10 @@ def recompositionPlan {application : Lifecycle.Stage1.Application.Program}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (recompositionPlan relation geometry).rowCount = 2808 := by
+    (recompositionPlan relation geometry).rowCount =
+      Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount +
+        (Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
+          Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) := by
   simp [recompositionPlan]
 
 private theorem allPlans_fit
@@ -638,7 +640,7 @@ private theorem allPlans_fit
         (recompositionPlan relation geometry).rowCount ≤
       2 ^ Lifecycle.cubeVariables := by
   rw [publicPlan_rowCount, recompositionPlan_rowCount]
-  norm_num [Lifecycle.cubeVariables]
+  decide
 
 def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
@@ -652,8 +654,9 @@ def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 25488 := by
-  simp [plan]
+    (plan relation geometry).rowCount = Layout.PiDEC.v1_1.exactRowCount := by
+  simp [plan, Layout.PiDEC.v1_1.exactRowCount,
+    Layout.PiDEC.v1_1.exactRowDeltas, Nat.add_assoc]
 
 /-- The PiDEC matrix plan depends on relation shape only. The logical
 relation value supplies proof certificates but does not select any row. -/

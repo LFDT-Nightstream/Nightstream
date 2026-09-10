@@ -21,6 +21,8 @@ def recursiveRunningBelow
         ).VarsBelow phaseOffset) :
     RunningTransition.RunningBelow (recursiveRunningExpr logicalWidth publicFits)
       phaseOffset := by
+  have phaseLower := piDecPhaseOffset_le
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount_eq] at phaseLower
   refine {
     point := pointBelow
     commitment := ?_
@@ -33,9 +35,9 @@ def recursiveRunningBelow
     have sourceBound := source.isLt
     have rowBound := row.isLt
     have coefficientBound := coefficient.isLt
-    norm_num [phaseOffset, PiDECInputs.childCommitmentStart,
-      PiDECInputs.commitmentInputStart, PiDECInputs.proofInputStart,
-      PiDECInputs.commitmentWordsPerChild, productionShape,
+    norm_num [PiDECInputs.childCommitmentStart,
+      PiDECInputs.commitmentInputStart, PiDECInputs.commitmentWordsPerChild,
+      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq, productionShape,
       productionProfile, Phi81MatrixSource.phi81Shape, ringDegree] at sourceBound rowBound coefficientBound ⊢
     omega
   · intro source column
@@ -43,12 +45,16 @@ def recursiveRunningBelow
       PiDECInputs.childPublicInput, Expr.VarsBelow]
     have sourceBound := source.isLt
     have columnBound := column.isLt
-    norm_num [phaseOffset, PiDECInputs.childPublicInputStart,
+    norm_num [PiDECInputs.childPublicInputStart,
       PiDECInputs.publicInputStart, PiDECInputs.evalAInputStart,
       PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-      PiDECInputs.proofInputStart, PiDECInputs.childCount,
+      PiDECInputs.childCount, productionGlobalParams,
       PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
       PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
+      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
+      PiDEC.v1_1.EvalARecomposition.coordinateCount_eq,
+      PiDEC.v1_1.PublicInputSplit.exactCoordinateCount,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       FullShape, fullShape, Phi81Relation.Shape.publicWidth,
       publicRingColumns, ringDegree] at sourceBound columnBound ⊢
@@ -59,10 +65,12 @@ def recursiveRunningBelow
       Expr.VarsBelow]
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
-    norm_num [phaseOffset, PiDECInputs.childEvalKStart,
+    norm_num [PiDECInputs.childEvalKStart,
       PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-      PiDECInputs.proofInputStart, PiDECInputs.childCount,
+      PiDECInputs.childCount, productionGlobalParams,
       PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
+      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       ringDegree] at sourceBound coefficientBound ⊢
     omega
@@ -73,11 +81,14 @@ def recursiveRunningBelow
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
     have coefficientBound := coefficient.isLt
-    norm_num [phaseOffset, PiDECInputs.childEvalAStart,
+    norm_num [PiDECInputs.childEvalAStart,
       PiDECInputs.evalAInputStart, PiDECInputs.evalKInputStart,
-      PiDECInputs.commitmentInputStart, PiDECInputs.proofInputStart,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
+      PiDECInputs.commitmentInputStart,
+      PiDECInputs.childCount, productionGlobalParams, PiDECInputs.commitmentWordsPerChild,
       PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
+      PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq,
+      PiDEC.v1_1.EvalKRecomposition.coordinateCount_eq,
+      PiDEC.v1_1.EvalARecomposition.coordinateCount_eq,
       productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
       ringDegree] at sourceBound matrixBound coefficientBound ⊢
     omega

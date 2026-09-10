@@ -2,6 +2,7 @@ import NightstreamFPrime.Layout.Stage1.CompactPullback
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptRelocation
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
 import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
@@ -1199,13 +1200,9 @@ private theorem sourceEnv_eq_compactEnv_belowPiDec
   intro index bounded
   symm
   apply CompactPullback.compactEnv_source
-  rw [Spartan.sourceColumnCount_eq]
-  norm_num [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-    PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
-    at bounded ⊢
-  omega
+  exact Nat.lt_of_lt_of_le bounded
+    (Nat.le_trans (Nat.le_add_right _ _)
+      PiDECSourceSupport.logical_end_le_sourceColumnCount)
 
 private theorem compactPiDecParent_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

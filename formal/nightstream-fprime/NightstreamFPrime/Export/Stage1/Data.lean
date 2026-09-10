@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.VerifierContextCandidate
 import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
@@ -202,31 +203,11 @@ theorem piDecPrivateSegments_contiguous :
         runningTransitionWitnessStart ∧
       runningTransitionWitnessStart + runningTransitionWitnessLength =
         NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
-  norm_num [proofInputStart, witnessStart, witnessLength, piDecCommitmentStart,
-    piDecEvalKStart, piDecEvalAStart, piDecPublicInputStart,
-    piDecWitnessStart, piDecWitnessLength, runningTransitionWitnessStart,
-    runningTransitionWitnessLength,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.commitmentInputStart,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.evalKInputStart,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.evalAInputStart,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.publicInputStart,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset,
-    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputStart,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputColumnCount,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.childCount,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.commitmentWordsPerChild,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.evalKWordsPerChild,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.evalAWordsPerChild,
-    NightstreamFPrime.Layout.Stage1.PiDECInputs.publicInputWordsPerChild,
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
-    NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-    NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-    NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount,
-    NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount,
-    NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount]
+  rcases Layout.Stage1.PiDECSourceSupport.mapped_input_ranges_contiguous with
+    ⟨commitment, evalK, evalA, publicInput⟩
+  exact ⟨by decide, commitment, evalK, evalA, publicInput,
+    Nat.add_sub_of_le Layout.Stage1.PiDECSourceSupport.mapped_logical_start_le_output,
+    Nat.add_sub_of_le Layout.Stage1.PiDECSourceSupport.mapped_output_le_private⟩
 
 def outputEval_KWords : Nat :=
   productionShape.coefficientCount * 2

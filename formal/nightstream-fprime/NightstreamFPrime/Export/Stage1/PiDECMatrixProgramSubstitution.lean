@@ -53,7 +53,7 @@ private theorem mapped_ranges_ordered :
     Spartan.sourceToSpartan PiDECInputs.proofInputStart +
         PiDECInputs.proofInputColumnCount =
       Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart ∧
-    Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + 270 =
+    Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + logicalCount =
       Spartan.sourceToSpartan PiDECStarts.phaseFreshStart := by
   rcases PiDECSourceSupport.source_ranges_ordered with
     ⟨_, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
@@ -152,7 +152,7 @@ theorem proofRange_form?
 
 theorem logicalRange_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 270) :
+    (geometry : Geometry program logicalWidth) (index : Fin logicalCount) :
     (logicalRange program).form? logicalWidth
         (Spartan.sourceToSpartan
           (PiDECStarts.phaseLogicalStart + index.val)) =
@@ -161,7 +161,7 @@ theorem logicalRange_form?
     sourceStarts_local.2.2.2.2.2.1]
   simpa [logicalRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (logicalBlock program) (logicalStart program)
-      (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) 270 0
+      (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) logicalCount 0
       (logicalFits geometry) (by rfl) index)
 
 theorem freshRange_form?

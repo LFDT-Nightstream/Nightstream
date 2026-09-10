@@ -165,17 +165,22 @@ theorem spartanConstraints_varsSatisfy (offset : Nat) :
 theorem sourceAssumptions (env : Env) :
     NextPreimage.Assumptions sourceInterface
       RunningTransitionInputs.phaseOffset env := by
+  have phaseLower := RunningTransitionInputs.piDecPhaseOffset_le
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+    PiRLCStarts.finalBoundaries_eq.2, PiDECInputs.proofInputColumnCount_eq]
+    at phaseLower
   refine {
     priorIteration := ?_
     outputIteration := ?_
     priorInitialState := fun index => ?_
     outputInitialState := fun index => ?_ }
   · simp only [sourceInterface, Expr.VarsBelow]
-    norm_num [priorIterationSource, RunningTransitionInputs.phaseOffset,
+    norm_num [priorIterationSource,
       RunningTransitionInputs.iterationWordIndex,
       PilotProduction.priorPreimageStart]
+    omega
   · simp only [sourceInterface, Expr.VarsBelow]
-    norm_num [outputIterationSource, RunningTransitionInputs.phaseOffset,
+    norm_num [outputIterationSource,
       RunningTransitionInputs.iterationWordIndex,
       PilotProduction.outputPreimageStart,
       PilotProduction.priorPublicInputStart,
@@ -183,16 +188,17 @@ theorem sourceAssumptions (env : Env) :
       PilotProduction.stateHashWords_eq,
       Lifecycle.PriorStateHash.publicWidth, Spec.ringDegree,
       Lifecycle.PaperAlgebra.publicRingColumns]
+    omega
   · simp only [sourceInterface, Expr.VarsBelow]
     have bound := index.isLt
-    norm_num [priorInitialStateSource, RunningTransitionInputs.phaseOffset,
+    norm_num [priorInitialStateSource,
       RunningTransitionInputs.initialStateWordStart,
       RunningTransition.stateWordCount, PilotProduction.priorPreimageStart]
       at bound ⊢
     omega
   · simp only [sourceInterface, Expr.VarsBelow]
     have bound := index.isLt
-    norm_num [outputInitialStateSource, RunningTransitionInputs.phaseOffset,
+    norm_num [outputInitialStateSource,
       RunningTransitionInputs.initialStateWordStart,
       RunningTransition.stateWordCount, PilotProduction.outputPreimageStart,
       PilotProduction.priorPublicInputStart,

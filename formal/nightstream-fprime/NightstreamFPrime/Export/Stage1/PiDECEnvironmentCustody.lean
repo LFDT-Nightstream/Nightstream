@@ -24,6 +24,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 private theorem ordinaryLocation_beforePiDECProof
     (location : PiRLCSamplerOrdinaryDirectPlan.Location) :
     location.sourceColumn < PiDECInputs.proofInputStart := by
+  rw [PiDECInputs.proofInputStart, PiRLCStarts.finalBoundaries_eq.2]
   cases location with
   | poseidon descriptor sourceLane =>
       rcases descriptor with ⟨source, round, lane⟩
@@ -109,6 +110,7 @@ private theorem ordinaryLocation_beforePiDECProof
 private theorem stateLocation_beforePiDECProof
     (location : PiRLCSamplerRetainedCustody.StateLocation) :
     location.sourceColumn < PiDECInputs.proofInputStart := by
+  rw [PiDECInputs.proofInputStart, PiRLCStarts.finalBoundaries_eq.2]
   have sourceBound := location.source.isLt
   have stepBound := location.step.isLt
   have laneBound := location.lane.isLt
@@ -171,31 +173,7 @@ private theorem parent_interval {source : Nat}
     (support : PiDECSourceSupport.Parent source) :
     PiRLCStarts.commitmentLogicalStart ≤ source ∧
       source < PiRLCStarts.phaseFreshStart := by
-  rcases support with commitment | publicInput | evalK | evalA
-  · unfold PiDECSourceSupport.InRange at commitment
-    rw [PiDECSourceSupport.parentCommitmentStart_eq] at commitment
-    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
-      PiRLCStarts.phaseFreshStart_eq]
-    norm_num [PiDECInputs.commitmentWordsPerChild] at commitment ⊢
-    omega
-  · unfold PiDECSourceSupport.InRange at publicInput
-    rw [PiDECSourceSupport.parentPublicInputStart_eq] at publicInput
-    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
-      PiRLCStarts.phaseFreshStart_eq]
-    norm_num [PiDECInputs.publicInputWordsPerChild] at publicInput ⊢
-    omega
-  · unfold PiDECSourceSupport.InRange at evalK
-    rw [PiDECSourceSupport.parentEvalKStart_eq] at evalK
-    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
-      PiRLCStarts.phaseFreshStart_eq]
-    norm_num [PiDECInputs.evalKWordsPerChild] at evalK ⊢
-    omega
-  · unfold PiDECSourceSupport.InRange at evalA
-    rw [PiDECSourceSupport.parentEvalAStart_eq] at evalA
-    rw [show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl,
-      PiRLCStarts.phaseFreshStart_eq]
-    norm_num [PiDECInputs.evalAWordsPerChild] at evalA ⊢
-    omega
+  exact PiDECSourceSupport.parent_within_piRlc support
 
 /-- Every source used by a nonempty PiDEC row has the same value in the
 complete sampler environment and canonical transition environment. -/

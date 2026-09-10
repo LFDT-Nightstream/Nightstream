@@ -88,10 +88,11 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | fresh index =>
       have bound := index.isLt
-      change index.val < 296138 at bound
-      rw [sourceColumn, Spartan.sourceColumnCount_eq]
-      norm_num [RunningTransitionInputs.phaseOffset]
-      omega
+      dsimp only [freshCount] at bound
+      have inside : RunningTransitionInputs.phaseOffset + index.val <
+          RunningTransitionSourceSupport.physicalEnd := by omega
+      exact RunningTransitionSourceSupport.source_lt_sourceColumnCount
+        (Or.inr ⟨Nat.le_add_right _ _, inside⟩)
 
 def form {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
@@ -549,17 +550,16 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         rfl
       rw [sourceEq, sourceAssignment_packageSource]
       apply Eq.symm
-      apply transitionEnv_of_notTranscript program base _ (Location.fresh index).sourceColumn_lt
-      rintro ⟨invocation, lane, same⟩
-      have indexBound : index.val < 296138 := index.isLt
-      have invocationBound : invocation.val < 718 := by
-        simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
-          using invocation.isLt
-      have laneBound : lane.val < 8 := lane.isLt
-      unfold sourceColumn at same
-      rw [PiCCSInputs.phaseOffset_eq] at same
-      norm_num [RunningTransitionInputs.phaseOffset] at same
-      omega
+      apply transitionEnv_of_outside program base _ (Location.fresh index).sourceColumn_lt
+      apply Or.inr
+      change PiCCSInputs.phaseOffset +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+        RunningTransitionInputs.phaseOffset + index.val
+      exact Nat.le_trans (show PiCCSInputs.phaseOffset +
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+            PiDECInputs.phaseOffset by decide)
+        (Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
+          (Nat.le_add_right _ _))
 
 end Location
 

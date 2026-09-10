@@ -22,13 +22,15 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- The completed PiRLC private-column endpoint. -/
-def proofInputStart : Nat := 28973248
+def proofInputStart : Nat := PiRLCStarts.outputFreshStart
 
-def childCount : Nat := 16
-def commitmentWordsPerChild : Nat := 1188
-def evalKWordsPerChild : Nat := 108
-def evalAWordsPerChild : Nat := 1512
-def publicInputWordsPerChild : Nat := 270
+def childCount : Nat := productionGlobalParams.k
+def commitmentWordsPerChild : Nat := PiDEC.v1_1.CommitmentRecomposition.coordinateCount
+def evalKWordsPerChild : Nat :=
+  PiDEC.v1_1.RingKRecomposition.coordinateCount PiDEC.v1_1.EvalKRecomposition.blockCount
+def evalAWordsPerChild : Nat :=
+  PiDEC.v1_1.RingKRecomposition.coordinateCount PiDEC.v1_1.EvalARecomposition.blockCount
+def publicInputWordsPerChild : Nat := PiDEC.v1_1.PublicInputSplit.exactCoordinateCount
 
 def commitmentInputStart : Nat := proofInputStart
 def evalKInputStart : Nat :=

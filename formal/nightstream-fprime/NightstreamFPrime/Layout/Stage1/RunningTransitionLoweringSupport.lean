@@ -31,6 +31,13 @@ theorem physicalRows_varsSatisfy
       physicalEnd
     rw [RunningTransitionLayout.physicalColumnCount_eq relation]
     rfl
+  have phaseLtEnd : phaseOffset < physicalEnd := by
+    have next := R1CS.LoweringPlan.next_eq
+      (RunningTransitionLayout.plan logicalWidth publicFits)
+    rw [endEq, RunningTransitionLayout.plan_firstFresh] at next
+    dsimp only [RunningTransitionLayout.logicalColumnCount] at next
+    have inversePositive : 0 < RunningTransition.exactPrivateCount := by decide
+    omega
   intro row member
   have support := lowered row member
   rw [endEq] at support
@@ -40,14 +47,10 @@ theorem physicalRows_varsSatisfy
   · rcases logical with external | inverse
     · exact Or.inl external
     · subst column
-      exact Or.inr (by
-        norm_num [phaseOffset, physicalEnd])
-  · exact Or.inr (by
-      change RunningTransitionLayout.logicalColumnCount ≤ column ∧
-        column < physicalEnd at fresh
-      norm_num [RunningTransitionLayout.logicalColumnCount, phaseOffset,
-        physicalEnd, RunningTransition.exactPrivateCount] at fresh ⊢
-      omega)
+      exact Or.inr ⟨Nat.le_refl _, phaseLtEnd⟩
+  · change RunningTransitionLayout.logicalColumnCount ≤ column ∧
+      column < physicalEnd at fresh
+    exact Or.inr ⟨Nat.le_trans (Nat.le_add_right _ _) fresh.1, fresh.2⟩
 
 theorem remappedRows_varsSatisfy
     {logicalWidth : Nat}

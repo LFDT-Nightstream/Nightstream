@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Composition
 
 /-!
 Owns the one canonical R1CS lowering plan for the exact PiDEC v1_1 phase.
-All R1CS intermediates start after the phase's 270 logical sign cells. The
+All R1CS intermediates start after the phase's derived logical private cells. The
 plan lowers the unchanged six-child row order proved by `Composition`.
 -/
 
@@ -102,8 +102,8 @@ theorem logicalColumnCount_eq
 theorem logicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
-    logicalColumnCount relation interface offset = offset + 270 := by
-  unfold logicalColumnCount Formal.logicalPrivateCount
+    logicalColumnCount relation interface offset =
+      offset + Formal.logicalPrivateCount := by
   rfl
 
 theorem physicalFreshColumnCount_eq
@@ -139,7 +139,7 @@ theorem physicalFreshColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalFreshColumnCount relation interface offset = 17820 := by
+    physicalFreshColumnCount relation interface offset = exactFreshCount := by
   rw [physicalFreshColumnCount_eq]
   exact totalFreshCount_eq relation interface offset inputs
 
@@ -147,7 +147,7 @@ theorem physicalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalRowCount relation interface offset = 25488 := by
+    physicalRowCount relation interface offset = exactRowCount := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq relation interface offset inputs
 
@@ -155,9 +155,10 @@ theorem physicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalColumnCount relation interface offset = offset + 18090 := by
+    physicalColumnCount relation interface offset =
+      offset + (Formal.logicalPrivateCount + exactFreshCount) := by
   rw [physicalColumnCount_eq,
     physicalFreshColumnCount_eq_production relation interface offset inputs,
-    logicalColumnCount_eq_production]
+    logicalColumnCount_eq_production, Nat.add_assoc]
 
 end NightstreamFPrime.Layout.PiDEC.v1_1

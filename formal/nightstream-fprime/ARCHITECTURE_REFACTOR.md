@@ -34,6 +34,9 @@ Required results:
 - Keep the final soundness statements and their remaining assumptions easy
   to inspect. Record the gates for later constraint changes.
 
+The [assurance surface](ASSURANCE_SURFACE.md) names the current final statements
+and separates their completeness scope from their remaining premises.
+
 ## Work order and evidence
 
 1. Establish the current dependency baseline and identity gate. Reuse the
@@ -91,3 +94,12 @@ Keep the frozen corpus and the user's original dirty checkout unchanged.
 This goal does not change transcript semantics, authorize a new backend,
 approve the pending Fiat-Shamir model, prove full history extraction, or
 publish the requirements site.
+
+## PiDEC checkpoints
+
+The source-range pilot is recorded in [pidec-pilot.json](architecture/pidec-pilot.json).
+The next checkpoint derives the PiDEC sizes and starts from their child owners;
+[pidec-derived-sizes.json](architecture/pidec-derived-sizes.json) records its checks.
+The actual NIFS matrix-entry consumer, library, axiom audit and canonical identity
+gate pass. The allocation test remains a separate claim. Source import reachability
+has not decreased.

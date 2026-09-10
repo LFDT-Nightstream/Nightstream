@@ -159,8 +159,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
   exact RunningTransitionSourceSupport.piDecCount_eq
 
 @[simp] theorem freshCount_eq : freshCount = 296138 := by
-  norm_num [freshCount, RunningTransitionSourceSupport.physicalEnd,
-    RunningTransitionInputs.phaseOffset]
+  rfl
 
 @[simp] theorem freshBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :

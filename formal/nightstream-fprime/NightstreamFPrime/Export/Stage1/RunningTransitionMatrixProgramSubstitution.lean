@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 
 /-!
 Proves exact source custody for the compact running-transition ordinary-row
@@ -51,10 +52,16 @@ private theorem piDecRange_values (program : ApplicationProgram) :
       (piDecRange program).sourceCount = 49248 := by
   exact ⟨rfl, rfl⟩
 
-private theorem freshRange_values (program : ApplicationProgram) :
-    (freshRange program).sourceStart = 29040308 ∧
-      (freshRange program).sourceCount = 296138 := by
-  exact ⟨rfl, rfl⟩
+private theorem freshRange_after_piDec (program : ApplicationProgram) :
+    (piDecRange program).sourceStart + (piDecRange program).sourceCount ≤
+      (freshRange program).sourceStart := by
+  dsimp only [piDecRange, freshRange, SourceRange.ofSemantic]
+  rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
+    rw [RunningTransitionSourceSupport.piDecStart_eq]
+    norm_num [Spartan.piCcsPhaseOffset])]
+  simpa only [RunningTransitionSourceSupport.piDecStart,
+    RunningTransitionSourceSupport.piDecCount, PiDECInputs.phaseOffset] using
+    PiDECSourceSupport.mapped_logical_start_le_output
 
 private theorem stateTarget (index : Fin RunningTransitionSourceSupport.stateCount) :
     Spartan.sourceToSpartan
@@ -152,7 +159,8 @@ private theorem freshTarget (index : Fin freshCount) :
         (RunningTransitionInputs.phaseOffset + index.val) =
       Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset + index.val := by
   exact Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
-    norm_num [RunningTransitionInputs.phaseOffset, Spartan.piCcsPhaseOffset])
+    exact Nat.le_trans (by decide : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
+      RunningTransitionInputs.piDecPhaseOffset_le)
 
 theorem stateRange_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -268,8 +276,9 @@ private theorem piDecMappedStart (program : ApplicationProgram) :
   exact (piDecRange_values program).1
 
 private theorem freshMappedStart (program : ApplicationProgram) :
-    Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset = 29040308 := by
-  exact (freshRange_values program).1
+    Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset =
+      (freshRange program).sourceStart := by
+  simp only [freshRange, SourceRange.ofSemantic]
 
 private theorem roundC1Grid_form?_none_at_roundC0
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -388,8 +397,8 @@ theorem substitution_location_form?
     ⟨c1StartValue, c1CountValue, c1StrideValue⟩
   rcases piDecRange_values program with
     ⟨piDecStartValue, piDecCountValue⟩
-  rcases freshRange_values program with
-    ⟨freshStartValue, freshCountValue⟩
+  have piDecFresh := freshRange_after_piDec program
+  rw [piDecStartValue, piDecCountValue] at piDecFresh
   cases location with
   | state index =>
       have indexBound := index.isLt
@@ -521,24 +530,27 @@ theorem substitution_location_form?
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         selected, freshNone, c0None, c1None]
   | fresh index =>
-      have indexBound := index.isLt
-      change index.val < 296138 at indexBound
       have selected := freshRange_form? geometry index
       rw [freshTarget, freshMappedStart program] at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [freshTarget, freshMappedStart program]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (29040308 + index.val) (by omega)
+        (stateRange program) logicalWidth
+          ((freshRange program).sourceStart + index.val) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
-        (outputRange program) logicalWidth (29040308 + index.val) (by omega)
+        (outputRange program) logicalWidth
+          ((freshRange program).sourceStart + index.val) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_after
-        (piDecRange program) logicalWidth (29040308 + index.val) (by omega)
+        (piDecRange program) logicalWidth
+          ((freshRange program).sourceStart + index.val) (by omega)
       have c0None := SourceGrid.form?_eq_none_of_after
-        (roundC0Grid program) logicalWidth (29040308 + index.val)
+        (roundC0Grid program) logicalWidth
+          ((freshRange program).sourceStart + index.val)
         (by rw [c0StrideValue]; omega)
         (by rw [c0StartValue, c0CountValue, c0StrideValue]; omega)
       have c1None := SourceGrid.form?_eq_none_of_after
-        (roundC1Grid program) logicalWidth (29040308 + index.val)
+        (roundC1Grid program) logicalWidth
+          ((freshRange program).sourceStart + index.val)
         (by rw [c1StrideValue]; omega)
         (by rw [c1StartValue, c1CountValue, c1StrideValue]; omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,

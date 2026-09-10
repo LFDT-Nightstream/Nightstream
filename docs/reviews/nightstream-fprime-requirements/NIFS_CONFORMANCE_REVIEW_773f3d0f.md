@@ -818,3 +818,38 @@ axioms. Static checks pass. The complete selected commitment repair stopped
 after its third attempt and remains inactive and unvalidated. No new Rust,
 complete NIFS/Stage 1, backend or Fiat–Shamir verdict follows. The 17:20
 protected reviews were unchanged. No PaperExact or backend execution ran.
+
+## Actual commitment-block matrix entry at `361a4d7f`
+
+The complete entry source passed its third full check, and the final audit
+contains 405 complete records with only permitted axioms. Static passed.
+Worker 3's source review checks the exact append embedding, all 14 ports and
+54 coefficients, every carrier column, and the actual selected matrix-source
+consumer. Its 892,400 bound is explicitly a composed declared-counter bound;
+the new child-counter refinement findings do not revoke existing value or
+counter proofs, and do not supply runtime or conformance closure.
+
+The selected commitment consumer and three-fact inverse interface stopped
+after their third full attempts and remain inactive. Kernel progress records
+are not full-gate success. The active selected checker retains its two
+primitive premises. The full PiDEC phase and global inverse remain draft work.
+The additional CO25 analysis supplies a mathematical proof route with exact
+cache/cursor obligations; it grants no model or conformance approval.
+The unchanged 18:20 protected reviews and scoped evidence are retained in
+`NIFS_MATRIX_ENTRY_EVIDENCE.zip`. No new Rust, PaperExact, backend or publishing execution ran.
+
+## Coordinator record: selected conditional consumer at `88d394fb`
+
+The owner clarified the scope to implementation assurance and declared work
+clocks. The selected source checker and primitive value refinements now feed
+`NifsFiatShamir.finishValue_probability_and_expected_work`. The independent
+review retained in `NIFS_CLOSURE_EVIDENCE.zip` checks the exact stored event,
+shared input law and preserved hypotheses. It does not approve the external
+FS model, infer a compiled extractor runtime, or change the original 773f3d0f
+conformance verdict.
+
+The retained nonzero Lean/optimized phase and final-output comparison remains
+the NIFS conformance evidence. No Rust behavior, canonical relation, profile,
+transcript or package identity changed in this milestone. PaperExact and the
+full production evaluator keep their separate scope. No new broad phase or
+production approval follows from these proof checks.

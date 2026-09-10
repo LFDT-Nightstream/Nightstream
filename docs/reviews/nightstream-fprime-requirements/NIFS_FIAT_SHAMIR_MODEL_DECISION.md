@@ -559,6 +559,31 @@ remain explicit obligations. Fair-bit rejection has an expected-time
 bound, not a finite worst-case bound. The complete squeeze representation
 and its unused words still require the separate schedule/fiber match.
 
+## Exact local field preimages — `4049d613`
+
+`FieldPreimageRectangle` now proves the four candidate-class equivalences
+and the exact low/high rectangle preimages. Reject has size 1, a specified
+accepted residue has size 13107, all accepted candidates have size 65535,
+and unrestricted candidates have size 65536. Each word has `2^32-1` common
+field preimages; word zero has the extra field `q-1`. The class-restricted
+count is `(2^32-1)*|A|*|B|+[0 in A and 0 in B]`. Rank/unrank are computable
+arithmetic equivalences, with no enumeration or random-sampling claim. Raw
+alphabet index zero is centered -2, not centered zero. All ten exports passed
+the full module check and the 361-record NIFS axiom audit at `4049d6133972475eaa4cd61e27d447da48349392`.
+
+The complete decoder success/abort fibers, totalized scalar inverse, exact
+uniform-rank sampler and its expected work remain open. The verifier
+comparison draft is also inactive: its third full check still had two
+PiDEC decision/output congruence goals. Earlier depth errors were removed,
+but this is not a proved acceptance inclusion. The complete draft and logs
+are retained in `NIFS_MATRIX_AND_PREIMAGE_EVIDENCE.zip`.
+
+A fresh check of the [17 August 2026 CFRG draft](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-8.4)
+found no result that discharges the actual additive Poseidon2 schedule. Its
+XOF interface and general security requirements do not replace the missing
+schedule, cache, state-restoration or concrete-permutation transfer proofs.
+No model, quantum claim or new protocol behavior is approved here.
+
 ## Primary proof references and their limits
 
 [Chiesa–Orrù, ePrint 2025/536](https://eprint.iacr.org/2025/536),

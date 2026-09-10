@@ -1047,12 +1047,71 @@ the three records' connection statuses are preserved. At 09:20 UTC, both
 protected review paths were read again in both checkouts; their contents
 were unchanged. No site was published or model approved.
 
+## Stored matrix and field-preimage milestone — `4049d613`
+
+The checked code cut is `4049d6133972475eaa4cd61e27d447da48349392`. Four modules add 25 checked exports.
+The dependency-aware NIFS audit passed with 361 complete records, only the
+permitted axioms, and a three-second build. Static checks passed. The first
+static check found an in-progress, unregistered PiDEC source draft; that draft
+was moved out of the active module tree before the successful check.
+
+- `Export/MatrixProgram/SparseWork` constructs and scans actual stored lists.
+  It preserves order, zero coefficients and duplicate columns. Add costs
+  `10*left.entries.length+13`, scale costs `14*entries.length+13`, and
+  coefficient lookup costs at most `10*entries.length+8` named operations.
+- `Export/MatrixProgram/RetainedWork` constructs only the requested slot,
+  checks the existing complete block geometry, and returns the same form.
+  Its returned list has exactly the slot width. The bound is
+  `7*width^2+49*width+25`, including the actual Horner tail traversals.
+- `Export/MatrixProgram/CoefficientWork` consumes a stored sparse row and
+  uses all 54 lanes of the existing Phi81 coefficient expansion. Each live
+  logical source lane performs a duplicate-aware scan. The bound is
+  `54*(10*entries.length+8+kernelWork+14+8)+3+8`. Its value theorem consumes
+  equality to the existing matrix row; row construction remains a caller
+  cost. The source-lane guard preserves contributions to queried completion
+  columns and does not incorrectly zero every such query.
+- `PiRlcSampler/FieldPreimageRectangle` gives computable rank/unrank
+  equivalences for reject, one accepted residue, accepted, and unrestricted
+  candidate classes. Their sizes are 1, 13107, 65535 and 65536. For low/high
+  classes A/B the field preimage count is
+  `(2^32-1)*|A|*|B| + [0 in A and 0 in B]`. The extra field is `q-1`.
+  Low-class index varies first, then high-class index, then field block.
+  Raw alphabet index zero means the centered coefficient -2.
+
+These are named operation clocks, not machine instruction or bit-complexity
+proofs. Work counters exclude their own instrumentation. Source review found
+and corrected four missing scale operations and the zero-result construction
+charges before the final checks. The complete source and failed/successful
+logs are retained in [NIFS_MATRIX_AND_PREIMAGE_EVIDENCE.zip](NIFS_MATRIX_AND_PREIMAGE_EVIDENCE.zip).
+
+Two complete criteria stopped under the three-round rule. The resumed dense
+commitment checker again did not finish its final value proof; its last
+process was stopped after prolonged checking. Diagnostics establish that the
+preceding declarations completed in round 2. Its complete resumed draft is
+`drafts/NIFS_STORED_COMMITMENT_CHECK_RESUMED.lean.txt`; the historical draft
+is unchanged. `TotalizedComparison` round 3 removed the earlier recursion-depth
+errors but left two PiDEC decision/output equalities unproved. Its complete
+source is `drafts/NIFS_TOTALIZED_COMPARISON.lean.txt`. Both drafts are inactive
+and unvalidated, with no consumer or audit registration. No narrower fourth
+check was run. The selected checker still requires commitment and matrix
+contracts; full actual-verifier acceptance inclusion remains open.
+
+The new matrix primitives have their local consumers above. They do not
+supply the selected row generator or a complete selected entry bound. The
+rectangle equivalence does not supply complete 32-field decoder fibers, a
+random inverse sampler, or its work. Active next work uses typed source-row
+generation and separate success/abort fiber counts. The protected reviews
+were read at resumption at 15:35 UTC in both checkouts and were unchanged.
+No Rust behavior, protocol profile, security assumption, backend or site
+publication changed in this milestone.
+
 ## Active criteria
 
 Complete the two checker leaves: dense selected-key commitment check and
 selected matrix entry. The public SumCheck gate is now proved and installed. Commitment work must include actual key expansion for
 arbitrary stored witnesses, and matrix work must include package-row
-production and lookup. The retained dense-commitment preparation gives a
+production and lookup. Stored sparse operations, retained-slot construction
+and 54-lane coefficient expansion now have checked value/work proofs. The retained dense-commitment preparation gives a
 structural route using one 54-lane key block at a time, with no sparse-witness
 premise or full-key table.
 

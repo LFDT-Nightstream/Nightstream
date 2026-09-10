@@ -761,3 +761,21 @@ three relevant NIFS leaves changed; their connection statuses remain
 partial/open, and 451 other records are unchanged. At 09:20 UTC both
 protected review paths were read again in both checkouts with unchanged
 contents. No site publication or new approval followed.
+
+## Stored matrix and preimage scope at `4049d613`
+
+The four new owners and 25 exports at `4049d6133972475eaa4cd61e27d447da48349392` passed their full module
+checks and the combined 361-record NIFS axiom audit. Static checks passed
+after an in-progress PiDEC source draft was moved out of the active tree.
+Independent source reviews cover stored sparse operations, retained-slot
+construction, exact 54-lane matrix expansion, and field-preimage rectangles.
+The work corrections and all failed checks are retained in
+`NIFS_MATRIX_AND_PREIMAGE_EVIDENCE.zip`.
+
+No new Rust conformance claim follows. The selected commitment checker and
+totalized verifier comparison stopped after their third full attempts and
+remain inactive drafts. The selected commitment/matrix contracts, actual
+producer and representation links, and Fiat–Shamir transfer remain open.
+The already checked normal native entry guard and earlier Lean/optimized
+conformance evidence retain their existing scope. No PaperExact or backend
+execution occurred, and no new full conformance verdict is granted.

@@ -34,8 +34,46 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
+import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckWork
+import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
 
 /-! Axiom audits for the selected NIFS profile and interactive composition. -/
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.build_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.build_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.subtract_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.subtract_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.combine_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.combine_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.recompose_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.recompose_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.evaluations_eq_honestAt
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.ambientCheck_eq_true_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.check_eq_true_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckWork.check_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckWork.check_work_le
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.statement_eq_key
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.check_eq_true_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.chargedCheck_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.finish_source_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.charged_finish_source_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.pairModulus_eq_pow
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.goldilocks_decomposition
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.candidate_values
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.candidates_eq_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.field_preimage_count
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.field_zero_preimage_count
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.field_nonzero_preimage_count
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.candidate_preimage_count
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.candidate_mass_eq_mixture
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.event_frequency_eq_mixture
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.event_frequency_error_le
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.zero_event_frequency_error
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.event_bound_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw.decoded_event_frequency_error_le
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.projectReads_value
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection.projectReads_work_le

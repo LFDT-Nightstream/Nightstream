@@ -92,6 +92,17 @@ theorem sampled_response (input : Input) (batch : Transcript.PiRlcSampler.Batch 
       returned, Option.map_some]
   · cases returned
 
+/-- Every successful actual C/R handoff supplies the strong extractor's
+accepted probe with the original concrete messages and full output. -/
+theorem sampled_fixedWidthAccepted (input : Input)
+    (batch : Transcript.PiRlcSampler.Batch SourceCount)
+    (returned : sampled input = some batch) :
+    (PiCCSInputCheck.probe input).FixedWidthAccepted ConcreteCarrier.extensionOps K.embed
+      ((ProductionKey.key relation ajtai).statement
+        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input)) 9 :=
+  (PiCCSInputCheck.execute_accepted_iff input relation ajtai).mp
+    (sampled_response input batch returned).1
+
 def inputFamilies (input : Input) : List Value :=
   [.array ((List.finRange SourceCount).map fun source =>
       PiCCSParity.fieldWordsValue (serializeCommitment (commitments input source))),

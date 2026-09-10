@@ -37,3 +37,4 @@ import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.evaluations_eq_batch
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.sampled_on_rejection
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.sampled_response
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCInputCheck.sampled_fixedWidthAccepted

@@ -12,6 +12,32 @@ The profile is Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`, one fresh
 source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 28 PiCCS rounds, and Poseidon2 protocol binding.
 
+## Current contract — 2026-09-10
+
+The owner clarified the goal: prove SuperNeo and its implementation links so
+that Rust conformance and later constraint reduction have a Lean authority.
+Standard cryptographic security can remain an explicit assumption. The
+extractor work results use their declared clocks; a machine-time refinement,
+a new matrix dispatcher, and a locally implemented FS simulator are not
+required for this implementation-assurance scope.
+
+Checked source: `88d394fb4b24cfba21fd1a995bff16c3449312a8`.
+`NifsBinding.bindingEvent_to_shortKernel` identifies the actual binding event
+with the fixed setup search problem. `PiCCSStoredSourceProbability` installs
+the selected checker and access correctness in the existing probability
+consumer. `PiRLCExtractionPrimitives.program_correct` supplies the actual
+production operations and computed unit inverse.
+`NifsFiatShamir.finishValue_probability_and_expected_work` consumes both
+refinements and reaches the actual stored source-return event. It retains the
+explicit FS model, low-norm, call/preparation and declared-work hypotheses.
+
+The [current FS proposal](FIAT_SHAMIR_MODEL.md) is awaiting owner approval.
+The four Proof-axis reclassifications are also pending. Map statuses have not
+been changed. Source and gate evidence is retained in
+[NIFS_CLOSURE_EVIDENCE.zip](NIFS_CLOSURE_EVIDENCE.zip).
+The sections below retain earlier milestones and their then-current limits;
+they do not reactivate the stopped runtime or simulator work.
+
 ## Completion evidence
 
 | Requirement | Evidence needed | Status |
@@ -19,11 +45,11 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; public and Pad checks, coefficient generation and stored arithmetic checked; dense commitment, matrix entry, producer and full runtime contracts open |
-| `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Selected event and value/probability consumers checked under the declared-clock scope; connection status proposed for owner review |
+| `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Selected conditional bridge checked; external model approval pending |
 | `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Connected for the retained Lean/optimized execution scope; independent review complete for that scope |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; selected owners independently reviewed; concrete runtime contracts and Fiat–Shamir transfer open |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Selected owners and value consumers checked; the external FS model remains pending |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -1198,40 +1224,68 @@ and full matrix entry remain selected-checker contracts. The 17:20 protected
 review read found unchanged contents in both checkouts. No Rust behavior,
 profile, assumption, PaperExact/backend execution or publication changed.
 
+## Actual PiDEC commitment matrix entries — `361a4d7f`
+
+Checked source: `361a4d7fc4e7869b19374872177e3723b4314719`. `PiDECCommitmentMatrixEntry.entry_value`
+now reaches the actual selected `MatrixSource.coefficientMatrix` for all 1,188
+commitment rows, all 14 ports, all 54 coefficient lanes, and every completed
+carrier column. The append-tree proof places the block at global rows
+`[6021547,6022735)`. It consumes the exact source/form generators, selected
+plan equality and all-port matrix theorem. It has no supplied matrix-equality
+or kernel premise. The source-lane width guard also covers queries in the
+37-column completion suffix.
+
+The complete target passed round three in 18 seconds. The final NIFS audit
+passed 405 complete records, including these three exports, with only allowed
+axioms; static passed. Scoped reviews and all attempts are retained in
+[NIFS_MATRIX_ENTRY_EVIDENCE.zip](NIFS_MATRIX_ENTRY_EVIDENCE.zip). The full selected matrix dispatcher and other row
+families remain open. No partial entry was installed as the full primitive.
+
+The bound 892,400 concerns the composed declared `Result.work` counter.
+The new review distinguishes those proved counter inequalities from a complete
+source-operation or runtime refinement. Direct commitment dependencies still
+need that refinement: the shared array builder, dense-row/step composition,
+stored ring summation, and Ajtai quarter-round composition omit some calls,
+projections or iterator work under the newer detailed counting convention.
+Their existing value and declared-counter theorems remain valid. These concrete
+implementation obligations cannot become cryptographic assumptions.
+
+The symbolic full commitment file check passed in ten seconds. The subsequent
+consumer/counter criterion did not pass its three full attempts. The last
+attempt reached every kernel marker but failed on a temporary progress command
+after a documentation comment. Its complete clean 342-line source and consumer
+are inactive drafts, `NIFS_STORED_COMMITMENT_CHECK_SYMBOLIC_AND_COUNTS.lean.txt`
+and `NIFS_STORED_COMMITMENT_CONSUMER.lean.txt`, under `drafts/`. The active
+selected checker still has both commitment and matrix-entry premises.
+
+The separate three-fact inverse interface also stopped after three checks.
+The final rank-case proof compiled, but the complete interface failed on the
+singleton decoder predicate rewrite. Both complete owner drafts are retained
+under `drafts/`; active owners and their audit registrations were restored.
+No fourth or narrower interface/consumer check was used. The full global
+inverse, uniform-rank law and generator, and expected-time connection remain
+open. The 18:20 protected reviews were unchanged; no Rust, profile, security
+assumption, PaperExact/backend execution or publication changed.
+
 ## Active criteria
 
-Complete the two checker leaves: dense selected-key commitment check and
-selected matrix entry. The public SumCheck gate is now proved and installed. Commitment work must include actual key expansion for
-arbitrary stored witnesses, and matrix work must include package-row
-production and lookup. Stored sparse operations, retained-slot construction
-and 54-lane coefficient expansion now have checked value/work proofs. The
-1,188-row PiDEC commitment packet now has a direct counted source generator;
-its selected retained-form consumer is checked; full dispatch and other source families remain open. The retained dense-commitment preparation gives a
-structural route using one 54-lane key block at a time, with no sparse-witness
-premise or full-key table.
+Resolve owner review of [FIAT_SHAMIR_MODEL.md](FIAT_SHAMIR_MODEL.md) and the
+four implementation-record Proof classifications. The selected conditional
+consumer is checked; it has no free primitive or source-check correctness
+premise. Keep its low-norm, declared clock bounds, call/preparation refinement,
+and moment hypotheses explicit.
 
-Complete the actual stored producer/checker law, inverse and conversion work,
-and the full representation/runtime links. The existing inverse value theorem and resumed normalization work are
-proved; full inverse work and its chosen executable consumer remain open. Preserve the approved seed and same-key MSIS premise, which supplies
-no numerical hardness bound.
+`VerifierErrorBudget.any_test_or_sampler_abort_le` supplies the finite union
+bound over a caller-provided count in one trace law, without independence.
+Its 100,000,000-call example bounds only the named test and sampler-abort
+terms by `2^-87`. `SamplerDensityLaw.field_output_event_le` gives the separate
+successful-event density bound on uniform field inputs. Actual transcript
+laws and useful FS success/error functions are external model inputs; these
+numbers are not a full NIFS or history-extraction security estimate.
 
-Keep the exact replay, matrix/raw-assignment evidence and independent review
-at their stated scope. The normal native NIFS entry now rejects the compressed composition.
-This scoped guard does not authorize Stage 2, supply a replacement backend
-or grant a new complete conformance verdict. The prepared same-input PaperExact R/D comparison
-still needs explicit approval before execution and broader per-phase closure.
-
-Complete the mathematical transcript, codec, state-restoration and error/work
-connections before requesting a precise Fiat–Shamir model decision. The scalar and independent-batch output comparisons and 17-window abort
-bound are proved. The complete single-scalar success/abort and totalized fiber counts are now
-proved. Stored tables, positivity and full verifier comparison are checked. An efficient inverse sampler, the actual-state joint law,
-adaptive/retry law and exact Poseidon2 transfer are not proved.
-
-The older `protocol-contract/security-reduction.md` uses a different
-transcript, sampler and profile; its numerical limits are not evidence for
-this instance. Use the normative paper in the primary checkout. The frozen
-Lean corpus remains unused.
-
-Full HyperNova history extraction, Stage 2, proof-backend execution and site
-publication remain outside this task. Local diagnostics do not replace
-independent review or required owner approval.
+Retain the reviewed nonzero Lean/optimized C/R/D, output, proof-byte and
+mutation evidence. No new Rust, relation, transcript, profile, or package
+identity change requires a new conformance run or re-pin in this slice.
+The wider PaperExact, production-evaluator and backend records keep their
+own scope. Full HyperNova history extraction, Stage 2 and site publication
+remain outside this task.

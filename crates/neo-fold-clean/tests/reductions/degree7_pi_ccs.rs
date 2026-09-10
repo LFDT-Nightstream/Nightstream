@@ -98,16 +98,8 @@ fn degree7_ccs_pi_ccs_prove_verify_accepts_honest_instance() {
     .expect("degree-7 Π_CCS prove succeeds");
 
     let mut tr_verify = Transcript::with_label(LABEL);
-    let outputs = pi_ccs::verify(
-        &mut tr_verify,
-        &params,
-        &structure,
-        &cache,
-        &[instance.claim],
-        &running,
-        &proof,
-    )
-    .expect("degree-7 Π_CCS verify accepts honest proof");
+    let outputs = pi_ccs::verify(&mut tr_verify, &params, &structure, &[instance.claim], &running, &proof)
+        .expect("degree-7 Π_CCS verify accepts honest proof");
 
     assert_eq!(
         outputs.len(),

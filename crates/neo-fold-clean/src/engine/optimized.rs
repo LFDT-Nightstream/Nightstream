@@ -16,7 +16,7 @@ use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
 use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_precompute_and_backend_and_perf, optimized_prove_with_cache_and_precompute_and_perf,
-    optimized_verify_with_cache_and_perf, OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute,
+    pi_ccs_verify, OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute,
 };
 use thiserror::Error;
 
@@ -173,36 +173,19 @@ pub fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
-    cache: &OptimizedStructureCache,
     fresh_claims: &[CcsClaim],
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
-    let (ok, perf) = optimized_verify_with_cache_and_perf(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        &running.claims,
-        fold_outputs,
-        proof,
-        cache,
-    )?;
+    #[cfg(feature = "perf-timers")]
+    let started = std::time::Instant::now();
+    let ok = pi_ccs_verify(tr, pp.inner(), s, fresh_claims, &running.claims, fold_outputs, proof)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms sumcheck={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
-        perf.bind_ms,
-        perf.bind_header_instances_ms,
-        perf.bind_me_inputs_ms,
-        perf.bind_sample_challenges_ms,
-        perf.sumcheck_ms,
-        perf.output_checks_ms,
-        perf.terminal_ms,
-        perf.total_ms,
+        "[pi-ccs/verify] total={:.2}ms",
+        started.elapsed().as_secs_f64() * 1_000.0,
     );
-    #[cfg(not(feature = "perf-timers"))]
-    let _ = perf;
     Ok(ok)
 }
 

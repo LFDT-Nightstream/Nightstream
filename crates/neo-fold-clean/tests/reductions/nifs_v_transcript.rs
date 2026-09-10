@@ -403,7 +403,6 @@ fn recursive_pi_ccs_rejects_unforwarded_output_adv() {
                 &mut native_tr,
                 fixture.prep.params(),
                 fixture.prep.structure(),
-                fixture.prep.optimized_cache(),
                 &fixture.fresh_claims,
                 &fixture.running,
                 &fixture.proof.pi_ccs,

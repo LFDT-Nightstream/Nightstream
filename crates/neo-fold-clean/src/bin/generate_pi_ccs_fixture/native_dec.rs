@@ -25,7 +25,7 @@ const PUBLIC: usize = 270;
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const BOUND: u64 = 1 << CHILDREN;
 
-fn claim_value(claim: &Claim, combined: bool) -> Value {
+pub(super) fn claim_value(claim: &Claim, combined: bool) -> Value {
     assert_eq!((claim.c.d, claim.c.kappa, claim.m_in), (D, 22, PUBLIC));
     assert_eq!(claim.c.data.len(), 22 * D);
     assert_eq!(claim.r.len(), 28);
@@ -50,7 +50,7 @@ fn claim_value(claim: &Claim, combined: bool) -> Value {
     ])
 }
 
-fn running_value(children: &[Claim]) -> Value {
+pub(super) fn running_value(children: &[Claim]) -> Value {
     assert_eq!(children.len(), CHILDREN);
     json!([
         words(&children[0].r),
@@ -238,7 +238,7 @@ pub(super) fn prove(
     reference_input: &Value,
     reference_result: &Value,
     output: &Path,
-) {
+) -> pi_dec::Proof {
     let started = Instant::now();
     assert!(!output.exists(), "fresh native PiDEC output");
     assert_eq!((params.b(), params.k_rho()), (2, 16));
@@ -330,4 +330,5 @@ pub(super) fn prove(
         output.display(),
         started.elapsed()
     );
+    proof
 }

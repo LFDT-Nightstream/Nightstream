@@ -60,7 +60,6 @@ fn pi_ccs_rejects_same_shape_cache_from_different_structure() {
                 &mut verifier_transcript,
                 &params,
                 &claimed,
-                &wrong_cache,
                 &[instance.claim],
                 &running,
                 &proof,

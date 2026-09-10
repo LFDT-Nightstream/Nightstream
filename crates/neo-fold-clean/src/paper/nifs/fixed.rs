@@ -130,11 +130,14 @@ pub fn verify_fixed(
     running: &FixedNifsAccumulator,
     proof: &NifsProof,
 ) -> Result<FixedNifsAccumulator, Error> {
+    cache
+        .validate_structure(structure)
+        .map_err(crate::engine::optimized::Error::from)
+        .map_err(crate::paper::pi_ccs::Error::from)?;
     let next = nifs::verify(
         tr,
         pp,
         structure,
-        cache,
         mix_rhos_commits,
         combine_b_pows,
         std::slice::from_ref(fresh),

@@ -9,7 +9,7 @@ use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
 use neo_fold_clean::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use neo_fold_clean::paper::params::Params;
-use neo_fold_clean::paper::{pi_rlc, relations::ajtai_rlc_mixer};
+use neo_fold_clean::paper::{nifs::NifsProof, pi_ccs, pi_rlc, relations::ajtai_rlc_mixer};
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::{
     engines::pi_ccs_joint_protocol::V1_1OutputOpening,
@@ -51,7 +51,7 @@ fn extension(words: [u64; 2]) -> K {
     from_complex(field(words[0]), field(words[1]))
 }
 
-fn extensions(value: &Value) -> Vec<K> {
+pub(super) fn extensions(value: &Value) -> Vec<K> {
     serde_json::from_value::<Vec<[u64; 2]>>(value.clone())
         .expect("extension array")
         .into_iter()
@@ -81,7 +81,7 @@ fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
     bytes
 }
 
-fn commitment(value: &Value) -> Commitment {
+pub(super) fn commitment(value: &Value) -> Commitment {
     let words: Vec<u64> = serde_json::from_value(value.clone()).expect("commitment words");
     assert_eq!(words.len(), 22 * D);
     Commitment {
@@ -91,7 +91,7 @@ fn commitment(value: &Value) -> Commitment {
     }
 }
 
-fn public_matrix(value: &Value) -> Mat<F> {
+pub(super) fn public_matrix(value: &Value) -> Mat<F> {
     let words: Vec<u64> = serde_json::from_value(value.clone()).expect("public input words");
     assert_eq!(words.len(), PUBLIC);
     let mut result = Mat::zero(D, PUBLIC / D, F::ZERO);
@@ -107,7 +107,7 @@ pub(super) fn public_words(value: &Mat<F>) -> Vec<u64> {
         .collect()
 }
 
-fn padded(value: &Value) -> Vec<K> {
+pub(super) fn padded(value: &Value) -> Vec<K> {
     let mut values = extensions(value);
     assert_eq!(values.len(), D);
     values.resize(D.next_power_of_two(), K::ZERO);
@@ -175,6 +175,7 @@ pub fn generate(
     folded_children: Option<&Path>,
     combined_opening: Option<&Path>,
     dec_messages: Option<&Path>,
+    prior_phase: Option<&Path>,
     output: &Path,
 ) {
     let started = Instant::now();
@@ -512,7 +513,7 @@ pub fn generate(
             started.elapsed()
         );
         if let Some(messages) = dec_messages {
-            super::native_dec::prove(
+            let dec_proof = super::native_dec::prove(
                 &params,
                 &structure,
                 &verified,
@@ -524,6 +525,28 @@ pub fn generate(
                 &phase[9],
                 &output.with_extension("dec.json"),
             );
+            if let Some(prior_phase) = prior_phase {
+                let nifs_proof = NifsProof {
+                    pi_ccs: pi_ccs::Proof {
+                        sumcheck: proof,
+                        outputs,
+                    },
+                    pi_rlc: rlc_proof,
+                    pi_dec: dec_proof,
+                };
+                super::native_nifs::check(
+                    &params,
+                    &structure,
+                    &fresh,
+                    running,
+                    &nifs_proof,
+                    expected_identity,
+                    prior_phase,
+                    &phase,
+                    rlc_transcript.snapshot().state(),
+                    output,
+                );
+            }
         }
     }
 }

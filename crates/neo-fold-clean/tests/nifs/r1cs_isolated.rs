@@ -64,7 +64,6 @@ fn nifs_round_trip_on_r1cs_structure() {
         &mut verifier_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,

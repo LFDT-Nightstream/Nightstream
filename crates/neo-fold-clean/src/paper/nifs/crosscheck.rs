@@ -193,11 +193,14 @@ fn prove_with_reference(
 
     let mut primary_verifier_transcript = Transcript::session();
     primary_verifier_transcript.restore_snapshot(initial_transcript);
+    cache
+        .validate_structure(s)
+        .map_err(crate::engine::optimized::Error::from)
+        .map_err(crate::paper::pi_ccs::Error::from)?;
     let primary_verified = verify(
         &mut primary_verifier_transcript,
         pp,
         s,
-        cache,
         mix_rhos_commits,
         combine_b_pows,
         &fresh_claims,
@@ -212,7 +215,6 @@ fn prove_with_reference(
             &mut reference_verifier_transcript,
             pp,
             s,
-            cache,
             mix_rhos_commits,
             combine_b_pows,
             &fresh_claims,

@@ -41,7 +41,6 @@ fn nifs_prove_verify_round_trip_matches_children() {
         &mut verifier_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,
@@ -52,6 +51,25 @@ fn nifs_prove_verify_round_trip_matches_children() {
 
     assert_eq!(verified_children.claims, next_running.claims);
     assert_eq!(verified_children.parent_authority, next_running.parent_authority);
+
+    let selected = prep.structure();
+    let header =
+        neo_ccs::CcsStructure::new_verifier_artifact_header(selected.n, selected.m, selected.t(), selected.f.clone())
+            .expect("the same selected public relation metadata");
+    let mut header_transcript = Transcript::session();
+    let from_header = nifs::verify(
+        &mut header_transcript,
+        prep.params(),
+        &header,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &fresh_claims,
+        &running,
+        &proof,
+    )
+    .expect("public NIFS replay does not require a prover matrix cache");
+    assert_eq!(from_header, verified_children);
+    assert_eq!(header_transcript.snapshot(), verifier_tr.snapshot());
 }
 
 #[test]
@@ -83,7 +101,6 @@ fn nifs_cpu_adapter_matches_prover_contract() {
         &mut verifier_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,
@@ -123,7 +140,6 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
         &mut replay_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         &fresh_claims,
         &running,
         &proof.pi_ccs,
@@ -147,7 +163,6 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
         &mut verifier_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,
@@ -202,7 +217,6 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
         &mut baseline_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &second_claims,
@@ -224,7 +238,6 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &second_claims,
@@ -280,7 +293,6 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &second_claims,
@@ -319,7 +331,6 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
         &mut baseline_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,
@@ -336,7 +347,6 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &fresh_claims,
@@ -386,7 +396,6 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
         &mut baseline_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         &fresh_claims,
         &running,
         &proof.pi_ccs,
@@ -405,7 +414,6 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             &fresh_claims,
             &running,
             &proof.pi_ccs,
@@ -442,7 +450,6 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
         &mut baseline_tr,
         prep.params(),
         prep.structure(),
-        prep.optimized_cache(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         &fresh_claims,
@@ -459,7 +466,6 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &fresh_claims,
@@ -501,7 +507,6 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
             &mut verifier_tr,
             prep.params(),
             prep.structure(),
-            prep.optimized_cache(),
             prep.mix_rhos_commits(),
             prep.combine_b_pows(),
             &fresh_claims,

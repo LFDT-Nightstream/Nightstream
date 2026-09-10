@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
 
 /-!
@@ -45,17 +45,23 @@ structure Correct {Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.
         AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe witness
   access : CostedWitnessProjection.Correct program.access
 
+/-- Shared checked return for semantic and stored witness representations. -/
+private def finishChecked {Candidate : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
+    (check : Candidate → Result Bool) (project : Candidate → Result (SourceWitness shape carrier)) :
+    Option Candidate → Result (Option (SourceWitness shape carrier))
+  | none => ⟨none, 1⟩
+  | some candidate =>
+      let checked := check candidate
+      if checked.value then
+        let projected := project candidate
+        ⟨some projected.value, checked.work + projected.work + 2⟩
+      else ⟨none, checked.work + 2⟩
+
 /-- Abort returns immediately. Otherwise execute the checker once, and copy
 the actual witness only on acceptance. Each dispatch and return is charged. -/
 def finish {shape : Shape} {carrier : Phi81Relation.Shape}
-    (program : Program shape carrier) : Outcome shape carrier → Result (Option (SourceWitness shape carrier))
-  | none => ⟨none, 1⟩
-  | some candidate =>
-      let checked := program.check candidate
-      if checked.value then
-        let projected := CostedWitnessProjection.project program.access candidate.2
-        ⟨some projected.value, checked.work + projected.work + 2⟩
-      else ⟨none, checked.work + 2⟩
+    (program : Program shape carrier) : Outcome shape carrier → Result (Option (SourceWitness shape carrier)) :=
+  finishChecked program.check (fun candidate => CostedWitnessProjection.project program.access candidate.2)
 
 /-- Only a returned candidate is checked; abort has no hidden check call. -/
 def checkerWork {shape : Shape} {carrier : Phi81Relation.Shape}
@@ -71,10 +77,10 @@ theorem finish_return_iff {shape : Shape} {carrier : Phi81Relation.Shape}
         (program.check (probe, witness)).value = true ∧
         (CostedWitnessProjection.project program.access witness).value = values := by
   cases outcome with
-  | none => simp [finish]
+  | none => simp [finish, finishChecked]
   | some candidate =>
       rcases candidate with ⟨probe, witness⟩
-      cases checked : (program.check (probe, witness)).value <;> simp [finish, checked]
+      cases checked : (program.check (probe, witness)).value <;> simp [finish, finishChecked, checked]
 
 variable {Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
   {blockCount width : Nat} (program : Program shape carrier)
@@ -166,10 +172,76 @@ theorem finish_work_le (accessBound : Nat)
     (finish program outcome).work ≤ checkerWork program outcome +
       CostedWitnessProjection.workBound shape carrier accessBound + 2 := by
   cases outcome with
-  | none => simp only [finish, checkerWork, Nat.zero_add]; omega
+  | none => simp only [finish, finishChecked, checkerWork, Nat.zero_add]; omega
   | some candidate =>
       have projection := CostedWitnessProjection.project_work_le program.access accessBound bounded candidate.2
       cases checked : (program.check candidate).value <;>
-        simp only [finish, checkerWork, checked, Bool.false_eq_true, ↓reduceIte] <;> omega
+        simp only [finish, finishChecked, checkerWork, checked, Bool.false_eq_true, ↓reduceIte] <;> omega
+
+/-- The producing call returns storage, not an erased function to be read
+later at an unknown cost. Its clock includes constructing these arrays. -/
+abbrev StoredOutcome (shape : Shape) (carrier : Phi81Relation.Shape) :=
+  Option (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier)
+
+def finishStored {shape : Shape} {carrier : Phi81Relation.Shape}
+    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool) :
+    StoredOutcome shape carrier → Result (Option (SourceWitness shape carrier)) :=
+  finishChecked check (fun candidate => StoredWitnessProjection.project candidate.2)
+
+/-- Storage is erased only for the existing semantic success events. -/
+def storedView {shape : Shape} {carrier : Phi81Relation.Shape}
+    (outcome : StoredOutcome shape carrier) : Outcome shape carrier :=
+  outcome.map (fun candidate => (candidate.1, StoredWitnessProjection.view candidate.2))
+
+/-- The concrete projection bound applies on every branch. The checker work
+remains charged to the actual call; it is not replaced by an assumed constant. -/
+theorem finishStored_work_le {shape : Shape} {carrier : Phi81Relation.Shape}
+    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
+    (outcome : StoredOutcome shape carrier) :
+    (finishStored check outcome).work ≤
+      (match outcome with | none => 0 | some candidate => (check candidate).work) +
+        CostedWitnessProjection.workBound shape carrier (1 + 1 + 1) + 2 := by
+  cases outcome with
+  | none => simp only [finishStored, finishChecked, Nat.zero_add]; omega
+  | some candidate =>
+      have projection := StoredWitnessProjection.project_work_le candidate.2
+      cases checked : (check candidate).value <;>
+        simp only [finishStored, finishChecked, checked, Bool.false_eq_true, ↓reduceIte] <;> omega
+
+/-- The checked array return has the exact existing B.2 source-success event.
+Only correctness of the actual public/ambient checker remains a premise;
+the array access and source projection are implemented and proved here. -/
+theorem finishStored_source_iff {Commitment : Type*} {shape : Shape} {carrier : Phi81Relation.Shape}
+    {blockCount width : Nat}
+    (check : (Probe K shape × StoredWitnessProjection.StoredWitness shape carrier) → Result Bool)
+    (commit : Phi81Relation.Assignment carrier → Commitment) (params : GlobalParams)
+    (statement : Statement K Commitment (Phi81Relation.PublicInput carrier)
+      shape carrier.carrierWidth blockCount baseOps)
+    (checked : ∀ probe stored, (check (probe, stored)).value = true ↔
+      probe.FixedWidthAccepted extensionOps K.embed statement width ∧
+        AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe
+          (StoredWitnessProjection.view stored))
+    (outcome : StoredOutcome shape carrier) :
+    SourceReturned commit params statement (finishStored check outcome).value ↔
+      StrongProbability.RelaxedSuccess (width := width) (openingMaps commit) params statement (storedView outcome) ∧
+        StrongProbability.SourceValid (openingMaps commit) params statement (storedView outcome) := by
+  cases outcome with
+  | none =>
+      simp [finishStored, finishChecked, SourceReturned, storedView,
+        StrongProbability.RelaxedSuccess, StrongProbability.SourceValid]
+  | some candidate =>
+      rcases candidate with ⟨probe, stored⟩
+      by_cases accepted : (check (probe, stored)).value = true
+      · have valid := (checked probe stored).mp accepted
+        have reconstructed := StoredWitnessProjection.reconstruct_project statement.publicInputs stored
+          (fun source => (valid.2 (freshSourceIndex source)).1.2.1)
+        simp [finishStored, finishChecked, accepted, SourceReturned, storedView,
+          StrongProbability.RelaxedSuccess, StrongProbability.SourceValid,
+          valid.1, valid.2, reconstructed]
+      · have rejected : ¬ (probe.FixedWidthAccepted extensionOps K.embed statement width ∧
+            AmbientOutputHolds extensionOps K.embed (openingMaps commit) params statement probe
+              (StoredWitnessProjection.view stored)) := fun valid => accepted ((checked probe stored).mpr valid)
+        simp [finishStored, finishChecked, accepted, SourceReturned, storedView,
+          StrongProbability.RelaxedSuccess, StrongProbability.SourceValid, rejected]
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction

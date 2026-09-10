@@ -31,6 +31,11 @@ abbrev localLength_eq :=
 
 end Logical
 
+def freshColumnCount : Nat := 0
+
+def physicalRowCount : Nat :=
+  Logical.coordinateCount
+
 structure InputsLinear (interface : Logical.Interface) (offset : Nat) : Prop where
   parent_mulCount : ∀ row lane,
     R1CS.mulCount (interface.parent offset row lane) = 0
@@ -54,33 +59,27 @@ def scalarInputs (interface : Logical.Interface)
 def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 1188
+  freshColumnCount := fun _ => freshColumnCount
+  physicalRowCount := fun _ => physicalRowCount
   freshColumnCount_eq := by
     intro offset
     exact PiDEC.v1_1.RadixRecomposition.freshColumnCount_eq
       (Logical.scalarInterface interface) (scalarInputs interface inputs) offset
   physicalRowCount_eq := by
     intro offset
-    calc
-      R1CS.totalRowCount
-          (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) =
-          Logical.coordinateCount :=
-        PiDEC.v1_1.RadixRecomposition.physicalRowCount_eq
-          (Logical.scalarInterface interface) (scalarInputs interface inputs) offset
-      _ = 1188 :=
-        NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition.coordinateCount_eq
+    exact PiDEC.v1_1.RadixRecomposition.physicalRowCount_eq
+      (Logical.scalarInterface interface) (scalarInputs interface inputs) offset
 
 theorem freshColumnCount_eq (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) (offset : Nat) :
     R1CS.totalFreshCount
-      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = 0 :=
+      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = freshColumnCount :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq (interface : Logical.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) (offset : Nat) :
     R1CS.totalRowCount
-      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = 1188 :=
+      (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = physicalRowCount :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
@@ -88,6 +87,7 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     localLength (Circuit.ops (Logical.circuit interface).main offset) +
       R1CS.totalFreshCount
         (flatConstraints (Circuit.ops (Logical.circuit interface).main offset)) = 0 := by
-  rw [Logical.localLength_eq, freshColumnCount_eq interface inputs offset]
+  simp only [Logical.localLength_eq, freshColumnCount_eq interface inputs offset,
+    freshColumnCount, Nat.zero_add]
 
 end NightstreamFPrime.Layout.PiDEC.v1_1.CommitmentRecomposition

@@ -112,7 +112,8 @@ def inputBindingOffset (offset : Nat) : Nat := offset
 def publicInputOffset (offset : Nat) : Nat := offset
 
 /-- The split child is the only PiDEC child that allocates private cells. -/
-def recompositionOffset (offset : Nat) : Nat := offset + 270
+def recompositionOffset (offset : Nat) : Nat :=
+  offset + PublicInputSplit.exactPrivateCount
 def commitmentOffset (offset : Nat) : Nat := recompositionOffset offset
 def evalKOffset (offset : Nat) : Nat := recompositionOffset offset
 def evalAOffset (offset : Nat) : Nat := recompositionOffset offset
@@ -204,8 +205,11 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 270
-def logicalRowCount : Nat := 7668
+def logicalPrivateCount : Nat := PublicInputSplit.exactPrivateCount
+def logicalRowCount : Nat :=
+  PublicInputSplit.exactRowCount + CommitmentRecomposition.coordinateCount +
+    RingKRecomposition.coordinateCount EvalKRecomposition.blockCount +
+    RingKRecomposition.coordinateCount EvalARecomposition.blockCount
 
 structure InputsBelow
     {logicalWidth : Nat}
@@ -415,17 +419,20 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.public_input_split"
-      (publicInputCircuit interface) offset).localLength = 270 := by
+      (publicInputCircuit interface) offset).localLength =
+        PublicInputSplit.exactPrivateCount := by
   rw [childOp, Sequence.childOp_localLength]
   change localLength (Circuit.ops
-    (PublicInputSplit.circuit (publicInputInterface interface)).main offset) = 270
+    (PublicInputSplit.circuit (publicInputInterface interface)).main offset) =
+      PublicInputSplit.exactPrivateCount
   calc
     _ = (PublicInputSplit.circuit
           (publicInputInterface interface)).privateCount offset :=
       (PublicInputSplit.circuit
         (publicInputInterface interface)).privateCount_eq offset
     _ = PublicInputSplit.logicalPrivateCount logicalWidth publicFits := rfl
-    _ = 270 := PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
+    _ = PublicInputSplit.exactPrivateCount :=
+      PublicInputSplit.logicalPrivateCount_eq logicalWidth publicFits
 
 @[simp] private theorem commitmentOp_localLength
     {logicalWidth : Nat}
@@ -486,8 +493,10 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.public_input_split"
-      (publicInputCircuit interface) offset).rowCount = 4860 := by
-  change PublicInputSplit.logicalRowCount logicalWidth publicFits = 4860
+      (publicInputCircuit interface) offset).rowCount =
+        PublicInputSplit.exactRowCount := by
+  change PublicInputSplit.logicalRowCount logicalWidth publicFits =
+    PublicInputSplit.exactRowCount
   exact PublicInputSplit.logicalRowCount_eq logicalWidth publicFits
 
 @[simp] private theorem commitmentOp_rowCount
@@ -496,9 +505,9 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.commitment_recomposition"
-      (commitmentCircuit interface) offset).rowCount = 1188 := by
-  change CommitmentRecomposition.coordinateCount = 1188
-  exact CommitmentRecomposition.coordinateCount_eq
+      (commitmentCircuit interface) offset).rowCount =
+        CommitmentRecomposition.coordinateCount := by
+  rfl
 
 @[simp] private theorem evalKOp_rowCount
     {logicalWidth : Nat}
@@ -506,9 +515,9 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.eval_K_recomposition"
-      (evalKCircuit interface) offset).rowCount = 108 := by
-  change RingKRecomposition.coordinateCount EvalKRecomposition.blockCount = 108
-  exact EvalKRecomposition.coordinateCount_eq
+      (evalKCircuit interface) offset).rowCount =
+        RingKRecomposition.coordinateCount EvalKRecomposition.blockCount := by
+  rfl
 
 @[simp] private theorem evalAOp_rowCount
     {logicalWidth : Nat}
@@ -516,9 +525,9 @@ theorem soundness
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_1.eval_A_recomposition"
-      (evalACircuit interface) offset).rowCount = 1512 := by
-  change RingKRecomposition.coordinateCount EvalARecomposition.blockCount = 1512
-  exact EvalARecomposition.coordinateCount_eq
+      (evalACircuit interface) offset).rowCount =
+        RingKRecomposition.coordinateCount EvalARecomposition.blockCount := by
+  rfl
 
 @[simp] private theorem outputBindingOp_rowCount
     {logicalWidth : Nat}
@@ -551,6 +560,6 @@ theorem flatConstraints_length
       logicalRowCount := by
   rw [flatConstraints_length_eq_rowCount]
   change rowCount (opsAt relation interface offset) = logicalRowCount
-  simp [opsAt, rowCount, logicalRowCount]
+  simp [opsAt, rowCount, logicalRowCount, Nat.add_assoc]
 
 end NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal

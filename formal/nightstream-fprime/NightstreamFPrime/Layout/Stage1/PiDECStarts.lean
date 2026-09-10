@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 open NightstreamFPrime.Lifecycle.PiDEC.v1_1
 
 def phaseLogicalStart : Nat := PiDECInputs.phaseOffset
-def phaseRowStart : Nat := 28847041
+def phaseRowStart : Nat := PiRLCStarts.outputRowStart
 def phaseFreshStart : Nat := phaseLogicalStart + Formal.logicalPrivateCount
 
 def inputLogicalStart : Nat := Formal.inputBindingOffset phaseLogicalStart
@@ -23,70 +23,42 @@ def outputLogicalStart : Nat := Formal.outputBindingOffset phaseLogicalStart
 
 def inputRowStart : Nat := phaseRowStart
 def publicInputRowStart : Nat := inputRowStart
-def commitmentRowStart : Nat := publicInputRowStart + 22680
-def evalKRowStart : Nat := commitmentRowStart + 1188
-def evalARowStart : Nat := evalKRowStart + 108
-def outputRowStart : Nat := evalARowStart + 1512
+def commitmentRowStart : Nat := publicInputRowStart + PiDEC.v1_1.PublicInputSplit.physicalRowCount
+def evalKRowStart : Nat := commitmentRowStart + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount
+def evalARowStart : Nat := evalKRowStart + PiDEC.v1_1.EvalKRecomposition.physicalRowCount
+def outputRowStart : Nat := evalARowStart + PiDEC.v1_1.EvalARecomposition.physicalRowCount
 
 def inputFreshStart : Nat := phaseFreshStart
 def publicInputFreshStart : Nat := inputFreshStart
-def commitmentFreshStart : Nat := publicInputFreshStart + 17820
+def commitmentFreshStart : Nat := publicInputFreshStart + PiDEC.v1_1.PublicInputSplit.freshColumnCount
 def evalKFreshStart : Nat := commitmentFreshStart
 def evalAFreshStart : Nat := evalKFreshStart
 def outputFreshStart : Nat := evalAFreshStart
 
 def scalarLogicalStart (source : Nat) : Nat :=
-  publicInputLogicalStart + source
+  PublicInputSplit.sourceOffset publicInputLogicalStart source
 
 def scalarRowStart (source : Nat) : Nat :=
-  publicInputRowStart + source * 84
+  publicInputRowStart + source * PiDEC.v1_1.Leaves.SignedSplitScalar.physicalRowCount
 
 def scalarFreshStart (source : Nat) : Nat :=
-  publicInputFreshStart + source * 66
+  publicInputFreshStart + source * PiDEC.v1_1.Leaves.SignedSplitScalar.freshColumnCount
 
 def signRowStart (source : Nat) : Nat := scalarRowStart source
 def signFreshStart (source : Nat) : Nat := scalarFreshStart source
 
 def digitRowStart (source child : Nat) : Nat :=
-  scalarRowStart source + 3 + child * 5
+  scalarRowStart source + PiDEC.v1_1.Leaves.SignedSplitScalar.signRowCount +
+    child * PiDEC.v1_1.Leaves.SignedSplitScalar.digitRowCount
 
 def digitFreshStart (source child : Nat) : Nat :=
-  scalarFreshStart source + 2 + child * 4
+  scalarFreshStart source + PiDEC.v1_1.Leaves.SignedSplitScalar.signFreshCount +
+    child * PiDEC.v1_1.Leaves.SignedSplitScalar.digitFreshCount
 
 def recompositionRowStart (source : Nat) : Nat :=
-  scalarRowStart source + 83
+  scalarRowStart source + PiDEC.v1_1.Leaves.SignedSplitScalar.signRowCount +
+    PiDECInputs.childCount *
+      PiDEC.v1_1.Leaves.SignedSplitScalar.digitRowCount
 
-theorem phaseStarts_eq :
-    [phaseLogicalStart, phaseRowStart, phaseFreshStart] =
-      [29022496, 28847041, 29022766] := by
-  rfl
-
-theorem childLogicalStarts_eq :
-    [inputLogicalStart, publicInputLogicalStart, commitmentLogicalStart,
-      evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [29022496, 29022496, 29022766, 29022766, 29022766, 29022766] := by
-  rfl
-
-theorem childRowStarts_eq :
-    [inputRowStart, publicInputRowStart, commitmentRowStart, evalKRowStart,
-      evalARowStart, outputRowStart] =
-    [28847041, 28847041, 28869721, 28870909, 28871017, 28872529] := by
-  rfl
-
-theorem childFreshStarts_eq :
-    [inputFreshStart, publicInputFreshStart, commitmentFreshStart,
-      evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [29022766, 29022766, 29040586, 29040586, 29040586, 29040586] := by
-  rfl
-
-theorem scalarStarts_eq (source : Nat) :
-    scalarLogicalStart source = 29022496 + source ∧
-      scalarRowStart source = 28847041 + source * 84 ∧
-      scalarFreshStart source = 29022766 + source * 66 := by
-  exact ⟨rfl, rfl, rfl⟩
-
-theorem finalBoundaries_eq :
-    outputRowStart = 28872529 ∧ outputFreshStart = 29040586 := by
-  exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStarts

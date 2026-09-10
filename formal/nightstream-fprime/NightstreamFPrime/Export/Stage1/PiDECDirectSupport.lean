@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
@@ -150,19 +150,8 @@ theorem messageCommitment_supported
   simp only [PiDECInputs.message, PiDECInputs.childCommitment,
     Expr.VarsSatisfy]
   apply proof_source
-  unfold InRange
-  have childBound := child.isLt
-  have rowBound := row.isLt
-  have laneBound := lane.isLt
-  norm_num [productionGlobalParams, productionProfile] at childBound rowBound
-  norm_num [ringDegree] at laneBound
-  norm_num [PiDECInputs.childCommitmentStart,
-    PiDECInputs.commitmentInputStart, PiDECInputs.proofInputStart,
-    PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-    ringDegree]
-  omega
+  exact RunningTransitionSourceSupport.piDecField_inRange
+    (Or.inl ⟨child, row, lane, rfl⟩)
 
 theorem messageEvalK_supported
     (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
@@ -171,18 +160,11 @@ theorem messageEvalK_supported
       ((PiDECInputs.message child).evaluation.eval_K coefficient) := by
   simp only [PiDECInputs.message, PiDECInputs.childEvalK,
     RingKRecomposition.KSupported, Expr.VarsSatisfy]
-  constructor <;> apply proof_source <;> unfold InRange
-  all_goals
-    have childBound := child.isLt
-    have coefficientBound := coefficient.isLt
-    change child.val < 16 at childBound
-    change coefficient.val < 54 at coefficientBound
-    norm_num [PiDECInputs.childEvalKStart, PiDECInputs.evalKInputStart,
-      PiDECInputs.commitmentInputStart, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-      PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
-    omega
+  constructor <;> apply proof_source
+  · exact RunningTransitionSourceSupport.piDecField_inRange
+      (Or.inr (Or.inr (Or.inl ⟨child, coefficient, Or.inl rfl⟩)))
+  · exact RunningTransitionSourceSupport.piDecField_inRange
+      (Or.inr (Or.inr (Or.inl ⟨child, coefficient, Or.inr rfl⟩)))
 
 theorem messageEvalA_supported
     (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
@@ -192,21 +174,11 @@ theorem messageEvalA_supported
       ((PiDECInputs.message child).evaluation.eval_A matrix coefficient) := by
   simp only [PiDECInputs.message, PiDECInputs.childEvalA,
     RingKRecomposition.KSupported, Expr.VarsSatisfy]
-  constructor <;> apply proof_source <;> unfold InRange
-  all_goals
-    have childBound := child.isLt
-    have matrixBound := matrix.isLt
-    have coefficientBound := coefficient.isLt
-    change child.val < 16 at childBound
-    change matrix.val < 14 at matrixBound
-    change coefficient.val < 54 at coefficientBound
-    norm_num [PiDECInputs.childEvalAStart, PiDECInputs.evalAInputStart,
-      PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild]
-    omega
+  constructor <;> apply proof_source
+  · exact RunningTransitionSourceSupport.piDecField_inRange
+      (Or.inr (Or.inr (Or.inr ⟨child, matrix, coefficient, Or.inl rfl⟩)))
+  · exact RunningTransitionSourceSupport.piDecField_inRange
+      (Or.inr (Or.inr (Or.inr ⟨child, matrix, coefficient, Or.inr rfl⟩)))
 
 theorem digit_supported
     {logicalWidth : Nat}
@@ -220,18 +192,10 @@ theorem digit_supported
   simp only [PiDECInputs.interface, PiDECInputs.childPublicInput,
     Expr.VarsSatisfy]
   apply proof_source
-  unfold InRange
-  have childBound := child.isLt
-  have coordinateBound := coordinate.isLt
-  norm_num [productionGlobalParams] at childBound
-  norm_num [PiDEC.v1_1.PublicInputSplit.coordinateCount_eq] at coordinateBound
-  norm_num [PiDECInputs.childPublicInputStart, PiDECInputs.publicInputStart,
-    PiDECInputs.evalAInputStart, PiDECInputs.evalKInputStart,
-    PiDECInputs.commitmentInputStart, PiDECInputs.proofInputStart,
-    PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
-  omega
+  exact RunningTransitionSourceSupport.piDecField_inRange
+    (Or.inr (Or.inl ⟨child,
+      Fin.cast (PublicInputSplit.coordinateCount_eq logicalWidth publicFits)
+        coordinate, rfl⟩))
 
 structure ConstraintsSupported (constraints : List Expr) : Prop where
   get : ∀ expression ∈ constraints, expression.VarsSatisfy Source

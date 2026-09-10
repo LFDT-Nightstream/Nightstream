@@ -26,6 +26,9 @@ def signBitIndex : Nat := 63
 def exactPrivateCount : Nat := 1
 def exactRowCount : Nat := 18
 
+theorem exactPrivateCount_pos : 0 < exactPrivateCount := by
+  decide
+
 structure Interface where
   parent : Nat → Expr
   digit : Nat → Radix.ChildIndex → Expr

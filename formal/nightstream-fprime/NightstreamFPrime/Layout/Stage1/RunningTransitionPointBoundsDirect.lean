@@ -55,8 +55,10 @@ private def fixedLogicalWidth : Nat :=
 private def fixedPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth fixedLogicalWidth := by
   apply Nat.le_trans (m := fixedLogicalWidth)
-  · norm_num [fixedLogicalWidth, phaseOffset,
-      RunningTransition.exactPrivateCount, ringDegree, publicRingColumns]
+  · have phaseLower := piDecPhaseOffset_le
+    rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount_eq] at phaseLower
+    norm_num [fixedLogicalWidth, ringDegree, publicRingColumns]
+    omega
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth fixedLogicalWidth
 
 private theorem fixedLayoutSamplesConcrete :
@@ -123,7 +125,10 @@ theorem recursivePointBelow
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
   simp only [directRoundPoint, KExpr.VarsBelow, Expr.VarsBelow]
   have coordinateBound := coordinate.isLt
-  norm_num [phaseOffset, roundStride, roundSampleC0Offset,
+  have phaseLower := piDecPhaseOffset_le
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+    PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2] at phaseLower
+  norm_num [roundStride, roundSampleC0Offset,
     roundSampleC1Offset, productionShape, cubeVariables,
     Phi81MatrixSource.phi81Shape] at coordinateBound ⊢
   omega

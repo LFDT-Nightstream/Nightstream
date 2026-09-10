@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
@@ -168,7 +169,7 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
       DirectPiDECPrefixPlan.transitionPlan,
       DirectApplicationPrefixPlan.applicationPlan,
       DirectApplicationPrefixPlan.nextPreimagePlan,
-      DirectApplicationPrefixPlan.publicOutputPlan]
+      DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 /-- Interpreter for the compact tree. Every concatenation checks the final
 row bound before it constructs a plan. -/

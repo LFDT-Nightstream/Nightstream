@@ -2,6 +2,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
 
@@ -587,18 +588,21 @@ theorem piRlcInputs_eq_of_agree_below
           left right below.2 agrees)
   · rfl
 
+private theorem sourceRunning_le_root
+    (program : Lifecycle.Stage1.Application.Program) :
+    RunningTransitionInputs.phaseOffset ≤ AssemblerInputs.rootOffset program := by
+  have capacity : RunningTransitionInputs.phaseOffset ≤ Spartan.SourceColumnCount :=
+    PiDECSourceSupport.fresh_end_le_sourceColumnCount
+  exact capacity.trans (Nat.le_add_right _ _)
+
 private theorem piDecSourceOffset_le
     (program : Lifecycle.Stage1.Application.Program) :
     PiDECInputs.phaseOffset ≤ AssemblerInputs.piDecOffset program := by
+  apply Nat.le_trans
+    (RunningTransitionInputs.piDecPhaseOffset_le.trans (sourceRunning_le_root program))
   unfold AssemblerInputs.piDecOffset AssemblerInputs.piRlcOffset
     AssemblerInputs.piCcsOffset AssemblerInputs.outputHashOffset
-    AssemblerInputs.priorOffset AssemblerInputs.rootOffset
-    AssemblerInputs.applicationLocalStart AssemblerInputs.applicationWitnessStart
-  rw [Stage1.Spartan.sourceColumnCount_eq]
-  norm_num [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-    PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
+    AssemblerInputs.priorOffset
   omega
 
 /-- Every compact PiDEC input is owned before its phase allocation. -/
@@ -777,13 +781,10 @@ private theorem sourceRunning_le_running
     (program : Lifecycle.Stage1.Application.Program) :
     RunningTransitionInputs.phaseOffset ≤
       AssemblerInputs.runningOffset program := by
+  apply Nat.le_trans (sourceRunning_le_root program)
   unfold AssemblerInputs.runningOffset AssemblerInputs.piDecOffset
     AssemblerInputs.piRlcOffset AssemblerInputs.piCcsOffset
     AssemblerInputs.outputHashOffset AssemblerInputs.priorOffset
-    AssemblerInputs.rootOffset AssemblerInputs.applicationLocalStart
-    AssemblerInputs.applicationWitnessStart
-  rw [Stage1.Spartan.sourceColumnCount_eq]
-  norm_num [RunningTransitionInputs.phaseOffset]
   omega
 
 private def recursiveRunningBelow
@@ -954,12 +955,8 @@ def applicationAssumptions
 
 theorem nextPreimageSourceOffset_le_root
     (program : Lifecycle.Stage1.Application.Program) :
-    RunningTransitionInputs.phaseOffset ≤ AssemblerInputs.rootOffset program := by
-  unfold AssemblerInputs.rootOffset AssemblerInputs.applicationLocalStart
-    AssemblerInputs.applicationWitnessStart
-  rw [Stage1.Spartan.sourceColumnCount_eq]
-  norm_num [RunningTransitionInputs.phaseOffset]
-  omega
+    RunningTransitionInputs.phaseOffset ≤ AssemblerInputs.rootOffset program :=
+  sourceRunning_le_root program
 
 def nextPreimageAssumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

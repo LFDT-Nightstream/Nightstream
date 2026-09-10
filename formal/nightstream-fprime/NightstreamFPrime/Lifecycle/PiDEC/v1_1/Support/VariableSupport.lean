@@ -183,11 +183,10 @@ theorem flatConstraints_varsSatisfy
     exact digits child ⟨source, sourceLt⟩
   · apply locals (sourceOffset offset source)
     · simp [sourceOffset]
-    · have sourceLt270 : source < 270 := by
-        simpa only [coordinateCount_eq] using sourceLt
-      rw [logicalPrivateCount_eq]
-      simp [sourceOffset, SignedSplitScalar.exactPrivateCount]
-      omega
+    · have scaled := Nat.mul_lt_mul_of_pos_right sourceLt
+        SignedSplitScalar.exactPrivateCount_pos
+      simpa only [sourceOffset, logicalPrivateCount] using
+        Nat.add_lt_add_left scaled offset
   · exact childMember
 
 end PublicInputSplit

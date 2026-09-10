@@ -1,3 +1,5 @@
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.Values
+import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.PiRLCParent
@@ -15,7 +17,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
 import NightstreamFPrime.Layout.PiDEC.v1_1.Ownership
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
-import NightstreamFPrime.Layout.Stage1.PiDECStarts
+import NightstreamFPrime.Layout.Stage1.PiDECValues
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
@@ -349,3 +351,69 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody.semanticEnv_source_eq_transitionEnv
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody.semanticEnv_eq_transitionEnv_of_target
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics.semantics_imply_piDecPhaseHolds
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount_pos
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.coordinateCount_eq_exact
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount_eq
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.exactRowCount_eq
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.flatConstraints_varsSatisfy
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.logical_end_le_sourceColumnCount
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.fresh_end_le_sourceColumnCount
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.sign_freshCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.digit_freshCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.recomposition_freshCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.sign_rowCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.digit_rowCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.recomposition_rowCount_eq
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.freshColumnCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.physicalRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar.physicalPrivateColumnCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.PublicInputSplit.freshColumnCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshDeltas_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactRowDeltas_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactPhysicalColumnDeltas_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactRowCount_value
+
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.exactPrivateCount_value
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.piDecPhaseOffset_le
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.mapped_input_ranges_contiguous
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.mapped_logical_start_le_output
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.mapped_output_le_private
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.parentStart_le_source
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.parent_within_piRlc

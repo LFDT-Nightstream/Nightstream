@@ -40,9 +40,17 @@ private theorem sourceEnv_eq_compactEnv_belowRunning
   intro index bounded
   symm
   apply CompactPullback.compactEnv_source
-  rw [Spartan.sourceColumnCount_eq]
-  norm_num [RunningTransitionInputs.phaseOffset] at bounded ⊢
-  omega
+  apply Nat.lt_of_lt_of_le bounded
+  simpa only [RunningTransitionInputs.phaseOffset, PiDECStarts.outputFreshStart,
+    PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
+    PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,
+    PiDECStarts.inputFreshStart, PiDECSourceSupport.freshCount,
+    PiDEC.v1_1.exactFreshCount, PiDEC.v1_1.exactFreshDeltas,
+    PiDEC.v1_1.CommitmentRecomposition.freshColumnCount,
+    PiDEC.v1_1.EvalKRecomposition.freshColumnCount,
+    PiDEC.v1_1.EvalARecomposition.freshColumnCount,
+    List.sum_cons, List.sum_nil, Nat.zero_add, Nat.add_zero] using
+      PiDECSourceSupport.fresh_end_le_sourceColumnCount
 
 private theorem compactRunningOutput_eq
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :

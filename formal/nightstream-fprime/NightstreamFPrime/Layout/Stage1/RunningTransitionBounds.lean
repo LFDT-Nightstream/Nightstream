@@ -21,22 +21,25 @@ def assumptions
     (env : Env) :
     RunningTransition.Assumptions
       (interface logicalWidth publicFits) phaseOffset env := by
+  have phaseLower := piDecPhaseOffset_le
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount_eq] at phaseLower
   refine {
     iteration := ?_
     initialState := ?_
     currentState := ?_
     recursive := ?_
     output := ?_ }
-  · simp [interface, iterationExpr, Expr.VarsBelow, phaseOffset,
+  · simp [interface, iterationExpr, Expr.VarsBelow,
       iterationWordIndex, PilotProduction.priorPreimageStart]
+    omega
   · intro index
-    simp [interface, initialStateExpr, Expr.VarsBelow, phaseOffset,
+    simp [interface, initialStateExpr, Expr.VarsBelow,
       initialStateWordStart, PilotProduction.priorPreimageStart]
     have bound := index.isLt
     norm_num [RunningTransition.stateWordCount] at bound ⊢
     omega
   · intro index
-    simp [interface, currentStateExpr, Expr.VarsBelow, phaseOffset,
+    simp [interface, currentStateExpr, Expr.VarsBelow,
       currentStateWordStart, PilotProduction.priorPreimageStart]
     have bound := index.isLt
     norm_num [RunningTransition.stateWordCount] at bound ⊢

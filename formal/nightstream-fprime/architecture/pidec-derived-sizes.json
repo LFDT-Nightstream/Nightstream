@@ -1,0 +1,76 @@
+{
+  "baseline_commit": "22de6c0f0d905cd623147f1a53c36628a1fcae32",
+  "source": "The containing commit; this file does not contain its own commit hash.",
+  "claim": "PiDEC logical/physical sizes, starts and source ranges derive from existing child owners. Allocation-sensitive consumers use proved ranges. Default profile values and identities are unchanged.",
+  "actual_consumer": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value",
+  "interface_review": "No premises added and no soundness or completeness conclusion weakened in the Lifecycle/PiDEC and Layout/PiDEC diff. Size conclusions now use matching owner definitions; default numeric checks remain in Values.",
+  "gates": {
+    "static": {
+      "result": "passed",
+      "seconds": 6.19,
+      "log_sha256": "ad9e1e52d1607f377312108c20dbf84566406a2fdee0bfc46b65be21824f33e0",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "seconds": 0.86,
+      "log_sha256": "f4a9fd7abc83cac1e4964a264077b4c0b0b8527bf365fee16fc39be1ca3b7816",
+      "last_lines": [
+        "",
+        "Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`",
+        "Build completed successfully (3795 jobs).",
+        "[bounded] exit=0 elapsed=1s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "seconds": 4.56,
+      "log_sha256": "c098786db18fb2219bee6be913578681bc64c5286cf586599521c1b5b743b83a",
+      "last_lines": [
+        " Classical.choice,",
+        " Quot.sound]",
+        "Build completed successfully (3906 jobs).",
+        "[bounded] exit=0 elapsed=5s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "seconds": 129.95,
+      "log_sha256": "564020ec465ed2c5b9b4884d43cfbd4f6f8a1ae6a6ba6e7f3328d3e8fe031d2b",
+      "last_lines": [
+        "\u2714 [7280/7280] Built emitPoseidon2HashChainV1BindingParity:exe (798ms)",
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.TNGstu.json",
+        "[bounded] exit=0 elapsed=130s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "import_reachability": {
+    "scope": "Local source import reachability; excludes the changed module; not measured rebuilds",
+    "modules": 918,
+    "internal_import_edges": 3095,
+    "selected": {
+      "NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution": 89,
+      "NightstreamFPrime.Gadgets.Range.CanonicalU64": 414,
+      "NightstreamFPrime.Layout.Stage1.PiDECStarts": 348,
+      "NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar": 368
+    },
+    "conclusion": "No source import-radius reduction."
+  },
+  "changes": [
+    "Separate protocol coordinate count from per-coordinate witness count.",
+    "Derive physical child counts, cumulative starts, source intervals and PiDEC schedules.",
+    "Move selected numeric checks to Values modules.",
+    "Use source-capacity, mapped-range and phase-order interfaces in downstream consumers."
+  ],
+  "limits": [
+    "The allocation-change experiment is the next check; this checkpoint does not claim that every downstream proof survives a changed allocation.",
+    "Selected aggregate/package checks still use default Values corollaries.",
+    "The physical compiler has not yet moved from Export to Layout.",
+    "The assurance note identifies remaining completeness and extraction premises; it does not close them."
+  ],
+  "external_review": "23:20 UTC: unchanged September 4 report. No new architecture finding or conformance approval."
+}

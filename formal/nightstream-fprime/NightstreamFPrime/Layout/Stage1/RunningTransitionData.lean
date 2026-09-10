@@ -17,7 +17,16 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
 /-- The completed PiDEC source-column endpoint. -/
-def phaseOffset : Nat := 29040586
+def phaseOffset : Nat := PiDECStarts.outputFreshStart
+
+/-- PiDEC inputs precede its logical and fresh allocations. -/
+theorem piDecPhaseOffset_le : PiDECInputs.phaseOffset ≤ phaseOffset := by
+  dsimp only [phaseOffset, PiDECStarts.outputFreshStart,
+    PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
+    PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,
+    PiDECStarts.inputFreshStart, PiDECStarts.phaseFreshStart,
+    PiDECStarts.phaseLogicalStart]
+  exact Nat.le_trans (Nat.le_add_right _ _) (Nat.le_add_right _ _)
 
 theorem phaseOffset_matches_piDec
     {logicalWidth : Nat}

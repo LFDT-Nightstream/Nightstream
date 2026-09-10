@@ -173,7 +173,7 @@ private theorem freshDeltas
       R1CS.totalFreshCount (commitmentConstraints logicalWidth publicFits),
       R1CS.totalFreshCount (evalKConstraints logicalWidth publicFits),
       R1CS.totalFreshCount (evalAConstraints logicalWidth publicFits), 0] =
-        [0, 17820, 0, 0, 0, 0] := by
+        [0, Layout.PiDEC.v1_1.PublicInputSplit.freshColumnCount, 0, 0, 0, 0] := by
   simpa only [NightstreamFPrime.Layout.PiDEC.v1_1.physicalFreshDeltas,
     NightstreamFPrime.Layout.PiDEC.v1_1.childConstraintLists,
     publicConstraints, commitmentConstraints, evalKConstraints,
@@ -187,7 +187,7 @@ private theorem freshDeltas
 
 theorem publicFreshCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalFreshCount (publicConstraints logicalWidth publicFits) = 17820 := by
+    R1CS.totalFreshCount (publicConstraints logicalWidth publicFits) = Layout.PiDEC.v1_1.PublicInputSplit.freshColumnCount := by
   simpa using congrArg (fun values : List Nat => values.getD 1 0)
     (freshDeltas relation)
 
@@ -215,7 +215,7 @@ private theorem rowDeltas
       R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits),
       R1CS.totalRowCount (evalKConstraints logicalWidth publicFits),
       R1CS.totalRowCount (evalAConstraints logicalWidth publicFits), 0] =
-        [0, 22680, 1188, 108, 1512, 0] := by
+        [0, Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount, Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount, Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount, Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount, 0] := by
   simpa only [NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowDeltas,
     NightstreamFPrime.Layout.PiDEC.v1_1.childConstraintLists,
     publicConstraints, commitmentConstraints, evalKConstraints,
@@ -229,36 +229,38 @@ private theorem rowDeltas
 
 theorem publicRowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalRowCount (publicConstraints logicalWidth publicFits) = 22680 := by
+    R1CS.totalRowCount (publicConstraints logicalWidth publicFits) = Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
   simpa using congrArg (fun values : List Nat => values.getD 1 0)
     (rowDeltas relation)
 
 theorem commitmentRowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits) = 1188 := by
+    R1CS.totalRowCount (commitmentConstraints logicalWidth publicFits) = Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
   simpa using congrArg (fun values : List Nat => values.getD 2 0)
     (rowDeltas relation)
 
 theorem evalKRowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalRowCount (evalKConstraints logicalWidth publicFits) = 108 := by
+    R1CS.totalRowCount (evalKConstraints logicalWidth publicFits) = Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
   simpa using congrArg (fun values : List Nat => values.getD 3 0)
     (rowDeltas relation)
 
 theorem evalARowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalRowCount (evalAConstraints logicalWidth publicFits) = 1512 := by
+    R1CS.totalRowCount (evalAConstraints logicalWidth publicFits) = Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   simpa using congrArg (fun values : List Nat => values.getD 4 0)
     (rowDeltas relation)
 
 theorem sourceRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 25488 := by
+    (sourceRows logicalWidth publicFits).length = Layout.PiDEC.v1_1.exactRowCount := by
   simp only [sourceRows, List.length_append, publicRows, commitmentRows,
     evalKRows, evalARows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   rw [publicRowCount relation, commitmentRowCount relation,
     evalKRowCount relation, evalARowCount relation]
+  simp only [Layout.PiDEC.v1_1.exactRowCount, Layout.PiDEC.v1_1.exactRowDeltas,
+    List.sum_cons, List.sum_nil, Nat.zero_add, Nat.add_zero, Nat.add_assoc]
 
 theorem constraints_eq_sources :
     PiDECArithmetic.constraints logicalWidth publicFits =
@@ -398,71 +400,72 @@ theorem evalARows_varsBelow
 
 theorem publicRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (publicRows logicalWidth publicFits).length = 22680 := by
+    (publicRows logicalWidth publicFits).length = Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount := by
   simp only [publicRows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact publicRowCount relation
 
 theorem commitmentRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (commitmentRows logicalWidth publicFits).length = 1188 := by
+    (commitmentRows logicalWidth publicFits).length = Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount := by
   simp only [commitmentRows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact commitmentRowCount relation
 
 theorem evalKRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (evalKRows logicalWidth publicFits).length = 108 := by
+    (evalKRows logicalWidth publicFits).length = Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount := by
   simp only [evalKRows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact evalKRowCount relation
 
 theorem evalARows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (evalARows logicalWidth publicFits).length = 1512 := by
+    (evalARows logicalWidth publicFits).length = Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
   simp only [evalARows, Spartan.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact evalARowCount relation
 
 def publicListIndex
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 22680) : Fin (publicRows logicalWidth publicFits).length :=
+    (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
+    Fin (publicRows logicalWidth publicFits).length :=
   Fin.cast (publicRows_length relation).symm index
 
 def commitmentListIndex
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1188) : Fin (commitmentRows logicalWidth publicFits).length :=
+    (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) : Fin (commitmentRows logicalWidth publicFits).length :=
   Fin.cast (commitmentRows_length relation).symm index
 
 def evalKListIndex
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 108) : Fin (evalKRows logicalWidth publicFits).length :=
+    (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) : Fin (evalKRows logicalWidth publicFits).length :=
   Fin.cast (evalKRows_length relation).symm index
 
 def evalAListIndex
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1512) : Fin (evalARows logicalWidth publicFits).length :=
+    (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) : Fin (evalARows logicalWidth publicFits).length :=
   Fin.cast (evalARows_length relation).symm index
 
 def publicProgramRow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 22680) : R1CS.Row :=
+    (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) : R1CS.Row :=
   (publicRows logicalWidth publicFits).get (publicListIndex relation index)
 
 def commitmentProgramRow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1188) : R1CS.Row :=
+    (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) : R1CS.Row :=
   (commitmentRows logicalWidth publicFits).get
     (commitmentListIndex relation index)
 
 def evalKProgramRow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 108) : R1CS.Row :=
+    (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) : R1CS.Row :=
   (evalKRows logicalWidth publicFits).get (evalKListIndex relation index)
 
 def evalAProgramRow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1512) : R1CS.Row :=
+    (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) : R1CS.Row :=
   (evalARows logicalWidth publicFits).get (evalAListIndex relation index)
 
 private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
@@ -504,35 +507,35 @@ theorem evalAProgramRows_eq
 
 theorem publicProgramRow_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 22680) :
+    (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     (publicProgramRow relation index).VarsSatisfy Target :=
   publicRows_varsSatisfy relation _
     (List.get_mem _ (publicListIndex relation index))
 
 theorem commitmentProgramRow_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1188) :
+    (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     (commitmentProgramRow relation index).VarsSatisfy Target :=
   commitmentRows_varsSatisfy relation _
     (List.get_mem _ (commitmentListIndex relation index))
 
 theorem evalKProgramRow_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 108) :
+    (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     (evalKProgramRow relation index).VarsSatisfy Target :=
   evalKRows_varsSatisfy relation _
     (List.get_mem _ (evalKListIndex relation index))
 
 theorem evalAProgramRow_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1512) :
+    (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     (evalAProgramRow relation index).VarsSatisfy Target :=
   evalARows_varsSatisfy relation _
     (List.get_mem _ (evalAListIndex relation index))
 
 theorem publicProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 22680) :
+    (index : Fin Layout.PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     SourceCompiler.RowBounded Spartan.spartanColumnCount
       (publicProgramRow relation index) :=
   (publicProgramRow_varsSatisfy relation index).mono _
@@ -540,7 +543,7 @@ theorem publicProgramRow_bounded
 
 theorem commitmentProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1188) :
+    (index : Fin Layout.PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     SourceCompiler.RowBounded Spartan.spartanColumnCount
       (commitmentProgramRow relation index) :=
   (commitmentProgramRow_varsSatisfy relation index).mono _
@@ -548,7 +551,7 @@ theorem commitmentProgramRow_bounded
 
 theorem evalKProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 108) :
+    (index : Fin Layout.PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     SourceCompiler.RowBounded Spartan.spartanColumnCount
       (evalKProgramRow relation index) :=
   (evalKProgramRow_varsSatisfy relation index).mono _
@@ -556,7 +559,7 @@ theorem evalKProgramRow_bounded
 
 theorem evalAProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 1512) :
+    (index : Fin Layout.PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     SourceCompiler.RowBounded Spartan.spartanColumnCount
       (evalAProgramRow relation index) :=
   (evalAProgramRow_varsSatisfy relation index).mono _

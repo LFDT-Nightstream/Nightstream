@@ -180,20 +180,28 @@ theorem parentPublicInput_eq_form
     (parent relation geometry assignment).publicInput column =
       ((PiDECDirectPlan.Location.parentPublicInput
         (CombinationStep.indexOf
+          (blockCount := PublicInputCombination.blockCount)
+          (cellCount := PublicInputCombination.cellCount)
           (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex
             (FullShape relationLogicalWidth relationPublicFits) column)
-          (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column)
+          (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex
+            (shape := FullShape relationLogicalWidth relationPublicFits) column)
           PublicInputCombination.cell)).form (piDecGeometry geometry)).eval assignment := by
-  simp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
+  dsimp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
     PiDEC.v1_1.InputBinding.evalParent, PiDEC.v1_1.Formal.inputBindingInterface,
     PiDEC.v1_1.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
     PiDECInputs.parent, PiDECInputs.piRlcOutputInterface, Formal.outputBindingInterface,
-    PublicInputCombination.output]
+    PublicInputCombination.output, CombinationFamily.output, CombinationStep.output,
+    Expr.eval]
   exact ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment
     (.parentPublicInput (CombinationStep.indexOf
+      (blockCount := PublicInputCombination.blockCount)
+      (cellCount := PublicInputCombination.cellCount)
       (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex
         (FullShape relationLogicalWidth relationPublicFits) column)
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column) PublicInputCombination.cell))
+      (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex
+        (shape := FullShape relationLogicalWidth relationPublicFits) column)
+      PublicInputCombination.cell))
 
 theorem rowsZero_implies_publicInput
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)

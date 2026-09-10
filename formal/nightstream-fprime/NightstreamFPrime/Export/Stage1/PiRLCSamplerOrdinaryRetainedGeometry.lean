@@ -33,7 +33,11 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
   unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
   rw [PiDECRetainedGeometry.completeLogicalWidth_eq,
     PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_coordinateCount,
-    PiRLCSamplerOrdinaryRetainedBlocks.freshBlock_coordinateCount]
+    PiRLCSamplerOrdinaryRetainedBlocks.freshBlock_coordinateCount,
+    PiDECRetainedGeometry.prefixLogicalWidth,
+    PilotOrdinaryRetainedGeometry.completeLogicalWidth_eq,
+    PiDECRetainedBlocks.retainedCoordinateCount_eq]
+  rfl
 
 theorem completeLogicalWidth_le_cube
     (program : Lifecycle.Stage1.Application.Program) :

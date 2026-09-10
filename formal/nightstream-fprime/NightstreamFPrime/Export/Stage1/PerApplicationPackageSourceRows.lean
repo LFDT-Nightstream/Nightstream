@@ -253,10 +253,36 @@ theorem pilotRows_rowIndex_lt (row : Rows.CompiledRow)
       Spec.Poseidon2.rate, PilotValues.permutationRecipeCount] at digest ⊢
     omega
 
+private theorem piDecRowCount_sum : PiDEC.v1_1.exactRowCount =
+    PiDEC.v1_1.PublicInputSplit.physicalRowCount +
+      PiDEC.v1_1.CommitmentRecomposition.physicalRowCount +
+      PiDEC.v1_1.EvalKRecomposition.physicalRowCount +
+      PiDEC.v1_1.EvalARecomposition.physicalRowCount := by
+  simp only [PiDEC.v1_1.exactRowCount, PiDEC.v1_1.exactRowDeltas,
+    List.sum_cons, List.sum_nil, Nat.zero_add, Nat.add_zero, Nat.add_assoc]
+private theorem piDecRowEnd : RunningTransitionArithmetic.rowStart =
+    PiDECStarts.phaseRowStart + PiDEC.v1_1.exactRowCount := by
+  rw [piDecRowCount_sum]
+  simp only [RunningTransitionArithmetic.rowStart, PiDECStarts.outputRowStart,
+    PiDECStarts.evalARowStart, PiDECStarts.evalKRowStart,
+    PiDECStarts.commitmentRowStart, PiDECStarts.publicInputRowStart,
+    PiDECStarts.inputRowStart, Nat.add_assoc]
+private theorem piDecCanonicalRows_length {logicalWidth : Nat}
+    {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
+      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth publicFits) :
+    (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rows.length =
+      PiDEC.v1_1.exactRowCount := by
+  have lengthEq := congrArg List.length
+    (PiDECOrdinaryDirectSource.sourceRows_eq_canonical
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+  rw [List.length_map] at lengthEq
+  exact lengthEq.symm.trans (PiDECOrdinaryDirectSource.sourceRows_length relation)
+
 theorem piDecRows_rowIndices :
     (PiDECArithmetic.canonicalPlan Data.logicalWidth Data.publicFits).rows.map
         Rows.CompiledRow.rowIndex =
-      List.range' PiDECStarts.phaseRowStart 25488 := by
+      List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount := by
   calc
     _ = List.range'
         (PiDECArithmetic.canonicalPlan Data.logicalWidth
@@ -264,9 +290,8 @@ theorem piDecRows_rowIndices :
         (PiDECArithmetic.canonicalPlan Data.logicalWidth
           Data.publicFits).rows.length :=
       PiCCSArithmetic.compilePacket_rowIndices _ _ _
-    _ = List.range' PiDECStarts.phaseRowStart 25488 := by
-      rw [PiDECArithmetic.Plan.rows_length,
-        PiDECArithmetic.canonicalPlan_rowCount baseShapeRelation]
+    _ = List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount := by
+      rw [piDecCanonicalRows_length baseShapeRelation]
       rfl
 
 theorem runningRows_rowIndices :
@@ -289,7 +314,7 @@ theorem arithmeticRows_rowIndices :
     (Data.arithmeticRows ()).map Rows.CompiledRow.rowIndex =
       PiCCSOrdinaryMatrixProgram.rowIndexReference ++
         PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference ++
-        List.range' PiDECStarts.phaseRowStart 25488 ++
+        List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
         List.range' RunningTransitionArithmetic.rowStart 345495 := by
   unfold Data.arithmeticRows
   simp only [List.map_append]
@@ -299,15 +324,10 @@ theorem arithmeticRows_rowIndices :
     piDecRows_rowIndices, runningRows_rowIndices]
 
 private theorem piDecIndex_bounds (index : Nat)
-    (member : index ∈ List.range' PiDECStarts.phaseRowStart 25488) :
+    (member : index ∈ List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount) :
     PiDECStarts.phaseRowStart ≤ index ∧
       index < RunningTransitionArithmetic.rowStart := by
-  rw [List.mem_range'_1] at member
-  unfold RunningTransitionArithmetic.rowStart PiDECStarts.outputRowStart
-    PiDECStarts.evalARowStart PiDECStarts.evalKRowStart
-    PiDECStarts.commitmentRowStart PiDECStarts.publicInputRowStart
-    PiDECStarts.inputRowStart
-  omega
+  simpa only [piDecRowEnd] using List.mem_range'_1.mp member
 
 private theorem runningIndex_lower (index : Nat)
     (member : index ∈
@@ -316,7 +336,7 @@ private theorem runningIndex_lower (index : Nat)
   exact (List.mem_range'_1.mp member).1
 
 private theorem piDecRunningIndices_nodup :
-    (List.range' PiDECStarts.phaseRowStart 25488 ++
+    (List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
       List.range' RunningTransitionArithmetic.rowStart 345495).Nodup := by
   rw [List.nodup_append]
   refine ⟨List.nodup_range', List.nodup_range', ?_⟩
@@ -327,7 +347,7 @@ private theorem piDecRunningIndices_nodup :
 
 private theorem samplerLaterIndices_nodup :
     (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference ++
-      (List.range' PiDECStarts.phaseRowStart 25488 ++
+      (List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
         List.range' RunningTransitionArithmetic.rowStart 345495)).Nodup := by
   rw [List.nodup_append]
   refine ⟨PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_nodup,
@@ -341,16 +361,13 @@ private theorem samplerLaterIndices_nodup :
   · have piDecBounds := piDecIndex_bounds later piDecMember
     omega
   · have runningLower := runningIndex_lower later runningMember
-    unfold RunningTransitionArithmetic.rowStart PiDECStarts.outputRowStart
-      PiDECStarts.evalARowStart PiDECStarts.evalKRowStart
-      PiDECStarts.commitmentRowStart PiDECStarts.publicInputRowStart
-      PiDECStarts.inputRowStart at runningLower
+    rw [piDecRowEnd] at runningLower
     omega
 
 private theorem arithmeticIndexRanges_nodup :
     (PiCCSOrdinaryMatrixProgram.rowIndexReference ++
       (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference ++
-        (List.range' PiDECStarts.phaseRowStart 25488 ++
+        (List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
           List.range' RunningTransitionArithmetic.rowStart 345495))).Nodup := by
   rw [List.nodup_append]
   refine ⟨PiCCSOrdinaryMatrixProgram.rowIndexReference_nodup,
@@ -393,7 +410,7 @@ theorem arithmeticRows_rowIndex_ge (index : Nat)
   have normalized : index ∈
       PiCCSOrdinaryMatrixProgram.rowIndexReference ++
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference ++
-          (List.range' PiDECStarts.phaseRowStart 25488 ++
+          (List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
             List.range' RunningTransitionArithmetic.rowStart 345495)) := by
     simpa only [List.append_assoc] using member
   rw [List.mem_append] at normalized
@@ -435,7 +452,7 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
   have normalized : index ∈
       PiCCSOrdinaryMatrixProgram.rowIndexReference ++
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference ++
-          (List.range' PiDECStarts.phaseRowStart 25488 ++
+          (List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount ++
             List.range' RunningTransitionArithmetic.rowStart 345495)) := by
     simpa only [List.append_assoc] using member
   rw [List.mem_append] at normalized
@@ -1151,7 +1168,7 @@ def piDecProgramRow
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 25488) : R1CS.Row :=
+      publicFits) (index : Fin PiDEC.v1_1.exactRowCount) : R1CS.Row :=
   (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
     index.val Spartan.zeroRow
 
@@ -1165,9 +1182,9 @@ theorem piDecProgramRows_eq
     List.ofFn (piDecProgramRow relation) =
       PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits := by
   let rows := PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits
-  have rowsLength : rows.length = 25488 :=
+  have rowsLength : rows.length = PiDEC.v1_1.exactRowCount :=
     PiDECOrdinaryDirectSource.sourceRows_length relation
-  change List.ofFn (fun index : Fin 25488 =>
+  change List.ofFn (fun index : Fin PiDEC.v1_1.exactRowCount =>
     rows.getD index.val Spartan.zeroRow) = rows
   apply List.ext_get
   · rw [List.length_ofFn, rowsLength]
@@ -1182,23 +1199,22 @@ theorem piDecPackageSourceRow?_eq_some
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 25488) :
+      publicFits) (index : Fin PiDEC.v1_1.exactRowCount) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PiDECStarts.phaseRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (piDecProgramRow relation index)) := by
   let rows := (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rows
-  have rowsLength : rows.length = 25488 := by
-    rw [PiDECArithmetic.Plan.rows_length,
-      PiDECArithmetic.canonicalPlan_rowCount relation]
+  have rowsLength : rows.length = PiDEC.v1_1.exactRowCount :=
+    piDecCanonicalRows_length relation
   have rowIndices : rows.map Rows.CompiledRow.rowIndex =
-      List.range' PiDECStarts.phaseRowStart 25488 := by
+      List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount := by
     calc
       _ = List.range'
           (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rowStart
           rows.length := PiCCSArithmetic.compilePacket_rowIndices _ _ _
-      _ = List.range' PiDECStarts.phaseRowStart 25488 := by
+      _ = List.range' PiDECStarts.phaseRowStart PiDEC.v1_1.exactRowCount := by
         rw [rowsLength]
         rfl
   have included : ∀ row ∈ rows, row ∈ baseRows := by
@@ -1224,8 +1240,8 @@ theorem piDecPackageSourceRow?_eq_some
   exact indexedBasePackageSourceRow?_eq_some application rows rowsLength
     rowIndices included (piDecProgramRow relation) exactRows index
 
-def piDecPublicIndex (index : Fin 22680) : Fin 25488 :=
-  ⟨index.val, by omega⟩
+def piDecPublicIndex (index : Fin PiDEC.v1_1.PublicInputSplit.physicalRowCount) : Fin PiDEC.v1_1.exactRowCount :=
+  ⟨index.val, by rw [piDecRowCount_sum]; omega⟩
 
 theorem piDecProgramRow_public
     {logicalWidth : Nat}
@@ -1233,24 +1249,13 @@ theorem piDecProgramRow_public
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 22680) :
+      publicFits) (index : Fin PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     piDecProgramRow relation (piDecPublicIndex index) =
       PiDECOrdinaryDirectSource.publicProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
       index.val Spartan.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
-  rw [List.getD_append _ _ _ _ (by
-    rw [List.length_append, List.length_append,
-      PiDECOrdinaryDirectSource.publicRows_length relation,
-      PiDECOrdinaryDirectSource.commitmentRows_length relation,
-      PiDECOrdinaryDirectSource.evalKRows_length relation]
-    omega)]
-  rw [List.getD_append _ _ _ _ (by
-    rw [List.length_append,
-      PiDECOrdinaryDirectSource.publicRows_length relation,
-      PiDECOrdinaryDirectSource.commitmentRows_length relation]
-    omega)]
-  rw [List.getD_append _ _ _ _ (by
+  rw [List.append_assoc, List.append_assoc, List.getD_append _ _ _ _ (by
     rw [PiDECOrdinaryDirectSource.publicRows_length relation]
     exact index.isLt)]
   unfold PiDECOrdinaryDirectSource.publicProgramRow
@@ -1263,8 +1268,8 @@ theorem piDecProgramRow_public
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
-def piDecCommitmentIndex (index : Fin 1188) : Fin 25488 :=
-  ⟨22680 + index.val, by omega⟩
+def piDecCommitmentIndex (index : Fin PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) : Fin PiDEC.v1_1.exactRowCount :=
+  ⟨PiDEC.v1_1.PublicInputSplit.physicalRowCount + index.val, by rw [piDecRowCount_sum]; omega⟩
 
 theorem piDecProgramRow_commitment
     {logicalWidth : Nat}
@@ -1272,11 +1277,11 @@ theorem piDecProgramRow_commitment
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 1188) :
+      publicFits) (index : Fin PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     piDecProgramRow relation (piDecCommitmentIndex index) =
       PiDECOrdinaryDirectSource.commitmentProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      (22680 + index.val) Spartan.zeroRow = _
+      (PiDEC.v1_1.PublicInputSplit.physicalRowCount + index.val) Spartan.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1292,7 +1297,7 @@ theorem piDecProgramRow_commitment
   rw [List.getD_append_right _ _ _ _ (by
     rw [PiDECOrdinaryDirectSource.publicRows_length relation]
     omega)]
-  have offsetEq : 22680 + index.val -
+  have offsetEq : PiDEC.v1_1.PublicInputSplit.physicalRowCount + index.val -
       (PiDECOrdinaryDirectSource.publicRows logicalWidth publicFits).length =
         index.val := by
     rw [PiDECOrdinaryDirectSource.publicRows_length relation]
@@ -1309,8 +1314,8 @@ theorem piDecProgramRow_commitment
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
-def piDecEvalKIndex (index : Fin 108) : Fin 25488 :=
-  ⟨23868 + index.val, by omega⟩
+def piDecEvalKIndex (index : Fin PiDEC.v1_1.EvalKRecomposition.physicalRowCount) : Fin PiDEC.v1_1.exactRowCount :=
+  ⟨(PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) + index.val, by rw [piDecRowCount_sum]; omega⟩
 
 theorem piDecProgramRow_evalK
     {logicalWidth : Nat}
@@ -1318,11 +1323,11 @@ theorem piDecProgramRow_evalK
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 108) :
+      publicFits) (index : Fin PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     piDecProgramRow relation (piDecEvalKIndex index) =
       PiDECOrdinaryDirectSource.evalKProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      (23868 + index.val) Spartan.zeroRow = _
+      ((PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) + index.val) Spartan.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1335,7 +1340,7 @@ theorem piDecProgramRow_evalK
       PiDECOrdinaryDirectSource.publicRows_length relation,
       PiDECOrdinaryDirectSource.commitmentRows_length relation]
     omega)]
-  have offsetEq : 23868 + index.val -
+  have offsetEq : (PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) + index.val -
       (PiDECOrdinaryDirectSource.publicRows logicalWidth publicFits ++
         PiDECOrdinaryDirectSource.commitmentRows logicalWidth
           publicFits).length = index.val := by
@@ -1354,8 +1359,8 @@ theorem piDecProgramRow_evalK
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
-def piDecEvalAIndex (index : Fin 1512) : Fin 25488 :=
-  ⟨23976 + index.val, by omega⟩
+def piDecEvalAIndex (index : Fin PiDEC.v1_1.EvalARecomposition.physicalRowCount) : Fin PiDEC.v1_1.exactRowCount :=
+  ⟨(PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount + PiDEC.v1_1.EvalKRecomposition.physicalRowCount) + index.val, by rw [piDecRowCount_sum]; omega⟩
 
 theorem piDecProgramRow_evalA
     {logicalWidth : Nat}
@@ -1363,11 +1368,11 @@ theorem piDecProgramRow_evalA
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 1512) :
+      publicFits) (index : Fin PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     piDecProgramRow relation (piDecEvalAIndex index) =
       PiDECOrdinaryDirectSource.evalAProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      (23976 + index.val) Spartan.zeroRow = _
+      ((PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount + PiDEC.v1_1.EvalKRecomposition.physicalRowCount) + index.val) Spartan.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append_right _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1375,7 +1380,7 @@ theorem piDecProgramRow_evalA
       PiDECOrdinaryDirectSource.commitmentRows_length relation,
       PiDECOrdinaryDirectSource.evalKRows_length relation]
     omega)]
-  have offsetEq : 23976 + index.val -
+  have offsetEq : (PiDEC.v1_1.PublicInputSplit.physicalRowCount + PiDEC.v1_1.CommitmentRecomposition.physicalRowCount + PiDEC.v1_1.EvalKRecomposition.physicalRowCount) + index.val -
       ((PiDECOrdinaryDirectSource.publicRows logicalWidth publicFits ++
         PiDECOrdinaryDirectSource.commitmentRows logicalWidth publicFits) ++
           PiDECOrdinaryDirectSource.evalKRows logicalWidth publicFits).length =
@@ -1403,7 +1408,7 @@ theorem piDecPublicPackageSourceRow?_eq_some
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 22680) :
+      publicFits) (index : Fin PiDEC.v1_1.PublicInputSplit.physicalRowCount) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PiDECStarts.publicInputRowStart + index.val) =
@@ -1422,7 +1427,7 @@ theorem piDecCommitmentPackageSourceRow?_eq_some
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 1188) :
+      publicFits) (index : Fin PiDEC.v1_1.CommitmentRecomposition.physicalRowCount) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PiDECStarts.commitmentRowStart + index.val) =
@@ -1431,16 +1436,7 @@ theorem piDecCommitmentPackageSourceRow?_eq_some
   have recovered := piDecPackageSourceRow?_eq_some application relation
     (piDecCommitmentIndex index)
   rw [piDecProgramRow_commitment relation index] at recovered
-  have rowEq : PiDECStarts.phaseRowStart +
-      (piDecCommitmentIndex index).val =
-        PiDECStarts.commitmentRowStart + index.val := by
-    change PiDECStarts.phaseRowStart + (22680 + index.val) =
-      PiDECStarts.commitmentRowStart + index.val
-    unfold PiDECStarts.commitmentRowStart
-      PiDECStarts.publicInputRowStart PiDECStarts.inputRowStart
-    omega
-  rw [rowEq] at recovered
-  exact recovered
+  simpa only [piDecCommitmentIndex, PiDECStarts.commitmentRowStart, PiDECStarts.publicInputRowStart, PiDECStarts.inputRowStart, Nat.add_assoc] using recovered
 
 theorem piDecEvalKPackageSourceRow?_eq_some
     {logicalWidth : Nat}
@@ -1449,7 +1445,7 @@ theorem piDecEvalKPackageSourceRow?_eq_some
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 108) :
+      publicFits) (index : Fin PiDEC.v1_1.EvalKRecomposition.physicalRowCount) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PiDECStarts.evalKRowStart + index.val) =
@@ -1458,16 +1454,7 @@ theorem piDecEvalKPackageSourceRow?_eq_some
   have recovered := piDecPackageSourceRow?_eq_some application relation
     (piDecEvalKIndex index)
   rw [piDecProgramRow_evalK relation index] at recovered
-  have rowEq : PiDECStarts.phaseRowStart + (piDecEvalKIndex index).val =
-      PiDECStarts.evalKRowStart + index.val := by
-    change PiDECStarts.phaseRowStart + (23868 + index.val) =
-      PiDECStarts.evalKRowStart + index.val
-    unfold PiDECStarts.evalKRowStart
-      PiDECStarts.commitmentRowStart PiDECStarts.publicInputRowStart
-      PiDECStarts.inputRowStart
-    omega
-  rw [rowEq] at recovered
-  exact recovered
+  simpa only [piDecEvalKIndex, PiDECStarts.evalKRowStart, PiDECStarts.commitmentRowStart, PiDECStarts.publicInputRowStart, PiDECStarts.inputRowStart, Nat.add_assoc] using recovered
 
 theorem piDecEvalAPackageSourceRow?_eq_some
     {logicalWidth : Nat}
@@ -1476,7 +1463,7 @@ theorem piDecEvalAPackageSourceRow?_eq_some
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
-      publicFits) (index : Fin 1512) :
+      publicFits) (index : Fin PiDEC.v1_1.EvalARecomposition.physicalRowCount) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PiDECStarts.evalARowStart + index.val) =
@@ -1485,15 +1472,6 @@ theorem piDecEvalAPackageSourceRow?_eq_some
   have recovered := piDecPackageSourceRow?_eq_some application relation
     (piDecEvalAIndex index)
   rw [piDecProgramRow_evalA relation index] at recovered
-  have rowEq : PiDECStarts.phaseRowStart + (piDecEvalAIndex index).val =
-      PiDECStarts.evalARowStart + index.val := by
-    change PiDECStarts.phaseRowStart + (23976 + index.val) =
-      PiDECStarts.evalARowStart + index.val
-    unfold PiDECStarts.evalARowStart
-      PiDECStarts.evalKRowStart PiDECStarts.commitmentRowStart
-      PiDECStarts.publicInputRowStart PiDECStarts.inputRowStart
-    omega
-  rw [rowEq] at recovered
-  exact recovered
+  simpa only [piDecEvalAIndex, PiDECStarts.evalARowStart, PiDECStarts.evalKRowStart, PiDECStarts.commitmentRowStart, PiDECStarts.publicInputRowStart, PiDECStarts.inputRowStart, Nat.add_assoc] using recovered
 
 end NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows

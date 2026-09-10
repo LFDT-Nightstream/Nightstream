@@ -1,5 +1,4 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerPiRLCCompleteness
-import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
 
 /-!
@@ -20,33 +19,17 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-private theorem sourceColumn_agrees
-    (program : Lifecycle.Stage1.Application.Program)
-    {env : Env}
-    (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
-    {index : Nat} (below : index < Spartan.SourceColumnCount) :
-    env index = completed.current index := by
-  symm
-  apply completed.agrees index
-  apply Or.inl
-  rw [AssemblerPilotBounds.rootOffset_eq]
-  rw [Spartan.sourceColumnCount_eq] at below
-  omega
-
 private theorem sourceInput_agrees
     (program : Lifecycle.Stage1.Application.Program)
     {env : Env}
     (completed : Sequence.Prefix env (AssemblerInputs.rootOffset program))
     {index : Nat} (below : index < PiDECInputs.phaseOffset) :
     env index = completed.current index := by
-  apply sourceColumn_agrees program completed
-  rw [Spartan.sourceColumnCount_eq]
-  norm_num [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-    PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-    PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-    PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
-    at below ⊢
-  omega
+  symm
+  apply completed.agrees index
+  exact Or.inl (lt_of_lt_of_le below
+    (RunningTransitionInputs.piDecPhaseOffset_le.trans
+      (AssemblerBounds.nextPreimageSourceOffset_le_root program)))
 
 private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
     (pad : left.pad = right.pad) (matrix : left.matrix = right.matrix) :
@@ -144,6 +127,10 @@ private theorem piDecOutput_eq
       PiDEC.v1_1.Semantics.output relation
         (AssemblerInputs.piDecInterface relation program)
         (AssemblerInputs.piDecOffset program) completed.current := by
+  have inputs := PiDECInputs.inputsBelow relation
+  have agrees : ∀ index, index < PiDECInputs.phaseOffset →
+      env index = completed.current index := fun _ below =>
+    sourceInput_agrees program completed below
   apply PiDEC.v1_1.Semantics.output_eq_of_components
   · have pointEq := congrArg (fun value => value.point) piRlcOutputEq
     simpa [AssemblerInputs.piDecInterface,
@@ -153,97 +140,19 @@ private theorem piDecOutput_eq
       PiRLC.v1_1.Formal.outputBindingInterface,
       PiRLC.v1_1.Formal.atOffset] using pointEq
   · intro child row lane
-    apply sourceInput_agrees program completed
-    have childBound := child.isLt
-    have rowBound := row.isLt
-    have laneBound := lane.isLt
-    norm_num [AssemblerInputs.piDecInterface, PiDECInputs.message,
-      PiDECInputs.childCommitment, PiDECInputs.childCommitmentStart,
-      PiDECInputs.commitmentInputStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild, productionProfile, ringDegree]
-      at childBound rowBound laneBound ⊢
-    omega
+    exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+      env completed.current (inputs.messageCommitment child row lane) agrees
   · intro child coordinate
-    apply sourceInput_agrees program completed
-    have childBound := child.isLt
-    have coordinateBound : coordinate.val < 270 := by
-      simpa only [PiDEC.v1_1.PublicInputSplit.coordinateCount_eq] using
-        coordinate.isLt
-    norm_num [AssemblerInputs.piDecInterface,
-      PiDECInputs.childPublicInput, PiDECInputs.childPublicInputStart,
-      PiDECInputs.publicInputStart, PiDECInputs.evalAInputStart,
-      PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-      PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild]
-      at childBound coordinateBound ⊢
-    omega
+    exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+      env completed.current (inputs.digit child coordinate) agrees
   · intro child
     apply evaluation_ext
     · funext coefficient
-      apply congrArg₂ K.mk
-      · apply sourceInput_agrees program completed
-        have childBound := child.isLt
-        have coefficientBound := coefficient.isLt
-        norm_num [AssemblerInputs.piDecInterface, PiDECInputs.message,
-          PiDECInputs.childEvalK, PiDECInputs.childEvalKStart,
-          PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-          PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-          PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-          PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-          PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-          productionShape, Phi81MatrixSource.phi81Shape, ringDegree]
-          at childBound coefficientBound ⊢
-        omega
-      · apply sourceInput_agrees program completed
-        have childBound := child.isLt
-        have coefficientBound := coefficient.isLt
-        norm_num [AssemblerInputs.piDecInterface, PiDECInputs.message,
-          PiDECInputs.childEvalK, PiDECInputs.childEvalKStart,
-          PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
-          PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-          PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-          PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-          PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-          productionShape, Phi81MatrixSource.phi81Shape, ringDegree]
-          at childBound coefficientBound ⊢
-        omega
+      exact Quadratic.KExpr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+        env completed.current (inputs.messageEval_K child coefficient) agrees
     · funext matrix coefficient
-      apply congrArg₂ K.mk
-      · apply sourceInput_agrees program completed
-        have childBound := child.isLt
-        have matrixBound := matrix.isLt
-        have coefficientBound := coefficient.isLt
-        norm_num [AssemblerInputs.piDecInterface, PiDECInputs.message,
-          PiDECInputs.childEvalA, PiDECInputs.childEvalAStart,
-          PiDECInputs.evalAInputStart, PiDECInputs.evalKInputStart,
-          PiDECInputs.commitmentInputStart, PiDECInputs.phaseOffset,
-          PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-          PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-          PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-          PiDECInputs.publicInputWordsPerChild, productionShape,
-          productionProfile, Phi81MatrixSource.phi81Shape, ringDegree]
-          at childBound matrixBound coefficientBound ⊢
-        omega
-      · apply sourceInput_agrees program completed
-        have childBound := child.isLt
-        have matrixBound := matrix.isLt
-        have coefficientBound := coefficient.isLt
-        norm_num [AssemblerInputs.piDecInterface, PiDECInputs.message,
-          PiDECInputs.childEvalA, PiDECInputs.childEvalAStart,
-          PiDECInputs.evalAInputStart, PiDECInputs.evalKInputStart,
-          PiDECInputs.commitmentInputStart, PiDECInputs.phaseOffset,
-          PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-          PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-          PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-          PiDECInputs.publicInputWordsPerChild, productionShape,
-          productionProfile, Phi81MatrixSource.phi81Shape, ringDegree]
-          at childBound matrixBound coefficientBound ⊢
-        omega
+      exact Quadratic.KExpr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
+        env completed.current (inputs.messageEval_A child matrix coefficient) agrees
 
 /-- Honest completion through the PiDEC parent child. The canonical PiDEC
 builder owns its six internal children, while Stage 1 retains one opaque
@@ -377,10 +286,10 @@ theorem completePiDecPrefix
   have sourceAgrees : ∀ index, index < RunningTransitionInputs.phaseOffset →
       env index = p5.current index := by
     intro index below
-    apply sourceColumn_agrees program p5
-    rw [Spartan.sourceColumnCount_eq]
-    norm_num [RunningTransitionInputs.phaseOffset] at below ⊢
-    omega
+    symm
+    apply p5.agrees index
+    exact Or.inl (lt_of_lt_of_le below
+      (AssemblerBounds.nextPreimageSourceOffset_le_root program))
   have sourceBounds := RunningTransitionInputs.assumptions logicalWidth
     publicFits relation env
   have iterationEq : Lifecycle.Stage1.RunningTransition.iterationValue

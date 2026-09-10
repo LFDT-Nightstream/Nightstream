@@ -49,21 +49,21 @@ def freshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   freshStart program + (PiDECRetainedBlocks.freshBlock program).coordinateCount
 
+/-- The phase adds exactly its two retained allocation intervals. -/
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 244956371 := by
+    completeLogicalWidth program = prefixLogicalWidth program +
+      PiDECRetainedBlocks.retainedCoordinateCount program := by
   simp only [completeLogicalWidth, freshStart, logicalStart,
-    prefixLogicalWidth]
-  rw [PilotOrdinaryRetainedGeometry.completeLogicalWidth_eq]
-  have count := PiDECRetainedBlocks.retainedCoordinateCount_eq program
-  unfold PiDECRetainedBlocks.retainedCoordinateCount at count
-  omega
+    PiDECRetainedBlocks.retainedCoordinateCount, Nat.add_assoc]
 
 theorem completeLogicalWidth_le_cube
     (program : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth program ≤ 2 ^ Lifecycle.cubeVariables := by
-  rw [completeLogicalWidth_eq]
-  norm_num [Lifecycle.cubeVariables]
+  rw [completeLogicalWidth_eq, prefixLogicalWidth,
+    PilotOrdinaryRetainedGeometry.completeLogicalWidth_eq,
+    PiDECRetainedBlocks.retainedCoordinateCount_eq]
+  decide
 
 structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where

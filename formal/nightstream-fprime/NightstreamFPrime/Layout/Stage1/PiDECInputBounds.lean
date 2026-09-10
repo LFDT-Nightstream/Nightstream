@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 
 /-!
 Owns the causal source bound for the zero-copy PiRLC-to-PiDEC bridge.
@@ -43,6 +44,13 @@ theorem combinationOutput_varsBelow
   simp only [PiRLC.v1_1.CombinationFamily.sourceCount_eq]
   omega
 
+private theorem piDecField_lt_phaseOffset {column : Nat}
+    (field : RunningTransitionSourceSupport.PiDecField column) :
+    column < phaseOffset := by
+  simpa only [RunningTransitionSourceSupport.piDecStart,
+    RunningTransitionSourceSupport.piDecCount, phaseOffset] using
+    (RunningTransitionSourceSupport.piDecField_inRange field).2
+
 private theorem parentPoint_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -64,9 +72,8 @@ private theorem parentPoint_varsBelow
     Quadratic.KExpr.VarsBelow, Expr.VarsBelow]
   have coordinateBound := coordinate.isLt
   change coordinate.val < 28 at coordinateBound
-  norm_num [phaseOffset, proofInputStart, proofInputColumnCount, childCount,
-    commitmentWordsPerChild, evalKWordsPerChild, evalAWordsPerChild,
-    publicInputWordsPerChild, RunningTransitionInputs.roundStride,
+  norm_num [phaseOffset, proofInputStart, proofInputColumnCount_eq,
+    PiRLCStarts.finalBoundaries_eq.2, RunningTransitionInputs.roundStride,
     RunningTransitionInputs.roundSampleC0Offset,
     RunningTransitionInputs.roundSampleC1Offset]
   omega
@@ -173,53 +180,29 @@ theorem inputsBelow
       norm_num
   · intro child row lane
     simp only [interface, message, childCommitment, Expr.VarsBelow]
-    have childBound := child.isLt
-    have rowBound := row.isLt
-    have laneBound := lane.isLt
-    norm_num [productionGlobalParams, productionProfile] at childBound rowBound
-    norm_num [ringDegree] at laneBound
-    norm_num [childCommitmentStart, commitmentInputStart, phaseOffset,
-      proofInputStart, proofInputColumnCount, childCount,
-      commitmentWordsPerChild, evalKWordsPerChild, evalAWordsPerChild,
-      publicInputWordsPerChild, ringDegree]
-    omega
+    exact piDecField_lt_phaseOffset (Or.inl ⟨child, row, lane, rfl⟩)
   · intro child coefficient
     simp only [interface, message, childEvalK, Quadratic.KExpr.VarsBelow,
       Expr.VarsBelow]
-    have childBound := child.isLt
-    have coefficientBound := coefficient.isLt
-    change child.val < 16 at childBound
-    change coefficient.val < 54 at coefficientBound
-    norm_num [childEvalKStart, evalKInputStart, commitmentInputStart,
-      phaseOffset, proofInputStart, proofInputColumnCount, childCount,
-      commitmentWordsPerChild, evalKWordsPerChild, evalAWordsPerChild,
-      publicInputWordsPerChild]
-    omega
+    constructor
+    · exact piDecField_lt_phaseOffset
+        (Or.inr (Or.inr (Or.inl ⟨child, coefficient, Or.inl rfl⟩)))
+    · exact piDecField_lt_phaseOffset
+        (Or.inr (Or.inr (Or.inl ⟨child, coefficient, Or.inr rfl⟩)))
   · intro child matrix coefficient
     simp only [interface, message, childEvalA, Quadratic.KExpr.VarsBelow,
       Expr.VarsBelow]
-    have childBound := child.isLt
-    have matrixBound := matrix.isLt
-    have coefficientBound := coefficient.isLt
-    change child.val < 16 at childBound
-    change matrix.val < 14 at matrixBound
-    change coefficient.val < 54 at coefficientBound
-    norm_num [childEvalAStart, evalAInputStart, evalKInputStart,
-      commitmentInputStart, phaseOffset, proofInputStart,
-      proofInputColumnCount, childCount, commitmentWordsPerChild,
-      evalKWordsPerChild, evalAWordsPerChild, publicInputWordsPerChild]
-    omega
+    constructor
+    · exact piDecField_lt_phaseOffset
+        (Or.inr (Or.inr (Or.inr ⟨child, matrix, coefficient, Or.inl rfl⟩)))
+    · exact piDecField_lt_phaseOffset
+        (Or.inr (Or.inr (Or.inr ⟨child, matrix, coefficient, Or.inr rfl⟩)))
   · intro child coordinate
     simp only [interface, childPublicInput, Expr.VarsBelow]
-    have childBound := child.isLt
-    have coordinateBound := coordinate.isLt
-    norm_num [productionGlobalParams] at childBound
-    norm_num [PiDEC.v1_1.PublicInputSplit.coordinateCount_eq] at coordinateBound
-    norm_num [childPublicInputStart, publicInputStart, evalAInputStart,
-      evalKInputStart, commitmentInputStart, phaseOffset, proofInputStart,
-      proofInputColumnCount, childCount, commitmentWordsPerChild,
-      evalKWordsPerChild, evalAWordsPerChild, publicInputWordsPerChild]
-    omega
+    exact piDecField_lt_phaseOffset
+      (Or.inr (Or.inl ⟨child,
+        Fin.cast (PiDEC.v1_1.PublicInputSplit.coordinateCount_eq
+          logicalWidth publicFits) coordinate, rfl⟩))
 
 /-- The production PiDEC assumptions are fully derived from the canonical
 zero-copy input layout; no caller supplies a causal-scope hypothesis. -/

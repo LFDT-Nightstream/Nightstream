@@ -1,0 +1,226 @@
+{
+  "archive": "/home/nicoarq/develop/Nightstream-nifs-proof-links/docs/reviews/nightstream-fprime-requirements/conformance-fixes-evidence.zip",
+  "source_commit": "2c63f41de09cfc47e6e4be4afd17e3e8a7726049",
+  "current_code_commit": "40656579e9e2949dfc9e353dbac02097666c8046",
+  "candidate_sha256": "fb865ee053060ac5bb52dcc86ea8289c10425b38c9ccf21c11f2598c26e4c5c4",
+  "shared_inputs": {
+    "recursive_fixture.json": {
+      "archive_member": "selected-inputs/recursive_fixture.json",
+      "bytes": 947130,
+      "sha256": "d26418b8447d96e74de26b03b64de517d50fe214f1b156f0f9ecd1564841d5f5"
+    },
+    "recursive_phase_input.json": {
+      "archive_member": "selected-inputs/recursive_phase_input.json",
+      "bytes": 662424,
+      "sha256": "3f230a887bad5bce6a05f4b8c4fb2a487b9557ec3102a793a7aafc7f251580e0"
+    },
+    "base_fixture.json": {
+      "archive_member": "selected-inputs/base_fixture.json",
+      "bytes": 363261,
+      "sha256": "d5cd58dd84590510123b2b851848307f9e29569234f24ab936196020444e78ab"
+    },
+    "base_phase_input.json": {
+      "archive_member": "selected-inputs/phase_input.json",
+      "bytes": 271038,
+      "sha256": "d4b843f5467dbfc768b9fea2ddc0044e979c67b75e63b9720aec7d780c7d05a0"
+    },
+    "base_lean_result.json": {
+      "archive_member": "selected-inputs/lean_result.json",
+      "bytes": 663639,
+      "sha256": "aea91630d62fb881ff745f5daaed8e9bbebd4b0846634dc7b5d2ed9000101b4d"
+    },
+    "current_recursive_lean_result.json": {
+      "archive_member": "selected-inputs/recursive_lean_result.json",
+      "bytes": 1710813,
+      "sha256": "fc7077da9382d9dca02dc383657fad604ab9a4eee4d53574e31367953d205eae"
+    },
+    "child_running.json": {
+      "archive_member": "selected-inputs/child_running.json",
+      "bytes": 389489,
+      "sha256": "092c90e4f1b65c68d8dd4586caae742c6d411d0525c81a314da0220109ee8dd8"
+    },
+    "setup.json": {
+      "archive_member": "selected-inputs/setup.json",
+      "bytes": 902,
+      "sha256": "72c349fc226aa24e2a99766a544d01011809a12d65404ea093578c6f178820d3"
+    }
+  },
+  "passed_records": [
+    {
+      "archive_member": "diagnostics/candidate-physical/0.log",
+      "sha256": "a51389964fb5950d28a761b7d469d7e56a18501bf2d37d062c282e8a99514ffa",
+      "record": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 46.7050240420067,
+        "command": [
+          "cargo",
+          "run",
+          "--target-dir",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/review-folding-closure-708431f5/cargo-target",
+          "--release",
+          "-p",
+          "nightstream-fprime",
+          "--bin",
+          "check_package_conformance",
+          "--",
+          "physical",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/candidate.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/binding.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/setup.json",
+          "12850397830186002711",
+          "3288783999059851307",
+          "4378874948253040911",
+          "12528041036879069119",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/expanded.json"
+        ],
+        "cwd": "/Users/nijaar/starstream/Nightstream-fprime-conformance-fixes",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "archive_member": "diagnostics/candidate-logical/0.log",
+      "sha256": "0087a59307e4de92aa4e7688fdb4ca15969fe180faa68f5e35400c229d0eb2a2",
+      "record": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 75.88692870900559,
+        "command": [
+          "cargo",
+          "run",
+          "--target-dir",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/review-folding-closure-708431f5/cargo-target",
+          "--release",
+          "-p",
+          "nightstream-fprime",
+          "--bin",
+          "check_package_conformance",
+          "--",
+          "logical",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/candidate.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/binding.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/setup.json",
+          "12850397830186002711",
+          "3288783999059851307",
+          "4378874948253040911",
+          "12528041036879069119"
+        ],
+        "cwd": "/Users/nijaar/starstream/Nightstream-fprime-conformance-fixes",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "archive_member": "diagnostics/candidate-recursive/0.log",
+      "sha256": "60b86781771c7650703eb05051b691e8c7664a6eeae77f62e7833f21c1b512b0",
+      "record": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 87.77630120799586,
+        "command": [
+          "cargo",
+          "run",
+          "--target-dir",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/review-folding-closure-708431f5/cargo-target",
+          "--release",
+          "--locked",
+          "-p",
+          "nightstream-fprime",
+          "--bin",
+          "check_package_conformance",
+          "--",
+          "recursive",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/candidate.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/binding.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/setup.json",
+          "12850397830186002711",
+          "3288783999059851307",
+          "4378874948253040911",
+          "12528041036879069119",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/expanded.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/recursive-step-fixture.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-fixture.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-piccs-input.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/first-fold-running.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-piccs-lean.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/first-fold-opening/folded.json"
+        ],
+        "cwd": "/Users/nijaar/starstream/Nightstream-fprime-conformance-fixes",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "archive_member": "diagnostics/candidate-recursive-mutations/0.log",
+      "sha256": "f183033c9fd9773d35bff30449be5db602d6ed31b1406ba56fcc2f7d1b157368",
+      "record": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 43.77137041700189,
+        "command": [
+          "cargo",
+          "run",
+          "--target-dir",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/review-folding-closure-708431f5/cargo-target",
+          "--release",
+          "--locked",
+          "-p",
+          "nightstream-fprime",
+          "--bin",
+          "check_package_conformance",
+          "--",
+          "recursive-mutations",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/candidate.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/binding.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/setup.json",
+          "12850397830186002711",
+          "3288783999059851307",
+          "4378874948253040911",
+          "12528041036879069119",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/expanded.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/recursive-step-fixture.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-fixture.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-piccs-input.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/first-fold-running.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/base-piccs-lean.json",
+          "/Users/nijaar/starstream/nightstream-stage1-evidence/conformance-fixes-9e49e7fb/fixtures/first-fold-opening/folded.json"
+        ],
+        "cwd": "/Users/nijaar/starstream/Nightstream-fprime-conformance-fixes",
+        "evidence": "development diagnostic only"
+      }
+    }
+  ],
+  "status": "Retained execution evidence connected by exact input bytes and unchanged source owners; not a new run or independent approval.",
+  "source_comparison": {
+    "command": [
+      "git",
+      "diff",
+      "--name-only",
+      "2c63f41de09cfc47e6e4be4afd17e3e8a7726049",
+      "40656579e9e2949dfc9e353dbac02097666c8046",
+      "--",
+      "crates/nightstream-fprime",
+      "crates/neo-ccs",
+      "crates/neo-math",
+      "crates/neo-params",
+      "crates/neo-ajtai",
+      "crates/neo-transcript",
+      "Cargo.lock",
+      "Cargo.toml",
+      "rust-toolchain.toml",
+      ".cargo/config.toml"
+    ],
+    "changed_paths": [
+      "crates/nightstream-fprime/tests/pi_ccs_child_evaluations.rs",
+      "crates/nightstream-fprime/tests/pi_ccs_opening_values.rs"
+    ],
+    "classification": "Only the two separate opening-test batch modes changed. The matrix interpreters, physical expander, assignment generator, independent raw evaluators, caller-binding checker, arithmetic, transcript, parameters, package loaders and dependency lock are unchanged."
+  },
+  "remaining": [
+    "Full NIFS verifier replay with a cache validated against the selected relation.",
+    "Independent review and any gates beyond the exact retained matrix/assignment scope.",
+    "Concrete extraction primitive/accessor/checker contracts and the approved selected Fiat-Shamir model."
+  ]
+}

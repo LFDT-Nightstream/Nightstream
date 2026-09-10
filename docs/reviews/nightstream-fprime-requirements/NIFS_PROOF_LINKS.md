@@ -379,6 +379,33 @@ remain separate requirements. The three NIFS conformance links stay partial.
 The local requirements export, all seven export tests, JavaScript syntax and
 affected source references pass. All other 451 requirement nodes are preserved.
 
+## Retained matrix and caller evidence
+
+`NIFS_MATRIX_CALLER_EVIDENCE_LINKS.json` connects four existing passed runs
+from `conformance-fixes-evidence.zip` at source `2c63f41d` to the current
+selected input. The candidate package and eight shared fixture files have
+the same bytes. The matrix interpreters, physical expander, assignment
+generator, independent row evaluators, caller checker, arithmetic and
+dependency lock are unchanged. The only changes in the compared crates are
+the two separate opening-test batch modes. These are retained runs, not new
+test executions or independent approval.
+
+The physical check compared every final A/B/C entry. The logical check
+compared all 14 matrix families at every active row. The recursive caller
+check accepted all 29225729 physical rows, all logical coordinates and
+alignment zeros, and all 6377559 logical rows. It bound prior iteration 1
+to output iteration 2 and the exact 16 children. Its separate assignment
+mutations rejected changed commitment, pad and matrix-evaluation values.
+The record retains each original command, elapsed time, result and archive
+member identity.
+
+This supplies the stated matrix and raw-caller evidence for the same fresh
+assignment used by the current C/R/D run. The full native `nifs::verify`
+entry point also requires a selected matrix cache. Its header has no matrix
+contents, and no matching verified cache artifact was found in the checkout.
+Creating a self-consistent receipt would not establish cache correctness.
+That caller boundary remains open.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -387,9 +414,10 @@ Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
 Connect the same checked C/R/D proof to the complete NIFS caller, including
-the prior-parent authority check. Complete the required expanded-matrix and
-raw-assignment checks at their existing owners. Keep local execution evidence
-separate from independent phase approval.
+the selected matrix-cache and prior-parent authority checks. Consume the
+retained exact matrix and raw-assignment results at their stated scope and
+complete any remaining gates. Keep local execution evidence separate from
+independent phase approval.
 
 The lookup for an existing approved Fiat-Shamir model is pending. No new
 Poseidon2 idealization, query budget, or security-transfer assumption was

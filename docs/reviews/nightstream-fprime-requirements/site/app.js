@@ -1,5 +1,8 @@
 (() => {
   const data = JSON.parse(document.getElementById('requirements-data').textContent);
+  const publication = JSON.parse(document.getElementById('publication-data').textContent);
+  const references = JSON.parse(document.getElementById('reference-data').textContent);
+  const assurance = RequirementAssurance.build(data, publication, references);
   const nodes = data.nodes;
   const byId = new Map(nodes.map(node => [node.id, node]));
   const children = new Map();
@@ -25,7 +28,6 @@
     N: 'NIFS composition', H: 'HyperNova recursion', L: 'Circuit & export',
     P: 'Production acceptance', O: 'Outside Stage 1'
   };
-  const sourceRoot = '/Users/nicarq/starstream/develop/nightstream-clean-up/';
   const el = (tag, text, className) => {
     const result = document.createElement(tag);
     if (text !== undefined) result.textContent = text;
@@ -38,26 +40,17 @@
   const groups = children.get('root');
   const included = nodes.filter(node => node.kind === 'leaf' && node.origin !== 'out_of_scope').length;
   const excluded = nodes.filter(node => node.kind === 'leaf' && node.origin === 'out_of_scope').length;
-  const axes = [
-    {key: 'proof', label: 'Proof', complete: ['proved']},
-    {key: 'connection', label: 'Link', complete: ['connected']},
-    {key: 'rust', label: 'Rust', complete: ['implemented', 'tested_scoped']}
-  ];
+  const axes = [{key: 'proof', label: 'Proof'}, {key: 'connection', label: 'Link'}, {key: 'rust', label: 'Rust'}];
   const progress = new Map(nodes.filter(node => node.kind === 'group').map(node => {
-    const leaves = descendants(node.id).filter(leaf => leaf.origin !== 'out_of_scope');
-    return [node.id, axes.map(axis => {
-      const applicable = leaves.filter(leaf => !['not_required', 'assumption'].includes(leaf[axis.key]));
-      const finished = applicable.filter(leaf => axis.complete.includes(leaf[axis.key])).length;
-      return {...axis, finished, total: applicable.length};
-    })];
+    return [node.id, axes.map(axis => ({...axis, counts: RequirementAssurance.counts(descendants(node.id), axis.key)}))];
   }));
-  const fraction = axis => axis.total ? axis.finished + '/' + axis.total : 'n/a';
+  const breakdown = axis => RequirementAssurance.categories[axis.key].map(([key, label]) => label + ' ' + axis.counts[key]).join(' · ');
   function countBadges(id) {
     const counts = el('span', undefined, 'axis-counts');
     for (const axis of progress.get(id)) {
       const badge = el('span', undefined, 'axis-count axis-' + axis.key);
-      badge.append(el('span', axis.label), el('strong', fraction(axis)));
-      badge.setAttribute('aria-label', axis.total ? axis.label + ': ' + axis.finished + ' of ' + axis.total + ' applicable requirements finished' : axis.label + ': no applicable requirements');
+      badge.append(el('strong', axis.label), el('span', breakdown(axis)));
+      badge.setAttribute('aria-label', axis.label + ': ' + breakdown(axis));
       counts.append(badge);
     }
     return counts;
@@ -108,6 +101,7 @@
   }
   function render(node) {
     const li = el('li');
+    li.dataset.record = node.id;
     if (node.parent === 'root') li.dataset.root = node.id;
     const details = el('details');
     details.id = 'req-' + node.id;
@@ -124,16 +118,21 @@
     details.append(summary);
     const content = el('div', undefined, 'req-detail');
     content.append(anchorActions(node), el('span', origins[node.origin], 'req-id'));
+    pair(content, 'Scope', node.scope.join(' · ').replaceAll('_', ' '));
     pair(content, 'Requirement', node.requirement);
     pair(content, 'Remaining', node.remaining, 'remaining' + (unresolved(node) ? ' remaining-open' : ''));
-    const references = [...(node.paper || []), ...(node.code || [])];
-    if (references.length) {
+    const sources = [...(node.paper || []), ...(node.code || [])];
+    if (sources.length) {
       const evidence = el('details', undefined, 'req-sources');
-      evidence.append(el('summary', 'Paper & code references (' + references.length + ')'));
+      evidence.append(el('summary', 'Paper & code references (' + sources.length + ')'));
       const refs = el('div', undefined, 'req-evidence');
-      for (const source of references) {
+      for (const source of sources) {
         refs.append(el('div', source.section || source.symbol || source.path, 'source-name'));
-        refs.append(el('div', sourceRoot + source.path + ':' + source.line, 'source-path'));
+        const url = node.origin === 'out_of_scope' ? null : assurance.sourceUrl(source.path, source.line);
+        const path = el(url ? 'a' : 'div', source.path + ':' + source.line, 'source-path');
+        if (url) path.href = url;
+        else path.append(el('span', node.origin === 'out_of_scope' ? ' (outside this reference check)' : ' (local paper corpus; hash in reference record)'));
+        refs.append(path);
       }
       evidence.append(refs);
       content.append(evidence);
@@ -148,6 +147,13 @@
       }
       content.append(uses);
     }
+    if (node.assumption_ids?.length) {
+      const premises = el('div', undefined, 'uses');
+      premises.append(el('strong', 'Assumptions'));
+      for (const id of node.assumption_ids) premises.append(assurance.premiseLink(id));
+      content.append(premises);
+    }
+    for (const [id, note] of Object.entries(node.dependency_notes || {})) pair(content, 'Dependency ' + id, note);
     details.append(content);
     if (children.has(node.id)) {
       const list = el('ul', undefined, 'req-children');
@@ -172,13 +178,37 @@
     link.append(el('span', node.id === 'all' ? '—' : node.id, 'nav-id'), el('span', label));
     link.append(node.origin === 'out_of_scope' ? el('span', descendants(node.id).length + ' excluded', 'nav-count') : countBadges(node.id === 'all' ? 'root' : node.id));
     navigation.append(link);
-    const countText = node.origin === 'out_of_scope' ? 'excluded' : progress.get(node.id === 'all' ? 'root' : node.id).map(axis => axis.label + ' ' + fraction(axis)).join(' · ');
-    const option = el('option', label + ' — ' + countText);
+    const option = el('option', label);
     option.value = node.id;
     select.append(option);
   }
-  document.getElementById('source-meta').textContent = 'SuperNeo v1.1 + HyperNova · Base ' + data.commit.slice(0, 8) + (data.source_note ? ' · ' + data.source_note : '');
+  document.getElementById('source-meta').textContent = 'SuperNeo v1.1 + HyperNova · Code ' + data.provenance.code_commit.slice(0, 8) + ' · Map ' + (publication.map_commit?.slice(0, 8) || 'uncommitted preview');
+  document.getElementById('scope-rule').textContent = data.scope;
+  const scope = document.getElementById('claim-scope');
+  const viewNames = {readiness: 'Readiness', assumptions: 'Assumption ledger', risk: 'Error budget', evidence: 'Source and evidence'};
+  for (const [id, view] of Object.entries(assurance.views)) {
+    view.id = 'view-' + id;
+    document.getElementById('assurance-views').append(view);
+  }
+  function selectView(id) {
+    tree.hidden = id !== 'requirements';
+    document.getElementById('scope-controls').hidden = id !== 'requirements';
+    for (const [name, view] of Object.entries(assurance.views)) view.hidden = name !== id;
+    for (const link of document.querySelectorAll('.review-nav a')) {
+      if (link.hash === '#view-' + id) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    }
+  }
+  function applyScope() {
+    const group = select.value;
+    for (const item of list.querySelectorAll('li[data-record]')) {
+      const node = byId.get(item.dataset.record);
+      const matches = scope.value === 'all' || (node.kind === 'leaf' ? node.scope.includes(scope.value) : descendants(node.id).some(n => n.scope.includes(scope.value)));
+      item.hidden = !matches || (item.dataset.root && group !== 'all' && node.id !== group);
+    }
+  }
   function showGroup(id) {
+    selectView('requirements');
     const node = byId.get(id);
     const all = id === 'all' || !groups.includes(node);
     const selected = all ? 'all' : id;
@@ -192,6 +222,7 @@
       else link.removeAttribute('aria-current');
     }
     select.value = selected;
+    applyScope();
     const title = all ? 'Requirements map' : node.label;
     document.getElementById('view-title').textContent = title;
     document.getElementById('view-progress').replaceChildren(...(!all && node.origin === 'out_of_scope' ? [] : [countBadges(all ? 'root' : id)]));
@@ -200,9 +231,29 @@
     document.getElementById('view-announcement').textContent = title;
     document.title = title + ' — Nightstream';
   }
+  function showAssurance(id) {
+    selectView(id);
+    for (const link of navigation.children) link.removeAttribute('aria-current');
+    document.getElementById('view-title').textContent = viewNames[id];
+    document.getElementById('view-progress').replaceChildren();
+    document.getElementById('view-summary').textContent = '';
+    document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / ' + viewNames[id];
+    document.getElementById('view-announcement').textContent = viewNames[id];
+    document.title = viewNames[id] + ' — Nightstream';
+  }
   function navigate() {
     const fragment = decodeURIComponent(location.hash.slice(1));
-    if (fragment.startsWith('req-') && byId.has(fragment.slice(4))) {
+    if (fragment.startsWith('view-') && assurance.views[fragment.slice(5)]) {
+      showAssurance(fragment.slice(5));
+      window.scrollTo({top: 0});
+    } else if (fragment.startsWith('assumption-') && document.getElementById(fragment)) {
+      showAssurance('assumptions');
+      const target = document.getElementById(fragment);
+      target.open = true;
+      target.querySelector('summary').focus({preventScroll: true});
+      target.scrollIntoView({block: 'start'});
+    } else if (fragment.startsWith('req-') && byId.has(fragment.slice(4))) {
+      scope.value = 'all';
       const id = fragment.slice(4);
       let owner = byId.get(id);
       while (owner.parent && owner.parent !== 'root') owner = byId.get(owner.parent);
@@ -222,6 +273,7 @@
     }
   }
   select.addEventListener('change', () => { location.hash = 'group-' + select.value; });
+  scope.addEventListener('change', applyScope);
   window.addEventListener('hashchange', navigate);
   document.addEventListener('click', event => {
     const anchor = event.target.closest('a[href^="#req-"]');

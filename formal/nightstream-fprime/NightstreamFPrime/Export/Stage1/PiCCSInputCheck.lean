@@ -517,6 +517,38 @@ def execute (input : Input) : Execution :=
       vectorValue (vectorValue (vectorValue extensionValue)) input.evalA,
       wordsValue outgoing] }
 
+/-- The strong-extraction probe uses the exact messages, challenges and full
+output of this execution. This view asserts no distribution for its coins. -/
+def probe (input : Input) : StrongReduction.Probe K productionShape :=
+  let statementState := ProductionKey.absorbPublicInput
+    (Transcript.absorb Transcript.initialState Transcript.piCcsDigestDomainTag)
+    (running input) (fresh input)
+  let pre := Folding.PiCCS.Transcript.deriveFromState
+    Transcript.piCcsOracle.transcript statementState
+  { coins := {
+      alpha := pre.alpha
+      gamma := pre.gamma
+      roundPoint := (execute input).point }
+    response := {
+      rounds := SumCheck.Finite.FixedPhase.RawCertificate.encode {
+        rounds := List.ofFn (PiCCSProofInputs.roundPolynomial (proofValues input)) }
+      fullOutput := PiCCSProofInputs.output (proofValues input) } }
+
+/-- The executed Boolean is exactly the existing strong verifier predicate
+on these same concrete fields. Acceptance is a conclusion, not a premise. -/
+theorem execute_accepted_iff (input : Input)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (execute input).accepted = true ↔
+      (probe input).FixedWidthAccepted extensionOps K.embed
+        ((ProductionKey.key relation ajtai).statement (running input) (fresh input)) 9 := by
+  unfold StrongReduction.Probe.FixedWidthAccepted ProtocolPolynomial.FixedWidth.check
+  simp only [probe, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
+  rw [← verifierInput_eq_production input relation ajtai,
+    ← outputMessage_eq_production input relation ajtai]
+  simp only [execute, initialClaimFast_eq_initial, terminalFast_eq_paper]
+
 /-- Fields of an already computed execution:
 [1, inputEcho, runningEcho, publicBlocks, verifierBlocks,
 [accepted, alpha, gamma, preState, roundChallenges, roundStates, rPrime,

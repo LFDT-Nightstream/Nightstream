@@ -138,6 +138,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.powerFast_eq_power
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.terminalFast_eq_paper
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.traceFrom_eq_derive
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSInputCheck.execute_accepted_iff
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.runningOutput_zero
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ZeroRunningPolynomial.matrix13Output_zero

@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalARecomposition
@@ -39,6 +40,10 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_structure
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_publicInput
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_reduces_knowledge
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_outgoing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.inputBatch_phi_eq_probe
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_eq_combined
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.checked_children_imply_rlc_success
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.terminalHolds_supplies_childOpenings

@@ -15,137 +15,58 @@ open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 open PiDECRetainedBlocks
 open PiDECRetainedGeometry
 
-private theorem rangeValues (program : ApplicationProgram) :
-    (parentCommitmentRange program).sourceStart = 20347121 ∧
-    (parentCommitmentRange program).sourceCount = 1188 ∧
-    (parentPublicInputRange program).sourceStart = 20352629 ∧
-    (parentPublicInputRange program).sourceCount = 270 ∧
-    (parentEvalKRange program).sourceStart = 20354627 ∧
-    (parentEvalKRange program).sourceCount = 108 ∧
-    (parentEvalARange program).sourceStart = 20378927 ∧
-    (parentEvalARange program).sourceCount = 1512 ∧
-    (proofRange program).sourceStart = 28972970 ∧
-    (proofRange program).sourceCount = 49248 ∧
-    (logicalRange program).sourceStart = 29022218 ∧
-    (logicalRange program).sourceCount = 270 ∧
-    (freshRange program).sourceStart = 29022488 ∧
-    (freshRange program).sourceCount = 17820 := by
-  norm_num [parentCommitmentRange, parentPublicInputRange, parentEvalKRange,
-    parentEvalARange, proofRange, logicalRange, freshRange,
-    SourceRange.ofSemantic, Spartan.sourceToSpartan,
-    PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-    PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-    PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-    PiDECInputs.publicInputWordsPerChild, PiDECInputs.phaseOffset,
-    PiDECStarts.phaseLogicalStart,
-    PiDECStarts.phaseFreshStart, PiDECSourceSupport.freshCount,
-    Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount,
-    Spartan.pilotSourceColumnCount,
-    Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-    Spartan.piCcsLocalStart, Spartan.pilotInputPrivateColumnCount,
-    Spartan.expectedContextPublicStart]
+private theorem sourceStarts_local :
+    Spartan.piCcsPhaseOffset ≤ PiDECSourceSupport.parentCommitmentStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECSourceSupport.parentPublicInputStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECSourceSupport.parentEvalKStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECSourceSupport.parentEvalAStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECInputs.proofInputStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECStarts.phaseLogicalStart ∧
+    Spartan.piCcsPhaseOffset ≤ PiDECStarts.phaseFreshStart := by
+  rcases PiDECSourceSupport.source_ranges_ordered with
+    ⟨firstLocal, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
+      proofLogical, logicalFresh⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> omega
 
-private theorem parentCommitmentTarget (program : ApplicationProgram)
-    (index : Fin PiDECInputs.commitmentWordsPerChild) :
-    Spartan.sourceToSpartan
-        (PiDECSourceSupport.parentCommitmentStart + index.val) =
-      20347121 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · rw [PiDECSourceSupport.parentCommitmentStart_eq]
-    norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
-  · rw [PiDECSourceSupport.parentCommitmentStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
+private theorem mapped_range_le (start count next : Nat)
+    (startLocal : Spartan.piCcsPhaseOffset ≤ start) (ordered : start + count ≤ next) :
+    Spartan.sourceToSpartan start + count ≤ Spartan.sourceToSpartan next := by
+  rw [← Spartan.sourceToSpartan_add_of_piCcsLocal start count startLocal]
+  by_cases same : start + count = next
+  · rw [same]
+  · exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal
+      (start + count) next (by omega) (by omega))
 
-private theorem parentPublicInputTarget (program : ApplicationProgram)
-    (index : Fin PiDECInputs.publicInputWordsPerChild) :
-    Spartan.sourceToSpartan
-        (PiDECSourceSupport.parentPublicInputStart + index.val) =
-      20352629 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · rw [PiDECSourceSupport.parentPublicInputStart_eq]
-    norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
-  · rw [PiDECSourceSupport.parentPublicInputStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
-
-private theorem parentEvalKTarget (program : ApplicationProgram)
-    (index : Fin PiDECInputs.evalKWordsPerChild) :
-    Spartan.sourceToSpartan
-        (PiDECSourceSupport.parentEvalKStart + index.val) =
-      20354627 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · rw [PiDECSourceSupport.parentEvalKStart_eq]
-    norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
-  · rw [PiDECSourceSupport.parentEvalKStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
-
-private theorem parentEvalATarget (program : ApplicationProgram)
-    (index : Fin PiDECInputs.evalAWordsPerChild) :
-    Spartan.sourceToSpartan
-        (PiDECSourceSupport.parentEvalAStart + index.val) =
-      20378927 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · rw [PiDECSourceSupport.parentEvalAStart_eq]
-    norm_num [Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
-  · rw [PiDECSourceSupport.parentEvalAStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
-
-private theorem proofTarget (program : ApplicationProgram)
-    (index : Fin PiDECInputs.proofInputColumnCount) :
-    Spartan.sourceToSpartan (PiDECInputs.proofInputStart + index.val) =
-      28972970 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · norm_num [PiDECInputs.proofInputStart, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart,
-      Spartan.piCcsPhaseOffset, Spartan.piCcsLocalStart]
-  · norm_num [PiDECInputs.proofInputStart, Spartan.piCcsPhaseOffset]
-
-private theorem logicalTarget (program : ApplicationProgram)
-    (index : Fin 270) :
-    Spartan.sourceToSpartan (PiDECStarts.phaseLogicalStart + index.val) =
-      29022218 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart,
-      Spartan.piCcsPhaseOffset, Spartan.piCcsLocalStart]
-  · norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-      PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-      PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-      PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-      PiDECInputs.publicInputWordsPerChild, Spartan.piCcsPhaseOffset]
-
-private theorem freshTarget (program : ApplicationProgram)
-    (index : Fin freshCount) :
-    Spartan.sourceToSpartan (PiDECStarts.phaseFreshStart + index.val) =
-      29022488 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal]
-  · norm_num [PiDECStarts.phaseFreshStart, PiDECStarts.phaseLogicalStart,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-      PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-      Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount,
-      Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-      Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-      Spartan.piCcsLocalStart]
-  · norm_num [PiDECStarts.phaseFreshStart, PiDECStarts.phaseLogicalStart,
-      PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-      PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-      PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-      PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-      Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount,
-      Spartan.piCcsPhaseOffset]
+private theorem mapped_ranges_ordered :
+    Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart +
+        PiDECInputs.commitmentWordsPerChild ≤
+      Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart ∧
+    Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart +
+        PiDECInputs.publicInputWordsPerChild ≤
+      Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart ∧
+    Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart +
+        PiDECInputs.evalKWordsPerChild ≤
+      Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart ∧
+    Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart +
+        PiDECInputs.evalAWordsPerChild ≤
+      Spartan.sourceToSpartan PiDECInputs.proofInputStart ∧
+    Spartan.sourceToSpartan PiDECInputs.proofInputStart +
+        PiDECInputs.proofInputColumnCount =
+      Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart ∧
+    Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + 270 =
+      Spartan.sourceToSpartan PiDECStarts.phaseFreshStart := by
+  rcases PiDECSourceSupport.source_ranges_ordered with
+    ⟨_, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
+      proofLogical, logicalFresh⟩
+  rcases sourceStarts_local with
+    ⟨commitmentLocal, publicLocal, evalKLocal, evalALocal, proofLocal,
+      logicalLocal, _⟩
+  refine ⟨mapped_range_le _ _ _ commitmentLocal commitmentPublic,
+    mapped_range_le _ _ _ publicLocal publicEvalK,
+    mapped_range_le _ _ _ evalKLocal evalKEvalA,
+    mapped_range_le _ _ _ evalALocal evalAProof, ?_, ?_⟩
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ proofLocal, proofLogical]
+  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ logicalLocal, logicalFresh]
 
 theorem parentCommitmentRange_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -155,10 +76,8 @@ theorem parentCommitmentRange_form?
         (Spartan.sourceToSpartan
           (PiDECSourceSupport.parentCommitmentStart + index.val)) =
       some ((PiDECDirectPlan.Location.parentCommitment index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECSourceSupport.parentCommitmentStart index.val (by
-      rw [PiDECSourceSupport.parentCommitmentStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.1]
   simpa [parentCommitmentRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (parentCommitmentBlock program)
       (PiDECRetainedGeometry.parentCommitmentStart program)
@@ -174,10 +93,8 @@ theorem parentPublicInputRange_form?
         (Spartan.sourceToSpartan
           (PiDECSourceSupport.parentPublicInputStart + index.val)) =
       some ((PiDECDirectPlan.Location.parentPublicInput index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECSourceSupport.parentPublicInputStart index.val (by
-      rw [PiDECSourceSupport.parentPublicInputStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.1]
   simpa [parentPublicInputRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (parentPublicInputBlock program)
       (PiDECRetainedGeometry.parentPublicInputStart program)
@@ -193,10 +110,8 @@ theorem parentEvalKRange_form?
         (Spartan.sourceToSpartan
           (PiDECSourceSupport.parentEvalKStart + index.val)) =
       some ((PiDECDirectPlan.Location.parentEvalK index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECSourceSupport.parentEvalKStart index.val (by
-      rw [PiDECSourceSupport.parentEvalKStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.2.1]
   simpa [parentEvalKRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (parentEvalKBlock program)
       (PiDECRetainedGeometry.parentEvalKStart program)
@@ -212,10 +127,8 @@ theorem parentEvalARange_form?
         (Spartan.sourceToSpartan
           (PiDECSourceSupport.parentEvalAStart + index.val)) =
       some ((PiDECDirectPlan.Location.parentEvalA index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECSourceSupport.parentEvalAStart index.val (by
-      rw [PiDECSourceSupport.parentEvalAStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.2.2.1]
   simpa [parentEvalARange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (parentEvalABlock program)
       (PiDECRetainedGeometry.parentEvalAStart program)
@@ -230,9 +143,8 @@ theorem proofRange_form?
     (proofRange program).form? logicalWidth
         (Spartan.sourceToSpartan (PiDECInputs.proofInputStart + index.val)) =
       some ((PiDECDirectPlan.Location.proof index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECInputs.proofInputStart index.val (by
-      norm_num [PiDECInputs.proofInputStart, Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.2.2.2.1]
   simpa [proofRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (proofBlock program) (proofStart program)
       (Spartan.sourceToSpartan PiDECInputs.proofInputStart)
@@ -245,13 +157,8 @@ theorem logicalRange_form?
         (Spartan.sourceToSpartan
           (PiDECStarts.phaseLogicalStart + index.val)) =
       some ((PiDECDirectPlan.Location.logical index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECStarts.phaseLogicalStart index.val (by
-      norm_num [PiDECStarts.phaseLogicalStart, PiDECInputs.phaseOffset,
-        PiDECInputs.proofInputStart, PiDECInputs.proofInputColumnCount,
-        PiDECInputs.childCount, PiDECInputs.commitmentWordsPerChild,
-        PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild, Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.2.2.2.2.1]
   simpa [logicalRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (logicalBlock program) (logicalStart program)
       (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) 270 0
@@ -263,19 +170,23 @@ theorem freshRange_form?
     (freshRange program).form? logicalWidth
         (Spartan.sourceToSpartan (PiDECStarts.phaseFreshStart + index.val)) =
       some ((PiDECDirectPlan.Location.fresh index).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiDECStarts.phaseFreshStart index.val (by
-      norm_num [PiDECStarts.phaseFreshStart, PiDECStarts.phaseLogicalStart,
-        PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
-        PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild, PiDECInputs.publicInputWordsPerChild,
-        Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount,
-        Spartan.piCcsPhaseOffset])]
+  rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
+    sourceStarts_local.2.2.2.2.2.2]
   simpa [freshRange, PiDECDirectPlan.Location.form] using
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
       (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart) freshCount 0
       (freshFits geometry) (by rfl) index)
+
+private theorem order_through_range {first boundary count last : Nat}
+    (firstBound : first ≤ boundary) (nextBound : boundary + count ≤ last) :
+    first ≤ last := by omega
+
+private theorem before_of_order {start count next index : Nat}
+    (indexBound : index < count) (ordered : start + count ≤ next) :
+    start + index < next := by omega
+
+private theorem after_of_order {start count next index : Nat}
+    (ordered : start + count ≤ next) : start + count ≤ next + index := by omega
 
 /-- The compact substitution reconstructs every direct PiDEC source
 location and rejects all overlapping interpretations. -/
@@ -286,179 +197,257 @@ theorem substitution_location_form?
     (substitution program).form? logicalWidth
         (Spartan.sourceToSpartan location.sourceColumn) =
       some (location.form geometry) := by
-  rcases rangeValues program with
-    ⟨commitStart, commitCount, publicStart, publicCount, evalKStart,
-      evalKCount, evalAStart, evalACount, proofStartValue, proofCount,
-      logicalStartValue, logicalCount, freshStartValue, freshCountValue⟩
+  rcases sourceStarts_local with
+    ⟨commitmentLocal, publicLocal, evalKLocal, evalALocal, proofLocal,
+      logicalLocal, freshLocal⟩
+  rcases mapped_ranges_ordered with
+    ⟨commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
+      proofLogical, logicalFresh⟩
   cases location with
   | parentCommitment index =>
       have indexBound := index.isLt
-      norm_num [PiDECInputs.commitmentWordsPerChild] at indexBound
-      have target := parentCommitmentTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECSourceSupport.parentCommitmentStart index.val commitmentLocal
       have selected := parentCommitmentRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have publicNone := SourceRange.form?_eq_none_of_before
-        (parentPublicInputRange program) logicalWidth (20347121 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_before
-        (parentEvalKRange program) logicalWidth (20347121 + index.val) (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (20347121 + index.val) (by omega)
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_before
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound commitmentPublic)
+      have parentEvalKNone := SourceRange.form?_eq_none_of_before
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range commitmentPublic publicEvalK))
+      have parentEvalANone := SourceRange.form?_eq_none_of_before
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA))
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (20347121 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof))
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (20347121 + index.val) (by omega)
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof) (le_of_eq proofLogical)))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (20347121 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, selected, publicNone,
-        evalKNone, evalANone, proofNone, logicalNone, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, selected, parentPublicInputNone, parentEvalKNone,
+        parentEvalANone, proofNone, logicalNone, freshNone, List.append_nil]
   | parentPublicInput index =>
       have indexBound := index.isLt
-      norm_num [PiDECInputs.publicInputWordsPerChild] at indexBound
-      have target := parentPublicInputTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECSourceSupport.parentPublicInputStart index.val publicLocal
       have selected := parentPublicInputRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (20352629 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_before
-        (parentEvalKRange program) logicalWidth (20352629 + index.val) (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (20352629 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order commitmentPublic)
+      have parentEvalKNone := SourceRange.form?_eq_none_of_before
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound publicEvalK)
+      have parentEvalANone := SourceRange.form?_eq_none_of_before
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range publicEvalK evalKEvalA))
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (20352629 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof))
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (20352629 + index.val) (by omega)
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof) (le_of_eq proofLogical)))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (20352629 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, selected,
-        evalKNone, evalANone, proofNone, logicalNone, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, selected, parentEvalKNone,
+        parentEvalANone, proofNone, logicalNone, freshNone, List.append_nil]
   | parentEvalK index =>
       have indexBound := index.isLt
-      norm_num [PiDECInputs.evalKWordsPerChild] at indexBound
-      have target := parentEvalKTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECSourceSupport.parentEvalKStart index.val evalKLocal
       have selected := parentEvalKRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (20354627 + index.val)
-        (by omega)
-      have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (20354627 + index.val)
-        (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_before
-        (parentEvalARange program) logicalWidth (20354627 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range commitmentPublic publicEvalK))
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_after
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact after_of_order publicEvalK)
+      have parentEvalANone := SourceRange.form?_eq_none_of_before
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact before_of_order indexBound evalKEvalA)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (20354627 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range evalKEvalA evalAProof))
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (20354627 + index.val) (by omega)
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range evalKEvalA evalAProof) (le_of_eq proofLogical)))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (20354627 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
-        selected, evalANone, proofNone, logicalNone, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range (order_through_range evalKEvalA evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, selected,
+        parentEvalANone, proofNone, logicalNone, freshNone, List.append_nil]
   | parentEvalA index =>
       have indexBound := index.isLt
-      norm_num [PiDECInputs.evalAWordsPerChild] at indexBound
-      have target := parentEvalATarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECSourceSupport.parentEvalAStart index.val evalALocal
       have selected := parentEvalARange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (20378927 + index.val)
-        (by omega)
-      have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (20378927 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (20378927 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA))
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_after
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range publicEvalK evalKEvalA))
+      have parentEvalKNone := SourceRange.form?_eq_none_of_after
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact after_of_order evalKEvalA)
       have proofNone := SourceRange.form?_eq_none_of_before
-        (proofRange program) logicalWidth (20378927 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound evalAProof)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (20378927 + index.val) (by omega)
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range evalAProof (le_of_eq proofLogical)))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (20378927 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
-        evalKNone, selected, proofNone, logicalNone, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (order_through_range evalAProof (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, parentEvalKNone,
+        selected, proofNone, logicalNone, freshNone, List.append_nil]
   | proof index =>
       have indexBound := index.isLt
-      norm_num [PiDECInputs.proofInputColumnCount, PiDECInputs.childCount,
-        PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
-        PiDECInputs.evalAWordsPerChild,
-        PiDECInputs.publicInputWordsPerChild] at indexBound
-      have target := proofTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECInputs.proofInputStart index.val proofLocal
       have selected := proofRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (28972970 + index.val)
-        (by omega)
-      have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (28972970 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (28972970 + index.val) (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (28972970 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof))
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_after
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof))
+      have parentEvalKNone := SourceRange.form?_eq_none_of_after
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range evalKEvalA evalAProof))
+      have parentEvalANone := SourceRange.form?_eq_none_of_after
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact after_of_order evalAProof)
       have logicalNone := SourceRange.form?_eq_none_of_before
-        (logicalRange program) logicalWidth (28972970 + index.val) (by omega)
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (le_of_eq proofLogical))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (28972970 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
-        evalKNone, evalANone, selected, logicalNone, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECInputs.proofInputStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (order_through_range (le_of_eq proofLogical) (le_of_eq logicalFresh)))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, parentEvalKNone,
+        parentEvalANone, selected, logicalNone, freshNone, List.append_nil]
   | logical index =>
       have indexBound := index.isLt
-      have target := logicalTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECStarts.phaseLogicalStart index.val logicalLocal
       have selected := logicalRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (29022218 + index.val)
-        (by omega)
-      have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (29022218 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (29022218 + index.val) (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (29022218 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof) (le_of_eq proofLogical)))
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_after
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof) (le_of_eq proofLogical)))
+      have parentEvalKNone := SourceRange.form?_eq_none_of_after
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range evalKEvalA evalAProof) (le_of_eq proofLogical)))
+      have parentEvalANone := SourceRange.form?_eq_none_of_after
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range evalAProof (le_of_eq proofLogical)))
       have proofNone := SourceRange.form?_eq_none_of_after
-        (proofRange program) logicalWidth (29022218 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact after_of_order (le_of_eq proofLogical))
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (29022218 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
-        evalKNone, evalANone, proofNone, selected, freshNone]
+        (freshRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart + index.val) (by
+          dsimp only [freshRange, SourceRange.ofSemantic]
+          exact before_of_order indexBound (le_of_eq logicalFresh))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, parentEvalKNone,
+        parentEvalANone, proofNone, selected, freshNone, List.append_nil]
   | fresh index =>
-      have indexBound := index.isLt
-      norm_num [freshCount] at indexBound
-      have target := freshTarget program index
+      have target := Spartan.sourceToSpartan_add_of_piCcsLocal
+        PiDECStarts.phaseFreshStart index.val freshLocal
       have selected := freshRange_form? geometry index
       rw [target] at selected
       simp only [PiDECDirectPlan.Location.sourceColumn]
       rw [target]
-      have commitNone := SourceRange.form?_eq_none_of_after
-        (parentCommitmentRange program) logicalWidth (29022488 + index.val)
-        (by omega)
-      have publicNone := SourceRange.form?_eq_none_of_after
-        (parentPublicInputRange program) logicalWidth (29022488 + index.val)
-        (by omega)
-      have evalKNone := SourceRange.form?_eq_none_of_after
-        (parentEvalKRange program) logicalWidth (29022488 + index.val) (by omega)
-      have evalANone := SourceRange.form?_eq_none_of_after
-        (parentEvalARange program) logicalWidth (29022488 + index.val) (by omega)
+      have parentCommitmentNone := SourceRange.form?_eq_none_of_after
+        (parentCommitmentRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [parentCommitmentRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range (order_through_range (order_through_range commitmentPublic publicEvalK) evalKEvalA) evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      have parentPublicInputNone := SourceRange.form?_eq_none_of_after
+        (parentPublicInputRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [parentPublicInputRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range (order_through_range publicEvalK evalKEvalA) evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      have parentEvalKNone := SourceRange.form?_eq_none_of_after
+        (parentEvalKRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [parentEvalKRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range (order_through_range evalKEvalA evalAProof) (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
+      have parentEvalANone := SourceRange.form?_eq_none_of_after
+        (parentEvalARange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [parentEvalARange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (order_through_range evalAProof (le_of_eq proofLogical)) (le_of_eq logicalFresh)))
       have proofNone := SourceRange.form?_eq_none_of_after
-        (proofRange program) logicalWidth (29022488 + index.val) (by omega)
+        (proofRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [proofRange, SourceRange.ofSemantic]
+          exact after_of_order (order_through_range (le_of_eq proofLogical) (le_of_eq logicalFresh)))
       have logicalNone := SourceRange.form?_eq_none_of_after
-        (logicalRange program) logicalWidth (29022488 + index.val) (by omega)
-      simp [substitution, SourceSubstitution.form?, commitNone, publicNone,
-        evalKNone, evalANone, proofNone, logicalNone, selected]
+        (logicalRange program) logicalWidth (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart + index.val) (by
+          dsimp only [logicalRange, SourceRange.ofSemantic]
+          exact after_of_order (le_of_eq logicalFresh))
+      simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
+        List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, parentEvalKNone,
+        parentEvalANone, proofNone, logicalNone, selected, List.append_nil]
 
 /-- On every source column used by a canonical PiDEC row, the package
 substitution is exactly the direct Lean source map. -/

@@ -120,6 +120,33 @@ theorem source_target (column : Nat) (support : Source column) :
     Target (Spartan.sourceToSpartan column) :=
   ⟨column, support, rfl⟩
 
+/-- The seven PiDEC source intervals are ordered within the affine Spartan
+region. The proof inputs, logical split cells and fresh cells are contiguous. -/
+theorem source_ranges_ordered :
+    Spartan.piCcsPhaseOffset ≤ parentCommitmentStart ∧
+    parentCommitmentStart + PiDECInputs.commitmentWordsPerChild ≤
+      parentPublicInputStart ∧
+    parentPublicInputStart + PiDECInputs.publicInputWordsPerChild ≤
+      parentEvalKStart ∧
+    parentEvalKStart + PiDECInputs.evalKWordsPerChild ≤ parentEvalAStart ∧
+    parentEvalAStart + PiDECInputs.evalAWordsPerChild ≤ PiDECInputs.proofInputStart ∧
+    PiDECInputs.proofInputStart + PiDECInputs.proofInputColumnCount =
+      PiDECStarts.phaseLogicalStart ∧
+    PiDECStarts.phaseLogicalStart + 270 = PiDECStarts.phaseFreshStart := by
+  have proofStart : PiDECInputs.proofInputStart = 28973248 :=
+    (List.cons.inj PiDECInputs.inputStarts_eq).1
+  have logicalStart : PiDECStarts.phaseLogicalStart = 29022496 :=
+    (List.cons.inj PiDECStarts.phaseStarts_eq).1
+  have freshStart : PiDECStarts.phaseFreshStart = 29022766 :=
+    (List.cons.inj (List.cons.inj (List.cons.inj
+      PiDECStarts.phaseStarts_eq).2).2).1
+  norm_num [parentCommitmentStart_eq, parentPublicInputStart_eq,
+    parentEvalKStart_eq, parentEvalAStart_eq, proofStart, logicalStart,
+    freshStart, PiDECInputs.proofInputColumnCount_eq,
+    PiDECInputs.commitmentWordsPerChild, PiDECInputs.publicInputWordsPerChild,
+    PiDECInputs.evalKWordsPerChild, PiDECInputs.evalAWordsPerChild,
+    Spartan.piCcsPhaseOffset]
+
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   rcases support with ((parent | proof) | logical) | fresh

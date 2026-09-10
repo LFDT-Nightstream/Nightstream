@@ -54,6 +54,7 @@ import NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
 import NightstreamFPrime.Layout.Stage1.AssemblerSoundness
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
+import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptRelocation
 import NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
@@ -558,6 +559,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerGeneratedSupport
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan.Program.compile_toPlan_forms
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.Program.append_plan_row?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource.publicProgramRow_bounded
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.source_ranges_ordered
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource.commitmentProgramRow_bounded
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource.evalKProgramRow_bounded
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource.evalAProgramRow_bounded

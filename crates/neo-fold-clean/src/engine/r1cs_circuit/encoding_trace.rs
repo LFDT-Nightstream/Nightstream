@@ -853,6 +853,7 @@ impl R1csEncodingTrace {
         self.projection_identities.push(entry);
     }
 
+    #[cfg(test)]
     pub(crate) fn assign_projection_identity_roles(&mut self, first: usize, roles: &[ProjectionIdentityRole]) {
         let identities = self
             .projection_identities

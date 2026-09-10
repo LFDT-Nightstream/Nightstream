@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PiCCSStoredPublicCheck
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckWork
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckPrimitives
@@ -10,8 +11,8 @@ Selected Appendix B.2 witness check for the actual application matrix source
 and frozen Ajtai setup. The statement reads the existing typed fresh/running
 public fields. It equals the statement selected by `ProductionKey.key`.
 
-The selected charged checker has concrete scalar, public/probe read, and Pad
-entry counts. Public-gate, commitment/key, and CCS matrix-entry work remain
+The selected charged checker has concrete public-gate, scalar, stored-read,
+and Pad-entry counts. Commitment/key and CCS matrix-entry work remain
 explicit primitive contracts. The candidate coins remain explicit; no
 Fiat--Shamir distribution is claimed.
 -/
@@ -234,13 +235,47 @@ theorem padEntry_value (input : PiCCSInputCheck.Input)
   padEntry_of_relation (logicalWidth := PiDECInputCheck.logicalWidth)
     (publicFits := PiDECInputCheck.publicFits) PiDECInputCheck.relation coefficient vertex column
 
-/-- Install scalar operations, public/probe array readers, and canonical Pad.
-The public gate, commitment, and CCS matrix entry calls stay explicit. -/
+private theorem kernelConstant_of_relation {logicalWidth : Nat}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).matrixSource.kernel.constant =
+      Phi81CoefficientKernel.constant := by
+  rfl
+
+private theorem outputMessage_of_constant {Commitment PublicInput : Type}
+    {columns blockCount : Nat}
+    (selected : Statement K Commitment PublicInput productionShape columns blockCount baseOps)
+    (constant : selected.matrixSource.kernel.constant = Phi81CoefficientKernel.constant)
+    (probe : StoredProbe productionShape) :
+    PiCCSStoredPublicCheck.outputMessage probe = selected.projectOutput probe.view.response.fullOutput := by
+  simp only [PiCCSStoredPublicCheck.outputMessage, Statement.projectOutput, constant]
+
+/-- The complete counted public gate checks this selected statement for
+every stored probe, retaining all raw-certificate rejection cases. -/
+theorem publicCheck_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
+    (PiCCSStoredPublicCheck.check input probe).value =
+      ProtocolPolynomial.FixedWidth.check extensionOps (ProductionKey.degreeBound PiDECInputCheck.relation)
+        ((statement input).verifierInput K.embed)
+        probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+        ((statement input).projectOutput probe.view.response.fullOutput) probe.certificate := by
+  have selectedInput : PiCCSInputCheck.verifierInput input = (statement input).verifierInput K.embed := by
+    rw [statement_eq_key input]
+    exact PiCCSInputCheck.verifierInput_eq_production input PiDECInputCheck.relation
+      Poseidon2HashChainV1Setup.productionAjtaiKey
+  have kernel := kernelConstant_of_relation (logicalWidth := PiDECInputCheck.logicalWidth)
+    (publicFits := PiDECInputCheck.publicFits) PiDECInputCheck.relation
+  have selectedOutput := outputMessage_of_constant (statement input) kernel probe
+  rw [PiCCSStoredPublicCheck.check_value, ProductionKey.degreeBound_eq, selectedInput, selectedOutput]
+
+/-- Install the public gate, scalar operations, stored readers, and Pad.
+Only the commitment and CCS matrix-entry calls stay explicit. -/
 def scalarProgram (input : PiCCSInputCheck.Input)
     (program : StoredWitnessCheckWork.Program productionShape carrier) :
     StoredWitnessCheckWork.Program productionShape carrier :=
   StoredWitnessCheckPrimitives.withScalarChecks
     { program with
+      publicCheck := PiCCSStoredPublicCheck.check input
       publicInput := publicInputRead input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
@@ -249,20 +284,16 @@ def scalarProgram (input : PiCCSInputCheck.Input)
 def scalarBounds (bounds : StoredWitnessCheckWork.PrimitiveBounds) : StoredWitnessCheckWork.PrimitiveBounds :=
   StoredWitnessCheckPrimitives.withScalarBounds
     { bounds with
+      publicCheck := PiCCSStoredPublicCheck.workBound
       publicInput := 9
       padEntry := StoredWitnessCheckEntries.padWork productionShape.cubeVariables
       padClaim := 4
       matrixClaim := 5 }
 
-/-- The selected stored return needs only the three remaining gate/access
-refinements. Scalar operations, public/probe reads, and Pad entries are proved. -/
+/-- The selected stored return needs only commitment and matrix-entry
+refinements. The public gate, scalar checks, stored reads, and Pad are proved. -/
 theorem scalar_finish_source_iff (input : PiCCSInputCheck.Input)
     (program : StoredWitnessCheckWork.Program productionShape carrier)
-    (publicCheck : ∀ probe, (program.publicCheck probe).value =
-      ProtocolPolynomial.FixedWidth.check extensionOps (ProductionKey.degreeBound PiDECInputCheck.relation)
-        ((statement input).verifierInput K.embed)
-        probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
-        ((statement input).projectOutput probe.view.response.fullOutput) probe.certificate)
     (commitmentCheck : ∀ stored source, (program.commitmentCheck stored source).value =
       decide (commit (stored.get source).get = (statement input).commitments source))
     (matrixEntry : ∀ matrix coefficient vertex column,
@@ -286,19 +317,19 @@ theorem scalar_finish_source_iff (input : PiCCSInputCheck.Input)
     (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
     (width := ProductionKey.degreeBound PiDECInputCheck.relation)
     { program with
+      publicCheck := PiCCSStoredPublicCheck.check input
       publicInput := publicInputRead input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
       matrixClaim := StoredProbe.matrixRead } commit (statement input)
-    publicCheck commitmentCheck (publicInputRead_value input) (padEntry_value input) matrixEntry
+    (publicCheck_value input) commitmentCheck (publicInputRead_value input) (padEntry_value input) matrixEntry
     StoredProbe.padRead_value StoredProbe.matrixRead_value
 
-/-- The selected work bound includes concrete Pad execution on every branch.
-Only the three remaining gate/access calls need supplied work bounds. -/
+/-- The selected work bound includes the full public gate and Pad execution.
+Only commitment and CCS matrix-entry calls need supplied work bounds. -/
 theorem scalar_check_work_le (input : PiCCSInputCheck.Input)
     (program : StoredWitnessCheckWork.Program productionShape carrier)
     (bounds : StoredWitnessCheckWork.PrimitiveBounds)
-    (publicCheck : ∀ probe, (program.publicCheck probe).work ≤ bounds.publicCheck)
     (commitmentCheck : ∀ stored source, (program.commitmentCheck stored source).work ≤ bounds.commitmentCheck)
     (matrixEntry : ∀ matrix coefficient vertex column,
       (program.matrixEntry matrix coefficient vertex column).work ≤ bounds.matrixEntry)
@@ -308,16 +339,18 @@ theorem scalar_check_work_le (input : PiCCSInputCheck.Input)
   apply StoredWitnessCheckWork.check_work_le (scalarProgram input program) (scalarBounds bounds) _ candidate
   exact StoredWitnessCheckPrimitives.withScalarChecks_bounded
     { program with
+      publicCheck := PiCCSStoredPublicCheck.check input
       publicInput := publicInputRead input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
       matrixClaim := StoredProbe.matrixRead }
     { bounds with
+      publicCheck := PiCCSStoredPublicCheck.workBound
       publicInput := 9
       padEntry := StoredWitnessCheckEntries.padWork productionShape.cubeVariables
       padClaim := 4
       matrixClaim := 5 }
-    publicCheck commitmentCheck (publicInputRead_work_le input)
+    (PiCCSStoredPublicCheck.check_work_le input) commitmentCheck (publicInputRead_work_le input)
     (fun coefficient vertex column => StoredWitnessCheckEntries.padEntry_work_le coefficient vertex column) matrixEntry
     (fun probe source coefficient => le_of_eq (StoredProbe.padRead_work probe source coefficient))
     (fun probe source matrix coefficient => le_of_eq (StoredProbe.matrixRead_work probe source matrix coefficient))

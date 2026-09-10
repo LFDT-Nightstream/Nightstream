@@ -952,6 +952,7 @@ impl R1csBuilder {
         &self.equality_pairs
     }
 
+    #[cfg(test)]
     pub(crate) fn record_program_range(&mut self, name: &'static str, row_start: usize, first_allocated_column: usize) {
         if self.record_structure {
             self.program_range_audits.push(ProgramRangeAudit {
@@ -1023,6 +1024,7 @@ impl R1csBuilder {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn assign_projection_identity_roles(&mut self, first: usize, roles: &[ProjectionIdentityRole]) {
         if !self.record_structure {
             return;
@@ -1047,6 +1049,7 @@ impl R1csBuilder {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn record_projection_glue(&mut self, role: ProjectionGlueRole, row_start: usize) {
         assert!(row_start <= self.rows, "projection glue start exceeds builder cursor");
         if self.record_structure && row_start != self.rows {

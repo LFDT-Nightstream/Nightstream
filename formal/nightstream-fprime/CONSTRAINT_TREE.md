@@ -233,10 +233,11 @@ Goldilocks profile is:
 | Public-input words | 270 |
 
 `Eval_K` is the separate Pad family. `Eval_A` is the separate 14-matrix
-family on the canonical Lean path. The compressed native PiCCS circuit is
-still reachable through publicly reexported Nebula F′ builder types, even
-though their internal module is crate-private. That route remains an open
-authority issue and does not supply v1.1 conformance. See the current
+family on the canonical Lean path. The native NIFS header-bundle entry now
+returns an unsupported-circuit error before changing its builder or
+transcript. Public Nebula F′ callers cannot execute the compressed PiCCS
+composition through that entry. The legacy composition is test-only; this
+guard supplies no package-backed recursive lifecycle. See the current
 [NIFS owner review](../../docs/reviews/nightstream-fprime-requirements/NIFS_CONFORMANCE_REVIEW_773f3d0f.md).
 Transcript, state, package-identity, and verifier-context binding use
 Poseidon2 only.
@@ -1378,21 +1379,22 @@ physical R1CS A/B/C rows are a separate lowering check and are not this final
 matrix evidence. The logical assignment evaluator does not call the matrix
 builder, row expander, witness generator, or package constraint evaluator.
 
-`Poseidon2HashChainV1Package` is the only normal-build public Stage 1 relation
-boundary. It loads the allowlisted package and exposes only its Lean-authored
-header, rows, binding, and witness program. The older compressed Stage 1
-emitter, native constructors, decider, and Spartan lifecycle are unavailable
-in normal builds. The package boundary has no proof-backend entrypoint because
-no backend is approved. Its package loading is not evidence that Rust
+`Poseidon2HashChainV1Package` loads the allowlisted Stage 1 relation and
+exposes its Lean-authored header, rows, binding, and witness program.
+The native NIFS header-bundle entry rejects unconditionally, including in
+tests; only a separate test-only entry executes its legacy composition.
+Public Nebula F′ profile discovery and recursive synthesis therefore return
+the unsupported-circuit error. The package boundary has no proof-backend
+entrypoint because no backend is approved. Package loading is not evidence that Rust
 implements the Lean relation; the semantic, matrix, assignment, and parity
 gates above provide that evidence.
 
 Superseded native v1.0 and radix-four integration targets are unregistered.
-The compressed Stage 1 modules remain crate-private reference code and have no
-normal-build public caller. Their only retained non-test consumer is the
-crate-private, unapproved Stage 2 F′ prototype. Integration targets that need
-that prototype's former public API are inactive, but their source remains for
-future Stage 2 work. Current tests that serve the Stage 1 v1.1 contract use
+The older compressed emitter remains reference code. The native NIFS
+composition and its helper calls are test-only. The header guard regression
+checks its error and unchanged circuit/transcript; the normal
+`neo-fold-clean` and `neo-wasm` release checks pass. These focused checks do
+not grant a new complete Stage 1 conformance verdict. Current tests that serve the Stage 1 v1.1 contract use
 separate `Eval_K` / `Eval_A` and the canonical nonempty running accumulator.
 
 ## Open authority and assembly edges

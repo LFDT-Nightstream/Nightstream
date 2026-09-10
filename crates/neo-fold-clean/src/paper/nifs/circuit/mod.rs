@@ -1,39 +1,38 @@
-//! NIFS.V circuit composition: Π_CCS → Π_RLC → Π_DEC → point binding.
+//! Native NIFS circuit boundary and the types used by recursive callers.
 //!
-//! **Owns:** the public circuit API, top-level verifier order, and the wires
-//! surfaced to recursive F'. **Does not own:** child verifier algebra or
-//! transcript internals. **Emits constraints:** by invoking each verifier and
-//! finally equating the Π_DEC parent point with Π_CCS `r_prime`.
-//! **Authority boundary:** Π_CCS-derived output wires are the sole Π_RLC input;
-//! Π_DEC checks their parent cache, while the exact ordered paper-level
-//! children are the outgoing Construction-2 accumulator. Incoming running
-//! claims use the same strict Pi_DEC check before they enter Pi_CCS.
-//!
-//! | Child phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
-//! |---|---|---|---|---|
-//! | Pi_CCS | Derive output wires and `r_prime` from fresh/running claims | yes | `pi_ccs_circuit` | concrete bridge open |
-//! | Pi_RLC | Fold outputs into a shape-bound parent and children | yes | [`pi_rlc`] | algebra model partial |
-//! | Pi_DEC | Strictly recompose the parent from claimed radix children | yes | `pi_dec_circuit` | PiDEC bridge partial |
-//! | point binding | Equate the Pi_DEC parent point with Pi_CCS `r_prime` | yes | this file | NIFS bridge open |
+//! The header-bundle entry rejects before reading protocol messages or
+//! changing the builder or transcript. Its compressed PiCCS circuit does not
+//! implement SuperNeo v1.1. Only the test-only transcript entry executes the
+//! legacy composition; the selected Stage 1 relation is owned by Lean.
 
 use neo_ccs::LaneCommitments;
 
+#[cfg(test)]
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+#[cfg(test)]
+use crate::engine::r1cs_circuit::Lc;
+use crate::engine::r1cs_circuit::{R1csBuilder, Var};
 use crate::paper::params::Params;
+#[cfg(test)]
 use crate::paper::reductions::pi_ccs_circuit::{
-    enforce_pi_ccs, enforce_pi_ccs_with_matrix_digest_wires, PiCcsOutputWires, PiCcsVerifierConfig,
-    PiCcsVerifierMessages,
+    enforce_pi_ccs, enforce_pi_ccs_with_matrix_digest_wires, PiCcsVerifierMessages,
 };
-use crate::paper::reductions::pi_dec_circuit::{self, enforce_dec_v_strict};
-use crate::paper::reductions::{pi_ccs, pi_ccs_circuit};
+use crate::paper::reductions::pi_ccs_circuit::{PiCcsOutputWires, PiCcsVerifierConfig};
+#[cfg(test)]
+use crate::paper::reductions::pi_dec_circuit::enforce_dec_v_strict;
+use crate::paper::reductions::{pi_ccs, pi_ccs_circuit, pi_dec_circuit};
 use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
 use crate::paper::relations::{CcsClaim, CeClaim};
 
+#[cfg(test)]
 mod pi_rlc;
 pub mod stage;
+
+#[cfg(test)]
+#[path = "../../../../tests/nifs/native_circuit_boundary.rs"]
+mod boundary_tests;
 
 /// Configuration for one NIFS.V step.
 pub struct NifsVCircuitConfig<'a> {
@@ -108,18 +107,21 @@ pub(crate) fn enforce_nifs_v_circuit_with_transcript(
     enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, None)
 }
 
-/// Folded-F' entrypoint using the verifier header carried by F' state.
+/// Reject unsupported native recursive synthesis before any circuit mutation.
 pub(crate) fn enforce_nifs_v_circuit_with_transcript_and_header_bundle(
-    builder: &mut R1csBuilder,
-    pp: &Params,
-    cfg: &NifsVCircuitConfig<'_>,
-    transcript: &mut TranscriptGadget,
-    msg: &NifsVCircuitMessages<'_>,
-    header_bundle: [Var; 4],
+    _builder: &mut R1csBuilder,
+    _pp: &Params,
+    _cfg: &NifsVCircuitConfig<'_>,
+    _transcript: &mut TranscriptGadget,
+    _msg: &NifsVCircuitMessages<'_>,
+    _header_bundle: [Var; 4],
 ) -> Result<NifsVOutputs, Error> {
-    enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
+    Err(Error::Inner(
+        "native NIFS circuit is unavailable: compressed PiCCS is not a SuperNeo v1.1 relation".into(),
+    ))
 }
 
+#[cfg(test)]
 fn enforce_nifs_v_circuit_with_transcript_inner(
     builder: &mut R1csBuilder,
     pp: &Params,
@@ -188,6 +190,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     })
 }
 
+#[cfg(test)]
 fn enforce_running_parent_authority(
     builder: &mut R1csBuilder,
     pp: &Params,
@@ -215,6 +218,7 @@ fn enforce_running_parent_authority(
     }
 }
 
+#[cfg(test)]
 fn dec_claim_wires(claim: &PiCcsOutputWires) -> pi_dec_circuit::CeClaimWires {
     pi_dec_circuit::CeClaimWires {
         c_data: claim.c_data.clone(),
@@ -242,6 +246,7 @@ fn dec_claim_wires(claim: &PiCcsOutputWires) -> pi_dec_circuit::CeClaimWires {
     }
 }
 
+#[cfg(test)]
 fn enforce_kvar_vec_eq(builder: &mut R1csBuilder, left: &[KVar], right: &[KVar]) -> Result<(), Error> {
     if left.len() != right.len() {
         return Err(Error::Inner(format!(

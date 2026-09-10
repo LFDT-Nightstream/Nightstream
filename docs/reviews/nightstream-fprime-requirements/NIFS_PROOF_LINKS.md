@@ -19,11 +19,11 @@ source, 16 running sources, 17 PiRLC inputs, 16 PiDEC children, 14 matrices,
 | `N.binding.prior_authority` | The checked recursive boundary supplies the exact prior preimage used by the NIFS transcript, including all running claims and the selected context. | Local proof and consumer checked |
 | `N.binding.context` | Arbitrary accepted opening and checked public input identify the selected context, or a named collision. | Local proof and consumer checked |
 | `N.local.actual_step` | The same accepted opening reaches the NIFS consumer with the actual proof, prior claims, and advertised output. | Local proof and consumer checked |
-| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; selected public checker, preparation and reduction work checked |
+| `N.security.binding` | The actual extraction collision reaches the selected public-seed MSIS assumption with the required norm and execution scope. | Partial; stored checker and arithmetic value/counter proofs checked; primitive and full runtime contracts open |
 | `N.security.fiat_shamir` | The selected Poseidon2 transcript and bounded sampler have a justified security connection under the authorized model. | Open |
-| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Partial; full native NIFS output and canonical proof bytes checked; independent review open |
+| `N.conformance.chain` | One nonzero selected-key input and proof have matching Lean and optimized Rust phase values and final output, with required mutations. | Connected for the retained Lean/optimized execution scope; independent review complete for that scope |
 | `N.conformance.executed` | Retained commands, inputs, outcomes, and source identities establish the stated execution scope. | Connected for the recorded local execution scope |
-| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; full native replay uses the selected header and checks the prior parent; security contracts and independent review open |
+| `N.conformance.owners` | The checked chain consumes the existing semantic, transcript, assignment, and caller owners. | Partial; selected owners independently reviewed; concrete runtime contracts and Fiat–Shamir transfer open |
 
 The existing conditional interactive proofs do not establish Fiat–Shamir
 transfer. The fixed-seed MSIS premise is the exact premise recorded in
@@ -621,6 +621,100 @@ references. They do not supply the missing Nightstream representation-cost
 proof or authorize a random-oracle model for this Poseidon2 transcript.
 No dependency or new cryptographic assumption was added.
 
+## Stored witnesses, checker, and sampler milestone
+
+Code commit: `5b7168f9c9b0c58b11759cf676d271ea262241a1`.
+
+The stored-witness interfaces from `6e4b08f1` now have an executable
+public/ambient checker. `StoredWitnessCheck.check_eq_true_iff` identifies its
+result with the existing fixed-width public check and complete ambient
+opening predicate. It covers each commitment, public prefix, strict norm,
+Pad coefficient, and matrix coefficient. Its MLE traversal does not build a
+table with one entry per row.
+
+`StoredWitnessCheckWork.check_value` proves that the charged loop program
+returns the same Boolean result. `check_work_le` bounds its returned counter
+through the executed loops, including rejected and skipped branches.
+`PiCCSStoredWitnessCheck.charged_finish_source_iff` consumes this refinement
+at the selected Ajtai key and relation. The remaining primitive correctness
+and work fields are explicit. They include the public SumCheck gate, Ajtai
+computation, matrix access, public/probe reads, and arithmetic. This is not a
+free theorem that these primitives already meet their contracts.
+
+`StoredAssignmentArithmetic` computes array subtraction and weighted
+combination. Its selected recomposition first constructs all 16 binary
+weights, then materializes the complete parent array. `recompose_value`
+proves equality with the existing `PiDEC.Raw.recomposeAssignment`;
+`recompose_work_le` includes the weight construction. `Vector.ofFnM` uses a
+direct-index, preallocated array loop. The independent delta review checked
+that implementation and its exact source hash.
+
+These are value and returned-counter theorems. Full runtime, actual producer
+construction, ring-unit inversion, and stored-output projection remain open.
+In particular, the older source copier returns `List.Vector` and wraps
+successive index reads in closures. Its abstract counter does not establish
+all representation and compiler costs. The attempted stored PiDEC-to-PiRLC
+consumer reached the project three-round limit at a raw/typed recomposition
+rewrite. Its failed source is retained in
+`drafts/NIFS_STORED_SUFFIX.lean.txt`, outside the active Lean package. It is
+not an audited consumer link.
+
+`FieldPairLaw` proves the exact single-field preimage counts, mixture law,
+sharp event-distance bound, and deterministic decoder transport. With
+`M=2^32` and `q=M*(M-1)+1`, reducing a uniform field representative modulo
+`M` gives `(1-1/q)*Uniform(Fin M) + (1/q)*PointMass(0)`. The exact total
+variation is `(M-1)/(M*q)`. This is a finite comparison law; it assigns no
+independent-uniform law to Poseidon2 output.
+
+The separate 54-of-64 shortfall-counting attempt also reached the three-round
+limit. Its remaining errors concern finite subtype cardinality and proof
+elaboration. The source is retained in
+`drafts/NIFS_SHORTFALL_BOUND.lean.txt`. The proposed IID-bit bound
+`choose(64,11)/65536^11` is not an audited theorem. The field-pair product law,
+batch abort probability, and their use under retries remain open.
+
+The [Fiat–Shamir analysis](NIFS_FIAT_SHAMIR_MODEL_DECISION.md) reads the full
+2026-03-27 Chiesa–Orrù revision. It records the exact current error formulas
+and code interfaces. Additive absorption, permutation timing, initialization,
+abort-inclusive codecs, state-restoration extraction, and the transfer to
+fixed Poseidon2 still need proof or an explicitly approved external premise
+where appropriate. No model was approved. The owner question remains
+deferred until the proposed statement is concrete.
+
+The [independent review](NIFS_CONFORMANCE_REVIEW_773f3d0f.md) maps every C/R/D
+verifier conjunct to its predicate, circuit and theorem. It confirms the
+retained complete Lean/optimized chain and independently reconstructs all
+945983 canonical proof bytes. The three historical failed mutation blocks
+are duplicate allocations; the actual decoded NIFS consumers read other,
+constrained values. The failed diagnostic is preserved. No missing C/R/D
+conjunct was found, and no production cleanup was required for that claim.
+
+The broader same-input PaperExact R/D check remains pending. The new public
+reference runner passed its release build in 5.15 seconds. It reads the
+selected candidate and retained ten-field C/R/D envelope, compares all R11
+and D17 fields, and uses no private witness, prover, or proof backend.
+PaperExact execution requires explicit approval under `AGENTS.md:117`; that
+approval was requested and has not been received. This is separate from the
+Fiat–Shamir model decision. The independent review does not declare a phase
+Conformance-closed or Production-closed.
+
+The compatible CompPoly tag `v4.30.0-patch1`, commit
+`050f0bc7e9780703beb8d178ec533e52bd87d649`, supplies executable extended GCD
+with correctness and sufficient-fuel proofs. Its Lean and Mathlib versions
+match this package. The review records the exact upstream sources. A local
+ring/polynomial representation proof and full work bound remain necessary;
+no dependency was added.
+
+The combined `tests.AxiomsNifsClosure` gate passed in four seconds and the
+active source-boundary gate passed. All new exported theorems have explicit
+axiom checks and use only `propext`, `Classical.choice`, and `Quot.sound`.
+The public reference runner passed its release build; it has not been run.
+All Lean commands used the required 1500-second cap. The retained public
+reference invocation is capped at 300 seconds and still needs approval.
+`NIFS_STORED_AND_SAMPLER_EVIDENCE.zip` records the committed sources, passed
+and failed logs, both stopped drafts, independent review, and model analysis.
+The local map and static exports preserve every other requirement record.
+
 ## Active criteria
 
 Discharge the selected extraction primitive, accessor and checker contracts
@@ -628,16 +722,18 @@ at their existing owners, with work bounds on their actual representations.
 Then apply only the approved same-key MSIS hardness premise. It supplies no
 numerical success bound.
 
-Keep the complete NIFS replay and retained exact matrix and raw-assignment
-results at their stated scope. Complete the required independent conformance
-review before claiming phase closure.
+Keep the complete NIFS replay, exact matrix/raw-assignment records, and
+independent review at their stated scope. Execute the prepared same-input
+PaperExact R/D comparison only after explicit approval, before claiming the
+broader per-phase conformance result.
 
 Use the checked R-parent and weak-success connection to discharge the
 remaining concrete extraction contracts at their existing owners.
 
-The lookup for an existing approved Fiat-Shamir model is pending. No new
-Poseidon2 idealization, query budget, or security-transfer assumption was
-introduced.
+The theorem-to-code analysis found no approved exact Fiat–Shamir model.
+Complete the mathematical schedule, codec, state-restoration, and error/work
+connections before requesting a precise owner decision. No new Poseidon2
+idealization, query budget, or security-transfer assumption was introduced.
 
 The older `protocol-contract/security-reduction.md` uses a different
 transcript, sampler, and profile. Its numerical query limits and security

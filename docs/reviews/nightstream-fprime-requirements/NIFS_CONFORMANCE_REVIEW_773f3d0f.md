@@ -795,3 +795,26 @@ and its work/law. Neither result grants a new Rust, full NIFS, full Stage 1,
 backend or Fiat–Shamir claim. Both stopped adapters remain inactive. The
 16:20 protected reviews were read in both checkouts and were unchanged.
 `NIFS_ROWS_AND_FIBERS_EVIDENCE.zip` retains the exact cut and scoped evidence.
+
+## Scoped consumer review at `286dc71a`
+
+The coordinator reviewed the complete comparison/application consumer and the
+PiDEC retained-form implementation. Worker 1 independently reviewed the
+comparison code written by Worker 3; Worker 3 independently reviewed the
+stored-fiber implementation written by Worker 2. Their exact source reviews
+are in `NIFS_CONSUMERS_EVIDENCE.zip`. These scoped reviews do not replace the historical
+full conformance verdict above.
+
+The full comparison preserves C/D checks, exact running output, all 17 ordered
+challenges and the sampler's `Batch.finalState`. The application theorem starts with arbitrary
+verifier-bound rows and consumes the existing fixed-transition soundness link.
+The PiDEC consumer proves the exact 1,188-row block with selector/A/B/C lengths
+1/657/1/42 and a 254,729-operation bound. The complete stored decoder tables
+prove exact counts, positive scalar fibers and a 425,407-operation bound after
+review corrected omitted literal and wrapper charges.
+
+The final audit has 402 complete records, 24 additions, and only permitted
+axioms. Static checks pass. The complete selected commitment repair stopped
+after its third attempt and remains inactive and unvalidated. No new Rust,
+complete NIFS/Stage 1, backend or Fiat–Shamir verdict follows. The 17:20
+protected reviews were unchanged. No PaperExact or backend execution ran.

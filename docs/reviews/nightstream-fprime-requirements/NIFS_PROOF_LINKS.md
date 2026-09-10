@@ -1150,6 +1150,54 @@ review checkpoint found unchanged contents in both checkouts; its old native
 finding remains covered only by the previously checked guard. No new Rust,
 PaperExact, backend or website execution was added.
 
+## Complete comparison and stored consumers — `286dc71a`
+
+The checked source is `286dc71a543d28d52e430e9466ab5cecea01de7d`. The full verifier comparison,
+its application consumer, one selected PiDEC matrix block, and the stored
+scalar-fiber tables add 24 exports. The combined audit contains 402 complete
+records with only permitted axioms. Full module builds and static checks pass.
+Scoped source reviews, failed checks and the stopped commitment draft are in
+[NIFS_CONSUMERS_EVIDENCE.zip](NIFS_CONSUMERS_EVIDENCE.zip).
+
+`TotalizedComparison.accepted_actual_implies_comparison` now proves actual
+acceptance implies comparison acceptance with the identical complete running
+output. It preserves all 17 ordered ring challenges and the sampler's `Batch.finalState` on
+success. Actual sampler shortfall cannot reach acceptance. The comparison
+changes only the PiRLC response; all C/D checks remain in the same verifier.
+`PerApplicationSamplerComparison.verifierBoundRowsZero_implies_base_or_comparison`
+consumes the existing soundness result for arbitrary verifier-bound raw
+assignments. It gives either the base case or this exact recursive comparison
+at the actual C outgoing state. No cryptographic premise is added.
+
+`PiDECCommitmentMatrixWork.commitmentForms_value` connects the counted source
+row to the exact selected retained forms for every one of 1,188 rows. The
+selector/A/B/C entry lengths are 1/657/1/42. It constructs the requested row
+and two retained blocks and preserves duplicate columns, zero constants and
+order. The complete bound is 254,729 named operations per requested row.
+`PiDECOrdinarySourceWork.commitmentRow_data` supplies the exact ordered source
+terms without changing the source generator. Other row families and the
+complete selected matrix dispatcher remain open.
+
+`StoredFiberTables` builds all 33 by 55 paired success/abort cells from stored
+target digits. Every entry equals the exact decoder count at that lane and
+suffix index. The initial successful count is positive for every 54-symbol
+target; each stored sum is below `2^2048`. The construction bound is 425,407
+named operations, including actual reads, literals and possible prefix copies;
+a stored cell read costs seven. `StoredSamplerFiberTables` connects the initial
+counts to the exact complete scalar comparison fiber and proves its positive
+size and integer bound. These are finite arithmetic and named-work results,
+not a random inverse, bit-time bound or actual Poseidon2 distribution law.
+
+The selected commitment criterion stopped after three further complete
+attempts. Diagnostic barriers checked the program and, in the last attempt,
+the raw Result equality, but not the row-predicate transport. The complete
+clean repair is inactive at
+`drafts/NIFS_STORED_COMMITMENT_CHECK_RESULT_TRANSPORT.lean.txt`; no fourth or
+narrower check was used. The exact kernel cause is not established. Commitment
+and full matrix entry remain selected-checker contracts. The 17:20 protected
+review read found unchanged contents in both checkouts. No Rust behavior,
+profile, assumption, PaperExact/backend execution or publication changed.
+
 ## Active criteria
 
 Complete the two checker leaves: dense selected-key commitment check and
@@ -1158,7 +1206,7 @@ arbitrary stored witnesses, and matrix work must include package-row
 production and lookup. Stored sparse operations, retained-slot construction
 and 54-lane coefficient expansion now have checked value/work proofs. The
 1,188-row PiDEC commitment packet now has a direct counted source generator;
-its selected retained-form consumer and other source families remain open. The retained dense-commitment preparation gives a
+its selected retained-form consumer is checked; full dispatch and other source families remain open. The retained dense-commitment preparation gives a
 structural route using one 54-lane key block at a time, with no sparse-witness
 premise or full-key table.
 
@@ -1176,7 +1224,7 @@ still needs explicit approval before execution and broader per-phase closure.
 Complete the mathematical transcript, codec, state-restoration and error/work
 connections before requesting a precise Fiat–Shamir model decision. The scalar and independent-batch output comparisons and 17-window abort
 bound are proved. The complete single-scalar success/abort and totalized fiber counts are now
-proved. An efficient inverse sampler, the actual-state joint law,
+proved. Stored tables, positivity and full verifier comparison are checked. An efficient inverse sampler, the actual-state joint law,
 adaptive/retry law and exact Poseidon2 transfer are not proved.
 
 The older `protocol-contract/security-reduction.md` uses a different

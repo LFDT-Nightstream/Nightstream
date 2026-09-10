@@ -3,11 +3,9 @@
 Status: **theorem-to-code match pending; approval question deferred; no model selected**. Transcript review cut:
 `773f3d0f29209b33e2325538d5f258f541569c25`, branch `nico/nifs-proof-links`.
 This note addresses `N.security.fiat_shamir`. It adds no premise to Lean.
-The current finite-law source is
-`692641958134b46d021639aed088d5574e1c68ce`. Its source, reviews, passed checks
-and retained attempts are in
-[NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip](NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip).
-The previous unit/output archive remains unchanged.
+The current comparison and stored-fiber source is `286dc71a543d28d52e430e9466ab5cecea01de7d`.
+Its source, scoped reviews and checks are in [NIFS_CONSUMERS_EVIDENCE.zip](NIFS_CONSUMERS_EVIDENCE.zip).
+Earlier evidence archives remain unchanged.
 
 The contract is to identify the exact current computation, its approved
 premises, and the missing security transfer. Success means a precise
@@ -606,6 +604,31 @@ product transport. The actual sampler is unchanged; complete verifier
 acceptance inclusion, additive schedule and initialization, state restoration
 and fixed-Poseidon2 transfer remain open. Evidence and scoped reviews are in
 `NIFS_ROWS_AND_FIBERS_EVIDENCE.zip`.
+
+## Complete verifier comparison and stored fibers — `286dc71a`
+
+`TotalizedComparison` now connects the actual accepted NIFS verifier to the
+comparison verifier, preserving the full output, all 17 ordered challenges
+and the sampler's `Batch.finalState`. `PerApplicationSamplerComparison` consumes
+the actual fixed-transition relation and arbitrary verifier-bound rows. It
+retains the base/recursive distinction and uses the actual C outgoing state.
+It adds no security premise. The former inactive comparison draft is now
+superseded by this checked complete adapter.
+
+The complete 33 by 55 stored table has exact success/abort values, positive
+initial success, and count sums below `2^2048`. The exact totalized scalar
+fiber is its success count plus the abort count only for the fallback. The
+stored implementation has a 425,407 named-operation construction bound and a
+seven-operation cell read. Review corrected omitted literal and wrapper costs
+before the successful check. Arithmetic counts do not establish bit-time,
+uniform rank generation or random sampling time.
+
+The next obligations are weighted global rank/unrank, an exact uniform-rank
+sampler and expected work, joint resampling/cache laws, the 17-scalar product
+transport, the additive schedule and initialization, state restoration, and
+the fixed-Poseidon2 security transfer. No approved model or numerical security
+level follows from the new deterministic link. Checked source is `286dc71a543d28d52e430e9466ab5cecea01de7d`;
+scoped reviews and complete checks are retained in `NIFS_CONSUMERS_EVIDENCE.zip`.
 
 ## Primary proof references and their limits
 

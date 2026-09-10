@@ -1,0 +1,131 @@
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/SignedSplitScalar.lean
+@@ -6,7 +6,8 @@
+ Owns the exact signed-binary split of one PiDEC public scalar.
+ 
+ The caller supplies one parent expression and sixteen child-digit expressions.
+-One non-authoritative bit hint selects the centered sign. Eighteen rows prove
++Two copies of one non-authoritative bit hint allocate two cells. The first
++selects the centered sign. Eighteen rows prove
+ that this bit is Boolean, every digit is zero or the selected common sign, and
+ the exact production radix recomposition equals the parent.
+ 
+@@ -23,7 +24,7 @@
+ open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+ 
+ def signBitIndex : Nat := 63
+-def exactPrivateCount : Nat := 1
++def exactPrivateCount : Nat := 2
+ def exactRowCount : Nat := 18
+ 
+ structure Interface where
+@@ -73,7 +74,7 @@
+       [recompositionConstraint interface offset]
+ 
+ def operations (interface : Interface) (offset : Nat) : List Op :=
+-  .witness (WitnessBatch.hinted offset [signHint interface offset]) ::
++  .witness (WitnessBatch.hinted offset [signHint interface offset, signHint interface offset]) ::
+     (constraints interface offset).map .assertZero
+ 
+ def main (interface : Interface) : Circuit Unit := fun offset =>
+@@ -141,7 +142,7 @@
+ 
+ theorem localLength_eq (interface : Interface) (offset : Nat) :
+     localLength (operations interface offset) = exactPrivateCount := by
+-  change 1 + localLength
++  change 2 + localLength
+       ((constraints interface offset).map .assertZero) = exactPrivateCount
+   rw [localLength_assertions]
+   rfl
+@@ -397,14 +398,17 @@
+   · simp [Radix.UniformSignedDigits.honestSign, nonnegative]
+ 
+ def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
+-  executeHints env offset [signHint interface offset]
++  executeHints env offset [signHint interface offset, signHint interface offset]
+ 
+ private theorem hintReadsBelow
+     (interface : Interface) (offset : Nat) {env : Env}
+     (assumptions : Assumptions interface offset env) :
+-    HintsReadBelow offset [signHint interface offset] := by
++    HintsReadBelow offset [signHint interface offset, signHint interface offset] := by
+   intro hint member
+-  simp only [List.mem_singleton] at member
++  have same : hint = signHint interface offset := by
++    rcases List.mem_cons.mp member with first | second
++    · exact first
++    · exact List.mem_singleton.mp second
+   subst hint
+   exact assumptions.1
+ 
+@@ -417,7 +421,7 @@
+       Radix.UniformSignedDigits.honestSign
+         (parentValue interface offset env) := by
+   have value := executeHints_value_of_readBelow env offset
+-    [signHint interface offset]
++    [signHint interface offset, signHint interface offset]
+     (hintReadsBelow interface offset assumptions) 0 (by simp)
+   rw [signExpr_eval]
+   have slot : completeEnv interface env offset offset =
+@@ -433,9 +437,9 @@
+       parentValue interface offset env := by
+   apply Expr.eval_eq_of_agree_below _ offset _ _ assumptions.1
+   intro index below
+-  change executeHints env offset [signHint interface offset] index = env index
++  change executeHints env offset [signHint interface offset, signHint interface offset] index = env index
+   exact executeHints_agrees_below env offset
+-    [signHint interface offset] index below
++    [signHint interface offset, signHint interface offset] index below
+ 
+ private theorem completeEnv_digit
+     (interface : Interface) (env : Env) (offset : Nat)
+@@ -445,10 +449,10 @@
+       digitValues interface offset env index := by
+   apply Expr.eval_eq_of_agree_below _ offset _ _ (assumptions.2 index)
+   intro sourceIndex below
+-  change executeHints env offset [signHint interface offset] sourceIndex =
++  change executeHints env offset [signHint interface offset, signHint interface offset] sourceIndex =
+     env sourceIndex
+   exact executeHints_agrees_below env offset
+-    [signHint interface offset] sourceIndex below
++    [signHint interface offset, signHint interface offset] sourceIndex below
+ 
+ private theorem completeEnv_holdsFlat
+     (interface : Interface) (env : Env) (offset : Nat)
+@@ -476,7 +480,7 @@
+   · subst expression
+     rw [signConstraint_eval]
+     have bitValue := executeHints_value_of_readBelow env offset
+-      [signHint interface offset]
++      [signHint interface offset, signHint interface offset]
+       (hintReadsBelow interface offset assumptions) 0 (by simp)
+     rw [show completeEnv interface env offset offset =
+         Hint.eval env (signHint interface offset) by
+@@ -512,7 +516,7 @@
+     completeEnv_holdsFlat interface env offset assumptions specification⟩
+   rw [localLength_eq]
+   simpa [completeEnv, exactPrivateCount] using
+-    executeHints_agreesOutside env offset [signHint interface offset]
++    executeHints_agreesOutside env offset [signHint interface offset, signHint interface offset]
+ 
+ def circuit (interface : Interface) : FormalCircuit :=
+   { main := main interface
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Leaves/SignedSplitScalar.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Leaves/SignedSplitScalar.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Leaves/SignedSplitScalar.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Leaves/SignedSplitScalar.lean
+@@ -283,12 +283,12 @@
+       R1CS.totalFreshCount
+         (flatConstraints (Circuit.ops
+           (Lifecycle.PiDEC.v1_1.SignedSplitScalar.circuit interface).main
+-          offset)) = 67 := by
++          offset)) = 68 := by
+   change localLength
+       (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset) +
+     R1CS.totalFreshCount
+       (flatConstraints
+-        (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = 67
++        (Lifecycle.PiDEC.v1_1.SignedSplitScalar.operations interface offset)) = 68
+   rw [Lifecycle.PiDEC.v1_1.SignedSplitScalar.localLength_eq,
+     Lifecycle.PiDEC.v1_1.SignedSplitScalar.flatConstraints_operations,
+     totalFreshCount_eq interface offset (inputs offset)]

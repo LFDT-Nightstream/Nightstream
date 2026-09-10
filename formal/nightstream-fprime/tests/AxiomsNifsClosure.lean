@@ -1,3 +1,4 @@
+import NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
 import NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerDensityLaw
 import NightstreamFPrime.Export.Stage1.NifsBinding
@@ -546,3 +547,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.finish_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredSourceProbability.returnedSourceProbability_eq_sourceProbability
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.realSuccess_implies_exact_children
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.returned_source_bound_with_binding
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.returned_source_bound_with_msis
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.returned_source_bound_of_msis
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.prepared_probability_and_expected_work

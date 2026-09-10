@@ -1,3 +1,6 @@
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount
+import NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
 import NightstreamFPrime.Export.MatrixProgram.RetainedWork
 import NightstreamFPrime.Export.MatrixProgram.CoefficientWork
 import NightstreamFPrime.Export.MatrixProgram.SparseWork
@@ -469,3 +472,22 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_value
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_length
 #audit_axioms NightstreamFPrime.Export.MatrixProgram.RetainedWork.form?_work_le
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_lengths
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_work_le
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.disjoint_event_card
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.successCount_nil
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.success_fiber_card
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.abortCount_zero
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.abort_fiber_card
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.successCount_one
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.successCount_two
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.abortCount_step
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldDecoderFiberCount.candidateList_eq_fieldCandidates
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount.ofFn_scalarOfList
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount.fieldDecode_eq_some_iff
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount.field_success_fiber_card
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount.field_abort_fiber_card
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFiberCount.totalized_fiber_card

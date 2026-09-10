@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="SuperNeo and HyperNova requirements, from protocol groups to individual primitives, with the current proof and implementation status.">
+  <meta name="description" content="SuperNeo implementation proofs, explicit assumptions, Rust validation, constraint-reduction readiness and quantitative error scenarios.">
   <meta name="referrer" content="no-referrer">
   <title>Nightstream — Requirements map</title>
   <link rel="alternate" type="text/markdown" href="requirements.md" title="Complete requirements in Markdown">
@@ -23,33 +23,56 @@
   <div class="workspace">
     <aside class="sidebar" aria-label="Requirement groups">
       <div class="sidebar-heading">Requirements map</div>
+      <nav class="review-nav" aria-label="Assurance views">
+        <a href="#view-readiness">Readiness</a>
+        <a href="#view-assumptions">Assumption ledger</a>
+        <a href="#view-risk">Error budget</a>
+        <a href="#view-evidence">Source and evidence</a>
+      </nav>
       <nav id="group-nav" aria-label="Main groups"></nav>
       <label class="mobile-nav" for="group-select">Group
         <select id="group-select"></select>
       </label>
       <div class="legend">
-        <strong>Finished / applicable</strong>
+        <strong>Evidence, not a completion percentage</strong>
         <dl>
-          <dt class="axis-proof">Proof</dt><dd>A local proof exists.</dd>
-          <dt class="axis-connection">Link</dt><dd>Connected to its local consumer.</dd>
-          <dt class="axis-rust">Rust</dt><dd>Code exists or scoped tests passed.</dd>
+          <dt class="axis-proof">Proof</dt><dd>Proved, assumed, open and not applicable.</dd>
+          <dt class="axis-connection">Link</dt><dd>Connected locally, open or not applicable.</dd>
+          <dt class="axis-rust">Rust</dt><dd>Scoped tests, code only, recorded evidence, open or not applicable.</dd>
         </dl>
-        <p>Each axis excludes “not required” items. External assumptions are excluded from proof totals. Definitions do not count as finished proofs. Unreviewed status and recorded evidence do not count as finished.</p>
+        <p>Open proof counts include partial results, definitions and unreviewed work. Assumptions and N/A remain visible. Scoped tests do not imply complete Rust conformance.</p>
         <p>Counts cover individual requirements. They do not estimate time remaining or certify production conformance.</p>
       </div>
     </aside>
     <main id="main">
       <div class="breadcrumb" id="breadcrumb">Selected Stage 1 / All groups</div>
       <h1 id="view-title">Requirements map</h1>
+      <p id="scope-rule" class="scope-rule"></p>
       <div id="view-progress" aria-label="Group completion counts"></div>
       <p class="view-summary" id="view-summary"></p>
+      <div id="scope-controls" class="scope-controls">
+        <label for="claim-scope">Show scope</label>
+        <select id="claim-scope">
+          <option value="all">All scopes</option>
+          <option value="model">Mathematical model</option>
+          <option value="interactive">Interactive protocol</option>
+          <option value="implementation">Implementation evidence</option>
+          <option value="production">Production requirement</option>
+          <option value="outside_stage_1">Outside Stage 1</option>
+        </select>
+        <span>Counts describe the full group; this filter changes the visible records.</span>
+      </div>
       <div id="view-announcement" class="sr-only" aria-live="polite"></div>
       <div id="requirements-tree" aria-label="Requirement hierarchy"></div>
-      <footer>Review snapshot. Explicit assumptions and unreviewed coverage are separate from missing proofs. This map does not change the approved goal.</footer>
+      <div id="assurance-views"></div>
+      <footer>Local facts and explicit assumptions support implementation assurance. These views do not grant Compiler-closed, Conformance-closed or Production-closed status. Cryptographic applicability, complete conformance and each proposed constraint reduction retain their own evidence requirements.</footer>
     </main>
   </div>
   <noscript><p><a href="requirements.md">Read the complete requirements in Markdown</a>. No JavaScript is needed.</p></noscript>
   <script type="application/json" id="requirements-data">/* SITE_DATA */</script>
+  <script type="application/json" id="publication-data">/* PUBLICATION_DATA */</script>
+  <script type="application/json" id="reference-data">/* REFERENCE_DATA */</script>
+  <script>/* ASSURANCE_SCRIPT */</script>
   <script>/* SITE_SCRIPT */</script>
 </body>
 </html>

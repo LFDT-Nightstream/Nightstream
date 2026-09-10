@@ -15,7 +15,9 @@ class MarkdownExportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.data = json.loads((ROOT / 'requirements.json').read_text())
-        cls.files = export_markdown(cls.data, (ROOT / 'reading-guide.md').read_text())
+        cls.publication = json.loads((ROOT / 'dist/publication.json').read_text())
+        cls.references = json.loads((ROOT / 'dist/reference-report.json').read_text())
+        cls.files = export_markdown(cls.data, (ROOT / 'reading-guide.md').read_text(), cls.publication, cls.references)
         cls.records = {}
         for content in cls.files.values():
             for node_id, record in re.findall(r'^## <a id="req-([^"]+)"></a>(.*?)(?=^## |\Z)',
@@ -77,7 +79,7 @@ class MarkdownExportTests(unittest.TestCase):
     def test_missing_dependencies_are_not_called_independent(self):
         self.assertIn('- Depends on (recorded): None recorded.', self.records['H.terminal.fresh_opening'])
         self.assertIn('does not mean that the result needs no other facts', self.files['requirements.md'])
-        self.assertIn('no structured `claim_kind`', self.files['requirements.md'])
+        self.assertIn('Each record has a structured `scope`', self.files['requirements.md'])
 
     def test_counts_follow_axis_semantics(self):
         sample = {'scope': 'test', 'commit': 'test', 'nodes': [
@@ -95,7 +97,9 @@ class MarkdownExportTests(unittest.TestCase):
                                     'label': node_id, 'requirement': node_id, 'proof': proof,
                                     'connection': connection, 'rust': rust})
         files = export_markdown(sample, '')
-        self.assertIn('Proof: 1/2; Link: 2/3; Rust: 2/3', files['markdown/F.md'])
+        self.assertIn('Proof: Proved 1 · Assumed 1 · Open 1 · N/A 1', files['markdown/F.md'])
+        self.assertIn('Link: Connected 2 · Open 1 · N/A 1', files['markdown/F.md'])
+        self.assertIn('Rust: Scoped tests 1 · Code only 1 · Recorded 1 · Open 0 · N/A 1', files['markdown/F.md'])
 
     def test_invalid_relationships_fail_instead_of_silently_dropping(self):
         data = copy.deepcopy(self.data)
@@ -113,8 +117,12 @@ class MarkdownExportTests(unittest.TestCase):
         self.assertEqual(json.loads(embedded), self.data)
         self.assertEqual(json.loads((ROOT / 'dist/requirements.json').read_text()), self.data)
         with ZipFile(ROOT / 'dist/requirements-markdown.zip') as archive:
-            self.assertEqual(set(archive.namelist()), set(self.files) | {'requirements.json'})
+            self.assertEqual(set(archive.namelist()), set(self.files) | {'requirements.json', 'publication.json', 'reference-report.json'})
             self.assertEqual(json.loads(archive.read('requirements.json')), self.data)
+            for name, expected in [('publication', self.publication), ('reference-report', self.references)]:
+                self.assertEqual(json.loads(archive.read(name + '.json')), expected)
+                element = 'publication-data' if name == 'publication' else 'reference-data'
+                self.assertEqual(json.loads(re.search(r'id="' + element + r'">(.*?)</script>', page, re.S)[1]), expected)
             for name, expected in self.files.items():
                 self.assertEqual((ROOT / 'dist' / name).read_text(), expected)
                 self.assertEqual(archive.read(name).decode(), expected)

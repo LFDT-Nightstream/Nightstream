@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity
 import NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
@@ -8,6 +9,9 @@ import NightstreamFPrime.Export.Stage1.AjtaiSparseCommitmentV1Parity
 /-! Axiom audits for the compact ChaCha20 wide-reduction Ajtai setup. -/
 
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.setupIdBytes_length
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.verifierKey_prefix
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.commit_zeroExtend
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.extendShortKernel
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.wideCoefficientNat_lt
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.coefficientNat_lt
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityNats_length

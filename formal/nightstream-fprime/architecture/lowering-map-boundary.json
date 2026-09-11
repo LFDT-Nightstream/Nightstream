@@ -68,5 +68,59 @@
     },
     "scope": "Transitive source import counts, excluding the module itself; not measured rebuilds."
   },
-  "allocation_check": "Pending the extra-cell CompactPullback check at this source checkpoint; full NIFS consumer isolation remains open."
+  "allocation_check": {
+    "source_commit": "e01dcf3b671163f657f6577dab169f110ef8cccb",
+    "target": "NightstreamFPrime.Layout.Stage1.CompactPullback",
+    "exit_code": 0,
+    "seconds": 71.42,
+    "patch_sha256": "37cfc2dc0016482770d8bf7d73f81d3db901f9916812a75aaf003e10ea0fff1d",
+    "log_sha256": "c8a2724d33927d49889eb98859178f2955bc833504db97d58236b485f7d7b1cb",
+    "scope": "The extra-cell CompactPullback target passes with unchanged constraints/specification. Scratch sources were restored. Full NIFS consumer isolation is not established by this target."
+  },
+  "boundary_guard": {
+    "owner": "scripts/check-boundaries.sh",
+    "scope": "Transitive imports from Spartan, PiDECSourceSupportData, Lowering and CompactPullback must not reach the complete row owners. This guard covers the measured pilot boundary.",
+    "positive": "Current source passes the guard.",
+    "negative_tests": [
+      {
+        "case": "direct",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+        "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+      },
+      {
+        "case": "transitive",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.SpartanRows",
+        "log_sha256": "842dc5102e88874bf04ebd6dee009dd4938c1b27c593473b4e5849260af972ec"
+      }
+    ],
+    "restoration": "Both injected imports and the scratch guard copy were restored.",
+    "checkpoint_gates": {
+      "static": {
+        "result": "passed",
+        "log_sha256": "a455f2e96811e39d3e4c3fb44f1267ff1719dbc7d4e1e9a3e85238cc06f96893",
+        "last_lines": [
+          "[layout-interfaces] PiDEC data interfaces exclude complete row plans",
+          "[boundary] all checks passed"
+        ]
+      },
+      "build": {
+        "result": "passed",
+        "log_sha256": "81e1b51f9d98f012b20d0db15eedd43cd734662a1e1ee6b6a9336bd5dd818e01",
+        "last_lines": [
+          "Build completed successfully (3813 jobs).",
+          "[bounded] exit=0 elapsed=1s"
+        ]
+      },
+      "axioms": {
+        "result": "passed",
+        "log_sha256": "81c55365825841176dca46fcdd473170bf0fb9b53ce9166f1c85052762e7b71d",
+        "last_lines": [
+          "Build completed successfully (3920 jobs).",
+          "[bounded] exit=0 elapsed=1s"
+        ]
+      }
+    }
+  }
 }

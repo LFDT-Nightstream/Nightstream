@@ -17,6 +17,8 @@ mod evaluation;
 mod inputs;
 mod prove;
 
+pub use prove::ProveError;
+
 pub use inputs::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
     PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs,

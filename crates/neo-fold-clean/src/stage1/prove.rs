@@ -1,17 +1,90 @@
-//! Selected PiCCS proving from actual source claims and witnesses.
+//! Selected proving from actual source claims and witnesses.
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use neo_reductions::{optimized_engine::optimized_prove_with_row_cache, PiCcsError};
 use neo_transcript::Poseidon2Transcript;
-use nightstream_fprime::{PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT};
+use nightstream_fprime::{
+    PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
+};
 use p3_field::PrimeCharacteristicRing;
 
 use super::Poseidon2HashChainV1Package;
-use crate::paper::{params::Params, reductions::pi_ccs::Proof};
+use crate::engine::transcript::Transcript;
+use crate::paper::{
+    construction2::RunningInstance, nifs, params::Params, reductions::pi_ccs::Proof, relations::CcsInstance,
+};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProveError {
+    #[error("selected proof input: {0}")]
+    Input(&'static str),
+    #[error(transparent)]
+    Package(#[from] PackageError),
+    #[error(transparent)]
+    Parameters(#[from] neo_params::ParamsError),
+    #[error(transparent)]
+    Nifs(#[from] nifs::Error),
+}
 
 impl Poseidon2HashChainV1Package {
+    /// Prove C, R, then D through the normal NIFS owner. This package fixes
+    /// the header, key and parameters and builds one row cache for both C/D.
+    pub fn prove(
+        &self,
+        fresh: Vec<CcsInstance>,
+        running: RunningInstance,
+    ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
+        if fresh.len() != PI_CCS_V1_1_SOURCE_COUNT - PI_DEC_V1_1_CHILD_COUNT
+            || running.claims.len() != PI_DEC_V1_1_CHILD_COUNT
+            || !running.prover_shape_is_valid()
+        {
+            return Err(ProveError::Input("source counts do not match the selected profile"));
+        }
+        let blocks = self.structure.m.div_ceil(D);
+        let public = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
+        for source in &fresh {
+            if source.claim.m_in != public
+                || source.claim.x.len() != public
+                || source.witness.Z.rows() != D
+                || source.witness.Z.cols() != blocks
+                || source.claim.adv.is_some()
+                || (0..public).any(|index| source.witness.Z[(index % D, index / D)] != source.claim.x[index])
+            {
+                return Err(ProveError::Input("fresh carrier or public prefix does not match"));
+            }
+        }
+        for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
+            if claim.m_in != public
+                || claim.X.rows() != D
+                || claim.X.cols() != public / D
+                || witness.rows() != D
+                || witness.cols() != blocks
+                || claim.adv.is_some()
+                || (0..public).any(|index| witness[(index % D, index / D)] != claim.X[(index % D, index / D)])
+            {
+                return Err(ProveError::Input("running carrier or public prefix does not match"));
+            }
+        }
+        let params = Params::for_ccs_shape(
+            self.structure.n,
+            self.structure.m,
+            self.structure.t(),
+            self.structure.max_degree(),
+        )?;
+        let cache = self.build_superneo_cache()?;
+        let mut transcript = Transcript::session();
+        Ok(nifs::prove_owned_with_rows(
+            &mut transcript,
+            &params,
+            &self.structure,
+            &cache,
+            fresh,
+            running,
+        )?)
+    }
+
     /// Prove the selected PiCCS phase. Header, parameters, transcript and
     /// matrix arithmetic come from this package, not caller-supplied caches.
     pub fn prove_pi_ccs(

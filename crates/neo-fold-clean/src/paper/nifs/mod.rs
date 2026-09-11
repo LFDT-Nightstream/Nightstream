@@ -116,6 +116,7 @@ pub use crosscheck::require_nifs_execution_match;
 pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
 pub use paper_exact::prove_paper_exact;
 pub use proof::NifsProof;
+pub(crate) use prover::prove_owned_with_rows;
 #[doc(hidden)]
 pub use prover::prove_with_joint_oracle_backend;
 pub use prover::{prove, prove_with_adapter};

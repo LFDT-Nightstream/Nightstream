@@ -23,7 +23,10 @@ use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, K};
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
+use neo_reductions::optimized_engine::{
+    optimized_prove_with_row_cache, OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute,
+};
+use neo_reductions::superneo_eval::SuperneoEvalCache;
 
 use crate::engine::optimized as engine;
 use crate::engine::paper_exact as reference_engine;
@@ -87,6 +90,38 @@ pub(crate) fn prove_from_parts(
     running: &RunningInstance,
 ) -> Result<(Proof, PiDecProverPrecompute), Error> {
     prove_from_parts_inner(tr, pp, s, cache, log, fresh_claims, fresh_witnesses, running, None)
+}
+
+/// The normal CPU row evaluator with the same paper-level input/output checks.
+pub(crate) fn prove_from_parts_with_rows(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &SuperneoEvalCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<(Proof, PiDecProverPrecompute), Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let (mut outputs, sumcheck, _, trace) = optimized_prove_with_row_cache(
+        tr.inner_mut(),
+        pp.inner(),
+        s,
+        fresh_claims,
+        fresh_witnesses,
+        &running.claims,
+        &running.witnesses,
+        cache,
+    )
+    .map_err(engine::Error::from)?;
+    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
+    validate_v1_1_claims(s, &outputs)?;
+    Ok((
+        Proof { sumcheck, outputs },
+        PiDecProverPrecompute {
+            row_chals: trace.round_challenges,
+        },
+    ))
 }
 
 /// Run the canonical PiCCS prover with a protocol-neutral round evaluator.

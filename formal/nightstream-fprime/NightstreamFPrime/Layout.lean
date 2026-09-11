@@ -14,6 +14,8 @@ import NightstreamFPrime.Layout.Sampling.Candidate16Five
 import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotProduction
+import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
+import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementBinding
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption

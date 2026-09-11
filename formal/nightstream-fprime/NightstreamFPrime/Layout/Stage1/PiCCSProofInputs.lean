@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSRepresentation
+import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
 Paper authority: SuperNeo v1_1, section 7.3, PiCCS prover messages.
@@ -106,6 +107,45 @@ def loadExternal (values : ExternalValues) : Env := fun index =>
     PilotProduction.loadExternal values.pilot index
   else
     (serializeProofInputs values.proof).getD (index - proofInputStart) 0
+
+/-- Load the verifier-owned context into its four existing source slots.
+The pilot and proof-input values keep their current source addresses. -/
+def loadExpectedContext (env : Env) (context : VerifierContext.Digest4) : Env :=
+  (((env.set expectedContextStart context.c0).set
+    (expectedContextStart + 1) context.c1).set
+    (expectedContextStart + 2) context.c2).set
+    (expectedContextStart + 3) context.c3
+
+/-- Every expected-context expression reads its exact verifier-owned word. -/
+theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
+    (lane : Fin 4) :
+    (expectedContext lane).eval (loadExpectedContext env context) =
+      context.toList.getD lane.val 0 := by
+  fin_cases lane <;>
+    simp [loadExpectedContext, expectedContext, Expr.eval, Env.set,
+      VerifierContext.Digest4.toList]
+
+/-- Loading context preserves every other source coordinate, including the
+pilot prefix and the proof input starting immediately after these slots. -/
+theorem loadExpectedContext_agreesOutside (env : Env)
+    (context : VerifierContext.Digest4) :
+    AgreesOutside env (loadExpectedContext env context)
+      expectedContextStart expectedContextWords := by
+  intro index outside
+  have first : index ≠ expectedContextStart := by
+    simp only [expectedContextWords] at outside
+    omega
+  have second : index ≠ expectedContextStart + 1 := by
+    simp only [expectedContextWords] at outside
+    omega
+  have third : index ≠ expectedContextStart + 2 := by
+    simp only [expectedContextWords] at outside
+    omega
+  have fourth : index ≠ expectedContextStart + 3 := by
+    simp only [expectedContextWords] at outside
+    omega
+  simp only [loadExpectedContext, Env.set, if_neg first, if_neg second,
+    if_neg third, if_neg fourth]
 
 theorem eval_pilotPrefix (values : ExternalValues) (index : Nat)
     (bound : index < proofInputStart) :
@@ -1258,5 +1298,102 @@ theorem protocolInputs_eq
       digest priorFixed outputFixed digestFixed proofValues,
     formalEvalProof_protocolEnv_eq relation prior priorPublic outputPreimage
       digest priorFixed outputFixed digestFixed proofValues template⟩
+
+/-- Loading the selected context preserves the exact running, fresh and proof
+inputs. Their source ranges exclude the four context slots, so this applies
+to `protocolEnv` without assuming agreement on the entire phase prefix. -/
+theorem loadExpectedContext_inputs_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (env : Env) (context : VerifierContext.Digest4)
+    (template : Proof (ProductionKey.degreeBound relation)) :
+    Formal.evalRunning (relationInterface relation) phaseOffset
+        (loadExpectedContext env context) =
+      Formal.evalRunning (relationInterface relation) phaseOffset env ∧
+    Formal.evalFresh (relationInterface relation) phaseOffset
+        (loadExpectedContext env context) =
+      Formal.evalFresh (relationInterface relation) phaseOffset env ∧
+    Formal.evalProof relation (relationInterface relation) phaseOffset
+        (loadExpectedContext env context) template =
+      Formal.evalProof relation (relationInterface relation) phaseOffset env template := by
+  let updated := loadExpectedContext env context
+  have unchanged := loadExpectedContext_agreesOutside env context
+  have priorEnd : PilotProduction.stateHashWords ≤ expectedContextStart := by
+    norm_num [PilotProduction.stateHashWords_eq, expectedContextStart_eq]
+  have priorRead (index : Fin PilotProduction.stateHashWords) :
+      updated index.val = env index.val :=
+    unchanged index.val (Or.inl (Nat.lt_of_lt_of_le index.isLt priorEnd))
+  have proofRead (index : Nat) (bound : proofInputStart ≤ index) :
+      updated index = env index :=
+    unchanged index (Or.inr bound)
+  have pairRead (start : Nat) (bound : proofInputStart ≤ start) :
+      (pairAt start).eval updated = (pairAt start).eval env := by
+    apply congrArg₂ K.mk
+    · exact proofRead start bound
+    · exact proofRead (start + 1) (by omega)
+  refine ⟨?_, ?_, ?_⟩
+  · apply running_ext
+    · apply cubePoint_ext
+      change List.ofFn (fun coordinate => (runningPoint coordinate).eval updated) =
+        List.ofFn (fun coordinate => (runningPoint coordinate).eval env)
+      apply congrArg List.ofFn
+      funext coordinate
+      apply congrArg₂ K.mk
+      · exact priorRead (runningPointC0Index coordinate)
+      · exact priorRead (runningPointC1Index coordinate)
+    · funext source row coefficient
+      exact priorRead (runningCommitmentIndex source row coefficient)
+    · funext source column
+      exact priorRead (runningPublicInputIndex source column)
+    · funext source
+      apply evaluationFamily_ext
+      · funext coefficient
+        apply congrArg₂ K.mk
+        · exact priorRead (runningEval_KIndex source coefficient 0)
+        · exact priorRead (runningEval_KIndex source coefficient 1)
+      · funext matrix coefficient
+        apply congrArg₂ K.mk
+        · exact priorRead (runningEval_AIndex source matrix coefficient 0)
+        · exact priorRead (runningEval_AIndex source matrix coefficient 1)
+  · apply fresh_ext
+    · funext source row coefficient
+      apply proofRead
+      dsimp only [freshCommitmentStart]
+      omega
+    · funext source column
+      have columnBound : column.val < 270 := column.isLt
+      have publicEnd : PilotProduction.priorPublicInputStart + 270 ≤
+          expectedContextStart := by
+        norm_num [PilotProduction.priorPublicInputStart,
+          PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
+          expectedContextStart_eq]
+      exact unchanged (PilotProduction.priorPublicInputStart + column.val)
+        (Or.inl (by omega))
+  · apply proof_ext
+    · funext roundIndex
+      apply fixedPolynomial_ext
+      change List.ofFn (fun coefficient =>
+          (roundCoefficient roundIndex (relationCoefficientIndex relation coefficient)).eval
+            updated) =
+        List.ofFn (fun coefficient =>
+          (roundCoefficient roundIndex (relationCoefficientIndex relation coefficient)).eval env)
+      apply congrArg List.ofFn
+      funext coefficient
+      apply pairRead
+      dsimp only [roundMessageStart, freshCommitmentStart]
+      omega
+    · apply fullOutput_ext
+      · funext source coefficient
+        apply pairRead
+        dsimp only [outputEvaluationStart, roundMessageStart, freshCommitmentStart]
+        omega
+      · funext source matrix coefficient
+        apply pairRead
+        dsimp only [outputEvaluationStart, roundMessageStart, freshCommitmentStart]
+        omega
+    · rfl
+    · rfl
 
 end NightstreamFPrime.Layout.Stage1.PiCCSProofInputs

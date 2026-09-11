@@ -35,26 +35,30 @@ abbrev SourceValues := WitnessProjection.SourceWitness productionShape
   PiCCSStoredWitnessCheck.carrier
 abbrev SourceResult := Option SourceValues
 
-private abbrev Payload := ActualContextSecurity.TerminalPayload application
+abbrev Payload := ActualContextSecurity.TerminalPayload application
 
 private abbrev Accepted (statement : Statement) (proof : Envelope) : Prop :=
   PerApplicationTerminal.Holds application fits productionSetup statement proof
 
-private def decodedInput (payload : Payload) :=
+/-- The existing arbitrary-assignment decoder applied to this fresh opening. -/
+def decodedInput (payload : Payload) :=
   let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
   ActualStep.input application fits assignment
     (ActualStep.decodedFresh application assignment)
     (ActualPiDECMessages.proof application fits assignment)
 
-private def sourceInput (payload : Payload) : PiCCSInputCheck.Input :=
+/-- The exact prior claims and local proof supplied to the source checker. -/
+def sourceInput (payload : Payload) : PiCCSInputCheck.Input :=
   let input := decodedInput payload
   HyperNovaInput.ofClaims (input.running functionIndex) input.fresh input.nifsProof
 
-private def predecessorStatement (payload : Payload) : Statement :=
+/-- The prior public state advertised by the decoded local step. -/
+def predecessorStatement (payload : Payload) : Statement :=
   let input := decodedInput payload
   { iteration := input.iteration, z0 := input.z0, zi := input.zi }
 
-private def predecessorPayload (payload : Payload) (values : SourceValues) : Payload :=
+/-- Reconstruct the prior terminal opening from the actual source return. -/
+def predecessorPayload (payload : Payload) (values : SourceValues) : Payload :=
   let input := decodedInput payload
   { running := input.running
     runningWitness := fun _ => HyperNovaSource.runningWitness values
@@ -62,13 +66,15 @@ private def predecessorPayload (payload : Payload) (values : SourceValues) : Pay
     freshWitness := HyperNovaSource.freshWitness (sourceInput payload) values
     pc := input.priorPc }
 
-private def Collision (statement : Statement) (payload : Payload) : Prop :=
+/-- The existing state-hash collision at this visited terminal opening. -/
+def Collision (statement : Statement) (payload : Payload) : Prop :=
   PiCCSSecurity.StateHashCollision
     (ActualContextSecurity.decodedNext application
       (ProductionRelation.Plan.logicalAssignment payload.freshWitness))
     (ActualContextSecurity.terminalPreimage application fits productionSetup statement payload)
 
-private def SourceSucceeded (payload : Payload) (result : SourceResult) : Prop :=
+/-- The selected source checker succeeds for the exact decoded prior input. -/
+def SourceSucceeded (payload : Payload) (result : SourceResult) : Prop :=
   CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
     productionGlobalParams (PiCCSStoredWitnessCheck.statement (sourceInput payload)) result
 

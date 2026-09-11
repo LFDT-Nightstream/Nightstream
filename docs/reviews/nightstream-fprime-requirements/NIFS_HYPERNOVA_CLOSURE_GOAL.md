@@ -164,3 +164,53 @@ The next security obligation is to generate the consumed results through
 the existing guarded NIFS experiments and prove the exact event-law link.
 Then compose the failure probabilities and declared clocks on that same
 law. The deterministic history result is not a probability or runtime bound.
+
+## Source-law and history-probability checkpoint
+
+`VerifierCoinLaw` realizes the existing independent-uniform verifier mean as
+a PMF. `SequentialOutputLaw` draws the original context, exact checked prefix
+and its actual receipt's suffix. Its event theorem and context marginal are
+proved. `HyperNovaSourceLaw` maps that law through the actual stored source
+return and proves its decomposition into the unchanged context law and the
+same fixed-context kernel. Aborts and captured suffix state are retained.
+`NifsClosure.finishValue_probability_and_expected_work` now states its bound
+directly on this constructed source-result PMF, with unchanged hypotheses
+and declared-work conclusion.
+
+`HyperNovaRealInput.realSuccess_of_terminal` derives the real NIFS event from
+accepted recursive terminal membership, no current state-hash collision,
+and positive decoded predecessor iteration. It uses the actual decoded
+local proof and all current terminal child witnesses. No separate child or
+output-correctness premise remains at this boundary.
+
+`HyperNovaHistoryLaw.results` generates source returns under the supplied
+state-dependent kernel. Its private structural counter is exactly the
+statement iteration. The proved invariant excludes truncation; there is no
+extra public depth limit. `accepted_probability_le` bounds initial accepted
+mass by complete returned-history mass, the expected sum of visited source
+failures from accepted initial openings, and encountered state-hash failure
+mass. No independent-call or successful-trace premise is used. Independent
+source review confirmed the final initial-acceptance indicator keeps the
+original laws and performs no conditioning or renormalization.
+
+The source-failure theorem passed on attempt five and the combined bound on
+attempt seven. Earlier well-founded definitions were stopped for slow checks;
+structural definitions check in 1.6 seconds. Static, full library (3,846 jobs,
+47 seconds), and axioms (3,936 jobs, 46 seconds) passed in order. Only the
+allowed axioms occur. Sources, logs and review scope are in
+`HYPERNOVA_LAW_EVIDENCE.zip`. Package data, pins, and Rust are unchanged.
+
+`PiCCS.Formal.completePrefix_of_accepted` also passed. It takes actual PiCCS
+acceptance and input state binding, and derives the generated phase output
+specification from the constructed rows. The existing completeness interface
+is retained as a wrapper. The first missing environment fact is loading the
+verifier's four expected-context words into their existing source slots while
+preserving protocol input readback. Canonical-state framing and selected
+whole-package completeness still follow that fact.
+
+Remaining security work: instantiate the source kernel with the selected
+NIFS pipeline at every visited input; apply the existing transfer, binding
+and moment bounds to those actual visited-context laws; compose expected
+source work and declare the reverse walk's own clock. An unconditional FS
+model does not supply a point-mass or acceptance-conditioned model for free.
+The numerical deployment budget and native conformance work remain open.

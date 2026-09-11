@@ -85,7 +85,8 @@ private theorem verifierInputs
   rw [parentValue, attemptValue]
   exact checks
 
-private theorem rEnd_before_dInputs :
+/-- D proof sources begin after the complete logical R witness interval. -/
+theorem rEnd_before_dInputs :
     PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount ≤ PiDECInputs.proofInputStart := by
   change PiRLCStarts.phaseFreshStart ≤ PiRLCStarts.outputFreshStart
   unfold PiRLCStarts.outputFreshStart PiRLCStarts.evalAFreshStart PiRLCStarts.evalKFreshStart
@@ -329,7 +330,7 @@ prefixes and their exact running output. C acceptance, sampler availability,
 and the D parent bound all follow from that run. State framing and context are
 the outer circuit's fixed input prerequisites. No child opening, generated
 phase specification, or generated output value is a premise. -/
-theorem completePrefix
+theorem completePrefix_from
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
     (priorContext : prior.verifierKeys functionIndex = context.toList)
@@ -337,10 +338,12 @@ theorem completePrefix
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-      (PiCCSProofInputs.relationProof relation values template) = some result) :
-    ∃ c : Sequence.Prefix
-        (PiCCSProtocolCompleteness.environment prior priorPublic advertised digest
-          priorFixed advertisedFixed digestFixed values context) PiCCSInputs.phaseOffset,
+      (PiCCSProofInputs.relationProof relation values template) = some result)
+    (initial : Env)
+    (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
+      PiCCSProtocolCompleteness.environment prior priorPublic advertised digest
+        priorFixed advertisedFixed digestFixed values context index) :
+    ∃ c : Sequence.Prefix initial PiCCSInputs.phaseOffset,
       ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
         ∃ d : Sequence.Prefix
             (PiDECProofInputs.load r.current (PiCCSProofInputs.relationProof relation values template)
@@ -363,9 +366,9 @@ theorem completePrefix
   obtain ⟨cAccepted, available, challenges, sampled, checks⟩ := verifierInputs relation ajtai
     (prior.running functionIndex) fresh proof result accepted
   obtain ⟨c, r, cOperations, rOperations, cRowsAtR, _, rSampled, rParent⟩ :=
-    PiRLCProtocolCompleteness.completePrefix relation ajtai prior priorPublic advertised digest
+    PiRLCProtocolCompleteness.completePrefix_from relation ajtai prior priorPublic advertised digest
       priorFixed advertisedFixed digestFixed values context template priorPc advertisedPc
-      priorContext advertisedContext cAccepted available
+      priorContext advertisedContext cAccepted available initial source
   have challengeEq : PiRLC.v1_1.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset r.current = challenges := Option.some.inj (rSampled.symm.trans sampled)
@@ -439,5 +442,45 @@ theorem completePrefix
   rw [parentIdentity] at runningOutput
   exact ⟨c, r, d, cOperations, rOperations, dOperations, cRows, rRows, dPhase,
     runningOutput.trans actualOutput⟩
+
+
+/-- An actual accepted NIFS run constructs the canonical local C/R/D
+prefixes and their exact running output. C acceptance, sampler availability,
+and the D parent bound all follow from that run. State framing and context are
+the outer circuit's fixed input prerequisites. No child opening, generated
+phase specification, or generated output value is a premise. -/
+theorem completePrefix
+    (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorContext : prior.verifierKeys functionIndex = context.toList)
+    (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
+      (prior.running functionIndex)
+      (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+      (PiCCSProofInputs.relationProof relation values template) = some result) :
+    ∃ c : Sequence.Prefix
+        (PiCCSProtocolCompleteness.environment prior priorPublic advertised digest
+          priorFixed advertisedFixed digestFixed values context) PiCCSInputs.phaseOffset,
+      ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
+        ∃ d : Sequence.Prefix
+            (PiDECProofInputs.load r.current (PiCCSProofInputs.relationProof relation values template)
+              (PiRLC.v1_1.Semantics.evalOutput relation
+                (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+                PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
+          c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation)
+            PiCCSInputs.phaseOffset ∧
+          r.operations = PiRLC.v1_1.Formal.opsAt relation
+            (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+            PiRLCInputs.phaseOffset ∧
+          d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits)
+            PiDECInputs.phaseOffset ∧
+          holdsFlat d.current c.operations ∧ holdsFlat d.current r.operations ∧
+          PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+            PiDECInputs.phaseOffset d.current ∧
+          RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
+  exact completePrefix_from relation ajtai prior priorPublic advertised digest priorFixed advertisedFixed
+    digestFixed values context template result priorPc advertisedPc priorContext advertisedContext accepted
+    (PiCCSProtocolCompleteness.environment prior priorPublic advertised digest
+      priorFixed advertisedFixed digestFixed values context) (fun _ _ => rfl)
 
 end NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness

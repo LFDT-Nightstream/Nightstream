@@ -1,6 +1,8 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
+import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 
 /-!
 Owns PiCCS witness construction from the existing typed protocol input.
@@ -41,7 +43,8 @@ def environment : Env :=
     (PiCCSProofInputs.protocolEnv prior priorPublic output digest
       priorFixed outputFixed digestFixed values) context
 
-private theorem pilot_word (index : Nat) (bound : index < PilotProduction.externalColumnCount) :
+/-- The canonical protocol environment preserves the complete pilot input prefix. -/
+theorem pilot_word (index : Nat) (bound : index < PilotProduction.externalColumnCount) :
     environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index =
       PilotProduction.protocolEnv prior priorPublic output digest priorFixed outputFixed digestFixed index := by
   have contextBound : index < PiCCSInputs.expectedContextStart := by
@@ -178,6 +181,82 @@ theorem stateBinding
       _ = context.toList.getD lane.val 0 := by rw [outputContext]
       _ = _ := (PiCCSProofInputs.loadExpectedContext_read _ context lane).symm
 
+/-- An environment with the same existing external source columns reads the
+same typed running instance, fresh instance, and proof. Generated pilot cells
+are not part of that source agreement. -/
+theorem inputs_eq_of_external
+    (template : Proof 9) (initial : Env)
+    (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
+      environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index) :
+    Formal.evalRunning (relationInterface relation) phaseOffset initial = prior.running functionIndex ∧
+    Formal.evalFresh (relationInterface relation) phaseOffset initial =
+      PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values ∧
+    Formal.evalProof relation (relationInterface relation) phaseOffset initial
+      (relationProof relation values template) = relationProof relation values template := by
+  have support : Formal.ExternalInputsSupported (relationInterface relation) phaseOffset
+      PiCCSOrdinarySourceSupport.External :=
+    PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
+  have original := PiCCSProofInputs.protocolInputs_eq relation prior priorPublic output digest
+    priorFixed outputFixed digestFixed values template
+  have loaded := PiCCSProofInputs.loadExpectedContext_inputs_eq relation
+    (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed digestFixed values)
+    context (relationProof relation values template)
+  have running := Formal.PhaseTransport.evalRunning_eq_of_agree_satisfy (relationInterface relation)
+    phaseOffset PiCCSOrdinarySourceSupport.External initial _ support source
+  have fresh := Formal.PhaseTransport.evalFresh_eq_of_agree_satisfy (relationInterface relation)
+    phaseOffset PiCCSOrdinarySourceSupport.External initial _ support source
+  have proof := Formal.PhaseTransport.evalProof_eq_of_agree_satisfy relation (relationInterface relation)
+    phaseOffset PiCCSOrdinarySourceSupport.External initial _
+    (relationProof relation values template) support source
+  exact ⟨running.trans (loaded.1.trans original.1),
+    fresh.trans (loaded.2.1.trans original.2.1),
+    proof.trans (loaded.2.2.trans original.2.2)⟩
+
+/-- Accepted protocol inputs construct the local PiCCS prefix in any environment
+with the same external source values. Existing sibling witnesses are retained
+outside this phase, and generated phase outputs are derived from its rows. -/
+theorem completePrefix_from
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (template : Proof 9)
+    (priorPc : prior.pc = 1) (outputPc : output.pc = 1)
+    (priorContext : prior.verifierKeys functionIndex = context.toList)
+    (outputContext : output.verifierKeys functionIndex = context.toList)
+    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
+      (prior.running functionIndex) (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+      (relationProof relation values template))
+    (initial : Env)
+    (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
+      environment prior priorPublic output digest priorFixed outputFixed digestFixed values context index) :
+    ∃ completed : Sequence.Prefix
+      initial phaseOffset,
+      completed.operations = Formal.opsAt relation (relationInterface relation) phaseOffset ∧
+        Formal.PhaseHolds relation ajtai (relationInterface relation) phaseOffset completed.current
+          (relationProof relation values template) := by
+  have external : NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
+      (relationInterface relation) phaseOffset :=
+    PiCCSInputs.externalInputsLinear logicalWidth publicFits
+  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
+    relation (relationInterface relation) phaseOffset external initial
+  have inputs := inputs_eq_of_external prior priorPublic output digest priorFixed outputFixed
+    digestFixed values context relation template initial source
+  have acceptedEnv : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
+      (Formal.evalRunning (relationInterface relation) phaseOffset initial)
+      (Formal.evalFresh (relationInterface relation) phaseOffset initial)
+      (Formal.evalProof relation (relationInterface relation) phaseOffset initial
+        (relationProof relation values template)) := by
+    rw [inputs.1, inputs.2.1, inputs.2.2]
+    exact accepted
+  have support : Formal.ExternalInputsSupported (relationInterface relation) phaseOffset
+      PiCCSOrdinarySourceSupport.External :=
+    PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
+  have binding := Formal.PhaseTransport.stateBinding_of_agree_satisfy (relationInterface relation) phaseOffset
+    PiCCSOrdinarySourceSupport.External _ initial support
+    (fun index supported => (source index supported).symm)
+    (stateBinding prior priorPublic output digest priorFixed outputFixed digestFixed values context
+      relation priorPc outputPc priorContext outputContext)
+  exact Formal.completePrefix_of_accepted relation ajtai (relationInterface relation)
+    (relationProof relation values template) initial phaseOffset assumptions binding acceptedEnv
+
 /-- Actual accepted protocol inputs construct the complete local PiCCS
 prefix. Canonical state and context checks are derived above, syntactic
 bounds come from the existing interface, and generated phase outputs are
@@ -196,30 +275,9 @@ theorem completePrefix
       completed.operations = Formal.opsAt relation (relationInterface relation) phaseOffset ∧
         Formal.PhaseHolds relation ajtai (relationInterface relation) phaseOffset completed.current
           (relationProof relation values template) := by
-  have external : NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.ExternalInputsLinear
-      (relationInterface relation) phaseOffset :=
-    PiCCSInputs.externalInputsLinear logicalWidth publicFits
-  have assumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production
-    relation (relationInterface relation) phaseOffset external
+  exact completePrefix_from prior priorPublic output digest priorFixed outputFixed digestFixed values
+    context relation ajtai template priorPc outputPc priorContext outputContext accepted
     (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context)
-  have original := PiCCSProofInputs.protocolInputs_eq relation prior priorPublic output digest
-    priorFixed outputFixed digestFixed values template
-  have loaded := PiCCSProofInputs.loadExpectedContext_inputs_eq relation
-    (PiCCSProofInputs.protocolEnv prior priorPublic output digest priorFixed outputFixed digestFixed values)
-    context (relationProof relation values template)
-  have acceptedEnv : NightstreamFPrime.Spec.Folding.PiCCS.Accepted (ProductionKey.key relation ajtai)
-      (Formal.evalRunning (relationInterface relation) phaseOffset
-        (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context))
-      (Formal.evalFresh (relationInterface relation) phaseOffset
-        (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context))
-      (Formal.evalProof relation (relationInterface relation) phaseOffset
-        (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context)
-        (relationProof relation values template)) := by
-    rw [environment, loaded.1, loaded.2.1, loaded.2.2, original.1, original.2.1, original.2.2]
-    exact accepted
-  exact Formal.completePrefix_of_accepted relation ajtai (relationInterface relation)
-    (relationProof relation values template) _ phaseOffset assumptions
-    (stateBinding prior priorPublic output digest priorFixed outputFixed digestFixed values context
-      relation priorPc outputPc priorContext outputContext) acceptedEnv
+    (fun _ _ => rfl)
 
 end NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness

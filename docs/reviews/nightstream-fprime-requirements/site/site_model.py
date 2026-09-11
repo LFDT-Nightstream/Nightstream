@@ -117,5 +117,5 @@ def validate_data(data):
         budget = data['error_budget']
         if budget['code_commit'] != data['provenance']['code_commit']:
             raise ValueError('Error budget belongs to a different code revision')
-        error_scenario(budget, budget['example_uses'])
+        error_scenario(budget, '1')
     return by_id

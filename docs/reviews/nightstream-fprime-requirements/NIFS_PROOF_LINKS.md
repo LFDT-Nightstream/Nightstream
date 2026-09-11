@@ -1277,11 +1277,11 @@ and moment hypotheses explicit.
 
 `VerifierErrorBudget.any_test_or_sampler_abort_le` supplies the finite union
 bound over a caller-provided count in one trace law, without independence.
-Its 100,000,000-call example bounds only the named test and sampler-abort
-terms by `2^-87`. `SamplerDensityLaw.field_output_event_le` gives the separate
+The bound covers only the named test and sampler-abort events.
+`SamplerDensityLaw.field_output_event_le` gives the separate
 successful-event density bound on uniform field inputs. Actual transcript
 laws and useful FS success/error functions are external model inputs; these
-numbers are not a full NIFS or history-extraction security estimate.
+bounds are not a full NIFS or history-extraction security estimate.
 
 Retain the reviewed nonzero Lean/optimized C/R/D, output, proof-byte and
 mutation evidence. No new Rust, relation, transcript, profile, or package

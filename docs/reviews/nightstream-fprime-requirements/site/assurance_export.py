@@ -65,11 +65,10 @@ def export_assurance(data, publication, references):
                           '- Records: ' + records(item['records']), '']
 
     budget = data['error_budget']
-    result = error_scenario(budget, budget['example_uses'])
-    risk = intro('Quantitative error scenario')
+    result = error_scenario(budget, '1')
+    risk = intro('Conditional error bounds')
     risk += [text(budget['not_a_total_bound']), '', '## Specified interactive test', '', text(budget['event']), '',
              text(budget['formula']), '', f'Per test: `{result["numerator"]} / {result["denominator"]}`.', '',
-             f'At {int(result["uses"]):,} specified tests: approximately `{result["bound"]:.5e}` or `2^-{result["bound_bits"]:.5f}`.', '',
              text(budget['scenario_note']), '', text(budget['accumulation']), '',
              'Full obligation: ' + records([budget['owner_record']]), '', '## Deployment parameters', '']
     risk += ['- ' + text(p['name']) + ': ' + text(p['value']) for p in budget['deployment_parameters']]

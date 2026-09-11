@@ -139,3 +139,28 @@ must construct canonical admissible dummy data or prove permitted
 normalization of that unused advice. It cannot claim to preserve arbitrary
 rejected base proof messages. Actual sampler availability and successor
 counter range also remain explicit completeness conditions.
+
+## Deterministic history checkpoint
+
+`HyperNovaHistory.run` consumes the actual returned source values in reverse
+order and returns forward-ordered application advice. It preserves unused
+results and reports missing entries, source aborts, wrong envelopes and
+counter/state mismatches. The base step consumes no source result.
+
+`run_correct` proves exact advice length and final state under accepted
+terminal membership, the source-success events at the visited inputs and
+absence of the visited state-hash collisions. `HyperNovaInput`,
+`HyperNovaSource` and `HyperNovaPredecessor` connect these inputs and values
+to the existing NIFS return and terminal predicates. No choice operation
+constructs the history. Independent review by `/root/fiat_shamir_model`
+found no material defect in that scope.
+
+The focused module passed on attempt five in 2.0 seconds. Static, full build
+(3,840 jobs, 4 seconds), and axioms (3,930 jobs, 3 seconds) passed in order.
+The axiom set remains `propext`, `Classical.choice`, `Quot.sound`. Evidence is
+in `HYPERNOVA_HISTORY_EVIDENCE.zip`. No package data, pins or Rust changed.
+
+The next security obligation is to generate the consumed results through
+the existing guarded NIFS experiments and prove the exact event-law link.
+Then compose the failure probabilities and declared clocks on that same
+law. The deterministic history result is not a probability or runtime bound.

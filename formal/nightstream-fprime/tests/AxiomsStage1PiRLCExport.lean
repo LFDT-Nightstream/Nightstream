@@ -1,4 +1,5 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerBits
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
 import NightstreamFPrime.Export.Stage1.PackagePlan
@@ -153,6 +154,9 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.windowAssumptions
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.selectorAssumptions
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.childAssumptions
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.retainedBits_of_rows
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.retainedBits_of_rows
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.retainedSamplerBits_of_rows
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.childInputs
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.windowInputs
 #audit_axioms NightstreamFPrime.Layout.R1CS.lowerSegments_complete

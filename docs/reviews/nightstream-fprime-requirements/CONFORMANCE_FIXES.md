@@ -153,3 +153,20 @@ Checked code cut: `005e9679` (native constructor commit `ca80d71c`). The selecte
 The actual base witness and logical transport matched all 14 matrices and all 54 output coefficients against the retained Lean record. The complete test passed in 197.77 seconds, or 249.77 seconds including compilation, with 26.90 GiB peak RSS. Constructor output and rejection tests, including underestimated allocation hints, passed. Evidence and file hashes are in [NIFS_NATIVE_CACHE_EVIDENCE.zip](NIFS_NATIVE_CACHE_EVIDENCE.zip). Package bytes and pins are unchanged.
 
 This closes the package-to-cache constructor and this actual-witness comparison. Normal optimized PiCCS prover integration, full native C → R → D, later running cases, and the three-block mutation repair remain open. The ordinary prover needs distinct bounds for matrix rows, full-carrier Pad rows, norm inputs and equality factors; active matrix-row support alone is insufficient.
+
+## Actual selected PiCCS prover
+
+Code cut `007613aa66c085de73c4fad2fe429f0ff72627c7` runs the normal optimized CPU prover from the actual
+base witness, selected fixed-key commitment and 16 virtual-zero initial
+running witnesses. The package supplies its matrix cache, header, parameters
+and transcript. All 28 round messages, full transcript and 17 complete output
+families match the retained Lean-checked assertions. The normal optimized
+verifier accepts. Small tests cover a nonzero running tail, odd/singleton
+folding, complete Pad blocks, fresh-tail rejection and existing cache binding.
+
+All tests passed on their first run. The full selected test took 231.18 seconds,
+231.52 seconds for the whole invocation, with 26.86 GiB peak RSS. This result
+is for the base case; general nonzero-running memory and complete C/R/D
+execution remain open. The unused-allocation repair is separate and has not
+passed its package gates. Evidence: `NIFS_NATIVE_PICCS_EVIDENCE.zip`,
+SHA-256 `f910918b7901172bbd47816e55295e2bb321786171445d44ce558012a6184322`.

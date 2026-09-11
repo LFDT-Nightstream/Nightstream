@@ -18,6 +18,7 @@
 
 use neo_ajtai::AjtaiSModule;
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend};
+use neo_reductions::superneo_eval::SuperneoEvalCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
@@ -26,8 +27,26 @@ use crate::paper::nifs::{
     Error, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedCpuNifsProver, OptimizedNifsProverAdapter,
 };
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
+use crate::paper::relations::{
+    ajtai_dec_mixer, ajtai_rlc_mixer, CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure,
+};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
+
+#[cfg(test)]
+#[path = "../../../tests/nifs/selected_rows.rs"]
+mod selected_tests;
+
+enum ProverResources<'a> {
+    General {
+        cache: &'a OptimizedStructureCache,
+        log: &'a AjtaiSModule,
+        lanes: Option<&'a LaneScheme>,
+        backend: Option<&'a mut dyn PaperJointOracleBackend>,
+    },
+    SelectedRows {
+        cache: &'a SuperneoEvalCache,
+    },
+}
 
 /// Run Π_CCS → Π_RLC → Π_DEC in order. Returns the new k-claim
 /// `RunningInstance` (with prover-side witness matrices) plus the
@@ -79,14 +98,37 @@ pub(crate) fn prove_owned(
         tr,
         pp,
         s,
-        cache,
-        log,
-        lanes,
+        ProverResources::General {
+            cache,
+            log,
+            lanes,
+            backend: None,
+        },
         mix_rhos_commits,
         combine_b_pows,
         fresh,
         running,
-        None,
+    )
+}
+
+/// The closed package owns this row cache and the fixed commitment key.
+pub(crate) fn prove_owned_with_rows(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &SuperneoEvalCache,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+) -> Result<(RunningInstance, NifsProof), Error> {
+    prove_owned_inner(
+        tr,
+        pp,
+        s,
+        ProverResources::SelectedRows { cache },
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        fresh,
+        running,
     )
 }
 
@@ -95,14 +137,11 @@ fn prove_owned_inner(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
+    mut resources: ProverResources<'_>,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
-    mut backend: Option<&mut dyn PaperJointOracleBackend>,
 ) -> Result<(RunningInstance, NifsProof), Error> {
     crate::heap::release_unused_pages();
     #[cfg(feature = "perf-timers")]
@@ -117,20 +156,27 @@ fn prove_owned_inner(
     // 1. Π_CCS — fold K fresh CCS into K+k CE claims at r'.
     #[cfg(feature = "perf-timers")]
     let t_ccs = std::time::Instant::now();
-    let (pi_ccs_proof, pi_dec_precompute) = match backend.as_mut() {
-        Some(backend) => pi_ccs::prove_from_parts_with_backend(
-            tr,
-            pp,
-            s,
-            cache,
-            log,
-            &fresh_claims,
-            &fresh_witnesses,
-            &running,
-            *backend,
-        )?,
-        None => pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, &running)?,
-    };
+    let (pi_ccs_proof, pi_dec_precompute) = match &mut resources {
+        ProverResources::General {
+            cache, log, backend, ..
+        } => match backend.as_mut() {
+            Some(backend) => pi_ccs::prove_from_parts_with_backend(
+                tr,
+                pp,
+                s,
+                cache,
+                log,
+                &fresh_claims,
+                &fresh_witnesses,
+                &running,
+                *backend,
+            ),
+            None => pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, &running),
+        },
+        ProverResources::SelectedRows { cache } => {
+            pi_ccs::prove_from_parts_with_rows(tr, pp, s, cache, &fresh_claims, &fresh_witnesses, &running)
+        }
+    }?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_ccs                         {:>7.2}s",
@@ -164,31 +210,41 @@ fn prove_owned_inner(
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]
     let t_dec = std::time::Instant::now();
-    let (dec_out, pi_dec_proof) = match backend.as_mut() {
-        Some(backend) => pi_dec::prove_with_precompute_and_backend(
-            pp,
-            s,
+    let (dec_out, pi_dec_proof) = match &mut resources {
+        ProverResources::General {
             cache,
             log,
             lanes,
-            combine_b_pows,
-            &rlc_out.claim,
-            &rlc_out.witness,
-            &pi_dec_precompute,
-            *backend,
-        )?,
-        None => pi_dec::prove_with_precompute(
-            pp,
-            s,
-            cache,
-            log,
-            lanes,
-            combine_b_pows,
-            &rlc_out.claim,
-            &rlc_out.witness,
-            &pi_dec_precompute,
-        )?,
-    };
+            backend,
+        } => match backend.as_mut() {
+            Some(backend) => pi_dec::prove_with_precompute_and_backend(
+                pp,
+                s,
+                cache,
+                log,
+                *lanes,
+                combine_b_pows,
+                &rlc_out.claim,
+                &rlc_out.witness,
+                &pi_dec_precompute,
+                *backend,
+            ),
+            None => pi_dec::prove_with_precompute(
+                pp,
+                s,
+                cache,
+                log,
+                *lanes,
+                combine_b_pows,
+                &rlc_out.claim,
+                &rlc_out.witness,
+                &pi_dec_precompute,
+            ),
+        },
+        ProverResources::SelectedRows { cache } => {
+            pi_dec::prove_with_production_key(pp, s, cache, &rlc_out.claim, &rlc_out.witness)
+        }
+    }?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_dec                         {:>7.2}s",
@@ -265,14 +321,16 @@ pub fn prove_with_joint_oracle_backend(
         request.tr,
         request.pp,
         request.s,
-        request.cache,
-        request.log,
-        request.lanes,
+        ProverResources::General {
+            cache: request.cache,
+            log: request.log,
+            lanes: request.lanes,
+            backend: Some(backend),
+        },
         request.mix_rhos_commits,
         request.combine_b_pows,
         request.fresh,
         request.running.clone(),
-        Some(backend),
     )?;
     Ok((running, proof))
 }

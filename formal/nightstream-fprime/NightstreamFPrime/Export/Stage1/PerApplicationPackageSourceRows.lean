@@ -358,6 +358,7 @@ private theorem samplerLaterIndices_nodup :
   have samplerBounds :=
     PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
       sampler samplerMember
+  change _ ∧ sampler < PiDECStarts.phaseRowStart at samplerBounds
   rw [List.mem_append] at laterMember
   rcases laterMember with piDecMember | runningMember
   · have piDecBounds := piDecIndex_bounds later piDecMember
@@ -469,6 +470,7 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
     · have upper :=
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).2
+      change index < PiDECStarts.phaseRowStart at upper
       have phaseStart : PiDECStarts.phaseRowStart = 28847041 := rfl
       rw [phaseStart] at upper
       omega

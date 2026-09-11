@@ -118,9 +118,9 @@ theorem rowSchedule_valid : rowSchedule.valid 27584200 = true := by
         validIndexRanges]
 
 theorem rowSchedule_valid_between :
-    validIndexRanges PiDECStarts.phaseRowStart PiRLCStarts.phaseRowStart
+    validIndexRanges PiRLCStarts.outputRowStart PiRLCStarts.phaseRowStart
       ranges = true := by
-  have boundary : PiDECStarts.phaseRowStart = 28847041 :=
+  have boundary : PiRLCStarts.outputRowStart = 28847041 :=
     PiRLCStarts.finalBoundaries_eq.1
   rw [boundary]
   rw [ranges]
@@ -133,7 +133,7 @@ theorem rowSchedule_valid_between :
     | apply sourceRanges_valid
     | norm_num [PiRLCStarts.samplerSourceRowStart,
         PiRLCStarts.samplerRowStart, PiRLCStarts.phaseRowStart,
-        PiDECStarts.phaseRowStart, validIndexRanges]
+        PiRLCStarts.outputRowStart, validIndexRanges]
 
 theorem rowIndexReference_nodup : rowIndexReference.Nodup := by
   rw [← rowSchedule_indices]
@@ -141,7 +141,7 @@ theorem rowIndexReference_nodup : rowIndexReference.Nodup := by
 
 theorem rowIndexReference_bounds :
     ∀ index ∈ rowIndexReference,
-      PiRLCStarts.phaseRowStart ≤ index ∧ index < PiDECStarts.phaseRowStart := by
+      PiRLCStarts.phaseRowStart ≤ index ∧ index < PiRLCStarts.outputRowStart := by
   rw [← rowSchedule_indices]
   unfold rowSchedule IndexSchedule.indices
   exact validIndexRanges_indices_bounds _ _ _ rowSchedule_valid_between

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
+import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!

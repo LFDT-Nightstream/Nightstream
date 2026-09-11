@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.PilotSpartan
-import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
+import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 
 /-!
 Obligation: Permute the current source layout through the running transition
@@ -10,8 +10,8 @@ The first source interval keeps the proved pilot permutation. The four
 verifier-context source words move to the public suffix. The appended proof
 input, PiCCS-local, and PiRLC-local intervals are private and fill the interval
 between the pilot-private columns and the relocated public columns. This
-module changes no row and adds only the generic zero padding required by the
-fixed `2^28` domain.
+module owns the column maps and generic padding operations. `SpartanRows`
+owns their application to the complete Stage 1 prefix.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.Spartan
@@ -838,40 +838,6 @@ theorem remapRows_hold_copyMappedInterval (rows : List R1CS.Row)
     targetEndPrivate sourceAgrees]
   exact holds
 
-variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
-
-def sourceRows
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    List R1CS.Row :=
-  PilotPiCCSPiRLCPiDECRunningTransition.physicalRows relation
-
-def remappedRows
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    List R1CS.Row :=
-  remapRows (sourceRows relation)
-
-theorem remappedRows_hold
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (target : Env) :
-    R1CS.RowsHold target (remappedRows relation) ↔
-      PilotPiCCSPiRLCPiDECRunningTransition.PhysicalHolds relation
-        (pullback target) := by
-  exact remapRows_hold target (sourceRows relation)
-
-theorem sourceColumnCount_matches
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    PilotPiCCSPiRLCPiDECRunningTransition.physicalColumnCount relation =
-      SourceColumnCount := by
-  rw [PilotPiCCSPiRLCPiDECRunningTransition.physicalColumnCount_eq relation,
-    sourceColumnCount_eq]
-
-theorem sourceRowCount_eq
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 29218024 := by
-  exact PilotPiCCSPiRLCPiDECRunningTransition.physicalRowCount_eq relation
-
 /-- The generic Spartan row and private-variable domains use the fixed cube. -/
 def domainSize : Nat := 2 ^ cubeVariables
 
@@ -882,12 +848,6 @@ def paddedSpartanColumnCount : Nat :=
 
 theorem domainSize_eq : domainSize = 268435456 := by
   norm_num [domainSize, cubeVariables]
-
-theorem sourceRowCount_bounds
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length ≤ domainSize := by
-  rw [sourceRowCount_eq relation, domainSize_eq]
-  norm_num
 
 theorem privateColumnCount_bound : privateColumnCount ≤ domainSize := by
   rw [privateColumnCount_eq, domainSize_eq]
@@ -908,87 +868,14 @@ def padCombination (combination : R1CS.LinearCombination) :
   ⟨combination.constant,
     combination.terms.map fun term => (spartanToPadded term.1, term.2)⟩
 
-private theorem padCombination_eval (target : Env)
-    (combination : R1CS.LinearCombination) :
-    (padCombination combination).eval target =
-      combination.eval (paddedPullback target) := by
-  unfold padCombination R1CS.LinearCombination.eval paddedPullback
-  rw [List.map_map]
-  congr 1
-
 def padRow (row : R1CS.Row) : R1CS.Row :=
   ⟨padCombination row.a, padCombination row.b, padCombination row.c⟩
-
-private theorem padRow_holds (target : Env) (row : R1CS.Row) :
-    (padRow row).Holds target ↔ row.Holds (paddedPullback target) := by
-  simp [R1CS.Row.Holds, padRow, padCombination_eval]
 
 def padRows (rows : List R1CS.Row) : List R1CS.Row :=
   rows.map padRow
 
-private theorem padRows_hold (target : Env) (rows : List R1CS.Row) :
-    R1CS.RowsHold target (padRows rows) ↔
-      R1CS.RowsHold (paddedPullback target) rows := by
-  constructor
-  · intro holds row member
-    have padded := holds (padRow row) (by
-      rw [padRows, List.mem_map]
-      exact ⟨row, member, rfl⟩)
-    exact (padRow_holds target row).mp padded
-  · intro holds row member
-    rw [padRows, List.mem_map] at member
-    rcases member with ⟨source, sourceMember, rfl⟩
-    exact (padRow_holds target source).mpr (holds source sourceMember)
-
 def zeroRow : R1CS.Row :=
   ⟨R1CS.LinearCombination.zero, R1CS.LinearCombination.zero,
     R1CS.LinearCombination.zero⟩
-
-private theorem zeroRows_hold (target : Env) (count : Nat) :
-    R1CS.RowsHold target (List.replicate count zeroRow) := by
-  intro row member
-  have equals : row = zeroRow := by
-    simpa using (List.eq_of_mem_replicate member)
-  subst row
-  simp [zeroRow, R1CS.Row.Holds]
-
-def paddedRows
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    List R1CS.Row :=
-  padRows (remappedRows relation) ++
-    List.replicate
-      (domainSize - (sourceRows relation).length) zeroRow
-
-theorem paddedRows_length
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (paddedRows relation).length = domainSize := by
-  unfold paddedRows padRows remappedRows remapRows
-  rw [List.length_append, List.length_map, List.length_map,
-    List.length_replicate,
-    Nat.add_sub_of_le (sourceRowCount_bounds relation)]
-
-/-- The padded direct-Spartan rows preserve and reflect the complete current
-Stage 1 prefix through the running transition. -/
-theorem paddedRows_hold
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (target : Env) :
-    R1CS.RowsHold target (paddedRows relation) ↔
-      PilotPiCCSPiRLCPiDECRunningTransition.PhysicalHolds relation
-        (pullback (paddedPullback target)) := by
-  change R1CS.RowsHold target (paddedRows relation) ↔
-    R1CS.RowsHold (pullback (paddedPullback target))
-      (sourceRows relation)
-  constructor
-  · intro holds
-    have split := (R1CS.rowsHold_append target _ _).mp holds
-    exact (remappedRows_hold relation (paddedPullback target)).mp
-      ((padRows_hold target (remappedRows relation)).mp split.1)
-  · intro holds
-    apply (R1CS.rowsHold_append target _ _).mpr
-    exact ⟨
-      (padRows_hold target (remappedRows relation)).mpr
-        ((remappedRows_hold relation (paddedPullback target)).mpr
-          holds),
-      zeroRows_hold target _⟩
 
 end NightstreamFPrime.Layout.Stage1.Spartan

@@ -13,6 +13,7 @@ use nightstream_fprime::{
 
 use crate::paper::relations::Structure;
 
+mod evaluation;
 mod inputs;
 
 pub use inputs::{

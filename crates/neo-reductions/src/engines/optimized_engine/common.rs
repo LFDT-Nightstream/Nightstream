@@ -119,6 +119,11 @@ where
         "PiDEC accepts precomputed rows or ring forms, not both"
     );
 
+    // The normal path computes complete openings from the actual split.
+    // Legacy supplied adapter material is handled only in its existing branch.
+    let computed_openings = (precomputed_openings.is_none() && ring_linear_forms.is_none())
+        .then(|| witness_openings(s, Z_split, &parent.r, cache, digit_nonzero));
+    let precomputed_openings = precomputed_openings.or(computed_openings.as_deref());
     let row_weights = if precomputed_openings.is_some() {
         Vec::new()
     } else {
@@ -127,8 +132,6 @@ where
     let streamed = streamed_application_rows(
         s,
         Z_split,
-        &row_weights,
-        cache,
         digit_nonzero,
         ring_linear_forms,
         precomputed_openings,
@@ -230,8 +233,6 @@ where
 fn streamed_application_rows<Ff>(
     s: &CcsStructure<Ff>,
     Z_split: &[Mat<Ff>],
-    row_weights: &[K],
-    cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_openings: Option<&[V1_1OutputOpening]>,
@@ -252,21 +253,32 @@ where
             })
             .collect();
     }
-    if let Some(forms) = ring_linear_forms {
-        return Z_split
-            .iter()
-            .enumerate()
-            .map(|(index, witness)| {
-                if digit_nonzero.is_some_and(|flags| !flags[index]) {
-                    return vec![[K::ZERO; D]; s.t()];
-                }
-                let blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(witness, s.m)
-                    .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"));
-                crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(forms, &blocks)
-            })
-            .collect();
-    }
+    let forms = ring_linear_forms.expect("normal PiDEC has computed its complete openings");
+    Z_split
+        .iter()
+        .enumerate()
+        .map(|(index, witness)| {
+            if digit_nonzero.is_some_and(|flags| !flags[index]) {
+                return vec![[K::ZERO; D]; s.t()];
+            }
+            let blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(witness, s.m)
+                .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"));
+            crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(forms, &blocks)
+        })
+        .collect()
+}
 
+fn witness_openings<Ff>(
+    s: &CcsStructure<Ff>,
+    Z_split: &[Mat<Ff>],
+    point: &[K],
+    cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
+    digit_nonzero: Option<&[bool]>,
+) -> Vec<V1_1OutputOpening>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
     let local_cache;
     let cache = match cache {
         Some(cache) => cache,
@@ -276,6 +288,11 @@ where
             &local_cache
         }
     };
+    assert_eq!(
+        cache.relation_shape(),
+        Some((s.n, crate::common::superneo_carrier_width(s.m), s.t())),
+        "PiDEC opening cache shape mismatch"
+    );
     let active: Vec<_> = (0..Z_split.len())
         .filter(|&index| digit_nonzero.is_none_or(|flags| flags[index]))
         .collect();
@@ -295,8 +312,15 @@ where
                 .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"))
         })
         .collect();
-    let evaluated = cache.eval_ring_linear_forms_for_real_z_blocks(row_weights, s.n.min(row_weights.len()), &blocks);
-    let mut rows = vec![vec![[K::ZERO; D]; s.t()]; Z_split.len()];
+    let evaluated = cache
+        .eval_real_v1_1_openings(point, &blocks)
+        .unwrap_or_else(|error| panic!("PiDEC witness openings failed: {error}"));
+    let mut rows = (0..Z_split.len())
+        .map(|_| V1_1OutputOpening {
+            eval_k: vec![K::ZERO; D],
+            eval_a: vec![vec![K::ZERO; D]; s.t()],
+        })
+        .collect::<Vec<_>>();
     for (index, values) in active.into_iter().zip(evaluated) {
         rows[index] = values;
     }

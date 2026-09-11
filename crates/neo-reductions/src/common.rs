@@ -99,6 +99,15 @@ pub fn split_b_matrix_k_with_nonzero_flags(
     }
 
     let mut out_data = (0..k).map(|_| None::<Vec<F>>).collect::<Vec<_>>();
+    // The existing column-mask representation supports at most 64 rows.
+    // Production ring witnesses have D=54 rows; taller generic matrices keep
+    // their existing storage path.
+    let packed_binary = b == 2 && Z_rows <= u64::BITS as usize;
+    let mut out_masks = if packed_binary {
+        (0..k).map(|_| None::<(Vec<u64>, Vec<u64>)>).collect()
+    } else {
+        Vec::new()
+    };
     let mut digit_nonzero = vec![false; k];
 
     let b_i = b as i128;
@@ -116,6 +125,16 @@ pub fn split_b_matrix_k_with_nonzero_flags(
     {
         let total = z_data.len();
         debug_assert_eq!(total, Z_rows * Z_cols);
+        let mut store_digit = |plane: usize, index: usize, digit: F| {
+            if packed_binary {
+                let (positive, negative) = out_masks[plane].get_or_insert_with(|| (vec![0; Z_cols], vec![0; Z_cols]));
+                let mask = if digit == F::ONE { positive } else { negative };
+                mask[index % Z_cols] |= 1u64 << (index / Z_cols);
+            } else {
+                out_data[plane].get_or_insert_with(|| vec![F::ZERO; total])[index] = digit;
+            }
+            digit_nonzero[plane] = true;
+        };
 
         if B_u <= i64::MAX as u128 {
             let b_i64 = b as i64;
@@ -175,8 +194,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                     if r_i != 0 {
                         debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
                         let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                        out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
-                        digit_nonzero[i] = true;
+                        store_digit(i, idx, digit_f);
                     }
                     v = q;
                 }
@@ -267,8 +285,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         if r_i != 0 {
                             debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
                             let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                            out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
-                            digit_nonzero[i] = true;
+                            store_digit(i, idx, digit_f);
                         }
                         v64 = q;
                     }
@@ -311,8 +328,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         let r_i64 = r_i as i64;
                         debug_assert!(r_i64 >= -digit_bound && r_i64 <= digit_bound);
                         let digit_f = digit_lut[(r_i64 + digit_bound) as usize];
-                        out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
-                        digit_nonzero[i] = true;
+                        store_digit(i, idx, digit_f);
                     }
                     v = q;
                 }
@@ -343,6 +359,20 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                 }
             }
         }
+    }
+
+    if packed_binary {
+        let digits = out_masks
+            .into_iter()
+            .map(|masks| match masks {
+                None => Mat::virtual_constant(Z_rows, Z_cols, F::ZERO),
+                Some((positive, negative)) => {
+                    Mat::compact_signed_unit_from_column_masks(Z_rows, Z_cols, &positive, &negative)
+                        .expect("binary split writes disjoint in-range row masks")
+                }
+            })
+            .collect();
+        return Ok((digits, digit_nonzero));
     }
 
     let outs = out_data

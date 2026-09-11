@@ -301,3 +301,17 @@ are active; their gates have not passed at this cut.
 Ordered static, full library (3,861 jobs, 4 seconds), and axiom (3,950 jobs,
 3 seconds) gates passed. Evidence: `HYPERNOVA_SOURCE_WORK_EVIDENCE.zip`,
 SHA-256 `c367847f1ad9705951ab04a2629549527756f7cd7e066edde4720ffb0536a479`. Package bytes and pins are unchanged.
+
+## Initial envelope and D source checkpoint
+
+Checked cut: `5e7a23ae8f777314cd3b8eaf48a04a821f7d9989`. `HyperNovaInitial.initial_accepted` constructs the
+selected initial statement and bottom proof from an initial state of the
+fixed public width. Iteration zero, valid counter and equal endpoints are
+derived. `PiDECProofInputs` loads the actual D messages and verifier public
+digits, proves exact typed readback and preserves every source outside its
+existing input interval. It does not assume or prove D acceptance, child
+openings or full selected rows. Those remain with the canonical consumer.
+
+Ordered static, full library (3,863 jobs, 3 seconds), and axioms (3,952 jobs,
+3 seconds) passed. Evidence: `HYPERNOVA_INITIAL_DEC_INPUTS_EVIDENCE.zip`,
+SHA-256 `cd73aad8904691032f084124164f5ceb1f7289486a5fdddf0e52cf509a009d30`. Package pins are unchanged at this cut.

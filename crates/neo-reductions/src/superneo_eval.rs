@@ -14,6 +14,7 @@ mod digit;
 mod equality;
 mod geometric;
 mod matrix_cache_impl;
+mod openings;
 mod parallel;
 mod row_block;
 mod row_source;

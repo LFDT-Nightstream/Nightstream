@@ -1,7 +1,7 @@
 //! The normal CPU PiCCS evaluator over actual witnesses and compact matrices.
 
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
-use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -25,7 +25,6 @@ pub struct OptimizedPaperJointOracle<'a> {
     fixed_prior_equality: K,
     fresh_tables: Vec<Vec<Vec<K>>>,
     assignments: Vec<Assignment<'a>>,
-    witnesses: Vec<&'a Mat<F>>,
     witness_blocks: Vec<SuperneoZBlocks>,
     evaluation_table: Vec<K>,
     constraint_shift: K,
@@ -122,7 +121,6 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             fixed_prior_equality: K::ONE,
             fresh_tables,
             assignments,
-            witnesses,
             witness_blocks,
             evaluation_table,
             constraint_shift: gamma_power(challenges.gamma, running.len() * D * (structure.t() + 1)),
@@ -338,26 +336,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
                 "optimized CPU opening point is not the completed point".into(),
             ));
         }
-        let weights = EqualityWeights::new(point);
-        let row_weights = (0..self.structure.n)
-            .map(|row| weights.at(row))
-            .collect::<Vec<_>>();
-        let matrices =
-            self.cache
-                .eval_ring_linear_forms_for_real_z_blocks(&row_weights, self.structure.n, &self.witness_blocks);
-        let openings = self
-            .witnesses
-            .iter()
-            .zip(matrices)
-            .map(|(witness, eval_a)| V1_1OutputOpening {
-                eval_k: pad_opening(witness, &weights, self.dims.assignment_width).to_vec(),
-                eval_a: eval_a
-                    .into_iter()
-                    .map(|coefficients| coefficients.to_vec())
-                    .collect(),
-            })
-            .collect();
-        Ok(Some(openings))
+        self.cache.eval_real_v1_1_openings(point, &self.witness_blocks).map(Some)
     }
 }
 
@@ -409,42 +388,4 @@ fn carried_table(
         result.pop();
     }
     result
-}
-
-fn pad_opening(witness: &Mat<F>, weights: &EqualityWeights, width: usize) -> [K; D] {
-    if witness
-        .virtual_constant_value()
-        .is_some_and(|value| *value == F::ZERO)
-    {
-        return [K::ZERO; D];
-    }
-    let masks = witness.packed_signed_unit_column_masks();
-    let block = |block: usize| {
-        if masks.is_some_and(|(positive, negative)| positive[block] | negative[block] == 0) {
-            return [K::ZERO; D];
-        }
-        let value = Rq(std::array::from_fn(|lane| witness[(lane, block)]));
-        if value.0.iter().all(|value| *value == F::ZERO) {
-            return [K::ZERO; D];
-        }
-        // Pad covers every lane of this block, including fresh zero-tail
-        // lanes: its higher ring coefficients need those equality weights.
-        let weights: [K; D] = std::array::from_fn(|lane| weights.at(block * D + lane));
-        let real = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0]))).mul(&value);
-        let imaginary = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1]))).mul(&value);
-        std::array::from_fn(|lane| K::from_coeffs([real.0[lane], imaginary.0[lane]]))
-    };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        (0..width / D).into_par_iter().map(block).reduce(
-            || [K::ZERO; D],
-            |left, right| std::array::from_fn(|lane| left[lane] + right[lane]),
-        )
-    }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        (0..width / D).map(block).fold([K::ZERO; D], |left, right| {
-            std::array::from_fn(|lane| left[lane] + right[lane])
-        })
-    }
 }

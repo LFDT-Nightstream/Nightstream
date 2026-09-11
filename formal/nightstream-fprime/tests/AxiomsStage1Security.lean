@@ -18,6 +18,8 @@ import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceWork
+import NightstreamFPrime.Export.Stage1.HyperNovaInitial
+import NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
@@ -107,6 +109,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceWork.callWork_le_totalMean
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceWork.expectedSourceWork_eq_visitedSum
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceWork.expected_work_polynomial_bound
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInitial.initial_accepted
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize.accepted_wordCount_le
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.completePrefix
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.law_eq_of_continuation_eq_on_return
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncodingCanonical.serializePreimage_canonical

@@ -181,6 +181,15 @@ theorem eval_childCommitment {degree : Nat} (env : Env) (proof : Proof degree)
   convert word using 1 <;> simp only [childCommitment, childCommitmentStart, Expr.eval,
     CommitmentRecomposition.indexOf, finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm]
 
+private theorem productIndex_val {count width : Nat} (child : Fin count) (coordinate : Fin width) :
+    (finProdFinEquiv (child, coordinate)).val = coordinate.val + width * child.val := rfl
+
+private theorem ringIndex_val {blocks : Nat} (block : Fin blocks) (lane : Fin ringDegree)
+    (cell : Fin RingKRecomposition.cellCount) :
+    (RingKRecomposition.indexOf block lane cell).val =
+      cell.val + RingKRecomposition.cellCount * lane.val +
+        (ringDegree * RingKRecomposition.cellCount) * block.val := rfl
+
 /-- Every loaded Pad coefficient is the actual D proof coefficient. -/
 theorem eval_childEvalK {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -190,17 +199,21 @@ theorem eval_childEvalK {degree : Nat} (env : Env) (proof : Proof degree)
   have cell (part : Fin RingKRecomposition.cellCount) := load_evalKWord env proof parent child
     (RingKRecomposition.indexOf EvalKRecomposition.block coefficient part)
   simp only [evalKWord, RingKRecomposition.coordinates_indexOf] at cell
+  have address (part : Fin RingKRecomposition.cellCount) :
+      evalKInputStart +
+        (finProdFinEquiv (child, RingKRecomposition.indexOf EvalKRecomposition.block coefficient part)).val =
+      childEvalKStart child + coefficient.val * 2 + part.val := by
+    rw [productIndex_val, ringIndex_val]
+    change evalKInputStart + (part.val + 2 * coefficient.val + (ringDegree * 2) * 0 +
+      evalKWordsPerChild * child.val) =
+      evalKInputStart + child.val * evalKWordsPerChild + coefficient.val * 2 + part.val
+    rw [Nat.mul_comm evalKWordsPerChild child.val]
+    omega
   apply k_ext
-  · convert cell RingKRecomposition.c0Cell using 1 <;>
-      simp only [childEvalK, childEvalKStart, Quadratic.KExpr.eval, Expr.eval,
-        RingKRecomposition.indexOf, EvalKRecomposition.block, RingKRecomposition.c0Cell,
-        RingKRecomposition.kCell, finProdFinEquiv, Equiv.coe_fn_mk, Nat.zero_mul,
-        Nat.zero_add, Nat.add_zero, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm, if_pos rfl]
-  · convert cell RingKRecomposition.c1Cell using 1 <;>
-      simp only [childEvalK, childEvalKStart, Quadratic.KExpr.eval, Expr.eval,
-        RingKRecomposition.indexOf, EvalKRecomposition.block, RingKRecomposition.c1Cell,
-        RingKRecomposition.kCell, finProdFinEquiv, Equiv.coe_fn_mk, Nat.zero_mul,
-        Nat.zero_add, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm, if_neg (by decide : ¬ (1 : Nat) = 0)]
+  · exact (congrArg (load env proof parent) (address RingKRecomposition.c0Cell)).symm.trans
+      (cell RingKRecomposition.c0Cell)
+  · exact (congrArg (load env proof parent) (address RingKRecomposition.c1Cell)).symm.trans
+      (cell RingKRecomposition.c1Cell)
 
 /-- Every loaded matrix-evaluation coefficient is the actual D proof coefficient. -/
 theorem eval_childEvalA {degree : Nat} (env : Env) (proof : Proof degree)
@@ -212,15 +225,21 @@ theorem eval_childEvalA {degree : Nat} (env : Env) (proof : Proof degree)
   have cell (part : Fin RingKRecomposition.cellCount) := load_evalAWord env proof parent child
     (RingKRecomposition.indexOf matrix coefficient part)
   simp only [evalAWord, RingKRecomposition.coordinates_indexOf] at cell
+  have address (part : Fin RingKRecomposition.cellCount) :
+      evalAInputStart + (finProdFinEquiv (child, RingKRecomposition.indexOf matrix coefficient part)).val =
+      childEvalAStart child + matrix.val * evalKWordsPerChild + coefficient.val * 2 + part.val := by
+    rw [productIndex_val, ringIndex_val]
+    change evalAInputStart + (part.val + 2 * coefficient.val + evalKWordsPerChild * matrix.val +
+      evalAWordsPerChild * child.val) =
+      evalAInputStart + child.val * evalAWordsPerChild + matrix.val * evalKWordsPerChild +
+        coefficient.val * 2 + part.val
+    rw [Nat.mul_comm evalAWordsPerChild child.val, Nat.mul_comm evalKWordsPerChild matrix.val]
+    omega
   apply k_ext
-  · convert cell RingKRecomposition.c0Cell using 1 <;>
-      simp only [childEvalA, childEvalAStart, Quadratic.KExpr.eval, Expr.eval,
-        RingKRecomposition.indexOf, RingKRecomposition.c0Cell, RingKRecomposition.kCell,
-        finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_zero, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm, if_pos rfl]
-  · convert cell RingKRecomposition.c1Cell using 1 <;>
-      simp only [childEvalA, childEvalAStart, Quadratic.KExpr.eval, Expr.eval,
-        RingKRecomposition.indexOf, RingKRecomposition.c1Cell, RingKRecomposition.kCell,
-        finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm, if_neg (by decide : ¬ (1 : Nat) = 0)]
+  · exact (congrArg (load env proof parent) (address RingKRecomposition.c0Cell)).symm.trans
+      (cell RingKRecomposition.c0Cell)
+  · exact (congrArg (load env proof parent) (address RingKRecomposition.c1Cell)).symm.trans
+      (cell RingKRecomposition.c1Cell)
 
 /-- Loaded public digits are the verifier's deterministic split of the parent. -/
 theorem eval_childPublicInput {degree : Nat} (env : Env) (proof : Proof degree)

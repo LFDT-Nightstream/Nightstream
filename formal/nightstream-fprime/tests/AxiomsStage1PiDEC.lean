@@ -17,6 +17,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar
 import NightstreamFPrime.Layout.PiDEC.v1_1.Ownership
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECProofInputs
+import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECValues
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
@@ -255,6 +256,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProofInputs.eval_childEvalK
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProofInputs.eval_childEvalA
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProofInputs.eval_childPublicInput
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.completePrefix
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECStarts.phaseStarts_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECStarts.childLogicalStarts_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECStarts.childRowStarts_eq

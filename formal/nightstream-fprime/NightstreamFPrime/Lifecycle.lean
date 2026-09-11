@@ -10,6 +10,7 @@ import NightstreamFPrime.Lifecycle.Nifs.StrongExtraction
 import NightstreamFPrime.Lifecycle.Nifs.WeakExtraction
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
+import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
 import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Lifecycle.Relation

@@ -1,4 +1,6 @@
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
+import NightstreamFPrime.Export.Stage1.NifsClosure
+import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
 import NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
@@ -564,3 +566,17 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.hundred_million_budget_le
 
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsFiatShamir.finishValue_probability_and_expected_work
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsInvalidSource.source_event_probability_eq_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsInvalidSource.real_success_bound_of_invalid_source
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.allFin_eq_true
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.matrixRow_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck.evaluateRows_eq
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.ClaimCheck.evaluation_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.ClaimCheck.check_eq_true_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.recompose_value
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.recompose_work_le
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.suffixProgram_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.parentChecker_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.batchAt_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.finishValue_probability_and_expected_work

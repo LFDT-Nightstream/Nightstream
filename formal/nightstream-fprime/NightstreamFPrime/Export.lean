@@ -197,4 +197,7 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
+import NightstreamFPrime.Export.Stage1.NifsClosure
+import NightstreamFPrime.Export.Stage1.NifsInvalidSource
+
 /-! Export layer root. Lists the modules of this layer explicitly. -/

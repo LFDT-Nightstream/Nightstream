@@ -22,7 +22,8 @@ open StrongReduction ConcreteCarrier FullOutputCoordinates PaperLinearAlgebra
 open StoredWitnessProjection
 open CheckedWitnessExtraction (openingMaps)
 
-private def allFin {count : Nat} (test : Fin count → Bool) : Bool :=
+/-- Check each finite coordinate without constructing an index list. -/
+def allFin {count : Nat} (test : Fin count → Bool) : Bool :=
   Fin.foldl count (fun accepted index => accepted && test index) true
 
 private theorem fold_all_eq_true : ∀ {count : Nat}
@@ -34,19 +35,21 @@ private theorem fold_all_eq_true : ∀ {count : Nat}
       rw [Fin.foldl_succ, fold_all_eq_true]
       simp only [Bool.and_eq_true, Fin.forall_fin_succ, and_assoc]
 
-private theorem allFin_eq_true {count : Nat} (test : Fin count → Bool) :
+/-- The finite fold accepts exactly when every coordinate accepts. -/
+theorem allFin_eq_true {count : Nat} (test : Fin count → Bool) :
     allFin test = true ↔ ∀ index, test index = true := by
   simp only [allFin, fold_all_eq_true, true_and]
 
 /-- The same ordered dot product as `matrixVectorAt`, with no index list. -/
-private def matrixRow {arity columns : Nat}
+def matrixRow {arity columns : Nat}
     (matrix : BooleanMatrix F arity columns) (assignment : Vector F columns)
     (vertex : BooleanVertex arity) : F :=
   Fin.foldl columns (fun accumulated column =>
     baseOps.add accumulated (baseOps.mul (matrix vertex column) (assignment.get column)))
     baseOps.zero
 
-private theorem matrixRow_eq {arity columns : Nat}
+/-- The streaming dot product equals the existing mathematical row value. -/
+theorem matrixRow_eq {arity columns : Nat}
     (matrix : BooleanMatrix F arity columns) (assignment : Vector F columns)
     (vertex : BooleanVertex arity) :
     matrixRow matrix assignment vertex =
@@ -55,7 +58,7 @@ private theorem matrixRow_eq {arity columns : Nat}
   rfl
 
 /-- Fuse tabulation and interpolation; only the current low/high values live. -/
-private def evaluateRows : {arity : Nat} →
+def evaluateRows : {arity : Nat} →
     (BooleanVertex arity → K) → List K → K
   | 0, values, [] => values .nil
   | _ + 1, values, coordinate :: coordinates =>
@@ -64,7 +67,8 @@ private def evaluateRows : {arity : Nat} →
       extensionOps.add low (extensionOps.mul coordinate (extensionOps.sub high low))
   | _, _, _ => extensionOps.zero
 
-private theorem evaluateRows_eq {arity : Nat}
+/-- Streaming interpolation equals the complete table's evaluation. -/
+theorem evaluateRows_eq {arity : Nat}
     (values : BooleanVertex arity → K) (coordinates : List K) :
     evaluateRows values coordinates =
       (BooleanTable.tabulate values).evaluateCoordinates extensionOps coordinates := by

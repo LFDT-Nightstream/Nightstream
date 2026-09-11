@@ -8,7 +8,7 @@ projections, fixed Ajtai key, primitive program and stored checked return
 are the existing production owners. Their value correctness is proved here
 by their existing contracts, with no free checker or primitive premise.
 
-FiatShamirModel remains an explicit, unapproved game-transfer hypothesis.
+FiatShamirModel is the owner-approved parametric game-transfer hypothesis.
 The real event is the actual verifier's acceptance with witnesses for its
 exact children. Its law and the interactive context marginal are shared.
 No adversary translation, query bound, or FS model instance is constructed.
@@ -71,7 +71,7 @@ include model lowNorm bounded in
 and the same prepared reduction has the supplied polynomial declared-work
 bound. Both local Correct obligations are discharged by the selected owners.
 The MSIS term is the existing reduction's success mass at this fixed key;
-no numerical hardness estimate or model approval is asserted. -/
+no numerical hardness estimate or instantiated FS bound is asserted. -/
 theorem finishValue_probability_and_expected_work {SetupTape : Type*}
     (setupTapes : PMF SetupTape) (prepare : SetupTape → Result Context)
     (preparedContexts : FiatShamirTransfer.contextLaw relation law =

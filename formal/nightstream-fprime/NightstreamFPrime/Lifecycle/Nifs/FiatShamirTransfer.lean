@@ -2,7 +2,8 @@ import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
 /-!
-An explicit, unapproved classical FS/SuperNeo game-transfer hypothesis.
+An explicit classical FS/SuperNeo game-transfer hypothesis. The owner
+approved the parametric boundary in FIAT_SHAMIR_MODEL.md on 2026-09-11 UTC.
 The real event runs the actual ProductionKey verifier: additive Poseidon2
 absorption, existing domain labels, complete C output absorption, bounded
 R sampling, and the actual PiDEC attempt. It includes valid witnesses for
@@ -17,7 +18,7 @@ resistance or an application of the printed CO25 overwrite-sponge theorem.
 
 No oracle simulator, repeated-prefix cache, adaptive-query bound, or executable
 adversary translation is constructed here. Q, g, and deltaFS have no defaults.
-Any proposed model must separately specify their meaning, query inflation,
+Any concrete model must separately supply their values, query inflation,
 and replay scope. The local implementation premises remain explicit. The
 prepared work theorem charges the supplied preparation call and existing
 extractor clocks; it makes no machine-time or unprovided-translator claim.
@@ -128,11 +129,12 @@ noncomputable def originalSuccessProbability : ℝ :=
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         abortTape provider))
 
-/-- UNAPPROVED additional classical game-transfer assumption. Its sole field
+/-- Owner-approved additional classical game-transfer assumption. Its sole field
 transfers success to the typed interactive experiment. No source conclusion,
 local correctness, replay/query theorem, or time bound is assumed here.
-The owner must specify the admissible adversaries and interpretation of Q
-before claiming an instance. Neither g nor deltaFS is chosen by this module. -/
+The admitted adversaries, history depth and total-query interpretation are
+specified in FIAT_SHAMIR_MODEL.md. Neither a model instance nor numerical
+functions g and deltaFS are supplied by this module. -/
 structure FiatShamirModel (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat) : Prop where
   successTransfer :
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤

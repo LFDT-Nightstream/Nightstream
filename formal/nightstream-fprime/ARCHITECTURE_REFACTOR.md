@@ -174,8 +174,11 @@ compact-row and padding operations without a new representation.
 The [shared endpoint record](architecture/shared-endpoint.json) uses source base
 `916f5d28`. Static, library, axiom and canonical identity gates pass. Existing
 public hypotheses and default pins are unchanged. Saved import snapshots show
-no radius reduction; they do not measure rebuilds. The earlier extra-cell
-consumer pass is separate from validation of this source change.
+no radius reduction; they do not measure rebuilds. At source `7c17bab9`, the
+extra-cell source-range and compact pullback checks
+pass without changing default values or parent pins (74.82 s and 10.28 s).
+Scratch source was restored. The earlier full PiDEC consumer pass used the
+recorded pin refresh; it remains a separate check.
 
 The full physical compiler migration remains open. Stage 1 plans, source
 projection, retained geometry and downstream package values still have Export

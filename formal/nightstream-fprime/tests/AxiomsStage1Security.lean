@@ -7,6 +7,10 @@ import NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
+import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
+import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
@@ -54,6 +58,15 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSource.sourceReturned_iff_terminalHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSource.finishValue_source_iff_terminalHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistory.run_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability.accepted_subset
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability.accepted_probability_le
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.source_event_mass_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.context_marginal
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.law_eq_bind_atContext
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaRealInput.realSuccess_of_terminal
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.source_failure_probability_le
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.initial_marginal
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.accepted_probability_le
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_le_inverse

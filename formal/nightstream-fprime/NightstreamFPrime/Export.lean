@@ -139,6 +139,10 @@ import NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
+import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
+import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks

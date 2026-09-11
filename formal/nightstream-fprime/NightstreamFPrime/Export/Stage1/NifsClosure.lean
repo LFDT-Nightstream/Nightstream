@@ -1,8 +1,9 @@
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Export.Stage1.NifsExtractionProvider
+import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 
 /-!
-Selected NIFS source return in the supplied context-law experiment. The
+Selected NIFS source return under its constructed output PMF. The
 provider uses the concrete suffix and parent checks; the prefix call runs the
 existing selected public checker. Preparation returns its supplied context.
 Thus no provider correctness, call-value equality or preparation-law equality
@@ -129,6 +130,7 @@ include model lowNorm bounded in
 /-- The actual stored source event and the prepared reduction use the same
 constructed provider and exact checked prefix. The remaining premises are
 external transfer/invertibility and explicit declared-clock moment bounds.
+The constructed source PMF realizes the exact existing sequential event law.
 No efficient translation, runtime bound, or numerical MSIS estimate follows. -/
 theorem finishValue_probability_and_expected_work
     (preparationSummable : Summable fun context =>
@@ -182,14 +184,9 @@ theorem finishValue_probability_and_expected_work
         productionAjtaiKey program (sourceProgram context).access relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation context) *
           PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
-      PaperCompositionProbability.eventProbability contexts
-        (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
-        (InteractiveComposition.suffixLaw relation productionAjtaiKey running fresh continuation)
-        (InteractiveComposition.consume relation productionAjtaiKey program)
-        (fun context outcome => SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-          (PiCCSStoredWitnessCheck.statement (inputs context))
-          (PiCCSStoredWitnessCheck.finishValue (inputs context)
-            (PiCCSStoredSourceProbability.storeOutcome outcome)))) ∧
+      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
+        {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal) ∧
     Summable (fun context => (contexts context).toReal * total context) ∧
     (∑' context, (contexts context).toReal * total context) ≤
       (preparationPolynomial + Polynomial.C 2 * sourcePolynomial + Polynomial.C 3 * primitivePolynomial +
@@ -216,6 +213,6 @@ theorem finishValue_probability_and_expected_work
     (fun _ _ _ _ => rfl) accessBound accessBounded securityParameter
     preparationPolynomial basePolynomial primitivePolynomial accessPolynomial
     baseSummable basePPT primitivePPT accessPPT preparationPPT
-  simpa only [prepare] using checked
+  simpa only [prepare, HyperNovaSourceLaw.source_event_mass_eq] using checked
 
 end NightstreamFPrime.Export.Stage1.NifsClosure

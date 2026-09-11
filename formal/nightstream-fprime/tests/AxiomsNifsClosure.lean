@@ -66,6 +66,8 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakOutput
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
 import NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling
 import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinSpace
+import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw
+import NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredOneRunExtraction
@@ -331,6 +333,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperAlignedExtraction.positive_return_implies_alignedFork
 
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinSpace.coins_request
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw.verifierMean_eq_requestMean
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw.context_marginal
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw.eventProbability_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.selected_law
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.mean_map
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.selected_mean

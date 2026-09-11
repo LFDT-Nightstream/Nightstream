@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.ApplicationInputs
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
-import NightstreamFPrime.Layout.R1CS
+import NightstreamFPrime.Layout.R1CS.ColumnMap
 
 /-!
 Owns the application and NextPreimage lowering, final column counts, and
@@ -95,13 +95,11 @@ def shiftColumn (program : Lifecycle.Stage1.Application.Program)
 
 def shiftCombination (program : Lifecycle.Stage1.Application.Program)
     (combination : R1CS.LinearCombination) : R1CS.LinearCombination :=
-  ⟨combination.constant,
-    combination.terms.map fun term => (shiftColumn program term.1, term.2)⟩
+  R1CS.mapCombinationColumns (shiftColumn program) combination
 
 def shiftRow (program : Lifecycle.Stage1.Application.Program)
     (row : R1CS.Row) : R1CS.Row :=
-  ⟨shiftCombination program row.a, shiftCombination program row.b,
-    shiftCombination program row.c⟩
+  R1CS.mapRowColumns (shiftColumn program) row
 
 def shiftRows (program : Lifecycle.Stage1.Application.Program)
     (rows : List R1CS.Row) : List R1CS.Row :=
@@ -116,16 +114,14 @@ theorem shiftCombination_eval
     (combination : R1CS.LinearCombination) :
     (shiftCombination program combination).eval env =
       combination.eval (basePullback program env) := by
-  unfold shiftCombination R1CS.LinearCombination.eval basePullback
-  rw [List.map_map]
-  rfl
+  exact R1CS.mapCombinationColumns_eval (shiftColumn program) combination env
 
 theorem shiftRow_holds
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (row : R1CS.Row) :
     (shiftRow program row).Holds env ↔
       row.Holds (basePullback program env) := by
-  simp [R1CS.Row.Holds, shiftRow, shiftCombination_eval]
+  exact R1CS.mapRowColumns_holds (shiftColumn program) row env
 
 theorem shiftRows_hold
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
@@ -192,9 +188,7 @@ theorem totalColumnCount_eq
     totalColumnCount program =
       privateColumnCount program + 1 + publicColumnCount := by
   unfold totalColumnCount privateColumnCount publicColumnCount
-    addedPrivateColumnCount
-  norm_num [Spartan.spartanColumnCount, Spartan.privateColumnCount,
-    Spartan.publicColumnCount]
+  rw [Spartan.spartanColumnCount_decomposition]
   omega
 
 end NightstreamFPrime.Layout.Stage1.Lowering

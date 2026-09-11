@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Polynomial.Horner
 
 /-!
-Owns the exact physical cost of the fixed Stage 1 running transition.
+Owns the exact R1CS footprint and endpoints of the Stage 1 running transition.
 The proof is structural and does not normalize the complete running vector.
 -/
 
@@ -18,6 +18,18 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+def logicalColumnCount : Nat :=
+  phaseOffset + RunningTransition.exactPrivateCount
+
+/-- One binding constraint, one mux per running word, and one base-state
+constraint per state word determine the fresh-column count. -/
+def exactFreshCount : Nat :=
+  3 + RunningTransition.exactWordCount * 6 +
+    RunningTransition.stateWordCount * 4
+
+/-- The running transition ends after its logical and R1CS fresh columns. -/
+def physicalEnd : Nat := logicalColumnCount + exactFreshCount
 
 structure RunningMulFree {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -422,13 +434,14 @@ private theorem totalFreshCount_ofFn {count : Nat}
   rw [sumEq, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
   simp
 
-theorem totalFreshCount_eq
+/-- Structural lowering uses exactly the fresh columns declared by the footprint. -/
+theorem totalFreshCount_eq_exactFreshCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
-      296137 := by
+      exactFreshCount := by
   rw [logicalConstraints_eq]
   change R1CS.totalFreshCount
       (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
@@ -436,7 +449,7 @@ theorem totalFreshCount_eq
         (List.ofFn (RunningTransition.muxConstraint
             (interface logicalWidth publicFits) phaseOffset) ++
           List.ofFn (RunningTransition.baseStateConstraint
-            (interface logicalWidth publicFits) phaseOffset))) = 296137
+            (interface logicalWidth publicFits) phaseOffset))) = exactFreshCount
   rw [show
     RunningTransition.bindingConstraint (interface logicalWidth publicFits)
           phaseOffset ::
@@ -457,6 +470,15 @@ theorem totalFreshCount_eq
     totalFreshCount_ofFn _ 4
       (baseState_freshCount_eq logicalWidth publicFits)]
   rfl
+
+theorem totalFreshCount_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
+      296137 := by
+  exact totalFreshCount_eq_exactFreshCount relation
 
 theorem logicalConstraints_length_eq
     (logicalWidth : Nat)

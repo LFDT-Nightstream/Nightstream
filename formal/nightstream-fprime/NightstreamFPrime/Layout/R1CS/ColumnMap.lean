@@ -4,6 +4,7 @@ import NightstreamFPrime.Layout.R1CS
 
 namespace NightstreamFPrime.Layout.R1CS
 open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 
 /-- Exact column renaming for one R1CS linear combination. This small common
@@ -58,5 +59,22 @@ def mapRowColumns (column : Nat → Nat) (row : R1CS.Row) : R1CS.Row :=
   cases combination
   simp [mapCombinationColumns, R1CS.LinearCombination.scale, List.map_map,
     Function.comp_def]
+
+/-- Renaming columns is evaluation under the corresponding assignment pullback. -/
+theorem mapCombinationColumns_eval (column : Nat → Nat)
+    (combination : R1CS.LinearCombination) (env : Env) :
+    (mapCombinationColumns column combination).eval env =
+      combination.eval (fun index => env (column index)) := by
+  cases combination
+  simp [mapCombinationColumns, R1CS.LinearCombination.eval, List.map_map,
+    Function.comp_def]
+
+/-- The renamed row holds exactly when the original row holds after pullback. -/
+theorem mapRowColumns_holds (column : Nat → Nat) (row : R1CS.Row)
+    (env : Env) :
+    (mapRowColumns column row).Holds env ↔
+      row.Holds (fun index => env (column index)) := by
+  cases row
+  simp [mapRowColumns, R1CS.Row.Holds, mapCombinationColumns_eval]
 
 end NightstreamFPrime.Layout.R1CS

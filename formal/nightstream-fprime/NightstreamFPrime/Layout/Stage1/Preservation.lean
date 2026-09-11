@@ -10,6 +10,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBindingSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerGeneratedSupport
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns physical preservation for the complete Stage 1 row order.
@@ -250,10 +251,9 @@ private theorem compactPiCcsRunningCommitments_eq
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).commitments := by
   funext source row coefficient
-  change ((PiCCSInputs.runningExpr logicalWidth publicFits).commitment
-      source row coefficient).eval (sourceEnv program env) =
-    ((PiCCSInputs.runningExpr logicalWidth publicFits).commitment
-      source row coefficient).eval (CompactPullback.compactEnv program env)
+  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalRunning, PilotPiCCS.interface,
+    AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
+    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).runningCommitment source row coefficient)
@@ -270,10 +270,9 @@ private theorem compactPiCcsRunningPublicInputs_eq
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).publicInputs := by
   funext source column
-  change ((PiCCSInputs.runningExpr logicalWidth publicFits).publicInput
-      source column).eval (sourceEnv program env) =
-    ((PiCCSInputs.runningExpr logicalWidth publicFits).publicInput
-      source column).eval (CompactPullback.compactEnv program env)
+  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalRunning, PilotPiCCS.interface,
+    AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
+    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalRunning]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).runningPublicInput source column)
@@ -321,10 +320,9 @@ private theorem compactPiCcsFreshCommitments_eq
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).commitments := by
   funext source row coefficient
-  change ((PiCCSInputs.freshExpr logicalWidth publicFits).commitment
-      source row coefficient).eval (sourceEnv program env) =
-    ((PiCCSInputs.freshExpr logicalWidth publicFits).commitment
-      source row coefficient).eval (CompactPullback.compactEnv program env)
+  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalFresh, PilotPiCCS.interface,
+    AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
+    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).freshCommitment source row coefficient)
@@ -341,10 +339,9 @@ private theorem compactPiCcsFreshPublicInputs_eq
       (AssemblerInputs.piCcsOffset program)
       (CompactPullback.compactEnv program env)).publicInputs := by
   funext source column
-  change ((PiCCSInputs.freshExpr logicalWidth publicFits).publicInput
-      source column).eval (sourceEnv program env) =
-    ((PiCCSInputs.freshExpr logicalWidth publicFits).publicInput
-      source column).eval (CompactPullback.compactEnv program env)
+  dsimp only [Lifecycle.PiCCS.v1_1.Formal.evalFresh, PilotPiCCS.interface,
+    AssemblerInputs.piCcsInterface, PiCCSInputs.interface,
+    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalFresh]
   exact compactPiCcsExpr_eval_eq program env _
     ((PiCCSOrdinarySourceSupport.externalInputsSupported logicalWidth publicFits
       ).freshPublicInput source column)

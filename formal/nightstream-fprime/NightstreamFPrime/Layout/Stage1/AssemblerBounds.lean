@@ -5,6 +5,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns causal input bounds for the compact Stage 1 logical assembler.

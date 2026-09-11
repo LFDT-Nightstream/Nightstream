@@ -102,11 +102,12 @@ theorem parentCommitment_eq_form
     (parent relation geometry assignment).commitment row lane =
       ((PiDECDirectPlan.Location.parentCommitment
         (CombinationStep.indexOf row lane CommitmentCombination.cell)).form (piDecGeometry geometry)).eval assignment := by
-  simp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
+  dsimp only [parent, PiDEC.v1_1.Semantics.inputAttempt, PiDEC.v1_1.InputBinding.evalAttempt,
     PiDEC.v1_1.InputBinding.evalParent, PiDEC.v1_1.Formal.inputBindingInterface,
     PiDEC.v1_1.Formal.atOffset, PiDECArithmetic.phaseInterface, PiDECInputs.interface,
     PiDECInputs.parent, PiDECInputs.piRlcOutputInterface, Formal.outputBindingInterface,
-    CommitmentCombination.output]
+    CommitmentCombination.output, CombinationFamily.output, CombinationStep.output,
+    Expr.eval]
   exact ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment
     (.parentCommitment (CombinationStep.indexOf row lane CommitmentCombination.cell))
 
@@ -341,7 +342,8 @@ theorem parentEvalK_eq_form
   exact (congrArg (RingKCombination.kCell cell) evaluated).trans
     ((output_cell interface PiRLCStarts.evalKLogicalStart EvalKCombination.block lane env cell).trans
       ((congrArg (fun expression => expression.eval env) symbolic).trans
-        (ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment location)))
+        ((Expr.eval_var env location.sourceColumn).trans
+          (ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment location))))
 
 theorem parentEvalA_eq_form
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
@@ -364,7 +366,8 @@ theorem parentEvalA_eq_form
   exact (congrArg (RingKCombination.kCell cell) evaluated).trans
     ((output_cell interface PiRLCStarts.evalALogicalStart matrix lane env cell).trans
       ((congrArg (fun expression => expression.eval env) symbolic).trans
-        (ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment location)))
+        ((Expr.eval_var env location.sourceColumn).trans
+          (ActualPiDEC.decodedEnv_location (piDecGeometry geometry) assignment location))))
 
 private theorem kCell_add (cell : Fin RingKCombination.cellCount) (left right : K) :
     RingKCombination.kCell cell (K.add left right) =

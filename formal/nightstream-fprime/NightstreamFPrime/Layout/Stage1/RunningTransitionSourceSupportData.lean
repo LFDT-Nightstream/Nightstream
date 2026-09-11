@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
+import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 import NightstreamFPrime.Layout.Stage1.Spartan
 
@@ -30,7 +31,7 @@ def piDecStart : Nat := PiDECInputs.proofInputStart
 
 def piDecCount : Nat := PiDECInputs.proofInputColumnCount
 
-def physicalEnd : Nat := 29336724
+def physicalEnd : Nat := RunningTransitionLayout.physicalEnd
 
 /-- Exact PiDEC child-message and public-input fields consumed by the
 recursive branch. -/
@@ -155,7 +156,10 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
 Spartan source permutation. -/
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
-  rw [Spartan.sourceColumnCount_eq]
+  have phaseLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+    PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2]
+    at phaseLower
   rcases support with external | fresh
   · rcases external with state | output | roundPoint | piDec
     · unfold InRange at state
@@ -178,8 +182,8 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
       rw [piDecStart_eq, piDecCount_eq] at inside
       omega
   · change phaseOffset ≤ column ∧ column < physicalEnd at fresh
-    norm_num [physicalEnd] at fresh ⊢
-    omega
+    rw [Spartan.sourceColumnCount_eq_physicalEnd]
+    exact fresh.2
 
 theorem logical_state {column : Nat}
     (inside : InRange stateStart stateCount column) : Logical column :=

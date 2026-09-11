@@ -56,11 +56,11 @@ def completeLogicalWidth
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth program = 209405476 := by
+  have retained := retainedCoordinateCount_eq program
+  simp only [retainedCoordinateCount] at retained
   unfold completeLogicalWidth freshStart piDecStart roundC1Start roundC0Start
   rw [PiCCSActionPayloadBlock.logicalWidth_eq]
-  change 195242354 + 28 * 41 + 28 * 41 +
-    49248 * 41 + 296138 * 41 = 209405476
-  norm_num
+  omega
 
 theorem completeLogicalWidth_le_cube
     (program : Lifecycle.Stage1.Application.Program) :

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCandidateWiring
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the executable source resolver and direct 14-matrix plan for the

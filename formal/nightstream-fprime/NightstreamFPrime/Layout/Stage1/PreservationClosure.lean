@@ -69,28 +69,29 @@ private theorem compactRunningOutput_eq
       before index = after index :=
     sourceEnv_eq_compactEnv_belowRunning program env
   unfold PiCCS.v1_1.StatementAbsorption.evalRunning
-  congr 1
+  apply Lifecycle.PiCCS.v1_1.Formal.PhaseTransport.running_ext
   · apply cubePoint_ext
-    change List.ofFn (fun coordinate =>
-        (running.point coordinate).eval before) =
-      List.ofFn (fun coordinate =>
-        (running.point coordinate).eval after)
+    dsimp only [PiCCS.v1_1.StatementAbsorption.evalPoint]
     apply congrArg List.ofFn
     funext coordinate
     exact (running.point coordinate).eval_eq_of_agree_below
       RunningTransitionInputs.phaseOffset before after
       (below.point coordinate) agrees
   · funext source row coefficient
-    exact (running.commitment source row coefficient).eval_eq_of_agree_below
-      RunningTransitionInputs.phaseOffset before after
-      (below.commitment source row coefficient) agrees
+    simpa only [running, RunningTransitionInputs.outputRunningExpr,
+      RunningTransitionInputs.outputCommitment, Expr.eval_var, before, after] using
+      (running.commitment source row coefficient).eval_eq_of_agree_below
+        RunningTransitionInputs.phaseOffset before after
+        (below.commitment source row coefficient) agrees
   · funext source column
-    exact (running.publicInput source column).eval_eq_of_agree_below
-      RunningTransitionInputs.phaseOffset before after
-      (below.publicInput source column) agrees
+    simpa only [running, RunningTransitionInputs.outputRunningExpr,
+      RunningTransitionInputs.outputPublicInput, Expr.eval_var, before, after] using
+      (running.publicInput source column).eval_eq_of_agree_below
+        RunningTransitionInputs.phaseOffset before after
+        (below.publicInput source column) agrees
   · funext source
     unfold PiCCS.v1_1.StatementAbsorption.evalEvaluation
-    congr 1
+    apply congrArg₂ StrongReduction.EvaluationFamily.mk
     · funext coefficient
       exact ((running.evaluation source).eval_K coefficient
         ).eval_eq_of_agree_below RunningTransitionInputs.phaseOffset

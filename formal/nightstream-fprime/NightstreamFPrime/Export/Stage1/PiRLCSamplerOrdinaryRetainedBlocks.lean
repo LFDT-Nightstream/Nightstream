@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the two selective field blocks needed by the direct PiRLC sampler

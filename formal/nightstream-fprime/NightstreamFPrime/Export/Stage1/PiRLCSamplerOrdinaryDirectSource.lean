@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns indexed access to the exact canonical PiRLC sampler ordinary rows for the

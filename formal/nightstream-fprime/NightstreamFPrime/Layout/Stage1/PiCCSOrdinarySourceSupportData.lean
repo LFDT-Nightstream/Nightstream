@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
+import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!
@@ -140,21 +141,24 @@ theorem source_target (column : Nat) (support : Source column) :
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
+  have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
+    PiDECInputs.inputStarts_eq
+  change PiDECInputs.phaseOffset = 29022496 at phaseValue
+  have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+  rw [phaseValue] at sourceLower
+  apply Nat.lt_of_lt_of_le ?_ sourceLower
   rcases support with logical | fresh
   · rcases logical with external | transcriptOrOrdinary
     · rcases external with priorRange | publicRange | outputRange |
         contextRange | proofRange
       · exact Nat.lt_of_lt_of_le priorRange.2 (by
-          rw [Spartan.sourceColumnCount_eq]
           norm_num [PilotProduction.priorPreimageStart,
             PilotProduction.stateHashWords_eq])
       · exact Nat.lt_of_lt_of_le publicRange.2 (by
-          rw [Spartan.sourceColumnCount_eq]
           norm_num [PilotProduction.priorPublicInputStart,
             PilotProduction.priorPreimageStart,
             PilotProduction.stateHashWords_eq])
       · exact Nat.lt_of_lt_of_le outputRange.2 (by
-          rw [Spartan.sourceColumnCount_eq]
           norm_num [PilotProduction.outputPreimageStart,
             PilotProduction.priorPublicInputStart,
             PilotProduction.priorPreimageStart,
@@ -162,10 +166,10 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
             PilotProduction.stateHashWords_eq, Spec.ringDegree,
             Lifecycle.PaperAlgebra.publicRingColumns])
       · exact Nat.lt_of_lt_of_le contextRange.2 (by
-          rw [Spartan.sourceColumnCount_eq, PiCCSInputs.expectedContextStart_eq]
+          rw [PiCCSInputs.expectedContextStart_eq]
           norm_num [PiCCSInputs.expectedContextWords])
       · exact Nat.lt_of_lt_of_le proofRange.2 (by
-          rw [Spartan.sourceColumnCount_eq, PiCCSInputs.phaseOffset_eq,
+          rw [PiCCSInputs.phaseOffset_eq,
             PiCCSInputs.proofInputStart_eq]
           norm_num)
     · rcases transcriptOrOrdinary with transcript | ordinary
@@ -174,7 +178,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
           simpa only [transcriptInvocationCount_eq] using invocation.isLt
         have laneBound : lane.val < 8 := by
           simpa only [NightstreamFPrime.Spec.Poseidon2.width] using lane.isLt
-        rw [Spartan.sourceColumnCount_eq, PiCCSInputs.phaseOffset_eq]
+        rw [PiCCSInputs.phaseOffset_eq]
         omega
       · unfold OrdinaryLogical InRange at ordinary
         exact Nat.lt_of_lt_of_le ordinary.2 (by
@@ -185,12 +189,10 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num [PiCCSStarts.initialClaimLogicalStart,
                 PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ Spartan.SourceColumnCount := by
-              rw [Spartan.sourceColumnCount_eq,
-                PiCCSStarts.outputBindingWitnessStart_eq]
+            _ ≤ 29022496 := by
+              rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by
-      rw [Spartan.sourceColumnCount_eq]
       norm_num [PiRLCInputs.phaseOffset])
 
 end NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport

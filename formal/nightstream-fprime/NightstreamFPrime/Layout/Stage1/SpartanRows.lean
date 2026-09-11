@@ -1,5 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.Spartan
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.R1CS.ColumnMap
 
 /-!
 Owns the complete Stage 1 prefix rows in Spartan order, their fixed-domain
@@ -60,13 +62,11 @@ private theorem padCombination_eval (target : Env)
     (combination : R1CS.LinearCombination) :
     (padCombination combination).eval target =
       combination.eval (paddedPullback target) := by
-  unfold padCombination R1CS.LinearCombination.eval paddedPullback
-  rw [List.map_map]
-  congr 1
+  exact R1CS.mapCombinationColumns_eval spartanToPadded combination target
 
 private theorem padRow_holds (target : Env) (row : R1CS.Row) :
     (padRow row).Holds target ↔ row.Holds (paddedPullback target) := by
-  simp [R1CS.Row.Holds, padRow, padCombination_eval]
+  exact R1CS.mapRowColumns_holds spartanToPadded row target
 
 private theorem padRows_hold (target : Env) (rows : List R1CS.Row) :
     R1CS.RowsHold target (padRows rows) ↔

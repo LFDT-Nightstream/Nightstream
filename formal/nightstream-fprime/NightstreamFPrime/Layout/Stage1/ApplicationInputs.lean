@@ -101,14 +101,22 @@ abbrev ExternalBelow (program : Lifecycle.Stage1.Application.Program) : Prop :=
 
 theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
     ExternalBelow program := by
+  have pilotBelow : Spartan.pilotPrivateColumnCount ≤ localStart program := by
+    calc
+      _ ≤ Spartan.constantColumn := Spartan.pilotPrivateColumnCount_le_constantColumn
+      _ = Spartan.privateColumnCount := Spartan.constantColumn_eq_private
+      _ ≤ localStart program := by
+        unfold localStart witnessStart
+        exact Nat.le_add_right _ _
   refine {
     input := fun index => ?_
     witness := fun index => ?_
     output := fun index => ?_ }
   · simp only [interface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ pilotBelow
     rw [inputColumn_value]
     have bound := index.isLt
-    norm_num [localStart, witnessStart, Spartan.privateColumnCount,
+    norm_num [Spartan.pilotPrivateColumnCount,
       Lifecycle.Stage1.Application.stateWordCount, currentWordStart] at bound ⊢
     omega
   · simp only [interface, Expr.VarsBelow, witnessColumn]
@@ -116,9 +124,10 @@ theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
     unfold localStart
     omega
   · simp only [interface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ pilotBelow
     rw [outputColumn_value]
     have bound := index.isLt
-    norm_num [localStart, witnessStart, Spartan.privateColumnCount,
+    norm_num [Spartan.pilotPrivateColumnCount,
       Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
     omega
 

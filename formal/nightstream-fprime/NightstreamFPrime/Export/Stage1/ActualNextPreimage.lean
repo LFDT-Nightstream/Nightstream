@@ -71,7 +71,9 @@ theorem rowsZero_implies_actualNextPreimage
         ⟨RunningTransitionInputs.iterationWordIndex, bounded⟩,
       ← ActualPreimageFraming.priorWord_eq geometry assignment
         ⟨RunningTransitionInputs.iterationWordIndex, bounded⟩]
-    exact specification.iteration
+    simpa only [NextPreimageInputs.sourceInterface, Expr.eval,
+      NextPreimageInputs.outputIterationSource,
+      NextPreimageInputs.priorIterationSource] using specification.iteration
   · intro index
     have bounded : RunningTransitionInputs.initialStateWordStart + index.val <
         PilotProduction.stateHashWords := by

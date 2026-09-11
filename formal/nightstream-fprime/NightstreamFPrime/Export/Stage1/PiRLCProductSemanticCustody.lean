@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerSelectorCustody
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns exact environment custody for the direct PiRLC product schedule.

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the compact field-source views needed by the direct running-transition
@@ -194,6 +195,9 @@ def retainedCoordinateCount
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     retainedCoordinateCount program = 14163122 := by
+  simp only [retainedCoordinateCount, roundC0Block, roundC1Block, piDecBlock,
+    freshBlock, fieldBlock_coordinateCount,
+    RunningTransitionSourceSupport.piDecCount_eq, freshCount_eq]
   change 28 * 41 + 28 * 41 + 49248 * 41 + 296138 * 41 = 14163122
   norm_num
 

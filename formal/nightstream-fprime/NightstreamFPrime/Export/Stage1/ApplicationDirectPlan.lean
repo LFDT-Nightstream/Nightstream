@@ -180,6 +180,9 @@ theorem classifySource_complete
     (application : Lifecycle.Stage1.Application.Program) {column : Nat}
     (support : ApplicationDirectSource.SourceAllowed application column) :
     (classifySource application column).isSome := by
+  have pilotPrivate := Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
+  rw [Layout.Stage1.Spartan.constantColumn_eq_private] at pilotPrivate
+  simp only [Layout.Stage1.Spartan.pilotPrivateColumnCount] at pilotPrivate
   rcases support with input | witness | output | localSupport
   · rcases input with ⟨index, rfl⟩
     have inside : InRange Layout.Stage1.ApplicationInputs.currentWordStart
@@ -196,7 +199,6 @@ theorem classifySource_complete
         (Layout.Stage1.ApplicationInputs.witnessColumn index) := by
       unfold InRange Layout.Stage1.ApplicationInputs.witnessColumn
         Layout.Stage1.ApplicationInputs.witnessStart
-        Layout.Stage1.Spartan.privateColumnCount
         Layout.Stage1.ApplicationInputs.currentWordStart
         Lifecycle.Stage1.Application.stateWordCount
       omega
@@ -222,8 +224,7 @@ theorem classifySource_complete
       rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
       unfold InRange
       have indexBound := index.isLt
-      norm_num [Layout.Stage1.ApplicationInputs.witnessStart,
-        Layout.Stage1.Spartan.privateColumnCount,
+      simp only [Layout.Stage1.ApplicationInputs.witnessStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
       omega
     have inside : InRange 49428 Lifecycle.Stage1.Application.stateWordCount
@@ -242,7 +243,6 @@ theorem classifySource_complete
           Layout.Stage1.ApplicationInputs.localStart application := by
         unfold Layout.Stage1.ApplicationInputs.localStart
           Layout.Stage1.ApplicationInputs.witnessStart
-          Layout.Stage1.Spartan.privateColumnCount
         omega
       omega
     have notWitness : ¬ InRange Layout.Stage1.ApplicationInputs.witnessStart
@@ -257,7 +257,6 @@ theorem classifySource_complete
           Layout.Stage1.ApplicationInputs.localStart application := by
         unfold Layout.Stage1.ApplicationInputs.localStart
           Layout.Stage1.ApplicationInputs.witnessStart
-          Layout.Stage1.Spartan.privateColumnCount
         omega
       omega
     have inside : InRange (Layout.Stage1.ApplicationInputs.localStart application)

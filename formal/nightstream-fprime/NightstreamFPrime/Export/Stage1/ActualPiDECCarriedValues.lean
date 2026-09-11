@@ -140,6 +140,14 @@ variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
+private theorem point_eq_of_coordinates
+    {Field : Type} {variableCount : Nat}
+    (left right : CubePoint Field variableCount)
+    (coordinates : left.coordinates = right.coordinates) : left = right := by
+  cases left
+  cases right
+  simp_all
+
 private theorem runningPoint_eq_piCcs
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -151,15 +159,17 @@ private theorem runningPoint_eq_piCcs
         ((PiDECInputs.interface relationLogicalWidth relationPublicFits).point PiDECInputs.phaseOffset)
         (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
           (PiDECRetainedGeometry.prefixGeometry geometry) assignment)) := by
-  unfold PiDEC.v1_1.InputBinding.evalPoint PiRLC.v1_1.InputBinding.evalPoint
-    PiCCS.v1_1.StatementAbsorption.evalPoint
-  congr 2
+  apply point_eq_of_coordinates
+  dsimp only [PiDEC.v1_1.InputBinding.evalPoint, PiRLC.v1_1.InputBinding.evalPoint,
+    PiCCS.v1_1.StatementAbsorption.evalPoint]
+  apply congrArg List.ofFn
   funext coordinate
-  change ((RunningTransitionInputs.recursiveRunningExpr
-    relationLogicalWidth relationPublicFits).point coordinate).eval _ =
-    ((RunningTransitionInputs.recursiveRunningExpr
-      relationLogicalWidth relationPublicFits).point coordinate).eval _
-  rw [RunningTransitionInputs.recursivePoint_eq_direct]
+  have point := RunningTransitionInputs.recursivePoint_eq_direct
+    (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
+    coordinate
+  dsimp only [RunningTransitionInputs.recursiveRunningExpr,
+    RunningTransitionInputs.piDecInterface] at point
+  rw [point]
   simp only [RunningTransitionInputs.directRoundPoint, KExpr.eval]
   apply congrArg₂ K.mk
   · simpa only [Expr.eval, PiCCSTranscriptOutputForms.pointSource_c0] using
@@ -208,13 +218,15 @@ theorem runningOutput_eq
         (Spartan.pullback (ActualRunningTransition.decodedEnv (runningGeometry geometry) assignment)) =
       RunningTransitionInputs.piDecRunningOutput relation
         (Spartan.pullback (ActualPiDEC.decodedEnv geometry assignment)) := by
+  rw [← RunningTransitionInputs.eval_recursiveRunningExpr_eq_piDecRunningOutput,
+    ← RunningTransitionInputs.eval_recursiveRunningExpr_eq_piDecRunningOutput]
+  dsimp only [PiCCS.v1_1.StatementAbsorption.evalRunning,
+    RunningTransitionInputs.recursiveRunningExpr, RunningTransitionInputs.piDecInterface]
   apply running_ext
   · exact point_eq geometry assignment
   · funext source row coefficient
-    change (Spartan.pullback (ActualRunningTransition.decodedEnv
-      (runningGeometry geometry) assignment))
-        (PiDECInputs.childCommitmentStart (RunningTransitionInputs.childOfRunning source) +
-          row.val * ringDegree + coefficient.val) = _
+    dsimp only [PiDECInputs.interface, PiDECInputs.message,
+      PiDECInputs.childCommitment, Expr.eval_var]
     exact piDecField_eq geometry assignment _
       (Or.inl ⟨RunningTransitionInputs.childOfRunning source, row, coefficient, rfl⟩)
   · funext source column
@@ -223,17 +235,15 @@ theorem runningOutput_eq
       norm_num [FullShape, fullShape, Phi81Relation.Shape.publicWidth,
         publicRingColumns, ringDegree] at bound ⊢
       exact bound⟩
-    change (Spartan.pullback (ActualRunningTransition.decodedEnv
-      (runningGeometry geometry) assignment))
-        (PiDECInputs.childPublicInputStart (RunningTransitionInputs.childOfRunning source) +
-          coordinate.val) = _
+    dsimp only [PiDECInputs.interface, PiDECInputs.childPublicInput,
+      RunningTransitionInputs.digitCoordinate, Fin.cast, Expr.eval_var]
     exact piDecField_eq geometry assignment _
       (Or.inr (Or.inl ⟨RunningTransitionInputs.childOfRunning source, coordinate, rfl⟩))
   · funext source
     apply evaluation_ext
     · funext coefficient
-      change (PiDECInputs.childEvalK (RunningTransitionInputs.childOfRunning source) coefficient).eval _ =
-        (PiDECInputs.childEvalK (RunningTransitionInputs.childOfRunning source) coefficient).eval _
+      dsimp only [PiCCS.v1_1.StatementAbsorption.evalEvaluation,
+        PiDECInputs.interface, PiDECInputs.message]
       simp only [PiDECInputs.childEvalK, KExpr.eval, Expr.eval]
       apply congrArg₂ K.mk
       · exact piDecField_eq geometry assignment _ (Or.inr (Or.inr (Or.inl
@@ -241,8 +251,8 @@ theorem runningOutput_eq
       · exact piDecField_eq geometry assignment _ (Or.inr (Or.inr (Or.inl
           ⟨RunningTransitionInputs.childOfRunning source, coefficient, Or.inr rfl⟩)))
     · funext matrix coefficient
-      change (PiDECInputs.childEvalA (RunningTransitionInputs.childOfRunning source) matrix coefficient).eval _ =
-        (PiDECInputs.childEvalA (RunningTransitionInputs.childOfRunning source) matrix coefficient).eval _
+      dsimp only [PiCCS.v1_1.StatementAbsorption.evalEvaluation,
+        PiDECInputs.interface, PiDECInputs.message]
       simp only [PiDECInputs.childEvalA, KExpr.eval, Expr.eval]
       apply congrArg₂ K.mk
       · exact piDecField_eq geometry assignment _ (Or.inr (Or.inr (Or.inr

@@ -233,37 +233,28 @@ theorem selectedColumn_in_range
     exact (applicationLocal_finish_eq_constant program).symm
   rw [Lowering.totalColumnCount_eq] at bound
   by_cases h1 : column < Spartan.privateColumnCount
-  · simp [columnOwnerAt, h1, columnRange, Interval.Contains, Interval.finish]
+  · rw [columnOwnerAt, if_pos h1]
+    change 0 ≤ column ∧ column < 0 + Spartan.privateColumnCount
+    exact ⟨Nat.zero_le _, by omega⟩
   by_cases h2 : column < ApplicationInputs.localStart program
-  · simp [columnOwnerAt, h1, h2, columnRange, Interval.Contains,
-      Interval.finish]
+  · rw [columnOwnerAt, if_neg h1, if_pos h2]
+    change Spartan.privateColumnCount ≤ column ∧
+      column < Spartan.privateColumnCount + program.witnessWordCount
     rw [localStartEq] at h2
     omega
   by_cases h3 : column < Lowering.constantColumn program
-  · simp [columnOwnerAt, h1, h2, h3, columnRange, Interval.Contains,
-      Interval.finish]
+  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_pos h3]
+    change ApplicationInputs.localStart program ≤ column ∧
+      column < ApplicationInputs.localStart program +
+        Lowering.applicationPrivateCount program
     rw [constantEq] at h3
     omega
   by_cases h4 : column = Lowering.constantColumn program
-  · have ownerEq : columnOwnerAt program column = .constant := by
-      have prefixLe : Spartan.privateColumnCount ≤
-          Lowering.constantColumn program := by
-        rw [Lowering.constantColumn_eq_privateColumnCount]
-        unfold Lowering.privateColumnCount Lowering.addedPrivateColumnCount
-        omega
-      have localLe : ApplicationInputs.localStart program ≤
-          Lowering.constantColumn program := by
-        rw [constantEq]
-        omega
-      simp [columnOwnerAt, h4, Nat.not_lt.mpr prefixLe,
-        Nat.not_lt.mpr localLe]
-    rw [ownerEq]
+  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_neg h3, if_pos h4]
     change Lowering.constantColumn program ≤ column ∧
       column < Lowering.constantColumn program + 1
     omega
-  · have ownerEq : columnOwnerAt program column = .publicColumns := by
-      simp [columnOwnerAt, h1, h2, h3, h4]
-    rw [ownerEq]
+  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_neg h3, if_neg h4]
     change Lowering.constantColumn program + 1 ≤ column ∧
       column < Lowering.constantColumn program + 1 +
         Lowering.publicColumnCount

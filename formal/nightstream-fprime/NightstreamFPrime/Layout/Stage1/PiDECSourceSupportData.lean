@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
+import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!
@@ -139,25 +140,57 @@ theorem source_ranges_ordered :
     PiDECStarts.phaseLogicalStart + logicalCount = PiDECStarts.phaseFreshStart := by
   refine ⟨?_, ?_, ?_, ?_, ?_, rfl, rfl⟩ <;> decide
 
+private theorem runningOffset_le_sourceColumnCount :
+    RunningTransitionInputs.phaseOffset ≤ Spartan.SourceColumnCount := by
+  rw [Spartan.sourceColumnCount_eq_physicalEnd]
+  change RunningTransitionInputs.phaseOffset ≤
+    RunningTransitionInputs.phaseOffset +
+      Lifecycle.Stage1.RunningTransition.exactPrivateCount +
+        RunningTransitionLayout.exactFreshCount
+  omega
+
+private theorem fresh_end_eq_runningOffset :
+    PiDECStarts.phaseFreshStart + freshCount = RunningTransitionInputs.phaseOffset := by
+  simp only [freshCount, NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshCount,
+    NightstreamFPrime.Layout.PiDEC.v1_1.exactFreshDeltas, List.sum_cons, List.sum_nil,
+    NightstreamFPrime.Layout.PiDEC.v1_1.CommitmentRecomposition.freshColumnCount,
+    NightstreamFPrime.Layout.PiDEC.v1_1.EvalKRecomposition.freshColumnCount,
+    NightstreamFPrime.Layout.PiDEC.v1_1.EvalARecomposition.freshColumnCount,
+    RunningTransitionInputs.phaseOffset, PiDECStarts.outputFreshStart,
+    PiDECStarts.evalAFreshStart, PiDECStarts.evalKFreshStart,
+    PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,
+    PiDECStarts.inputFreshStart, Nat.add_zero, Nat.zero_add]
+
 /-- The logical interval fits in the declared Stage 1 source capacity. -/
 theorem logical_end_le_sourceColumnCount :
     PiDECStarts.phaseLogicalStart + logicalCount ≤ Spartan.SourceColumnCount := by
-  decide
+  calc
+    PiDECStarts.phaseLogicalStart + logicalCount =
+        PiDECStarts.phaseFreshStart := rfl
+    _ ≤ PiDECStarts.phaseFreshStart + freshCount := Nat.le_add_right _ _
+    _ = RunningTransitionInputs.phaseOffset := fresh_end_eq_runningOffset
+    _ ≤ Spartan.SourceColumnCount := runningOffset_le_sourceColumnCount
 
 /-- The fresh interval fits in the declared Stage 1 source capacity. -/
 theorem fresh_end_le_sourceColumnCount :
     PiDECStarts.phaseFreshStart + freshCount ≤ Spartan.SourceColumnCount := by
-  decide
+  rw [fresh_end_eq_runningOffset]
+  exact runningOffset_le_sourceColumnCount
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
+  have sourceLower : PiDECStarts.phaseLogicalStart ≤ Spartan.SourceColumnCount :=
+    Spartan.sourceColumnCount_ge_piDecPhaseOffset
+  rcases source_ranges_ordered with
+    ⟨_, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
+      proofLogical, _⟩
   rcases support with ((parent | proof) | logical) | fresh
   · rcases parent with commitment | publicInput | evalK | evalA
-    · exact Nat.lt_of_lt_of_le commitment.2 (by decide)
-    · exact Nat.lt_of_lt_of_le publicInput.2 (by decide)
-    · exact Nat.lt_of_lt_of_le evalK.2 (by decide)
-    · exact Nat.lt_of_lt_of_le evalA.2 (by decide)
-  · exact Nat.lt_of_lt_of_le proof.2 (by decide)
+    · exact Nat.lt_of_lt_of_le commitment.2 (by omega)
+    · exact Nat.lt_of_lt_of_le publicInput.2 (by omega)
+    · exact Nat.lt_of_lt_of_le evalK.2 (by omega)
+    · exact Nat.lt_of_lt_of_le evalA.2 (by omega)
+  · exact Nat.lt_of_lt_of_le proof.2 (by omega)
   · exact Nat.lt_of_lt_of_le logical.2 logical_end_le_sourceColumnCount
   · exact Nat.lt_of_lt_of_le fresh.2 fresh_end_le_sourceColumnCount
 
@@ -202,7 +235,13 @@ theorem mapped_logical_start_le_output :
 theorem mapped_output_le_private :
     Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset ≤
       Spartan.privateColumnCount := by
-  decide
+  rw [← Spartan.sourceToSpartan_sourceColumnCount]
+  rcases Nat.eq_or_lt_of_le runningOffset_le_sourceColumnCount with same | before
+  · rw [same]
+  · have lower : Spartan.piCcsPhaseOffset ≤ RunningTransitionInputs.phaseOffset :=
+      Nat.le_trans (by decide : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
+        RunningTransitionInputs.piDecPhaseOffset_le
+    exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _ lower before)
 
 /-- Every retained source is at or after the first parent interval. -/
 theorem parentStart_le_source {column : Nat} (support : Source column) :

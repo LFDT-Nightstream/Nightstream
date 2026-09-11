@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the exact source-column custody bridge from the retained sampler

@@ -894,7 +894,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_le_twoPow28
-#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_injective
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_ne_constant
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.remappedRows_hold

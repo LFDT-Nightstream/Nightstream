@@ -28,6 +28,9 @@ def decodedEnv {application : Program} {logicalWidth : Nat}
 
 private theorem locationSource_injective {application : Program} :
     Function.Injective (Location.sourceColumn (application := application)) := by
+  have pilotPrivate := Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
+  rw [Layout.Stage1.Spartan.constantColumn_eq_private] at pilotPrivate
+  simp only [Layout.Stage1.Spartan.pilotPrivateColumnCount] at pilotPrivate
   intro left right same
   cases left <;> cases right
   all_goals
@@ -40,8 +43,7 @@ private theorem locationSource_injective {application : Program} :
       Layout.Stage1.ApplicationInputs.witnessColumn,
       Layout.Stage1.ApplicationInputs.localStart,
       Layout.Stage1.ApplicationInputs.currentWordStart,
-      Layout.Stage1.ApplicationInputs.witnessStart,
-      Layout.Stage1.Spartan.privateColumnCount] at same
+      Layout.Stage1.ApplicationInputs.witnessStart] at same
     simp only [Lifecycle.Stage1.Application.stateWordCount] at leftBound rightBound
     first
     | exact congrArg Location.input (Fin.ext (by omega))
@@ -193,7 +195,9 @@ theorem rowsZero_implies_step {application : Program} {logicalWidth : Nat}
         ((Location.witness index).form geometry).eval assignment) := by
     apply congrArg List.ofFn
     funext index
-    exact decodedEnv_location geometry assignment (.witness index)
+    simpa only [Layout.Stage1.ApplicationInputs.interface, Expr.eval_var,
+      Location.sourceColumn] using
+      decodedEnv_location geometry assignment (.witness index)
   unfold Lifecycle.Stage1.Application.Holds at holds
   rw [inputEq, outputEq, witnessEq] at holds
   exact holds

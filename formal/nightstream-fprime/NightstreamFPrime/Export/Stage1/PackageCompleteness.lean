@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Completeness
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the package-level constructive assemblers for the exact production

@@ -55,6 +55,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalACombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerBits
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Semantics
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.Completeness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PhaseTransport

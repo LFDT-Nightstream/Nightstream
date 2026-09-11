@@ -9,6 +9,7 @@ use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
 
+pub use super::cpu_oracle::OptimizedPaperJointOracle;
 use crate::engines::pi_ccs_joint::{
     equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
     TerminalComponents,
@@ -16,23 +17,9 @@ use crate::engines::pi_ccs_joint::{
 use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_1OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::superneo_eval::SuperneoZBlocks;
+use crate::superneo_eval::SuperneoEvalCache;
 
 use super::OptimizedStructureCache;
-
-fn fold_table(table: &mut Vec<K>, challenge: K) {
-    let half = table.len() / 2;
-    for index in 0..half {
-        let low = table[2 * index];
-        table[index] = low + (table[2 * index + 1] - low) * challenge;
-    }
-    table.truncate(half);
-}
-
-fn at(table: &[K], pair: usize, point: K) -> K {
-    let low = table[2 * pair];
-    low + (table[2 * pair + 1] - low) * point
-}
 
 fn identity_ring_row(row: usize, assignment: &[K]) -> [K; D] {
     if row >= assignment.len() {
@@ -209,21 +196,6 @@ where
     Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
 }
 
-pub struct OptimizedPaperJointOracle<'a> {
-    structure: &'a CcsStructure<F>,
-    base: u32,
-    challenges: Challenges,
-    dims: JointDims,
-    round: usize,
-    equality_alpha: Vec<K>,
-    equality_prior: Option<Vec<K>>,
-    fresh_application_tables: Vec<Vec<Vec<K>>>,
-    assignment_tables: Vec<Vec<K>>,
-    norm_weights: Vec<K>,
-    evaluation_table: Vec<K>,
-    constraint_shift: K,
-}
-
 /// Canonical inputs available to an implementation of the one-joint oracle.
 ///
 /// These values are prover inputs. The canonical driver remains responsible
@@ -265,185 +237,13 @@ enum OracleSource<'a> {
         cache: &'a OptimizedStructureCache,
         backend: Option<&'a mut dyn PaperJointOracleBackend>,
     },
+    Rows {
+        cache: &'a SuperneoEvalCache,
+    },
     Complete {
         oracle: &'a mut dyn PaperJointRoundOracle,
         challenges: &'a Challenges,
     },
-}
-
-impl<'a> OptimizedPaperJointOracle<'a> {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        structure: &'a CcsStructure<F>,
-        params: &neo_params::NeoParams,
-        fresh: &[CcsWitness<F>],
-        running: &[Mat<F>],
-        challenges: Challenges,
-        prior_point: Option<&[K]>,
-        dims: JointDims,
-        cache: &OptimizedStructureCache,
-    ) -> Result<Self, PiCcsError> {
-        if !challenges.has_expected_dimension(dims.variables) {
-            return Err(PiCcsError::InvalidInput(
-                "optimized joint challenge shape mismatch".into(),
-            ));
-        }
-        if running.is_empty() != prior_point.is_none() {
-            return Err(PiCcsError::InvalidInput(
-                "optimized prior-point presence mismatch".into(),
-            ));
-        }
-        let matrices = cache.superneo().matrix_caches();
-        if matrices.len() != structure.t() {
-            return Err(PiCcsError::ProtocolError(
-                "optimized matrix-cache count mismatch".into(),
-            ));
-        }
-
-        let decode = |witness: &Mat<F>| crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m);
-        let mut fresh_application_tables = Vec::with_capacity(fresh.len());
-        for witness in fresh {
-            let assignment = decode(&witness.Z)?;
-            let blocks = SuperneoZBlocks::from_z(&assignment);
-            let mut per_matrix = Vec::with_capacity(structure.t());
-            for matrix in matrices {
-                let mut table = vec![K::ZERO; dims.row_count];
-                for (row, value) in table.iter_mut().take(structure.n).enumerate() {
-                    *value = matrix.row_dot_with_blocks(row, &blocks);
-                }
-                per_matrix.push(table);
-            }
-            fresh_application_tables.push(per_matrix);
-        }
-
-        let mut assignments = Vec::with_capacity(fresh.len() + running.len());
-        for witness in fresh.iter().map(|value| &value.Z).chain(running) {
-            let assignment = decode(witness)?;
-            let mut table = vec![K::ZERO; dims.row_count];
-            table[..dims.assignment_width].copy_from_slice(&assignment);
-            assignments.push(table);
-        }
-        let norm_weights = (0..assignments.len())
-            .map(|source| gamma_power(challenges.gamma, source))
-            .collect();
-
-        let matrix_count = structure.t();
-        let eval_a_shift = gamma_power(challenges.gamma, running.len() * D);
-        let mut evaluation_table = vec![K::ZERO; dims.row_count];
-        for (running_index, witness) in running.iter().enumerate() {
-            let assignment = decode(witness)?;
-            let blocks = SuperneoZBlocks::from_z(&assignment);
-            for row in 0..dims.assignment_width {
-                for (coefficient, value) in identity_ring_row(row, &assignment).into_iter().enumerate() {
-                    evaluation_table[row] += gamma_power(
-                        challenges.gamma,
-                        eval_k_gamma_exponent(running.len(), running_index, coefficient),
-                    ) * value;
-                }
-            }
-            for (application, matrix) in matrices.iter().enumerate() {
-                for (row, slot) in evaluation_table.iter_mut().take(structure.n).enumerate() {
-                    for (coefficient, value) in matrix
-                        .row_dot_ring_with_blocks(row, &blocks)
-                        .into_iter()
-                        .enumerate()
-                    {
-                        *slot += eval_a_shift
-                            * gamma_power(
-                                challenges.gamma,
-                                eval_a_gamma_exponent(
-                                    running.len(),
-                                    matrix_count,
-                                    running_index,
-                                    application,
-                                    coefficient,
-                                ),
-                            )
-                            * value;
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            structure,
-            base: params.b,
-            challenges: challenges.clone(),
-            dims,
-            round: 0,
-            equality_alpha: neo_ccs::utils::tensor_point::<K>(&challenges.alpha),
-            equality_prior: prior_point.map(neo_ccs::utils::tensor_point::<K>),
-            fresh_application_tables,
-            assignment_tables: assignments,
-            norm_weights,
-            evaluation_table,
-            constraint_shift: gamma_power(challenges.gamma, running.len() * D * (matrix_count + 1)),
-        })
-    }
-
-    fn evaluations(&self, points: &[K]) -> Vec<K> {
-        let pairs = self.equality_alpha.len() / 2;
-        let mut output = vec![K::ZERO; points.len()];
-        let mut application_values = vec![K::ZERO; self.structure.t()];
-        for pair in 0..pairs {
-            for (point_index, &point) in points.iter().enumerate() {
-                let mut fresh_residual = K::ZERO;
-                for (source, tables) in self.fresh_application_tables.iter().enumerate() {
-                    for (matrix, table) in tables.iter().enumerate() {
-                        application_values[matrix] = at(table, pair, point);
-                    }
-                    fresh_residual += gamma_power(self.challenges.gamma, source)
-                        * self.structure.f.eval_in_ext::<K>(&application_values);
-                }
-                let mut norm = K::ZERO;
-                for (table, &weight) in self.assignment_tables.iter().zip(&self.norm_weights) {
-                    norm += weight * range_product::<F>(at(table, pair, point), self.base);
-                }
-                let carried_gate = self
-                    .equality_prior
-                    .as_ref()
-                    .map_or(K::ZERO, |table| at(table, pair, point));
-                output[point_index] += carried_gate * at(&self.evaluation_table, pair, point)
-                    + self.constraint_shift
-                        * at(&self.equality_alpha, pair, point)
-                        * (fresh_residual
-                            + gamma_power(self.challenges.gamma, self.fresh_application_tables.len()) * norm);
-            }
-        }
-        output
-    }
-}
-
-impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
-    fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, PiCcsError> {
-        Ok(self.evaluations(points))
-    }
-
-    fn num_rounds(&self) -> usize {
-        self.dims.variables
-    }
-
-    fn degree_bound(&self) -> usize {
-        self.dims.degree
-    }
-
-    fn fold(&mut self, challenge: K) -> Result<(), PiCcsError> {
-        fold_table(&mut self.equality_alpha, challenge);
-        if let Some(table) = &mut self.equality_prior {
-            fold_table(table, challenge);
-        }
-        for source in &mut self.fresh_application_tables {
-            for table in source {
-                fold_table(table, challenge);
-            }
-        }
-        for table in &mut self.assignment_tables {
-            fold_table(table, challenge);
-        }
-        fold_table(&mut self.evaluation_table, challenge);
-        self.round += 1;
-        Ok(())
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -574,6 +374,20 @@ fn prove_with_trace_inner(
             cache.validate_structure(structure)?;
             Some(*cache)
         }
+        OracleSource::Rows { cache } => {
+            if cache.relation_shape()
+                != Some((
+                    structure.n,
+                    crate::common::superneo_carrier_width(structure.m),
+                    structure.t(),
+                ))
+            {
+                return Err(PiCcsError::InvalidInput(
+                    "prover row-cache shape does not match the header".into(),
+                ));
+            }
+            None
+        }
         OracleSource::Complete { .. } => None,
     };
     if fresh_claims.len() != fresh_witnesses.len() || running_claims.len() != running_witnesses.len() {
@@ -636,6 +450,22 @@ fn prove_with_trace_inner(
                 )?),
             });
             built_oracle.as_mut().expect("constructed oracle").as_mut()
+        }
+        OracleSource::Rows { cache } => {
+            built_oracle = Some(Box::new(OptimizedPaperJointOracle::from_rows(
+                structure,
+                params,
+                fresh_witnesses,
+                running_witnesses,
+                challenges.clone(),
+                prior_point,
+                dims,
+                cache,
+            )?));
+            built_oracle
+                .as_mut()
+                .expect("constructed row-cache oracle")
+                .as_mut()
         }
         OracleSource::Complete {
             oracle,
@@ -868,5 +698,40 @@ pub fn prove_with_complete_oracle(
             oracle,
             challenges: prepared,
         },
+    )
+}
+
+/// Prove with row-cache arithmetic supplied by the owning relation adapter.
+/// This cache is prover data. This function does not create or validate a
+/// verifier-artifact authority; the owner must supply its matching header.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_row_cache(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    cache: &SuperneoEvalCache,
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        super::PiCcsProvePerf,
+        ProtocolTrace,
+    ),
+    PiCcsError,
+> {
+    prove_with_trace_inner(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        TranscriptBinding::digest_only(),
+        OracleSource::Rows { cache },
     )
 }

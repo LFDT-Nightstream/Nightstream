@@ -244,7 +244,7 @@ impl SuperneoEvalCache {
     }
 }
 
-fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: &[K; D]) -> Vec<K> {
+pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: &[K; D]) -> Vec<K> {
     let mut weight_re = [F::ZERO; D];
     let mut weight_im = [F::ZERO; D];
     for (index, weight) in weights.iter().enumerate() {

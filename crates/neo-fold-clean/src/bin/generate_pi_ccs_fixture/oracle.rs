@@ -20,42 +20,7 @@ pub const MATRICES: usize = 14;
 pub const LIVE_MATRICES: usize = MATRICES - 1;
 pub const ROUNDS: usize = 28;
 
-pub(super) struct EqualityWeights {
-    low: Vec<K>,
-    high: Vec<K>,
-    low_bits: usize,
-}
-
-impl EqualityWeights {
-    fn table(point: &[K]) -> Vec<K> {
-        let mut values = vec![K::ONE];
-        for &coordinate in point {
-            let width = values.len();
-            values.resize(width * 2, K::ZERO);
-            for index in 0..width {
-                let value = values[index];
-                values[index] = value * (K::ONE - coordinate);
-                values[index + width] = value * coordinate;
-            }
-        }
-        values
-    }
-
-    pub(super) fn new(point: &[K]) -> Self {
-        // Splitting the remaining coordinates evenly minimizes the two
-        // stored tensor factors for this exact domain.
-        let low_bits = point.len() / 2;
-        Self {
-            low: Self::table(&point[..low_bits]),
-            high: Self::table(&point[low_bits..]),
-            low_bits,
-        }
-    }
-
-    pub(super) fn at(&self, index: usize) -> K {
-        self.low[index & (self.low.len() - 1)] * self.high[index >> self.low_bits]
-    }
-}
+pub(super) use neo_reductions::superneo_eval::EqualityWeights;
 
 struct PolynomialTerm {
     coefficient: K,

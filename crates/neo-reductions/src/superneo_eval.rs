@@ -11,6 +11,7 @@ mod baseline;
 mod cache;
 mod compact;
 mod digit;
+mod equality;
 mod geometric;
 mod matrix_cache_impl;
 mod parallel;
@@ -37,9 +38,11 @@ use digit::{
     accumulate_by_digit_block, accumulate_by_signed_unit_masks, accumulate_pair_by_digit_block,
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
+pub use equality::EqualityWeights;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
+pub(crate) use weighted_table::weighted_identity_projection;
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the
 /// chi-alpha weights. Device backends use the same forms to build their row

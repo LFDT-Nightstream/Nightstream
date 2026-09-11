@@ -89,9 +89,10 @@ canonical assignment schedule, and the existing assignment transport codec.
 It removes 1,249,352 logical coordinates. The calculated new logical width is
 253,011,231 and its 54-aligned carrier is 253,011,276. These are forecasts,
 not new pins. The physical allocation is expected to remain the same.
-The smaller Ajtai key is a same-seed prefix; retaining the approved old-key
-hardness premise requires the corresponding symbolic zero-extension
-reduction. No such reduction or allocation change has been added yet.
+The smaller Ajtai key is a same-seed prefix. The symbolic zero-extension
+reduction is now checked in `AjtaiSetupV1.Prefix.extendShortKernel`; it retains
+the strict bound and appends zeros after the smaller complete carrier.
+The allocation change and its new pins have not been made.
 
 The later output-digest recipe mutation also needs its real plan selector:
 the current helper names block 27, while the current plan selects block 26.
@@ -214,3 +215,30 @@ and moment bounds to those actual visited-context laws; compose expected
 source work and declare the reverse walk's own clock. An unconditional FS
 model does not supply a point-mass or acceptance-conditioned model for free.
 The numerical deployment budget and native conformance work remain open.
+
+## Guarded-call and local witness checkpoint
+
+Checked code cut: `17c0c64a`. `HyperNovaVisitedLaw.visitedDraw_marginal`
+and `HyperNovaGuardedSourceLaw.law_eq_guardedDraw` connect each observed
+history call to the selected guarded NIFS source law with the same
+continuation. The operational history still draws on false-mark paths;
+only the reported guarded experiment is masked. The first source-failure
+mass is the exact difference between good-active mass and source-success
+mass. Acceptance from the mark, the per-visited-law model instantiation,
+and declared history work remain to be composed.
+
+`PiCCSProtocolCompleteness.completePrefix` constructs the local PiCCS
+witness prefix from actual accepted typed inputs. It loads the existing
+verifier-context slots, preserves protocol input readback, derives canonical
+state framing, and derives the generated output specification. It does not
+yet construct the pilot/hash/application or complete selected package.
+`BaseCompleteness.zeroProof_piCcsCheck` supplies the base dummy's actual
+PiCCS acceptance without a fresh-opening or sampled-coin premise. Its D
+acceptance still needs actual sampler availability and a derived public bound.
+
+The static, library (3,853 jobs, 1 second), and axiom (3,942 jobs, 47 seconds)
+gates passed in order. The prior uncached library check took 333 seconds.
+Only the allowed axiom set occurs. Evidence and source hashes are retained
+in `HYPERNOVA_GUARDED_CONTEXT_EVIDENCE.zip`. Independent review found no
+defect in the local PiCCS constructor. Package data, pins, and Rust sources
+are unchanged by this checkpoint.

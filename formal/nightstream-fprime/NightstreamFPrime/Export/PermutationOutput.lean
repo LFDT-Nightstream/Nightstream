@@ -87,6 +87,32 @@ private theorem finalSbox_local (lane : Fin 8) :
       555 + 4 * lane.val := by
   fin_cases lane <;> rfl
 
+/-- The canonical source template's final layer is determined by its own
+last eight retained S-box source cells. This applies to hash-chain templates
+and explicit invocations without changing either invocation representation. -/
+theorem canonical_finalLayer (env : Env)
+    (rows : ConstraintsHold env (PilotData.canonicalConstraints ())) :
+    Layer.evalState env (Permutation.scheduleOutput PoseidonScheduleTrace.inputCount) =
+      Layer.externalF (fun lane => env
+        (PoseidonRetainedSlots.rows.get (PoseidonRetainedSlots.finalRow lane)).step.output.val) := by
+  have state := Permutation.stateRows_sound env 592
+    (Layer.externalE finalSboxes) (canonical_finalLayer_rows env rows)
+  have external : Layer.evalState env (Layer.externalE finalSboxes) =
+      Layer.externalF (Layer.evalState env finalSboxes) := by
+    funext lane
+    exact Layer.eval_externalE env finalSboxes lane
+  rw [external] at state
+  have sboxes : Layer.evalState env finalSboxes = fun lane => env
+      (PoseidonRetainedSlots.rows.get (PoseidonRetainedSlots.finalRow lane)).step.output.val := by
+    funext lane
+    change env (563 + 4 * lane.val) = _
+    apply congrArg env
+    rw [PoseidonRetainedSlots.output_eq_input_add_local, finalSbox_local]
+    simp only [PoseidonScheduleTrace.inputCount]
+    omega
+  rw [sboxes] at state
+  exact state
+
 /-- The eight accepted final-layer rows identify output words with the
 external layer of the eight final S-box words in the same invocation. -/
 theorem invocation_finalLayer (invocation : PermutationInvocation) (env : Env)

@@ -634,8 +634,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             };
             #[cfg(feature = "perf-timers")]
             let prepare_elapsed = prepare_started.elapsed();
-            #[cfg(feature = "perf-timers")]
-            let branch = prepared.branch();
             let post = prepared.post();
             let lane = post
                 .nebula

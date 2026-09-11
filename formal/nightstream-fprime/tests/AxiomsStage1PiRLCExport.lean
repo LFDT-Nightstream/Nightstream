@@ -14,6 +14,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCFirst54Completeness
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Projection
 import NightstreamFPrime.Export.Stage1.PiRLCPhysicalCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
+import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCandidateWiring
@@ -530,6 +531,7 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness.sourcePhysicalRows_imply_packets
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness.remappedPhysicalRows_imply_packets
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness.completePackets
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness.rowsZero_of_completed
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.inputConstraints_eq_nil
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.samplerConstraints_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.commitmentConstraints_eq

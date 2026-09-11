@@ -15,6 +15,8 @@ import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
+import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
+import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
@@ -87,6 +89,9 @@ import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
 import NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness
+import NightstreamFPrime.Layout.Stage1.NifsSourceReadback
+import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
+import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC

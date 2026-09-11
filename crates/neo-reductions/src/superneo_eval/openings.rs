@@ -18,6 +18,8 @@ impl SuperneoEvalCache {
         point: &[K],
         witnesses: &[SuperneoZBlocks],
     ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+        #[cfg(feature = "perf-timers")]
+        let started = std::time::Instant::now();
         let (rows, width, _) = self
             .relation_shape()
             .ok_or_else(|| PiCcsError::InvalidInput("opening cache shape is inconsistent".into()))?;
@@ -33,7 +35,13 @@ impl SuperneoEvalCache {
         let weights = EqualityWeights::new(point);
         let row_weights = (0..rows).map(|row| weights.at(row)).collect::<Vec<_>>();
         let matrices = self.eval_ring_linear_forms_for_real_z_blocks(&row_weights, rows, witnesses);
-        Ok(witnesses
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[real-openings] matrices elapsed={:.3}s witnesses={}",
+            started.elapsed().as_secs_f64(),
+            witnesses.len()
+        );
+        let result = witnesses
             .iter()
             .zip(matrices)
             .map(|(witness, eval_a)| V1_1Evaluations {
@@ -43,7 +51,10 @@ impl SuperneoEvalCache {
                     .map(|coefficients| coefficients.to_vec())
                     .collect(),
             })
-            .collect())
+            .collect();
+        #[cfg(feature = "perf-timers")]
+        eprintln!("[real-openings] pad elapsed={:.3}s", started.elapsed().as_secs_f64());
+        Ok(result)
     }
 }
 

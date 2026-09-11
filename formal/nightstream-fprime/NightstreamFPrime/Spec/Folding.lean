@@ -7,6 +7,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.Folding.PiCCS
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
+import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakAlgorithm
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperAlignedExtraction

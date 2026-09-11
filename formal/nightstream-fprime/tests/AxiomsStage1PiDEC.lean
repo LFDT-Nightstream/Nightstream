@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.Values
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Completeness
@@ -261,6 +262,8 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProofInputs.eval_childPublicInput
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.completePrefix
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.completePrefix_from
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.completePrefix_after_r
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.verifierInputs
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.rEnd_before_dInputs
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness.recursive_completePrefix
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness.canonicalInput_preserves_base
@@ -459,3 +462,4 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.logicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_decomposition
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment.rowsZero_of_completed

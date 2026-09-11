@@ -10,14 +10,14 @@ use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
 use neo_fold_clean::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::{nifs::NifsProof, pi_ccs, pi_rlc, relations::ajtai_rlc_mixer};
-use neo_math::{from_complex, KExtensions, D, F, K};
+use neo_math::{from_complex, D, F, K};
 use neo_reductions::{
     engines::pi_ccs_joint_protocol::V1_1OutputOpening,
     optimized_engine::{optimized_prove_with_complete_oracle, optimized_verify_with_trace},
 };
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::load_per_application_package;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde_json::{json, Value};
 
@@ -25,6 +25,8 @@ use super::{
     oracle::{MATRICES, ROUNDS},
     rounds,
 };
+
+pub(super) use super::owned_nifs::stage1_values::{fields, public_words, words};
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PUBLIC: usize = 270;
@@ -59,20 +61,6 @@ pub(super) fn extensions(value: &Value) -> Vec<K> {
         .collect()
 }
 
-pub(super) fn words(values: &[K]) -> Vec<[u64; 2]> {
-    values
-        .iter()
-        .map(|value| <[u64; 2]>::from(value.to_limbs_u64()))
-        .collect()
-}
-
-pub(super) fn fields(values: &[F]) -> Vec<u64> {
-    values
-        .iter()
-        .map(|value| value.as_canonical_u64())
-        .collect()
-}
-
 fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
     let mut bytes = [0u8; 32];
     for (lane, word) in words.into_iter().enumerate() {
@@ -99,12 +87,6 @@ pub(super) fn public_matrix(value: &Value) -> Mat<F> {
         result[(column % D, column / D)] = field(word);
     }
     result
-}
-
-pub(super) fn public_words(value: &Mat<F>) -> Vec<u64> {
-    (0..PUBLIC)
-        .map(|column| value[(column % D, column / D)].as_canonical_u64())
-        .collect()
 }
 
 pub(super) fn padded(value: &Value) -> Vec<K> {

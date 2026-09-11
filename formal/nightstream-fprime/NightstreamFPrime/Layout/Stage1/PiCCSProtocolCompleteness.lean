@@ -90,7 +90,8 @@ private theorem pilot_output_word (values : PilotProduction.ExternalValues)
   simp only [PilotProduction.loadExternal, dif_neg afterPrior, dif_neg afterPublic,
     dif_pos inside, Nat.add_sub_cancel_left]
 
-private theorem prior_word (index : Fin PilotProduction.stateHashWords) :
+/-- Each loaded prior-state source word is the exact canonical serialized word. -/
+theorem prior_word (index : Fin PilotProduction.stateHashWords) :
     (PiCCSInputs.priorStateWord index.val).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
         (serializePreimage (publicFits := publicFits) prior).getD index.val 0 := by
@@ -105,7 +106,8 @@ private theorem prior_word (index : Fin PilotProduction.stateHashWords) :
     simp only [PilotProduction.priorPreimageStart]
     omega
 
-private theorem output_word (index : Fin PilotProduction.stateHashWords) :
+/-- Each loaded next-state source word is the exact canonical serialized word. -/
+theorem output_word (index : Fin PilotProduction.stateHashWords) :
     (PiCCSInputs.outputStateWord index.val).eval
       (environment prior priorPublic output digest priorFixed outputFixed digestFixed values context) =
         (serializePreimage (publicFits := publicFits) output).getD index.val 0 := by

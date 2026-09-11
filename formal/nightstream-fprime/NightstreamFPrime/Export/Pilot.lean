@@ -39,7 +39,8 @@ private theorem fieldValue_val (value : F) : fieldValue value.val = value := by
     fieldValue (-1 : F).val = (-1 : F) :=
   fieldValue_val (-1 : F)
 
-private def canonicalTemplateEnv (value : ColumnRef → F) : Env :=
+/-- The canonical template uses its existing input/local column references. -/
+def canonicalTemplateEnv (value : ColumnRef → F) : Env :=
   fun column => (PilotData.columnRef column).eval value
 
 private theorem canonicalOutputLocalIndex (lane : Fin 8) :

@@ -338,3 +338,85 @@ Actual split/opening/fixed-key commitment primitives also passed their
 focused native checks; evidence `NIFS_NATIVE_D_PRIMITIVES_EVIDENCE.zip`,
 SHA-256 `5b2033c0008325996892152c2d896915bbe006139c0f61a96d6090d1ed400dcc`. Complete native C/R/D remains open.
 Package data, pins and cryptographic assumptions are unchanged at this cut.
+
+## Allocation repair and native execution checkpoint
+
+The allocation repair is committed as `dd38a22f` and merged at
+`a62cebc2d3263087985d2e0c5666df8fc5715ba4`, which is on the remote proof
+branch. The logical width is now 253011231 and the complete carrier is
+253011276. Physical rows and the profile are unchanged. The deterministic
+zero-extension reduction retains the previously approved fixed-seed MSIS
+instance. Required matrix, assignment, mutation, phase-parity, identity,
+loader, build and axiom checks passed; see `NIFS_UNUSED_ALLOCATIONS.md` and
+`NIFS_UNUSED_ALLOCATIONS_EVIDENCE.zip`.
+
+Three complete native producer invocations reached the required 300-second
+cap without returning a proof. The final timed run completed C in 75.28 s,
+R in 8.28 s, and D splitting plus commitments in 64.649 s; D openings had
+not finished. C matrix openings took 64.777 s; its Pad work took about
+2.955 s. The prepared Pad optimization remains unapplied. The existing
+cache reservations and arithmetic are retained.
+
+Approval was requested for one already-built producer invocation with a
+420-second cap, followed by the independent Lean and complete saved-result
+checks. That request is pending; it is not authorization. All other native
+invocations retain the 300-second cap. Complete selected assignment and
+honest successor construction continue while this request is pending.
+
+## Complete-witness construction in progress
+
+`StepPhysicalCompleteness.complete` now constructs one Spartan assignment
+with the pilot, C/R/D, running-transition and next-preimage rows, exact
+returned NIFS output, and prior/next source words. Its focused check passed
+in 5.69 seconds (4.8 seconds for the module). It still requires an accepted
+local NIFS proof, the stated source well-formedness and public hash link,
+and the recursive output agreement. It does not yet prove the complete
+selected structural plan or supply the application suffix.
+
+`PaperNonInteractive.Completeness.exists_honest_proof_of_sampler_success`
+now constructs causal C messages before the actual sampler response and,
+on success, a normal accepted NIFS proof with valid openings for every
+returned child. Its first focused check passed in 2.18 seconds. Acceptance
+and child validity are conclusions, not premises. This existential theorem
+does not claim an efficient executable prover. Its selected accepted-envelope
+consumer remains in progress.
+
+`PilotPoseidonCompleteness.rowsZero_of_completed_hashRows` passed its
+focused check (56 seconds for the module). The remaining pilot obligation
+is to supply those hash rows from the constructed physical prefix. Nine
+substantive candidate rounds have been used for this pilot obligation;
+moving the remaining connection to another file does not reset the ten-round
+session limit. The existing `PermutationCompilerTransport` is the authority
+for relocation of the source permutation recipes.
+
+The application suffix and its exact output/public binding, the remaining
+physical-to-structural row connections, and the final accepted-next-envelope
+theorem remain open. These focused results are not a full ordered
+static/build/axiom checkpoint and do not change a requirements status.
+
+`ApplicationWitnessCompleteness.complete` now also passes: its result includes
+actual application rows, exact advice readback, output digest equality,
+the public projection, and direct application-plan rows. The same check
+recompiled `PerApplicationSourceAssignment.completeAssignment_norm_of_physical`,
+which derives the complete carrier norm from the actual physical prefix.
+`PiDECCompletedAssignment.rowsZero_of_completed` separately closes the direct
+PiDEC plan on that copied witness. The selected honest-call consumer
+`HyperNovaCompleteness.recursive_nifs_of_sampler_success` passed and derives
+its source witnesses from the accepted terminal payload itself.
+
+The pilot's tenth round failed in `HashInvocationRows`: one arithmetic proof
+did not expose the local `blocks` alias, and one membership proof supplied a
+disjunction after simplification had reduced the goal to `True`. No repair
+or retry was made after the limit. A proposed two-part patch is saved at
+`/tmp/nightstream-pilot-round11-proposal.patch`; approval was requested for
+one additional pilot round and remains pending. The complete pilot connection
+is therefore still unchecked. This request does not change any other limit
+or grant the separately pending native producer exception.
+
+Independent C and R compiler connections continue. The action-compiler
+projection and the existing twelve-child PiCCS list accessor passed. The
+PiRLC packet projection now accepts the actual relation width, using the
+existing family conformance theorems while retaining the same width-erased
+packet definitions; its file check and library build passed. None of these
+results replaces the final complete selected-plan theorem or an ordered
+checkpoint gate.

@@ -20,6 +20,9 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::json;
 
+#[path = "../../tests/nifs/stage1_nifs.rs"]
+mod owned_nifs;
+
 #[path = "generate_pi_ccs_fixture/child_commitment.rs"]
 mod child_commitment;
 #[path = "generate_pi_ccs_fixture/child_evaluations.rs"]
@@ -244,6 +247,52 @@ fn prepare(candidate: &Path, expected: [u64; 4], fixture: &Path, output: &Path) 
 
 fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "prove-owned-nifs")
+    {
+        assert_eq!(arguments.len(), 4, "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture> <fresh-output-directory>");
+        let output = Path::new(&arguments[3]);
+        assert!(!output.exists(), "use a fresh external output directory");
+        let actual = owned_nifs::prove(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        fs::create_dir(output).expect("fresh actual-proof directory");
+        for (name, value) in [
+            ("pi_ccs_input.json", &actual.result["pi_ccs_input"]),
+            ("children.json", &actual.result["children"]),
+            ("actual_result.json", &actual.result),
+        ] {
+            let mut bytes = serde_json::to_vec(value).expect("actual numeric proof values");
+            bytes.push(b'\n');
+            fs::write(output.join(name), bytes).expect("actual proof-value sink");
+        }
+        fs::write(output.join("proof.bin"), actual.wire).expect("normal native proof encoding");
+        println!(
+            "actual_selected_nifs=passed independent_Lean_comparison=pending output={}",
+            output.display()
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "check-owned-nifs")
+    {
+        assert_eq!(
+            arguments.len(),
+            4,
+            "usage: generate_pi_ccs_fixture check-owned-nifs <published-package> <actual-output-directory> <Lean-result>"
+        );
+        let input = Path::new(&arguments[2]);
+        let actual = owned_nifs::Observed {
+            result: serde_json::from_slice(&fs::read(input.join("actual_result.json")).expect("saved actual values"))
+                .unwrap(),
+            wire: fs::read(input.join("proof.bin")).expect("saved actual native proof"),
+        };
+        let expected = serde_json::from_slice(&fs::read(&arguments[3]).expect("independent Lean result")).unwrap();
+        owned_nifs::compare(&actual, &expected);
+        native_dec::check_saved(Path::new(&arguments[1]), &actual.result, &expected);
+        println!("actual_selected_nifs_Lean_comparison=passed");
+        return;
+    }
     if arguments.first().is_some_and(|mode| {
         matches!(
             mode.as_str(),

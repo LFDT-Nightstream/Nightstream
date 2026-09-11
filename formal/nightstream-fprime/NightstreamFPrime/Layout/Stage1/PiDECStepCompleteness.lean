@@ -1,14 +1,15 @@
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 /-!
-Owns the selected recursive HyperNova step's inputs to local C/R/D witness
-construction. The semantic step supplies its actual NIFS acceptance and prior
-public link. The existing state-validity and selected application contracts
-supply fixed state widths. This module does not construct outer phase rows.
+Owns the selected recursive step adapter to pilot, C/R/D, running-transition,
+and next-preimage witness construction. The actual semantic step supplies
+NIFS acceptance and the prior public link. The selected state validity and
+successor bound supply canonical state framing. Application construction and
+physical lowering remain separate.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
@@ -64,49 +65,61 @@ private theorem recursive_inputs
           some (output.runningNext index)) selected) accepted
     exact ⟨pc, publicLink, selectedAccepted⟩
 
-/-- A positive valid step for the selected Poseidon2 application constructs
-local C/R/D witnesses from its own fresh instance and NIFS proof. Framing,
-context, sampler availability, D checks, and the exact running output are
-derived. The result covers these local phase rows; application, pilot,
-transition, lowering, and low-norm assignment construction remain separate. -/
+/-- A positive selected step constructs pilot, C/R/D, running-transition,
+and next-preimage rows in one environment. Its actual proof supplies sampler
+availability and the exact NIFS result. State validity and the successor
+bound permit exact natural-counter readback. No generated row, phase value,
+or source agreement is assumed. -/
 theorem recursive_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
     (step : StepHoldsFor relation ajtai context.toList
       Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (positive : 0 < input.iteration) :
+    (positive : 0 < input.iteration)
+    (successor : input.iteration + 1 < goldilocksModulus) :
     let prior := priorHashPreimage (setup relation ajtai context.toList) input
     let next := nextHashPreimage (setup relation ajtai context.toList) input output
     let values := PiCCSProofReadback.ofProof
       (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
-    ∃ (priorFixed : PilotProduction.FixedPreimage prior)
-      (nextFixed : PilotProduction.FixedPreimage next)
-      (digestFixed : output.x.length = PilotProduction.digestWords),
-      ∃ c : Sequence.Prefix
+    ∃ (priorWellFormed : StateEncoding.WellFormed prior)
+      (nextWellFormed : StateEncoding.WellFormed next),
+    ∃ (digestFixed : output.x.length = PilotProduction.digestWords),
+      ∃ p : Sequence.Prefix
           (PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) next output.x
-            priorFixed nextFixed digestFixed values context) PiCCSInputs.phaseOffset,
-        ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
-          ∃ d : Sequence.Prefix
-              (PiDECProofInputs.load r.current input.nifsProof
-                (PiRLC.v1_1.Semantics.evalOutput relation
-                  (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-                  PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
-            c.operations = PiCCS.v1_1.Formal.opsAt relation
-              (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
-            r.operations = PiRLC.v1_1.Formal.opsAt relation
-              (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-              PiRLCInputs.phaseOffset ∧
-            d.operations = PiDEC.v1_1.Formal.opsAt relation
-              (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
-            holdsFlat d.current c.operations ∧ holdsFlat d.current r.operations ∧
-            PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
-              (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset d.current ∧
-            RunningTransitionInputs.piDecRunningOutput relation d.current =
-              output.runningNext functionIndex := by
+            priorWellFormed.1 nextWellFormed.1 digestFixed values context) PilotProduction.witnessOffset,
+        ∃ c : Sequence.Prefix p.current PiCCSInputs.phaseOffset,
+          ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
+            ∃ d : Sequence.Prefix
+                (PiDECProofInputs.load r.current input.nifsProof
+                  (PiRLC.v1_1.Semantics.evalOutput relation
+                    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+                    PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
+              ∃ t : Sequence.Prefix d.current RunningTransitionInputs.phaseOffset,
+                flatConstraints p.operations = Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset ∧
+                c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
+                r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
+                d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+                t.operations = Lifecycle.Stage1.RunningTransition.operations
+                  (RunningTransitionInputs.interface logicalWidth publicFits) RunningTransitionInputs.phaseOffset ∧
+                holdsFlat t.current p.operations ∧ holdsFlat t.current c.operations ∧
+                holdsFlat t.current r.operations ∧ holdsFlat t.current d.operations ∧
+                holdsFlat t.current (Lifecycle.Stage1.NextPreimage.opsAt NextPreimageInputs.sourceInterface
+                  RunningTransitionInputs.phaseOffset) ∧
+                Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset t.current ∧
+                PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+                  PiDECInputs.phaseOffset t.current ∧
+                Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
+                  RunningTransitionInputs.phaseOffset t.current ∧
+                Lifecycle.Stage1.NextPreimage.SpecHolds NextPreimageInputs.sourceInterface RunningTransitionInputs.phaseOffset t.current ∧
+                RunningTransitionInputs.piDecRunningOutput relation t.current = output.runningNext functionIndex ∧
+                (∀ index : Fin PilotProduction.stateHashWords,
+                  t.current (PilotProduction.priorPreimageStart + index.val) =
+                    (serializePreimage (publicFits := publicFits) prior).getD index.val 0) ∧
+                (∀ index : Fin PilotProduction.stateHashWords,
+                  t.current (PilotProduction.outputPreimageStart + index.val) =
+                    (serializePreimage (publicFits := publicFits) next).getD index.val 0) := by
   let prior := priorHashPreimage (setup relation ajtai context.toList) input
   let next := nextHashPreimage (setup relation ajtai context.toList) input output
-  let values := PiCCSProofReadback.ofProof
-    (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
   obtain ⟨priorPc, publicLink, accepted⟩ := recursive_inputs relation ajtai context input output step positive
   have priorFixed : PilotProduction.FixedPreimage prior :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
@@ -117,35 +130,15 @@ theorem recursive_completePrefix
     exact Lifecycle.Stage1.Poseidon2HashChainV1.step_output_length input.zi input.witness
   have nextFixed : PilotProduction.FixedPreimage next :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
-  have digestFixed : output.x.length = PilotProduction.digestWords := by
-    have hash := step.2.2.1
-    change output.x = stateHash next at hash
-    rw [hash]
-    exact StateEncoding.stateHash_length next
   have nextPc : next.pc = 1 := by
     change oneBased output.pcNext = 1
     rw [step.1]
     rfl
-  have fresh : PiCCSProofInputs.protocolFresh logicalWidth publicFits
-      (encHash (stateHash prior)) values = input.fresh := by
-    have readback := PiCCSProofReadback.protocolFresh_ofProof relation input.fresh input.nifsProof
-    rw [publicLink] at readback
-    exact readback
-  have proofReadback : PiCCSProofInputs.relationProof relation values input.nifsProof =
-      input.nifsProof := PiCCSProofReadback.relationProof_ofProof relation
-    (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
-  have actualAccepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
-      (prior.running functionIndex)
-      (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
-      (PiCCSProofInputs.relationProof relation values input.nifsProof) =
-        some (output.runningNext functionIndex) := by
-    rw [fresh]
-    rw [proofReadback]
-    exact accepted
-  refine ⟨priorFixed, nextFixed, digestFixed, ?_⟩
-  have constructed := PiDECProtocolCompleteness.completePrefix relation ajtai prior
-    (encHash (stateHash prior)) next output.x priorFixed nextFixed digestFixed values context
-    input.nifsProof (output.runningNext functionIndex) priorPc nextPc rfl rfl actualAccepted
-  simpa only [proofReadback] using constructed
+  have priorWellFormed : StateEncoding.WellFormed prior := ⟨priorFixed, valid.1, priorPc⟩
+  have nextWellFormed : StateEncoding.WellFormed next := ⟨nextFixed, successor, nextPc⟩
+  exact ⟨priorWellFormed, nextWellFormed,
+    StepWitnessPrefix.completePrefix relation ajtai context input output
+      (output.runningNext functionIndex) step priorWellFormed nextWellFormed
+      publicLink accepted (fun _ => rfl)⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness

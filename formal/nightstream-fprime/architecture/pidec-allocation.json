@@ -158,5 +158,64 @@
     "seconds": 85.32,
     "peak_kib": 4159588,
     "interpretation": "The PiDEC ownership literal is fixed. The next reached failure is RunningTransitionLayout.logicalColumnCount_eq = 29040587, imported through the full-prefix Spartan dependency. The selected PublicInputSplit.Values check also fails as expected. Source-range and actual-consumer isolation are not established past that frontier."
+  },
+  "after_spartan_split": {
+    "source_commit": "68cf70feb12e478a99b51f7bcb3177e9a1610a84",
+    "change": "One extra sign-hint cell per scalar; 270 scalar invocations; unchanged constraints/specification",
+    "scope": "Compiler results. Review parent-size failures separately from unrelated phase failures.",
+    "results": [
+      {
+        "label": "leaf",
+        "target": "NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "piccs",
+        "target": "NightstreamFPrime.Layout.PiCCS.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc",
+        "target": "NightstreamFPrime.Layout.PiRLC.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc_input",
+        "target": "NightstreamFPrime.Layout.Stage1.PiRLCInputBounds",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pidec_ranges",
+        "target": "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "nifs_consumer",
+        "target": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean:11:58: unsolved goals",
+          "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean:72:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      },
+      {
+        "label": "full",
+        "target": "NightstreamFPrime",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean:11:58: unsolved goals",
+          "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean:72:2: Tactic `rfl` failed: The left-hand side",
+          "NightstreamFPrime/Layout/Stage1/AssemblerInputs.lean:412:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      }
+    ],
+    "seconds": 124.07,
+    "peak_kib": 6087300,
+    "interpretation": "The PiDEC range interface now passes. Full consumer/build stop at default Values, the running-transition endpoint value, and the compact parent running-offset formula. This proves the local range boundary, not full allocation isolation."
   }
 }

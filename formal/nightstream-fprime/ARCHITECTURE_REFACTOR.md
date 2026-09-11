@@ -128,3 +128,11 @@ owns their complete-prefix instance, with the existing public names and bodies.
 PiDEC source support no longer imports `RunningTransitionLowering`. The
 [boundary record](architecture/spartan-map-boundary.json) contains the checks and
 source dependency measurement. The changed-allocation probe is a separate check.
+
+The repeated probe passes PiDEC source ranges after this split. It still stops
+at global value checks and the compact parent offset; the probe record names
+those failures.
+
+The [module experiment](architecture/module-hiding-pilot.json) confirms that
+a converted gadget consumer can keep its build after a producer proof edit.
+Legacy Layout consumers still rebuild. No production header conversion was made.

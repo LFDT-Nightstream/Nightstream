@@ -81,6 +81,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
+import NightstreamFPrime.Layout.Stage1.PiDECProofInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC

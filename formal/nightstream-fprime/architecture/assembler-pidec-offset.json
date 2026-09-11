@@ -1,0 +1,51 @@
+{
+  "baseline_commit": "68cf70feb12e478a99b51f7bcb3177e9a1610a84",
+  "claim": "The compact assembler running start and PiDEC pullback interval consume Formal.logicalPrivateCount, rather than the protocol coordinate count 270.",
+  "changed_definitions": [
+    "NightstreamFPrime.Layout.Stage1.AssemblerInputs.runningOffset"
+  ],
+  "changed_interval_theorem": "NightstreamFPrime.Layout.Stage1.CompactPullback.compactEnv_piDecLocal",
+  "scope": "Default values and protocol semantics are unchanged. The public interval bound now names its allocation owner. The existing parent offset/completeness proofs and audit entries remain.",
+  "gates": {
+    "static": {
+      "result": "passed",
+      "seconds": 6.34,
+      "log_sha256": "70932996802666ffa6552b35d36d53335c9099afc3ab524ea1d54e92abcd543d",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "seconds": 7.67,
+      "log_sha256": "0a3d96aefe2c41fddfa56bf576b90eb3b11688c0e480f3bc415a62fea87d425d",
+      "last_lines": [
+        "\u2714 [3811/3812] Built NightstreamFPrime (1.4s)",
+        "Build completed successfully (3812 jobs).",
+        "[bounded] exit=0 elapsed=8s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "seconds": 6.36,
+      "log_sha256": "4d2c839c6038944fe0f60c6b5c99fe9738757ab67c0faebbf34d2c48e0e2924a",
+      "last_lines": [
+        " Quot.sound]",
+        "Build completed successfully (3919 jobs).",
+        "[bounded] exit=0 elapsed=6s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "seconds": 129.38,
+      "log_sha256": "d34e47b27d608b30d3e2b0e3d93f6c96abe74ac2e4f775adc38c4fd5f9ccdd0c",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.ThCIg0.json",
+        "[bounded] exit=0 elapsed=130s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  }
+}

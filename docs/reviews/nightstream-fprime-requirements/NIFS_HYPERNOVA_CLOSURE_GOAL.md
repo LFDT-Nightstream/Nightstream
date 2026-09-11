@@ -242,3 +242,42 @@ Only the allowed axiom set occurs. Evidence and source hashes are retained
 in `HYPERNOVA_GUARDED_CONTEXT_EVIDENCE.zip`. Independent review found no
 defect in the local PiCCS constructor. Package data, pins, and Rust sources
 are unchanged by this checkpoint.
+
+## History probability and native cache checkpoint
+
+Checked code cut: `005e9679`. `HyperNovaVisitedAcceptance` derives acceptance
+from the actual history mark. `NifsProviderLaw` fixes the raw calls, tapes
+and clocks before choosing any visited law, then proves equality with the
+selected supported-provider extension. `HyperNovaVisitedSecurity.history_probability_bound`
+composes the first-failure bound over fixed symbolic depth with shared
+`g`/`deltaFS`, the exact guarded model instances, actual MSIS reduction masses,
+and marked hash events. No source-law or checker-correctness premise remains
+at this boundary. Numerical advantage/query bounds remain external.
+
+`HyperNovaHistoryWork` counts every actual source call, including abort and
+false-mark paths. Its declared orchestration allowance counts one initial
+entry and one processed source return, with expectation at most `D + 1`.
+This excludes payload decoding, copying and advice evaluation. The existing
+NIFS source clock still needs composition on the unconditional operational
+call laws. The allowance alone is not a complete work or machine-time claim.
+
+The canonical base dummy now passes the complete NIFS verifier under actual
+sampler availability, with its parent public bound and D checks derived.
+The sampler and local R constructors also derive generated outputs from
+available executions. The canonical C → R bridge and whole selected-package
+assignment construction remain open.
+
+The selected Rust cache now comes from the actual sealed row stream. A
+first pass counts storage, exact reservations avoid the measured excessive
+buffer growth, and a second pass validates every row and coefficient. The
+test executes the actual base witness and logical transport, then matches all
+14 × 54 Lean matrix values. It passed in 197.77 seconds of test time,
+249.77 seconds including compilation, with 26.90 GiB peak RSS. Normal PiCCS
+prover integration and full native C → R → D remain open; the three retained
+unused blocks and their failed mutation gate are unchanged.
+
+Ordered static, full library (3,859 jobs, 47 seconds), and full axioms
+(3,948 jobs, 47 seconds) passed. Evidence is in
+`HYPERNOVA_SECURITY_EVIDENCE.zip` and `NIFS_NATIVE_CACHE_EVIDENCE.zip`.
+Rust constructor/rejection tests and formatting passed. Package bytes,
+identity pins and the cryptographic assumptions are unchanged.

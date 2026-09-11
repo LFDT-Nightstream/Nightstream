@@ -145,3 +145,11 @@ for PiCCS closure, PiRLC, PiDEC and the package-only production lifecycle.
 Full history/security composition and the separate backend decision remain open.
 
 The [evidence archive](conformance-fixes-evidence.zip) contains original command records, logs, serialized phase inputs/results, source patches, input identities and pending review requests. It is a review archive, not an accepted-checker store. Large opening carriers, library/build products and derived graph data remain in the external evidence store.
+
+## Actual base matrix evaluator, 2026-09-11
+
+Checked code cut: `005e9679` (native constructor commit `ca80d71c`). The selected package now builds the existing native compact cache from its actual row stream. A first pass counts storage; exact reservations control peak allocation; the second pass validates every row and coefficient. No supplied matrix image or expected value enters this construction.
+
+The actual base witness and logical transport matched all 14 matrices and all 54 output coefficients against the retained Lean record. The complete test passed in 197.77 seconds, or 249.77 seconds including compilation, with 26.90 GiB peak RSS. Constructor output and rejection tests, including underestimated allocation hints, passed. Evidence and file hashes are in [NIFS_NATIVE_CACHE_EVIDENCE.zip](NIFS_NATIVE_CACHE_EVIDENCE.zip). Package bytes and pins are unchanged.
+
+This closes the package-to-cache constructor and this actual-witness comparison. Normal optimized PiCCS prover integration, full native C → R → D, later running cases, and the three-block mutation repair remain open. The ordinary prover needs distinct bounds for matrix rows, full-carrier Pad rows, norm inputs and equality factors; active matrix-row support alone is insufficient.

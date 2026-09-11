@@ -117,9 +117,9 @@ not mean that all Stage 1 physical geometry has moved. The
 [constraint change checks](CONSTRAINT_CHANGE_CHECKS.md) give the required proof,
 identity and consumer checks for later changes.
 
-The extra-cell probe still reaches a fixed running-transition endpoint through
-Spartan, plus the selected default Values check. Full allocation isolation remains
-open; see [the probe record](architecture/pidec-allocation.json).
+The extra-cell probe required coordinated endpoint and package-value updates.
+Automatic propagation through all geometry remains open; see
+[the probe record](architecture/pidec-allocation.json).
 
 ## Spartan map boundary
 
@@ -129,9 +129,8 @@ PiDEC source support no longer imports `RunningTransitionLowering`. The
 [boundary record](architecture/spartan-map-boundary.json) contains the checks and
 source dependency measurement. The changed-allocation probe is a separate check.
 
-The repeated probe passes PiDEC source ranges after this split. It still stops
-at global value checks. The compact parent offset now consumes the child-owned
-size, and its separate extra-cell check passes; see
+The PiDEC source-range and parent checks pass after this split. The compact
+parent offset consumes the child-owned size; see
 [the parent record](architecture/assembler-pidec-offset.json).
 
 The [module experiment](architecture/module-hiding-pilot.json) confirms that
@@ -145,9 +144,19 @@ Legacy Layout consumers still rebuild. No production header conversion was made.
 `CompactPullback` uses the former. The [boundary record](architecture/lowering-map-boundary.json)
 records unchanged declarations and passing static, library, axiom and identity
 checks. The extra-cell pullback test passes in 71.42 seconds. The full PiDEC
-allocation boundary remains open: the complete consumer still uses the
-running-transition endpoint and package-size checks.
+allocation boundary still requires a refresh of affected endpoint and package
+values, as recorded below.
 
 The static gate checks these data interfaces for transitive imports of complete
 row plans. Direct and indirect import mutations are both rejected in the
 scratch test. No production module-system headers were changed.
+
+## Actual consumer allocation check
+
+The extra-cell test now reaches and passes `PiDECCommitmentMatrixEntry` after
+refreshing the affected column, retained-width, capacity and setup-dimension
+values. The [consumer record](architecture/pidec-consumer-allocation.json)
+contains the exact source commit and pin patch. This confirms the pilot through
+its real consumer. It does not establish a full-library allocation pass or
+a single-edit geometry boundary. The copied values are the next dependency
+to remove; the production profile and package identity remain unchanged.

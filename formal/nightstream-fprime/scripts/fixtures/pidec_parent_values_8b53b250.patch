@@ -1,0 +1,794 @@
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ApplicationRetainedGeometry.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ApplicationRetainedGeometry.lean
+index c816fa20..392cec1a 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ApplicationRetainedGeometry.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/ApplicationRetainedGeometry.lean
+@@ -34,7 +34,7 @@ def completeLogicalWidth
+ theorem completeLogicalWidth_eq
+     (application : Lifecycle.Stage1.Application.Program) :
+     completeLogicalWidth application =
+-      253944883 + retainedCoordinateCount application := by
++      253955953 + retainedCoordinateCount application := by
+   unfold completeLogicalWidth localStart witnessStart
+   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
+   unfold retainedCoordinateCount
+@@ -46,7 +46,7 @@ application input/output words already belong to that prefix. -/
+ theorem completeLogicalWidth_eq_applicationCounts
+     (application : Lifecycle.Stage1.Application.Program) :
+     completeLogicalWidth application =
+-      253944883 +
++      253955953 +
+         (application.witnessWordCount + localCount application) * 41 := by
+   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
+     retainedSlotCount_eq]
+@@ -57,7 +57,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
+     (application : Lifecycle.Stage1.Application.Program) :
+     completeLogicalWidth application ≤
+         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
+-      application.witnessWordCount + localCount application ≤ 353428 := by
++      application.witnessWordCount + localCount application ≤ 353158 := by
+   rw [completeLogicalWidth_eq_applicationCounts]
+   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
+   omega
+@@ -69,7 +69,7 @@ theorem carrierWidth_le_twoPow28_iff
+     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+           (completeLogicalWidth application) ≤
+         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
+-      application.witnessWordCount + localCount application ≤ 353427 := by
++      application.witnessWordCount + localCount application ≤ 353157 := by
+   rw [completeLogicalWidth_eq_applicationCounts]
+   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
+     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+@@ -88,7 +88,7 @@ structure FitsTwoPow28
+ word budget. -/
+ def fitsTwoPow28OfApplicationCounts
+     (application : Lifecycle.Stage1.Application.Program)
+-    (fits : application.witnessWordCount + localCount application ≤ 353428) :
++    (fits : application.witnessWordCount + localCount application ≤ 353158) :
+     FitsTwoPow28 application where
+   complete :=
+     (completeLogicalWidth_le_twoPow28_iff application).2 fits
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/DirectApplicationPrefixPlan.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/DirectApplicationPrefixPlan.lean
+index 68815369..603988c5 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/DirectApplicationPrefixPlan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/DirectApplicationPrefixPlan.lean
+@@ -234,29 +234,29 @@ theorem applicationSourceWidth_le_baseSourceWidth
+   rw [PerApplicationPackage.package_totalColumnCount]
+   unfold PerApplicationPackage.addedPrivateColumnCount
+   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
+-      29336725 := by
++      29336995 := by
+     exact Package.circuitPackage_layout_values.2.2.2.2
+-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 29336446 := by
++  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 29336716 := by
+     exact Layout.Stage1.Spartan.privateColumnCount_eq
+   rw [baseTotal, privateCount]
+-  change 29336446 + application.witnessWordCount +
++  change 29336716 + application.witnessWordCount +
+         localLength (ApplicationPackage.operations application
+           (ApplicationPackage.productionColumns application)
+-          (29336446 + application.witnessWordCount)) +
++          (29336716 + application.witnessWordCount)) +
+         R1CS.totalFreshCount
+           (ApplicationPackage.constraints application
+             (ApplicationPackage.productionColumns application)
+-            (29336446 + application.witnessWordCount)) ≤
+-      29336725 + (application.witnessWordCount +
++            (29336716 + application.witnessWordCount)) ≤
++      29336995 + (application.witnessWordCount +
+         (PerApplicationPackage.applicationPlan application).privateCount)
+-  change _ ≤ 29336725 + (application.witnessWordCount +
++  change _ ≤ 29336995 + (application.witnessWordCount +
+     (localLength (ApplicationPackage.operations application
+       (ApplicationPackage.productionColumns application)
+-      (29336446 + application.witnessWordCount)) +
++      (29336716 + application.witnessWordCount)) +
+     R1CS.totalFreshCount
+       (ApplicationPackage.constraints application
+         (ApplicationPackage.productionColumns application)
+-        (29336446 + application.witnessWordCount))))
++        (29336716 + application.witnessWordCount))))
+   omega
+ 
+ /-- The application reads the same complete package source assignment as the
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Package.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Package.lean
+index ff49ef55..a1161937 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Package.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Package.lean
+@@ -191,10 +191,10 @@ theorem witnessLength_eq : Data.witnessLength = 28844896 := by
+ theorem circuitPackage_layout_values :
+     let layout := (Data.circuitPackage ()).layout
+     layout.rowCount = 29218024 ∧
+-      layout.privateColumnCount = 29336446 ∧
+-      layout.constantColumn = 29336446 ∧
++      layout.privateColumnCount = 29336716 ∧
++      layout.constantColumn = 29336716 ∧
+       layout.publicColumnCount = 278 ∧
+-      layout.totalColumnCount = 29336725 := by
++      layout.totalColumnCount = 29336995 := by
+   rw [Data.circuitPackage_layout]
+   dsimp [Data.physicalLayout]
+   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationCanonicalPackage.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationCanonicalPackage.lean
+index 1a80a259..16e1d802 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationCanonicalPackage.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationCanonicalPackage.lean
+@@ -75,7 +75,7 @@ theorem directStructuralRowCount_eq
+     PerApplicationFixedPoint.structuralPlan_rowCount]
+ 
+ def directLogicalWidth (program : Program) : Nat :=
+-  253944883 +
++  253955953 +
+     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
+ 
+ theorem directLogicalWidth_eq (program : Program) :
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationFixedPoint.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationFixedPoint.lean
+index faa41fb2..c715c381 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationFixedPoint.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationFixedPoint.lean
+@@ -48,9 +48,9 @@ def fitsTwoPow28OfApplicationBounds
+     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
+       239217427)
+     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
+-      239098731)
++      239098461)
+     (carrierWords : application.witnessWordCount +
+-      ApplicationRetainedBlocks.localCount application ≤ 353427) :
++      ApplicationRetainedBlocks.localCount application ≤ 353157) :
+     FitsTwoPow28 application where
+   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
+     rows columns
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationPackage.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationPackage.lean
+index c99b116d..4bd7d80a 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationPackage.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationPackage.lean
+@@ -803,7 +803,7 @@ theorem verificationKeyBinding_context
+   rfl
+ 
+ @[simp] theorem basePackage_totalColumnCount_eq :
+-    basePackage.layout.totalColumnCount = 29336725 := by
++    basePackage.layout.totalColumnCount = 29336995 := by
+   rw [basePackage, Data.circuitPackage_layout]
+   rfl
+ 
+@@ -820,7 +820,7 @@ theorem package_rowCount_le_twoPow28_iff
+ theorem package_totalColumnCount_le_twoPow28_iff
+     (program : Lifecycle.Stage1.Application.Program) :
+     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
+-      addedPrivateColumnCount program ≤ 239098731 := by
++      addedPrivateColumnCount program ≤ 239098461 := by
+   rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
+   norm_num [Lifecycle.cubeVariables]
+   omega
+@@ -836,7 +836,7 @@ column bounds. -/
+ def fitsTwoPow28OfApplicationBounds
+     (program : Lifecycle.Stage1.Application.Program)
+     (rows : (applicationPlan program).rowCount ≤ 239217427)
+-    (columns : addedPrivateColumnCount program ≤ 239098731) :
++    (columns : addedPrivateColumnCount program ≤ 239098461) :
+     FitsTwoPow28 program where
+   rows := (package_rowCount_le_twoPow28_iff program).2 rows
+   columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationSourceProjection.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationSourceProjection.lean
+index e6dc25e9..0bcda99c 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationSourceProjection.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PerApplicationSourceProjection.lean
+@@ -21,7 +21,7 @@ open NightstreamFPrime.Lifecycle
+ abbrev Program := Lifecycle.Stage1.Application.Program
+ 
+ @[simp] private theorem basePackage_constantColumn_eq :
+-    PerApplicationPackage.basePackage.layout.constantColumn = 29336446 := by
++    PerApplicationPackage.basePackage.layout.constantColumn = 29336716 := by
+   rw [PerApplicationPackage.basePackage, Data.circuitPackage_layout]
+   rfl
+ 
+@@ -30,7 +30,7 @@ def finalConstant (program : Program) : Nat :=
+     PerApplicationPackage.addedPrivateColumnCount program
+ 
+ def directFinalConstant (program : Program) : Nat :=
+-  29336446 + PerApplicationPackage.directAddedPrivateColumnCount program
++  29336716 + PerApplicationPackage.directAddedPrivateColumnCount program
+ 
+ theorem directFinalConstant_eq_finalConstant (program : Program) :
+     directFinalConstant program = finalConstant program := by
+@@ -46,7 +46,7 @@ theorem directFinalConstant_eq_finalConstant (program : Program) :
+ def basePrivateRangeReference (_delay : Unit := ()) : SourceProjectionRange :=
+   ⟨0, 0, PerApplicationPackage.basePackage.layout.constantColumn⟩
+ 
+-def basePrivateRange : SourceProjectionRange := ⟨0, 0, 29336446⟩
++def basePrivateRange : SourceProjectionRange := ⟨0, 0, 29336716⟩
+ 
+ theorem basePrivateRange_eq_reference :
+     basePrivateRange = basePrivateRangeReference () := by
+@@ -59,7 +59,7 @@ def baseSuffixRange (program : Program) : SourceProjectionRange :=
+       PerApplicationPackage.basePackage.layout.constantColumn⟩
+ 
+ def directBaseSuffixRange (program : Program) : SourceProjectionRange :=
+-  ⟨directFinalConstant program, 29336446, 279⟩
++  ⟨directFinalConstant program, 29336716, 279⟩
+ 
+ theorem directBaseSuffixRange_eq_baseSuffixRange (program : Program) :
+     directBaseSuffixRange program = baseSuffixRange program := by
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSOrdinaryMatrixProgram.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSOrdinaryMatrixProgram.lean
+index 2e99a02c..97610a17 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSOrdinaryMatrixProgram.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSOrdinaryMatrixProgram.lean
+@@ -349,9 +349,9 @@ private theorem rangeValues (program : Program) :
+     (ordinaryLogicalRange program).sourceCount = 79846 ∧
+     (freshRange program).sourceStart = 19332940 ∧
+     (freshRange program).sourceCount = 731605 ∧
+-    (freshPublicInputRange program).sourceStart = 29336447 ∧
++    (freshPublicInputRange program).sourceStart = 29336717 ∧
+     (freshPublicInputRange program).sourceCount = 270 ∧
+-    (expectedContextRange program).sourceStart = 29336721 ∧
++    (expectedContextRange program).sourceStart = 29336991 ∧
+     (expectedContextRange program).sourceCount = 4 := by
+   norm_num [priorInputRange, outputInputRange, proofInputRange,
+     ordinaryLogicalRange, freshRange, freshPublicInputRange,
+@@ -525,7 +525,7 @@ private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
+ private theorem freshPublicTarget_eq (program : Program) (index : Fin 270) :
+     Spartan.sourceToSpartan
+         (PilotProduction.priorPublicInputStart + index.val) =
+-      29336447 + index.val := by
++      29336717 + index.val := by
+   have upper : PilotProduction.priorPublicInputStart + index.val <
+       PilotProduction.outputPreimageStart := by
+     have bound : index.val < 270 := index.isLt
+@@ -536,13 +536,13 @@ private theorem freshPublicTarget_eq (program : Program) (index : Fin 270) :
+   rw [Spartan.sourceToSpartan_add_of_pilotPriorPublic
+     PilotProduction.priorPublicInputStart index.val (Nat.le_refl _) upper]
+   change (freshPublicInputRange program).sourceStart + index.val =
+-    29336447 + index.val
++    29336717 + index.val
+   have values := rangeValues program
+   omega
+ 
+ private theorem expectedContextTarget_eq (lane : Fin 4) :
+     Spartan.sourceToSpartan (PiCCSInputs.expectedContextStart + lane.val) =
+-      29336721 + lane.val := by
++      29336991 + lane.val := by
+   rw [Spartan.sourceToSpartan_expectedContext]
+   rfl
+ 
+@@ -995,19 +995,19 @@ theorem substitution_freshPublicInput_form?
+   have values := rangeValues program
+   have indexBound : index.val < 270 := index.isLt
+   have priorNone := SourceRange.form?_eq_none_of_after
+-    (priorInputRange program) logicalWidth (29336447 + index.val) (by omega)
++    (priorInputRange program) logicalWidth (29336717 + index.val) (by omega)
+   have outputNone := SourceRange.form?_eq_none_of_after
+-    (outputInputRange program) logicalWidth (29336447 + index.val) (by omega)
++    (outputInputRange program) logicalWidth (29336717 + index.val) (by omega)
+   have proofInputNone := SourceRange.form?_eq_none_of_after
+-    (proofInputRange program) logicalWidth (29336447 + index.val) (by omega)
++    (proofInputRange program) logicalWidth (29336717 + index.val) (by omega)
+   have ordinaryNone := SourceRange.form?_eq_none_of_after
+-    (ordinaryLogicalRange program) logicalWidth (29336447 + index.val) (by omega)
++    (ordinaryLogicalRange program) logicalWidth (29336717 + index.val) (by omega)
+   have freshNone := SourceRange.form?_eq_none_of_after
+-    (freshRange program) logicalWidth (29336447 + index.val) (by omega)
++    (freshRange program) logicalWidth (29336717 + index.val) (by omega)
+   have contextNone := SourceRange.form?_eq_none_of_before
+-    (expectedContextRange program) logicalWidth (29336447 + index.val) (by omega)
++    (expectedContextRange program) logicalWidth (29336717 + index.val) (by omega)
+   have gridNone := SourceGrid.form?_eq_none_of_after
+-    (transcriptOutputGrid program) logicalWidth (29336447 + index.val)
++    (transcriptOutputGrid program) logicalWidth (29336717 + index.val)
+     (by rw [(transcriptGridValues program).2.2.1]; omega)
+     (by
+       rcases transcriptGridValues program with
+@@ -1032,19 +1032,19 @@ theorem substitution_expectedContext_form?
+   have values := rangeValues program
+   have laneBound : lane.val < 4 := lane.isLt
+   have priorNone := SourceRange.form?_eq_none_of_after
+-    (priorInputRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (priorInputRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have outputNone := SourceRange.form?_eq_none_of_after
+-    (outputInputRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (outputInputRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have proofInputNone := SourceRange.form?_eq_none_of_after
+-    (proofInputRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (proofInputRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have ordinaryNone := SourceRange.form?_eq_none_of_after
+-    (ordinaryLogicalRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (ordinaryLogicalRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have freshNone := SourceRange.form?_eq_none_of_after
+-    (freshRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (freshRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have publicNone := SourceRange.form?_eq_none_of_after
+-    (freshPublicInputRange program) logicalWidth (29336721 + lane.val) (by omega)
++    (freshPublicInputRange program) logicalWidth (29336991 + lane.val) (by omega)
+   have gridNone := SourceGrid.form?_eq_none_of_after
+-    (transcriptOutputGrid program) logicalWidth (29336721 + lane.val)
++    (transcriptOutputGrid program) logicalWidth (29336991 + lane.val)
+     (by rw [(transcriptGridValues program).2.2.1]; omega)
+     (by
+       rcases transcriptGridValues program with
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPoseidonPlan/RetainedValues.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPoseidonPlan/RetainedValues.lean
+index 8ac1e6a4..0cd68338 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPoseidonPlan/RetainedValues.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPoseidonPlan/RetainedValues.lean
+@@ -53,8 +53,8 @@ theorem retainedPrefix_baseEnv
+         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
+           program base groupValue products)) column =
+       PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base) column := by
+-  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
+-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
++  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336995 := by
++    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336995
+     exact Package.circuitPackage_layout_values.2.2.2.2
+   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
+     rw [packageTotal]
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixEntry.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixEntry.lean
+index e7dbd542..54c97c19 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixEntry.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixEntry.lean
+@@ -40,7 +40,7 @@ abbrev selectedPlan : ProductionRelation.Plan PiDECInputCheck.logicalWidth :=
+   PerApplicationFixedPoint.structuralPlan Poseidon2HashChainV1Package.application
+     Poseidon2HashChainV1Package.fits
+ 
+-private theorem width_eq : PiDECInputCheck.logicalWidth = 254260583 :=
++private theorem width_eq : PiDECInputCheck.logicalWidth = 254271653 :=
+   Poseidon2HashChainV1Package.logicalWidth
+ 
+ attribute [local irreducible] PerApplicationFixedPoint.logicalWidth PiDECInputCheck.relation
+@@ -238,7 +238,7 @@ def entry (matrix : Fin productionShape.matrixCount)
+     (column : Fin carrier.carrierWidth) : Result F :=
+   let forms := PiDECCommitmentMatrixWork.commitmentForms row
+   let selected := selectPort forms.value matrix
+-  let result := CoefficientWork.coefficient (logicalWidth := 254260583)
++  let result := CoefficientWork.coefficient (logicalWidth := 254271653)
+     (width_eq ▸ selected.value) coefficient
+     (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)
+   ⟨result.value, forms.work + selected.work + result.work + 8⟩
+@@ -253,7 +253,7 @@ theorem entry_value (matrix : Fin productionShape.matrixCount)
+     (entry matrix coefficient row column).value =
+       (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
+         baseOps matrix coefficient (selectedPlan.rowLayout.toVertex (globalRow row)) column := by
+-  change (CoefficientWork.coefficient (logicalWidth := 254260583)
++  change (CoefficientWork.coefficient (logicalWidth := 254271653)
+     (width_eq ▸ (selectPort (PiDECCommitmentMatrixWork.commitmentForms row).value matrix).value)
+     coefficient (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)).value = _
+   rw [coefficient_cast]
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixWork.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixWork.lean
+index 1b1d7d80..e6a40151 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixWork.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentMatrixWork.lean
+@@ -31,7 +31,7 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
+ attribute [local irreducible] PiDECOrdinarySourceWork.commitmentRow
+   PiDECOrdinaryDirectSource.commitmentProgramRow PiDECInputCheck.relation
+ 
+-private theorem selectedWidth : 254260583 = PiDECInputCheck.logicalWidth :=
++private theorem selectedWidth : 254271653 = PiDECInputCheck.logicalWidth :=
+   Poseidon2HashChainV1Package.logicalWidth.symm
+ 
+ private abbrev selectedGeometry : PiDECRetainedGeometry.Geometry
+@@ -502,7 +502,7 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
+ cost four; the equality transport changes only the erased type index. -/
+ def commitmentForms (index : Fin 1188) :
+     Result (OrdinaryRow.Forms PiDECInputCheck.logicalWidth) :=
+-  let result := run 254260583 (by decide) index
++  let result := run 254271653 (by decide) index
+   ⟨selectedWidth ▸ result.value, result.work + 4⟩
+ 
+ private theorem cast_run_value {application : Lifecycle.Stage1.Application.Program}
+@@ -517,7 +517,7 @@ theorem commitmentForms_value (index : Fin 1188) :
+     (commitmentForms index).value =
+       PiDECMatrixProgram.commitmentDirectForms PiDECInputCheck.relation
+         (PerApplicationMatrixProgram.piDecGeometry Poseidon2HashChainV1Package.application) index :=
+-  @cast_run_value Poseidon2HashChainV1Package.application 254260583 PiDECInputCheck.logicalWidth
++  @cast_run_value Poseidon2HashChainV1Package.application 254271653 PiDECInputCheck.logicalWidth
+     selectedWidth (by decide) selectedGeometry index
+ 
+ private theorem cast_lengths {columns output : Nat} (equal : columns = output)
+@@ -534,13 +534,13 @@ theorem commitmentForms_lengths (index : Fin 1188) :
+       (commitmentForms index).value.a.entries.length = 657 ∧
+       (commitmentForms index).value.b.entries.length = 1 ∧
+       (commitmentForms index).value.c.entries.length = 42 :=
+-  @cast_lengths 254260583 PiDECInputCheck.logicalWidth selectedWidth
+-    (run 254260583 (by decide) index).value
+-    (@run_lengths Poseidon2HashChainV1Package.application 254260583 (by decide)
++  @cast_lengths 254271653 PiDECInputCheck.logicalWidth selectedWidth
++    (run 254271653 (by decide) index).value
++    (@run_lengths Poseidon2HashChainV1Package.application 254271653 (by decide)
+       (selectedWidth.symm ▸ selectedGeometry) index)
+ 
+ theorem commitmentForms_work_le (index : Fin 1188) :
+     (commitmentForms index).work ≤ commitmentFormsWork :=
+-  run_work_le 254260583 (by decide) index
++  run_work_le 254271653 (by decide) index
+ 
+ end NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCFirst54DirectPlan.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCFirst54DirectPlan.lean
+index c69f55e3..48a85d25 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCFirst54DirectPlan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCFirst54DirectPlan.lean
+@@ -34,7 +34,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+     PiRLCFirst54DirectSchedule.candidateCount
+ 
+ private theorem basePackage_constantColumn :
+-    basePackage.layout.constantColumn = 29336446 := by
++    basePackage.layout.constantColumn = 29336716 := by
+   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
+ 
+ private theorem rejectColumn_lt_basePackage
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCProductPlan.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCProductPlan.lean
+index 9c7d6b6a..d5bdfb20 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCProductPlan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCProductPlan.lean
+@@ -32,7 +32,7 @@ def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+   (PerApplicationPackage.package program).layout.totalColumnCount
+ 
+ def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+-  29336725 + PerApplicationPackage.directAddedPrivateColumnCount program
++  29336995 + PerApplicationPackage.directAddedPrivateColumnCount program
+ 
+ theorem directBaseSourceWidth_eq_baseSourceWidth
+     (program : Lifecycle.Stage1.Application.Program) :
+@@ -52,7 +52,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+     PiRLCProductSchedule.invocationCount
+ 
+ private theorem basePackage_constantColumn :
+-    basePackage.layout.constantColumn = 29336446 := by
++    basePackage.layout.constantColumn = 29336716 := by
+   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
+ 
+ private theorem commitmentLogicalStart_eq :
+@@ -78,10 +78,10 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
+     PerApplicationPackage.basePackage.layout.totalColumnCount +
+       PerApplicationPackage.addedPrivateColumnCount program
+   have constant :
+-      PerApplicationPackage.basePackage.layout.constantColumn = 29336446 :=
++      PerApplicationPackage.basePackage.layout.constantColumn = 29336716 :=
+     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
+   have total :
+-      PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725 :=
++      PerApplicationPackage.basePackage.layout.totalColumnCount = 29336995 :=
+     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+   rw [constant, total]
+   omega
+@@ -95,7 +95,7 @@ theorem shiftColumn_lt_baseSourceWidth
+   rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
+   change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
+   have total :
+-      PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725 :=
++      PerApplicationPackage.basePackage.layout.totalColumnCount = 29336995 :=
+     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+   rw [total] at bound ⊢
+   unfold PerApplicationPackage.shiftColumn
+@@ -117,7 +117,7 @@ theorem sourceToSpartan_lt_basePackage (column : Nat)
+     rw [Spartan.sourceColumnCount_eq]
+     omega
+   have mapped := Spartan.sourceToSpartan_lt column sourceBound
+-  have total : basePackage.layout.totalColumnCount = 29336725 := by
++  have total : basePackage.layout.totalColumnCount = 29336995 := by
+     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+   simpa only [total, Spartan.spartanColumnCount_eq] using mapped
+ 
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerOrdinaryRetainedGeometry.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerOrdinaryRetainedGeometry.lean
+index 9da6eb70..e9092ccc 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerOrdinaryRetainedGeometry.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCSamplerOrdinaryRetainedGeometry.lean
+@@ -29,7 +29,7 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat
+ 
+ @[simp] theorem completeLogicalWidth_eq
+     (program : Lifecycle.Stage1.Application.Program) :
+-    completeLogicalWidth program = 253944883 := by
++    completeLogicalWidth program = 253955953 := by
+   unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
+   rw [PiDECRetainedGeometry.completeLogicalWidth_eq,
+     PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_coordinateCount,
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotOrdinaryDirectPlan.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotOrdinaryDirectPlan.lean
+index d424b483..07c2ea10 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotOrdinaryDirectPlan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotOrdinaryDirectPlan.lean
+@@ -419,9 +419,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
+       PerApplicationPackage.basePackage.layout.totalColumnCount := by
+   have laneBound := (finalSlot lane).isLt
+   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
+-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
++      29336995 := Package.circuitPackage_layout_values.2.2.2.2
+   rw [priorLastWitnessStart_eq, total]
+-  change 7438682 + (584 + lane.val) < 29336725
++  change 7438682 + (584 + lane.val) < 29336995
+   omega
+ 
+ private theorem outputFinalColumn_bound (lane : Fin 4) :
+@@ -431,9 +431,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
+       PerApplicationPackage.basePackage.layout.totalColumnCount := by
+   have laneBound := (finalSlot lane).isLt
+   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
+-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
++      29336995 := Package.circuitPackage_layout_values.2.2.2.2
+   rw [outputLastWitnessStart_eq, total]
+-  change 14750146 + (584 + lane.val) < 29336725
++  change 14750146 + (584 + lane.val) < 29336995
+   omega
+ 
+ private theorem priorLastBlock_source
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotPoseidonPreservation.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotPoseidonPreservation.lean
+index 93f53e61..dcf5f9d4 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotPoseidonPreservation.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PilotPoseidonPreservation.lean
+@@ -48,9 +48,9 @@ private theorem constant_le_total :
+     PiRLCProductPlan.basePackage.layout.constantColumn ≤
+       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
+   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
+-      29336446 := Package.circuitPackage_layout_values.2.2.1
++      29336716 := Package.circuitPackage_layout_values.2.2.1
+   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
+-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
++      29336995 := Package.circuitPackage_layout_values.2.2.2.2
+   rw [constant, total]
+   omega
+ 
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Package.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Package.lean
+index 06d5eaaf..213801ab 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Package.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Package.lean
+@@ -138,7 +138,7 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
+     (by rw [retainedApplicationWordCount]; norm_num)
+ 
+ @[simp] theorem logicalWidth :
+-    PerApplicationFixedPoint.logicalWidth application = 254260583 := by
++    PerApplicationFixedPoint.logicalWidth application = 254271653 := by
+   unfold PerApplicationFixedPoint.logicalWidth
+   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
+     retainedApplicationWordCount]
+@@ -157,7 +157,7 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
+ 
+ @[simp] theorem physicalPackageTotalColumnCount :
+     (PerApplicationPackage.package application).layout.totalColumnCount =
+-      29344425 := by
++      29344695 := by
+   rw [PerApplicationPackage.package_totalColumnCount,
+     PerApplicationPackage.basePackage_totalColumnCount_eq,
+     addedPrivateColumnCount]
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Setup.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Setup.lean
+index 9c870ae3..25c65beb 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Setup.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Setup.lean
+@@ -31,12 +31,12 @@ def messageColumns : Nat :=
+     Phi81CarrierLayout.carrierWidth
+         (PerApplicationFixedPoint.logicalWidth
+           Poseidon2HashChainV1Package.application) =
+-      254260620 := by
++      254271690 := by
+   rw [Poseidon2HashChainV1Package.logicalWidth]
+   norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
+     ringDegree]
+ 
+-@[simp] theorem messageColumns_eq : messageColumns = 4708530 := by
++@[simp] theorem messageColumns_eq : messageColumns = 4708735 := by
+   unfold messageColumns
+   rw [carrierWidth_eq]
+   norm_num [Phi81ColumnLayout.blockCount, ringDegree]
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1SetupAuthority.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1SetupAuthority.lean
+index c8830a92..dcaa6bf0 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1SetupAuthority.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1SetupAuthority.lean
+@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec
+ 
+ def verifierRows : Nat := 22
+ 
+-def messageColumns : Nat := 4708530
++def messageColumns : Nat := 4708735
+ 
+ /-- Exact owner-approved operating-system CSPRNG output, in byte order. -/
+ def productionSeedBytes : List Nat :=
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionDirectPlan.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionDirectPlan.lean
+index a35094d5..453942f8 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionDirectPlan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionDirectPlan.lean
+@@ -407,7 +407,7 @@ private theorem mapped_lt_basePackage (source : Nat)
+     Spartan.sourceToSpartan source <
+       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
+   have mapped := Spartan.sourceToSpartan_lt source bound
+-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 :=
++  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336995 :=
+     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+   rw [total]
+   simpa [Spartan.spartanColumnCount] using mapped
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionRetainedBlocks.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionRetainedBlocks.lean
+index 1a6a2501..5cc50c1f 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionRetainedBlocks.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RunningTransitionRetainedBlocks.lean
+@@ -29,7 +29,7 @@ private theorem target_lt_basePackage (source : Nat)
+       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
+   have mapped := Spartan.sourceToSpartan_lt source bound
+   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
+-      29336725 :=
++      29336995 :=
+     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+   rw [total]
+   simpa [Spartan.spartanColumnCount] using mapped
+@@ -60,7 +60,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
+       change index.val < 11 at indexBound
+       rw [RunningTransitionSourceSupport.stateStart_eq,
+         Spartan.sourceColumnCount_eq]
+-      change 28 + index.val < 29336724
++      change 28 + index.val < 29336994
+       omega)
+ 
+ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
+@@ -72,7 +72,7 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
+       change index.val < 49393 at indexBound
+       rw [RunningTransitionSourceSupport.outputStart_eq,
+         Spartan.sourceColumnCount_eq]
+-      change 49663 + index.val < 29336724
++      change 49663 + index.val < 29336994
+       omega)
+ 
+ def roundC0Block (program : Lifecycle.Stage1.Application.Program) :
+@@ -114,7 +114,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
+       change index.val < 49248 at indexBound
+       rw [RunningTransitionSourceSupport.piDecStart_eq,
+         Spartan.sourceColumnCount_eq]
+-      change 28973248 + index.val < 29336724
++      change 28973248 + index.val < 29336994
+       omega)
+ 
+ def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
+index 3efbaa6d..f3504116 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/PiDEC/v1_1/Values.lean
+@@ -21,7 +21,7 @@ theorem Leaves.SignedSplitScalar.physicalRowCount_value :
+ 
+ theorem Leaves.SignedSplitScalar.physicalPrivateColumnCount_value :
+     Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount +
+-      Leaves.SignedSplitScalar.freshColumnCount = 67 := by rfl
++      Leaves.SignedSplitScalar.freshColumnCount = 68 := by rfl
+ 
+ theorem PublicInputSplit.freshColumnCount_value :
+     PublicInputSplit.freshColumnCount = 17820 := by rfl
+@@ -45,16 +45,16 @@ theorem exactRowDeltas_value :
+     exactRowDeltas = [0, 22680, 1188, 108, 1512, 0] := by rfl
+ 
+ theorem exactPhysicalColumnDeltas_value :
+-    exactPhysicalColumnDeltas = [0, 18090, 0, 0, 0, 0] := by rfl
++    exactPhysicalColumnDeltas = [0, 18360, 0, 0, 0, 0] := by rfl
+ 
+ theorem exactFreshCount_value : exactFreshCount = 17820 := by rfl
+ 
+ theorem exactRowCount_value : exactRowCount = 25488 := by rfl
+ 
+ theorem exactPrivateCount_value :
+-    Formal.logicalPrivateCount + exactFreshCount = 18090 := by
++    Formal.logicalPrivateCount + exactFreshCount = 18360 := by
+   rw [exactFreshCount_value]
+-  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 17820 = 18090
++  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 17820 = 18360
+   rw [Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount_eq]
+ 
+ variable {logicalWidth : Nat}
+@@ -68,7 +68,7 @@ theorem cumulativeFootprints_eq
+     cumulativePhysicalRows relation interface offset =
+         [0, 22680, 23868, 23976, 25488, 25488] ∧
+       cumulativePhysicalColumns relation interface offset =
+-        [0, 18090, 18090, 18090, 18090, 18090] ∧
++        [0, 18360, 18360, 18360, 18360, 18360] ∧
+       cumulativeJointDomains relation interface offset =
+         [0, 22680, 23868, 23976, 25488, 25488] := by
+   norm_num [cumulativePhysicalRows,
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean
+index ce56f768..6f599c52 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean
+@@ -68,7 +68,7 @@ def physicalColumnCount
+     (plan logicalWidth publicFits).firstFresh = logicalColumnCount := by
+   rfl
+ 
+-theorem logicalColumnCount_eq : logicalColumnCount = 29040587 := by
++theorem logicalColumnCount_eq : logicalColumnCount = 29040857 := by
+   rfl
+ 
+ theorem logicalColumnCount_eq_localLength
+@@ -120,7 +120,7 @@ theorem physicalColumnCount_eq
+     {publicFits : ringDegree * publicRingColumns ≤
+       Phi81CarrierLayout.carrierWidth logicalWidth}
+     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+-    physicalColumnCount logicalWidth publicFits = 29336724 := by
++    physicalColumnCount logicalWidth publicFits = 29336994 := by
+   rw [physicalColumnCount, R1CS.LoweringPlan.next_eq,
+     plan_firstFresh, logicalColumnCount_eq,
+     show (plan logicalWidth publicFits).freshColumnCount = 296137 from
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionSourceSupportData.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionSourceSupportData.lean
+index 1e8a937b..86be0a3a 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionSourceSupportData.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/RunningTransitionSourceSupportData.lean
+@@ -30,7 +30,7 @@ def piDecStart : Nat := PiDECInputs.proofInputStart
+ 
+ def piDecCount : Nat := PiDECInputs.proofInputColumnCount
+ 
+-def physicalEnd : Nat := 29336724
++def physicalEnd : Nat := 29336994
+ 
+ /-- Exact PiDEC child-message and public-input fields consumed by the
+ recursive branch. -/
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/Spartan.lean b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/Spartan.lean
+index 800f75bd..3e619243 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/Spartan.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/Spartan.lean
+@@ -49,10 +49,10 @@ def piCcsPhaseOffset : Nat := 14751804
+ def piCcsLocalStart : Nat := 14751526
+ 
+ /-- Exact private proof-input plus PiCCS-local and PiRLC-local suffix. -/
+-def appendedPrivateColumnCount : Nat := 14614208
++def appendedPrivateColumnCount : Nat := 14614478
+ 
+ /-- All source columns before Spartan inserts its constant column. -/
+-def SourceColumnCount : Nat := 29336724
++def SourceColumnCount : Nat := 29336994
+ 
+ /-- Public columns owned by the closed pilot. -/
+ def pilotPublicColumnCount : Nat := 274
+@@ -61,20 +61,20 @@ def pilotPublicColumnCount : Nat := 274
+ def publicColumnCount : Nat := 278
+ 
+ /-- The pilot-private prefix followed by all PiCCS columns. -/
+-def privateColumnCount : Nat := 29336446
++def privateColumnCount : Nat := 29336716
+ 
+-def constantColumn : Nat := 29336446
++def constantColumn : Nat := 29336716
+ 
+-def spartanColumnCount : Nat := 29336725
++def spartanColumnCount : Nat := 29336995
+ 
+ /-- First final public column owned by the verifier context. -/
+-def expectedContextPublicStart : Nat := 29336721
++def expectedContextPublicStart : Nat := 29336991
+ 
+ theorem appendedPrivateColumnCount_eq :
+-    appendedPrivateColumnCount = 14614208 := by
++    appendedPrivateColumnCount = 14614478 := by
+   rfl
+ 
+-theorem sourceColumnCount_eq : SourceColumnCount = 29336724 := by
++theorem sourceColumnCount_eq : SourceColumnCount = 29336994 := by
+   rfl
+ 
+ theorem pilotSourceColumnCount_matches :
+@@ -90,17 +90,17 @@ theorem pilotPrivateColumnCount_matches :
+ theorem publicColumnCount_eq : publicColumnCount = 278 := by
+   rfl
+ 
+-theorem privateColumnCount_eq : privateColumnCount = 29336446 := by
++theorem privateColumnCount_eq : privateColumnCount = 29336716 := by
+   rfl
+ 
+-theorem constantColumn_eq : constantColumn = 29336446 := by
++theorem constantColumn_eq : constantColumn = 29336716 := by
+   exact privateColumnCount_eq
+ 
+ theorem constantColumn_eq_private :
+     constantColumn = privateColumnCount := by
+   rfl
+ 
+-theorem spartanColumnCount_eq : spartanColumnCount = 29336725 := by
++theorem spartanColumnCount_eq : spartanColumnCount = 29336995 := by
+   rfl
+ 
+ theorem sourceColumnCount_decomposition :
+@@ -574,7 +574,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
+             privateColumnCount +
+                 (mapped - pilotPrivateColumnCount) <
+               expectedContextPublicStart := by
+-          change 29336446 + (mapped - 14722238) < 29336721
++          change 29336716 + (mapped - 14722238) < 29336991
+           omega
+         unfold spartanToSource
+         rw [if_neg notPilotPrivate, if_neg notProofInput,
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
+index 00ad5044..1c2d88d2 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean
+@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
+ open NightstreamFPrime.Spec
+ open NightstreamFPrime.Lifecycle.PaperAlgebra
+ 
+-theorem exactPrivateCount_eq : exactPrivateCount = 270 := by
++theorem exactPrivateCount_eq : exactPrivateCount = 540 := by
+   norm_num [exactPrivateCount, exactCoordinateCount,
+     SignedSplitScalar.exactPrivateCount, ringDegree, publicRingColumns]
+ 

@@ -239,11 +239,12 @@ theorem spartanInputsBelowConstant (env : Env) :
     outputInitialState := fun index => ?_ }
   all_goals
     simp only [spartanInterface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ Spartan.pilotPrivateColumnCount_le_constantColumn
   · norm_num [priorIterationSource, RunningTransitionInputs.iterationWordIndex,
       PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
       Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
       PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
-      Spartan.pilotInputPrivateColumnCount, Spartan.constantColumn]
+      Spartan.pilotInputPrivateColumnCount, Spartan.pilotPrivateColumnCount]
   · norm_num [outputIterationSource, RunningTransitionInputs.iterationWordIndex,
       PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
@@ -252,14 +253,14 @@ theorem spartanInputsBelowConstant (env : Env) :
       PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
       PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
       Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
-      Spartan.constantColumn]
+      Spartan.pilotPrivateColumnCount]
   · have bound := index.isLt
     norm_num [priorInitialStateSource,
       RunningTransitionInputs.initialStateWordStart, RunningTransition.stateWordCount,
       PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
       Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
       PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
-      Spartan.pilotInputPrivateColumnCount, Spartan.constantColumn] at bound ⊢
+      Spartan.pilotInputPrivateColumnCount, Spartan.pilotPrivateColumnCount] at bound ⊢
     split_ifs <;> omega
   · have bound := index.isLt
     norm_num [outputInitialStateSource,
@@ -271,7 +272,7 @@ theorem spartanInputsBelowConstant (env : Env) :
       PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
       PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
       Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
-      Spartan.constantColumn] at bound ⊢
+      Spartan.pilotPrivateColumnCount] at bound ⊢
     split_ifs <;> omega
 
 theorem spartanSpec_iff_sourceSpec (offset : Nat) (env : Env) :

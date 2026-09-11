@@ -485,18 +485,13 @@ theorem renameCombination_eval (column : Nat → Nat)
     (combination : R1CS.LinearCombination) (env : Env) :
     (renameCombination column combination).eval env =
       combination.eval (fun index => env (column index)) := by
-  cases combination
-  simp [renameCombination, R1CS.mapCombinationColumns,
-    R1CS.LinearCombination.eval, List.map_map,
-    Function.comp_def]
+  exact R1CS.mapCombinationColumns_eval column combination env
 
 theorem renameRow_holds (column : Nat → Nat) (row : R1CS.Row)
     (env : Env) :
     (renameRow column row).Holds env ↔
       row.Holds (fun index => env (column index)) := by
-  cases row
-  simp [renameRow, R1CS.mapRowColumns,
-    R1CS.Row.Holds, renameCombination_eval]
+  exact R1CS.mapRowColumns_holds column row env
 
 theorem rowsHold_map_renameRow (column : Nat → Nat)
     (rows : List R1CS.Row) (env : Env)

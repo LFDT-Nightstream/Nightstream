@@ -1,0 +1,175 @@
+{
+  "baseline_commit": "916f5d28f9a58d0ee01690b7b65f74b888c6d1ce",
+  "status": "Static, library, axiom and canonical identity gates passed",
+  "claim": "Derive the running-transition and Spartan column endpoints from one Layout owner. Keep default numeric corollaries outside the allocation data interfaces.",
+  "owners": {
+    "running_counts": "NightstreamFPrime/Layout/Stage1/RunningTransitionCost.lean",
+    "running_lowering": "NightstreamFPrime/Layout/Stage1/RunningTransitionLowering.lean",
+    "running_values": "NightstreamFPrime/Layout/Stage1/RunningTransitionValues.lean",
+    "spartan_map": "NightstreamFPrime/Layout/Stage1/Spartan.lean",
+    "spartan_values": "NightstreamFPrime/Layout/Stage1/SpartanValues.lean",
+    "column_map": "NightstreamFPrime/Layout/R1CS/ColumnMap.lean"
+  },
+  "interface": {
+    "namespace": "NightstreamFPrime.Layout.Stage1.RunningTransitionLayout",
+    "logicalColumnCount": "Moved unchanged to Cost: phaseOffset + RunningTransition.exactPrivateCount",
+    "exactFreshCount": "3 + RunningTransition.exactWordCount * 6 + RunningTransition.stateWordCount * 4",
+    "physicalEnd": "logicalColumnCount + exactFreshCount",
+    "theorems": [
+      "totalFreshCount_eq_exactFreshCount",
+      "physicalColumnCount_eq_physicalEnd"
+    ],
+    "spartan": "SourceColumnCount equals physicalEnd. Appended private count, private boundary, constant, public suffix and total columns derive from that endpoint and the existing pilot counts.",
+    "spartan_theorems": [
+      "sourceColumnCount_eq_physicalEnd",
+      "sourceColumnCount_ge_piDecPhaseOffset",
+      "proofInputColumnCount_le_appendedPrivateColumnCount",
+      "sourceToSpartan_sourceColumnCount",
+      "pilotPrivateColumnCount_le_constantColumn",
+      "spartanColumnCount_decomposition"
+    ],
+    "consumers": "Running-transition source support and DirectSource use the physical endpoint theorem. PiDEC support uses phase order and endpoint bounds. Application and NextPreimage bounds use the shared pilot-private lower bound."
+  },
+  "default_values": {
+    "logicalColumnCount": 29040587,
+    "physicalEnd_and_SourceColumnCount": 29336724,
+    "exactFreshCount": 296137,
+    "running_physical_rows": 345495,
+    "appendedPrivateColumnCount": 14614208,
+    "privateColumnCount_and_constantColumn": 29336446,
+    "spartanColumnCount": 29336725,
+    "expectedContextPublicStart": 29336721,
+    "preservation": "Existing public theorem statements, hypotheses and default values are unchanged. Endpoint value corollaries retain their names in the two Values modules.",
+    "simp_scope": "Default endpoint simp registrations exist only in Values modules. The relation-dependent physicalColumnCount_eq remains an explicit theorem. Core Spartan has only local simplification of fixed pilot counts."
+  },
+  "canonical_maps": {
+    "new_laws": [
+      "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_eval",
+      "NightstreamFPrime.Layout.R1CS.mapRowColumns_holds"
+    ],
+    "preservation": "Lowering shift wrappers use the existing canonical maps. CompactRows aliases and Spartan padding proofs use their laws. Constants, coefficient order, row order and pullback evaluation are unchanged; no injectivity premise is added."
+  },
+  "source_review": {
+    "result": "No material statement, assumption or representation change found in the source comparison with the baseline.",
+    "scope": "Existing public theorem headers were compared across moved owners. Consumer repairs use explicit wrapper simplification or shared bounds. This review does not replace the kernel and identity gates.",
+    "pins": "Protocol profile, seed, fixture identity and Rust pins are unchanged. The fresh canonical emitter matches structural, package and verifier-key pins.",
+    "audits": [
+      "tests/AxiomsStage1PiDEC.lean",
+      "tests/AxiomsStage1Application.lean"
+    ],
+    "audit_scope": "New endpoint and canonical map facts are registered. Existing moved numeric facts and public consumer audits are retained.",
+    "late_reviews": [
+      {
+        "log": "/tmp/nightstream-architecture-shared-endpoint-late-fix-review.md",
+        "sha256": "55e93254bc8d20a36430a49594cd3979e00481de0dd47e7ea8a75edc8c425ddd"
+      },
+      {
+        "log": "/tmp/nightstream-architecture-shared-endpoint-late-fix-review-extension.md",
+        "sha256": "539071222e3d7db094716323c610245e45e4b3ba20ac2f05fd5fb09856d23f49"
+      }
+    ],
+    "audit_inventory": {
+      "log": "/tmp/nightstream-architecture-shared-endpoint-audit-inventory.json",
+      "sha256": "8bdb0085ea11d0c19e673e0af336a39889f5600dcc60f32dafa660c32ce7ebf6",
+      "result": "No targets removed; 18 added once each; all moved corollaries retained. Existing duplicate multiplicities are unchanged."
+    }
+  },
+  "boundary_guard": {
+    "owner": "scripts/check-boundaries.sh",
+    "interfaces": [
+      "Spartan",
+      "PiDECSourceSupportData",
+      "RunningTransitionSourceSupportData",
+      "Lowering",
+      "CompactPullback"
+    ],
+    "scope": "Their transitive imports must exclude complete row owners, RunningTransitionLowering, SpartanValues and RunningTransitionValues. The final static gate passes.",
+    "negative_tests": [
+      {
+        "case": "direct_values",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData imports restricted owner NightstreamFPrime.Layout.Stage1.SpartanValues",
+        "log_sha256": "9efd5617dcb768a8c36f1dd9d1758c4647aeb5b417e31c5eca3be512ca0d3f98"
+      },
+      {
+        "case": "transitive_values",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.Spartan imports restricted owner NightstreamFPrime.Layout.Stage1.RunningTransitionValues",
+        "log_sha256": "2c324c6f24aa6c9a7bf03005af70156f476ecb19a4b7196431c721ca0bf0f178"
+      }
+    ],
+    "negative_scope": "Injected direct and transitive Values imports are rejected. Scratch source was restored. The transitive test injection also forms an import cycle; the earlier row-owner tests include an acyclic transitive case."
+  },
+  "source_import_reachability": {
+    "before_log": "/tmp/nightstream-architecture-shared-endpoint-radius-before.json",
+    "before_sha256": "04a260aa3e0e2b9ab0ea3f83646cadff9f17d7e7a5e67b3f44e7b98b9c3622ce",
+    "after_log": "/tmp/nightstream-architecture-shared-endpoint-radius-final.json",
+    "after_sha256": "14dd1c9f64e8d5c6fcb6fca47d204644a477eef6b6ed1a024a321250ee516fbe",
+    "before": {
+      "PiDECSourceSupportData": 278,
+      "RunningTransitionCost": 284,
+      "RunningTransitionLowering": 282,
+      "Spartan": 332
+    },
+    "after": {
+      "PiDECSourceSupportData": 278,
+      "RunningTransitionCost": 340,
+      "RunningTransitionLowering": 283,
+      "Spartan": 333
+    },
+    "scope": "Before and final source-import snapshots exclude each selected module itself. These are not measured rebuilds; the shared endpoint adds real dependencies on its owner.",
+    "conclusion": "No import-radius reduction or speed gain is established."
+  },
+  "allocation_evidence": {
+    "prior_record": "architecture/pidec-consumer-allocation.json",
+    "prior_scope": "At source 8b53b250, the extra-cell PiDECCommitmentMatrixEntry probe passed after the recorded affected parent and package value updates. It motivated this shared endpoint change.",
+    "current_slice": "The allocation probe has not established this new source slice. A full-library allocation pass and a single-edit geometry boundary remain open."
+  },
+  "gates": {
+    "static": {
+      "result": "passed",
+      "log": "/tmp/nightstream-architecture-shared-endpoint-final-static-11.log",
+      "log_sha256": "e38a9053b6890f116d43aca8ac3e6e78ec624f48cf8c0bb72d81e900fdcec874",
+      "last_lines": [
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[layout-interfaces] data interfaces exclude row plans and default-value proofs",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "log": "/tmp/nightstream-architecture-shared-endpoint-final-build-11.log",
+      "log_sha256": "e494feb782ef287222c44094289ffb12989274acce93bc2ec49740d0e555ad67",
+      "last_lines": [
+        "Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`",
+        "Build completed successfully (3815 jobs).",
+        "[bounded] exit=0 elapsed=1s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "log": "/tmp/nightstream-architecture-shared-endpoint-final-axioms-11.log",
+      "log_sha256": "3418875a2cd371ca25249e12c45ab4c59710e02e8a8b51fbeed04bd900d83da0",
+      "last_lines": [
+        " Quot.sound]",
+        "Build completed successfully (3922 jobs).",
+        "[bounded] exit=0 elapsed=7s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "log": "/tmp/nightstream-architecture-shared-endpoint-final-identity-11.log",
+      "log_sha256": "44790f00bb4ae758e5454bca455859830d4dbaa3be0972ad964ab2d861df907a",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.F1OVze.json",
+        "[bounded] exit=0 elapsed=130s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "remaining_scope": [
+    "Stage 1 physical plans, source projection and retained geometry still have Export owners, including PerApplicationPackage, PerApplicationSourceProjection and PiDECMatrixProgram.",
+    "Downstream package, retained-width, capacity and setup-value pins still require their own owner interfaces and allocation checks.",
+    "This checkpoint does not complete the broad physical compiler migration, Rust conformance or NIFS security, and does not approve the pending Fiat-Shamir model."
+  ]
+}

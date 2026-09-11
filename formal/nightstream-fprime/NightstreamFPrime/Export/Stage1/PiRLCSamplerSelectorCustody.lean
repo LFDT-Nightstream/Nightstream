@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns exact source-column custody for the First54 part of each retained PiRLC

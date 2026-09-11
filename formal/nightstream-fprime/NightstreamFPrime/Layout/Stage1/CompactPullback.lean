@@ -74,10 +74,12 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
       env (ApplicationInputs.inputColumn index) := by
   have privateBound : ApplicationInputs.inputColumn index <
       Spartan.constantColumn := by
+    apply Nat.lt_of_lt_of_le ?_ Spartan.pilotPrivateColumnCount_le_constantColumn
     rw [ApplicationInputs.inputColumn_value]
     have indexBound := index.isLt
     norm_num [Lifecycle.Stage1.Application.stateWordCount,
-      ApplicationInputs.currentWordStart, Spartan.constantColumn] at indexBound ⊢
+      ApplicationInputs.currentWordStart, Spartan.pilotPrivateColumnCount]
+      at indexBound ⊢
     omega
   unfold sourceEnv Spartan.pullback Lowering.basePullback
   change env (Lowering.shiftColumn program (ApplicationInputs.inputColumn index)) =
@@ -91,10 +93,11 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
       env (ApplicationInputs.outputColumn index) := by
   have privateBound : ApplicationInputs.outputColumn index <
       Spartan.constantColumn := by
+    apply Nat.lt_of_lt_of_le ?_ Spartan.pilotPrivateColumnCount_le_constantColumn
     rw [ApplicationInputs.outputColumn_value]
     have indexBound := index.isLt
     norm_num [Lifecycle.Stage1.Application.stateWordCount,
-      Spartan.constantColumn] at indexBound ⊢
+      Spartan.pilotPrivateColumnCount] at indexBound ⊢
     omega
   unfold sourceEnv Spartan.pullback Lowering.basePullback
   change env (Lowering.shiftColumn program (ApplicationInputs.outputColumn index)) =
@@ -107,11 +110,15 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     compactEnv program env (ApplicationInputs.inputSourceColumn index) =
       env (ApplicationInputs.inputColumn index) := by
   rw [compactEnv_source program env _ (by
+    apply PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
+    apply PiCCSOrdinarySourceSupport.external_source
+    apply PiCCSOrdinarySourceSupport.external_prior
     have indexBound := index.isLt
-    norm_num [ApplicationInputs.inputSourceColumn,
-      PilotProduction.priorPreimageStart, ApplicationInputs.currentWordStart,
-      Lifecycle.Stage1.Application.stateWordCount, Spartan.SourceColumnCount]
-      at indexBound ⊢
+    dsimp only [PiCCSOrdinarySourceSupport.InRange,
+      ApplicationInputs.inputSourceColumn]
+    rw [PilotProduction.stateHashWords_eq]
+    norm_num only [ApplicationInputs.currentWordStart,
+      Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega)]
   exact sourceEnv_applicationInput program env index
 
@@ -121,9 +128,15 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     compactEnv program env (ApplicationInputs.outputSourceColumn index) =
       env (ApplicationInputs.outputColumn index) := by
   rw [compactEnv_source program env _ (by
+    apply PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
+    apply PiCCSOrdinarySourceSupport.external_source
+    apply PiCCSOrdinarySourceSupport.external_output
     have indexBound := index.isLt
-    change 49698 + index.val < 29336724
-    norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound
+    dsimp only [PiCCSOrdinarySourceSupport.InRange,
+      ApplicationInputs.outputSourceColumn]
+    rw [PilotProduction.stateHashWords_eq]
+    norm_num only [ApplicationInputs.currentWordStart,
+      Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega)]
   exact sourceEnv_applicationOutput program env index
 

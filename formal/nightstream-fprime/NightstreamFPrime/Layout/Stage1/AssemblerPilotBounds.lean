@@ -1,5 +1,6 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the compact source bounds for the two pilot children in the Stage 1

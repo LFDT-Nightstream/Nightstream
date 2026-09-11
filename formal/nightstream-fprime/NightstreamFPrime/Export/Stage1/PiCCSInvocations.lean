@@ -3,6 +3,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
 
 /-!
@@ -939,8 +940,9 @@ theorem invocationCeiling_eq : invocationCeiling = 19332940 := by
 theorem invocationCeiling_le_private :
     invocationCeiling ≤
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
-  rw [invocationCeiling_eq]
-  norm_num [NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount]
+  rw [invocationCeiling_eq,
+    NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+  norm_num
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :

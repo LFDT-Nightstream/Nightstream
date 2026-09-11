@@ -216,7 +216,9 @@ theorem selectedOutputRunning_eq_running
     (PerApplicationFixedPoint.logicalWidth application)
     (PerApplicationFixedPoint.publicFits application))
   unfold StateDecoder.externalValues
-  congr 1
+  apply congrArg (fun words : Fin PilotProduction.stateHashWords → F =>
+    PilotProduction.ExternalValues.mk words (fun _ => 0)
+      (fun _ => 0) (fun _ => 0))
   funext word
   exact selectedOutputWord_eq_next application assignment word
 

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the executable source resolver and direct 14-matrix plan for the

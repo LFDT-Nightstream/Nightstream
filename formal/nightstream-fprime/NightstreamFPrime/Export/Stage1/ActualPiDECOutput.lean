@@ -88,7 +88,12 @@ theorem selectedRowsAndPublic_imply_decodedOutput :
   have computed := AccumulatorSemantics.keyOutput_eq_some_of_attempt relation ajtai env
     _ _ (ActualPiDECMessages.proof application fits assignment) _ _
     (AccumulatorInputs.output relation env) phase attempt
-    (AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput relation ajtai env phase)
+    (by
+      simpa only [Nifs.PaperNonInteractive.Key.outputForAttempt,
+        ActualPiDECMessages.proof, ActualStep.withDecodedPiCCS,
+        PiCCS.v1_1.Formal.evalProof, ActualPiDECMessages.sourceProof, relation, env]
+        using AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput
+          relation ajtai env phase)
   have agreement := congrArg
     (fun running => (ProductionKey.key relation ajtai).output
       running (ActualStep.decodedFresh application assignment)

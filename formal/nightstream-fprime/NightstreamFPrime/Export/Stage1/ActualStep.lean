@@ -287,13 +287,9 @@ theorem selectedRowsAndPublic_step_iff_baseOrNifs
       rw [nextHashPreimage_eq_next]
       exact hash
     · exact Nat.pos_of_ne_zero iterationZero
-    · change (decodedFresh application assignment).publicInputs ⟨0, by decide⟩ =
-        encHash (stateHash
-          (priorHashPreimage
-            (setup (PerApplicationFixedPoint.relation application fits) ajtai
-              (contextKey application assignment))
-            (input application fits assignment (decodedFresh application assignment) proof)))
+    · dsimp only [machineFor, machine]
       rw [priorHashPreimage_eq_prior]
+      dsimp only [input, decodedFresh]
       exact ActualPiCCSInputs.selectedRowsZero_implies_freshPublicHash
         application fits assignment one rows ⟨0, by decide⟩
     · dsimp only [HyperNova.NonInteractiveMultiFold.Accepts, setup, nifsVerifier,

@@ -142,5 +142,7 @@ import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Layout.MatrixProgram.SourceGridSupport
 import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 
 /-! Layout layer root. Lists the modules of this layer explicitly. -/

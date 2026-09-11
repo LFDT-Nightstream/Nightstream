@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the direct 14-matrix plan for the canonical PiRLC Phi81 product

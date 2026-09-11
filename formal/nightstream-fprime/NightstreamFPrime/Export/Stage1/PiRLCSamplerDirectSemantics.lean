@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerSelectorCustody
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the semantic composition from the direct retained PiRLC sampler plans to

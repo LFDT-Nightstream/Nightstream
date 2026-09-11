@@ -121,18 +121,7 @@ private theorem boundBase_expectedContext
           (expectedContextTargetBound lane)) =
       (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
   have shifted := shiftedExpectedContext application lane
-  change (if _inside : contextTargetStart application ≤
-        PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) ∧
-      PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) <
-        contextTargetStart application + 4 then
-      (verifierContextDigest fits commitmentSetup).getD
-        (PerApplicationPackage.shiftColumn application
-          (Spartan.expectedContextPublicStart + lane.val) -
-            contextTargetStart application) 0
-    else raw.base _) =
-      (verifierContextDigest fits commitmentSetup).getD lane.val 0
+  dsimp only [bind, bindContextBase, PiRLCProductPlan.shiftedPackageColumn]
   rw [dif_pos]
   · apply congrArg (fun index =>
       (verifierContextDigest fits commitmentSetup).getD index 0)

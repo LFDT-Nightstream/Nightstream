@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution
 import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns PiDEC values and its opaque phase contract on arbitrary accepted rows.
@@ -121,6 +122,14 @@ private theorem pointWord_eq_piCcs
   rw [Spartan.sourceColumnCount_eq]
   norm_num [PiRLCInputs.phaseOffset]
 
+private theorem point_eq_of_coordinates
+    {Field : Type} {variableCount : Nat}
+    (left right : CubePoint Field variableCount)
+    (coordinates : left.coordinates = right.coordinates) : left = right := by
+  cases left
+  cases right
+  simp_all
+
 /-- PiDEC retains the complete evaluation point from its PiCCS parent. Its
 arithmetic decoder cannot replace any point word with a zero or local value. -/
 theorem evalPoint_eq_piCcs
@@ -135,16 +144,18 @@ theorem evalPoint_eq_piCcs
           PiDECInputs.phaseOffset)
         (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv
           (PiDECRetainedGeometry.prefixGeometry geometry) assignment)) := by
-  unfold Lifecycle.PiDEC.v1_1.InputBinding.evalPoint
-    Lifecycle.PiRLC.v1_1.InputBinding.evalPoint
-    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint
-  congr 2
+  apply point_eq_of_coordinates
+  dsimp only [Lifecycle.PiDEC.v1_1.InputBinding.evalPoint,
+    Lifecycle.PiRLC.v1_1.InputBinding.evalPoint,
+    Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint]
+  apply congrArg List.ofFn
   funext coordinate
-  change ((RunningTransitionInputs.recursiveRunningExpr
-    relationLogicalWidth relationPublicFits).point coordinate).eval _ =
-    ((RunningTransitionInputs.recursiveRunningExpr
-      relationLogicalWidth relationPublicFits).point coordinate).eval _
-  rw [RunningTransitionInputs.recursivePoint_eq_direct]
+  have point := RunningTransitionInputs.recursivePoint_eq_direct
+    (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
+    coordinate
+  dsimp only [RunningTransitionInputs.recursiveRunningExpr,
+    RunningTransitionInputs.piDecInterface] at point
+  rw [point]
   simp only [RunningTransitionInputs.directRoundPoint, KExpr.eval]
   apply congrArg₂ K.mk
   · simpa only [RunningTransitionInputs.directRoundPoint, KExpr.eval, Expr.eval,

@@ -66,12 +66,12 @@ theorem completePhysicalRows
   apply NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
   · norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-  · norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
+  · rw [NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
       NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
       NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
       NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
       NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount,
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
   · exact sourceAgrees
   · exact sourceRows

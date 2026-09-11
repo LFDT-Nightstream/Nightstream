@@ -32,6 +32,8 @@ import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.WitnessPlan
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 
 /-! Axiom audits for the strict production PiDEC public split. -/
 
@@ -423,3 +425,20 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_matches
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_bounds
+
+-- Shared endpoint and the default-profile endpoint checks.
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_eq_physicalEnd
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_ge_piDecPhaseOffset
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount_le_appendedPrivateColumnCount
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_sourceColumnCount
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalFreshCount_eq_exactFreshCount
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.physicalColumnCount_eq_physicalEnd
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.appendedPrivateColumnCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.constantColumn_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_bound
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.logicalColumnCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_decomposition

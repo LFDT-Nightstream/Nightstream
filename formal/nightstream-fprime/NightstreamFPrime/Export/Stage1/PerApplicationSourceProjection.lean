@@ -201,7 +201,7 @@ private theorem pilot_column_private (program : Program) (column : Nat)
   have notInput : ¬ column < Spartan.pilotInputPrivateColumnCount := by omega
   have lifted : Spartan.liftPilotColumn column =
       column + Spartan.proofInputColumnCount := by
-    simp [Spartan.liftPilotColumn, notInput, privateColumn]
+    simp only [Spartan.liftPilotColumn, if_neg notInput, if_pos privateColumn]
   have belowBase :
       column + Spartan.proofInputColumnCount <
         PerApplicationPackage.basePackage.layout.constantColumn := by

@@ -160,3 +160,23 @@ contains the exact source commit and pin patch. This confirms the pilot through
 its real consumer. It does not establish a full-library allocation pass or
 a single-edit geometry boundary. The copied values are the next dependency
 to remove; the production profile and package identity remain unchanged.
+
+## Shared column endpoint
+
+`RunningTransitionCost` now owns the logical endpoint, exact fresh count and
+physical endpoint. Spartan derives its private and public boundaries from that
+endpoint. Source support and application bounds use the shared count and order
+theorems. Default numeric corollaries retain their public statements in
+`RunningTransitionValues` and `SpartanValues`; the guarded data interfaces
+exclude both modules. Canonical column-map laws serve the existing lowering,
+compact-row and padding operations without a new representation.
+
+The [shared endpoint record](architecture/shared-endpoint.json) uses source base
+`916f5d28`. Static, library, axiom and canonical identity gates pass. Existing
+public hypotheses and default pins are unchanged. Saved import snapshots show
+no radius reduction; they do not measure rebuilds. The earlier extra-cell
+consumer pass is separate from validation of this source change.
+
+The full physical compiler migration remains open. Stage 1 plans, source
+projection, retained geometry and downstream package values still have Export
+owners. This checkpoint does not approve the pending security model.

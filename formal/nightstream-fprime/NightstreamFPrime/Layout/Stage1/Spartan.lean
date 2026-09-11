@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
+import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 
 /-!
 Obligation: Permute the current source layout through the running transition
@@ -48,34 +49,35 @@ def piCcsPhaseOffset : Nat := 14751804
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
 def piCcsLocalStart : Nat := 14751526
 
-/-- Exact private proof-input plus PiCCS-local and PiRLC-local suffix. -/
-def appendedPrivateColumnCount : Nat := 14614208
-
 /-- All source columns before Spartan inserts its constant column. -/
-def SourceColumnCount : Nat := 29336724
+def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
+
+/-- Private columns appended after the fixed pilot and verifier context. -/
+def appendedPrivateColumnCount : Nat :=
+  SourceColumnCount - (pilotSourceColumnCount + expectedContextColumnCount)
 
 /-- Public columns owned by the closed pilot. -/
 def pilotPublicColumnCount : Nat := 274
 
 /-- Pilot public columns followed by four verifier-context words. -/
-def publicColumnCount : Nat := 278
+def publicColumnCount : Nat :=
+  pilotPublicColumnCount + expectedContextColumnCount
 
 /-- The pilot-private prefix followed by all PiCCS columns. -/
-def privateColumnCount : Nat := 29336446
+def privateColumnCount : Nat :=
+  pilotPrivateColumnCount + appendedPrivateColumnCount
 
-def constantColumn : Nat := 29336446
+def constantColumn : Nat := privateColumnCount
 
-def spartanColumnCount : Nat := 29336725
+def spartanColumnCount : Nat := SourceColumnCount + 1
 
 /-- First final public column owned by the verifier context. -/
-def expectedContextPublicStart : Nat := 29336721
+def expectedContextPublicStart : Nat :=
+  privateColumnCount + 1 + pilotPublicColumnCount
 
-theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 14614208 := by
-  rfl
-
-theorem sourceColumnCount_eq : SourceColumnCount = 29336724 := by
-  rfl
+-- Normalize the fixed pilot prefix; keep the appended allocation symbolic.
+attribute [local simp] pilotPrivateColumnCount pilotSourceColumnCount
+  expectedContextColumnCount pilotPublicColumnCount
 
 theorem pilotSourceColumnCount_matches :
     pilotSourceColumnCount = PilotSpartan.SourceColumnCount := by
@@ -90,35 +92,76 @@ theorem pilotPrivateColumnCount_matches :
 theorem publicColumnCount_eq : publicColumnCount = 278 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 29336446 := by
-  rfl
-
-theorem constantColumn_eq : constantColumn = 29336446 := by
-  exact privateColumnCount_eq
-
 theorem constantColumn_eq_private :
     constantColumn = privateColumnCount := by
   rfl
 
-theorem spartanColumnCount_eq : spartanColumnCount = 29336725 := by
-  rfl
+/-- The map consumes the physical endpoint certified by the running owner. -/
+theorem sourceColumnCount_eq_physicalEnd :
+    SourceColumnCount = RunningTransitionLayout.physicalEnd := by rfl
+
+/-- The PiDEC input phase precedes the final physical source endpoint. -/
+theorem sourceColumnCount_ge_piDecPhaseOffset :
+    PiDECInputs.phaseOffset ≤ SourceColumnCount := by
+  apply Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
+  dsimp only [SourceColumnCount, RunningTransitionLayout.physicalEnd,
+    RunningTransitionLayout.logicalColumnCount]
+  omega
+
+private theorem piCcsPhaseOffset_le_sourceColumnCount :
+    piCcsPhaseOffset ≤ SourceColumnCount := by
+  exact Nat.le_trans (by decide : piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
+    sourceColumnCount_ge_piDecPhaseOffset
+
+/-- The appended private interval includes every PiCCS proof input. -/
+theorem proofInputColumnCount_le_appendedPrivateColumnCount :
+    proofInputColumnCount ≤ appendedPrivateColumnCount := by
+  have bound := piCcsPhaseOffset_le_sourceColumnCount
+  unfold appendedPrivateColumnCount
+  norm_num [piCcsPhaseOffset, proofInputColumnCount,
+    pilotSourceColumnCount, expectedContextColumnCount] at bound ⊢
+  omega
 
 theorem sourceColumnCount_decomposition :
     SourceColumnCount =
       pilotSourceColumnCount + expectedContextColumnCount +
         appendedPrivateColumnCount := by
-  norm_num [SourceColumnCount, pilotSourceColumnCount,
-    expectedContextColumnCount, appendedPrivateColumnCount]
+  have bound := piCcsPhaseOffset_le_sourceColumnCount
+  unfold appendedPrivateColumnCount
+  norm_num [piCcsPhaseOffset, pilotSourceColumnCount,
+    expectedContextColumnCount] at bound ⊢
+  omega
 
 theorem privateColumnCount_decomposition :
     privateColumnCount =
       pilotPrivateColumnCount + appendedPrivateColumnCount := by
-  norm_num [privateColumnCount, pilotPrivateColumnCount,
-    appendedPrivateColumnCount]
+  rfl
 
 theorem sourceColumnCount_add_constant :
     spartanColumnCount = SourceColumnCount + 1 := by
-  rw [sourceColumnCount_eq, spartanColumnCount_eq]
+  rfl
+
+/-- The final order is private columns, one constant, then public columns. -/
+theorem spartanColumnCount_decomposition :
+    spartanColumnCount = privateColumnCount + 1 + publicColumnCount := by
+  rw [sourceColumnCount_add_constant, sourceColumnCount_decomposition]
+  norm_num [privateColumnCount, publicColumnCount]
+  omega
+
+/-- Extending the private suffix preserves the completed pilot interval. -/
+theorem pilotPrivateColumnCount_le_constantColumn :
+    pilotPrivateColumnCount ≤ constantColumn := by
+  rw [constantColumn_eq_private, privateColumnCount_decomposition]
+  exact Nat.le_add_right _ _
+
+private theorem contextColumn_lt (column : Nat)
+    (bound : column < proofInputSourceStart) :
+    expectedContextPublicStart + (column - pilotSourceColumnCount) <
+      spartanColumnCount := by
+  norm_num [expectedContextPublicStart, privateColumnCount,
+    spartanColumnCount, sourceColumnCount_decomposition,
+    proofInputSourceStart] at bound ⊢
+  omega
 
 /-- Relocate one pilot-Spartan column into the combined Spartan layout. -/
 def liftPilotColumn (column : Nat) : Nat :=
@@ -165,11 +208,14 @@ theorem liftPilotColumn_add_of_public (start offset : Nat)
 theorem liftPilotColumn_lt (column : Nat)
     (bound : column < PilotSpartan.spartanColumnCount) :
     liftPilotColumn column < spartanColumnCount := by
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [proofInputColumnCount] at appendedBound
   rw [PilotSpartan.spartanColumnCount_value] at bound
   unfold liftPilotColumn
   split
   all_goals try split
   all_goals (norm_num [privateColumnCount, spartanColumnCount,
+      sourceColumnCount_decomposition,
       pilotPrivateColumnCount, pilotInputPrivateColumnCount,
       proofInputColumnCount] at *; omega)
 
@@ -177,6 +223,8 @@ theorem liftPilotColumn_ne_constant (column : Nat)
     (bound : column < PilotSpartan.spartanColumnCount)
     (notConstant : column ≠ PilotSpartan.constantColumn) :
     liftPilotColumn column ≠ constantColumn := by
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [proofInputColumnCount] at appendedBound
   rw [PilotSpartan.spartanColumnCount_value] at bound
   rw [PilotSpartan.constantColumn_value] at notConstant
   unfold liftPilotColumn
@@ -196,6 +244,21 @@ def sourceToSpartan (column : Nat) : Nat :=
     pilotInputPrivateColumnCount + (column - proofInputSourceStart)
   else
     piCcsLocalStart + (column - piCcsPhaseOffset)
+
+/-- The endpoint of the source private interval maps to the constant boundary. -/
+theorem sourceToSpartan_sourceColumnCount :
+    sourceToSpartan SourceColumnCount = privateColumnCount := by
+  have bound := piCcsPhaseOffset_le_sourceColumnCount
+  unfold sourceToSpartan
+  rw [if_neg (by norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *; omega),
+    if_neg (by norm_num [proofInputSourceStart, piCcsPhaseOffset] at *; omega),
+    if_neg (by omega)]
+  rw [sourceColumnCount_decomposition]
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [piCcsLocalStart, piCcsPhaseOffset, pilotSourceColumnCount,
+    expectedContextColumnCount, privateColumnCount, pilotPrivateColumnCount,
+    proofInputColumnCount] at appendedBound ⊢
+  omega
 
 /-- Each verifier-context source word maps to its matching public lane. -/
 theorem sourceToSpartan_expectedContext (lane : Fin 4) :
@@ -344,7 +407,7 @@ theorem sourceToSpartan_before_piCcsPhase (column : Nat)
   · by_cases context : column < proofInputSourceStart
     · rw [sourceToSpartan, if_neg pilot, if_pos context]
       exact Or.inr (by
-        norm_num [expectedContextPublicStart, privateColumnCount] at *
+        norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount] at *
         omega)
     · rw [sourceToSpartan, if_neg pilot, if_neg context, if_pos before]
       exact Or.inl (by
@@ -442,6 +505,8 @@ def spartanToSource (column : Nat) : Option Nat :=
 
 theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
     sourceToSpartan column < spartanColumnCount := by
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [proofInputColumnCount] at appendedBound
   unfold sourceToSpartan
   split
   · have pilotBound : column < PilotSpartan.SourceColumnCount := by
@@ -451,15 +516,18 @@ theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
       (PilotSpartan.sourceToSpartan_lt column pilotBound)
   · split
     all_goals try split
-    all_goals rw [sourceColumnCount_eq] at bound
+    all_goals rw [sourceColumnCount_decomposition] at bound
     all_goals (norm_num [pilotSourceColumnCount,
       pilotInputPrivateColumnCount, proofInputSourceStart,
       piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart,
-      spartanColumnCount] at *; omega)
+      privateColumnCount, spartanColumnCount,
+      sourceColumnCount_decomposition] at *; omega)
 
 theorem sourceToSpartan_ne_constant (column : Nat)
     (bound : column < SourceColumnCount) :
     sourceToSpartan column ≠ constantColumn := by
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [proofInputColumnCount] at appendedBound
   unfold sourceToSpartan
   split
   · have pilotBound : column < PilotSpartan.SourceColumnCount := by
@@ -470,15 +538,17 @@ theorem sourceToSpartan_ne_constant (column : Nat)
       (PilotSpartan.sourceToSpartan_ne_constant column pilotBound)
   · split
     all_goals try split
-    all_goals rw [sourceColumnCount_eq] at bound
+    all_goals rw [sourceColumnCount_decomposition] at bound
     all_goals (norm_num [pilotSourceColumnCount,
       pilotInputPrivateColumnCount, proofInputSourceStart,
-      piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart,
+      piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart, privateColumnCount,
       constantColumn] at *; omega)
 
 theorem spartanToSource_sourceToSpartan (column : Nat)
     (bound : column < SourceColumnCount) :
     spartanToSource (sourceToSpartan column) = some column := by
+  have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
+  norm_num [proofInputColumnCount] at appendedBound
   by_cases pilot : column < pilotSourceColumnCount
   · have pilotBound : column < PilotSpartan.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
@@ -574,7 +644,8 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             privateColumnCount +
                 (mapped - pilotPrivateColumnCount) <
               expectedContextPublicStart := by
-          change 29336446 + (mapped - 14722238) < 29336721
+          norm_num [expectedContextPublicStart, pilotPublicColumnCount,
+            pilotPrivateColumnCount]
           omega
         unfold spartanToSource
         rw [if_neg notPilotPrivate, if_neg notProofInput,
@@ -595,30 +666,30 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           ¬(expectedContextPublicStart +
               (column - pilotSourceColumnCount) <
             pilotInputPrivateColumnCount) := by
-        norm_num [expectedContextPublicStart,
+        norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount,
           pilotInputPrivateColumnCount]
         omega
       have notProofInput :
           ¬(expectedContextPublicStart +
               (column - pilotSourceColumnCount) <
             pilotInputPrivateColumnCount + proofInputColumnCount) := by
-        norm_num [expectedContextPublicStart,
+        norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount,
           pilotInputPrivateColumnCount, proofInputColumnCount]
         omega
       have notShiftedPilot :
           ¬(expectedContextPublicStart +
               (column - pilotSourceColumnCount) < piCcsLocalStart) := by
-        norm_num [expectedContextPublicStart, piCcsLocalStart]
+        norm_num [expectedContextPublicStart, privateColumnCount, piCcsLocalStart]
         omega
       have notCombinedPrivate :
           ¬(expectedContextPublicStart +
               (column - pilotSourceColumnCount) < privateColumnCount) := by
-        norm_num [expectedContextPublicStart, privateColumnCount]
+        norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount]
         omega
       have notCombinedConstant :
           expectedContextPublicStart +
               (column - pilotSourceColumnCount) ≠ constantColumn := by
-        norm_num [expectedContextPublicStart, constantColumn]
+        norm_num [expectedContextPublicStart, constantColumn, privateColumnCount]
         omega
       have notPilotPublic :
           ¬(expectedContextPublicStart +
@@ -628,9 +699,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
       have contextBound :
           expectedContextPublicStart +
               (column - pilotSourceColumnCount) < spartanColumnCount := by
-        norm_num [expectedContextPublicStart, spartanColumnCount,
-          proofInputSourceStart, pilotSourceColumnCount] at *
-        omega
+        exact contextColumn_lt column context
       unfold spartanToSource
       rw [if_neg notPilotInput, if_neg notProofInput,
         if_neg notShiftedPilot, if_neg notCombinedPrivate,
@@ -679,7 +748,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
         have localBound :
             piCcsLocalStart + (column - piCcsPhaseOffset) <
               privateColumnCount := by
-          rw [sourceColumnCount_eq] at bound
+          rw [sourceColumnCount_decomposition] at bound
           norm_num [piCcsLocalStart, piCcsPhaseOffset,
             privateColumnCount] at *
           omega
@@ -848,10 +917,6 @@ def paddedSpartanColumnCount : Nat :=
 
 theorem domainSize_eq : domainSize = 268435456 := by
   norm_num [domainSize, cubeVariables]
-
-theorem privateColumnCount_bound : privateColumnCount ≤ domainSize := by
-  rw [privateColumnCount_eq, domainSize_eq]
-  norm_num
 
 /-- Move the unpadded constant and public suffix after the private domain. -/
 def spartanToPadded (column : Nat) : Nat :=

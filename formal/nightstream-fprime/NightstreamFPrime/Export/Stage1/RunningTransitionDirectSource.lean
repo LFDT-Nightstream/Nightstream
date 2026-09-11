@@ -54,7 +54,8 @@ theorem sourceRows_varsBelow
   intro row member
   have scope := RunningTransitionLayout.physicalRows_varsBelow relation
     row member
-  rw [RunningTransitionLayout.physicalColumnCount_eq relation] at scope
+  rw [RunningTransitionLayout.physicalColumnCount_eq_physicalEnd relation,
+    ← Spartan.sourceColumnCount_eq_physicalEnd] at scope
   exact scope
 
 theorem sourceRows_rowCount_le

@@ -43,7 +43,9 @@ theorem evalRunning_eq_priorRunning
   unfold StateDecoder.running
   apply congrArg (PiCCSInputs.decodedRunning relationLogicalWidth relationPublicFits)
   unfold StateDecoder.externalValues
-  congr 1
+  apply congrArg (fun words : Fin PilotProduction.stateHashWords → F =>
+    PilotProduction.ExternalValues.mk words (fun _ => 0)
+      (fun _ => 0) (fun _ => 0))
   funext word
   exact ActualPreimageFraming.priorWord_eq geometry assignment word
 
@@ -60,7 +62,11 @@ theorem evalFreshPublic_eq_priorPublic
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment))).publicInputs source =
       ActualHashSlots.publicInput geometry assignment := by
   funext column
-  exact (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
+  simpa only [PiCCS.v1_1.Formal.evalFresh, PiCCSInvocations.parentInterface,
+    PiCCSInputs.interface, PiCCS.v1_1.StatementAbsorption.evalFresh,
+    PiCCSInputs.freshExpr, PiCCSInputs.freshPublicInput,
+    ActualHashSlots.publicInput, PilotProduction.priorInterface, Expr.eval_var]
+    using (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
 
 /-- The selected rows bind each PiCCS fresh public input to the hash of the
 same decoded prior state that supplies its running claim. -/

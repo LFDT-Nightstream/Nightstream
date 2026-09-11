@@ -29,8 +29,7 @@ theorem physicalRows_varsSatisfy
       physicalEnd := by
     change RunningTransitionLayout.physicalColumnCount logicalWidth publicFits =
       physicalEnd
-    rw [RunningTransitionLayout.physicalColumnCount_eq relation]
-    rfl
+    exact RunningTransitionLayout.physicalColumnCount_eq_physicalEnd relation
   have phaseLtEnd : phaseOffset < physicalEnd := by
     have next := R1CS.LoweringPlan.next_eq
       (RunningTransitionLayout.plan logicalWidth publicFits)

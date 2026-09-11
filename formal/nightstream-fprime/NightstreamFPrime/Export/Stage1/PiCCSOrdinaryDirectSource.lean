@@ -68,8 +68,8 @@ theorem sourceRows_varsBelow
   rw [endEq] at loweredScope
   intro row member
   exact R1CS.Row.VarsBelow.mono row (loweredScope row member) (by
-    norm_num [NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
-      Spartan.SourceColumnCount])
+    rw [Spartan.sourceColumnCount_eq]
+    norm_num [NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset])
 
 theorem sourceRows_rowCount_le
     {logicalWidth : Nat}

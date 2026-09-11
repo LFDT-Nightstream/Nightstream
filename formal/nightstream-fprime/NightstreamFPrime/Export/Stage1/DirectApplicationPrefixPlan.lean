@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the ordered direct 14-matrix plan through one verifier-selected

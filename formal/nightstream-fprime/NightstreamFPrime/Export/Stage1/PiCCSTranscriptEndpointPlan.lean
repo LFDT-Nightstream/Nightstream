@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns 32 zero-pin rows that bind the four direct PiCCS transcript endpoint

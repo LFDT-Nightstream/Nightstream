@@ -81,7 +81,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
         change (selectedIndex priorPcValid).val = 0
         omega
       rw [selected] at selectedNifs
-      change input.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash prior) at priorPublic
+      dsimp only [Lifecycle.machineFor, Lifecycle.machine] at priorPublic
       have digest : ProductionKey.priorDigest input.fresh = stateHash prior := by
         unfold ProductionKey.priorDigest
         rw [priorPublic]

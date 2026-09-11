@@ -4,6 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBindingSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns ordered witness composition for the compact eight-child Stage 1 logical

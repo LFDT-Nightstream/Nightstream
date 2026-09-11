@@ -13,6 +13,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
+import NightstreamFPrime.Layout.R1CS.ColumnMap
 
 /-! Axiom audits for the verifier-owned Stage 1 application contract. -/
 
@@ -145,6 +146,10 @@ import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 #audit_axioms NightstreamFPrime.Layout.R1CS.mapCombinationColumns_ofVar
 #audit_axioms NightstreamFPrime.Layout.R1CS.mapCombinationColumns_add
 #audit_axioms NightstreamFPrime.Layout.R1CS.mapCombinationColumns_scale
+#audit_axioms NightstreamFPrime.Layout.R1CS.mapCombinationColumns_eval
+#audit_axioms NightstreamFPrime.Layout.R1CS.mapRowColumns_holds
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.renameCombination_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.renameRow_holds
 #audit_axioms NightstreamFPrime.Export.Package.instantiateCombination_mapColumns
 #audit_axioms NightstreamFPrime.Export.Package.instantiateInvocationCombination_mapColumns
 #audit_axioms NightstreamFPrime.Export.Package.instantiateCompactCombination_mapColumns

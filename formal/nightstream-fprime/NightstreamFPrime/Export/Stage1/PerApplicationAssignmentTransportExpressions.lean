@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns expression-level value preservation for the sealed assignment transport.

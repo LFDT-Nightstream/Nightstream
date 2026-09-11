@@ -91,7 +91,7 @@ if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
   fail "physical declaration returned to the MatrixProgram codec owner"
 fi
 
-# The PiDEC allocation pilot's data interfaces must not import complete row plans.
+# Allocation data interfaces must not import row plans or default-value proofs.
 if ! timeout --signal=KILL 300s python3 -B - <<'PY'
 from pathlib import Path
 import sys
@@ -100,23 +100,26 @@ from rebuild_radius import graph, dependents
 
 prefix = 'NightstreamFPrime.Layout.Stage1.'
 interfaces = {prefix + name for name in
-              ('Spartan', 'PiDECSourceSupportData', 'Lowering', 'CompactPullback')}
-row_owners = ('SpartanRows', 'LoweringRows', 'RunningTransitionLowering',
-              'PilotPiCCSPiRLCPiDECRunningTransition', 'AssemblerApplicationCompleteness')
+              ('Spartan', 'PiDECSourceSupportData', 'RunningTransitionSourceSupportData',
+               'Lowering', 'CompactPullback')}
+restricted_owners = ('SpartanRows', 'LoweringRows', 'RunningTransitionLowering',
+                     'PilotPiCCSPiRLCPiDECRunningTransition',
+                     'AssemblerApplicationCompleteness', 'SpartanValues',
+                     'RunningTransitionValues')
 edges, _ = graph(Path('.'))
 failures = []
-for name in row_owners:
+for name in restricted_owners:
     owner = prefix + name
     for interface in sorted(interfaces.intersection(dependents(edges, owner))):
-        failures.append(f'{interface} imports complete row owner {owner}')
+        failures.append(f'{interface} imports restricted owner {owner}')
 if failures:
     for failure in failures:
         print('[layout-interfaces] ' + failure, file=sys.stderr)
     raise SystemExit(1)
-print('[layout-interfaces] PiDEC data interfaces exclude complete row plans')
+print('[layout-interfaces] data interfaces exclude row plans and default-value proofs')
 PY
 then
-  fail "complete row plans crossed the PiDEC data interface boundary"
+  fail "row plans or default-value proofs crossed an allocation data interface"
 fi
 
 # 9. Every source module must be reachable from one declared library or

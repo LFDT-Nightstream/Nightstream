@@ -2,6 +2,7 @@ import NightstreamFPrime.Layout.Stage1.AssemblerCompleteness
 import NightstreamFPrime.Layout.Stage1.AssemblerSoundness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PhaseDeterminism
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the exact PiCCS-to-PiRLC semantic transport and the next opaque-child

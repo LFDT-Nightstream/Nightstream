@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns transport from retained PiCCS S-box coordinates to physical output

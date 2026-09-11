@@ -778,6 +778,7 @@ private theorem piDecPoint_eq
           coordinate)
   rw [pointEq]
   unfold RunningTransitionInputs.directRoundPoint Circuit.Quadratic.KExpr.eval
+  simp only [Expr.eval_var]
   apply congrArg₂ K.mk
   · exact commonEnv_eq_transitionEnv_of_source raw _ (roundC0Source coordinate)
   · exact commonEnv_eq_transitionEnv_of_source raw _ (roundC1Source coordinate)

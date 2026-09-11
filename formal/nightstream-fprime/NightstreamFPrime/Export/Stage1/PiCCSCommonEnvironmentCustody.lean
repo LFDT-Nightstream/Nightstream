@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSupport
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns exact environment custody for PiCCS ordinary rows in the complete PiRLC

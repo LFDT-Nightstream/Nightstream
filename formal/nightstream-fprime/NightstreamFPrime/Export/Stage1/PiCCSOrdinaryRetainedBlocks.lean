@@ -3,6 +3,7 @@ import NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the retained field blocks and shared preimage views for PiCCS ordinary

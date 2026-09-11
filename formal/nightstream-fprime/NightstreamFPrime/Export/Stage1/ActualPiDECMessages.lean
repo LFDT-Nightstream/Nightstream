@@ -104,7 +104,12 @@ theorem attemptForParent_eq
   let relation := PerApplicationFixedPoint.relation application fits
   let env := Spartan.pullback (ActualPiDEC.decodedEnv
     (ActualPiDEC.selectedGeometry application) assignment)
-  exact (AccumulatorSemantics.piDecAttempt_eq_keyAttemptForParent relation ajtai env).symm
+  have boundary :=
+    (AccumulatorSemantics.piDecAttempt_eq_keyAttemptForParent relation ajtai env).symm
+  rw [← AccumulatorSemantics.piDecParent_eq_piRlcOutput] at boundary
+  simpa only [Nifs.PaperNonInteractive.Key.piDecAttemptForParent, proof,
+    ActualStep.withDecodedPiCCS, PiCCS.v1_1.Formal.evalProof, sourceProof,
+    attempt, PiDECArithmetic.phaseInterface, relation, env] using boundary
 
 /-- Exact parent equality is the remaining input to the production key's
 optional attempt. Its message fields are already fixed by the assignment. -/

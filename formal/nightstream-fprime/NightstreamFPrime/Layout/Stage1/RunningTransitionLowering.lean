@@ -12,9 +12,6 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def logicalColumnCount : Nat :=
-  phaseOffset + RunningTransition.exactPrivateCount
-
 def plan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -68,9 +65,6 @@ def physicalColumnCount
     (plan logicalWidth publicFits).firstFresh = logicalColumnCount := by
   rfl
 
-theorem logicalColumnCount_eq : logicalColumnCount = 29040587 := by
-  rfl
-
 theorem logicalColumnCount_eq_localLength
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -115,15 +109,19 @@ theorem physicalRows_length
       physicalRowCount logicalWidth publicFits := by
   rfl
 
-theorem physicalColumnCount_eq
+/-- Each running plan ends at the shared physical endpoint. -/
+theorem physicalColumnCount_eq_physicalEnd
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount logicalWidth publicFits = 29336724 := by
+    physicalColumnCount logicalWidth publicFits = physicalEnd := by
   rw [physicalColumnCount, R1CS.LoweringPlan.next_eq,
-    plan_firstFresh, logicalColumnCount_eq,
-    show (plan logicalWidth publicFits).freshColumnCount = 296137 from
-      physicalFreshColumnCount_eq relation]
+    plan_firstFresh]
+  change logicalColumnCount +
+      R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
+    logicalColumnCount + exactFreshCount
+  exact congrArg (fun count => logicalColumnCount + count)
+    (totalFreshCount_eq_exactFreshCount relation)
 
 end NightstreamFPrime.Layout.Stage1.RunningTransitionLayout

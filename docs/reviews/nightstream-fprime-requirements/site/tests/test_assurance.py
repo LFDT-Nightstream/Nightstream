@@ -55,7 +55,7 @@ class AssuranceTests(unittest.TestCase):
         nodes = {n['id']: n for n in DATA['nodes']}
         self.assertEqual(nodes['N.conformance.chain']['rust'], 'tested_scoped')
         self.assertEqual(nodes['P.assurance.full_native_chain']['connection'], 'open')
-        self.assertEqual(nodes['N.security.binding']['connection'], 'partial')
+        self.assertEqual(nodes['N.security.binding']['connection'], 'connected')
         self.assertEqual(nodes['N.security.binding']['proof'], 'assumption')
         for node_id in ['N.native.order', 'N.native.openings', 'N.native.output']:
             self.assertEqual(nodes[node_id]['proof'], 'not_required')

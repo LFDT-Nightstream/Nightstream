@@ -129,7 +129,9 @@ theorem realLaw_context_marginal (contexts : PMF Visit) :
   rw [Lifecycle.Nifs.FiatShamirTransfer.contextLaw, realLaw, PMF.map_comp]
   exact PMF.map_id contexts
 
-private theorem sequential_atContext
+/-- The existing sequential law at one context draws the same public coins,
+checked receipt and selected suffix, preserving every abort. -/
+theorem sequential_atContext
     {Context State Endpoint : Type*} {shape : Shape} {columns width : Nat}
     (context : Context)
     (firstPhase : Context → InteractivePrefix.Prover State shape width)

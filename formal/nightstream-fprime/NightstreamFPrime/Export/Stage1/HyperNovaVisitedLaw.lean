@@ -90,6 +90,30 @@ Stopped and abort mass is retained; `steps` is an observation index. -/
 noncomputable def visitedLaw (initial : PMF (Statement × Envelope)) (steps : Nat) : PMF Visit :=
   initial.bind fun input => after source steps (initialVisit input)
 
+private theorem after_succ_bind (steps : Nat) (visit : Visit) :
+    after source (steps + 1) visit = (after source steps visit).bind (transition source) := by
+  induction steps generalizing visit with
+  | zero => simp only [after, PMF.pure_bind, PMF.bind_pure]
+  | succ steps induction =>
+      change (transition source visit).bind (after source (steps + 1)) =
+        ((transition source visit).bind (after source steps)).bind (transition source)
+      rw [PMF.bind_bind]
+      apply congrArg (PMF.bind (transition source visit))
+      funext next
+      exact induction next
+
+/-- The first visited law is the original initial law with its actual
+acceptance mark. No terminal opening is filtered or replaced. -/
+theorem visitedLaw_zero (initial : PMF (Statement × Envelope)) :
+    visitedLaw source initial 0 = initial.map initialVisit := rfl
+
+/-- Each observation follows one more actual operational transition, with
+all false-mark, inactive and abort mass retained. -/
+theorem visitedLaw_succ (initial : PMF (Statement × Envelope)) (steps : Nat) :
+    visitedLaw source initial (steps + 1) =
+      (visitedLaw source initial steps).bind (transition source) := by
+  simp only [visitedLaw, after_succ_bind, PMF.bind_bind]
+
 /-- Mask only the draw reported to the marked NIFS experiment. This does not
 change the actual transition or remove stopped contexts from the law. -/
 noncomputable def guardedDraw (visit : Visit) : PMF (Visit × SourceResult) :=

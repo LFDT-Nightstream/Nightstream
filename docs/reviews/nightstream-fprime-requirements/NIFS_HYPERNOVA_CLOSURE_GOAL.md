@@ -315,3 +315,26 @@ openings or full selected rows. Those remain with the canonical consumer.
 Ordered static, full library (3,863 jobs, 3 seconds), and axioms (3,952 jobs,
 3 seconds) passed. Evidence: `HYPERNOVA_INITIAL_DEC_INPUTS_EVIDENCE.zip`,
 SHA-256 `cd73aad8904691032f084124164f5ceb1f7289486a5fdddf0e52cf509a009d30`. Package pins are unchanged at this cut.
+
+## Recursive step and envelope checkpoint
+
+Checked cut: `23132ebbaa0caced57e1cacbd1998d3952ab2710`. The local C/R/D constructor now takes an actual
+valid positive semantic step. Proof/fresh readback, input framing, verifier
+context, sampler availability, parent bound and exact D output are derived
+from that step and its accepted advice. Pilot/application/transition rows,
+complete selected low-norm assignment and the honest next envelope remain
+open. Sampler reject/position Boolean facts now follow from their actual
+R rows; the selected norm consumer is still separate at this cut.
+
+The accepted envelope's dense field-word bound includes all claim fields
+and complete opening domains and is independent of iteration. It does not
+claim a Rust wire format or execution bound. Existing checked declarations
+also close the model records for fixed application selection, one-based
+output pc and 270 logical public words. Their Rust axes remain open.
+
+Ordered static, library and axiom gates passed. Evidence:
+`HYPERNOVA_STEP_CONSTRUCTION_EVIDENCE.zip`, SHA-256 `a1579300f77d59dd9eb506a056a0555aea95c2a4f16b421ef266e3814af0853e`.
+Actual split/opening/fixed-key commitment primitives also passed their
+focused native checks; evidence `NIFS_NATIVE_D_PRIMITIVES_EVIDENCE.zip`,
+SHA-256 `5b2033c0008325996892152c2d896915bbe006139c0f61a96d6090d1ed400dcc`. Complete native C/R/D remains open.
+Package data, pins and cryptographic assumptions are unchanged at this cut.

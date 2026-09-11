@@ -20,7 +20,7 @@ const WORD_RADIX: u128 = 1_u128 << 32;
 pub const SETUP_ID: &[u8] = b"nightstream-ajtai-chacha20-wide256-v1";
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 4_708_530;
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 4_685_394;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 pub const PRODUCTION_SEED: [u8; 32] = [
     252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146, 215, 215, 171, 68, 216, 26, 193, 123, 69, 168, 231,

@@ -31,7 +31,7 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
 attribute [local irreducible] PiDECOrdinarySourceWork.commitmentRow
   PiDECOrdinaryDirectSource.commitmentProgramRow PiDECInputCheck.relation
 
-private theorem selectedWidth : 254260583 = PiDECInputCheck.logicalWidth :=
+private theorem selectedWidth : 253011231 = PiDECInputCheck.logicalWidth :=
   Poseidon2HashChainV1Package.logicalWidth.symm
 
 private abbrev selectedGeometry : PiDECRetainedGeometry.Geometry
@@ -43,7 +43,7 @@ attribute [local irreducible] PerApplicationFixedPoint.logicalWidth
 
 /-- Two kind constructors, four literals, two block records, pair and Result. -/
 private def blocks (_ : Unit) : Result (RetainedBlock × RetainedBlock) :=
-  ⟨(⟨.field, 1188, 188579034⟩, ⟨.field, 49248, 195244650⟩), 10⟩
+  ⟨(⟨.field, 1188, 188579034⟩, ⟨.field, 49248, 193995298⟩), 10⟩
 
 private theorem blocks_value (application : Lifecycle.Stage1.Application.Program) :
     (blocks ()).value =
@@ -59,13 +59,9 @@ private theorem blocks_value (application : Lifecycle.Stage1.Application.Program
       PiRLCProductSourceBlocks.outputBlock_coordinateCount] at total
     change PiRLCRetainedGeometry.productOutputStart application + 19008 * 41 = 188579034
     omega
-  have proofStart : PiDECRetainedGeometry.proofStart application = 195244650 := by
-    unfold PiDECRetainedGeometry.proofStart RunningTransitionRetainedGeometry.piDecStart
-      RunningTransitionRetainedGeometry.roundC1Start RunningTransitionRetainedGeometry.roundC0Start
-    rw [PiCCSActionPayloadBlock.logicalWidth_eq]
-    change 195242354 + 28 * 41 + 28 * 41 = 195244650
-    decide
-  change ((⟨.field, 1188, 188579034⟩, ⟨.field, 49248, 195244650⟩) : RetainedBlock × RetainedBlock) =
+  have proofStart : PiDECRetainedGeometry.proofStart application = 193995298 := by
+    exact PiRLCPoseidonGeometry.pilotLogicalWidth_eq application
+  change ((⟨.field, 1188, 188579034⟩, ⟨.field, 49248, 193995298⟩) : RetainedBlock × RetainedBlock) =
     (⟨.field, 1188, PiDECRetainedGeometry.parentCommitmentStart application⟩,
      ⟨.field, 49248, PiDECRetainedGeometry.proofStart application⟩)
   rw [parentStart, proofStart]
@@ -502,7 +498,7 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
 cost four; the equality transport changes only the erased type index. -/
 def commitmentForms (index : Fin 1188) :
     Result (OrdinaryRow.Forms PiDECInputCheck.logicalWidth) :=
-  let result := run 254260583 (by decide) index
+  let result := run 253011231 (by decide) index
   ⟨selectedWidth ▸ result.value, result.work + 4⟩
 
 private theorem cast_run_value {application : Lifecycle.Stage1.Application.Program}
@@ -517,7 +513,7 @@ theorem commitmentForms_value (index : Fin 1188) :
     (commitmentForms index).value =
       PiDECMatrixProgram.commitmentDirectForms PiDECInputCheck.relation
         (PerApplicationMatrixProgram.piDecGeometry Poseidon2HashChainV1Package.application) index :=
-  @cast_run_value Poseidon2HashChainV1Package.application 254260583 PiDECInputCheck.logicalWidth
+  @cast_run_value Poseidon2HashChainV1Package.application 253011231 PiDECInputCheck.logicalWidth
     selectedWidth (by decide) selectedGeometry index
 
 private theorem cast_lengths {columns output : Nat} (equal : columns = output)
@@ -534,13 +530,13 @@ theorem commitmentForms_lengths (index : Fin 1188) :
       (commitmentForms index).value.a.entries.length = 657 ∧
       (commitmentForms index).value.b.entries.length = 1 ∧
       (commitmentForms index).value.c.entries.length = 42 :=
-  @cast_lengths 254260583 PiDECInputCheck.logicalWidth selectedWidth
-    (run 254260583 (by decide) index).value
-    (@run_lengths Poseidon2HashChainV1Package.application 254260583 (by decide)
+  @cast_lengths 253011231 PiDECInputCheck.logicalWidth selectedWidth
+    (run 253011231 (by decide) index).value
+    (@run_lengths Poseidon2HashChainV1Package.application 253011231 (by decide)
       (selectedWidth.symm ▸ selectedGeometry) index)
 
 theorem commitmentForms_work_le (index : Fin 1188) :
     (commitmentForms index).work ≤ commitmentFormsWork :=
-  run_work_le 254260583 (by decide) index
+  run_work_le 253011231 (by decide) index
 
 end NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork

@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 /-!
 Owns expression-level value preservation for the sealed assignment transport.
 It proves that final physical-column renaming preserves source evaluation, then
-specializes that result to the PiCCS payload and Pilot output-digest recipes.
+specializes that result to the Pilot output-digest recipe.
 
 This module does not execute the transport or derive product-family values.
 -/
@@ -32,27 +32,6 @@ theorem physicalExpr_eval_sourceEnv (program : Program)
   rw [physicalExpr, CompactRows.renameExpr_eval,
     PermutationOutput.Readout.rewriteExpr_eval, CompactRows.renameExpr_eval]
   rfl
-
-/-- Pointwise lookup of one mapped PiCCS payload expression does not expand
-the complete payload list. -/
-@[simp] theorem payloadExpressions_getD (program : Program)
-    (index : Fin PiCCSActionPayloadBlock.payloadCount) :
-    (payloadExpressions program).getD index.val 0 =
-      physicalExpr program (PiCCSActionPayloadBlock.payloadExpression index) := by
-  unfold payloadExpressions
-  exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ index 0
-
-/-- Every mapped PiCCS payload expression computes the exact value appended
-to the retained source assignment. -/
-theorem payloadExpression_eval (program : Program)
-    (raw : RawValues program)
-    (index : Fin PiCCSActionPayloadBlock.payloadCount) :
-    ((payloadExpressions program).getD index.val 0).eval
-        (SourceCompiler.sourceEnv raw.retainedSource) =
-      PiCCSActionPayloadBlock.payloadValue program raw.retainedSource index := by
-  rw [payloadExpressions_getD]
-  exact physicalExpr_eval_sourceEnv program raw.retainedSource
-    (PiCCSActionPayloadBlock.payloadExpression index)
 
 private theorem outputDigest_source_lt
     (lane : Fin PilotProduction.digestWords) :

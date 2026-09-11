@@ -34,9 +34,6 @@ inductive BlockKind where
   | productOutput
   | priorPoseidonInput
   | outputPoseidonInput
-  | piCcsPayload
-  | runningRoundC0
-  | runningRoundC1
   | runningPiDec
   | runningFresh
   | piCcsFreshPublicInput
@@ -71,27 +68,24 @@ def BlockKind.format : Format BlockKind where
     | .productOutput => .atom 9
     | .priorPoseidonInput => .atom 10
     | .outputPoseidonInput => .atom 11
-    | .piCcsPayload => .atom 12
-    | .runningRoundC0 => .atom 13
-    | .runningRoundC1 => .atom 14
-    | .runningPiDec => .atom 15
-    | .runningFresh => .atom 16
-    | .piCcsFreshPublicInput => .atom 17
-    | .piCcsPriorLast => .atom 18
-    | .piCcsOutputLast => .atom 19
-    | .piCcsExpectedContext => .atom 20
-    | .piCcsProofLogical => .atom 21
-    | .piCcsOutputEndpoint => .atom 22
-    | .piCcsFresh => .atom 23
-    | .pilotCanonicalLocal => .atom 24
-    | .pilotCanonicalFresh => .atom 25
-    | .pilotOutputDigest => .atom 26
-    | .piDecLogical => .atom 27
-    | .piDecFresh => .atom 28
-    | .samplerLogical => .atom 29
-    | .samplerFresh => .atom 30
-    | .applicationWitness => .atom 31
-    | .applicationLocal => .atom 32
+    | .runningPiDec => .atom 12
+    | .runningFresh => .atom 13
+    | .piCcsFreshPublicInput => .atom 14
+    | .piCcsPriorLast => .atom 15
+    | .piCcsOutputLast => .atom 16
+    | .piCcsExpectedContext => .atom 17
+    | .piCcsProofLogical => .atom 18
+    | .piCcsOutputEndpoint => .atom 19
+    | .piCcsFresh => .atom 20
+    | .pilotCanonicalLocal => .atom 21
+    | .pilotCanonicalFresh => .atom 22
+    | .pilotOutputDigest => .atom 23
+    | .piDecLogical => .atom 24
+    | .piDecFresh => .atom 25
+    | .samplerLogical => .atom 26
+    | .samplerFresh => .atom 27
+    | .applicationWitness => .atom 28
+    | .applicationLocal => .atom 29
   decode
     | .atom 0 => .ok .priorPoseidon
     | .atom 1 => .ok .outputPoseidon
@@ -105,27 +99,24 @@ def BlockKind.format : Format BlockKind where
     | .atom 9 => .ok .productOutput
     | .atom 10 => .ok .priorPoseidonInput
     | .atom 11 => .ok .outputPoseidonInput
-    | .atom 12 => .ok .piCcsPayload
-    | .atom 13 => .ok .runningRoundC0
-    | .atom 14 => .ok .runningRoundC1
-    | .atom 15 => .ok .runningPiDec
-    | .atom 16 => .ok .runningFresh
-    | .atom 17 => .ok .piCcsFreshPublicInput
-    | .atom 18 => .ok .piCcsPriorLast
-    | .atom 19 => .ok .piCcsOutputLast
-    | .atom 20 => .ok .piCcsExpectedContext
-    | .atom 21 => .ok .piCcsProofLogical
-    | .atom 22 => .ok .piCcsOutputEndpoint
-    | .atom 23 => .ok .piCcsFresh
-    | .atom 24 => .ok .pilotCanonicalLocal
-    | .atom 25 => .ok .pilotCanonicalFresh
-    | .atom 26 => .ok .pilotOutputDigest
-    | .atom 27 => .ok .piDecLogical
-    | .atom 28 => .ok .piDecFresh
-    | .atom 29 => .ok .samplerLogical
-    | .atom 30 => .ok .samplerFresh
-    | .atom 31 => .ok .applicationWitness
-    | .atom 32 => .ok .applicationLocal
+    | .atom 12 => .ok .runningPiDec
+    | .atom 13 => .ok .runningFresh
+    | .atom 14 => .ok .piCcsFreshPublicInput
+    | .atom 15 => .ok .piCcsPriorLast
+    | .atom 16 => .ok .piCcsOutputLast
+    | .atom 17 => .ok .piCcsExpectedContext
+    | .atom 18 => .ok .piCcsProofLogical
+    | .atom 19 => .ok .piCcsOutputEndpoint
+    | .atom 20 => .ok .piCcsFresh
+    | .atom 21 => .ok .pilotCanonicalLocal
+    | .atom 22 => .ok .pilotCanonicalFresh
+    | .atom 23 => .ok .pilotOutputDigest
+    | .atom 24 => .ok .piDecLogical
+    | .atom 25 => .ok .piDecFresh
+    | .atom 26 => .ok .samplerLogical
+    | .atom 27 => .ok .samplerFresh
+    | .atom 28 => .ok .applicationWitness
+    | .atom 29 => .ok .applicationLocal
     | _ => .error "invalid per-application assignment block kind"
   decode_encode := by
     intro kind
@@ -135,8 +126,7 @@ def canonicalKinds : List BlockKind :=
   [.priorPoseidon, .outputPoseidon, .laterPoseidon, .productGroup,
     .first54Reject, .first54Symbol, .first54Position, .first54Value,
     .first54Product, .productOutput, .priorPoseidonInput,
-    .outputPoseidonInput, .piCcsPayload,
-    .runningRoundC0, .runningRoundC1, .runningPiDec, .runningFresh,
+    .outputPoseidonInput, .runningPiDec, .runningFresh,
     .piCcsFreshPublicInput,
     .piCcsPriorLast, .piCcsOutputLast, .piCcsExpectedContext,
     .piCcsProofLogical, .piCcsOutputEndpoint, .piCcsFresh,
@@ -144,7 +134,7 @@ def canonicalKinds : List BlockKind :=
     .piDecLogical, .piDecFresh,
     .samplerLogical, .samplerFresh, .applicationWitness, .applicationLocal]
 
-@[simp] theorem canonicalKinds_length : canonicalKinds.length = 33 := by
+@[simp] theorem canonicalKinds_length : canonicalKinds.length = 30 := by
   rfl
 
 structure BlockTemplate (application : ProgramApplication) where
@@ -192,15 +182,6 @@ def BlockKind.template (application : ProgramApplication) :
         fun raw => raw.retainedSource⟩
   | .outputPoseidonInput =>
       ⟨_, PiRLCPoseidonGeometry.outputInputBlock application,
-        fun raw => raw.retainedSource⟩
-  | .piCcsPayload =>
-      ⟨_, PiCCSActionPayloadBlock.block application,
-        fun raw => raw.payloadSource⟩
-  | .runningRoundC0 =>
-      ⟨_, RunningTransitionRetainedBlocks.roundC0Block application,
-        fun raw => raw.retainedSource⟩
-  | .runningRoundC1 =>
-      ⟨_, RunningTransitionRetainedBlocks.roundC1Block application,
         fun raw => raw.retainedSource⟩
   | .runningPiDec =>
       ⟨_, RunningTransitionRetainedBlocks.piDecBlock application,
@@ -264,7 +245,7 @@ def BlockKind.expand {application : ProgramApplication}
   let template := BlockKind.template application kind
   Canonical.ofBlock template.block (template.source raw)
 
-/-- Expand the fixed compact plan. The result remains a 33-entry schedule;
+/-- Expand the fixed compact plan. The result remains a 30-entry schedule;
 no retained slot or assignment coordinate is materialized. -/
 def expand {application : ProgramApplication} (raw : RawValues application) :
     Canonical.Schedule :=

@@ -57,7 +57,7 @@ def fitsTwoPow28OfApplicationBounds
   carrier := by
     apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
       application).2
-    exact carrierWords
+    exact carrierWords.trans (by decide)
 
 def geometry (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedGeometry.Geometry application

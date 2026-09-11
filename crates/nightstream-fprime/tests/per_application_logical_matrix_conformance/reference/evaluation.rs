@@ -10,8 +10,8 @@ use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
 pub const ACTIVE_ROWS: usize = 6_377_559;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 254_260_583;
-pub const CARRIER_WIDTH: usize = 254_260_620;
+pub const LOGICAL_WIDTH: usize = 253_011_231;
+pub const CARRIER_WIDTH: usize = 253_011_276;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -110,26 +110,61 @@ pub fn verify_satisfaction_range_with(
     Ok(next - start)
 }
 
-pub fn evaluate(
+// Each range visits the same raw rows and tests the same mutations as the
+// serial gate. Ranges share immutable inputs; coverage is joined in row order.
+struct MutationCoverage {
+    assignment: [Option<usize>; super::assignment::BLOCK_COUNT],
+    referenced: [bool; super::assignment::BLOCK_COUNT],
+    matrix: [Option<usize>; MATRIX_COUNT - 1],
+    public_bits: [Option<usize>; 256],
+    zero_slot: bool,
+}
+
+impl MutationCoverage {
+    fn empty() -> Self {
+        Self {
+            assignment: [None; super::assignment::BLOCK_COUNT],
+            referenced: [false; super::assignment::BLOCK_COUNT],
+            matrix: [None; MATRIX_COUNT - 1],
+            public_bits: [None; 256],
+            zero_slot: false,
+        }
+    }
+
+    fn extend(&mut self, other: Self) {
+        fn first<const N: usize>(left: &mut [Option<usize>; N], right: [Option<usize>; N]) {
+            for (left, right) in left.iter_mut().zip(right) {
+                if let Some(row) = right {
+                    *left = Some(left.map_or(row, |old| old.min(row)));
+                }
+            }
+        }
+        first(&mut self.assignment, other.assignment);
+        first(&mut self.matrix, other.matrix);
+        first(&mut self.public_bits, other.public_bits);
+        for (left, right) in self.referenced.iter_mut().zip(other.referenced) {
+            *left |= right;
+        }
+        self.zero_slot |= other.zero_slot;
+    }
+}
+
+fn evaluate_range(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
     assignment: &LogicalAssignment,
-) -> Result<Evaluation> {
-    if assignment.len() != LOGICAL_WIDTH {
-        return Err(format!(
-            "logical assignment has width {}, expected {LOGICAL_WIDTH}",
-            assignment.len()
-        ));
-    }
-    let mut next = 0usize;
-    let mut assignment_mutations = [None; 33];
-    let mut referenced_blocks = [false; 33];
+    start: usize,
+    end: usize,
+) -> Result<MutationCoverage> {
+    let mut next = start;
+    let mut assignment_mutations = [None; super::assignment::BLOCK_COUNT];
+    let mut referenced_blocks = [false; super::assignment::BLOCK_COUNT];
     let mut matrix_mutations = [None; MATRIX_COUNT - 1];
     let mut public_bit_mutations = [None; 256];
     let mut zero_slot_mutation_rejected = false;
     let mut candidate_columns = Vec::new();
-    program.visit_rows(0, ACTIVE_ROWS, sources, |ordinal, row| {
+    program.visit_rows(start, end, sources, |ordinal, row| {
         if ordinal != next {
             return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
         }
@@ -199,9 +234,59 @@ pub fn evaluate(
         next += 1;
         Ok(())
     })?;
+    if next != end {
+        return Err(format!("logical row coverage ended at {next}, expected {end}"));
+    }
+
+    Ok(MutationCoverage {
+        assignment: assignment_mutations,
+        referenced: referenced_blocks,
+        matrix: matrix_mutations,
+        public_bits: public_bit_mutations,
+        zero_slot: zero_slot_mutation_rejected,
+    })
+}
+
+pub fn evaluate(
+    program: &MatrixProgram,
+    sources: &SourcePackage,
+    relation: &Relation,
+    assignment: &LogicalAssignment,
+) -> Result<Evaluation> {
+    if assignment.len() != LOGICAL_WIDTH {
+        return Err(format!(
+            "logical assignment has width {}, expected {LOGICAL_WIDTH}",
+            assignment.len()
+        ));
+    }
+    let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
+    let ranges = (0..ACTIVE_ROWS)
+        .step_by(range_size)
+        .map(|start| (start, (start + range_size).min(ACTIVE_ROWS)))
+        .collect::<Vec<_>>();
+    let results = ranges
+        .par_iter()
+        .map(|&(start, end)| evaluate_range(program, sources, relation, assignment, start, end))
+        .collect::<Vec<_>>();
+    let mut coverage = MutationCoverage::empty();
+    let mut next = 0usize;
+    for ((start, end), result) in ranges.into_iter().zip(results) {
+        if start != next {
+            return Err(format!("logical row order changed: got {start}, expected {next}"));
+        }
+        coverage.extend(result?);
+        next = end;
+    }
     if next != ACTIVE_ROWS {
         return Err(format!("logical row coverage ended at {next}, expected {ACTIVE_ROWS}"));
     }
+    let MutationCoverage {
+        assignment: assignment_mutations,
+        referenced: referenced_blocks,
+        matrix: matrix_mutations,
+        public_bits: public_bit_mutations,
+        zero_slot: zero_slot_mutation_rejected,
+    } = coverage;
 
     let implicit_padding = empty_row();
     if relation.evaluate(&evaluate_row(&implicit_padding, assignment)?) != Field::ZERO {

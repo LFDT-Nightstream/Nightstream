@@ -1,0 +1,346 @@
+{
+  "source_commit": "68cf70feb12e478a99b51f7bcb3177e9a1610a84",
+  "scope": "Scratch experiment only; no production module-header conversion.",
+  "mutation": "Same proof-only Eq.trans wrapper on CanonicalU64.localLength_eq in both modes. Public statements and executable definition bodies remain unchanged.",
+  "header_patch": "../scripts/fixtures/canonical_u64_module_headers.patch",
+  "proof_patch": "../scripts/fixtures/canonical_u64_proof_edit.patch",
+  "target": "NightstreamFPrime.Layout.Range.CanonicalPublicU64",
+  "observations": {
+    "legacy-before": {
+      "log_sha256": "51b2ecadb37e61d44ab5a9240175d112ce0fd6d6c2a38d42fd4acf0dbde4a743",
+      "result_lines": [
+        "[bounded] exit=0 elapsed=1s",
+        "experiment_wall_seconds=0.58"
+      ],
+      "built_or_replayed": [
+        "\u26a0 [1497/1502] Replayed NightstreamFPrime.Gadgets.Range.CanonicalU64"
+      ],
+      "modules": {
+        "NightstreamFPrime.Gadgets.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "e3b0d39c17261bde78781d0157b9bcee442247a1ee95aaee1521fe56a4980f5f",
+            "mtime_ns": 1788979279951274748,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "955b22492a0da0bd74d71a3e9145ff10ecf72bd94b2a8362ebc08c84ac1533b1",
+            "mtime_ns": 1788979280436141166,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Gadgets.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "39c5ee76b2806093051c7ba1412d9e04dbedab475eac35031f5f8b25412aaac7",
+            "mtime_ns": 1788979283542226398,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "be8fb8e3338f19c418419b46116bbb042cd4d2cb2c3e13db5dd8de93d8839663",
+            "mtime_ns": 1788979283800572663,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "d08001992b7fc9cd20cccffc1946ad4b5b360bc081197b29d22a642a178dc17d",
+            "mtime_ns": 1788979283712224109,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "eca78ab1b6d6c697497daa1e5e6a60bc9877a5a4abac3e8e0b190c8a89a1b0e2",
+            "mtime_ns": 1788979283925469019,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "50b53224e0fa6f70f53430811affb16c290743c9c7ac4104e31539e5080e5f98",
+            "mtime_ns": 1788979289276149193,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "0b394408e61170d0d3fd1e058c21bc19a06e7879e315c264236471787d3682d9",
+            "mtime_ns": 1788979289479089738,
+            "exists": true
+          }
+        }
+      }
+    },
+    "legacy-after": {
+      "log_sha256": "56af78744c377fdca13bc04799b4439adcfd9287253d43840dabb5f06fae5759",
+      "result_lines": [
+        "[bounded] exit=0 elapsed=5s",
+        "experiment_wall_seconds=5.06"
+      ],
+      "built_or_replayed": [
+        "\u26a0 [1499/1502] Built NightstreamFPrime.Gadgets.Range.CanonicalU64 (2.1s)",
+        "\u2714 [1500/1502] Built NightstreamFPrime.Gadgets.Range.CanonicalPublicU64 (1.3s)",
+        "\u2714 [1501/1502] Built NightstreamFPrime.Layout.Range.CanonicalU64 (1.3s)",
+        "\u2714 [1502/1502] Built NightstreamFPrime.Layout.Range.CanonicalPublicU64 (1.1s)"
+      ],
+      "modules": {
+        "NightstreamFPrime.Gadgets.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "c024d9c9adcd92d5734801aa97b516fb6d39631603a0126a5fa410a728b9e67e",
+            "mtime_ns": 1789086701019174807,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "dad69d7cf72b89f6d6978cee7d5f54f62be83abd5f4c660596ea346c11268bbd",
+            "mtime_ns": 1789086701168416529,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Gadgets.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "39c5ee76b2806093051c7ba1412d9e04dbedab475eac35031f5f8b25412aaac7",
+            "mtime_ns": 1789086702316157069,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "d4e896b6f0fa90453d400604152208848a0552561fd8426867f58c2d414f0eb9",
+            "mtime_ns": 1789086702434646055,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "d08001992b7fc9cd20cccffc1946ad4b5b360bc081197b29d22a642a178dc17d",
+            "mtime_ns": 1789086702371156317,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "6ee725ab89535825e56ba6fa0536c017d84b11adcdb3f97a351ed05326dd8d6b",
+            "mtime_ns": 1789086702482161012,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "50b53224e0fa6f70f53430811affb16c290743c9c7ac4104e31539e5080e5f98",
+            "mtime_ns": 1789086703511349054,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "bddb5d46c4ca61b9432f2e50656dd5d2cb1ea2a767f674bab27a09494e321633",
+            "mtime_ns": 1789086703618292856,
+            "exists": true
+          }
+        }
+      }
+    },
+    "module-before": {
+      "log_sha256": "3d5e4a453fd79e261c2f34959f779dae58e358317ea5b4e81a66ac42c08b0e2e",
+      "result_lines": [
+        "[bounded] exit=0 elapsed=8s",
+        "experiment_wall_seconds=8.08"
+      ],
+      "built_or_replayed": [
+        "\u26a0 [1499/1502] Built NightstreamFPrime.Gadgets.Range.CanonicalU64 (1.8s)",
+        "\u2714 [1500/1502] Built NightstreamFPrime.Gadgets.Range.CanonicalPublicU64 (1.0s)",
+        "\u2714 [1501/1502] Built NightstreamFPrime.Layout.Range.CanonicalU64 (1.4s)",
+        "\u2714 [1502/1502] Built NightstreamFPrime.Layout.Range.CanonicalPublicU64 (1.1s)"
+      ],
+      "modules": {
+        "NightstreamFPrime.Gadgets.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "dc2225e8a0c26471daa3236f8c9ecb159a227b7e387541444faded043b435eba",
+            "mtime_ns": 1789086709094064369,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": "1ed41e11bb13a46e9c190d20f832830dce1db2818b63109c0afed961a2fe4fd1",
+            "mtime_ns": 1789086709107064192,
+            "exists": true
+          },
+          "trace": {
+            "sha256": "550b4c4089be47d849328e0dc93f2c291234267b149cb64a3887f12443a9b613",
+            "mtime_ns": 1789086709214679917,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Gadgets.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "91dfb3b0ecfea28fc980ab911663c5125fba60f0a9b2fdf11dd750900940c873",
+            "mtime_ns": 1789086710163594674,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": "3054c80d8844d34d9580071e22d520f8d6647163165edd027cef0d4b8fd84467",
+            "mtime_ns": 1789086710164049736,
+            "exists": true
+          },
+          "trace": {
+            "sha256": "befd7a9aa676a63f0cb23031fd753d097e7120e750f523df90491d441a2c06ef",
+            "mtime_ns": 1789086710233015698,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "5b77181bfbfd1b12eca3aadf3f612f3cba8322ac7a2ff7cc1656791d8ba2ae5b",
+            "mtime_ns": 1789086710459045701,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "492786f0ad489f97d2b0629614f4d497593b867c44cc2c9a9d488e74a516149b",
+            "mtime_ns": 1789086710566995368,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "50b53224e0fa6f70f53430811affb16c290743c9c7ac4104e31539e5080e5f98",
+            "mtime_ns": 1789086711569030520,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "c0d5d823156b342026714237e34f559ebe408cd1b6b00e6ba7b1d417387ed42b",
+            "mtime_ns": 1789086711679050174,
+            "exists": true
+          }
+        }
+      }
+    },
+    "module-after": {
+      "log_sha256": "603982db32e5288b6ce1c0adf291ba03ab5276a245e32af31a27db0c8ec4c257",
+      "result_lines": [
+        "[bounded] exit=0 elapsed=5s",
+        "experiment_wall_seconds=4.67"
+      ],
+      "built_or_replayed": [
+        "\u26a0 [1499/1502] Built NightstreamFPrime.Gadgets.Range.CanonicalU64 (1.7s)",
+        "\u2714 [1501/1502] Built NightstreamFPrime.Layout.Range.CanonicalU64 (1.3s)",
+        "\u2714 [1502/1502] Built NightstreamFPrime.Layout.Range.CanonicalPublicU64 (1.1s)"
+      ],
+      "modules": {
+        "NightstreamFPrime.Gadgets.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "dc2225e8a0c26471daa3236f8c9ecb159a227b7e387541444faded043b435eba",
+            "mtime_ns": 1789086713805999926,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": "1c376f14618c38dce436b5b24332afcdc2bf01880d84d99d8165ee7873dad508",
+            "mtime_ns": 1789086713818999748,
+            "exists": true
+          },
+          "trace": {
+            "sha256": "4d8c4b65eb71e3180d4465fda95056f03b728453d0d02bb1ea94f5a536d7c158",
+            "mtime_ns": 1789086713939439057,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Gadgets.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "91dfb3b0ecfea28fc980ab911663c5125fba60f0a9b2fdf11dd750900940c873",
+            "mtime_ns": 1789086710163594674,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": "3054c80d8844d34d9580071e22d520f8d6647163165edd027cef0d4b8fd84467",
+            "mtime_ns": 1789086710164049736,
+            "exists": true
+          },
+          "trace": {
+            "sha256": "befd7a9aa676a63f0cb23031fd753d097e7120e750f523df90491d441a2c06ef",
+            "mtime_ns": 1789086710233015698,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalU64": {
+          "olean": {
+            "sha256": "5b77181bfbfd1b12eca3aadf3f612f3cba8322ac7a2ff7cc1656791d8ba2ae5b",
+            "mtime_ns": 1789086715123981900,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "9e9f8af59c35c446f1af5b90e23263dedade4a7bfd34316a5e2ef2e8e7cb98dd",
+            "mtime_ns": 1789086715232703858,
+            "exists": true
+          }
+        },
+        "NightstreamFPrime.Layout.Range.CanonicalPublicU64": {
+          "olean": {
+            "sha256": "50b53224e0fa6f70f53430811affb16c290743c9c7ac4104e31539e5080e5f98",
+            "mtime_ns": 1789086716239966637,
+            "exists": true
+          },
+          "olean.private": {
+            "sha256": null,
+            "mtime_ns": null,
+            "exists": false
+          },
+          "trace": {
+            "sha256": "e54a3d89ba90d6422a4ae29a391d344ee824ef65af90d1c966a40ac90f18636c",
+            "mtime_ns": 1789086716352408524,
+            "exists": true
+          }
+        }
+      }
+    }
+  },
+  "conclusion": "The producer rebuilt in both modes. The converted gadget consumer retained all artifact hashes/mtimes and its trace only in module mode. Both legacy Layout observers rebuilt in both proof-edit runs.",
+  "limits": [
+    "Single paired observations, not a general speed estimate.",
+    "An unchanged output hash alone does not establish that a consumer stayed cached.",
+    "Generated C stayed unchanged within each proof-edit pair but changed across the header conversion.",
+    "No package identity, whole-project audit, or production rollout claim is made for module conversion.",
+    "Before adoption, teach boundary checks about public imports and run the full production gates."
+  ]
+}

@@ -135,6 +135,9 @@ import NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
 import NightstreamFPrime.Export.Stage1.ActualPiDECOutput
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
+import NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
+import NightstreamFPrime.Export.Stage1.HyperNovaInput
+import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks

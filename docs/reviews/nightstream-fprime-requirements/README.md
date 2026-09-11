@@ -10,7 +10,7 @@ The scope is to prove the selected SuperNeo implementation and the connections n
 - **Link:** Connected, Open and N/A. A local connection does not establish full lifecycle closure.
 - **Rust:** Scoped tests, Code only, Recorded, Open and N/A. Code existence does not count as a passed test.
 - **Assumption ledger:** Shared premises, parameters, approval state and recorded dependent uses.
-- **Error budget:** A conditional interactive-test scenario at 100,000,000 uses, with deployment parameters and remaining security terms shown separately.
+- **Error budget:** Conditional per-test bounds and accumulation over a supplied use count, with deployment parameters and remaining security terms shown separately.
 - **Readiness:** Existing obligations needed for constraint reduction and complete Rust validation. These views add no proof credit.
 
 The full native path, retained logical-assignment mutation failure, required independent approvals and production obligations remain open. Local diagnostics do not grant Compiler-closed, Conformance-closed or Production-closed status. Read the exact leaf scope and evidence before using a result.

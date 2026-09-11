@@ -63,7 +63,7 @@ A theorem can be proved locally under hypotheses whose application is still open
 
 The [assumption ledger](assumptions.md) separates standard cryptography, model conditions and the unproved low-norm invertibility theorem. Repeated references to one premise share a ledger entry. Each entry records its parameters, approval state and known dependent uses. An unspecified value remains open; it is not zero or an implicit approval.
 
-The [error budget](error-budget.md) gives a conditional example at 100,000,000 uses of a named interactive test. It does not give a complete production false-acceptance bound. The union bound needs the per-test result to apply at each use, including its conditioning requirements. Knowledge-extraction losses, attack-cost estimates, setup bias, Fiat–Shamir transfer and hash collision advantages are separate claims. The example does not select a chain depth or deployment limit.
+The [error budget](error-budget.md) gives conditional per-test bounds and accumulation over a supplied use count. It does not give a complete production false-acceptance bound. The union bound needs the per-test result to apply at each use, including its conditioning requirements. Knowledge-extraction losses, attack-cost estimates, setup bias, Fiat–Shamir transfer and hash collision advantages are separate claims. Use count and chain depth remain parameters until deployment requirements select them.
 
 The [readiness view](readiness.md) records what remains before constraint reduction and complete Rust validation. It reuses requirement IDs and adds no proof credit. A cvc5 candidate still needs a Lean implication proof and the required relation-identity, layout and conformance checks.
 

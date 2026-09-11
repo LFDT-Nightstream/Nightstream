@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from assurance_export import export_assurance
 from reference_check import check_references, publication_record
 from site_model import counts, error_scenario, validate_data
 
@@ -40,16 +41,23 @@ class AssuranceTests(unittest.TestCase):
     def test_budget_is_conditional_and_uses_exact_field_size(self):
         budget = DATA['error_budget']
         one = error_scenario(budget, '1')
-        many = error_scenario(budget, '100000000')
+        twice = error_scenario(budget, '2')
         self.assertEqual(one['numerator'], '13257')
         self.assertEqual(one['denominator'], str(18446744069414584321 ** 2))
-        self.assertAlmostEqual(many['bound_bits'], 87.7301085, places=6)
+        self.assertEqual(twice['bound'], 2 * one['bound'])
         self.assertEqual(error_scenario(budget, str(10 ** 100))['bound'], 1)
         for invalid in ['0', '-1', '1.5', '', 1.5, '1e8']:
             with self.assertRaises(ValueError):
                 error_scenario(budget, invalid)
         self.assertIn('not a full verifier', budget['not_a_total_bound'])
         self.assertTrue(all(p['value'] is None for p in budget['deployment_parameters']))
+
+    def test_error_budget_has_no_default_use_count(self):
+        self.assertNotIn('example_uses', DATA['error_budget'])
+        validate_data(DATA)
+        risk = export_assurance(DATA, {}, {})['error-budget.md']
+        self.assertIn(r'min(1, n \* epsilon\_test)', risk)
+        self.assertNotIn('specified tests: approximately', risk)
 
     def test_full_conformance_and_binding_keep_their_evidence_scope(self):
         nodes = {n['id']: n for n in DATA['nodes']}

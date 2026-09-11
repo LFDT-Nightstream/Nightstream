@@ -104,14 +104,19 @@ const RequirementAssurance = (() => {
 
     const risk = el('div'); const budget = data.error_budget;
     risk.append(el('p', budget.not_a_total_bound, 'scope-notice'), el('h2', 'Interactive algebraic test term'), el('p', budget.event), el('p', budget.formula, 'formula'));
-    const sample = scenario(budget, budget.example_uses);
-    risk.append(el('p', 'Per specified test: ' + sample.numerator + ' / ' + sample.denominator + '. The decimal and bit values below are rounded.', 'muted'));
+    const perTest = scenario(budget, '1');
+    risk.append(el('p', 'Per specified test: ' + perTest.numerator + ' / ' + perTest.denominator + '. Calculated decimal and bit values are rounded.', 'muted'));
     const form = el('form', undefined, 'risk-form');
     const label = el('label', 'Number of specified tests'); label.htmlFor = 'risk-uses';
-    const input = el('input'); input.id = 'risk-uses'; input.type = 'text'; input.inputMode = 'numeric'; input.value = budget.example_uses;
+    const input = el('input'); input.id = 'risk-uses'; input.type = 'text'; input.inputMode = 'numeric'; input.value = '';
     input.setAttribute('aria-describedby', 'risk-scenario-note');
     const output = el('output'); output.setAttribute('for', 'risk-uses'); output.setAttribute('aria-live', 'polite');
     const calculate = () => {
+      if (!input.value.trim()) {
+        input.setCustomValidity('');
+        output.textContent = 'Enter a use count to calculate the conditional bound.';
+        return;
+      }
       try {
         const result = scenario(budget, input.value.trim());
         input.setCustomValidity('');

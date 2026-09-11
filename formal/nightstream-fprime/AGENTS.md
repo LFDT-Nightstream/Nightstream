@@ -4,6 +4,40 @@ These instructions apply to `formal/nightstream-fprime`. The architecture
 contract is `/FPRIME_LEAN_ARCHITECTURE_SPEC.md`; the goal is
 `/FPRIME_STAGE1_GOAL.md`. Both outrank this file.
 
+## Purpose and proof scope
+
+Prove SuperNeo v1.1 and its implementation links so that Lean can support
+constraint reduction and validation of the complete Rust implementation.
+The authority path is the protocol relation, logical circuit, physical
+layout, emitted package and Rust consumer.
+
+- Before adding work, name the protocol, implementation, parameter or
+  optimization obligation it closes. Architecture work must address a
+  demonstrated ownership, dependency or verification problem on this path.
+- Established cryptographic security results can remain explicit assumptions
+  with their exact model, parameters and applicability conditions. Prove
+  additional supporting facts when a relied-on claim requires them. A full
+  proof of each cryptographic primitive is not the project goal. Missing
+  checks, value correspondences, encoding rules and parameter bounds cannot
+  be replaced by cryptographic assumptions.
+- For each probabilistic claim used by the implementation, state its event,
+  experiment and per-call bound. Give the cumulative bound for the intended
+  number of uses, with query count and recursion depth where relevant. Keep
+  the use count as a parameter. Select concrete counts from deployment
+  requirements, not illustrative examples. Keep sampler failure, verifier test error
+  and extraction loss separate; an isolated bound is not total security.
+- cvc5 proposes candidates. For a constraint optimization that preserves
+  semantics, Lean must prove that the new constraints imply the unchanged
+  specification without stronger assumptions, and that valid specification
+  instances still have witnesses. Protocol changes require a revised
+  specification and the affected correctness and security arguments.
+- Connect soundness and completeness to the complete selected Rust path.
+  Check the same relation, parameters, transcript, package and outputs, with
+  valid-input and rejection evidence. State the scope of executed checks;
+  passing examples are not universal proofs of Rust semantics.
+- Extractor work uses its declared mathematical clock. Do not require a
+  machine-runtime refinement unless a claim being delivered relies on it.
+
 ## Layers
 
 Imports flow downward only. `scripts/check-boundaries.sh` enforces it.

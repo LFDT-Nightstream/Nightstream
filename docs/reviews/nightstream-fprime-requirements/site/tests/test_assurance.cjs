@@ -14,5 +14,5 @@ assert.equal(result.numerator, 13257n);
 assert.equal(result.denominator, 18446744069414584321n ** 2n);
 assert.equal(scenario(data.error_budget, '2').bound, 2 * result.bound);
 assert.equal(scenario(data.error_budget, '1' + '0'.repeat(100)).bound, 1);
-for (const input of ['0', '-1', '1.5', '1e8', '', 'NaN']) assert.throws(() => scenario(data.error_budget, input));
+for (const input of ['0', '-1', '1.5', '1e3', '', 'NaN']) assert.throws(() => scenario(data.error_budget, input));
 console.log('JavaScript status and error-scenario checks passed.');

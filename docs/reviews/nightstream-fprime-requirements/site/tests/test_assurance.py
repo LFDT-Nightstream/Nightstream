@@ -46,7 +46,7 @@ class AssuranceTests(unittest.TestCase):
         self.assertEqual(one['denominator'], str(18446744069414584321 ** 2))
         self.assertEqual(twice['bound'], 2 * one['bound'])
         self.assertEqual(error_scenario(budget, str(10 ** 100))['bound'], 1)
-        for invalid in ['0', '-1', '1.5', '', 1.5, '1e8']:
+        for invalid in ['0', '-1', '1.5', '', 1.5, '1e3']:
             with self.assertRaises(ValueError):
                 error_scenario(budget, invalid)
         self.assertIn('not a full verifier', budget['not_a_total_bound'])

@@ -94,3 +94,7 @@ commit snapshot passes 1,935 source-location checks, 13 Python tests and the
 JavaScript test. The combined working tree also passes its 1,934 checks,
 14 Python tests and the JavaScript test; its independent change removes one
 example citation. Neither local build publishes the website.
+
+The use-count bound remains symbolic at `bd56776af63f050e31b1c4d7a75698f6d7dc358f`.
+Its static, library and axiom gates pass (library 1s; axioms 6s). The
+requirement map points to that checked source and selects no workload count.

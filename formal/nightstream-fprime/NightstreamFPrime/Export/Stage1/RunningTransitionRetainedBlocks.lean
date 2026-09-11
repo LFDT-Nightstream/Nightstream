@@ -153,7 +153,5 @@ def retainedCoordinateCount
   simp only [retainedCoordinateCount, piDecBlock,
     freshBlock, fieldBlock_coordinateCount,
     RunningTransitionSourceSupport.piDecCount_eq, freshCount_eq]
-  change 49248 * 41 + 296138 * 41 = 14160826
-  norm_num
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks

@@ -57,7 +57,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 353428 := by
+      application.witnessWordCount + localCount application ≤ 383900 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -69,7 +69,7 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 353427 := by
+      application.witnessWordCount + localCount application ≤ 383899 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
@@ -88,7 +88,7 @@ structure FitsTwoPow28
 word budget. -/
 def fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 353428) :
+    (fits : application.witnessWordCount + localCount application ≤ 383900) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits

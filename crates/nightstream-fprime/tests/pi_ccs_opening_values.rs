@@ -507,7 +507,7 @@ fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
     let package: Value = serde_json::from_slice(bytes).expect("raw Lean package");
     let mut offset = package[6].as_u64().expect("logical public width") as usize;
     let blocks = package[4][1].as_array().expect("Lean assignment blocks");
-    assert_eq!(blocks.len(), 33, "shared-value assignment layout");
+    assert_eq!(blocks.len(), 30, "shared-value assignment layout");
     let mut changed = 0;
     for (index, block) in blocks.iter().enumerate() {
         assert_eq!(block[0], json!(index), "canonical block order");

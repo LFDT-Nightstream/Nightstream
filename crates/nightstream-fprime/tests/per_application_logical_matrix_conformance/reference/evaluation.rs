@@ -123,8 +123,8 @@ pub fn evaluate(
         ));
     }
     let mut next = 0usize;
-    let mut assignment_mutations = [None; 33];
-    let mut referenced_blocks = [false; 33];
+    let mut assignment_mutations = [None; super::assignment::BLOCK_COUNT];
+    let mut referenced_blocks = [false; super::assignment::BLOCK_COUNT];
     let mut matrix_mutations = [None; MATRIX_COUNT - 1];
     let mut public_bit_mutations = [None; 256];
     let mut zero_slot_mutation_rejected = false;

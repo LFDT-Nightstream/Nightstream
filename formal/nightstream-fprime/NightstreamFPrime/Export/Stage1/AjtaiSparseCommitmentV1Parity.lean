@@ -29,7 +29,7 @@ def middleBlock : Fin Poseidon2HashChainV1Setup.messageColumns :=
   ⟨32768, by rw [Poseidon2HashChainV1Setup.messageColumns_eq]; decide⟩
 
 def lastBlock : Fin Poseidon2HashChainV1Setup.messageColumns :=
-  ⟨4708529, by rw [Poseidon2HashChainV1Setup.messageColumns_eq]; decide⟩
+  ⟨4685393, by rw [Poseidon2HashChainV1Setup.messageColumns_eq]; decide⟩
 
 def assignment : Phi81Relation.Assignment shape :=
   BaseLinear.assignmentAdd
@@ -43,7 +43,7 @@ theorem assignment_coordinate (column : Fin shape.carrierWidth) :
     assignment column =
       (if column.val = 0 then 1 else 0) +
         ((if column.val = 1769499 then -1 else 0) +
-          (if column.val = 254260619 then 1 else 0)) := by
+          (if column.val = 253011275 then 1 else 0)) := by
   change CommitmentSparse.singleBlock (shape := shape) firstBlock (ringFMonomial 0 1) column +
       (CommitmentSparse.singleBlock (shape := shape) middleBlock (ringFMonomial 27 (-1)) column +
         CommitmentSparse.singleBlock (shape := shape) lastBlock (ringFMonomial 53 1) column) = _

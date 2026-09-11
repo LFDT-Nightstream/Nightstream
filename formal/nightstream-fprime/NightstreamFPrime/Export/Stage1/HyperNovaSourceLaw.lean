@@ -140,6 +140,35 @@ theorem context_marginal :
       (fun context => PiCCSInputCheck.fresh (inputs context)) continuation)
     (Lifecycle.Nifs.InteractiveComposition.consume relation productionAjtaiKey primitives)
 
+/-- Two continuations that agree on actual supported checked receipts give
+the same selected source-result law, including unsuccessful source returns.
+This is the interface used to compare a fixed operational continuation with
+its proof-only supported extension under each visited-context law. -/
+theorem law_eq_of_continuation_eq_on_return
+    (other : ∀ context (coins : PublicCoins K productionShape)
+      (output : FullOutputCoordinates.FullOutput K productionShape), State →
+        Lifecycle.Nifs.WeakExtraction.Continuation Tape relation productionAjtaiKey
+          (PiCCSInputCheck.running (inputs context)) (PiCCSInputCheck.fresh (inputs context))
+          coins output)
+    (same : ∀ context ∈ contexts.support,
+      ∀ alpha gamma point (receipt : Probe K productionShape × State),
+        InteractivePrefix.run
+          (Lifecycle.Nifs.InteractiveComposition.firstPhase originalFirstPhase
+            (Lifecycle.Nifs.SupportedExtraction.publicCheck
+              (fun context => PiCCSInputCheck.running (inputs context))) context)
+          alpha gamma point = some receipt →
+        continuation context receipt.1.coins receipt.1.response.fullOutput receipt.2 =
+          other context receipt.1.coins receipt.1.response.fullOutput receipt.2) :
+    law inputs contexts originalFirstPhase continuation primitives =
+      law inputs contexts originalFirstPhase other primitives := by
+  unfold law
+  apply congrArg (fun distribution : PMF (Context ×
+    CheckedWitnessExtraction.Outcome productionShape carrier) => distribution.map _)
+  apply SequentialOutputLaw.law_eq_of_suffix_eq_on_return
+  intro context supported alpha gamma point receipt returned
+  unfold Lifecycle.Nifs.InteractiveComposition.suffixLaw
+  rw [same context supported alpha gamma point receipt returned]
+
 /-- The same experiment at one supplied context. Its continuation and
 primitive program are unchanged; only the context PMF is a point mass. -/
 noncomputable def atContext (context : Context) :

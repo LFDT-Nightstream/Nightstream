@@ -187,8 +187,11 @@ private theorem source_none (payload : Payload) : ¬ SourceSucceeded payload non
   rintro ⟨values, impossible, _⟩
   cases impossible
 
-private theorem counter_matches (statement : Statement) (payload : Payload)
-    (accepted : Accepted statement (.recursive payload))
+/-- Accepted terminal membership without the existing state-hash collision
+identifies the decoded predecessor counter with the public successor counter. -/
+theorem counter_matches (statement : Statement) (payload : Payload)
+    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+      statement (.recursive payload))
     (safe : ¬ Collision statement payload) :
     (decodedInput payload).iteration + 1 = statement.iteration := by
   rcases ActualContextSecurity.terminal_implies_matchingStepOrCollision
@@ -200,14 +203,19 @@ private theorem counter_matches (statement : Statement) (payload : Payload)
     exact counter
   · exact False.elim (safe collision)
 
-private theorem predecessor_accepted (statement : Statement) (payload : Payload)
+/-- A checked source return reconstructs the accepted predecessor of a non-base
+terminal opening when the existing current state-hash collision does not occur.
+The initial state and application transition are preserved exactly. -/
+theorem predecessor_accepted (statement : Statement) (payload : Payload)
     (values : SourceValues) (positive : 0 < (decodedInput payload).iteration)
-    (accepted : Accepted statement (.recursive payload))
+    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+      statement (.recursive payload))
     (source : SourceSucceeded payload (some values))
     (safe : ¬ Collision statement payload) :
     (decodedInput payload).z0 = statement.z0 ∧
       statement.zi = application.step (decodedInput payload).zi (decodedInput payload).witness ∧
-      Accepted (predecessorStatement payload) (.recursive (predecessorPayload payload values)) := by
+      PerApplicationTerminal.Holds application fits productionSetup
+        (predecessorStatement payload) (.recursive (predecessorPayload payload values)) := by
   have memberships := source_memberships payload values source
   rcases HyperNovaPredecessor.terminal_implies_predecessorOrCollision application fits
       productionSetup statement payload (HyperNovaSource.runningWitness values)

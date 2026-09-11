@@ -90,6 +90,47 @@ theorem context_marginal :
     (law contexts firstPhase suffixLaw consume).map Prod.fst = contexts := by
   simp only [law, PMF.map_bind, atCoins_context_marginal, PMF.bind_const, PMF.bind_pure]
 
+private theorem bind_eq_on_support {Sample Result : Type*}
+    (distribution : PMF Sample) (left right : Sample → PMF Result)
+    (same : ∀ sample ∈ distribution.support, left sample = right sample) :
+    distribution.bind left = distribution.bind right := by
+  apply PMF.ext
+  intro result
+  simp only [PMF.bind_apply]
+  apply tsum_congr
+  intro sample
+  by_cases zero : distribution sample = 0
+  · simp only [zero, zero_mul]
+  · rw [same sample ((distribution.mem_support_iff sample).mpr zero)]
+
+/-- Only the continuation of an actual receipt in a supported context can
+affect the sequential output law. All other contexts and aborts retain their
+original mass; no conditional law or independent-execution premise is used. -/
+theorem law_eq_of_suffix_eq_on_return
+    (otherSuffix : Context → PublicCoins K shape → FullOutputCoordinates.FullOutput K shape →
+      State → PMF Endpoint)
+    (same : ∀ context ∈ contexts.support,
+      ∀ alpha gamma point (receipt : Probe K shape × State),
+        InteractivePrefix.run (firstPhase context) alpha gamma point = some receipt →
+        suffixLaw context receipt.1.coins receipt.1.response.fullOutput receipt.2 =
+          otherSuffix context receipt.1.coins receipt.1.response.fullOutput receipt.2) :
+    law contexts firstPhase suffixLaw consume = law contexts firstPhase otherSuffix consume := by
+  unfold law
+  apply bind_eq_on_support
+  intro context supported
+  apply congrArg (PMF.bind (VerifierCoinLaw.law shape))
+  funext request
+  let coins := VerifierCoinSpace.coins request
+  change atCoins firstPhase suffixLaw consume context coins =
+    atCoins firstPhase otherSuffix consume context coins
+  unfold atCoins
+  cases returned : InteractivePrefix.run (firstPhase context)
+      coins.alpha coins.gamma coins.roundPoint with
+  | none => rfl
+  | some receipt =>
+      dsimp only
+      rw [same context supported coins.alpha coins.gamma coins.roundPoint receipt returned]
+
 variable [Fintype Endpoint]
 
 private theorem atCoins_event_eq (context : Context) (coins : PublicCoins K shape)

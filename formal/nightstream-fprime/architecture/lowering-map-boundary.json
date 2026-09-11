@@ -121,6 +121,65 @@
           "[bounded] exit=0 elapsed=1s"
         ]
       }
+    },
+    "parser_regression": {
+      "authority": "Lean 4.30 Lean/Parser/Module/Syntax.lean, Module.import/header",
+      "failure": "The old line parser missed whitespace-separated module names. The added regression test failed before the correction.",
+      "correction": "Read the cleaned module header across whitespace. Stop at the first non-import command.",
+      "script_tests": "19 passed",
+      "current_graph": "Unchanged: 932 modules and 3154 import edges.",
+      "negative_tests": [
+        {
+          "case": "direct",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        },
+        {
+          "case": "transitive",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.SpartanRows",
+          "log_sha256": "842dc5102e88874bf04ebd6dee009dd4938c1b27c593473b4e5849260af972ec"
+        },
+        {
+          "case": "multiline",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        },
+        {
+          "case": "comment",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        }
+      ],
+      "checkpoint_gates": {
+        "static": {
+          "result": "passed",
+          "log_sha256": "a455f2e96811e39d3e4c3fb44f1267ff1719dbc7d4e1e9a3e85238cc06f96893",
+          "last_lines": [
+            "[layout-interfaces] PiDEC data interfaces exclude complete row plans",
+            "[boundary] all checks passed"
+          ]
+        },
+        "build": {
+          "result": "passed",
+          "log_sha256": "7b3da6e056def882775c96904d0ecd3ac70258180c8908d82045d5e40449c1a1",
+          "last_lines": [
+            "Build completed successfully (3813 jobs).",
+            "[bounded] exit=0 elapsed=1s"
+          ]
+        },
+        "axioms": {
+          "result": "passed",
+          "log_sha256": "6e1c403c1a7d337996c41c75192f06f42c672398691612c091776bd74b5301f7",
+          "last_lines": [
+            "Build completed successfully (3920 jobs).",
+            "[bounded] exit=0 elapsed=1s"
+          ]
+        }
+      }
     }
   }
 }

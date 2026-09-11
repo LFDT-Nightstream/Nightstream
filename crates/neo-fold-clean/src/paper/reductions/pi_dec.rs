@@ -12,11 +12,17 @@
 //! - `verify` uses `combine_b_pows` to re-derive parent commitments and y's
 //!   from the children, and rejects on any mismatch.
 
-use neo_ajtai::AjtaiSModule;
+use neo_ajtai::{
+    nightstream_fprime_setup::{
+        commit_production_signed_unit_matrix, PRODUCTION_CARRIER_WIDTH, PRODUCTION_VERIFIER_ROWS,
+    },
+    AjtaiSModule,
+};
 use neo_ccs::Mat;
 use neo_math::balanced::within_nc_bound;
 use neo_math::{D, F, K};
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
+use neo_reductions::superneo_eval::SuperneoEvalCache;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
@@ -24,8 +30,13 @@ use crate::engine::optimized as engine;
 use crate::engine::paper_exact as reference_engine;
 use crate::paper::params::Params;
 use crate::paper::relations::{
-    recompose_adv, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer, LaneScheme, Structure,
+    ajtai_dec_mixer, recompose_adv, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer,
+    LaneScheme, Structure,
 };
+
+#[cfg(test)]
+#[path = "../../../tests/reductions/pi_dec_selected.rs"]
+mod selected_tests;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -67,6 +78,8 @@ pub enum Error {
     #[error(transparent)]
     Engine(#[from] engine::Error),
     #[error(transparent)]
+    ProductionCommitment(#[from] neo_ajtai::AjtaiError),
+    #[error(transparent)]
     PaperExactEngine(#[from] reference_engine::Error),
 }
 
@@ -101,6 +114,72 @@ pub fn prove(
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
     prove_inner(pp, s, cache, log, lanes, combine, parent, parent_witness, None, None)
+}
+
+/// Plain selected-key D from the actual parent witness and owner-built rows.
+/// Digit planes, commitments and all openings are computed here; callers
+/// supply no split material, evaluator results or commitment callback.
+pub(crate) fn prove_with_production_key(
+    pp: &Params,
+    s: &Structure,
+    cache: &SuperneoEvalCache,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+) -> Result<(Children, Proof), Error> {
+    let production = Params::production();
+    if pp.b() != production.b()
+        || pp.k_rho() != production.k_rho()
+        || pp.big_b() != production.big_b()
+        || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
+        || neo_reductions::common::superneo_carrier_width(s.m) != PRODUCTION_CARRIER_WIDTH
+        || cache.relation_shape() != Some((s.n, PRODUCTION_CARRIER_WIDTH, s.t()))
+    {
+        return Err(engine::Error::from(neo_reductions::PiCcsError::InvalidInput(
+            "selected PiDEC production key or row-cache shape mismatch".into(),
+        ))
+        .into());
+    }
+    if parent.adv.is_some() {
+        return Err(Error::AdvLaneSchemeMissing);
+    }
+    neo_reductions::common::validate_superneo_witness_mat(parent_witness, s.m).map_err(engine::Error::from)?;
+    let (digits, flags) =
+        neo_reductions::common::split_b_matrix_k_with_nonzero_flags(parent_witness, pp.k_rho() as usize, pp.b())
+            .map_err(engine::Error::from)?;
+    let commitments = digits
+        .iter()
+        .map(commit_production_signed_unit_matrix)
+        .collect::<Result<Vec<_>, _>>()?;
+    let (children, ok_y, ok_x, ok_c) =
+        neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+            neo_reductions::api::FoldingMode::Optimized,
+            s,
+            pp.inner(),
+            parent,
+            &digits,
+            &flags,
+            D.next_power_of_two().trailing_zeros() as usize,
+            &commitments,
+            ajtai_dec_mixer,
+            Some(cache),
+            None,
+            None,
+        );
+    if children.is_empty() {
+        return Err(engine::Error::PiDecFailed.into());
+    }
+    if !(ok_y && ok_x && ok_c) {
+        return Err(engine::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }.into());
+    }
+    let proof = Proof { children };
+    let claims = verify(pp, s, ajtai_dec_mixer, parent, &proof)?;
+    Ok((
+        Children {
+            claims,
+            witnesses: digits,
+        },
+        proof,
+    ))
 }
 
 pub(crate) fn prove_with_precompute(

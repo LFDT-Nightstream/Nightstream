@@ -144,4 +144,10 @@ Legacy Layout consumers still rebuild. No production header conversion was made.
 `LoweringRows` owns the complete row instance and logical circuit constructor.
 `CompactPullback` uses the former. The [boundary record](architecture/lowering-map-boundary.json)
 records unchanged declarations and passing static, library, axiom and identity
-checks. The full PiDEC allocation boundary remains open.
+checks. The extra-cell pullback test passes in 71.42 seconds. The full PiDEC
+allocation boundary remains open: the complete consumer still uses the
+running-transition endpoint and package-size checks.
+
+The static gate checks these data interfaces for transitive imports of complete
+row plans. Direct and indirect import mutations are both rejected in the
+scratch test. No production module-system headers were changed.

@@ -91,6 +91,34 @@ if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
   fail "physical declaration returned to the MatrixProgram codec owner"
 fi
 
+# The PiDEC allocation pilot's data interfaces must not import complete row plans.
+if ! timeout --signal=KILL 300s python3 -B - <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, 'scripts')
+from rebuild_radius import graph, dependents
+
+prefix = 'NightstreamFPrime.Layout.Stage1.'
+interfaces = {prefix + name for name in
+              ('Spartan', 'PiDECSourceSupportData', 'Lowering', 'CompactPullback')}
+row_owners = ('SpartanRows', 'LoweringRows', 'RunningTransitionLowering',
+              'PilotPiCCSPiRLCPiDECRunningTransition', 'AssemblerApplicationCompleteness')
+edges, _ = graph(Path('.'))
+failures = []
+for name in row_owners:
+    owner = prefix + name
+    for interface in sorted(interfaces.intersection(dependents(edges, owner))):
+        failures.append(f'{interface} imports complete row owner {owner}')
+if failures:
+    for failure in failures:
+        print('[layout-interfaces] ' + failure, file=sys.stderr)
+    raise SystemExit(1)
+print('[layout-interfaces] PiDEC data interfaces exclude complete row plans')
+PY
+then
+  fail "complete row plans crossed the PiDEC data interface boundary"
+fi
+
 # 9. Every source module must be reachable from one declared library or
 # executable root. An unimported file is not checked by `lake build` and
 # cannot provide assurance evidence.

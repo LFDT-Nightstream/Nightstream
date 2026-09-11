@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
+import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!

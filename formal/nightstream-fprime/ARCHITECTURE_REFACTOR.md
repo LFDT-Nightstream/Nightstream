@@ -120,3 +120,11 @@ identity and consumer checks for later changes.
 The extra-cell probe still reaches a fixed running-transition endpoint through
 Spartan, plus the selected default Values check. Full allocation isolation remains
 open; see [the probe record](architecture/pidec-allocation.json).
+
+## Spartan map boundary
+
+`Spartan` now owns the generic column map and padding operations. `SpartanRows`
+owns their complete-prefix instance, with the existing public names and bodies.
+PiDEC source support no longer imports `RunningTransitionLowering`. The
+[boundary record](architecture/spartan-map-boundary.json) contains the checks and
+source dependency measurement. The changed-allocation probe is a separate check.

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Layout.R1CS
 
 /-!

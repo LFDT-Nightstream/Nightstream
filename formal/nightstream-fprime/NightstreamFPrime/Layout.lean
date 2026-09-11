@@ -104,7 +104,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Layout.Stage1.RunningTransitionOwnership
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.BalancedTernary
 import NightstreamFPrime.Layout.LowNormSlot

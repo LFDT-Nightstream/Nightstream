@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
+import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
 
 /-!

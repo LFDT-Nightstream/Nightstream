@@ -20,6 +20,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECValues
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
@@ -417,3 +418,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.parentStart_le_source
 
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.parent_within_piRlc
+
+-- Complete-prefix instances of the generic Spartan map.
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_matches
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_bounds

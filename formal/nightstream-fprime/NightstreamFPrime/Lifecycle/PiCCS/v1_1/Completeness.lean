@@ -218,6 +218,57 @@ theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
+/-- State binding and acceptance of the caller-owned PiCCS data construct
+the complete local prefix. Its generated environment satisfies the phase
+specification, including the actual round point and outgoing transcript state;
+neither generated value is an input premise. -/
+theorem completePrefix_of_accepted
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Interface logicalWidth
+      (ProductionKey.degreeBound relation) publicFits)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (stateBinding : StateBinding.SpecHolds
+      (statementBindingInterface (atOffset interface offset)).state offset env)
+    (accepted : NightstreamFPrime.Spec.Folding.PiCCS.Accepted
+      (ProductionKey.key relation ajtai)
+      (evalRunning interface offset env)
+      (evalFresh interface offset env)
+      (evalProof relation interface offset env template)) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsAt relation interface offset ∧
+        PhaseHolds relation ajtai interface offset completed.current template := by
+  rcases completeTranscriptPrefix relation interface env offset assumptions
+      stateBinding with
+    ⟨p4, o4, s4, statementSpecP4, challengeSpecP4, roundSpecP4⟩
+  rcases completeEvaluationPrefix relation ajtai interface env offset template
+      assumptions accepted p4 (by omega) statementSpecP4 challengeSpecP4
+        roundSpecP4 s4 with
+    ⟨p8, o8, s8, _p4to8, evidenceP8⟩
+  rcases completeTerminalPrefix relation ajtai interface env offset template
+      assumptions p8 (by omega) evidenceP8 s8 with
+    ⟨p12, o12, _s12, _p8to12⟩
+  have operationsEq : p12.operations = opsAt relation interface offset := by
+    rw [o12, o8, o4]
+    simp [transcriptPrefixOps, evaluationPrefixOps, terminalPrefixOps, opsAt]
+  refine ⟨p12, operationsEq, ?_⟩
+  have rows : holds p12.current (Circuit.ops (main relation interface) offset) := by
+    change holds p12.current (opsAt relation interface offset)
+    rw [← operationsEq]
+    exact holdsFlat_implies_holds p12.current p12.operations p12.rows
+  exact spec_implies_phaseHolds relation ajtai interface offset p12.current template
+    (soundness relation interface p12.current offset
+      (assumptionsAt assumptions p12.current) rows)
+
+/-- The phase-level completeness interface follows from state binding and
+accepted input data. The generated phase specification is proved by the
+constructor and does not need the supplied point or outgoing-state equations. -/
 theorem completePrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -233,20 +284,10 @@ theorem completePrefix
     (specification : PhaseHolds relation ajtai interface offset env template) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = opsAt relation interface offset := by
-  rcases completeTranscriptPrefix relation interface env offset assumptions
-      specification.stateBinding with
-    ⟨p4, o4, s4, statementSpecP4, challengeSpecP4, roundSpecP4⟩
-  rcases completeEvaluationPrefix relation ajtai interface env offset template
-      assumptions specification.accepted p4 (by omega) statementSpecP4 challengeSpecP4
-        roundSpecP4 s4 with
-    ⟨p8, o8, s8, _p4to8, evidenceP8⟩
-  rcases completeTerminalPrefix relation ajtai interface env offset template
-      assumptions p8 (by omega) evidenceP8 s8 with
-    ⟨p12, o12, _s12, _p8to12⟩
-  have operationsEq : p12.operations = opsAt relation interface offset := by
-    rw [o12, o8, o4]
-    simp [transcriptPrefixOps, evaluationPrefixOps, terminalPrefixOps, opsAt]
-  exact ⟨p12, operationsEq⟩
+  obtain ⟨completed, operationsEq, _phase⟩ := completePrefix_of_accepted
+    relation ajtai interface template env offset assumptions
+    specification.stateBinding specification.accepted
+  exact ⟨completed, operationsEq⟩
 
 theorem completeness
     {logicalWidth : Nat}

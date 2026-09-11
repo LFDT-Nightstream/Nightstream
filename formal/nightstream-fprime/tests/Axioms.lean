@@ -723,6 +723,7 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.evalAOffset_eq_evalARowOffset
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.ccsOffset_eq_ccsRowOffset
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.completePrefix
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.completePrefix_of_accepted
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.circuit
 #audit_axioms NightstreamFPrime.Layout.R1CS.lowerExpression_sound
 #audit_axioms NightstreamFPrime.Layout.R1CS.LinearCombination.VarsBelow.mono

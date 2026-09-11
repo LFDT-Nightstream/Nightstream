@@ -55,16 +55,12 @@ def schedule (program : Lifecycle.Stage1.Application.Program) :
 
 structure Geometry (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) : Prop where
-  payloadFits : PiCCSActionPayloadBlock.logicalWidth program ≤ logicalWidth
+  pilotFits : PiRLCPoseidonGeometry.pilotLogicalWidth program ≤ logicalWidth
 
 def pilotGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     PiRLCPoseidonGeometry.Geometry program logicalWidth where
-  pilotFits := by
-    apply Nat.le_trans _ geometry.payloadFits
-    unfold PiCCSActionPayloadBlock.logicalWidth
-      PiCCSActionPayloadBlock.payloadStart
-    omega
+  pilotFits := geometry.pilotFits
 
 def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
@@ -89,12 +85,6 @@ def retainedFits {program : Lifecycle.Stage1.Application.Program}
   unfold retainedStart LaterPoseidonRetainedBlocks.piCcsStart
   rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount] at whole
   omega
-
-def payloadFits {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    PiCCSActionPayloadBlock.payloadStart program +
-        (PiCCSActionPayloadBlock.block program).coordinateCount ≤ logicalWidth :=
-  geometry.payloadFits
 
 /-- The retained PiCCS block is exactly the zero-offset slice of the shared
 later-Poseidon block, lifted through the payload suffix source domain. -/

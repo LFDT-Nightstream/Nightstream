@@ -22,22 +22,19 @@ open PerApplicationAssignmentPlan
 
 abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
 
-/-- The three value domains consumed by the retained assignment. -/
+/-- The two value domains consumed by the retained assignment. -/
 inductive SourceDomain where
   | retained
-  | piCcsPayload
   | physicalBase
 deriving Repr, DecidableEq
 
 def SourceDomain.format : Format SourceDomain where
   encode
     | .retained => .atom 0
-    | .piCcsPayload => .atom 1
-    | .physicalBase => .atom 2
+    | .physicalBase => .atom 1
   decode
     | .atom 0 => .ok .retained
-    | .atom 1 => .ok .piCcsPayload
-    | .atom 2 => .ok .physicalBase
+    | .atom 1 => .ok .physicalBase
     | _ => .error "invalid assignment source domain"
   decode_encode := by
     intro domain
@@ -69,21 +66,15 @@ def entry (application : ProgramApplication) (kind : BlockKind) :
   kind.expand (zeroRaw application)
 
 def sourceDomainOf : BlockKind → SourceDomain
-  | .piCcsPayload => .piCcsPayload
   | .applicationWitness | .applicationLocal => .physicalBase
   | _ => .retained
 
-/-- Exact normalized source index selected by one retained slot. Payload
-indices omit their retained-prefix displacement; every other domain already
-starts at zero. -/
+/-- Exact source index selected by one retained slot. Both source domains
+start at zero. -/
 def sourceIndex (application : ProgramApplication)
     (kind : BlockKind)
     (slot : Fin (entry application kind).block.slotCount) : Nat :=
-  let selected := ((entry application kind).block.source slot).val
-  match kind with
-  | .piCcsPayload =>
-      selected - PiCCSActionPayloadBlock.prefixSourceWidth application
-  | _ => selected
+  ((entry application kind).block.source slot).val
 
 def sourceIndices (application : ProgramApplication)
     (kind : BlockKind) : List Nat :=
@@ -99,14 +90,8 @@ left. -/
 @[inline] def directSourceRunsFor (application : ProgramApplication)
     (kind : BlockKind) : List AffineRuns.Run :=
   let selected := entry application kind
-  let payloadPrefix :=
-    PiCCSActionPayloadBlock.prefixSourceWidth application
   AffineRuns.compressIndexedTR fun slot : Fin selected.block.slotCount =>
-    let value := (selected.block.source slot).val
-    match kind with
-    | .piCcsPayload =>
-        value - payloadPrefix
-    | _ => value
+    (selected.block.source slot).val
 
 /-- The allocation-bounded source scan emits the exact canonical run list. -/
 theorem directSourceRunsFor_eq_sourceRunsFor
@@ -221,7 +206,7 @@ def canonical (application : ProgramApplication) : List BlockPlan :=
   canonicalKinds.map (BlockPlan.ofKind application)
 
 @[simp] theorem canonical_length (application : ProgramApplication) :
-    (canonical application).length = 33 := by
+    (canonical application).length = 30 := by
   simp [canonical]
 
 theorem canonical_opcodes (application : ProgramApplication) :

@@ -107,10 +107,9 @@ private def expressionValue {program : Program} (expressions : List Expr)
     (SourceCompiler.sourceEnv raw.retainedSource)
 
 /-- Total value view of one serialized block source domain. -/
-private def domainValue (program : Program) (plan : Plan)
+private def domainValue (program : Program)
     (raw : RawValues program) : SourceDomain → Nat → F
   | .retained => SourceCompiler.sourceEnv raw.retainedSource
-  | .piCcsPayload => expressionValue plan.payloadExpressions raw
   | .physicalBase => SourceCompiler.sourceEnv raw.base
 
 /-- On the canonical plan, each domain/index pair reads the scalar selected
@@ -120,15 +119,13 @@ private theorem canonical_domain_source (program : Program)
     (entryBound :
       slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount)
     (rawBound : slot < (kind.expand raw).block.slotCount) :
-    domainValue program (PerApplicationAssignmentTransport.canonical program)
-        raw (PerApplicationAssignmentBlocks.sourceDomainOf kind)
+    domainValue program raw (PerApplicationAssignmentBlocks.sourceDomainOf kind)
         (PerApplicationAssignmentBlocks.sourceIndex program kind
           ⟨slot, entryBound⟩) =
       (kind.expand raw).source
         ((kind.expand raw).block.source ⟨slot, rawBound⟩) := by
   cases kind <;>
     simp [domainValue, expressionValue,
-      PerApplicationAssignmentTransport.canonical_payloadExpressions,
       PerApplicationAssignmentBlocks.sourceDomainOf,
       PerApplicationAssignmentBlocks.sourceIndex,
       PerApplicationAssignmentBlocks.entry,
@@ -137,44 +134,16 @@ private theorem canonical_domain_source (program : Program)
       PerApplicationAssignmentPlan.BlockKind.template,
       PerApplicationCanonicalAssignment.Canonical.ofBlock,
       CanonicalBlockAssignment.ofBlock,
-      PerApplicationCanonicalAssignment.RawValues.payloadSource,
       PerApplicationCanonicalAssignment.RawValues.applicationSource,
-      PiCCSPoseidonPreservation.sourceAssignment,
-      PiCCSActionPayloadBlock.block,
-      FieldSuffixBlock.block, FieldSuffixBlock.derivedColumn]
-  · have payloadBound : slot < PiCCSActionPayloadBlock.payloadCount := by
-      simpa [PerApplicationAssignmentPlan.BlockKind.expand,
-        PerApplicationAssignmentPlan.BlockKind.template,
-        PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock,
-        PiCCSActionPayloadBlock.block, FieldSuffixBlock.block] using rawBound
-    let index : Fin PiCCSActionPayloadBlock.payloadCount :=
-      ⟨slot, payloadBound⟩
-    calc
-      ((PerApplicationAssignmentTransport.payloadExpressions program).getD
-          slot 0).eval (SourceCompiler.sourceEnv raw.retainedSource) =
-        PiCCSActionPayloadBlock.payloadValue program raw.retainedSource
-          index := by
-        simpa [index] using
-          (PerApplicationAssignmentTransportExpressions.payloadExpression_eval
-            program raw index)
-      _ = PiCCSActionPayloadBlock.sourceAssignment program raw.retainedSource
-          ⟨PiCCSActionPayloadBlock.prefixSourceWidth program + slot, by
-            unfold PiCCSActionPayloadBlock.sourceWidth
-              FieldSuffixBlock.sourceWidth
-            omega⟩ := by
-        symm
-        simpa [index, PiCCSActionPayloadBlock.payloadColumn,
-          FieldSuffixBlock.derivedColumn] using
-            (PiCCSActionPayloadBlock.sourceAssignment_payload program
-              raw.retainedSource index)
+      PiCCSPoseidonPreservation.sourceAssignment]
+
 /-- One serialized block slot. Invalid run coverage fails closed. -/
-private def blockSlotValue (program : Program) (plan : Plan)
+private def blockSlotValue (program : Program)
     (raw : RawValues program) (block : BlockPlan)
     (slot : Fin block.slotCount) : F :=
   if _covered :
       (block.sourceRuns.map AffineRuns.Run.count).sum = block.slotCount then
-    domainValue program plan raw block.sourceDomain
+    domainValue program raw block.sourceDomain
       (AffineRuns.sourceAt block.sourceRuns slot.val)
   else
     0
@@ -188,22 +157,22 @@ private def identityBlock (block : BlockPlan) :
   source := fun slot => slot
 
 /-- Interpret one serialized block without expanding its slots. -/
-private def transportBlockValue (program : Program) (plan : Plan)
+private def transportBlockValue (program : Program)
     (raw : RawValues program) (block : BlockPlan) :
     CanonicalBlockAssignment.BlockValue :=
   CanonicalBlockAssignment.ofBlock (identityBlock block)
-    (blockSlotValue program plan raw block)
+    (blockSlotValue program raw block)
 
 @[simp] private theorem transportBlockValue_block_kind
-    (program : Program) (plan : Plan) (raw : RawValues program)
+    (program : Program) (raw : RawValues program)
     (block : BlockPlan) :
-    (transportBlockValue program plan raw block).block.kind = block.slotKind := by
+    (transportBlockValue program raw block).block.kind = block.slotKind := by
   rfl
 
 @[simp] private theorem transportBlockValue_block_slotCount
-    (program : Program) (plan : Plan) (raw : RawValues program)
+    (program : Program) (raw : RawValues program)
     (block : BlockPlan) :
-    (transportBlockValue program plan raw block).block.slotCount =
+    (transportBlockValue program raw block).block.slotCount =
       block.slotCount := by
   rfl
 
@@ -287,8 +256,7 @@ private theorem blockValue_coordinateAt_eq
 
 private theorem canonicalBlock_kind (program : Program)
     (raw : RawValues program) (kind : BlockKind) :
-    (transportBlockValue program
-        (PerApplicationAssignmentTransport.canonical program) raw
+    (transportBlockValue program raw
         (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).block.kind =
       (kind.expand raw).block.kind := by
   change
@@ -299,8 +267,7 @@ private theorem canonicalBlock_kind (program : Program)
 
 private theorem canonicalBlock_slotCount (program : Program)
     (raw : RawValues program) (kind : BlockKind) :
-    (transportBlockValue program
-        (PerApplicationAssignmentTransport.canonical program) raw
+    (transportBlockValue program raw
         (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).block.slotCount =
       (kind.expand raw).block.slotCount := by
   change
@@ -313,8 +280,7 @@ private theorem canonicalBlock_slotCount (program : Program)
 Lean-owned opcode expansion. -/
 private theorem canonicalBlock_coordinateAt (program : Program)
     (raw : RawValues program) (kind : BlockKind) (index : Nat) :
-    (transportBlockValue program
-        (PerApplicationAssignmentTransport.canonical program) raw
+    (transportBlockValue program raw
         (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateAt
           index =
       (kind.expand raw).coordinateAt index := by
@@ -329,8 +295,7 @@ private theorem canonicalBlock_coordinateAt (program : Program)
       simpa only [PerApplicationAssignmentBlocks.BlockPlan.ofKind_slotCount] using
         leftBound
     change
-      blockSlotValue program
-          (PerApplicationAssignmentTransport.canonical program) raw
+      blockSlotValue program raw
           (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)
           ⟨slot, leftBound⟩ =
         (kind.expand raw).source
@@ -345,8 +310,7 @@ private theorem canonicalBlock_coordinateAt (program : Program)
 
 private theorem canonicalBlock_coordinateCount (program : Program)
     (raw : RawValues program) (kind : BlockKind) :
-    (transportBlockValue program
-        (PerApplicationAssignmentTransport.canonical program) raw
+    (transportBlockValue program raw
         (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateCount =
       (kind.expand raw).coordinateCount := by
   unfold CanonicalBlockAssignment.BlockValue.coordinateCount
@@ -354,19 +318,18 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 33 function-valued
+/-- Interpret the serialized block order. The list has 30 function-valued
 entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=
-  plan.blocks.map (transportBlockValue program plan raw)
+  plan.blocks.map (transportBlockValue program raw)
 
 private theorem canonicalBlocks_coordinateAt_aux (program : Program)
     (raw : RawValues program) (kinds : List BlockKind) (index : Nat) :
     CanonicalBlockAssignment.coordinateAt
         ((kinds.map
           (PerApplicationAssignmentBlocks.BlockPlan.ofKind program)).map
-            (transportBlockValue program
-              (PerApplicationAssignmentTransport.canonical program) raw))
+            (transportBlockValue program raw))
         index =
       CanonicalBlockAssignment.coordinateAt
         (kinds.map (BlockKind.expand raw)) index := by
@@ -377,8 +340,7 @@ private theorem canonicalBlocks_coordinateAt_aux (program : Program)
       unfold CanonicalBlockAssignment.coordinateAt
       have countEq := canonicalBlock_coordinateCount program raw kind
       by_cases inside : index <
-          (transportBlockValue program
-            (PerApplicationAssignmentTransport.canonical program) raw
+          (transportBlockValue program raw
             (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateCount
       · have rightInside : index < (kind.expand raw).coordinateCount := by
           rw [← countEq]
@@ -403,8 +365,7 @@ private theorem canonicalBlocks_coordinateAt (program : Program)
   change
     CanonicalBlockAssignment.coordinateAt
         ((PerApplicationAssignmentBlocks.canonical program).map
-          (transportBlockValue program
-            (PerApplicationAssignmentTransport.canonical program) raw)) index = _
+          (transportBlockValue program raw)) index = _
   unfold PerApplicationAssignmentBlocks.canonical
     PerApplicationAssignmentPlan.expand
   exact canonicalBlocks_coordinateAt_aux program raw

@@ -11,16 +11,15 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
-const TRANSPORT_SCHEMA: usize = 1;
-const BLOCK_COUNT: usize = 33;
+const TRANSPORT_SCHEMA: usize = 2;
+pub(super) const BLOCK_COUNT: usize = 30;
 const PHYSICAL_COLUMNS: usize = 29_344_425;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 254_260_583;
-const CARRIER_WIDTH: usize = 254_260_620;
+const LOGICAL_WIDTH: usize = 253_011_231;
+const CARRIER_WIDTH: usize = 253_011_276;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
-const PAYLOAD_VALUES: usize = 30_416;
 const PHI81_INVOCATIONS: usize = 52_326;
 const PHI81_GROUPS: usize = 33;
 const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
@@ -79,7 +78,6 @@ impl SlotKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SourceDomain {
     Retained,
-    Payload,
     Physical,
 }
 
@@ -87,8 +85,7 @@ impl SourceDomain {
     fn decode(value: &Value) -> Result<Self> {
         match word(value, "assignment source domain")? {
             0 => Ok(Self::Retained),
-            1 => Ok(Self::Payload),
-            2 => Ok(Self::Physical),
+            1 => Ok(Self::Physical),
             _ => Err("unknown assignment source domain".into()),
         }
     }
@@ -176,8 +173,7 @@ impl BlockPlan {
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            12 => SourceDomain::Payload,
-            31..=32 => SourceDomain::Physical,
+            28..=29 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -352,13 +348,12 @@ struct Transport {
     blocks: Vec<BlockPlan>,
     phi81: Phi81Plan,
     first54: First54Plan,
-    payload_expressions: Vec<Value>,
     output_digest_expressions: Vec<Value>,
 }
 
 impl Transport {
     fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 8, "assignment transport plan")?;
+        let fields = exact_array(value, 6, "assignment transport plan")?;
         if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
             return Err("unexpected assignment transport schema".into());
         }
@@ -370,17 +365,15 @@ impl Transport {
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
         let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "payload block opcode")? != 12 || word(&fields[6], "output-digest block opcode")? != 26 {
+        if word(&fields[4], "output-digest block opcode")? != 23 {
             return Err("unexpected derived assignment block selector".into());
         }
-        let payload_expressions = exact_array(&fields[5], PAYLOAD_VALUES, "payload expressions")?.to_vec();
         let output_digest_expressions =
-            exact_array(&fields[7], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
+            exact_array(&fields[5], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
         Ok(Self {
             blocks,
             phi81,
             first54,
-            payload_expressions,
             output_digest_expressions,
         })
     }
@@ -438,7 +431,6 @@ struct Domains<'a> {
     physical: Physical<'a>,
     groups: Vec<u64>,
     products: Vec<u64>,
-    payload: Vec<u64>,
 }
 
 impl Domains<'_> {
@@ -460,11 +452,6 @@ impl Domains<'_> {
     fn value(&self, domain: SourceDomain, index: usize) -> Result<u64> {
         match domain {
             SourceDomain::Retained => self.retained(index),
-            SourceDomain::Payload => self
-                .payload
-                .get(index)
-                .copied()
-                .ok_or_else(|| "payload assignment source is out of range".into()),
             SourceDomain::Physical => self.physical.value(index),
         }
     }
@@ -523,11 +510,6 @@ impl LogicalAssignment {
         let transport = Transport::decode(&raw_transport)?;
         let groups = derive_phi81_groups(&transport, &physical)?;
         let products = derive_first54_products(&transport, &physical)?;
-        let payload = transport
-            .payload_expressions
-            .iter()
-            .map(|expression| evaluate_expression(expression, &physical))
-            .collect::<Result<Vec<_>>>()?;
         let output_digest = transport
             .output_digest_expressions
             .iter()
@@ -540,7 +522,6 @@ impl LogicalAssignment {
             physical,
             groups,
             products,
-            payload,
         };
         validate_derived_block_sources(&transport, &domains, output_digest)?;
 
@@ -778,7 +759,6 @@ impl<'a> PartialLogicalAssignment<'a> {
         let source = block.source(slot)?;
         let value = match block.domain {
             SourceDomain::Retained => self.retained(source)?,
-            SourceDomain::Payload => self.payload(source)?,
             SourceDomain::Physical => self.physical.value(source)?,
         };
         encode_slot_coordinate(block.kind, value, digit)
@@ -814,15 +794,6 @@ impl<'a> PartialLogicalAssignment<'a> {
             .get(index)
             .copied()
             .ok_or_else(|| "retained first54 product source is out of range".into())
-    }
-
-    fn payload(&self, index: usize) -> Result<u64> {
-        let expression = self
-            .transport
-            .payload_expressions
-            .get(index)
-            .ok_or_else(|| "payload assignment source is out of range".to_string())?;
-        evaluate_expression(expression, &self.physical)
     }
 
     fn output_digest(&self) -> Result<[u64; OUTPUT_DIGEST_WORDS]> {
@@ -994,16 +965,7 @@ fn validate_derived_block_sources(
             return Err("first54 product source map does not select the derived value".into());
         }
     }
-    let payload = transport.block(12)?;
-    if payload.slot_count != PAYLOAD_VALUES {
-        return Err("payload block has the wrong slot count".into());
-    }
-    for slot in 0..payload.slot_count {
-        if domains.value(payload.domain, payload.source(slot)?)? != domains.payload[slot] {
-            return Err("payload source map does not select the derived value".into());
-        }
-    }
-    let digest = transport.block(26)?;
+    let digest = transport.block(23)?;
     if digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }

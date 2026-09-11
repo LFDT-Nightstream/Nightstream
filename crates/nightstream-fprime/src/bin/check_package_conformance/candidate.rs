@@ -310,15 +310,16 @@ pub fn run(
         "physical" | "detached" => 1,
         "logical" | "mutations" => 0,
         "base" | "commitment" => 2,
+        "assignment" => 3,
         "recursive" | "recursive-mutations" => 7,
         _ => panic!(
-            "mode must be physical, logical, mutations, base, recursive, recursive-mutations, commitment, or detached"
+            "mode must be physical, logical, mutations, assignment, base, recursive, recursive-mutations, commitment, or detached"
         ),
     };
     assert_eq!(
         inputs.len(),
         input_count,
-        "mode paths: physical=expanded; logical/mutations=none; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,folded-metadata; commitment=fixture,output; detached=fixture"
+        "mode paths: physical=expanded; logical/mutations=none; assignment=PiCCS,PiDEC,application-parities; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,folded-metadata; commitment=fixture,output; detached=fixture"
     );
     let started = Instant::now();
     let Candidate { package, bytes } = Candidate::load(candidate_path, binding_path, setup_path, expected);
@@ -335,6 +336,12 @@ pub fn run(
         }
         "logical" => super::logical_checks::check_logical_matrices(package, bytes),
         "mutations" => super::logical_checks::check_matrix_mutations(package, bytes),
+        "assignment" => {
+            let pi_ccs = fs::read(&inputs[0]).expect("Lean PiCCS parity");
+            let pi_dec = fs::read(&inputs[1]).expect("Lean PiDEC parity");
+            let application = fs::read(&inputs[2]).expect("Lean application parity");
+            super::assignment_checks::check_candidate_assignment(package, bytes, &pi_ccs, &pi_dec, &application);
+        }
         "base" => {
             let expanded = fs::read(&inputs[0]).expect("Lean physical expansion");
             let fixture = fs::read(&inputs[1]).expect("Lean base-step fixture");

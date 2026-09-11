@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
 /-!
-Owns the retained four-lane payload for every PiCCS Poseidon2 invocation.
+Owns the four-lane payload source view for every PiCCS Poseidon2 invocation.
 The exact action lists remain the transcript authority. This module only
 selects their absorb chunks in invocation-major order and gives squeeze
 invocations a zero payload.
@@ -306,46 +306,5 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     sourceAssignment program prefixAssignment (payloadColumn program index) =
       payloadValue program prefixAssignment index := by
   exact FieldSuffixBlock.sourceAssignment_derived _ _ _ _ index
-
-def block (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) :=
-  FieldSuffixBlock.block (prefixSourceWidth program) payloadCount
-
-@[simp] theorem block_slotCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (block program).slotCount = 30416 := by
-  rw [block, FieldSuffixBlock.block_slotCount, payloadCount_eq]
-
-@[simp] theorem block_coordinateCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (block program).coordinateCount = 1247056 := by
-  change payloadCount * 41 = 1247056
-  rw [payloadCount_eq]
-
-theorem block_sourceAssignment
-    (program : Lifecycle.Stage1.Application.Program)
-    (prefixAssignment : Fin (prefixSourceWidth program) → F)
-    (index : Fin payloadCount) :
-    sourceAssignment program prefixAssignment ((block program).source index) =
-      payloadValue program prefixAssignment index := by
-  exact FieldSuffixBlock.block_sourceAssignment _ _ _ _ index
-
-def payloadStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  PiRLCPoseidonGeometry.pilotLogicalWidth program
-
-def logicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  payloadStart program + (block program).coordinateCount
-
-@[simp] theorem logicalWidth_eq
-    (program : Lifecycle.Stage1.Application.Program) :
-    logicalWidth program = 195242354 := by
-  rw [logicalWidth, payloadStart, PiRLCPoseidonGeometry.pilotLogicalWidth_eq,
-    block_coordinateCount]
-
-theorem logicalWidth_le_cube
-    (program : Lifecycle.Stage1.Application.Program) :
-    logicalWidth program ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  rw [logicalWidth_eq]
-  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
 end NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock

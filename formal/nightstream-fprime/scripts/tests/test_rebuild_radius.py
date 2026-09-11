@@ -8,11 +8,25 @@ spec.loader.exec_module(radius)
 
 
 class RadiusTests(unittest.TestCase):
+    def test_multiline_module_imports(self):
+        source = '''module
+public
+  meta import /- across
+  lines -/ Actual.One
+import
+  all Actual.Two
+import Actual.Three import Actual.Four
+'''
+        self.assertEqual(radius.imports(source),
+                         ['Actual.One', 'Actual.Two', 'Actual.Three', 'Actual.Four'])
+
     def test_comments_and_strings_cannot_add_edges(self):
         source = '''/- import False.One /- import False.Two -/ -/
-public import Actual.One Actual.Two -- import False.Three
-def text := "ignore\nimport False.Four\n"
+module
+public import Actual.One
+import Actual.Two -- import False.Three
 meta import Actual.Three
+def text := "ignore\nimport False.Four\n"
 '''
         self.assertEqual(radius.imports(source), ['Actual.One', 'Actual.Two', 'Actual.Three'])
 

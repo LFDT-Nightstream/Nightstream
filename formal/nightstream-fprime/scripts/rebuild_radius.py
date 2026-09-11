@@ -5,7 +5,6 @@ import argparse
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
-import re
 
 
 def lean_code(text):
@@ -49,12 +48,25 @@ def lean_code(text):
 
 
 def imports(text):
-    """Read the import header, ignoring nested Lean comments and strings."""
-    names = []
-    for line in lean_code(text).splitlines():
-        match = re.fullmatch(r'\s*(?:(?:public|private|meta)\s+)*import\s+(.+?)\s*', line)
-        if match:
-            names.extend(match.group(1).split())
+    """Read Lean 4.30's module header; whitespace can cross physical lines."""
+    tokens = lean_code(text).split()
+    names, index = [], 0
+    for marker in ('module', 'prelude'):
+        if index < len(tokens) and tokens[index] == marker:
+            index += 1
+    while index < len(tokens):
+        for modifier in ('public', 'meta'):
+            if index < len(tokens) and tokens[index] == modifier:
+                index += 1
+        if index == len(tokens) or tokens[index] != 'import':
+            break
+        index += 1
+        if index < len(tokens) and tokens[index] == 'all':
+            index += 1
+        if index == len(tokens):
+            raise ValueError('Import header ends without a module name')
+        names.append(tokens[index])
+        index += 1
     return names
 
 

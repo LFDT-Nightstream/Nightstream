@@ -281,3 +281,23 @@ Ordered static, full library (3,859 jobs, 47 seconds), and full axioms
 `HYPERNOVA_SECURITY_EVIDENCE.zip` and `NIFS_NATIVE_CACHE_EVIDENCE.zip`.
 Rust constructor/rejection tests and formatting passed. Package bytes,
 identity pins and the cryptographic assumptions are unchanged.
+
+## Operational source work and C/R checkpoint
+
+Checked code cut: `2b84e0fa45678509a15229fd9cd2673ba4e6c0db`. `HyperNovaSourceWork.expected_work_polynomial_bound`
+composes the actual operational source clock over unconditional visited laws,
+including abort and false-mark paths. Context/kernel equality and source-return
+value agreement are proved. Primitive/storage bounds and finite call moments
+remain explicit. The added control allowance excludes payload decoding,
+copying and advice evaluation; this is not a machine-runtime claim.
+
+`PiRLCProtocolCompleteness.completePrefix` now constructs canonical C/R
+prefixes from actual typed input and sampler availability. It preserves C
+rows and derives the production parent and challenges. D, the surrounding
+application/state rows, complete selected assignment and honest outer prover
+remain open. Normal native PiCCS testing and the unused-allocation repair
+are active; their gates have not passed at this cut.
+
+Ordered static, full library (3,861 jobs, 4 seconds), and axiom (3,950 jobs,
+3 seconds) gates passed. Evidence: `HYPERNOVA_SOURCE_WORK_EVIDENCE.zip`,
+SHA-256 `c367847f1ad9705951ab04a2629549527756f7cd7e066edde4720ffb0536a479`. Package bytes and pins are unchanged.

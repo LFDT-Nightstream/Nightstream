@@ -499,7 +499,8 @@ def evaluationArity (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits :
   count := fun _ => 1
   evaluations_size := fun _ _ _ => rfl
 
-private def evaluationDecidableEq : DecidableEq Evaluation := by
+/-- Constructive equality for the complete separate Pad and matrix families. -/
+def evaluationDecidableEq : DecidableEq Evaluation := by
   letI : DecidableEq (Fin productionShape.coefficientCount → K) :=
     Fintype.decidablePiFintype
   letI : DecidableEq

@@ -103,8 +103,12 @@ private theorem appendSampler
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
-    (samplerRelation : SamplerChain.RelationHolds
-      (samplerInterface (atOffset interface offset)) (samplerOffset offset) env)
+    (samplerComplete : ∃ built,
+      AgreesOutside env built (samplerOffset offset)
+        (localLength (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+          (samplerOffset offset))) ∧
+      holdsFlat built (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+        (samplerOffset offset)))
     (before : Sequence.Prefix env offset)
     (startEq : offset + localLength before.operations = samplerOffset offset)
     (currentEq : before.current = env) :
@@ -115,15 +119,10 @@ private theorem appendSampler
       offset + localLength after.operations = commitmentOffset offset ∧
       Sequence.PreservesPrefix before after := by
   let shared := atOffset interface offset
-  have childAssumptions : SamplerChain.Assumptions
-      (samplerInterface shared) (samplerOffset offset) before.current := by
-    simpa [shared, currentEq] using assumptions.sampler
-  have childRelation : SamplerChain.RelationHolds
-      (samplerInterface shared) (samplerOffset offset) before.current := by
-    simpa [shared, currentEq] using samplerRelation
-  rcases SamplerChain.completeness (samplerInterface shared)
-      (samplerOffset offset) before.current childAssumptions childRelation with
-    ⟨built, builtAgrees, builtRows⟩
+  rcases samplerComplete with ⟨built, originalAgrees, builtRows⟩
+  have builtAgrees : AgreesOutside before.current built (samplerOffset offset)
+      (localLength (Circuit.ops (samplerCircuit shared).main (samplerOffset offset))) := by
+    simpa only [currentEq] using originalAgrees
   have builtAssumptions : SamplerChain.Assumptions
       (samplerInterface shared) (samplerOffset offset) built := by
     exact { initialBelow := assumptions.sampler.initialBelow }
@@ -341,6 +340,31 @@ private theorem appendEvalA
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
+private theorem completeSamplerPrefixFromSampler
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits)
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (samplerComplete : ∃ built,
+      AgreesOutside env built (samplerOffset offset)
+        (localLength (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+          (samplerOffset offset))) ∧
+      holdsFlat built (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+        (samplerOffset offset))) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = (opsAt relation interface offset).take 2 ∧
+      offset + localLength completed.operations = commitmentOffset offset := by
+  rcases completeInputPrefix relation interface env offset with
+    ⟨p1, o1, s1, currentEq⟩
+  rcases appendSampler relation interface env offset assumptions samplerComplete p1 s1
+      currentEq with ⟨p2, o2, s2, _preserves⟩
+  refine ⟨p2, ?_, s2⟩
+  rw [o2, o1]
+  simp [opsAt]
+
 theorem completeSamplerPrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -355,12 +379,39 @@ theorem completeSamplerPrefix
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = (opsAt relation interface offset).take 2 ∧
       offset + localLength completed.operations = commitmentOffset offset := by
-  rcases completeInputPrefix relation interface env offset with
-    ⟨p1, o1, s1, currentEq⟩
-  rcases appendSampler relation interface env offset assumptions phase.sampler p1 s1
-      currentEq with ⟨p2, o2, s2, _preserves⟩
-  refine ⟨p2, ?_, s2⟩
-  rw [o2, o1]
+  exact completeSamplerPrefixFromSampler relation interface env offset assumptions
+    (SamplerChain.completeness (samplerInterface (atOffset interface offset))
+      (samplerOffset offset) env assumptions.sampler phase.sampler)
+
+private theorem completeCombinationPrefixFromSampler
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits)
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (samplerComplete : ∃ built,
+      AgreesOutside env built (samplerOffset offset)
+        (localLength (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+          (samplerOffset offset))) ∧
+      holdsFlat built (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+        (samplerOffset offset))) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = (opsAt relation interface offset).take 6 ∧
+      offset + localLength completed.operations = outputBindingOffset offset := by
+  rcases completeSamplerPrefixFromSampler relation interface env offset assumptions samplerComplete with
+    ⟨p2, o2, s2⟩
+  rcases appendCommitment relation interface env offset assumptions p2 s2 with
+    ⟨p3, o3, s3, _p2to3⟩
+  rcases appendPublicInput relation interface env offset assumptions p3 s3 with
+    ⟨p4, o4, s4, _p3to4⟩
+  rcases appendEvalK relation interface env offset assumptions p4 s4 with
+    ⟨p5, o5, s5, _p4to5⟩
+  rcases appendEvalA relation interface env offset assumptions p5 s5 with
+    ⟨p6, o6, s6, _p5to6⟩
+  refine ⟨p6, ?_, s6⟩
+  rw [o6, o5, o4, o3, o2]
   simp [opsAt]
 
 theorem completeCombinationPrefix
@@ -377,19 +428,9 @@ theorem completeCombinationPrefix
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = (opsAt relation interface offset).take 6 ∧
       offset + localLength completed.operations = outputBindingOffset offset := by
-  rcases completeSamplerPrefix relation ajtai interface env offset assumptions phase with
-    ⟨p2, o2, s2⟩
-  rcases appendCommitment relation interface env offset assumptions p2 s2 with
-    ⟨p3, o3, s3, _p2to3⟩
-  rcases appendPublicInput relation interface env offset assumptions p3 s3 with
-    ⟨p4, o4, s4, _p3to4⟩
-  rcases appendEvalK relation interface env offset assumptions p4 s4 with
-    ⟨p5, o5, s5, _p4to5⟩
-  rcases appendEvalA relation interface env offset assumptions p5 s5 with
-    ⟨p6, o6, s6, _p5to6⟩
-  refine ⟨p6, ?_, s6⟩
-  rw [o6, o5, o4, o3, o2]
-  simp [opsAt]
+  exact completeCombinationPrefixFromSampler relation interface env offset assumptions
+    (SamplerChain.completeness (samplerInterface (atOffset interface offset))
+      (samplerOffset offset) env assumptions.sampler phase.sampler)
 
 private theorem appendOutputBinding
     {logicalWidth : Nat}
@@ -448,6 +489,30 @@ private theorem appendOutputBinding
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
+private theorem completePrefixFromSampler
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits)
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (samplerComplete : ∃ built,
+      AgreesOutside env built (samplerOffset offset)
+        (localLength (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+          (samplerOffset offset))) ∧
+      holdsFlat built (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+        (samplerOffset offset))) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsAt relation interface offset := by
+  rcases completeCombinationPrefixFromSampler relation interface env offset assumptions
+      samplerComplete with ⟨p6, o6, s6⟩
+  rcases appendOutputBinding relation interface env offset p6 s6 with
+    ⟨p7, o7, _s7, _p6to7⟩
+  refine ⟨p7, ?_⟩
+  rw [o7, o6]
+  simp [opsAt]
+
 theorem completePrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -461,13 +526,59 @@ theorem completePrefix
     (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = opsAt relation interface offset := by
-  rcases completeCombinationPrefix relation ajtai interface env offset assumptions
-      phase with ⟨p6, o6, s6⟩
-  rcases appendOutputBinding relation interface env offset p6 s6 with
-    ⟨p7, o7, _s7, _p6to7⟩
-  refine ⟨p7, ?_⟩
-  rw [o7, o6]
-  simp [opsAt]
+  exact completePrefixFromSampler relation interface env offset assumptions
+    (SamplerChain.completeness (samplerInterface (atOffset interface offset))
+      (samplerOffset offset) env assumptions.sampler phase.sampler)
+
+/-- Successful bounded sampling constructs the complete local R prefix.
+All generated challenge, combination, and outgoing-state facts are obtained
+from its rows. The caller supplies only the existing source bounds and actual
+bounded sampler availability, with no generated-output or parent-bound premise. -/
+theorem completePrefix_of_available
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Interface logicalWidth publicFits)
+    (env : Env) (offset : Nat)
+    (assumptions : Assumptions relation interface offset env)
+    (available : Folding.Nifs.NonInteractive.PiRlcSampler.Available
+      Transcript.PiRlcSampler.specification SamplerChain.sourceCount
+      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
+      (SamplerChain.evalInitialState (samplerInterface (atOffset interface offset))
+        (samplerOffset offset) env)) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsAt relation interface offset ∧
+      Semantics.PhaseHolds relation ajtai interface offset completed.current := by
+  obtain ⟨sampled, sampledOperations, _, _⟩ := SamplerChain.completePrefix_of_available
+    (samplerInterface (atOffset interface offset)) (samplerOffset offset) env
+    assumptions.sampler available
+  have childOperations : sampled.operations =
+      Circuit.ops (samplerCircuit (atOffset interface offset)).main (samplerOffset offset) :=
+    sampledOperations
+  have samplerComplete : ∃ built,
+      AgreesOutside env built (samplerOffset offset)
+        (localLength (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+          (samplerOffset offset))) ∧
+      holdsFlat built (Circuit.ops (samplerCircuit (atOffset interface offset)).main
+        (samplerOffset offset)) := by
+    refine ⟨sampled.current, ?_, ?_⟩
+    · rw [← childOperations]
+      exact sampled.agrees
+    · rw [← childOperations]
+      exact sampled.rows
+  obtain ⟨completed, operations⟩ := completePrefixFromSampler relation interface env offset
+    assumptions samplerComplete
+  have rows : holdsFlat completed.current (Circuit.ops (main relation interface) offset) := by
+    rw [main_ops, ← operations]
+    exact completed.rows
+  have specification := soundness relation interface offset completed.current
+    (assumptionsAt assumptions completed.current)
+    (holdsFlat_implies_holds completed.current _ rows)
+  exact ⟨completed, operations,
+    Semantics.spec_implies_phaseHolds relation ajtai interface offset completed.current specification⟩
 
 theorem completeness
     {logicalWidth : Nat}

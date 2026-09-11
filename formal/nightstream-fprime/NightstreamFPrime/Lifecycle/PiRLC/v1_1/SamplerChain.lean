@@ -407,14 +407,17 @@ private theorem evalStateAt_eq_of_agree_below (interface : Interface)
   exact (stateAtExpr interface offset count lane).eval_eq_of_agree_below
     (sourceOffset offset count) after before (scope lane) agrees
 
-private theorem completePrefix (interface : Interface) (offset : Nat)
+private theorem completeAvailablePrefix (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env)
-    (children : ChildHolds interface offset env)
+    (available : Available NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+      sourceCount candidateBound (evalInitialState interface offset env))
     (count : Nat) (bounded : count ≤ sourceCount) :
     ∃ completed : Sequence.Prefix env offset,
       completed.operations = opsPrefix interface offset count ∧
       evalStateAt interface offset completed.current count =
-        evalStateAt interface offset env count := by
+        stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+          (evalInitialState interface offset env) count := by
+  obtain ⟨batch, _⟩ := available
   induction count with
   | zero =>
       exact ⟨Sequence.empty env offset, rfl, rfl⟩
@@ -430,21 +433,26 @@ private theorem completePrefix (interface : Interface) (offset : Nat)
         ⟨assumptions.initialBelow⟩
       have childAssumptionsNow := childAssumptions interface offset count countLt
         before.current currentAssumptions
-      rcases children ⟨count, countLt⟩ with
-        ⟨coefficients, originalSuccess, originalOutput, originalState⟩
+      let execution := batch.execution ⟨count, countLt⟩
+      have originalSuccess : FirstAccepted.boundedSample verifier coefficientCount
+          (FirstAccepted.streamPrefix
+            (sourceAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+              (evalInitialState interface offset env) count).stream candidateBound) =
+          some execution.output :=
+        FirstAccepted.boundedSample_eq_some_iff_boundedExecution.mpr ⟨execution, rfl⟩
       have currentInitialEq : Sampler.evalInitialState
           (childInterface interface offset count) (sourceOffset offset count)
           before.current =
-        Sampler.evalInitialState (childInterface interface offset count)
-          (sourceOffset offset count) env := by
-        simpa [Sampler.evalInitialState, childInterface, evalStateAt] using
+        stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+          (evalInitialState interface offset env) count := by
+        simpa only [Sampler.evalInitialState, childInterface, evalStateAt] using
           statePreserved
       have currentSuccess : Sampler.SamplingSucceeds
           (childInterface interface offset count) count
           (sourceOffset offset count) before.current := by
-        refine ⟨coefficients, ?_⟩
-        simpa [Sampler.productionCandidates, Sampler.productionSource,
-          currentInitialEq] using originalSuccess
+        refine ⟨execution.output, ?_⟩
+        simpa only [Sampler.productionCandidates, Sampler.productionSource,
+          currentInitialEq, sourceAt] using originalSuccess
       rcases Sampler.complete_of_success
           (childInterface interface offset count) count before.current
           (sourceOffset offset count) childAssumptionsNow currentSuccess with
@@ -513,13 +521,13 @@ private theorem completePrefix (interface : Interface) (offset : Nat)
       have initialEq : Sampler.evalInitialState
           (childInterface interface offset count) (sourceOffset offset count)
           completed.current =
-        Sampler.evalInitialState (childInterface interface offset count)
-          (sourceOffset offset count) env := by
+        stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+          (evalInitialState interface offset env) count := by
         calc
           _ = evalStateAt interface offset completed.current count := by rfl
           _ = evalStateAt interface offset before.current count := completedPrior
-          _ = evalStateAt interface offset env count := statePreserved
-          _ = _ := by rfl
+          _ = stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+              (evalInitialState interface offset env) count := statePreserved
       refine ⟨completed, operationsEq, ?_⟩
       calc
         evalStateAt interface offset completed.current (count + 1) =
@@ -529,14 +537,82 @@ private theorem completePrefix (interface : Interface) (offset : Nat)
         _ = (Sampler.productionSource (childInterface interface offset count)
               count (sourceOffset offset count) completed.current).nextState :=
           completedState
-        _ = (Sampler.productionSource (childInterface interface offset count)
-              count (sourceOffset offset count) env).nextState := by
+        _ = (NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification.source
+              (stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+                (evalInitialState interface offset env) count) count).nextState := by
           unfold Sampler.productionSource
           rw [initialEq]
-        _ = Sampler.evalState env
-              (Sampler.outputState (childInterface interface offset count) count
-                (sourceOffset offset count)) := originalState.symm
-        _ = evalStateAt interface offset env (count + 1) := by rfl
+          rfl
+        _ = stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+              (evalInitialState interface offset env) (count + 1) := by rfl
+
+private theorem available_of_children (interface : Interface) (offset : Nat)
+    (env : Env) (children : ChildHolds interface offset env) :
+    Available NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+      sourceCount candidateBound (evalInitialState interface offset env) := by
+  classical
+  have executions : ∀ source : Fin sourceCount,
+      Nonempty (CoefficientExecution NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+        candidateBound (evalInitialState interface offset env) source.val) := by
+    intro source
+    obtain ⟨coefficients, success, _, _⟩ := children source
+    have stateEq := evalStateAt_eq_stateAt interface offset env children source.val
+      (Nat.le_of_lt source.isLt)
+    have directSuccess : FirstAccepted.boundedSample verifier coefficientCount
+        (FirstAccepted.streamPrefix
+          (NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification.source
+            (evalStateAt interface offset env source.val) source.val).stream candidateBound) =
+        some coefficients := by
+      simpa only [Sampler.productionCandidates, Sampler.productionSource,
+        Sampler.evalInitialState, childInterface, evalStateAt] using success
+    have successAt : FirstAccepted.boundedSample verifier coefficientCount
+        (FirstAccepted.streamPrefix
+          (sourceAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+            (evalInitialState interface offset env) source.val).stream candidateBound) =
+        some coefficients := by
+      unfold sourceAt
+      rw [← stateEq]
+      exact directSuccess
+    obtain ⟨execution, _⟩ := FirstAccepted.BoundedExecution.exists_of_bounded_success successAt
+    exact ⟨execution⟩
+  exact ⟨{ execution := fun source => Classical.choice (executions source) }, trivial⟩
+
+private theorem completePrefix (interface : Interface) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env)
+    (children : ChildHolds interface offset env)
+    (count : Nat) (bounded : count ≤ sourceCount) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsPrefix interface offset count ∧
+      evalStateAt interface offset completed.current count =
+        evalStateAt interface offset env count := by
+  obtain ⟨completed, operations, finalState⟩ := completeAvailablePrefix interface offset env
+    assumptions (available_of_children interface offset env children) count bounded
+  exact ⟨completed, operations,
+    finalState.trans (evalStateAt_eq_stateAt interface offset env children count bounded).symm⟩
+
+/-- Actual bounded executions construct all sampler children in order. The
+generated response and outgoing state follow from the constructed rows; no
+sampler output or intermediate state is assumed in the starting environment. -/
+theorem completePrefix_of_available (interface : Interface) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env)
+    (available : Available NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+      sourceCount candidateBound (evalInitialState interface offset env)) :
+    ∃ completed : Sequence.Prefix env offset,
+      completed.operations = opsAt interface offset ∧
+      RelationHolds interface offset completed.current ∧
+      evalFinalState interface offset completed.current =
+        stateAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
+          (evalInitialState interface offset env) sourceCount := by
+  obtain ⟨completed, operations, finalState⟩ := completeAvailablePrefix interface offset env
+    assumptions available sourceCount (Nat.le_refl _)
+  have exactOperations : completed.operations = opsAt interface offset := operations
+  have rows : holdsFlat completed.current (Circuit.ops (main interface) offset) := by
+    change holdsFlat completed.current (opsAt interface offset)
+    rw [← exactOperations]
+    exact completed.rows
+  have generated := soundness interface offset completed.current
+    ⟨assumptions.initialBelow⟩ (holdsFlat_implies_holds completed.current _ rows)
+  exact ⟨completed, exactOperations, generated, finalState⟩
 
 theorem completeness (interface : Interface) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env)

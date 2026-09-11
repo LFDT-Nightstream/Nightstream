@@ -35,6 +35,9 @@ stated conclusions under their stated hypotheses.
 
 - `Export.Stage1.HyperNovaSourceWork.expected_work_polynomial_bound` bounds expected source work on the actual operational history, including abort and false-mark paths. It proves the context/kernel equality and sums the existing source-clock bounds over unconditional visited laws at symbolic depth `D`. Primitive/storage bounds and finite raw-call moments remain explicit. Adding the existing control allowance gives the stated declared-clock bound; payload decoding, copying, advice evaluation and machine runtime are excluded.
 
+- `Export.Stage1.HyperNovaInitial.initial_accepted` constructs the initial iteration-zero statement and bottom envelope from an initial state of the fixed application width. Equal endpoints and counter validity are derived.
+- `Layout.Stage1.PiDECProofInputs` loads the actual D proof commitments, Pad/matrix evaluations and verifier-computed public digits into the existing four source ranges. Exact typed readback and preservation outside those ranges are proved. D acceptance, child openings and selected-row construction remain separate.
+
 **What is proved locally, and what remains explicit.**
 
 - The selected checker and primitive **value** obligations are discharged, not assumed by the final theorem: `PiCCSStoredWitnessCheck.finishValue_source_iff` ([source:153](NightstreamFPrime/Export/Stage1/PiCCSStoredWitnessCheck.lean#L153)), `PiCCSStoredSourceProbability.sourceProgram_correct` ([source:93](NightstreamFPrime/Export/Stage1/PiCCSStoredSourceProbability.lean#L93)), and `PiRLCExtractionPrimitives.program_correct` ([source:65](NightstreamFPrime/Export/Stage1/PiRLCExtractionPrimitives.lean#L65)). Abort and malformed-certificate rejection remain in the value semantics.

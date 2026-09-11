@@ -11,6 +11,8 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
+import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
+import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
@@ -67,6 +69,13 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.source_failure_probability_le
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.initial_marginal
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.accepted_probability_le
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncodingCanonical.serializePreimage_canonical
+#audit_axioms NightstreamFPrime.Layout.Stage1.StateEncodingCanonical.serializePreimage_context_word
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness.stateBinding
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness.completePrefix
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProofInputs.loadExpectedContext_read
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProofInputs.loadExpectedContext_agreesOutside
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProofInputs.loadExpectedContext_inputs_eq
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_le_inverse

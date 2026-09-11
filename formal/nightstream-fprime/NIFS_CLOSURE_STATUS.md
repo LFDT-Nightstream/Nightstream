@@ -2,8 +2,10 @@
 
 Checked source: `01a8fd8ca68280c7f642451ab33bc714cee5bc98`. All four gates pass.
 The selected extraction consumer now constructs the implementation checks.
-Requirement-link changes below are proposals, as requested in the closure
-brief; this task has not changed `requirements.json` statuses.
+The three recorded requirement-link proposals are applied. Their recorded
+Fiat–Shamir approval condition was met by the owner approval, and the
+concrete consumer now passes all gates. No additional model approval was
+required.
 
 ## Proved implementation connection
 
@@ -58,9 +60,9 @@ of the retained Lean/optimized execution. See
 The exact source and archive check ran no new native test. The native
 sources and selected emitted identities did not change.
 
-## Requirement-link proposals
+## Applied requirement-link changes
 
-| Record | Axis | Before → proposed after | Closing declaration and evidence | Checked commit |
+| Record | Axis | Before → after | Closing declaration and evidence | Checked commit |
 |---|---|---|---|---|
 | `N.security.binding` | Link | partial → connected | `NifsBinding.bindingEvent_to_shortKernel`; approved fixed-seed MSIS premise; selected `NifsClosure` consumer; all gates above | `01a8fd8c` |
 | `N.security.fiat_shamir` | Link | open → connected | `NifsClosure.finishValue_probability_and_expected_work`; owner-approved `FIAT_SHAMIR_MODEL.md`; all gates above | `01a8fd8c` |
@@ -73,11 +75,10 @@ a backend or full-history extraction. The older `NifsFiatShamir` theorem
 remains the general provider/preparation interface; the selected final
 consumer is now `NifsClosure`.
 
-## Blocked on
+## Remaining scope
 
-- Apply the three reviewed link changes above? The supplied closure brief
-  says: “Do not edit requirements.json statuses; propose the change in the
-  report.” Concurrent site edits are preserved and are not in these commits.
+Concurrent site edits are preserved. Only this task’s map and test changes
+are staged; the existing independent edits remain in the working tree.
 
 The broader `N.security.error_budget` record remains partial/open. It asks
 for deployed verifier false-acceptance over uses, depth and shared queries.
@@ -87,3 +88,9 @@ sampler-abort events under their per-call laws. It excludes FS/hash/MSIS and
 history terms. The invalid-source corollary does not close that record.
 The blanket full-profile mutation diagnostic and production backend remain
 separate from the scoped NIFS execution evidence.
+
+The map update was checked separately from the other task’s edits. The
+commit snapshot passes 1,935 source-location checks, 13 Python tests and the
+JavaScript test. The combined working tree also passes its 1,934 checks,
+14 Python tests and the JavaScript test; its independent change removes one
+example citation. Neither local build publishes the website.

@@ -76,16 +76,18 @@ prove Rust behavior for every input, the Rust compiler, or a proof backend.
 
 `N.conformance.chain` and `N.conformance.executed` already have connected
 links for the recorded Lean/optimized execution. No new execution is needed
-to preserve that unchanged claim. The chain requirement still names
+to preserve that unchanged claim. The earlier chain requirement named
 Lean/PaperExact/optimized three-way equality, while its evidence and remaining
-text explicitly cover Lean/optimized equality. Correct that requirement to:
+text covered Lean/optimized equality. This update aligns the requirement
+with the recorded and authorized NIFS scope:
 
 > Compare the complete phase results and caller handoffs for the archived
 > nonzero base and actual-child recursive fixtures between executable Lean
 > and Rust optimized, with the same selected key, profile, serialized inputs
 > and proof fields. Record broader PaperExact comparisons separately.
 
-Propose `N.conformance.owners` link connected. `NifsExtractionProvider`
+`N.conformance.owners` link is connected after the recorded model approval
+and concrete consumer gates. `NifsExtractionProvider`
 constructs `suffixCorrect` and `parentChecker_spec`; `batchAt_eq` connects
 the selected relation, statement and receipt. The validated
 `NifsClosure.finishValue_probability_and_expected_work` consumes that

@@ -130,9 +130,18 @@ PiDEC source support no longer imports `RunningTransitionLowering`. The
 source dependency measurement. The changed-allocation probe is a separate check.
 
 The repeated probe passes PiDEC source ranges after this split. It still stops
-at global value checks and the compact parent offset; the probe record names
-those failures.
+at global value checks. The compact parent offset now consumes the child-owned
+size, and its separate extra-cell check passes; see
+[the parent record](architecture/assembler-pidec-offset.json).
 
 The [module experiment](architecture/module-hiding-pilot.json) confirms that
 a converted gadget consumer can keep its build after a producer proof edit.
 Legacy Layout consumers still rebuild. No production header conversion was made.
+
+## Final column map boundary
+
+`Lowering` owns final counts, suffix lowering and assignment maps.
+`LoweringRows` owns the complete row instance and logical circuit constructor.
+`CompactPullback` uses the former. The [boundary record](architecture/lowering-map-boundary.json)
+records unchanged declarations and passing static, library, axiom and identity
+checks. The full PiDEC allocation boundary remains open.

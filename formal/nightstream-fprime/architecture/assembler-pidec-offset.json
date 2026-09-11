@@ -47,5 +47,13 @@
         "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
       ]
     }
+  },
+  "extra_cell_probe": {
+    "source_commit": "5a78e03822a51aa7802ae80acaf2e798b3088d31",
+    "target": "NightstreamFPrime.Layout.Stage1.AssemblerInputs",
+    "result": "passed",
+    "seconds": 69.43,
+    "log_sha256": "f84ba46d17d93a57bcae824585b6b538510541da376e935960a5affaaf6fb60e",
+    "scope": "Focused target with the extra unused sign-hint cell; source restored. This does not establish full NIFS consumer isolation."
   }
 }

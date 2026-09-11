@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.CompactPullback
-import NightstreamFPrime.Layout.Stage1.SpartanRows
+import NightstreamFPrime.Layout.Stage1.LoweringRows
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptRelocation
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData

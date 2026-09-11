@@ -86,6 +86,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECProofInputs
 import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
+import NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
@@ -144,6 +145,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonTemplatePlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 import NightstreamFPrime.Layout.MatrixProgram.PlanBridge

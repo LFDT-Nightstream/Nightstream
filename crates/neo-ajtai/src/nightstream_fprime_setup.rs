@@ -4,7 +4,8 @@
 //! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
 //! authority framing.
 
-use neo_math::ring::D;
+use neo_ccs::Mat;
+use neo_math::{balanced::to_balanced_i128, ring::D};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use rand::{RngCore, SeedableRng};
@@ -193,14 +194,67 @@ pub fn commit_production_signed_units(carrier: &[i8]) -> AjtaiResult<Commitment>
             });
         }
     }
+    Ok(commit_signed_blocks(&blocks))
+}
+
+/// Commit a complete signed-unit witness matrix with the fixed production key.
+/// Validated column masks and virtual zero need no dense conversion. Every
+/// fallback coefficient is range-checked before any key element is expanded.
+pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiResult<Commitment> {
+    let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
+    if witness.rows() != D || witness.cols() != columns {
+        return Err(AjtaiError::InvalidDimensions(format!(
+            "production signed-unit matrix must be {D}x{columns}, got {}x{}",
+            witness.rows(),
+            witness.cols()
+        )));
+    }
+    if witness.virtual_constant_value() == Some(&Goldilocks::ZERO) {
+        return Ok(Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+    }
+    let masks = witness.packed_signed_unit_column_masks();
+    let mut blocks = Vec::new();
+    for index in 0..columns {
+        let (positive, negative) = if let Some((positive, negative)) = masks {
+            (positive[index], negative[index])
+        } else {
+            let mut positive = 0_u64;
+            let mut negative = 0_u64;
+            for lane in 0..D {
+                let value = witness[(lane, index)];
+                if value == Goldilocks::ONE {
+                    positive |= 1_u64 << lane;
+                } else if value == -Goldilocks::ONE {
+                    negative |= 1_u64 << lane;
+                } else if value != Goldilocks::ZERO {
+                    return Err(AjtaiError::RangeViolation {
+                        value: to_balanced_i128(value),
+                        bound: 2,
+                    });
+                }
+            }
+            (positive, negative)
+        };
+        if positive != 0 || negative != 0 {
+            blocks.push(SignedBlock {
+                index: index as u64,
+                positive,
+                negative,
+            });
+        }
+    }
+    Ok(commit_signed_blocks(&blocks))
+}
+
+fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
     let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let rows = commitment.data.par_chunks_mut(D);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let rows = commitment.data.chunks_mut(D);
     rows.enumerate()
-        .for_each(|(row, output)| commit_row(row as u32, &blocks, output));
-    Ok(commitment)
+        .for_each(|(row, output)| commit_row(row as u32, blocks, output));
+    commitment
 }
 
 /// Canonical raw authority words before Poseidon2 context hashing.

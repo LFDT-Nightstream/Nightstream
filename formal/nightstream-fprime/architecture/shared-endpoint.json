@@ -123,7 +123,52 @@
   "allocation_evidence": {
     "prior_record": "architecture/pidec-consumer-allocation.json",
     "prior_scope": "At source 8b53b250, the extra-cell PiDECCommitmentMatrixEntry probe passed after the recorded affected parent and package value updates. It motivated this shared endpoint change.",
-    "current_slice": "The allocation probe has not established this new source slice. A full-library allocation pass and a single-edit geometry boundary remain open."
+    "current_slice": "At the checked source commit, the extra-cell PiDECSourceSupportData and CompactPullback targets pass with no default-value or parent-pin patch. Only the retained scalar extra-cell patch is applied. This check does not establish a full-library or full NIFS consumer pass for the changed allocation.",
+    "probe": {
+      "source_commit": "7c17bab9c28da2081795bdd90965f1ec3f898d02",
+      "targets": [
+        {
+          "target": "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData",
+          "command": [
+            "timeout",
+            "--signal=KILL",
+            "1500s",
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData"
+          ],
+          "exit_code": 0,
+          "seconds": 74.82,
+          "log": "/tmp/nightstream-architecture-shared-endpoint-allocation-probe/source-ranges.log",
+          "log_sha256": "6ab06708a535c99f66afd6c0a234d8806f72e2d351efea2f6a7a2d5c6f6181c6"
+        },
+        {
+          "target": "NightstreamFPrime.Layout.Stage1.CompactPullback",
+          "command": [
+            "timeout",
+            "--signal=KILL",
+            "1500s",
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "NightstreamFPrime.Layout.Stage1.CompactPullback"
+          ],
+          "exit_code": 0,
+          "seconds": 10.28,
+          "log": "/tmp/nightstream-architecture-shared-endpoint-allocation-probe/pullback.log",
+          "log_sha256": "995b1553109c7f3803b073f3da1459d190bcace913defaa431dc530dd9982f88"
+        }
+      ],
+      "patch_sha256": "37cfc2dc0016482770d8bf7d73f81d3db901f9916812a75aaf003e10ea0fff1d",
+      "scratch_restored": true,
+      "passed": true,
+      "scope": "Two extra-cell source targets only; no protocol, runtime, identity, or full architecture closure is claimed.",
+      "geometry_scope": "Source definitions and hashes, not Lean-evaluated numerals or new geometry theorems.",
+      "cache_copy_seconds": 1.52,
+      "report_sha256": "3e03ca920d1c0cbe573d052736be740a2d2e81de93f2531cb84e7c0b1780e87b",
+      "driver_sha256": "6b5e27c0f20742f511545d60b2ab1ecf75b46da9fcc7b063226d52fe746c9c98"
+    }
   },
   "gates": {
     "static": {
@@ -171,5 +216,38 @@
     "Stage 1 physical plans, source projection and retained geometry still have Export owners, including PerApplicationPackage, PerApplicationSourceProjection and PiDECMatrixProgram.",
     "Downstream package, retained-width, capacity and setup-value pins still require their own owner interfaces and allocation checks.",
     "This checkpoint does not complete the broad physical compiler migration, Rust conformance or NIFS security, and does not approve the pending Fiat-Shamir model."
-  ]
+  ],
+  "source_commit": "7c17bab9c28da2081795bdd90965f1ec3f898d02",
+  "local_requirements_check": {
+    "scope": "34 source citation entries corrected; all node statuses, approvals and other node fields unchanged. Probability source hashes match the pinned sources. Local build only.",
+    "checks": {
+      "build": {
+        "result": "passed",
+        "log_sha256": "5705354ba27d5e772064fde14f43dda699f7285f1284d658cae504ae63ba38c5",
+        "last_lines": [
+          "Built 456 requirement nodes: HTML, 15 Markdown files, JSON and ZIP. Checked 1926 source locations. Source: working_tree."
+        ]
+      },
+      "python": {
+        "result": "passed",
+        "log_sha256": "e76f1b1986abedd48f852915fa1fdd3fc6b6a6ea5f40773c18f54f9e673d1864",
+        "last_lines": [
+          "----------------------------------------------------------------------",
+          "Ran 13 tests in 0.101s",
+          "",
+          "OK"
+        ]
+      },
+      "node": {
+        "result": "passed",
+        "log_sha256": "ab3d2a00fc2f1e180647749e9df3e01978cd80c7b394cbf7fc467362cff98bdf",
+        "last_lines": [
+          "\u2139 cancelled 0",
+          "\u2139 skipped 0",
+          "\u2139 todo 0",
+          "\u2139 duration_ms 27.884657"
+        ]
+      }
+    }
+  }
 }

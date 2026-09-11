@@ -38,13 +38,13 @@ def productionRelaxedBindingCollision_to_shortKernel
   Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
 
 /-- A successful emitted NIFS vector solves the exact frozen public-seed
-instance: 254260620 integer coordinates and strict norm 113246208. The
+instance: 253011276 integer coordinates and strict norm 113246208. The
 kernel is for `productionAjtaiKey`; no setup average or numerical hardness
 estimate is introduced by this deterministic identification. -/
 theorem productionNifsOutput_is_msis (output : List Int)
     (success : Lifecycle.Nifs.BindingReduction.Succeeds productionAjtaiKey (some output)) :
     ∃ witness : Binding.ShortKernelVector productionAjtaiKey 113246208,
-      output = List.ofFn witness.vector ∧ output.length = 254260620 := by
+      output = List.ofFn witness.vector ∧ output.length = 253011276 := by
   obtain ⟨witness, returned⟩ := success
   have same := Option.some.inj returned
   refine ⟨{

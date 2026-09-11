@@ -4,8 +4,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the compact field-source views needed by the direct running-transition
-rows. State and output reuse the actual pilot preimages. Only the round,
-PiDEC, and fresh blocks allocate coordinates. Every source first follows the
+rows. State and output reuse the actual pilot preimages. Only the PiDEC and fresh blocks allocate coordinates. Every source first follows the
 established Spartan permutation, then the
 per-application package shift, and finally the existing nested PiRLC source
 embedding.
@@ -76,36 +75,6 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
       change 49663 + index.val < 29336724
       omega)
 
-def roundC0Block (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) :=
-  fieldBlock program productionShape.cubeVariables
-    (fun coordinate => PiCCSStarts.roundTranscriptWitnessStart +
-      coordinate.val * RunningTransitionInputs.roundStride +
-        RunningTransitionInputs.roundSampleC0Offset) (by
-      intro coordinate
-      have coordinateBound := coordinate.isLt
-      change coordinate.val < 28 at coordinateBound
-      rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-        Spartan.sourceColumnCount_eq]
-      norm_num [RunningTransitionInputs.roundStride,
-        RunningTransitionInputs.roundSampleC0Offset]
-      omega)
-
-def roundC1Block (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) :=
-  fieldBlock program productionShape.cubeVariables
-    (fun coordinate => PiCCSStarts.roundTranscriptWitnessStart +
-      coordinate.val * RunningTransitionInputs.roundStride +
-        RunningTransitionInputs.roundSampleC1Offset) (by
-      intro coordinate
-      have coordinateBound := coordinate.isLt
-      change coordinate.val < 28 at coordinateBound
-      rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
-        Spartan.sourceColumnCount_eq]
-      norm_num [RunningTransitionInputs.roundStride,
-        RunningTransitionInputs.roundSampleC1Offset]
-      omega)
-
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   fieldBlock program RunningTransitionSourceSupport.piDecCount
@@ -143,16 +112,6 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
   rw [outputBlock]
   exact RunningTransitionSourceSupport.outputCount_eq
 
-@[simp] theorem roundC0Block_slotCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (roundC0Block program).slotCount = 28 := by
-  rfl
-
-@[simp] theorem roundC1Block_slotCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (roundC1Block program).slotCount = 28 := by
-  rfl
-
 @[simp] theorem piDecBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
     (piDecBlock program).slotCount = 49248 := by
@@ -175,30 +134,26 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
   rfl
 
 def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  (roundC0Block program).slotCount +
-    (roundC1Block program).slotCount +
-    (piDecBlock program).slotCount +
+  (piDecBlock program).slotCount +
     (freshBlock program).slotCount
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 345442 := by
+    retainedSlotCount program = 345386 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  (roundC0Block program).coordinateCount +
-    (roundC1Block program).coordinateCount +
-    (piDecBlock program).coordinateCount +
+  (piDecBlock program).coordinateCount +
     (freshBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 14163122 := by
-  simp only [retainedCoordinateCount, roundC0Block, roundC1Block, piDecBlock,
+    retainedCoordinateCount program = 14160826 := by
+  simp only [retainedCoordinateCount, piDecBlock,
     freshBlock, fieldBlock_coordinateCount,
     RunningTransitionSourceSupport.piDecCount_eq, freshCount_eq]
-  change 28 * 41 + 28 * 41 + 49248 * 41 + 296138 * 41 = 14163122
+  change 49248 * 41 + 296138 * 41 = 14160826
   norm_num
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks

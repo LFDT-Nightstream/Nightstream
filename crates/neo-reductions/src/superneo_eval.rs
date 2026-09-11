@@ -15,6 +15,7 @@ mod geometric;
 mod matrix_cache_impl;
 mod parallel;
 mod row_block;
+mod row_source;
 mod seeded;
 mod weighted;
 mod weighted_table;
@@ -37,6 +38,7 @@ use digit::{
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
+pub use row_source::SuperneoEvalCacheBuilder;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the

@@ -3,6 +3,9 @@ import tests.AxiomsNifsClosure
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
+import NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
+import NightstreamFPrime.Export.Stage1.HyperNovaInput
+import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
@@ -42,6 +45,13 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualTerminalSecurity.terminal_implies_securityOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaPredecessor.terminal_implies_predecessorOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaPredecessor.terminal_one_implies_baseOrCollision
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInput.runningFromInput_runningInput
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInput.running_ofClaims
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInput.fresh_ofClaims
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSource.sourceReturned_iff_terminalHolds
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSource.finishValue_source_iff_terminalHolds
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry.Line.weight_le_inverse

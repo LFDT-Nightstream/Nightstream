@@ -110,6 +110,32 @@ The primary worktree, frozen corpus, owner goal, architecture specification, AGE
 
 ## Necessary next work
 
+### Three-block classification, 2026-09-11
+
+Source: `4fd19b00cf1e052ecbe9bd6923a3463ef186b36d`. The ranges below are
+half-open logical-coordinate ranges. `PerApplicationAssignmentPlan` still
+emits these blocks, but the selected consumers read the source forms below.
+
+| Block | Allocation and range | Actual consumer and correspondence | Retained rejection evidence |
+| --- | --- | --- | --- |
+| `piCcsPayload` (12) | `PiCCSActionPayloadBlock.payloadStart` and `block.coordinateCount`: `[193995298,195242354)` | `DirectPiDECPrefixPlan.piCcsPayload` selects `PiCCSPayloadWiring.form`; `form_eval` and `form_eval_source` identify its values. | Archive records `diagnostics/piccs-{proof,statement,output}-mutations/0.json` pass for the authoritative fields. |
+| `runningRoundC0` (13) | `RunningTransitionRetainedGeometry.roundC0Start` and `roundC0Block.coordinateCount`: `[195242354,195243502)` | `RunningTransitionDirectPlan.Location.form` selects `PiCCSTranscriptOutputForms.pointForm` at component 0; `pointForm_eq_outputState`, `pointForm_eval`, and `pointSource_c0` identify it. | `diagnostics/recursive-piccs-point-mutations/0.json` passes for the authoritative point components. |
+| `runningRoundC1` (14) | `RunningTransitionRetainedGeometry.roundC1Start` and `roundC1Block.coordinateCount`: `[195243502,195244650)` | The same consumer selects `pointForm` at component 1, with `pointSource_c1`. | The same recursive point-mutation record covers this component. |
+
+The archive's `pinned-logical-assignment-final.log` reports that all three
+blocks are absent from the canonical rows. This agrees with the selected
+consumer definitions. They are redundant retained copies; the inspected
+consumers do not obtain protocol authority from them. The source review
+found no missing binding at these consumers.
+
+This closes the classification task only. The allocation-wide mutation gate
+still fails. The retained mutation records are scoped diagnostics, not new
+conformance approval. Removing the copies requires a separate checked
+allocation change and new package pins. No constraint or test was changed,
+and the known failed full scan was not rerun.
+
+### Remaining implementation work
+
 Resolve the unused retained blocks and the strict mutation target without adding
 copy rows or weakening the required semantics. Any resulting relation-identity
 change must repeat exact matrices, independent assignments, complete nonzero

@@ -23,6 +23,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[path = "pi_dec_actual_mutations.rs"]
+mod native_mutations;
+
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const CHILD_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 14;
@@ -793,8 +796,7 @@ fn assert_changed(changed: PhaseResult, paper: &PhaseResult, optimized: &PhaseRe
     assert_ne!(&changed, optimized, "optimized missed changed {location}");
 }
 
-#[test]
-fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
+fn check_complete_nonzero_pi_dec_result(include_paper_reference: bool) {
     assert_cumulative_handoff();
     let Artifact(schema, input, result) = artifact();
     assert_eq!(schema, 2);
@@ -816,7 +818,6 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
     let params = params(&structure);
     let (parent, children) = claims(&input);
     let lean = lean_result(&result);
-    let paper = paper_result(&params, &parent, &children, input.5);
     let optimized = optimized_result(&params, &structure, &parent, &children, input.5);
     let actual_children = pi_dec::verify(
         &params,
@@ -837,10 +838,37 @@ fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
         "the actual wrapper returns every Lean child coordinate"
     );
 
-    assert_eq!(paper, lean);
     assert_eq!(optimized, lean);
-    assert_eq!(paper.canonical_bytes(), lean.canonical_bytes());
     assert_eq!(optimized.canonical_bytes(), lean.canonical_bytes());
+    assert!(
+        pi_dec::verify(
+            &params,
+            &structure,
+            ajtai_dec_mixer,
+            &unbounded_parent(&parent),
+            &pi_dec::Proof {
+                children: children.clone()
+            },
+        )
+        .is_err(),
+        "native PiDEC wrapper rejects the strict parent bound"
+    );
+    native_mutations::check(&params, &structure, &parent, &children);
+    if include_paper_reference {
+        let paper = paper_result(&params, &parent, &children, input.5);
+        assert_eq!(paper, lean);
+        assert_eq!(paper.canonical_bytes(), lean.canonical_bytes());
+    }
+}
+
+#[test]
+fn lean_paper_exact_and_optimized_match_complete_nonzero_pi_dec_result() {
+    check_complete_nonzero_pi_dec_result(true);
+}
+
+#[test]
+fn lean_optimized_matches_complete_nonzero_pi_dec_result() {
+    check_complete_nonzero_pi_dec_result(false);
 }
 
 #[test]

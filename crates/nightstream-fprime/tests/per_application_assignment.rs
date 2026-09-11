@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, PackageError, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -41,7 +41,11 @@ fn artifact_path(name: &str) -> PathBuf {
 
 fn parity(name: &str, schema: u64) -> (Vec<Value>, Vec<Value>) {
     let bytes = fs::read(artifact_path(name)).expect("Lean parity bytes");
-    let value: Value = serde_json::from_slice(&bytes).expect("Lean parity JSON");
+    decode_parity(&bytes, schema)
+}
+
+fn decode_parity(bytes: &[u8], schema: u64) -> (Vec<Value>, Vec<Value>) {
+    let value: Value = serde_json::from_slice(bytes).expect("Lean parity JSON");
     let fields = value.as_array().expect("Lean parity tuple");
     assert_eq!(fields.len(), 3, "Lean parity tuple length");
     assert_eq!(fields[0].as_u64(), Some(schema), "Lean parity schema");
@@ -85,6 +89,26 @@ fn concrete_inputs(
     let (pi_dec, pi_dec_output) = parity("nightstream-fprime-stage1-pidec-parity-v1.json", 2);
     let (application, application_result) = parity("nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json", 2);
 
+    inputs_from_parities(
+        expected_verifier_context_digest,
+        expected_package_identity,
+        pi_ccs,
+        pi_dec,
+        pi_dec_output,
+        application,
+        application_result,
+    )
+}
+
+fn inputs_from_parities(
+    expected_verifier_context_digest: [u64; 4],
+    expected_package_identity: [u64; 4],
+    pi_ccs: Vec<Value>,
+    pi_dec: Vec<Value>,
+    pi_dec_output: Vec<Value>,
+    application: Vec<Value>,
+    application_result: Vec<Value>,
+) -> (Vec<u64>, Vec<u64>, [u64; 4], [u64; 4]) {
     assert_eq!(words(&pi_ccs[4]), expected_verifier_context_digest);
     assert_eq!(words(&pi_dec[6]), expected_package_identity);
 
@@ -266,13 +290,51 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         .expect("fixed production verifier binding");
     let (private_inputs, public_inputs, _, _) =
         concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
+}
+
+/// Run the same complete assignment and strict mutation gate before replacing
+/// production pins. The external parity inputs must match the loaded candidate.
+pub fn check_candidate_assignment(
+    package: LoadedPerApplicationPackage,
+    sealed_bytes: Vec<u8>,
+    pi_ccs: &[u8],
+    pi_dec: &[u8],
+    application: &[u8],
+) {
+    let binding = package
+        .production_verifier_binding()
+        .expect("candidate verifier binding");
+    let (pi_ccs, _) = decode_parity(pi_ccs, 8);
+    let (pi_dec, pi_dec_output) = decode_parity(pi_dec, 2);
+    let (application, application_result) = decode_parity(application, 2);
+    let (private_inputs, public_inputs, _, _) = inputs_from_parities(
+        binding.verifier_context().digest(),
+        binding.package_identity(),
+        pi_ccs,
+        pi_dec,
+        pi_dec_output,
+        application,
+        application_result,
+    );
+    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
+}
+
+fn check_logical_assignment(
+    package: LoadedPerApplicationPackage,
+    sealed_bytes: Vec<u8>,
+    private_inputs: Vec<u64>,
+    public_inputs: Vec<u64>,
+) {
+    let started = std::time::Instant::now();
+    let expected_identity = package.structural_identifier();
     let physical_assignment = package
         .execute_witness(&private_inputs, &public_inputs)
         .expect("Rust-produced complete physical assignment");
     let production_logical_assignment = package
         .execute_logical_assignment(&physical_assignment)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 254_260_583);
+    assert_eq!(production_logical_assignment.len(), 253_011_231);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -299,7 +361,7 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 254_260_583);
+    assert_eq!(logical_assignment.len(), 253_011_231);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -337,7 +399,7 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         .expect("Rust assignment satisfies every final Lean logical row");
     assert_eq!(result.active_rows, 6_377_559);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 37);
+    assert_eq!(result.carrier_padding_columns, 45);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()
@@ -346,14 +408,18 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
     assert!(result.zero_slot_mutation_rejected);
     assert_eq!(result.public_digest_bit_mutations, 256);
     assert_eq!(result.public_digest_word_mutations, 4);
+    println!(
+        "complete_logical_assignment_checks={result:?} elapsed={:?}",
+        started.elapsed()
+    );
     drop(logical_assignment);
 
     for family in logical_reference::mutation::RecipeFamily::ALL {
         let changed_bytes = logical_reference::mutation::self_consistent_bytes(&sealed_bytes, family)
             .expect("self-consistent derived-recipe mutation");
-        match load_poseidon2_hash_chain_v1_package(&changed_bytes) {
+        match load_per_application_package(&changed_bytes, expected_identity) {
             Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
-                assert_eq!(expected, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER);
+                assert_eq!(expected, expected_identity);
                 assert_ne!(
                     computed, expected,
                     "recipe mutation {family:?} did not change the structural identity"
@@ -374,6 +440,11 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         assert!(
             failing_row.is_some(),
             "derived-recipe mutation {family:?} did not change any final logical row"
+        );
+        println!(
+            "derived_recipe_mutation={family:?} rejected_row={} elapsed={:?}",
+            failing_row.unwrap(),
+            started.elapsed()
         );
     }
 }

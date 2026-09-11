@@ -51,7 +51,7 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert_eq!(package.public_input_count(), 278);
     assert_eq!(relation.row_count(), 6_377_559);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 254_260_583);
+    assert_eq!(relation.column_count(), 253_011_231);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),

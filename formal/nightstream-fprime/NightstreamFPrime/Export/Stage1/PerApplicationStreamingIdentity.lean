@@ -818,7 +818,7 @@ theorem processMatrixProgramWith_eq_processValueWith {State : Type}
 @[inline, specialize push] def processAssignmentTransportWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (program : Program) : State :=
-  let state := push state ⟨1, 8⟩
+  let state := push state ⟨1, 6⟩
   let state := push state
     ⟨0, PerApplicationAssignmentTransport.schema⟩
   let state := StreamingIdentity.processEncodedListWith push state
@@ -830,10 +830,6 @@ theorem processMatrixProgramWith_eq_processValueWith {State : Type}
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentTransport.First54ProductRecipe.format.encode
       PerApplicationAssignmentTransport.first54ProductRecipe) state
-  let state := StreamingIdentity.processValueWith push
-    (PerApplicationAssignmentPlan.BlockKind.format.encode .piCcsPayload) state
-  let state := StreamingIdentity.processEncodedListWith push state exprFormat
-    (PerApplicationAssignmentTransport.materializedPayloadExpressions program)
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentPlan.BlockKind.format.encode
       .pilotOutputDigest) state
@@ -851,9 +847,7 @@ theorem processAssignmentTransportWith_eq_processValueWith {State : Type}
     PerApplicationAssignmentTransport.Plan.format,
     PerApplicationAssignmentTransport.canonical,
     PerApplicationAssignmentBlocks.format]
-  rw [PerApplicationAssignmentTransport.materializedPayloadExpressions_eq,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+  rw [StreamingIdentity.processEncodedListWith_eq_processValueWith,
     StreamingIdentity.processEncodedListWith_eq_processValueWith]
   simp only [StreamingIdentity.processValueWith, List.foldl_cons,
     List.foldl_nil, List.length_cons, List.length_nil]

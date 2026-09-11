@@ -8,12 +8,11 @@ use super::{array, exact_array, word, Result};
 pub enum RecipeFamily {
     Phi81,
     First54,
-    Payload,
     OutputDigest,
 }
 
 impl RecipeFamily {
-    pub const ALL: [Self; 4] = [Self::Phi81, Self::First54, Self::Payload, Self::OutputDigest];
+    pub const ALL: [Self; 3] = [Self::Phi81, Self::First54, Self::OutputDigest];
 }
 
 pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Result<Vec<u8>> {
@@ -24,7 +23,7 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
         .and_then(|fields| fields.get_mut(4))
         .and_then(Value::as_array_mut)
         .ok_or_else(|| "missing assignment transport".to_string())?;
-    if transport.len() != 8 || transport[0].as_u64() != Some(1) {
+    if transport.len() != 6 || transport[0].as_u64() != Some(2) {
         return Err("unexpected assignment transport for mutation".into());
     }
     match family {
@@ -34,27 +33,13 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
         RecipeFamily::First54 => {
             shift_block_sources(transport, 4)?;
         }
-        RecipeFamily::Payload => {
-            let expressions = transport[5]
-                .as_array_mut()
-                .ok_or_else(|| "missing payload expressions".to_string())?;
-            let original = expressions
-                .first()
-                .cloned()
-                .ok_or_else(|| "empty payload expressions".to_string())?;
-            expressions[0] = Value::Array(vec![
-                Value::from(2u64),
-                original,
-                Value::Array(vec![Value::from(1u64), Value::from(1u64)]),
-            ]);
-        }
         RecipeFamily::OutputDigest => {
-            shift_block_sources(transport, 27)?;
-            let sources = block_sources(transport, 27)?;
+            shift_block_sources(transport, 23)?;
+            let sources = block_sources(transport, 23)?;
             if sources.len() != 4 {
                 return Err("output-digest block does not have four sources".into());
             }
-            transport[7] = Value::Array(
+            transport[5] = Value::Array(
                 sources
                     .into_iter()
                     .map(|source| Value::Array(vec![Value::from(0u64), Value::from(source as u64)]))

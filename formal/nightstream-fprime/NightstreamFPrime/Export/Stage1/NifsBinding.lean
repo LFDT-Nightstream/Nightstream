@@ -22,9 +22,12 @@ vector for the selected fixed setup, with strict norm below `8TB`.
 application fixed point. The collision's commitment and norm fields are
 transported to the existing setup reduction; no matrix entry is evaluated.
 
-The computational premise is recorded in
+Compose the returned vector with
+`Poseidon2HashChainV1Setup.productionShortKernel_to_approvedMsis` to reach the
+larger fixed instance in
 `docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md`.
-It has no numerical success bound. This theorem identifies the search problem;
+The reduction appends zeros after the selected carrier and keeps its strict
+norm. The assumption has no numerical success bound. This theorem identifies the search problem;
 the existing executable reduction and its work premises remain separate. -/
 theorem bindingEvent_to_shortKernel
     {Context State : Type}

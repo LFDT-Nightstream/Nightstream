@@ -58,6 +58,8 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionWork
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
+import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakAgreement
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakAlgorithm
@@ -266,6 +268,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.outputWitnessOfAssignments_ambient
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness.exists_causal_honest_strategy
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness.exists_honest_piCcs_prover
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay.generated_messages_replay
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay.prover_generated_messages_replay
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness.exists_honest_proof_of_sampler_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.StrongExtraction.source_success_ge
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.StrongExtraction.successProbability_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.StrongExtraction.probability_and_expected_work

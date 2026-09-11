@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecutio
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
+import NightstreamFPrime.Layout.Stage1.SpartanRows
 
 /-!
 Owns the source copy from a completed Spartan prefix and the application-owned
@@ -115,6 +116,23 @@ private theorem shifted_ofCompleted
     rw [dif_neg (by omega), dif_neg (by omega)]
     rw [Nat.add_sub_cancel_right]
 
+/-- Copying the completed assignment preserves every original package column
+under the existing application shift. The equality is restricted to the
+package domain, including its shifted constant and public columns. -/
+theorem packageEnv_ofCompleted
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (column : Nat)
+    (bound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount) :
+    RunningTransitionDirectPlan.packageEnv application
+      (ofCompleted application target applicationPrivate) column = target column := by
+  change SourceCompiler.sourceEnv (ofCompleted application target applicationPrivate)
+      (PiRLCProductPlan.shiftedPackageColumn application column bound).val = _
+  rw [SourceCompiler.sourceEnv_at]
+  exact shifted_ofCompleted application target applicationPrivate column bound
+
 /-- The canonical physical-source packet recovers the completed prefix on
 its full declared logical-source domain. The proof uses the existing Spartan
 map and package shift; it assumes no equality between caller environments. -/
@@ -201,5 +219,38 @@ theorem completeAssignment_norm_of_completedRows
   exact PerApplicationCanonicalAssignment.completeAssignment_norm_of_piRlcRows
     fits raw (PiRLCInputBounds.assumptions
       (PerApplicationFixedPoint.relation application fits) _) copiedRows column
+
+/-- The actual complete physical prefix supplies the PiRLC constraints needed
+by the canonical norm proof. Thus every coordinate of the same copied and
+completed carrier is strictly below two; no separate phase-row or bit premise
+is needed by the complete assignment consumer. -/
+theorem completeAssignment_norm_of_physical
+    (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (ajtai : AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (physical : R1CS.RowsHold target
+      (Spartan.remappedRows (PerApplicationFixedPoint.relation application fits)))
+    (column : Fin (Phi81CarrierLayout.carrierWidth
+      (PerApplicationFixedPoint.logicalWidth application))) :
+    centeredMagnitude
+      ((canonicalRawValues application
+        (ofCompleted application target applicationPrivate)).completeAssignment column) < 2 := by
+  let relation := PerApplicationFixedPoint.relation application fits
+  have allRows := (Spartan.remappedRows_hold relation target).mp physical
+  have throughD := ((PilotPiCCSPiRLCPiDECRunningTransition.physicalHolds_iff
+    relation (Spartan.pullback target)).mp allRows).1
+  have throughR := ((PilotPiCCSPiRLCPiDEC.physicalHolds_iff relation
+    (Spartan.pullback target)).mp throughD).1
+  have rRows := ((PilotPiCCSPiRLC.physicalHolds_iff relation
+    (Spartan.pullback target)).mp throughR).2
+  have logicalRows := NightstreamFPrime.Layout.PiRLC.v1_1.physical_implies_holdsFlat
+    relation PiRLCInputs.interface PiRLCInputs.phaseOffset (Spartan.pullback target) rRows
+  exact completeAssignment_norm_of_completedRows application fits ajtai target
+    applicationPrivate logicalRows column
 
 end NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment

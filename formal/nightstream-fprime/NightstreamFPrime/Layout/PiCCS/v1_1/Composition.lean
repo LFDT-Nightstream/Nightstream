@@ -246,6 +246,18 @@ theorem logicalConstraints_eq_ordered
     List.flatMap_nil, Formal.childOp, Op.flatConstraints,
     FormalCircuit.asSubcircuit_constraints, List.append_nil]
 
+/-- The phase constraint list is the flattening of its twelve existing child
+lists. Physical-row consumers can project a child without evaluating its rows. -/
+theorem logicalConstraints_eq_flatten
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Formal.Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) :
+    logicalConstraints relation interface offset =
+      (childConstraintLists relation interface offset).flatten := by
+  rw [logicalConstraints_eq_ordered]
+  unfold orderedConstraints childConstraintLists
+  simp only [appendAll, List.flatten_cons, List.flatten_nil, List.append_nil]
+
 /-- Fresh-column delta for each child in canonical phase order. -/
 def physicalFreshDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

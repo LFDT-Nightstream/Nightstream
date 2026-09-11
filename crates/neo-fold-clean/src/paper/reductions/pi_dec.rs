@@ -126,6 +126,11 @@ pub(crate) fn prove_with_production_key(
     parent: &CeClaim,
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
+    #[cfg(feature = "perf-timers")]
+    let started = {
+        eprintln!("[pi-dec/selected] start");
+        std::time::Instant::now()
+    };
     let production = Params::production();
     if pp.b() != production.b()
         || pp.k_rho() != production.k_rho()
@@ -146,10 +151,21 @@ pub(crate) fn prove_with_production_key(
     let (digits, flags) =
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] split elapsed={:.3}s active={}",
+        started.elapsed().as_secs_f64(),
+        flags.iter().filter(|&&active| active).count()
+    );
     let commitments = digits
         .iter()
         .map(commit_production_signed_unit_matrix)
         .collect::<Result<Vec<_>, _>>()?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] commitments elapsed={:.3}s",
+        started.elapsed().as_secs_f64()
+    );
     let (children, ok_y, ok_x, ok_c) =
         neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             neo_reductions::api::FoldingMode::Optimized,
@@ -165,6 +181,11 @@ pub(crate) fn prove_with_production_key(
             None,
             None,
         );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] openings elapsed={:.3}s",
+        started.elapsed().as_secs_f64()
+    );
     if children.is_empty() {
         return Err(engine::Error::PiDecFailed.into());
     }

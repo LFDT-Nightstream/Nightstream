@@ -46,7 +46,9 @@ variable {logicalWidth : Nat}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-private theorem verifierInputs
+/-- An accepted NIFS run supplies C acceptance, actual bounded sampler
+availability, and the D checks for the same transcript-derived challenges. -/
+theorem verifierInputs
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
@@ -314,6 +316,180 @@ private theorem running_of_children (env : Env) (proof : Proof (ProductionKey.de
     exact congrArg (fun values => (values (RunningTransitionInputs.childOfRunning source)).evaluations.getD
       0 PaperAlgebra.evaluationZero) outputs
 
+private theorem rValues_eq_of_agree
+    (before after : Env)
+    (agrees : ∀ index, index < PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount →
+      after index = before index) :
+    PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset after =
+      PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset before ∧
+    PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset after =
+      PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset before := by
+  let interface := PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
+  constructor
+  · funext source lane
+    change PiRLC.v1_1.SamplerChain.evalChallenge
+        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset interface PiRLCInputs.phaseOffset))
+        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset) after
+        (PiRLC.v1_1.Semantics.sourceIndex source) lane =
+      PiRLC.v1_1.SamplerChain.evalChallenge
+        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset interface PiRLCInputs.phaseOffset))
+        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset) before
+        (PiRLC.v1_1.Semantics.sourceIndex source) lane
+    rw [← PiRLC.v1_1.SamplerChain.challengeExpr_eval,
+      ← PiRLC.v1_1.SamplerChain.challengeExpr_eval]
+    apply Expr.eval_eq_of_agree_below _
+      (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) after before _ agrees
+    apply Expr.VarsBelow.mono _ (PiRLC.v1_1.SamplerChain.challengeExpr_varsBelow _ _ _ _)
+    have sourceBound := (PiRLC.v1_1.Semantics.sourceIndex source).isLt
+    change (PiRLC.v1_1.Semantics.sourceIndex source).val < 17 at sourceBound
+    norm_num [PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Formal.samplerOffset,
+      PiRLC.v1_1.Sampler.logicalPrivateCount, PiRLC.v1_1.Formal.logicalPrivateCount]
+    omega
+  · have pointEq : PiRLC.v1_1.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
+        PiRLC.v1_1.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
+      apply point_ext
+      change (List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval before) =
+        List.ofFn fun coordinate => (interface.point PiRLCInputs.phaseOffset coordinate).eval after
+      apply congrArg List.ofFn
+      funext coordinate
+      apply Quadratic.KExpr.eval_eq_of_agree_below _
+        (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) before after
+        _ (fun index below => (agrees index below).symm)
+      change ((PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)).point
+        PiRLCInputs.phaseOffset coordinate).VarsBelow _
+      have pointSource :
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)).point
+              PiRLCInputs.phaseOffset coordinate =
+            RunningTransitionInputs.directRoundPoint PiCCSStarts.roundTranscriptWitnessStart coordinate :=
+        RunningTransitionInputs.recursivePoint_eq_direct coordinate
+      rw [pointSource, PiCCSStarts.roundTranscriptWitnessStart_eq]
+      have coordinateBound : coordinate.val < 28 := coordinate.isLt
+      simp only [RunningTransitionInputs.directRoundPoint, Quadratic.KExpr.VarsBelow, Expr.VarsBelow]
+      norm_num [PiRLCInputs.phaseOffset, PiRLC.v1_1.Formal.logicalPrivateCount,
+        RunningTransitionInputs.roundStride, RunningTransitionInputs.roundSampleC0Offset,
+        RunningTransitionInputs.roundSampleC1Offset]
+      omega
+    have result := PiRLCOutputRelocation.evalOutput_eq_of_shift_agreement relation interface interface
+      PiRLCInputs.phaseOffset 0 before after pointEq (by
+        intro index supported
+        rcases supported with impossible | ⟨_, below⟩
+        · exact False.elim impossible
+        · exact agrees index below)
+    exact result.symm
+
+/-- Continue D from a constructed R prefix after physical lowering.
+The preceding constructor supplies its exact challenge and parent equalities;
+bounded agreement preserves them across the R fresh interval. Actual verifier
+acceptance supplies every D check and the final result. -/
+theorem completePrefix_after_r
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation))
+    (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
+      running fresh proof = some result)
+    (initial : Env) (r : Sequence.Prefix initial PiRLCInputs.phaseOffset)
+    (rOperations : r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset)
+    (rSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
+      some (PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
+    (rParent : PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset r.current =
+      (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
+        (PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
+    (afterR : Env)
+    (preserved : ∀ index, index < PiRLCInputs.phaseOffset + localLength r.operations →
+      afterR index = r.current index) :
+    ∃ d : Sequence.Prefix
+        (PiDECProofInputs.load afterR proof
+          (PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR).publicInput)
+        PiDECInputs.phaseOffset,
+      d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+      holdsFlat d.current r.operations ∧
+      PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+        PiDECInputs.phaseOffset d.current ∧
+      RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
+  have currentValues := rValues_eq_of_agree relation r.current afterR (by
+    intro index below
+    apply preserved index
+    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
+    exact below)
+  have afterSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
+      some (PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
+    rw [currentValues.1]
+    exact rSampled
+  have afterParent : PiRLC.v1_1.Semantics.evalOutput relation PiRLCInputs.interface PiRLCInputs.phaseOffset afterR =
+      (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
+        (PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
+    rw [currentValues.1, currentValues.2]
+    exact rParent
+  obtain ⟨_, _, challenges, sampled, checks⟩ := verifierInputs relation ajtai running fresh proof result accepted
+  have challengeEq : PiRLC.v1_1.Semantics.evalChallenges
+      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+      PiRLCInputs.phaseOffset afterR = challenges := Option.some.inj (afterSampled.symm.trans sampled)
+  rw [challengeEq] at afterParent
+  let parent := PiRLC.v1_1.Semantics.evalOutput relation
+    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+    PiRLCInputs.phaseOffset afterR
+  let loaded := PiDECProofInputs.load afterR proof parent.publicInput
+  have parentChecks : PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
+      (ProductionKey.key relation ajtai).piDecPublicInputSplit
+      (ProductionKey.key relation ajtai).piDecEvaluationArity
+      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent) := by
+    change PiDEC.PaperVerifier.Accepted _ _ _
+      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
+        (PiRLC.v1_1.Semantics.evalOutput relation
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+          PiRLCInputs.phaseOffset afterR))
+    rw [afterParent]
+    exact checks
+  have loadedPhase := loaded_phase relation ajtai afterR proof parentChecks
+  obtain ⟨d, dOperations⟩ := PiDEC.v1_1.Formal.completePrefix relation ajtai
+    (PiDECInputs.interface logicalWidth publicFits) loaded PiDECInputs.phaseOffset
+    (PiDECInputs.assumptions relation loaded) loadedPhase
+  have dRows : holds d.current (Circuit.ops
+      (PiDEC.v1_1.Formal.main relation (PiDECInputs.interface logicalWidth publicFits)) PiDECInputs.phaseOffset) := by
+    change holds d.current (PiDEC.v1_1.Formal.opsAt relation
+      (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset)
+    rw [← dOperations]
+    exact holdsFlat_implies_holds d.current d.operations d.rows
+  have dPhase := PiDEC.v1_1.Semantics.spec_implies_phaseHolds relation ajtai
+    (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset d.current
+    (PiDEC.v1_1.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
+      PiDECInputs.phaseOffset d.current (PiDECInputs.assumptions relation d.current) dRows)
+  have beforeInputs : ∀ index, index < PiDECInputs.proofInputStart → d.current index = afterR index := by
+    intro index below
+    have beforeD : index < PiDECInputs.phaseOffset :=
+      Nat.lt_of_lt_of_le below (Nat.le_add_right _ _)
+    exact (d.agrees index (Or.inl beforeD)).trans
+      (PiDECProofInputs.load_agreesOutside afterR proof parent.publicInput index (Or.inl below))
+  have rEnd : PiRLCInputs.phaseOffset + localLength r.operations ≤ PiDECInputs.proofInputStart := by
+    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
+    exact rEnd_before_dInputs
+  have rRows : holdsFlat d.current r.operations := by
+    intro expression member
+    have same := expression.eval_eq_of_agree_below
+      (PiRLCInputs.phaseOffset + localLength r.operations) d.current r.current
+      (r.scope expression member) (fun index below =>
+        (beforeInputs index (Nat.lt_of_lt_of_le below rEnd)).trans (preserved index below))
+    exact same.trans (r.rows expression member)
+  have outputPreserved := PiDEC.v1_1.Semantics.output_eq_of_agree relation
+    (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset loaded d.current
+    (PiDECInputs.assumptions relation loaded) (fun index below => (d.agrees index (Or.inl below)).symm)
+  have family := outputPreserved.symm.trans (loaded_output relation ajtai afterR proof)
+  have runningOutput := running_of_children relation ajtai d.current proof parent family
+  have actualOutput := computed_output_eq relation (ProductionKey.key relation ajtai)
+    running fresh proof result challenges sampled checks accepted
+  have parentIdentity : parent = (ProductionKey.key relation ajtai).parentForChallenges
+      running fresh proof challenges := afterParent
+  rw [parentIdentity] at runningOutput
+  exact ⟨d, dOperations, rRows, dPhase, runningOutput.trans actualOutput⟩
+
+
 variable
   (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
   (priorPublic : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -363,51 +539,21 @@ theorem completePrefix_from
           RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   let proof := PiCCSProofInputs.relationProof relation values template
   let fresh := PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values
-  obtain ⟨cAccepted, available, challenges, sampled, checks⟩ := verifierInputs relation ajtai
+  obtain ⟨cAccepted, available, _, _, _⟩ := verifierInputs relation ajtai
     (prior.running functionIndex) fresh proof result accepted
   obtain ⟨c, r, cOperations, rOperations, cRowsAtR, _, rSampled, rParent⟩ :=
     PiRLCProtocolCompleteness.completePrefix_from relation ajtai prior priorPublic advertised digest
       priorFixed advertisedFixed digestFixed values context template priorPc advertisedPc
       priorContext advertisedContext cAccepted available initial source
-  have challengeEq : PiRLC.v1_1.Semantics.evalChallenges
-      (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-      PiRLCInputs.phaseOffset r.current = challenges := Option.some.inj (rSampled.symm.trans sampled)
-  rw [challengeEq] at rParent
-  let parent := PiRLC.v1_1.Semantics.evalOutput relation
-    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-    PiRLCInputs.phaseOffset r.current
-  let loaded := PiDECProofInputs.load r.current proof parent.publicInput
-  have parentChecks : PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
-      (ProductionKey.key relation ajtai).piDecPublicInputSplit
-      (ProductionKey.key relation ajtai).piDecEvaluationArity
-      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent) := by
-    change PiDEC.PaperVerifier.Accepted _ _ _
-      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
-        (PiRLC.v1_1.Semantics.evalOutput relation
-          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-          PiRLCInputs.phaseOffset r.current))
-    rw [rParent]
-    exact checks
-  have loadedPhase := loaded_phase relation ajtai r.current proof parentChecks
-  obtain ⟨d, dOperations⟩ := PiDEC.v1_1.Formal.completePrefix relation ajtai
-    (PiDECInputs.interface logicalWidth publicFits) loaded PiDECInputs.phaseOffset
-    (PiDECInputs.assumptions relation loaded) loadedPhase
-  have dRows : holds d.current (Circuit.ops
-      (PiDEC.v1_1.Formal.main relation (PiDECInputs.interface logicalWidth publicFits)) PiDECInputs.phaseOffset) := by
-    change holds d.current (PiDEC.v1_1.Formal.opsAt relation
-      (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset)
-    rw [← dOperations]
-    exact holdsFlat_implies_holds d.current d.operations d.rows
-  have dPhase := PiDEC.v1_1.Semantics.spec_implies_phaseHolds relation ajtai
-    (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset d.current
-    (PiDEC.v1_1.Formal.soundness relation (PiDECInputs.interface logicalWidth publicFits)
-      PiDECInputs.phaseOffset d.current (PiDECInputs.assumptions relation d.current) dRows)
+  obtain ⟨d, dOperations, rRows, dPhase, dOutput⟩ := completePrefix_after_r relation ajtai
+    (prior.running functionIndex) fresh proof result accepted c.current r rOperations rSampled rParent
+    r.current (fun _ _ => rfl)
   have beforeInputs : ∀ index, index < PiDECInputs.proofInputStart → d.current index = r.current index := by
     intro index below
     have beforeD : index < PiDECInputs.phaseOffset :=
       Nat.lt_of_lt_of_le below (Nat.le_add_right _ _)
     exact (d.agrees index (Or.inl beforeD)).trans
-      (PiDECProofInputs.load_agreesOutside r.current proof parent.publicInput index (Or.inl below))
+      (PiDECProofInputs.load_agreesOutside r.current proof _ index (Or.inl below))
   have cEnd : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiDECInputs.proofInputStart := by
     rw [cOperations, ← PiCCS.v1_1.Formal.main_ops, PiCCS.v1_1.Formal.localLength_eq]
     change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
@@ -415,33 +561,13 @@ theorem completePrefix_from
     rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
     exact Nat.le_trans PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
       (Nat.le_trans (Nat.le_add_right _ _) rEnd_before_dInputs)
-  have rEnd : PiRLCInputs.phaseOffset + localLength r.operations ≤ PiDECInputs.proofInputStart := by
-    rw [rOperations, ← PiRLC.v1_1.Formal.main_ops, PiRLC.v1_1.Formal.localLength_eq]
-    exact rEnd_before_dInputs
   have cRows : holdsFlat d.current c.operations := by
     intro expression member
     have same := expression.eval_eq_of_agree_below
       (PiCCSInputs.phaseOffset + localLength c.operations) d.current r.current
       (c.scope expression member) (fun index below => beforeInputs index (Nat.lt_of_lt_of_le below cEnd))
     exact same.trans (cRowsAtR expression member)
-  have rRows : holdsFlat d.current r.operations := by
-    intro expression member
-    have same := expression.eval_eq_of_agree_below
-      (PiRLCInputs.phaseOffset + localLength r.operations) d.current r.current
-      (r.scope expression member) (fun index below => beforeInputs index (Nat.lt_of_lt_of_le below rEnd))
-    exact same.trans (r.rows expression member)
-  have outputPreserved := PiDEC.v1_1.Semantics.output_eq_of_agree relation
-    (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset loaded d.current
-    (PiDECInputs.assumptions relation loaded) (fun index below => (d.agrees index (Or.inl below)).symm)
-  have family := outputPreserved.symm.trans (loaded_output relation ajtai r.current proof)
-  have runningOutput := running_of_children relation ajtai d.current proof parent family
-  have actualOutput := computed_output_eq relation (ProductionKey.key relation ajtai)
-    (prior.running functionIndex) fresh proof result challenges sampled checks accepted
-  have parentIdentity : parent = (ProductionKey.key relation ajtai).parentForChallenges
-      (prior.running functionIndex) fresh proof challenges := rParent
-  rw [parentIdentity] at runningOutput
-  exact ⟨c, r, d, cOperations, rOperations, dOperations, cRows, rRows, dPhase,
-    runningOutput.trans actualOutput⟩
+  exact ⟨c, r, d, cOperations, rOperations, dOperations, cRows, rRows, dPhase, dOutput⟩
 
 
 /-- An actual accepted NIFS run constructs the canonical local C/R/D

@@ -135,6 +135,148 @@ private theorem protocol_readback
   exact ⟨preserved.1.trans initialRead.1, preserved.2.1.trans initialRead.2.1,
     preserved.2.2.trans initialRead.2.2⟩
 
+/-- Continue from the already constructed C prefix after completing its
+physical fresh interval. Agreement is needed only below the logical C end;
+the constructor derives C semantics, the actual sampler state, and R outputs.
+No equality on the physical fresh cells is required. -/
+theorem completePrefix_after_c
+    (available : Folding.Nifs.NonInteractive.PiRlcSampler.Available
+      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
+      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
+      ((ProductionKey.key relation ajtai).piCcsExecution (prior.running functionIndex)
+        (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+        (relationProof relation values template)).outgoingState)
+    (initial : Env)
+    (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
+      PiCCSProtocolCompleteness.environment prior priorPublic output digest
+        priorFixed outputFixed digestFixed values context index)
+    (c : Sequence.Prefix initial PiCCSInputs.phaseOffset)
+    (cOperations : c.operations = Formal.opsAt relation (relationInterface relation) PiCCSInputs.phaseOffset)
+    (afterC : Env)
+    (preserved : ∀ index, index < PiCCSInputs.phaseOffset + localLength c.operations →
+      afterC index = c.current index) :
+    ∃ r : Sequence.Prefix afterC PiRLCInputs.phaseOffset,
+        r.operations = PiRLC.v1_1.Formal.opsAt relation
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+          PiRLCInputs.phaseOffset ∧
+        holdsFlat r.current c.operations ∧
+        PiRLC.v1_1.Semantics.PhaseHolds relation ajtai
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+          PiRLCInputs.phaseOffset r.current ∧
+        (ProductionKey.key relation ajtai).piRlcChallenges (prior.running functionIndex)
+          (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+          (relationProof relation values template) =
+          some (PiRLC.v1_1.Semantics.evalChallenges
+            (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+            PiRLCInputs.phaseOffset r.current) ∧
+        PiRLC.v1_1.Semantics.evalOutput relation
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+          PiRLCInputs.phaseOffset r.current =
+          (ProductionKey.key relation ajtai).parentForChallenges (prior.running functionIndex)
+            (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+            (relationProof relation values template)
+            (PiRLC.v1_1.Semantics.evalChallenges
+              (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+              PiRLCInputs.phaseOffset r.current) := by
+  have cRows : holds afterC
+      (Circuit.ops (Formal.main relation (relationInterface relation)) PiCCSInputs.phaseOffset) := by
+    rw [Formal.main_ops, ← cOperations]
+    apply holdsFlat_implies_holds
+    intro expression member
+    exact (expression.eval_eq_of_agree_below
+      (PiCCSInputs.phaseOffset + localLength c.operations) afterC c.current
+      (c.scope expression member) preserved).trans (c.rows expression member)
+  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    (relationInterface relation) PiCCSInputs.phaseOffset
+    (PiCCSInputs.externalInputsLinear logicalWidth publicFits) afterC
+  have cPhase := Formal.spec_implies_phaseHolds relation ajtai (relationInterface relation)
+    PiCCSInputs.phaseOffset afterC (relationProof relation values template)
+    (Formal.soundness relation (relationInterface relation) afterC PiCCSInputs.phaseOffset cAssumptions cRows)
+  have cRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
+    digestFixed values context template initial source afterC (fun index below =>
+      (preserved index (Nat.lt_of_lt_of_le below (Nat.le_add_right _ _))).trans
+        (c.agrees index (Or.inl below)))
+  have stateEq := initialState_eq_of_phase relation ajtai afterC
+    (relationProof relation values template) cPhase
+  rw [cRead.1, cRead.2.1, cRead.2.2] at stateEq
+  have actualAvailable : Folding.Nifs.NonInteractive.PiRlcSampler.Available
+      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
+      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
+      (PiRLC.v1_1.SamplerChain.evalInitialState
+        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset
+          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+          PiRLCInputs.phaseOffset)) (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
+        afterC) := by
+    rw [stateEq]
+    exact available
+  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_1.Formal.completePrefix_of_available relation ajtai
+    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) afterC
+    PiRLCInputs.phaseOffset (PiRLCInputBounds.assumptions relation afterC) actualAvailable
+  have cLimit : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiRLCInputs.phaseOffset := by
+    rw [cOperations, ← Formal.main_ops, Formal.localLength_eq]
+    change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset ≤ _
+    rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
+    exact PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
+  have rowsPreserved : holdsFlat r.current c.operations := by
+    intro expression member
+    have equal := expression.eval_eq_of_agree_below
+      (PiCCSInputs.phaseOffset + localLength c.operations) r.current c.current
+      (c.scope expression member) (fun index below =>
+        (r.agrees index (Or.inl (Nat.lt_of_lt_of_le below cLimit))).trans
+          (preserved index below))
+    exact equal.trans (c.rows expression member)
+  have cRows : holds r.current
+      (Circuit.ops (Formal.main relation (relationInterface relation)) PiCCSInputs.phaseOffset) := by
+    rw [Formal.main_ops, ← cOperations]
+    exact holdsFlat_implies_holds r.current c.operations rowsPreserved
+  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
+    (relationInterface relation) PiCCSInputs.phaseOffset
+    (PiCCSInputs.externalInputsLinear logicalWidth publicFits) r.current
+  have finalC := Formal.spec_implies_phaseHolds relation ajtai (relationInterface relation)
+    PiCCSInputs.phaseOffset r.current (relationProof relation values template)
+    (Formal.soundness relation (relationInterface relation) r.current PiCCSInputs.phaseOffset
+      cAssumptions cRows)
+  have finalRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
+    digestFixed values context template initial source r.current (fun index below =>
+      (r.agrees index (Or.inl (by omega))).trans
+        ((preserved index (Nat.lt_of_lt_of_le below (Nat.le_add_right _ _))).trans
+          (c.agrees index (Or.inl below))))
+  have finalState := initialState_eq_of_phase relation ajtai r.current
+    (relationProof relation values template) finalC
+  rw [finalRead.1, finalRead.2.1, finalRead.2.2] at finalState
+  have challenges := AccumulatorSemantics.piRlcChallenges_eq_key_of_initialState relation ajtai
+    r.current (prior.running functionIndex)
+    (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+    (relationProof relation values template)
+    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+    PiRLCInputs.phaseOffset rPhase finalState
+  have canonicalC := accumulator_phase relation ajtai r.current
+    (relationProof relation values template) finalC
+  have inputs := AccumulatorSemantics.piRlcInputs_eq_keyOutputs relation ajtai r.current canonicalC
+  have runningEq : AccumulatorInputs.running logicalWidth publicFits r.current =
+      prior.running functionIndex := finalRead.1
+  have freshEq : AccumulatorInputs.fresh logicalWidth publicFits r.current =
+      PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values := finalRead.2.1
+  rw [runningEq, freshEq] at inputs
+  have roundsEq : (AccumulatorInputs.proof relation r.current).piCcsRounds =
+      (relationProof relation values template).piCcsRounds :=
+    congrArg (fun proof => proof.piCcsRounds) finalRead.2.2
+  have outputEq : (AccumulatorInputs.proof relation r.current).piCcsOutput =
+      (relationProof relation values template).piCcsOutput :=
+    congrArg (fun proof => proof.piCcsOutput) finalRead.2.2
+  have views := cViews_eq_of_fields relation (ProductionKey.key relation ajtai)
+    (prior.running functionIndex) (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+    (AccumulatorInputs.proof relation r.current) (relationProof relation values template) roundsEq outputEq
+  have parent := AccumulatorSemantics.piRlcOutput_eq_keyParentForChallenges_of_inputs relation ajtai
+    r.current (prior.running functionIndex)
+    (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
+    (relationProof relation values template)
+    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
+    PiRLCInputs.phaseOffset rPhase (inputs.trans views.2)
+  exact ⟨r, rOperations, rowsPreserved, rPhase, challenges, parent⟩
+
+
 /-- Accepted typed protocol inputs and actual bounded sampler availability
 construct the canonical local C/R witnesses. R preserves the constructed C
 rows and its output is the exact production-key parent for the same statement,
@@ -182,87 +324,13 @@ theorem completePrefix_from
             (PiRLC.v1_1.Semantics.evalChallenges
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
-  obtain ⟨c, cOperations, cPhase⟩ := PiCCSProtocolCompleteness.completePrefix_from
+  obtain ⟨c, cOperations, _⟩ := PiCCSProtocolCompleteness.completePrefix_from
     prior priorPublic output digest priorFixed outputFixed digestFixed values context relation
     ajtai template priorPc outputPc priorContext outputContext accepted initial source
-  have cRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template initial source c.current (fun index below => c.agrees index (Or.inl below))
-  have stateEq := initialState_eq_of_phase relation ajtai c.current
-    (relationProof relation values template) cPhase
-  rw [cRead.1, cRead.2.1, cRead.2.2] at stateEq
-  have actualAvailable : Folding.Nifs.NonInteractive.PiRlcSampler.Available
-      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
-      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      (PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset
-          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-          PiRLCInputs.phaseOffset)) (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
-        c.current) := by
-    rw [stateEq]
-    exact available
-  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_1.Formal.completePrefix_of_available relation ajtai
-    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) c.current
-    PiRLCInputs.phaseOffset (PiRLCInputBounds.assumptions relation c.current) actualAvailable
-  have cLimit : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiRLCInputs.phaseOffset := by
-    rw [cOperations, ← Formal.main_ops, Formal.localLength_eq]
-    change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
-      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset ≤ _
-    rw [← PiCCSStarts.logicalFreshBase_eq_layout relation]
-    exact PiRLCInputs.piCcsLogicalFreshBase_le_phaseOffset
-  have rowsPreserved : holdsFlat r.current c.operations := by
-    intro expression member
-    have equal := expression.eval_eq_of_agree_below
-      (PiCCSInputs.phaseOffset + localLength c.operations) r.current c.current
-      (c.scope expression member) (fun index below =>
-        r.agrees index (Or.inl (Nat.lt_of_lt_of_le below cLimit)))
-    exact equal.trans (c.rows expression member)
-  have cRows : holds r.current
-      (Circuit.ops (Formal.main relation (relationInterface relation)) PiCCSInputs.phaseOffset) := by
-    rw [Formal.main_ops, ← cOperations]
-    exact holdsFlat_implies_holds r.current c.operations rowsPreserved
-  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
-    (relationInterface relation) PiCCSInputs.phaseOffset
-    (PiCCSInputs.externalInputsLinear logicalWidth publicFits) r.current
-  have finalC := Formal.spec_implies_phaseHolds relation ajtai (relationInterface relation)
-    PiCCSInputs.phaseOffset r.current (relationProof relation values template)
-    (Formal.soundness relation (relationInterface relation) r.current PiCCSInputs.phaseOffset
-      cAssumptions cRows)
-  have finalRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template initial source r.current (fun index below =>
-      (r.agrees index (Or.inl (by omega))).trans (c.agrees index (Or.inl below)))
-  have finalState := initialState_eq_of_phase relation ajtai r.current
-    (relationProof relation values template) finalC
-  rw [finalRead.1, finalRead.2.1, finalRead.2.2] at finalState
-  have challenges := AccumulatorSemantics.piRlcChallenges_eq_key_of_initialState relation ajtai
-    r.current (prior.running functionIndex)
-    (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-    (relationProof relation values template)
-    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-    PiRLCInputs.phaseOffset rPhase finalState
-  have canonicalC := accumulator_phase relation ajtai r.current
-    (relationProof relation values template) finalC
-  have inputs := AccumulatorSemantics.piRlcInputs_eq_keyOutputs relation ajtai r.current canonicalC
-  have runningEq : AccumulatorInputs.running logicalWidth publicFits r.current =
-      prior.running functionIndex := finalRead.1
-  have freshEq : AccumulatorInputs.fresh logicalWidth publicFits r.current =
-      PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values := finalRead.2.1
-  rw [runningEq, freshEq] at inputs
-  have roundsEq : (AccumulatorInputs.proof relation r.current).piCcsRounds =
-      (relationProof relation values template).piCcsRounds :=
-    congrArg (fun proof => proof.piCcsRounds) finalRead.2.2
-  have outputEq : (AccumulatorInputs.proof relation r.current).piCcsOutput =
-      (relationProof relation values template).piCcsOutput :=
-    congrArg (fun proof => proof.piCcsOutput) finalRead.2.2
-  have views := cViews_eq_of_fields relation (ProductionKey.key relation ajtai)
-    (prior.running functionIndex) (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-    (AccumulatorInputs.proof relation r.current) (relationProof relation values template) roundsEq outputEq
-  have parent := AccumulatorSemantics.piRlcOutput_eq_keyParentForChallenges_of_inputs relation ajtai
-    r.current (prior.running functionIndex)
-    (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-    (relationProof relation values template)
-    (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-    PiRLCInputs.phaseOffset rPhase (inputs.trans views.2)
-  exact ⟨c, r, cOperations, rOperations, rowsPreserved, rPhase, challenges, parent⟩
+  obtain ⟨r, completed⟩ := completePrefix_after_c relation ajtai prior priorPublic output digest
+    priorFixed outputFixed digestFixed values context template available initial source
+    c cOperations c.current (fun _ _ => rfl)
+  exact ⟨c, r, cOperations, completed⟩
 
 
 /-- Accepted typed protocol inputs and actual bounded sampler availability

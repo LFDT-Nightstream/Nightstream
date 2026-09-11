@@ -13,7 +13,9 @@ use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde_json::{json, Value};
 
-use super::native_driver::{canonical, fields, public_words, running_claims, words};
+use super::native_driver::{
+    canonical, commitment, extensions, fields, padded, public_matrix, public_words, running_claims, words,
+};
 
 #[path = "../../../tests/nifs/pi_dec_actual_mutations.rs"]
 mod mutations;
@@ -25,57 +27,7 @@ const PUBLIC: usize = 270;
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const BOUND: u64 = 1 << CHILDREN;
 
-pub(super) fn claim_value(claim: &Claim, combined: bool) -> Value {
-    assert_eq!((claim.c.d, claim.c.kappa, claim.m_in), (D, 22, PUBLIC));
-    assert_eq!(claim.c.data.len(), 22 * D);
-    assert_eq!(claim.r.len(), 28);
-    assert_eq!(claim.eval_k.len(), D.next_power_of_two());
-    assert_eq!(claim.eval_a.len(), MATRICES);
-    assert!(claim.eval_k[D..].iter().all(|&value| value == K::ZERO));
-    for family in &claim.eval_a {
-        assert_eq!(family.len(), D.next_power_of_two());
-        assert!(family[D..].iter().all(|&value| value == K::ZERO));
-    }
-    json!([
-        fields(&claim.c.data),
-        public_words(&claim.X),
-        words(&claim.r),
-        words(&claim.eval_k[..D]),
-        claim
-            .eval_a
-            .iter()
-            .map(|family| words(&family[..D]))
-            .collect::<Vec<_>>(),
-        u64::from(combined)
-    ])
-}
-
-pub(super) fn running_value(children: &[Claim]) -> Value {
-    assert_eq!(children.len(), CHILDREN);
-    json!([
-        words(&children[0].r),
-        children
-            .iter()
-            .map(|child| fields(&child.c.data))
-            .collect::<Vec<_>>(),
-        children
-            .iter()
-            .map(|child| public_words(&child.X))
-            .collect::<Vec<_>>(),
-        children
-            .iter()
-            .map(|child| words(&child.eval_k[..D]))
-            .collect::<Vec<_>>(),
-        children
-            .iter()
-            .map(|child| child
-                .eval_a
-                .iter()
-                .map(|family| words(&family[..D]))
-                .collect::<Vec<_>>())
-            .collect::<Vec<_>>()
-    ])
-}
+pub(super) use super::owned_nifs::stage1_values::{claim_value, running_value};
 
 fn magnitude(word: u64) -> u64 {
     word.min(MODULUS - word)
@@ -180,6 +132,65 @@ fn result_value(
             json!([0])
         }
     ])
+}
+
+/// Replay every public D result from saved actual proof values.
+pub(super) fn check_saved(package_path: &Path, actual: &Value, reference: &Value) {
+    let package_bytes = fs::read(package_path).expect("published selected package");
+    let package = nightstream_fprime::load_poseidon2_hash_chain_v1_package(&package_bytes)
+        .expect("verifier-owned selected package");
+    assert_eq!(json!(package.structural_identifier()), actual["structural_identifier"]);
+    assert_eq!(
+        json!(package
+            .production_verifier_binding()
+            .unwrap()
+            .package_identity()),
+        actual["package_identity"]
+    );
+    let structure = package
+        .ccs_structure_header()
+        .expect("selected relation header");
+    drop((package, package_bytes));
+    let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("selected Nightstream parameters");
+    assert_eq!((params.b(), params.k_rho()), (2, CHILDREN as u32));
+    let c_state: [u64; 8] = serde_json::from_value(actual["pi_ccs_phase"][14].clone()).unwrap();
+    canonical(&actual["pi_ccs_phase"][14]);
+    canonical(&actual["children"]);
+    let children = running_claims(&actual["children"], c_state[..4].try_into().unwrap());
+    let value = &actual["pi_rlc_parent"];
+    canonical(value);
+    assert_eq!(value.as_array().expect("saved actual R parent").len(), 6);
+    assert_eq!(value[5], 1);
+    assert_eq!(value[4].as_array().expect("parent matrix families").len(), MATRICES);
+    let parent = Claim {
+        c: commitment(&value[0]),
+        X: public_matrix(&value[1]),
+        r: extensions(&value[2]),
+        eval_k: padded(&value[3]),
+        eval_a: (0..MATRICES)
+            .map(|matrix| padded(&value[4][matrix]))
+            .collect(),
+        m_in: PUBLIC,
+        fold_digest: children[0].fold_digest,
+        adv: None,
+    };
+    canonical(&actual["outgoing_state"]);
+    let state: [u64; 8] = serde_json::from_value(actual["outgoing_state"].clone()).unwrap();
+    let computed = result_value(&params, &structure, &parent, &children, state.map(F::from_u64));
+    let expected = reference[9].as_array().expect("complete Lean D result");
+    assert_eq!(expected.len(), 17);
+    for (index, (observed, expected)) in computed
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(expected)
+        .enumerate()
+    {
+        assert!(observed == expected, "saved actual PiDEC result field {index}");
+    }
+    mutations::check(&params, &structure, &parent, &children);
+    println!("saved_actual_pi_dec=passed complete_fields=17 normal_wrapper=true");
 }
 
 fn check_private_digits(witness: &Mat<F>, raw: &[u8]) -> (Vec<Mat<F>>, Vec<bool>) {

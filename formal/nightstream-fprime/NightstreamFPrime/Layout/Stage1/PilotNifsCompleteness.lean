@@ -89,7 +89,9 @@ private theorem pilot_constraints (interface : Lifecycle.Pilot.Interface) (offse
   rw [flatConstraints_append, flatConstraints_singleton, flatConstraints_singleton]
   rfl
 
-private theorem pilot_prefix
+/-- Construct both pilot hash children from the canonical protocol source and
+the actual output hash. The returned prefix carries its rows and exact scope. -/
+theorem pilot_prefix
     (outputHash : digest = stateHash advertised) :
     ∃ p : Sequence.Prefix
         (PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) advertised digest

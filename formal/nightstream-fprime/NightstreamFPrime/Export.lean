@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.AffineRuns
 import NightstreamFPrime.Export.MatrixProgram
@@ -80,6 +81,11 @@ import NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
+import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
+import NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
+import NightstreamFPrime.Export.Stage1.PermutationActionCompleteness
+import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
+import NightstreamFPrime.Export.Stage1.PilotPoseidonCompleteness
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
@@ -146,6 +152,8 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
+import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
+import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
@@ -205,6 +213,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
+import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Conformance
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows

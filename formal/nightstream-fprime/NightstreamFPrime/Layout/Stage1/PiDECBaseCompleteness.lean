@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
 
 /-!
-Owns canonical base advice and its local C/R/D witness construction. The
+Owns canonical base advice and its pilot/C/R/D/transition witness construction. The
 HyperNova base branch permits dummy advice; this constructor selects the
 existing zero proof and fresh claim, and preserves the same semantic output.
 The verifier's dummy D output is separate from the base transition's default
@@ -59,11 +59,10 @@ theorem canonicalInput_preserves_base
   · rcases recursive with ⟨_, positive, _⟩
     exact False.elim ((Nat.ne_of_gt positive) zero)
 
-/-- The canonical base advice constructs local C/R/D rows when its actual
-bounded sampler succeeds. The returned dummy D result is exactly the NIFS
-verifier result. The same outer semantic base step still installs
-`defaultRunning`; no child opening or equality with the dummy D result is
-claimed. -/
+/-- The canonical base advice constructs pilot, C/R/D, running-transition,
+and next-preimage rows when its actual bounded sampler succeeds. The actual
+NIFS dummy result is preserved, while the base transition selects the semantic
+`defaultRunning`. No child opening or equality of those two values is assumed. -/
 theorem base_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
@@ -81,36 +80,48 @@ theorem base_completePrefix
       (normalized.fresh.commitments ⟨0, by decide⟩) normalized.nifsProof
     StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program
       normalized output ∧
-    ∃ (priorFixed : PilotProduction.FixedPreimage prior)
-      (nextFixed : PilotProduction.FixedPreimage next)
-      (digestFixed : output.x.length = PilotProduction.digestWords),
+    ∃ (priorWellFormed : StateEncoding.WellFormed prior)
+      (nextWellFormed : StateEncoding.WellFormed next),
       ∃ result, Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
           (prior.running functionIndex) normalized.fresh normalized.nifsProof = some result ∧
-        ∃ c : Sequence.Prefix
-            (PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) next output.x
-              priorFixed nextFixed digestFixed values context) PiCCSInputs.phaseOffset,
+    ∃ (digestFixed : output.x.length = PilotProduction.digestWords),
+      ∃ p : Sequence.Prefix
+          (PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) next output.x
+            priorWellFormed.1 nextWellFormed.1 digestFixed values context) PilotProduction.witnessOffset,
+        ∃ c : Sequence.Prefix p.current PiCCSInputs.phaseOffset,
           ∃ r : Sequence.Prefix c.current PiRLCInputs.phaseOffset,
             ∃ d : Sequence.Prefix
                 (PiDECProofInputs.load r.current normalized.nifsProof
                   (PiRLC.v1_1.Semantics.evalOutput relation
                     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
                     PiRLCInputs.phaseOffset r.current).publicInput) PiDECInputs.phaseOffset,
-              c.operations = PiCCS.v1_1.Formal.opsAt relation
-                (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
-              r.operations = PiRLC.v1_1.Formal.opsAt relation
-                (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-                PiRLCInputs.phaseOffset ∧
-              d.operations = PiDEC.v1_1.Formal.opsAt relation
-                (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
-              holdsFlat d.current c.operations ∧ holdsFlat d.current r.operations ∧
-              PiDEC.v1_1.Semantics.PhaseHolds relation ajtai
-                (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset d.current ∧
-              RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
+              ∃ t : Sequence.Prefix d.current RunningTransitionInputs.phaseOffset,
+                flatConstraints p.operations = Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset ∧
+                c.operations = PiCCS.v1_1.Formal.opsAt relation (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset ∧
+                r.operations = PiRLC.v1_1.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset ∧
+                d.operations = PiDEC.v1_1.Formal.opsAt relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset ∧
+                t.operations = Lifecycle.Stage1.RunningTransition.operations
+                  (RunningTransitionInputs.interface logicalWidth publicFits) RunningTransitionInputs.phaseOffset ∧
+                holdsFlat t.current p.operations ∧ holdsFlat t.current c.operations ∧
+                holdsFlat t.current r.operations ∧ holdsFlat t.current d.operations ∧
+                holdsFlat t.current (Lifecycle.Stage1.NextPreimage.opsAt NextPreimageInputs.sourceInterface
+                  RunningTransitionInputs.phaseOffset) ∧
+                Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset t.current ∧
+                PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits)
+                  PiDECInputs.phaseOffset t.current ∧
+                Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
+                  RunningTransitionInputs.phaseOffset t.current ∧
+                Lifecycle.Stage1.NextPreimage.SpecHolds NextPreimageInputs.sourceInterface RunningTransitionInputs.phaseOffset t.current ∧
+                RunningTransitionInputs.piDecRunningOutput relation t.current = result ∧
+                (∀ index : Fin PilotProduction.stateHashWords,
+                  t.current (PilotProduction.priorPreimageStart + index.val) =
+                    (serializePreimage (publicFits := publicFits) prior).getD index.val 0) ∧
+                (∀ index : Fin PilotProduction.stateHashWords,
+                  t.current (PilotProduction.outputPreimageStart + index.val) =
+                    (serializePreimage (publicFits := publicFits) next).getD index.val 0) := by
   let normalized := canonicalInput relation ajtai context input
   let prior := priorHashPreimage (setup relation ajtai context.toList) normalized
   let next := nextHashPreimage (setup relation ajtai context.toList) normalized output
-  let values := PiCCSProofReadback.ofProof
-    (normalized.fresh.commitments ⟨0, by decide⟩) normalized.nifsProof
   have normalizedStep := canonicalInput_preserves_base relation ajtai context input output step zero
   have priorFixed : PilotProduction.FixedPreimage prior :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
@@ -121,33 +132,23 @@ theorem base_completePrefix
     exact Lifecycle.Stage1.Poseidon2HashChainV1.step_output_length input.zi input.witness
   have nextFixed : PilotProduction.FixedPreimage next :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
-  have digestFixed : output.x.length = PilotProduction.digestWords := by
-    have hash := normalizedStep.2.2.1
-    change output.x = stateHash next at hash
-    rw [hash]
-    exact StateEncoding.stateHash_length next
   have nextPc : next.pc = 1 := by
     change oneBased output.pcNext = 1
     rw [step.1]
     rfl
-  have fresh : PiCCSProofInputs.protocolFresh logicalWidth publicFits
-      (encHash (stateHash prior)) values = normalized.fresh :=
-    PiCCSProofReadback.protocolFresh_ofProof relation normalized.fresh normalized.nifsProof
-  have proofReadback : PiCCSProofInputs.relationProof relation values normalized.nifsProof =
-      normalized.nifsProof := PiCCSProofReadback.relationProof_ofProof relation
-    (normalized.fresh.commitments ⟨0, by decide⟩) normalized.nifsProof
+  have successor : next.iteration < goldilocksModulus := by
+    change input.iteration + 1 < goldilocksModulus
+    rw [zero]
+    norm_num [goldilocksModulus]
+  have priorWellFormed : StateEncoding.WellFormed prior := ⟨priorFixed, valid.1, rfl⟩
+  have nextWellFormed : StateEncoding.WellFormed next := ⟨nextFixed, successor, nextPc⟩
   obtain ⟨result, accepted⟩ := Nifs.BaseCompleteness.zeroProof_verify_of_sampler relation ajtai
     prior challenges sampled
-  have actualAccepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
-      (prior.running functionIndex)
-      (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
-      (PiCCSProofInputs.relationProof relation values normalized.nifsProof) = some result := by
-    rw [fresh, proofReadback]
-    exact accepted
-  refine ⟨normalizedStep, priorFixed, nextFixed, digestFixed, result, accepted, ?_⟩
-  have constructed := PiDECProtocolCompleteness.completePrefix relation ajtai prior
-    (encHash (stateHash prior)) next output.x priorFixed nextFixed digestFixed values context
-    normalized.nifsProof result rfl nextPc rfl rfl actualAccepted
-  simpa only [proofReadback] using constructed
+  refine ⟨normalizedStep, priorWellFormed, nextWellFormed, result, accepted, ?_⟩
+  apply StepWitnessPrefix.completePrefix relation ajtai context normalized output result
+    normalizedStep priorWellFormed nextWellFormed rfl accepted
+  intro positive
+  change 0 < input.iteration at positive
+  omega
 
 end NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness

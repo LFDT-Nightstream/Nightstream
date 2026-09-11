@@ -301,3 +301,4 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.columnSpanTags_exact
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.structuralIdentity_eq_canonical
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.structuralIdentityWords_length
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.logicalConstraints_eq_flatten

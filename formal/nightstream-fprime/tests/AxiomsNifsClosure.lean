@@ -42,6 +42,7 @@ import NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
@@ -276,6 +277,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness.zeroProof_parentBounded
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness.zeroProof_piDecCheck_of_sampler
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness.zeroProof_verify_of_sampler
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.completePrefix_of_available
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.completePrefix_of_available
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition.source_success_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput.finish_value_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability_eq

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.Lowering
+import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 
 /-!
 Owns the explicit pullback from the compact eight-child logical assembler to

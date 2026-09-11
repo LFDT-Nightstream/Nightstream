@@ -95,7 +95,7 @@ import NightstreamFPrime.Layout.Stage1.AssemblerPiRLCCompleteness
 import NightstreamFPrime.Layout.Stage1.AssemblerPiDECCompleteness
 import NightstreamFPrime.Layout.Stage1.AssemblerRunningCompleteness
 import NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness
-import NightstreamFPrime.Layout.Stage1.Lowering
+import NightstreamFPrime.Layout.Stage1.LoweringRows
 import NightstreamFPrime.Layout.Stage1.Ownership
 import NightstreamFPrime.Layout.Stage1.CompactPullback
 import NightstreamFPrime.Layout.Stage1.Preservation

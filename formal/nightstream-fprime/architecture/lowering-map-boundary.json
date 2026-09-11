@@ -1,0 +1,72 @@
+{
+  "baseline_commit": "5a78e03822a51aa7802ae80acaf2e798b3088d31",
+  "claim": "Separate the final column map and suffix data from the complete physical row instance. CompactPullback consumes only the data interface.",
+  "namespace": "NightstreamFPrime.Layout.Stage1.Lowering",
+  "moved_unchanged": [
+    "physicalRows",
+    "physicalRowCount",
+    "jointDomain",
+    "physicalRowCount_eq",
+    "logicalCircuit",
+    "logicalCircuit_coverage"
+  ],
+  "owners": {
+    "data": "NightstreamFPrime/Layout/Stage1/Lowering.lean",
+    "complete_rows": "NightstreamFPrime/Layout/Stage1/LoweringRows.lean"
+  },
+  "source_review": "Independent review found no changed declaration text or missing import owner in the available compiler-reference inventory. No public premises changed. Existing audit targets are retained.",
+  "gates": {
+    "static": {
+      "result": "passed",
+      "log_sha256": "70932996802666ffa6552b35d36d53335c9099afc3ab524ea1d54e92abcd543d",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "log_sha256": "7b98a5fcf998f9f5ee2d78dfc51427a9f2ceb22c0c2e9375310ca3d765681f5c",
+      "last_lines": [
+        "\u2714 [3812/3813] Built NightstreamFPrime (1.4s)",
+        "Build completed successfully (3813 jobs).",
+        "[bounded] exit=0 elapsed=12s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "log_sha256": "0461ebccfefe93d23014418c5dabb8d40158fb7312bc0667f1311bc65d732da4",
+      "last_lines": [
+        " Quot.sound]",
+        "Build completed successfully (3920 jobs).",
+        "[bounded] exit=0 elapsed=6s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "log_sha256": "33f70084425bfce67229e083e48d505def33c9b533d0b1ebc1356bff1afb5110",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.A1yuJA.json",
+        "[bounded] exit=0 elapsed=130s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "source_import_reachability": {
+    "before": {
+      "NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness": 13,
+      "NightstreamFPrime.Layout.Stage1.Lowering": 12,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 283,
+      "NightstreamFPrime.Layout.Stage1.SpartanRows": 14
+    },
+    "after": {
+      "NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness": 11,
+      "NightstreamFPrime.Layout.Stage1.Lowering": 13,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 282,
+      "NightstreamFPrime.Layout.Stage1.SpartanRows": 12
+    },
+    "scope": "Transitive source import counts, excluding the module itself; not measured rebuilds."
+  },
+  "allocation_check": "Pending the extra-cell CompactPullback check at this source checkpoint; full NIFS consumer isolation remains open."
+}

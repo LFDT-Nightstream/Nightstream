@@ -59,7 +59,7 @@ import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptRelocation
 import NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
 import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
-import NightstreamFPrime.Layout.Stage1.Lowering
+import NightstreamFPrime.Layout.Stage1.LoweringRows
 import NightstreamFPrime.Layout.Stage1.Ownership
 import NightstreamFPrime.Layout.Stage1.CompactPullback
 import NightstreamFPrime.Layout.Stage1.Preservation

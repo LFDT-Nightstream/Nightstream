@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.Lowering
+import NightstreamFPrime.Layout.Stage1.LoweringRows
 
 /-!
 Owns the complete top-level row and column partition of the Stage 1 layout.

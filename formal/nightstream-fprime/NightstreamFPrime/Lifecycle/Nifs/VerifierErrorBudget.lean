@@ -1,5 +1,4 @@
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
-import Mathlib.Tactic.NormNum.NatFactorial
 import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldBatchShortfall
@@ -90,16 +89,5 @@ theorem any_test_or_sampler_abort_le
     _ = ENNReal.ofReal ((calls : ℝ) * perCall) := by
       simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin,
         nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg calls), ENNReal.ofReal_natCast]
-
-/-- The user's 100,000,000-call example, for these two events only. This is
-neither a deployment default nor a complete NIFS knowledge-security bound. -/
-theorem hundred_million_budget_le :
-    (100000000 : ℝ) * perCall ≤ 1 / (2 : ℝ) ^ 87 := by
-  have chooseValue : Nat.choose 64 11 = 743595781824 := by
-    rw [Nat.choose_eq_factorial_div_factorial (by decide : 11 ≤ 64)]
-    norm_num
-  norm_num [perCall, test_error_eq, batchAbortBound,
-    ProductionAlphabet.candidateBound, ProductionAlphabet.chunkModulus,
-    chooseValue, goldilocksModulus]
 
 end NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Export.Stage1.NifsClosure
+import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 import NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives
@@ -345,6 +346,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw.verifierMean_eq_requestMean
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw.context_marginal
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw.eventProbability_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw.law_eq_of_suffix_eq_on_return
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.selected_law
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.mean_map
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SuffixCoinCoupling.selected_mean
@@ -592,4 +594,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.suffixProgram_correct
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.parentChecker_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.batchAt_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.continuationAt
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.source_probability_bound
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.finishValue_probability_and_expected_work
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_law_eq_supported_extension
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_probability_bound

@@ -145,6 +145,10 @@ import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
+import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
+import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
+import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
+import NightstreamFPrime.Export.Stage1.HyperNovaHistoryWork
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
@@ -208,6 +212,7 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
 import NightstreamFPrime.Export.Stage1.NifsClosure
+import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

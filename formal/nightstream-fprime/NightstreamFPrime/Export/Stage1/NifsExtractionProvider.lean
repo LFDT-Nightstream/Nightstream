@@ -236,6 +236,27 @@ theorem batchAt_eq (context : Context) (coins : PublicCoins K productionShape)
     rfl
   · rfl
 
+/-- Construct the selected checked continuation at one literal receipt.
+The call, tape and clocks are supplied independently of any context PMF.
+The exact batch conversion supplies the existing continuation type. -/
+def continuationAt (context : Context) (coins : PublicCoins K productionShape)
+    (output : FullOutputCoordinates.FullOutput K productionShape)
+    (tapes : PMF Tape)
+    (rawCall : PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) rlc)
+    (checkClock : CheckClock) (storageClock : StorageClock) (parentClock : ParentClock)
+    (storageBound : Nat) (storageBounded : ∀ assignments, storageClock assignments ≤ storageBound)
+    (baseSummable : ∀ vector, Summable fun tape =>
+      (tapes tape).toReal * (PaperWeakOracle.baseWork rlc
+        (suffixProgram (batchAt inputs context coins output) checkClock storageClock)
+        rawCall vector tape : ℝ)) :
+    Nifs.WeakExtraction.Continuation Tape relation productionAjtaiKey
+      (PiCCSInputCheck.running (inputs context)) (PiCCSInputCheck.fresh (inputs context)) coins output :=
+  Eq.mp (congrArg
+    (fun batch : Batch => PaperWeakAlgorithm.Algorithm Tape rlc batch dec publicSplit evaluationArity)
+    (batchAt_eq inputs context coins output))
+    (algorithm (batchAt inputs context coins output) tapes rawCall checkClock storageClock
+      parentClock storageBound storageBounded baseSummable)
+
 /-- Each positive checked receipt keeps its captured state, raw call and tape
 law. The adapter supplies all semantic checks and their correctness itself. -/
 def provider
@@ -266,14 +287,11 @@ def provider
       (fun context => PiCCSInputCheck.running (inputs context))
       (fun context => PiCCSInputCheck.fresh (inputs context)) contexts firstPhase :=
   fun context coins output state support =>
-    Eq.mp (congrArg
-      (fun batch : Batch => PaperWeakAlgorithm.Algorithm Tape rlc batch dec publicSplit evaluationArity)
-      (batchAt_eq inputs context coins output))
-      (algorithm (batchAt inputs context coins output)
+    continuationAt inputs context coins output
         (tapes context coins output state support) (rawCall context coins output state support)
         (checkClock context coins output state support) (storageClock context coins output state support)
         (parentClock context coins output state support) (storageBound context coins output state support)
-        (storageBounded context coins output state support) (baseSummable context coins output state support))
+        (storageBounded context coins output state support) (baseSummable context coins output state support)
 
 end Provider
 

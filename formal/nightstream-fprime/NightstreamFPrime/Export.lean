@@ -86,6 +86,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecutio
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
+import NightstreamFPrime.Export.Stage1.HyperNovaInitial
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Closure

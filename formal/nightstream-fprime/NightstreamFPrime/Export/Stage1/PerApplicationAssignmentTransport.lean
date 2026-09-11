@@ -4,9 +4,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
-The transport keeps the existing 33 retained block plans and adds only the
+The transport keeps the existing 30 retained block plans and adds only the
 recipes that cannot be recovered from their source runs: Phi81 group totals,
-First54 accepted-symbol products, PiCCS payload expressions, and the four
+First54 accepted-symbol products and the four
 verifier-owned output-digest words.
 
 Every expression variable is renamed to its final physical package column.
@@ -213,27 +213,6 @@ def physicalExpr (program : Program) (expression : Expr) : Expr :=
       NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
         CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan expression
 
-/-- Invocation-major, rate-lane-major PiCCS payload recipes. -/
-def payloadExpressions (program : Program) : List Expr :=
-  List.ofFn fun index : Fin PiCCSActionPayloadBlock.payloadCount =>
-    physicalExpr program (PiCCSActionPayloadBlock.payloadExpression index)
-
-@[simp] theorem payloadExpressions_length (program : Program) :
-    (payloadExpressions program).length = 30416 := by
-  rw [payloadExpressions, List.length_ofFn]
-  exact PiCCSActionPayloadBlock.payloadCount_eq
-
-/-- Apply the physical source map to the canonical ordered payload words. -/
-def materializedPayloadExpressions (program : Program) : List Expr :=
-  (PiCCSActionPayloadBlock.materializedPayloadExpressions ()).map
-    (physicalExpr program)
-
-theorem materializedPayloadExpressions_eq (program : Program) :
-    materializedPayloadExpressions program = payloadExpressions program := by
-  rw [materializedPayloadExpressions,
-    PiCCSActionPayloadBlock.materializedPayloadExpressions_eq, ← List.ofFn_comp']
-  rfl
-
 /-- The exact four constrained Pilot output-digest expressions. -/
 def outputDigestExpression (program : Program) (lane : Fin 4) : Expr :=
   physicalExpr program <|
@@ -249,15 +228,13 @@ def outputDigestExpressions (program : Program) : List Expr :=
   simp [outputDigestExpressions]
 
 /-- Schema of the assignment-transport child in the sealed package. -/
-def schema : Nat := 1
+def schema : Nat := 2
 
 /-- Complete package-carried transport plan. -/
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
   phi81 : Phi81GroupRecipe
   first54 : First54ProductRecipe
-  payloadBlock : BlockKind
-  payloadExpressions : List Expr
   outputDigestBlock : BlockKind
   outputDigestExpressions : List Expr
 deriving Repr, DecidableEq
@@ -268,23 +245,16 @@ def Plan.format : Format Plan where
     PerApplicationAssignmentBlocks.format.encode plan.blocks,
     Phi81GroupRecipe.format.encode plan.phi81,
     First54ProductRecipe.format.encode plan.first54,
-    BlockKind.format.encode plan.payloadBlock,
-    (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
-      plan.payloadExpressions,
     BlockKind.format.encode plan.outputDigestBlock,
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
   decode
-    | .array [.atom 1, blocks, phi81, first54, payloadBlock,
-        payloadExpressions, outputDigestBlock, outputDigestExpressions] => do
+    | .array [.atom 2, blocks, phi81, first54,
+        outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,
         phi81 := ← Phi81GroupRecipe.format.decode phi81,
         first54 := ← First54ProductRecipe.format.decode first54,
-        payloadBlock := ← BlockKind.format.decode payloadBlock,
-        payloadExpressions :=
-          ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
-            payloadExpressions,
         outputDigestBlock := ← BlockKind.format.decode outputDigestBlock,
         outputDigestExpressions :=
           ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
@@ -304,17 +274,11 @@ def canonical (program : Program) : Plan where
   blocks := PerApplicationAssignmentBlocks.canonical program
   phi81 := phi81GroupRecipe program
   first54 := first54ProductRecipe
-  payloadBlock := .piCcsPayload
-  payloadExpressions := materializedPayloadExpressions program
   outputDigestBlock := .pilotOutputDigest
   outputDigestExpressions := outputDigestExpressions program
 
-@[simp] theorem canonical_payloadExpressions (program : Program) :
-    (canonical program).payloadExpressions = payloadExpressions program :=
-  materializedPayloadExpressions_eq program
-
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 33 := by
+    (canonical program).blocks.length = 30 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

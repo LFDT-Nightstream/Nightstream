@@ -50,7 +50,6 @@ fn application_plan() -> Value {
 fn assignment_transport_accepts_only_the_lean_owned_order() {
     const PHYSICAL_WIDTH: usize = 60_000;
     const LOGICAL_PUBLIC_WIDTH: usize = 270;
-    const PAYLOAD_VALUES: usize = 30_416;
     const PHI81_INVOCATIONS: usize = 52_326;
     const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * 33;
     const FIRST54_PRODUCTS: usize = 1_088;
@@ -65,14 +64,11 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
                 5 => (2, FIRST54_PRODUCTS, 0),
                 7 => (2, 58_752, 0),
                 8 => (2, FIRST54_PRODUCTS, product_source_start),
-                9 => (2, PHI81_INVOCATIONS, 0),
-                13 => (2, PAYLOAD_VALUES, 0),
-                27 => (2, 4, 0),
+                23 => (2, 4, 0),
                 _ => (0, 0, 0),
             };
             let source_domain = match opcode {
-                13 => 1,
-                36..=37 => 2,
+                28..=29 => 1,
                 _ => 0,
             };
             logical_width += slot_count * if kind == 2 { 41 } else { 1 };
@@ -84,11 +80,8 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             json!([opcode, kind, slot_count, source_domain, runs])
         })
         .collect::<Vec<_>>();
-    let payload_expressions = (0..PAYLOAD_VALUES)
-        .map(|_| json!([0, 0]))
-        .collect::<Vec<_>>();
-    let mut transport = json!([
-        1,
+    let transport = json!([
+        2,
         blocks,
         [
             54,
@@ -104,13 +97,11 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             3402,
             3456,
             2,
-            9,
+            [[0, 1, PHI81_INVOCATIONS]],
             3
         ],
         [FIRST54_PRODUCTS, 4, 5, 8],
-        13,
-        payload_expressions,
-        27,
+        23,
         [[0, 0], [0, 1], [0, 2], [0, 3]]
     ]);
 
@@ -120,10 +111,50 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
     let canonical = (0..crate::package::assignment_transport::BLOCK_COUNT as u8).collect::<Vec<_>>();
     assert_eq!(plan.kind_codes(), canonical.as_slice());
 
-    transport[1][17][0] = json!(18);
+    for (pointer, value, expected) in [
+        ("/0", json!(1), "assignment transport schema version"),
+        ("/1/28/3", json!(2), "assignment source domain"),
+        ("/4", json!(26), "output digest block selector"),
+        ("/1/17/0", json!(18), "assignment block order"),
+    ] {
+        let mut invalid = transport.clone();
+        *invalid
+            .pointer_mut(pointer)
+            .expect("transport mutation field") = value;
+        assert!(matches!(
+            crate::package::assignment_transport::decode(
+                &invalid, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width,
+            ),
+            Err(PackageError::Invalid(actual)) if actual == expected
+        ));
+    }
+    let mut missing_block = transport.clone();
+    missing_block[1]
+        .as_array_mut()
+        .expect("assignment blocks")
+        .pop();
     assert!(matches!(
-        crate::package::assignment_transport::decode(&transport, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width,),
-        Err(PackageError::Invalid("assignment block order"))
+        crate::package::assignment_transport::decode(
+            &missing_block,
+            PHYSICAL_WIDTH,
+            LOGICAL_PUBLIC_WIDTH,
+            logical_width,
+        ),
+        Err(PackageError::Invalid("assignment block plans"))
+    ));
+    let mut extra_fields = transport;
+    extra_fields
+        .as_array_mut()
+        .expect("assignment transport")
+        .extend([json!(12), json!([])]);
+    assert!(matches!(
+        crate::package::assignment_transport::decode(
+            &extra_fields,
+            PHYSICAL_WIDTH,
+            LOGICAL_PUBLIC_WIDTH,
+            logical_width,
+        ),
+        Err(PackageError::Invalid("assignment transport plan"))
     ));
 }
 

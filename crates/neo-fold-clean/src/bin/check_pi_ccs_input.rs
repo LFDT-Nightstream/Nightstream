@@ -237,6 +237,10 @@ fn main() {
     };
     let bytes = fs::read(&arguments[0]).expect("Lean candidate package");
     let package = load_per_application_package(&bytes, expected_identity).expect("selected Lean structural identity");
+    let package_identity = package
+        .production_verifier_binding()
+        .expect("candidate package binding")
+        .package_identity();
     let structure = relation(package.ccs_relation());
     drop(package);
     drop(bytes);
@@ -443,7 +447,7 @@ fn main() {
                         &structure,
                         &outputs,
                         &optimized_transcript,
-                        expected_identity,
+                        package_identity,
                         &lean[6],
                         &lean[7],
                     );

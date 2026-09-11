@@ -946,8 +946,7 @@ def writeApplicationPackagePlan (handle : IO.FS.Handle)
   writeListWith handle (TypedWriter.writeSparseRow handle) plan.assertionRows
   writeByte handle 93
 
-/-- Stream the assignment-transport codec fields without constructing the
-30,420 expression codec trees. Field order and child codecs are exactly those
+/-- Stream the assignment-transport codec fields. Field order and child codecs are exactly those
 of `PerApplicationAssignmentTransport.Plan.format`. -/
 def writePerApplicationAssignmentTransport
     (program : Lifecycle.Stage1.Application.Program)
@@ -967,14 +966,6 @@ def writePerApplicationAssignmentTransport
   writeValue handle
     (Stage1.PerApplicationAssignmentTransport.First54ProductRecipe.format.encode
       Stage1.PerApplicationAssignmentTransport.first54ProductRecipe)
-  comma handle
-  writeValue handle
-    (Stage1.PerApplicationAssignmentPlan.BlockKind.format.encode
-      .piCcsPayload)
-  comma handle
-  writeListWith handle (TypedWriter.writeExpr handle)
-    (Stage1.PerApplicationAssignmentTransport.materializedPayloadExpressions
-      program)
   comma handle
   writeValue handle
     (Stage1.PerApplicationAssignmentPlan.BlockKind.format.encode

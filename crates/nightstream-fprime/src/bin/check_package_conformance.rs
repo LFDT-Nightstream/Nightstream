@@ -3,6 +3,9 @@
 //! no published production identity pin is changed by this executable.
 
 #[allow(dead_code, unused_imports)]
+#[path = "../../tests/per_application_assignment.rs"]
+mod assignment_checks;
+#[allow(dead_code, unused_imports)]
 #[path = "../../tests/base_step_assignment.rs"]
 mod base_checks;
 #[path = "check_package_conformance/candidate.rs"]
@@ -22,7 +25,7 @@ fn main() {
     let mut arguments = env::args_os().skip(1);
     let mode = arguments
         .next()
-        .expect("mode: physical, logical, mutations, base, recursive, recursive-mutations, commitment, detached, or primitive")
+        .expect("mode: physical, logical, mutations, assignment, base, recursive, recursive-mutations, commitment, detached, or primitive")
         .into_string()
         .expect("mode text");
     if mode == "primitive" {

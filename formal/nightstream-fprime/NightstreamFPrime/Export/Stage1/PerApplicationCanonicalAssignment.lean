@@ -78,10 +78,6 @@ def retainedSource {application : Program} (raw : RawValues application) :
   PiRLCRetainedPreservation.sourceAssignment application raw.base
     raw.groupValue raw.products
 
-def payloadSource {application : Program} (raw : RawValues application) :
-    Fin (PiCCSActionPayloadBlock.sourceWidth application) → F :=
-  PiCCSPoseidonPreservation.sourceAssignment application raw.retainedSource
-
 def applicationSource {application : Program} (raw : RawValues application) :
     Fin (ApplicationRetainedBlocks.sourceWidth application) → F :=
   DirectApplicationPrefixPlan.applicationSource application raw.base
@@ -113,12 +109,6 @@ def schedule {application : Program} (raw : RawValues application) :
   , Canonical.ofBlock (PiRLCPoseidonGeometry.priorInputBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiRLCPoseidonGeometry.outputInputBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiCCSActionPayloadBlock.block application)
-      raw.payloadSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.roundC0Block application)
-      raw.retainedSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.roundC1Block application)
       raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.piDecBlock application)
       raw.retainedSource
@@ -168,7 +158,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 33 := by
+    (raw : RawValues application) : raw.schedule.length = 30 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -209,9 +199,6 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     RunningTransitionRetainedGeometry.completeLogicalWidth
     RunningTransitionRetainedGeometry.freshStart
     RunningTransitionRetainedGeometry.piDecStart
-    RunningTransitionRetainedGeometry.roundC1Start
-    RunningTransitionRetainedGeometry.roundC0Start
-    PiCCSActionPayloadBlock.logicalWidth PiCCSActionPayloadBlock.payloadStart
     PiRLCPoseidonGeometry.pilotLogicalWidth
     PiRLCPoseidonGeometry.outputInputStart
     PiRLCPoseidonGeometry.priorInputStart

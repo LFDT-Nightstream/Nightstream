@@ -465,3 +465,31 @@ returns the ordinary, Poseidon and endpoint row conjunction on the same
 canonical assignment. R permutation candidate seven is queued separately and
 may run only if its C dependencies have passed. `validate.sh build` accepts
 only its first target; the two checks require separate capped commands.
+
+## C consumer stopped at round ten
+
+C candidate ten exited with failure after 114.61 seconds. The log is
+`/tmp/nightstream-piccs-complete-bundle-build-10.log`. `InvocationInputLaw`
+failed in four local proofs; `PiCCSInvocationSlices` failed in getter and
+dependent-index conversions; `PiCCSEndpointCompleteness` failed in a
+converted-index bound. The complete C theorem was not reached. The compiler
+assertions, output-address theorem and existing C readback passed, but these
+results do not establish the complete C conclusion.
+
+The C budget is exhausted. No repair or retry is authorized beyond ten.
+The proposed repair is `/tmp/nightstream-c-round11-proposal.patch`, with
+manifest `/tmp/nightstream-c-round11-proposal.json` and patch SHA-256
+`74f5ae68fc4f6e56650c46e877ef540927a16d802766cb22ad284c449f689084`.
+It changes only proof bodies at the reported failures. Patch application was
+checked without changing the source tree; no Lean validation has run on it.
+R remains at six candidates: its next permutation check cannot run because
+it would retry the failed C endpoint dependency. The pilot is still stopped
+at ten. Its proposed hash-accessor repair also leaves the ordinary and digest
+binding row consumers to compose; it does not alone close the whole pilot.
+The complete selected assignment and accepted-successor theorems remain open.
+
+A separate task saved and pushed `9b47a570`. Its ordered static and library
+gates passed, but its full axiom gate failed in the pilot and C modules named
+above. This is an incomplete saved checkpoint. No requirements status or
+package identity changed. The separate requests for one extra pilot round
+and one 420-second native producer invocation remain unanswered.

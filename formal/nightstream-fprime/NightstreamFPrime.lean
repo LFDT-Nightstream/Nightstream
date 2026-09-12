@@ -29,6 +29,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.OneRunExtraction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction
+import NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw
 import NightstreamFPrime.Circuit
 import NightstreamFPrime.Gadgets
 import NightstreamFPrime.Lifecycle

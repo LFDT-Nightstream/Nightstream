@@ -154,7 +154,7 @@ private theorem hashChain_of_sourceRows
         inputValues localValues invocation bound lane
     · intro index indexBound
       change Pilot.canonicalTemplateEnv _ (8 + index) = _
-      rw [canonical_local]
+      rw [canonical_local, instantiateColumn, R1CS.LinearCombination.eval_ofVar]
       change target (chain.witnessStart + invocation * 592 + index) =
         source (start + invocation * 592 + index)
       have scheduleWidth : Permutation.scheduleSize Permutation.schedule = 592 :=

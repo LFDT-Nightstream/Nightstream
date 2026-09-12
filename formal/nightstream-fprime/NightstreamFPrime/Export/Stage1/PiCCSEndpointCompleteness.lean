@@ -51,7 +51,8 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
     · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 718) * 592 from if_neg beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
-      · omega
+      · change 718 ≤ index.val
+        exact Nat.le_of_not_gt beforeOutput
       · simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
           (show index.val < PiCCSPoseidonPlan.invocationCount from index.isLt)
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by

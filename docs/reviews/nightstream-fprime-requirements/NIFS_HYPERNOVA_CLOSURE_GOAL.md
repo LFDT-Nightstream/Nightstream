@@ -563,3 +563,27 @@ source hashes are in `COMPILER_REPAIR_EVIDENCE.zip`. Package data, identity
 pins and Rust are unchanged. R permutation, pilot ordinary and
 digest-binding rows, whole selected assignment and accepted successor remain
 open. The native staged execution remains open under the 300-second cap.
+
+## R entry composition stopped at ten
+
+The next R permutation file check reached three new failures. Its generic
+S-box converter and initial C-to-R value proof now pass in isolation. The
+entry row, input-value and canonical-input proofs also pass separately.
+However, their `entry_sboxes` composition failed its tenth conservative
+attempt with kernel deep recursion after 41.91 seconds. Exact draft:
+`/tmp/PiRLCSamplerPoseidon-entry-isolated-10.lean`, SHA-256
+`c12166cf1c636d5861f2b0a7e152b2edec2852030bafba6230bffbdef68cf20e`.
+Log: `/tmp/nightstream-rlc-entry-isolated-10.log`.
+
+The ninth attempt's diagnostic specialized the generic theorem to the exact
+concrete invocation with temporary proof parameters and passed. That does not
+validate the actual composition and those parameters were not added to any
+production theorem. The tenth attempt retained the checked row/input proofs,
+used an explicit witness-address calculation and removed the local invocation
+alias, but still failed. No further entry attempt is authorized. The full R
+consumer remains outside production sources and audit roots. This is an open
+deterministic compiler link, not a cryptographic assumption.
+
+Independent pilot ordinary/digest completion and native C/R staging continue.
+The complete selected-assignment and accepted-successor drafts still depend
+on R permutation closure; they cannot replace it with a caller premise.

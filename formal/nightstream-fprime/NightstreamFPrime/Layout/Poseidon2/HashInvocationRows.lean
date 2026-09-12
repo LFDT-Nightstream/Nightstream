@@ -135,4 +135,21 @@ theorem recipeRows_of_hashConstraints (interface : Formal.Interface)
     (Hash.compile start (interface.input start)).recipes)) (by
       exact List.mem_cons_self)
 
+/-- Each asserted digest lane equals the compiler's actual stored output.
+This projects only the existing hash assertion; no input-shape premise is needed. -/
+theorem digest_eq_expected_of_hashConstraints (interface : Formal.Interface)
+    (start : Nat) (env : Env)
+    (rows : ConstraintsHold env (hashConstraints interface start)) (lane : Fin 4) :
+    (Hash.digestE (Hash.compile start (interface.input start)).output lane).eval env =
+      (interface.expected start lane).eval env := by
+  change holdsFlat env (Formal.opsAt interface start) at rows
+  have held := holdsFlat_implies_holds env (Formal.opsAt interface start) rows
+  have asserted := held
+    (.assertZero (Hash.digestE (Hash.compile start (interface.input start)).output lane -
+      interface.expected start lane))
+    (List.mem_cons_of_mem _ (Formal.assertion_mem interface start lane))
+  change (Hash.digestE (Hash.compile start (interface.input start)).output lane -
+    interface.expected start lane).eval env = 0 at asserted
+  exact sub_eq_zero.mp (by simpa only [Expr.eval_sub] using asserted)
+
 end NightstreamFPrime.Layout.Poseidon2.HashInvocationRows

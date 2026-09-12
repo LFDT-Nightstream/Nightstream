@@ -275,7 +275,8 @@ theorem priorExtraConstraints_varsSatisfy :
   · exact priorWordConstraintsAll_varsSatisfy expression word
   · exact priorBindingConstraints_varsSatisfy expression binding
 
-private theorem priorLoweredRows_varsSatisfy :
+/-- The original prior lowering uses only its declared physical source columns. -/
+theorem priorLoweredRows_varsSatisfy :
     ∀ row ∈ (R1CS.lowerConstraints (PilotData.priorExtraConstraints ())
         PilotValues.logicalColumnCount).rows,
       row.VarsSatisfy PhysicalSource := by
@@ -307,7 +308,8 @@ private theorem remapRow_varsSatisfy (row : R1CS.Row)
     remapCombination_varsSatisfy row.b scope.2.1,
     remapCombination_varsSatisfy row.c scope.2.2⟩
 
-private theorem priorRows_eq :
+/-- The ordinary compiled prior rows are the remapped rows of the original lowering. -/
+theorem priorRows_eq :
     (PilotData.priorExtraRows ()).map Rows.CompiledRow.toR1CS =
       PilotSpartan.remapRows
         (R1CS.lowerConstraints (PilotData.priorExtraConstraints ())

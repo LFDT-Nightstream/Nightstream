@@ -563,3 +563,54 @@ source hashes are in `COMPILER_REPAIR_EVIDENCE.zip`. Package data, identity
 pins and Rust are unchanged. R permutation, pilot ordinary and
 digest-binding rows, whole selected assignment and accepted successor remain
 open. The native staged execution remains open under the 300-second cap.
+
+## R entry composition stopped at ten
+
+The next R permutation file check reached three new failures. Its generic
+S-box converter and initial C-to-R value proof now pass in isolation. The
+entry row, input-value and canonical-input proofs also pass separately.
+However, their `entry_sboxes` composition failed its tenth conservative
+attempt with kernel deep recursion after 41.91 seconds. Exact draft:
+`/tmp/PiRLCSamplerPoseidon-entry-isolated-10.lean`, SHA-256
+`c12166cf1c636d5861f2b0a7e152b2edec2852030bafba6230bffbdef68cf20e`.
+Log: `/tmp/nightstream-rlc-entry-isolated-10.log`.
+
+The ninth attempt's diagnostic specialized the generic theorem to the exact
+concrete invocation with temporary proof parameters and passed. That does not
+validate the actual composition and those parameters were not added to any
+production theorem. The tenth attempt retained the checked row/input proofs,
+used an explicit witness-address calculation and removed the local invocation
+alias, but still failed. No further entry attempt is authorized. The full R
+consumer remains outside production sources and audit roots. This is an open
+deterministic compiler link, not a cryptographic assumption.
+
+Independent pilot ordinary/digest completion and native C/R staging continue.
+The complete selected-assignment and accepted-successor drafts still depend
+on R permutation closure; they cannot replace it with a caller premise.
+
+## Remaining pilot plans completed
+
+`PilotOrdinaryPhysicalCompleteness.rows_of_physical` now derives the ordinary
+package rows from the original lowered physical rows and stored hash-output
+assertions, preserving the actual auxiliary witness values. Its final file
+check passed in 7.66 seconds and its module build in 8.02 seconds. The failed
+join attempts used a shadowed membership hypothesis; distinct names fixed the
+join without retaining the temporary generic helper.
+
+`PilotCompletedAssignment.rowsZero_of_completed` now proves the ordinary plan
+and all eight digest-binding rows on the same canonical completed assignment.
+Its three type-name corrections passed isolated checks, its full file passed
+in 2.19 seconds and its module build in 7.41 seconds. The hash-output accessor
+and two source-support interfaces are audited. Their existing proof bodies
+are unchanged. Independent review found no extra source, digest, output or
+row premise in either consumer. No package or pin changed.
+
+Together with the checked pilot Poseidon result, all pilot plan components
+needed by the aggregate assignment are supplied. The R entry composition
+above remains the missing deterministic compiler input to that aggregate.
+
+The pilot checkpoint passed its ordered gates: static 8.76 seconds, library
+111.62 seconds (3,908 jobs, including the changed dependencies), and axioms
+44.74 seconds (3,996 jobs). Only the allowed axiom set occurs. Sources and logs
+are recorded in `PILOT_COMPLETION_EVIDENCE.zip`. The R draft was not imported
+or audited and no checked obligation was removed to obtain these results.

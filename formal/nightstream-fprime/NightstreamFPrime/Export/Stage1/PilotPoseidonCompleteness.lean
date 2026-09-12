@@ -283,7 +283,8 @@ private theorem outputInput_form (slot : Fin Data.outputChain.inputLength) :
   exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt _)
     PoseidonInputRetainedBlock.outputInputEnd
 
-private theorem prior_output
+/-- Each canonical retained prior-hash output equals the same physical invocation output. -/
+theorem prior_output
     (hashRows : HashChainHolds (Data.circuitPackage ()) Data.priorChain target)
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState raw.assignment
@@ -307,7 +308,8 @@ private theorem prior_output
   funext current
   exact prior_form application target applicationPrivate raw baseEq invocation _
 
-private theorem output_output
+/-- Each canonical retained output-hash value equals the same physical invocation output. -/
+theorem output_output
     (hashRows : HashChainHolds (Data.circuitPackage ()) Data.outputChain target)
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState raw.assignment

@@ -92,6 +92,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.PiCCSCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PilotPoseidonCompleteness
 import NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness
+import NightstreamFPrime.Export.Stage1.PilotCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions

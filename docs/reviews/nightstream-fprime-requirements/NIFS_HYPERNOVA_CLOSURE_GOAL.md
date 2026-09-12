@@ -493,3 +493,73 @@ gates passed, but its full axiom gate failed in the pilot and C modules named
 above. This is an incomplete saved checkpoint. No requirements status or
 package identity changed. The separate requests for one extra pilot round
 and one 420-second native producer invocation remain unanswered.
+
+## Owner decisions after checkpoint 7c3d33d0
+
+The owner approved one C bundle round eleven using the reviewed patch
+`74f5ae68fc4f6e56650c46e877ef540927a16d802766cb22ad284c449f689084`
+unchanged, and one pilot bundle round eleven using the saved two-part patch
+`e57d6ca264e46c7c6bd5981988f7372fd876697600ae264814074c1e1ef589e1`.
+Both patches have been applied. Before either final bundle check, check each
+failed declaration in isolation through `scripts/validate.sh file` and fix
+the local proof there. Do not add recursion or heartbeat overrides.
+
+The continuing ten-round limit now applies to an isolated declaration, not
+an obligation bundle. Prior attempts still count; changing the file name
+does not reset them. The two expressly approved final bundle checks are
+each single attempts. If either fails, remove its failing draft modules and
+necessary draft consumers from audit imports and audit entries, retain their
+sources, run static/build/axioms in order, and push only the passing checked
+surface. Report the exact excluded claims and errors. This withdrawal is
+not proof closure. No further bundle round is authorized without a new
+owner decision.
+
+The coordinating task is the sole writer of the closure branch. Every new
+commit there must pass static, build and axioms in order. Save unfinished
+commits on `wip/<topic>` branches only. Keep the requirements map unchanged
+until the checked branch is green, and close records only from their full
+evidence. The earlier pending requests above are superseded by these decisions.
+
+The owner did not approve the 420-second native producer run. Preserve C
+and R outputs, then stage D split, commitment and opening work under the
+300-second command cap and compare saved complete outputs. Do not repeat
+the unchanged complete producer that already timed out. After the repaired
+checked surface is green, resume R permutation, complete selected assignment,
+and accepted-successor composition with explicit sampler and counter
+conditions. Unconditional perfect completeness is not claimed for the
+fail-closed sampler.
+
+## Approved compiler repair results
+
+Both approved final bundle checks passed. C round eleven took 2.46 seconds
+and checked `PiCCSCompletedAssignment.rowsZero_of_completed`: actual C rows
+give the ordinary, Poseidon and endpoint row conjunction on the same canonical
+assignment. Pilot round eleven took 5.90 seconds and checked
+`PilotHashRowsCompleteness.rowsZero_of_spartanRows`: actual cumulative physical
+rows supply the pilot hash-chain predicates and its direct Poseidon rows.
+This pilot result does not include its ordinary and digest-binding plans.
+
+Every previously failed declaration was checked in isolation first. The C
+block getter needed a structural Nat address proof after its approved initial
+repair still hit the recursion limit. Downstream checks exposed notation
+projections, source aliases, a missing full theorem application, finite-index
+conversions and a match reduction. These were repaired and checked locally,
+with unchanged intended statements and no new assumptions or option overrides.
+
+Attempt totals for declarations that failed in this repair: C block getter 5;
+C retained-source and retained-form proofs 3 each; C slice-values proof 3;
+all other failed declarations 2 each. Unchanged predecessor proofs in a
+dependency prefix do not start new attempts. The complete C wrapper's row
+projection, ordinary proof and final conjunction each passed their first
+reached isolated check. Both final bundle allowances are now spent and passed.
+
+The two final consumers are imported by the library root as well as the
+existing audit tests. No draft audit entry was removed. Ordered checkpoint
+gates passed: static 8.75 seconds, library build 3.79 seconds (3,906 jobs),
+axioms 4.79 seconds (3,994 jobs). The axiom set remains `propext`,
+`Classical.choice`, `Quot.sound`. Independent source review found no material
+issue in the final C/pilot assumptions or source correspondence. Logs and
+source hashes are in `COMPILER_REPAIR_EVIDENCE.zip`. Package data, identity
+pins and Rust are unchanged. R permutation, pilot ordinary and
+digest-binding rows, whole selected assignment and accepted successor remain
+open. The native staged execution remains open under the 300-second cap.

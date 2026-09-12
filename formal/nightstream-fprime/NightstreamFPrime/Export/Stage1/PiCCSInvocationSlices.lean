@@ -89,7 +89,8 @@ theorem statement_invocation (index : Fin statementCount) :
     exact index.isLt
   rw [List.append_assoc, List.append_assoc,
     List.getElem?_append_left bounded] at selected
-  exact selected.trans (List.getElem?_eq_getElem bounded)
+  simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex,
+    statementOffset, Nat.zero_add] using selected.trans (List.getElem?_eq_getElem bounded)
 
 /-- The challenge slice selects the semantic challenge compiler invocation. -/
 theorem challenge_invocation (index : Fin challengeCount) :
@@ -108,13 +109,16 @@ theorem challenge_invocation (index : Fin challengeCount) :
     rw [statement_length]
     rfl
   simp only [PoseidonActionSemantics.sliceIndex] at selected
-  rw [offset, List.append_assoc
-    ((statementTrace Data.logicalWidth Data.publicFits).invocations ++
-      (challengeSemanticTrace Data.logicalWidth Data.publicFits).invocations)
-    (roundSemanticTrace Data.logicalWidth Data.publicFits).invocations
-    (outputSemanticTrace Data.logicalWidth Data.publicFits).invocations,
-    middle_get? _ _ _ index.val bounded] at selected
-  exact selected.trans (List.getElem?_eq_getElem bounded)
+  conv at selected =>
+    rhs
+    rw [offset, List.append_assoc
+      ((statementTrace Data.logicalWidth Data.publicFits).invocations ++
+        (challengeSemanticTrace Data.logicalWidth Data.publicFits).invocations)
+      (roundSemanticTrace Data.logicalWidth Data.publicFits).invocations
+      (outputSemanticTrace Data.logicalWidth Data.publicFits).invocations,
+      middle_get? _ _ _ index.val bounded]
+  simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex] using
+    selected.trans (List.getElem?_eq_getElem bounded)
 
 /-- The round slice selects the semantic round compiler invocation. -/
 theorem round_invocation (index : Fin roundCount) :
@@ -134,8 +138,11 @@ theorem round_invocation (index : Fin roundCount) :
     rw [List.length_append, statement_length, challenge_length]
     rfl
   simp only [PoseidonActionSemantics.sliceIndex] at selected
-  rw [offset, middle_get? _ _ _ index.val bounded] at selected
-  exact selected.trans (List.getElem?_eq_getElem bounded)
+  conv at selected =>
+    rhs
+    rw [offset, middle_get? _ _ _ index.val bounded]
+  simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex] using
+    selected.trans (List.getElem?_eq_getElem bounded)
 
 /-- The output slice selects the semantic output compiler invocation. -/
 theorem output_invocation (index : Fin outputCount) :
@@ -156,8 +163,11 @@ theorem output_invocation (index : Fin outputCount) :
     rw [List.length_append, List.length_append, statement_length, challenge_length, round_length]
     rfl
   simp only [PoseidonActionSemantics.sliceIndex] at selected
-  rw [offset, List.getElem?_append_right (Nat.le_add_right _ _),
-    Nat.add_sub_cancel_left] at selected
-  exact selected.trans (List.getElem?_eq_getElem bounded)
+  conv at selected =>
+    rhs
+    rw [offset, List.getElem?_append_right (Nat.le_add_right _ _),
+      Nat.add_sub_cancel_left]
+  simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex] using
+    selected.trans (List.getElem?_eq_getElem bounded)
 
 end NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices

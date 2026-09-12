@@ -110,7 +110,8 @@ theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
   by_cases absorbing : invocation < blocks.length
   · rw [if_pos absorbing]
     exact absorption_rows env start Hash.zeroE blocks separated.1 invocation absorbing
-  · have final : invocation = blocks.length := by omega
+  · have final : invocation = blocks.length :=
+      Nat.le_antisymm bound (Nat.le_of_not_gt absorbing)
     subst invocation
     rw [if_neg (Nat.lt_irrefl _)]
     have previous : (Hash.compileAbsorptions start Hash.zeroE blocks).output =
@@ -132,7 +133,6 @@ theorem recipeRows_of_hashConstraints (interface : Formal.Interface)
   have held := holdsFlat_implies_holds env (Formal.opsAt interface start) rows
   exact held (.witness (WitnessBatch.arithmetic start
     (Hash.compile start (interface.input start)).recipes)) (by
-      simp only [Formal.opsAt, List.mem_cons]
-      exact Or.inl rfl)
+      exact List.mem_cons_self)
 
 end NightstreamFPrime.Layout.Poseidon2.HashInvocationRows

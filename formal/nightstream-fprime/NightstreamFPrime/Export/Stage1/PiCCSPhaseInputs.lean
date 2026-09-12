@@ -123,7 +123,7 @@ local notation "geometry" => PerApplicationCanonicalEncodes.poseidonGeometry app
 theorem statement_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target) Hash.zeroE) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
-        (valueState geometry raw.assignment) statementOffset statementOffsetBound := by
+        (valueState geometry (raw).assignment) statementOffset statementOffsetBound := by
   simp only [PoseidonActionSemantics.sliceInitial, statementOffset, dif_pos rfl]
   rfl
 
@@ -133,13 +133,13 @@ theorem challenge_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
-        (valueState geometry raw.assignment) challengeOffset challengeOffsetBound := by
+        (valueState geometry (raw).assignment) challengeOffset challengeOffsetBound := by
   rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : challengeOffset ≠ 0)]
-  change List.ofFn _ = valueState geometry raw.assignment (endpointInvocation statementFamily)
+  change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation statementFamily)
   apply congrArg List.ofFn
   funext lane
   change ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart lane).eval
-      (Spartan.pullback target) = outputValue geometry raw.assignment (endpointInvocation statementFamily) lane
+      (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation statementFamily) lane
   rw [challenge_initial_column, Expr.eval_var]
   exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
     statementFamily lane).symm
@@ -150,13 +150,13 @@ theorem round_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
-        (valueState geometry raw.assignment) roundOffset roundOffsetBound := by
+        (valueState geometry (raw).assignment) roundOffset roundOffsetBound := by
   rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : roundOffset ≠ 0)]
-  change List.ofFn _ = valueState geometry raw.assignment (endpointInvocation challengeFamily)
+  change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation challengeFamily)
   apply congrArg List.ofFn
   funext lane
   change ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart lane).eval
-      (Spartan.pullback target) = outputValue geometry raw.assignment (endpointInvocation challengeFamily) lane
+      (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation challengeFamily) lane
   rw [round_initial_column, Expr.eval_var]
   exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
     challengeFamily lane).symm
@@ -167,13 +167,13 @@ theorem output_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
-        (valueState geometry raw.assignment) outputOffset outputOffsetBound := by
+        (valueState geometry (raw).assignment) outputOffset outputOffsetBound := by
   rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : outputOffset ≠ 0)]
-  change List.ofFn _ = valueState geometry raw.assignment (endpointInvocation roundFamily)
+  change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation roundFamily)
   apply congrArg List.ofFn
   funext lane
   change ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart lane).eval
-      (Spartan.pullback target) = outputValue geometry raw.assignment (endpointInvocation roundFamily) lane
+      (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation roundFamily) lane
   rw [output_initial_column, Expr.eval_var]
   exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
     roundFamily lane).symm

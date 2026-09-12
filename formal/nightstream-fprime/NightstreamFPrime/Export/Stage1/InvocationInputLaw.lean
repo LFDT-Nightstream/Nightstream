@@ -44,7 +44,8 @@ private theorem compileBlocks_last_or_initial
   · subst blocks
     rfl
   · have nonzero : blocks.length ≠ 0 := by
-      simpa only [List.length_eq_zero_iff] using empty
+      intro lengthZero
+      exact empty (List.length_eq_zero_iff.mp lengthZero)
     rw [if_neg nonzero]
     exact InvocationLastOutput.compileBlocks_state_last phase rowStart witnessStart state blocks empty
 
@@ -89,9 +90,20 @@ private theorem compileBlocks_at
             · subst index
               simp
             · rw [if_neg first]
-              apply congrArg permutationOutput
-              omega
-          simp only [compileBlocks, List.getElem?_cons_succ]
+              have address : witnessStart + 592 + (index - 1) * 592 =
+                  witnessStart + index * 592 := by
+                obtain ⟨prior, rfl⟩ := Nat.exists_eq_succ_of_ne_zero first
+                simpa only [Nat.succ_sub_one, Nat.succ_mul, Nat.add_assoc] using
+                  (Nat.add_right_comm witnessStart 592 (prior * 592))
+              exact congrArg permutationOutput address
+          change (compileBlocks phase (rowStart + 592) (witnessStart + 592)
+              (permutationOutput witnessStart) blocks).invocations[index]? =
+            (blocks[index]?).map (fun current =>
+              invocation phase (rowStart + (index + 1) * 592)
+                (witnessStart + (index + 1) * 592)
+                (Hash.absorbE
+                  (if index + 1 = 0 then state
+                    else permutationOutput (witnessStart + (index + 1 - 1) * 592)) current))
           rw [inductionHypothesis]
           simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero, if_false,
             Nat.add_sub_cancel]
@@ -173,7 +185,7 @@ private theorem compileActions_at
                     List.cons_append, List.nil_append, List.getElem?_cons_succ]
                   rw [inductionHypothesis]
                   simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero,
-                    if_false, Nat.add_sub_cancel]
+                    if_false, Nat.add_sub_cancel, PoseidonActionSchedule.kinds]
 
 private theorem compiled_invocation
     (phase rowStart witnessStart : Nat) (state : EState)
@@ -284,6 +296,7 @@ theorem compileActions_input_eval
         _ = (previousExpr lane).eval (Spartan.pullback target) := by
           simp only [previousExpr, if_neg first, permutationOutput,
             Permutation.freshState, Expr.eval_var, Spartan.pullback]
+  dsimp only [selectedInvocation, trace]
   rw [compiled_invocation phase rowStart witnessStart state actions index, invocation_input]
   cases found : PoseidonActionSchedule.kindAt actions index with
   | absorb block =>

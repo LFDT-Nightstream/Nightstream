@@ -12,9 +12,12 @@ pub(crate) mod stage1_values;
 use neo_fold_clean::{
     engine::transcript::Transcript,
     paper::{
+        construction2::RunningInstance,
         nifs,
-        relations::{ajtai_dec_mixer, ajtai_rlc_mixer},
+        params::Params,
+        relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim},
     },
+    Poseidon2HashChainV1Package,
 };
 use neo_math::{D, F, K};
 use neo_reductions::optimized_engine::optimized_verify_with_trace;
@@ -49,15 +52,29 @@ pub fn prove(package_path: &Path, fixture_path: &Path) -> Observed {
         .prove(vec![fresh], running)
         .expect("normal selected C/R/D prover");
     println!("actual_selected_nifs_prover_elapsed={:?}", started.elapsed());
+    observe(&package, &params, &fresh_claim, &prior, next, proof, started)
+}
+
+// Both the normal producer and saved D assembly use this exact verifier,
+// witness-shape, mutation and wire-observation path.
+fn observe(
+    package: &Poseidon2HashChainV1Package,
+    params: &Params,
+    fresh_claim: &CcsClaim,
+    prior: &RunningInstance,
+    next: RunningInstance,
+    proof: nifs::NifsProof,
+    started: Instant,
+) -> Observed {
     let mut transcript = Transcript::session();
     let verified = nifs::verify(
         &mut transcript,
-        &params,
+        params,
         package.structure(),
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh_claim),
-        &prior,
+        std::slice::from_ref(fresh_claim),
+        prior,
         &proof,
     )
     .expect("normal selected NIFS verifier");
@@ -88,7 +105,7 @@ pub fn prove(package_path: &Path, fixture_path: &Path) -> Observed {
         &mut ccs_transcript,
         params.inner(),
         package.structure(),
-        std::slice::from_ref(&fresh_claim),
+        std::slice::from_ref(fresh_claim),
         &prior.claims,
         &proof.pi_ccs.outputs,
         &proof.pi_ccs.sumcheck,
@@ -101,12 +118,12 @@ pub fn prove(package_path: &Path, fixture_path: &Path) -> Observed {
         .iter()
         .all(|output| output.r == trace.round_challenges));
     // These existing rejection checks use the actual proof just produced.
-    mutations::check(&params, package.structure(), &fresh_claim, &prior, &proof);
+    mutations::check(params, package.structure(), fresh_claim, prior, &proof);
     let result = json!({
         "schema": 1,
         "structural_identifier": package.structural_identifier(),
         "package_identity": package.package_identity(),
-        "pi_ccs_input": ccs_input(&fresh_claim, &prior.claims, &proof.pi_ccs),
+        "pi_ccs_input": ccs_input(fresh_claim, &prior.claims, &proof.pi_ccs),
         "pi_ccs_phase": ccs_phase(&proof.pi_ccs, &trace, valid),
         "pi_rlc_parent": claim_value(&proof.pi_rlc.combined, true),
         "children": running_value(&proof.pi_dec.children),
@@ -152,7 +169,7 @@ pub fn compare(actual: &Observed, expected: &Value) {
 }
 
 #[test]
-#[ignore = "Full selected C/R/D call requires the independent Lean base result and includes all work within the 300-second cap."]
+#[ignore = "The complete producer exceeds the 300-second cap; use the separately capped stages and saved-result comparison."]
 fn selected_nifs_prover_from_actual_base_sources() {
     // A missing result is an error before the expensive prover starts.
     let expected: Value = serde_json::from_slice(
@@ -167,4 +184,33 @@ fn selected_nifs_prover_from_actual_base_sources() {
         &stage1_actual::artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"),
     );
     compare(&actual, &expected);
+}
+
+/// Recheck the retained actual execution against the current package and
+/// independent Lean result without repeating the expensive witness producer.
+#[cfg(test)]
+#[test]
+fn selected_nifs_saved_actual_result_matches_lean() {
+    let saved = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/nifs/fixtures/stage1_actual_nifs");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_generate_pi_ccs_fixture"))
+        .arg("check-owned-nifs")
+        .arg(stage1_actual::artifact(
+            "nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        ))
+        .arg(saved)
+        .arg(stage1_actual::artifact(
+            "nightstream-fprime-stage1-base-nifs-result-v1.json",
+        ))
+        .output()
+        .expect("saved complete NIFS comparison executable");
+    assert!(
+        output.status.success(),
+        "saved comparison failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("complete_nifs_wire=passed"));
+    assert!(stdout.contains("saved_actual_pi_dec=passed complete_fields=17 normal_wrapper=true"));
+    assert!(stdout.contains("actual_selected_nifs_Lean_comparison=passed"));
 }

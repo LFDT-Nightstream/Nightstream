@@ -49,8 +49,11 @@
     const counts = el('span', undefined, 'axis-counts');
     for (const axis of progress.get(id)) {
       const badge = el('span', undefined, 'axis-count axis-' + axis.key);
-      badge.append(el('strong', axis.label), el('span', breakdown(axis)));
-      badge.setAttribute('aria-label', axis.label + ': ' + breakdown(axis));
+      const {finished, total} = RequirementAssurance.progress(axis.key, axis.counts);
+      const fraction = total ? finished + '/' + total : 'n/a';
+      badge.append(el('span', axis.label), el('strong', fraction));
+      badge.title = axis.label + ': ' + fraction + ' · ' + breakdown(axis);
+      badge.setAttribute('aria-label', badge.title);
       counts.append(badge);
     }
     return counts;
@@ -96,7 +99,9 @@
         document.getElementById('view-announcement').textContent = 'Select and copy the displayed link.';
       }
     });
-    row.append(el('span', 'Linked item', 'target-indicator'), anchor, copy);
+    const techLink = el('a', 'View in tech tree');
+    techLink.href = node.id === 'root' ? '#tech-tree' : '#tech-' + node.id;
+    row.append(el('span', 'Linked item', 'target-indicator'), anchor, copy, techLink);
     return row;
   }
   function render(node) {
@@ -169,28 +174,50 @@
   tree.append(list);
   const navigation = document.getElementById('group-nav');
   const select = document.getElementById('group-select');
+  const techOption = el('option', 'Tech tree');
+  techOption.value = 'tech-tree';
+  select.append(techOption);
   const navigationItems = [{id: 'all', label: 'All groups'}, ...groups];
   for (const node of navigationItems) {
     const label = navNames[node.id] || node.label;
     const link = el('a', undefined, 'nav-link');
     link.href = '#group-' + node.id;
     link.dataset.group = node.id;
-    link.append(el('span', node.id === 'all' ? '—' : node.id, 'nav-id'), el('span', label));
+    link.append(el('span', label));
     link.append(node.origin === 'out_of_scope' ? el('span', descendants(node.id).length + ' excluded', 'nav-count') : countBadges(node.id === 'all' ? 'root' : node.id));
     navigation.append(link);
     const option = el('option', label);
     option.value = node.id;
     select.append(option);
   }
-  document.getElementById('source-meta').textContent = 'SuperNeo v1.1 + HyperNova · Code ' + data.provenance.code_commit.slice(0, 8) + ' · Map ' + (publication.map_commit?.slice(0, 8) || 'uncommitted preview');
-  document.getElementById('scope-rule').textContent = data.scope;
+  document.getElementById('source-meta').textContent = 'SuperNeo v1.1 + HyperNova · Code ' + data.provenance.code_commit.slice(0, 8) + ' · Map ' + (publication.map_commit?.slice(0, 8) || 'uncommitted preview') + ' · Production gates remain open.';
   const scope = document.getElementById('claim-scope');
   const viewNames = {readiness: 'Readiness', assumptions: 'Assumption ledger', risk: 'Error budget', evidence: 'Source and evidence'};
   for (const [id, view] of Object.entries(assurance.views)) {
     view.id = 'view-' + id;
     document.getElementById('assurance-views').append(view);
   }
+  const techTree = document.getElementById('tech-tree');
+  const renderTechTree = createTechTree({nodes, byId, children, groups, navNames, el, names,
+    countBadges, premiseLink: assurance.premiseLink, sourceUrl: assurance.sourceUrl});
+  const requirementsViewLink = document.getElementById('requirements-view-link');
+  const techViewLink = document.getElementById('tech-view-link');
+  const mapViewLink = document.getElementById('proof-map-view-link');
+  const structureView = document.getElementById('proof-structure');
+  const structureMap = createProofStructureMap({
+    diagram: JSON.parse(document.getElementById('proof-map-data').textContent),
+    byId, el, sourceUrl: assurance.sourceUrl, premiseLink: assurance.premiseLink});
   function selectView(id) {
+    const tech = id === 'tech';
+    document.body.classList.toggle('tech-mode', tech);
+    document.body.classList.toggle('map-mode', id === 'map');
+    structureView.hidden = id !== 'map';
+    if (id !== 'map') structureMap.destroy();
+    techTree.hidden = !tech;
+    for (const [view, link] of [['requirements', requirementsViewLink], ['tech', techViewLink], ['map', mapViewLink]]) {
+      if (id === view) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    }
     tree.hidden = id !== 'requirements';
     document.getElementById('scope-controls').hidden = id !== 'requirements';
     for (const [name, view] of Object.entries(assurance.views)) view.hidden = name !== id;
@@ -223,6 +250,7 @@
     }
     select.value = selected;
     applyScope();
+    requirementsViewLink.href = '#group-' + selected;
     const title = all ? 'Requirements map' : node.label;
     document.getElementById('view-title').textContent = title;
     document.getElementById('view-progress').replaceChildren(...(!all && node.origin === 'out_of_scope' ? [] : [countBadges(all ? 'root' : id)]));
@@ -243,7 +271,40 @@
   }
   function navigate() {
     const fragment = decodeURIComponent(location.hash.slice(1));
-    if (fragment.startsWith('view-') && assurance.views[fragment.slice(5)]) {
+    const proofParts = fragment.startsWith('proof-') ? fragment.slice(6).split(':') : [];
+    const proofScope = byId.get(proofParts[0]);
+    const proofItem = byId.get(proofParts[1] || proofParts[0]);
+    const isProof = proofScope?.kind === 'group' && proofItem && proofParts.length <= 2;
+    if (fragment === 'proof-map' || fragment.startsWith('proof-map:')) {
+      selectView('map');
+      structureMap.render(structureView, fragment.split(':')[1]);
+      for (const link of navigation.children) link.removeAttribute('aria-current');
+      document.getElementById('view-title').textContent = 'Nightstream proof map';
+      document.getElementById('view-progress').replaceChildren();
+      document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Proof map';
+      document.getElementById('view-summary').textContent = 'Read upward from verifier acceptance to the security goal. Select a result for its connections and Lean proof.';
+      document.getElementById('view-announcement').textContent = 'Nightstream proof map';
+      document.title = 'Proof structure — Nightstream';
+      window.scrollTo({top: 0});
+    } else if (isProof || fragment === 'tech-tree' || (fragment.startsWith('tech-') && byId.has(fragment.slice(5)))) {
+      const id = isProof ? proofItem.id : fragment === 'tech-tree' ? 'root' : fragment.slice(5);
+      const node = isProof ? proofScope : byId.get(id);
+      selectView('tech');
+      renderTechTree(techTree, id, isProof ? proofScope.id : null);
+      select.value = 'tech-tree';
+      for (const link of navigation.children) link.removeAttribute('aria-current');
+      document.getElementById('view-title').textContent = 'Tech tree';
+      document.getElementById('view-progress').replaceChildren();
+      document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Dependencies';
+      document.getElementById('view-summary').textContent = 'The end goal is at the top. The groups needed to reach it are below, down to the shared primitives. Select a group to see all its smaller parts.';
+      document.getElementById('view-announcement').textContent = 'Tech tree: ' + node.label;
+      const heading = document.getElementById(isProof ? 'tech-detail-title' : 'view-title');
+      heading.tabIndex = -1;
+      heading.focus({preventScroll: true});
+      document.title = 'Tech tree: ' + node.label + ' — Nightstream';
+      if (isProof) requestAnimationFrame(() => heading.scrollIntoView({block: 'start'}));
+      else window.scrollTo({top: 0});
+    } else if (fragment.startsWith('view-') && assurance.views[fragment.slice(5)]) {
       showAssurance(fragment.slice(5));
       window.scrollTo({top: 0});
     } else if (fragment.startsWith('assumption-') && document.getElementById(fragment)) {
@@ -272,7 +333,7 @@
       if (fragment.startsWith('group-')) window.scrollTo({top: 0});
     }
   }
-  select.addEventListener('change', () => { location.hash = 'group-' + select.value; });
+  select.addEventListener('change', () => { location.hash = select.value === 'tech-tree' ? 'tech-tree' : 'group-' + select.value; });
   scope.addEventListener('change', applyScope);
   window.addEventListener('hashchange', navigate);
   document.addEventListener('click', event => {

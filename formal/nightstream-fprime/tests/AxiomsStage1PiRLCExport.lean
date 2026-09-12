@@ -17,6 +17,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryCompleteness
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCandidateWiring
@@ -540,6 +541,7 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues.source_sbox
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues.outputValue_of_packets
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryCompleteness.rowsZero_of_completed
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonCompleteness.rowsZero_of_completed
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.inputConstraints_eq_nil
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.samplerConstraints_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.commitmentConstraints_eq

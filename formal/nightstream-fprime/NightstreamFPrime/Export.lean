@@ -85,6 +85,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
+import NightstreamFPrime.Export.Stage1.SelectedAssignmentCompleteness
 import NightstreamFPrime.Export.Stage1.PermutationActionCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryPhysicalCompleteness

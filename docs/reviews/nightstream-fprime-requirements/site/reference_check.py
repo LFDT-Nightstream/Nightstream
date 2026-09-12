@@ -15,6 +15,17 @@ def code_commit(data):
     return data.get('provenance', {}).get('code_commit', data.get('commit', ''))
 
 
+def protocol_repository(site, commit):
+    """Find the cited code even when the Sites checkout has its own Git repository."""
+    for candidate in [site, *site.parents]:
+        try:
+            git(candidate, 'cat-file', '-e', commit + '^{commit}')
+            return Path(git(candidate, 'rev-parse', '--show-toplevel').decode().strip())
+        except subprocess.CalledProcessError:
+            continue
+    raise ValueError('The cited protocol revision is not available in this checkout: ' + commit)
+
+
 def check_references(data, repository, paper_root):
     commit = code_commit(data)
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
@@ -66,9 +77,10 @@ def publication_record(site, require_committed=False):
     relative = site.relative_to(root).as_posix()
     prefix = '' if relative == '.' else relative + '/'
     commit = git(root, 'rev-parse', 'HEAD').decode().strip()
-    required = ['requirements.json', 'page.html', 'styles.css', 'app.js', 'assurance.js',
+    required = ['requirements.json', 'page.html', 'styles.css', 'app.js', 'assurance.js', 'proof-graph.js', 'tech-tree.js',
                 'build.py', 'markdown_export.py', 'assurance_export.py', 'site_model.py',
-                'reference_check.py', 'reading-guide.md', '.openai/hosting.json', '_headers']
+                'reference_check.py', 'reading-guide.md', 'proof-map.json', 'proof-map.js',
+                'proof-map.css', 'proof_map.py', '.openai/hosting.json', '_headers']
     dirty = []
     for name in required:
         try:

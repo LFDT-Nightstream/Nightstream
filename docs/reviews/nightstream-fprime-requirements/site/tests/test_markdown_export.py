@@ -1,11 +1,13 @@
 import copy
 import json
+import posixpath
 import re
 import unittest
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
 from markdown_export import export_markdown
+from proof_map import resolve_map, export_map
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +20,7 @@ class MarkdownExportTests(unittest.TestCase):
         cls.publication = json.loads((ROOT / 'dist/publication.json').read_text())
         cls.references = json.loads((ROOT / 'dist/reference-report.json').read_text())
         cls.files = export_markdown(cls.data, (ROOT / 'reading-guide.md').read_text(), cls.publication, cls.references)
+        cls.files['proof-map.md'] = export_map(resolve_map(json.loads((ROOT / 'proof-map.json').read_text()), cls.data), cls.data)
         cls.records = {}
         for content in cls.files.values():
             for node_id, record in re.findall(r'^## <a id="req-([^"]+)"></a>(.*?)(?=^## |\Z)',
@@ -67,7 +70,7 @@ class MarkdownExportTests(unittest.TestCase):
                 target, _, anchor = href.partition('#')
                 if target:
                     target = str(PurePosixPath(name).parent / target)
-                    target = str(PurePosixPath(target.replace('markdown/../', '')))
+                    target = posixpath.normpath(target)
                 else:
                     target = name
                 if target.endswith(('.json', '.zip')):
@@ -80,6 +83,24 @@ class MarkdownExportTests(unittest.TestCase):
         self.assertIn('- Depends on (recorded): None recorded.', self.records['H.terminal.fresh_opening'])
         self.assertIn('does not mean that the result needs no other facts', self.files['requirements.md'])
         self.assertIn('Each record has a structured `scope`', self.files['requirements.md'])
+
+    def test_records_link_to_their_graph_and_selected_requirement(self):
+        for node in self.data['nodes']:
+            node_id = node['id']
+            if node_id == 'root':
+                anchor = 'tech-tree'
+            elif node['kind'] == 'group':
+                anchor = 'proof-' + node_id
+            else:
+                owner = node
+                by_id = {item['id']: item for item in self.data['nodes']}
+                while owner['parent'] != 'root':
+                    owner = by_id[owner['parent']]
+                anchor = 'proof-' + owner['id'] + ':' + node_id
+            self.assertIn('nightstream-requirements.nicarq.chatgpt.site/#' + anchor + ')', self.records[node_id])
+        self.assertIn('Proof graph: 39 requirements, 47 internal connections, 19 outside inputs, and 12 outside consumers.', self.files['markdown/C.md'])
+        self.assertIn('(graphs/C.md)', self.files['markdown/C.md'])
+        self.assertIn('(markdown/graphs/C.md)', self.files['requirements.md'])
 
     def test_counts_follow_axis_semantics(self):
         sample = {'scope': 'test', 'commit': 'test', 'nodes': [

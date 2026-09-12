@@ -1,13 +1,20 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {counts, scenario} = require('../assurance.js');
+const {counts, progress, scenario} = require('../assurance.js');
 const data = JSON.parse(fs.readFileSync(path.join(__dirname, '../requirements.json')));
 const leaves = data.nodes.filter(n => n.kind === 'leaf');
 for (const axis of ['proof', 'connection', 'rust']) {
   assert.equal(Object.values(counts(leaves, axis)).reduce((a, b) => a + b), leaves.filter(n => n.origin !== 'out_of_scope').length);
 }
 assert.equal(counts([{origin: 'paper', rust: 'implemented'}], 'rust').tested, 0);
+// Compact badges retain applicable totals without counting assumptions as proofs.
+const foundation = leaves.filter(n => n.id.startsWith('F.'));
+assert.deepEqual(progress('proof', counts(foundation, 'proof')), {finished: 75, total: 75});
+assert.deepEqual(progress('connection', counts(foundation, 'connection')), {finished: 84, total: 84});
+assert.deepEqual(progress('rust', counts(foundation, 'rust')), {finished: 68, total: 70});
+assert.deepEqual(progress('proof', counts(leaves.filter(n => n.id.startsWith('N.')), 'proof')), {finished: 17, total: 18});
+assert.deepEqual(progress('proof', counts([], 'proof')), {finished: 0, total: 0});
 assert.equal(Object.hasOwn(data.error_budget, 'example_uses'), false);
 const result = scenario(data.error_budget, '1');
 assert.equal(result.numerator, 13257n);

@@ -1,11 +1,12 @@
 import copy
 import json
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from assurance_export import export_assurance
-from reference_check import check_references, publication_record
+from reference_check import check_references, protocol_repository, publication_record
 from site_model import counts, error_scenario, validate_data
 
 
@@ -82,15 +83,30 @@ class AssuranceTests(unittest.TestCase):
         with patch('reference_check.git', side_effect=committed_git):
             self.assertEqual(publication_record(SITE, True)['map_commit'], commit)
 
-        def dirty_git(root, *args):
-            if args == ('show', commit + ':requirements.json'):
-                return b'{"old":true}'
-            return committed_git(root, *args)
+        for changed_file in ['requirements.json', 'proof-graph.js', 'tech-tree.js', 'proof-map.json', 'proof-map.js']:
+            def dirty_git(root, *args):
+                if args == ('show', commit + ':' + changed_file):
+                    return b'changed input'
+                return committed_git(root, *args)
 
-        with patch('reference_check.git', side_effect=dirty_git):
-            self.assertIsNone(publication_record(SITE)['map_commit'])
-            with self.assertRaisesRegex(ValueError, 'Commit the exact site inputs'):
-                publication_record(SITE, True)
+            with self.subTest(changed_file=changed_file), patch('reference_check.git', side_effect=dirty_git):
+                self.assertIsNone(publication_record(SITE)['map_commit'])
+                with self.assertRaisesRegex(ValueError, 'Commit the exact site inputs'):
+                    publication_record(SITE, True)
+
+    def test_protocol_code_is_resolved_outside_the_nested_site_repository(self):
+        checkout = SITE.parents[3]
+        commit = 'a' * 40
+
+        def separate_repositories(root, *args):
+            if root == SITE and args[0] == 'cat-file':
+                raise subprocess.CalledProcessError(128, ['git', *args])
+            if args == ('rev-parse', '--show-toplevel'):
+                return str(checkout).encode()
+            return b''
+
+        with patch('reference_check.git', side_effect=separate_repositories):
+            self.assertEqual(protocol_repository(SITE, commit), checkout)
 
     def test_reference_failures_block_publication(self):
         sample = {'provenance': {'code_commit': 'a' * 40}, 'nodes': [

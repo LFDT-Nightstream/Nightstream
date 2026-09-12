@@ -1,8 +1,14 @@
 ## How the requirements relate
 
-The HTML tree groups work by subject. The `depends_on` field records a different relationship: a result that a requirement uses. The reading map below explains the main interfaces. It does not add dependency edges or certify any theorem.
+The [proof map](proof-map.md) puts the security goal above HyperNova, NIFS and verifier semantics. Read the main chain upward from verifier acceptance. Select a result for all its direct connections, conditions and Lean evidence. **All connections** shows the complete recorded graph. Premises, assumptions and prover construction sit beside the main chain. The map selects key declarations; it does not list every Lean dependency or change completion counts. [Open the interactive map](https://nightstream-requirements.nicarq.chatgpt.site/#proof-map).
+
+The Requirements view groups work by subject. The Tech tree places the Stage 1 goal above production acceptance, recursion and the circuit, NIFS, the three phases, and shared primitives. Its lines summarize the main assembly; they do not certify theorem dependencies or completion. The `depends_on` field records the individual results that a requirement uses. The reading map below explains the main interfaces. It does not add dependency edges or certify any theorem.
 
 The folding flow is PiCCS → PiRLC → PiDEC. NIFS owns their composition. HyperNova uses that folding interface inside its recursive computation. Circuit lowering and Rust conformance connect the mathematical statements to the selected implementation.
+
+Select a group in the Tech tree to open its proof graph. Unlike the main assembly view, this graph draws only recorded `depends_on` edges, with prerequisites below their consumers. Each box is one requirement with separate Proof and Link status. Outside inputs and consumers can be included without merging them into whole-group dependencies. Items with no recorded connections stay visible separately. Selecting a box highlights its recorded prerequisite and consumer chains and shows its theorem evidence.
+
+Each group Markdown file links to a proof-graph page with both diagrams, a status table, and the complete recorded connection table. These pages work as plain text and render diagrams in viewers that support Mermaid. Every graph page is included in the Markdown ZIP. Individual requirement records link to the interactive graph with that requirement selected.
 
 | Contract or boundary | Existing requirement owners | What must connect |
 | --- | --- | --- |
@@ -20,6 +26,8 @@ The folding flow is PiCCS → PiRLC → PiDEC. NIFS owns their composition. Hype
 These are overlapping reading paths through the same IDs. They do not create extra requirements or extra completion credit.
 
 ## What each status means
+
+The page uses compact finished/applicable counters. Proof counts only proved results; Link counts connected results; Rust counts code that exists or scoped tests that passed. Assumptions and N/A are excluded from these fractions. A Rust counter does not certify full conformance. Hover over a counter for its full breakdown, or read the expanded records. The tables below and the Markdown export retain every status category.
 
 | Axis | Meaning | Visible count categories |
 | --- | --- | --- |

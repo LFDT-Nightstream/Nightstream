@@ -17,5 +17,6 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw
 import NightstreamFPrime.Spec.Folding.Nifs.SequentialOutputLaw
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry
 
 /-! Spec layer root. Lists the modules of this layer explicitly. -/

@@ -1,5 +1,25 @@
 # Selected NIFS execution and HyperNova closure
 
+## Active v1.2 extension, 2026-09-12
+
+The owner updated the app goal to use the supplied September 4 SuperNeo v1.2
+reference. The complete objective remains HyperNova lifecycle, recursive
+closure and security, with the required NIFS security and selected Rust
+conformance links. Existing validated results are reused where applicable.
+
+`SUPERNEO_V1_2_DELTA.md` records the paper changes and named consumers before
+proof edits. The linear-loss upgrade must establish adaptive uniqueness,
+the actual retry law, emitted MSIS output, and full declared work/query
+accounting. Its current strategy enters after relaxed acceptance and returns
+the next accepted response. This avoids adding a source-membership checker;
+the selected disagreement probability still needs its stopped-law proof.
+
+The approved fixed-seed MSIS and additive-Poseidon2 FS boundaries remain
+explicit. Stronger assumptions, a general FS formalization, numerical
+deployment budgets, profile changes and machine-runtime proofs are not
+authorized by this extension. Only `nico/f-prime-constraints-cuda-formal` is
+used. The existing owner-approved attempt limit and one-build queue remain.
+
 Owner request: 2026-09-11. This is the combined task scope, including the
 owner's correction after the app goal was created. Neither part below is
 optional. The task ends only when its required claims have closing evidence,
@@ -759,3 +779,30 @@ No package, protocol or assumption changed. This closes the selected-base
 actual-witness execution and comparison gap. Later recursive inputs, universal
 Rust semantics, the production proof backend and performance remain separate;
 no deployment security budget follows from these executed checks.
+
+## V1.2 retry component checked
+
+The supplied v1.2 paper is pinned as section files with a reconstruction
+checksum. `SUPERNEO_V1_2_DELTA.md` records the adaptive-uniqueness change,
+the affected consumers and the retained coordinate-loss discrepancy before
+proof edits. The chosen uniqueness adversary enters after relaxed success
+and waits for the next accepted response.
+
+`AcceptedRetry.search_firstHit` and `search_exhausted` identify the exact
+finite driver outputs and all consumed clocks. `firstHit_hasSum`,
+`entered_work_hasSum` and `exhaustion_tendsTo_zero` prove the geometric sums,
+the zero-success case and vanishing entered exhaustion mass. The source
+driver and all public theorems are directly axiom-audited.
+
+Ordered gates pass: static 8.74 seconds; library 376.35 seconds (3,912 jobs);
+axioms 45.86 seconds (4,000 jobs). The Spec-root import caused a broad rebuild.
+Each isolated check took less than two seconds. First-hit execution passed
+on attempt two; exhaustion, first-hit sum and termination passed on attempt
+one; the work sum passed on attempt three after arithmetic normalization
+repairs. No declaration used an override. Logs and exact sources are in
+`SUPERNEO_V1_2_RETRY_EVIDENCE.zip`.
+
+The actual fresh NIFS call law, stopped endpoint distribution, selected
+binding reduction and final linear-loss consumers remain open. These scalar
+sums alone do not establish those connections. Existing package, transcript,
+Rust conformance and cryptographic assumptions are unchanged.

@@ -6,6 +6,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
@@ -75,6 +76,12 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.roundAgreementProbability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.agreementProbability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_error_le_sqrt
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search_firstHit
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search_exhausted
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.firstHit_hasSum
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.entered_work_hasSum
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.exhaustion_tendsTo_zero
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_success_ge
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_success_ge_of_disagreement_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.clockMean_le_add_const

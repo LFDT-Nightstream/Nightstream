@@ -653,3 +653,12 @@ logs and saved-artifact hashes are in `NATIVE_PARENT_EVIDENCE.zip`.
 D openings, complete NIFS assembly, final mutation checks and comparison
 with the independent complete Lean result remain open. The package, pins,
 protocol, cryptographic assumptions and requirements statuses are unchanged.
+
+## R draft retained on the only work branch
+
+The earlier draft history is merged into `nico/f-prime-constraints-cuda-formal`.
+Its exact full source is retained as `R_ENTRY_DRAFT.lean` beside this note,
+outside the production Lean tree, with `R_ENTRY_FAILURE.log` and
+`R_ENTRY_WIP.md`. Its original source hash is unchanged. This archive is not
+a checked theorem and does not close R permutation. All further work uses
+the closure branch; the temporary branch is removed after this merge.

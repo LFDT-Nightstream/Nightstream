@@ -282,7 +282,9 @@ private theorem entryInputChunks_eq (source : Nat) :
     NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks
   norm_num [NightstreamFPrime.Spec.Poseidon2.rate]
 
-private theorem entryInvocations_eq_singleton (source : Nat) :
+/-- The scalar-domain entry list contains exactly its one additive
+Poseidon2 invocation, with the existing state and frame words. -/
+theorem entryInvocations_eq_singleton (source : Nat) :
     PiRLCSamplerInvocations.entryInvocations
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         source =

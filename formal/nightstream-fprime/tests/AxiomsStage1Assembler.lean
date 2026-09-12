@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment
+import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import tests.AxiomsPiCCSClosure
@@ -881,3 +883,7 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Layout.Poseidon2.HashInvocationRows.recipeRows_of_hashConstraints
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness.hashChains_of_pilotRows
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness.rowsZero_of_spartanRows
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NextPreimageCompleteness.rowsZero_of_completed
+
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment.rowsZero_of_completed

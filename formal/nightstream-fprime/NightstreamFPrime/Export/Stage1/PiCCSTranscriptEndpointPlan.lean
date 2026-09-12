@@ -945,7 +945,8 @@ private theorem zeroState_eq_evalZero (env : Env) :
   norm_num [List.ofFn_succ]
   rfl
 
-private theorem statementActions_eq_of_shape
+/-- The statement action list uses the same source expressions at every relation width. -/
+theorem statementActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
@@ -1109,7 +1110,8 @@ private theorem challengeFinalState_endpoint_of_shape
     _ = _ := challengeTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-private theorem roundActions_eq_of_shape
+/-- The round action list uses the same source expressions at every relation width. -/
+theorem roundActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
@@ -1197,7 +1199,8 @@ private theorem roundFinalState_endpoint_of_shape
     _ = _ := roundTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-private theorem outputActions_eq_of_shape
+/-- The output action list uses the same source expressions at every relation width. -/
+theorem outputActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :

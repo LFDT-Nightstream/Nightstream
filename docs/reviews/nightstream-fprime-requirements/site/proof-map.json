@@ -382,11 +382,17 @@
       "label": [
         "Witness encoding"
       ],
-      "kind": "open",
+      "kind": "theorem",
       "record": "H.compat.encode_valid",
-      "role": "Local C/R/D construction is checked. Later physical, application and norm connections are work in progress; the complete selected encoding still needs its final checked consumer.",
-      "refs": [],
-      "summary": "Construct all private values and connect them to the complete selected circuit."
+      "role": "The checked constructor supplies one canonical assignment satisfying the complete selected plan, strict norm below two, exact public digest and actual application advice. Its semantic-step, framing, NIFS acceptance and result conditions are explicit; no phase-row callback is assumed.",
+      "refs": [
+        {
+          "record": "H.compat.encode_valid",
+          "file": "SelectedAssignmentCompleteness.lean",
+          "symbol": "complete"
+        }
+      ],
+      "summary": "Construct the complete selected assignment under its stated semantic and acceptance conditions."
     },
     {
       "id": "native",
@@ -395,20 +401,31 @@
       ],
       "kind": "open",
       "record": "P.assurance.full_native_chain",
-      "role": "The complete selected native C/R/D proof and required conformance result are not closed. Fixture comparisons and partial producer timings keep their recorded scope.",
+      "role": "The actual selected-base C/R/D phases now complete in capped stages and match the independent Lean result, all proof bytes and the recorded mutation checks. Complete production approval and broader full-profile running inputs remain open. This execution evidence is not a Lean proof premise.",
       "refs": [],
-      "summary": "Finish the real C/R/D producer and validate its complete saved result."
+      "summary": "Staged actual-witness execution and saved-result regression pass; broader production assurance remains open."
     },
     {
       "id": "extension",
       "label": [
         "Prover completeness"
       ],
-      "kind": "open",
+      "kind": "theorem",
       "record": "H.security.perfect_completeness",
-      "role": "The honest successor producer must connect folding, encoding, commitment and the final terminal checks. Sampler availability and successor counter range remain explicit.",
-      "refs": [],
-      "summary": "Show that a valid next computation produces another accepted proof, with sampler and counter conditions explicit."
+      "role": "The checked initial and recursive extension theorems produce an accepted successor with the exact fresh commitment and retained opening. They retain actual recursive child witnesses or proved base defaults. Four-word advice, bounded sampler success and the stated recursive counter bound are explicit.",
+      "refs": [
+        {
+          "record": "H.security.perfect_completeness",
+          "file": "HyperNovaAcceptedNext.lean",
+          "symbol": "recursive_extend_of_sampler_success"
+        },
+        {
+          "record": "H.security.perfect_completeness",
+          "file": "HyperNovaAcceptedNext.lean",
+          "symbol": "base_extend_of_sampler_success"
+        }
+      ],
+      "summary": "An accepted initial or recursive envelope extends under the named sampler and counter conditions. This is a checked model result, not Rust execution or unconditional sampler success."
     },
     {
       "id": "uniform",
@@ -944,16 +961,35 @@
     {
       "source": "step",
       "target": "encoding",
-      "kind": "open",
-      "note": "Construct the complete canonical assignment from a valid step; a rows-to-step implication is not its inverse constructor.",
-      "overview": false
+      "kind": "supplies",
+      "note": "The complete-assignment constructor uses the semantic step together with its explicit framing, fresh-public, NIFS acceptance, result and advice hypotheses; the step predicate alone is not sufficient.",
+      "overview": false,
+      "refs": [
+        {
+          "record": "H.compat.encode_valid",
+          "file": "SelectedAssignmentCompleteness.lean",
+          "symbol": "complete"
+        }
+      ]
     },
     {
       "source": "encoding",
       "target": "extension",
-      "kind": "open",
-      "note": "Use the fully checked encoding, commitment and sampler-success conditions to build the accepted successor.",
-      "overview": true
+      "kind": "uses",
+      "note": "The accepted-successor branches consume the same complete assignment, derive its fresh opening and retain the actual child witnesses or base defaults under the stated sampler and counter conditions.",
+      "overview": true,
+      "refs": [
+        {
+          "record": "H.security.perfect_completeness",
+          "file": "HyperNovaAcceptedNext.lean",
+          "symbol": "recursive_extend_of_sampler_success"
+        },
+        {
+          "record": "H.security.perfect_completeness",
+          "file": "HyperNovaAcceptedNext.lean",
+          "symbol": "base_extend_of_sampler_success"
+        }
+      ]
     },
     {
       "source": "encoding",

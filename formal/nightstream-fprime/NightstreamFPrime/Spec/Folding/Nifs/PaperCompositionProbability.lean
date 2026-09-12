@@ -55,6 +55,15 @@ noncomputable def disagreementProbability : ℝ :=
     (fun context => InteractiveDistribution.coupled (firstPhase context) (consume context))
     maps params statement
 
+/-- The v1.2 retry term normalizes at each original context before averaging.
+Its stopped-execution interpretation and resource bounds are separate
+obligations of the actual uniqueness reduction. -/
+noncomputable def retryDisagreementProbability : ℝ :=
+  StrongProbability.globalRetryDisagreementProbability contexts
+    (fun context => InteractiveDistribution.tapes (firstPhase context) abortEndpoint (suffixLaw context))
+    (fun context => InteractiveDistribution.coupled (firstPhase context) (consume context))
+    maps params statement
+
 theorem relaxedProbability_eq :
     relaxedProbability contexts firstPhase suffixLaw consume maps params statement =
       StrongProbability.globalSuccessProbability contexts
@@ -100,6 +109,62 @@ theorem source_success_ge
   exact StrongProbability.source_success_ge contexts _ _ maps params statement
     freshBound constantLaw degreeCovers
 
+/-- Linear source-success bound for the same sequential returned witnesses.
+This retains the local normalized disagreement term explicitly until its
+stopped binding reduction and resource bounds are proved. -/
+theorem source_success_ge_retry
+    (freshBound : params.b = 2)
+    (constantLaw : ∀ context,
+      MatrixCoefficientSource.ConstantTermLaw baseOps (statement context).matrixSource.kernel)
+    (degreeCovers : ∀ context,
+      ((statement context).verifierInput K.embed).sumcheckDegreeBound ≤ width) :
+    relaxedProbability contexts firstPhase suffixLaw consume maps params statement -
+      IndependentExecution.testError shape width -
+      retryDisagreementProbability contexts firstPhase abortEndpoint suffixLaw consume maps params statement ≤
+      sourceProbability contexts firstPhase suffixLaw consume maps params statement := by
+  rw [relaxedProbability_eq contexts firstPhase abortEndpoint suffixLaw consume maps params statement,
+    sourceProbability_eq contexts firstPhase abortEndpoint suffixLaw consume maps params statement]
+  exact StrongProbability.source_success_ge_retry contexts _ _ maps params statement
+    freshBound constantLaw degreeCovers
+
+omit [DecidableEq Endpoint] in
+private theorem relaxed_ge_from_weak
+    (originalClock : Context → CubePoint K shape.cubeVariables → K →
+      CubePoint K shape.cubeVariables → ℝ)
+    (weakLoss : ℝ)
+    (originalNonnegative : ∀ context alpha gamma point, 0 ≤ originalClock context alpha gamma point)
+    (localWeak : ∀ context alpha gamma point,
+      originalClock context alpha gamma point - weakLoss ≤
+        InteractiveDistribution.sequentialMean (firstPhase context) (suffixLaw context) (consume context)
+          (fun outcome => if StrongProbability.RelaxedSuccess (width := width)
+            (maps context) params (statement context) outcome then (1 : ℝ) else 0)
+          alpha gamma point)
+    : StrongProbability.clockMean contexts originalClock - weakLoss ≤
+      relaxedProbability contexts firstPhase suffixLaw consume maps params statement := by
+  let relaxed := fun context =>
+    InteractiveDistribution.sequentialMean (firstPhase context) (suffixLaw context) (consume context)
+      (fun outcome => if StrongProbability.RelaxedSuccess (width := width)
+        (maps context) params (statement context) outcome then (1 : ℝ) else 0)
+  have bounded : ∀ context alpha gamma point,
+      0 ≤ relaxed context alpha gamma point ∧ relaxed context alpha gamma point ≤ 1 := by
+    intro context alpha gamma point
+    apply InteractiveDistribution.sequentialMean_range
+    intro outcome
+    split_ifs <;> norm_num
+  have summed := StrongProbability.clockMean_summable_of_bounded contexts relaxed 1 bounded
+  have weak := StrongProbability.clockMean_le_add_const contexts relaxed originalClock weakLoss
+    originalNonnegative summed (by
+      intro context alpha gamma point
+      have localBound := localWeak context alpha gamma point
+      change originalClock context alpha gamma point ≤
+        relaxed context alpha gamma point + weakLoss
+      dsimp only [relaxed]
+      linarith)
+  have exactMean : StrongProbability.clockMean contexts relaxed =
+      relaxedProbability contexts firstPhase suffixLaw consume maps params statement := rfl
+  rw [exactMean] at weak
+  linarith [weak.2]
+
 /-- Integrate the proved weak suffix loss on the same original context and
 verifier coins, then apply the strong reduction. The concrete caller supplies
 this local inequality from its actual suffix algorithm, not as a hardness premise. -/
@@ -123,30 +188,39 @@ theorem source_success_ge_from_weak
       Real.sqrt (disagreementProbability contexts firstPhase abortEndpoint suffixLaw consume
         maps params statement + IndependentExecution.testError shape width) ≤
       sourceProbability contexts firstPhase suffixLaw consume maps params statement := by
-  let relaxed := fun context =>
-    InteractiveDistribution.sequentialMean (firstPhase context) (suffixLaw context) (consume context)
-      (fun outcome => if StrongProbability.RelaxedSuccess (width := width)
-        (maps context) params (statement context) outcome then (1 : ℝ) else 0)
-  have bounded : ∀ context alpha gamma point,
-      0 ≤ relaxed context alpha gamma point ∧ relaxed context alpha gamma point ≤ 1 := by
-    intro context alpha gamma point
-    apply InteractiveDistribution.sequentialMean_range
-    intro outcome
-    split_ifs <;> norm_num
-  have summed := StrongProbability.clockMean_summable_of_bounded contexts relaxed 1 bounded
-  have weak := StrongProbability.clockMean_le_add_const contexts relaxed originalClock weakLoss
-    originalNonnegative summed (by
-      intro context alpha gamma point
-      have localBound := localWeak context alpha gamma point
-      change originalClock context alpha gamma point ≤
-        relaxed context alpha gamma point + weakLoss
-      dsimp only [relaxed]
-      linarith)
-  have exactMean : StrongProbability.clockMean contexts relaxed =
-      relaxedProbability contexts firstPhase suffixLaw consume maps params statement := rfl
-  rw [exactMean] at weak
+  have weak := relaxed_ge_from_weak contexts firstPhase suffixLaw consume maps params statement
+    originalClock weakLoss originalNonnegative localWeak
   have strong := source_success_ge contexts firstPhase abortEndpoint suffixLaw consume
     maps params statement freshBound constantLaw degreeCovers
-  linarith [weak.2]
+  linarith
+
+/-- The actual weak-extractor success bound and the v1.2 linear strong
+bound compose on the same context and sequential output law. The remaining
+loss is the context-wise normalized disagreement of actual returns. -/
+theorem source_success_ge_retry_from_weak
+    (originalClock : Context → CubePoint K shape.cubeVariables → K →
+      CubePoint K shape.cubeVariables → ℝ)
+    (weakLoss : ℝ)
+    (originalNonnegative : ∀ context alpha gamma point, 0 ≤ originalClock context alpha gamma point)
+    (localWeak : ∀ context alpha gamma point,
+      originalClock context alpha gamma point - weakLoss ≤
+        InteractiveDistribution.sequentialMean (firstPhase context) (suffixLaw context) (consume context)
+          (fun outcome => if StrongProbability.RelaxedSuccess (width := width)
+            (maps context) params (statement context) outcome then (1 : ℝ) else 0)
+          alpha gamma point)
+    (freshBound : params.b = 2)
+    (constantLaw : ∀ context,
+      MatrixCoefficientSource.ConstantTermLaw baseOps (statement context).matrixSource.kernel)
+    (degreeCovers : ∀ context,
+      ((statement context).verifierInput K.embed).sumcheckDegreeBound ≤ width) :
+    StrongProbability.clockMean contexts originalClock - weakLoss -
+      IndependentExecution.testError shape width -
+      retryDisagreementProbability contexts firstPhase abortEndpoint suffixLaw consume maps params statement ≤
+      sourceProbability contexts firstPhase suffixLaw consume maps params statement := by
+  have weak := relaxed_ge_from_weak contexts firstPhase suffixLaw consume maps params statement
+    originalClock weakLoss originalNonnegative localWeak
+  have strong := source_success_ge_retry contexts firstPhase abortEndpoint suffixLaw consume
+    maps params statement freshBound constantLaw degreeCovers
+  linarith
 
 end NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability

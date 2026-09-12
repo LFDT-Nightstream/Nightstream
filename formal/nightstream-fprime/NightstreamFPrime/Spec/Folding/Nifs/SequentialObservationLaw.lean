@@ -17,6 +17,8 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open StrongReduction PaperCompositionAgreement
 
+attribute [local instance] Classical.propDecidable
+
 variable {State Endpoint : Type*} {shape : Shape} {width : Nat}
   (firstPhase : InteractivePrefix.Prover State shape width)
   (suffixLaw : PublicCoins K shape → FullOutputCoordinates.FullOutput K shape →
@@ -141,5 +143,29 @@ theorem outputMean_eq {columns : Nat} (abortEndpoint : Endpoint)
       simp only [InteractiveDistribution.sequentialMean, endpointMean, outputOf, returned]
   rw [same]
   exact (value_hasSum firstPhase suffixLaw _).tsum_eq
+
+/-- The linear theorem's normalized term uses these actual retained NIFS
+observations: successful disagreement in two fresh calls divided by this
+context's one-call relaxed success. No global conditioning is substituted. -/
+theorem retryDisagreement_eq {Commitment PublicInput : Type*} {columns blockCount : Nat}
+    (abortEndpoint : Endpoint)
+    (consume : PublicCoins K shape → FullOutputCoordinates.FullOutput K shape → State →
+      Endpoint → Option (OutputWitness shape columns))
+    (maps : OpeningMaps Commitment PublicInput columns) (params : GlobalParams)
+    (statement : Statement K Commitment PublicInput shape columns blockCount ConcreteCarrier.baseOps) :
+    StrongProbability.retryDisagreementProbability
+      (InteractiveDistribution.tapes firstPhase abortEndpoint suffixLaw)
+      (InteractiveDistribution.coupled firstPhase consume) maps params statement =
+      (∑' left, (law firstPhase suffixLaw left).toReal *
+        ∑' right, (law firstPhase suffixLaw right).toReal *
+          (if StrongProbability.SuccessfulDisagreement (width := width) maps params statement
+            (outputOf consume left) (outputOf consume right) then (1 : ℝ) else 0)) /
+      (∑' observation, (law firstPhase suffixLaw observation).toReal *
+        (if StrongProbability.RelaxedSuccess (width := width) maps params statement
+          (outputOf consume observation) then (1 : ℝ) else 0)) := by
+  unfold StrongProbability.retryDisagreementProbability
+  rw [pairMean_eq, ← disagreementProbability_eq_pairMean firstPhase abortEndpoint suffixLaw consume]
+  congr 1
+  exact (outputMean_eq firstPhase suffixLaw abortEndpoint consume _).symm
 
 end NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw

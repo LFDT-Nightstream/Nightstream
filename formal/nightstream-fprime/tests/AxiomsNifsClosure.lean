@@ -287,6 +287,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.completePrefix_of_available
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.completePrefix_of_available
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition.source_success_bound
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition.source_success_retry_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput.finish_value_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation.return_supported
@@ -367,6 +368,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability.sourceProbability_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability.source_success_ge
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability.source_success_ge_from_weak
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability.source_success_ge_retry
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionProbability.source_success_ge_retry_from_weak
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement.pairMean_range
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement.successful_disagreement_implies_bindingEvent
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCompositionAgreement.disagreementProbability_le_bindingProbability
@@ -426,6 +429,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.value_hasSum
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.pairMean_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.outputMean_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.retryDisagreement_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingProbability.binding_le_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.postClock_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.suffixLaw_eq_workLaw

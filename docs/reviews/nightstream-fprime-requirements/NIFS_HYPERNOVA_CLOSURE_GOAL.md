@@ -865,3 +865,33 @@ The stopped selection, its complete NIFS clock, permutation-query accounting
 and the final linear-loss consumers remain open. This component establishes
 the actual observation marginal; it does not supply a clock joint law or a
 hardness advantage for the stopped reduction. No map status changes here.
+
+## V1.2 linear selected-source inequality checked
+
+`StrongProbability.local_source_error_le_retry` derives source error at most
+the existing test error plus local disagreement divided by local relaxed
+success. `retryDisagreementProbability_range` covers zero-success contexts
+and proves integrability over any original context law. `source_error_le_retry`
+and `source_success_ge_retry` average the local normalized term, without
+dividing global means or adding a uniqueness hypothesis.
+
+`SequentialObservationLaw.retryDisagreement_eq` identifies that term with
+the actual retained NIFS observations. `PaperCompositionProbability` shares
+its existing weak-success argument between the old bound and the linear
+bound. `InteractiveComposition.source_success_retry_bound` consumes the
+linear result for the selected C verifier and actual weak continuation.
+All existing source-return, matrix, checker and primitive premises remain.
+
+Ordered gates pass: static 9.01 seconds; library 378.82 seconds (3,914 jobs);
+axioms 46.61 seconds (4,002 jobs). The shared probability module caused a
+broad rebuild. Isolated new proof checks took 1.81 to 2.20 seconds. The global
+mean theorem required a second check to select the root addition-order
+lemma. A new unused section-variable warning in the shared private weak
+lemma was removed. All public additions have direct axiom audits.
+`SUPERNEO_V1_2_LINEAR_EVIDENCE.zip` retains exact sources and every check log.
+
+This establishes the linear inequality with an explicit normalized
+disagreement observable. The computed stopped MSIS reduction, termination,
+complete cost/query connection and final exported NIFS/HyperNova consumers
+still need integration. No hardness advantage, FS improvement or full v1.2
+security closure is claimed. The requirements map remains unchanged.

@@ -77,6 +77,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.roundAgreementProbability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution.agreementProbability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_error_le_sqrt
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.retryDisagreementProbability_range
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.local_source_error_le_retry
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_error_le_retry
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability.source_success_ge_retry
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search_firstHit
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetry.search_exhausted

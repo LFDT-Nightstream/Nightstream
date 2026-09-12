@@ -461,6 +461,14 @@ Every tape and every verifier challenge is resampled in the inner execution. -/
 noncomputable def disagreementProbability : ℝ :=
   executionMean tapes prover (disagreementFrom tapes prover openingMaps params statement)
 
+/-- The local normalized disagreement term used by the v1.2 retry argument.
+The selected retry law must identify its actual disagreement event with this
+term before a uniqueness or hardness bound is applied. Zero success gives
+zero here, following real division by zero. -/
+noncomputable def retryDisagreementProbability : ℝ :=
+  disagreementProbability tapes prover openingMaps params statement /
+    successProbability tapes prover openingMaps params statement
+
 private theorem probability_ranges :
     0 ≤ errorProbability tapes prover openingMaps params statement ∧
     errorProbability tapes prover openingMaps params statement ≤
@@ -479,6 +487,41 @@ private theorem disagreementProbability_range :
     0 ≤ disagreementProbability tapes prover openingMaps params statement ∧
       disagreementProbability tapes prover openingMaps params statement ≤ 1 :=
   executionMean_range tapes prover _ 1 (disagreementFrom_range tapes prover openingMaps params statement)
+
+private theorem disagreementProbability_le_success :
+    disagreementProbability tapes prover openingMaps params statement ≤
+      successProbability tapes prover openingMaps params statement := by
+  unfold disagreementProbability successProbability
+  apply executionMean_mono tapes prover _ _ 1 1
+    (disagreementFrom_range tapes prover openingMaps params statement) (fun _ => indicator_range _)
+  intro first
+  by_cases accepted : RelaxedSuccess (width := width) openingMaps params statement first
+  · rw [indicator, if_pos accepted]
+    exact (disagreementFrom_range tapes prover openingMaps params statement first).2
+  · rw [indicator, if_neg accepted]
+    have impossible (second : Option (Probe K shape × OutputWitness shape columns)) :
+        ¬ SuccessfulDisagreement (width := width) openingMaps params statement first second :=
+      fun different => accepted different.1
+    unfold disagreementFrom
+    simp_rw [indicator, if_neg (impossible _)]
+    rw [executionMean_const]
+
+/-- The local normalized term stays between zero and one, including an
+always-rejecting context. This gives the integrability needed to average
+over the original context law without restricting that law's support. -/
+theorem retryDisagreementProbability_range :
+    0 ≤ retryDisagreementProbability tapes prover openingMaps params statement ∧
+      retryDisagreementProbability tapes prover openingMaps params statement ≤ 1 := by
+  have ranges := probability_ranges tapes prover openingMaps params statement
+  have nonnegative := ranges.1.trans ranges.2.1
+  unfold retryDisagreementProbability
+  constructor
+  · exact div_nonneg (disagreementProbability_range tapes prover openingMaps params statement).1 nonnegative
+  · by_cases zero : successProbability tapes prover openingMaps params statement = 0
+    · rw [zero, div_zero]
+      exact zero_le_one
+    · exact (div_le_one (lt_of_le_of_ne nonnegative (Ne.symm zero))).mpr
+        (disagreementProbability_le_success tapes prover openingMaps params statement)
 
 private theorem success_partition :
     successProbability tapes prover openingMaps params statement =
@@ -629,6 +672,32 @@ private theorem pair_bound :
         executionMean_mul_const]
       rfl
 
+/-- The v1.2 linear algebraic step at one original context. The causal test
+bound and the actual pair event give this inequality without an assumed
+uniqueness advantage. The retry consumer must connect the normalized term
+to its stopped execution before applying a hardness bound. -/
+theorem local_source_error_le_retry :
+    errorProbability tapes prover openingMaps params statement ≤
+      IndependentExecution.testError shape width +
+        retryDisagreementProbability tapes prover openingMaps params statement := by
+  have ranges := probability_ranges tapes prover openingMaps params statement
+  have testNonnegative : 0 ≤ IndependentExecution.testError shape width := testError_nonnegative
+  by_cases zero : successProbability tapes prover openingMaps params statement = 0
+  · have errorZero : errorProbability tapes prover openingMaps params statement = 0 :=
+      le_antisymm (ranges.2.1.trans_eq zero) ranges.1
+    simpa only [errorZero, retryDisagreementProbability, zero, div_zero, add_zero] using testNonnegative
+  · have positive : 0 < successProbability tapes prover openingMaps params statement :=
+      lt_of_le_of_ne (ranges.1.trans ranges.2.1) (Ne.symm zero)
+    have paired := pair_bound tapes prover openingMaps params statement freshBound constantLaw degreeCovers
+    have scaled := mul_le_mul_of_nonneg_right ranges.2.1 testNonnegative
+    have normalized : errorProbability tapes prover openingMaps params statement -
+        IndependentExecution.testError shape width ≤
+        disagreementProbability tapes prover openingMaps params statement /
+          successProbability tapes prover openingMaps params statement :=
+      (le_div_iff₀ positive).mpr (by nlinarith)
+    unfold retryDisagreementProbability
+    linarith
+
 end FixedContext
 
 section Contexts
@@ -659,6 +728,13 @@ noncomputable def globalDisagreementProbability : ℝ :=
   mean contexts fun context => disagreementProbability (tapes context) (prover context)
     (openingMaps context) params (statement context)
 
+/-- Average each context's own normalized disagreement. Contexts are drawn
+once from the original law; the local success rates are not replaced by a
+global success rate. The zero-success contexts contribute zero. -/
+noncomputable def globalRetryDisagreementProbability : ℝ :=
+  mean contexts fun context => retryDisagreementProbability (tapes context) (prover context)
+    (openingMaps context) params (statement context)
+
 private theorem global_success_partition :
     globalSuccessProbability contexts tapes prover openingMaps params statement =
       globalErrorProbability contexts tapes prover openingMaps params statement +
@@ -686,6 +762,54 @@ variable (freshBound : params.b = 2)
   (degreeCovers : ∀ context, ((statement context).verifierInput K.embed).sumcheckDegreeBound ≤ width)
 
 include freshBound constantLaw degreeCovers
+
+/-- Linear source-error bound over the unchanged context law. All terms
+come from the existing causal execution events. The selected retry reduction
+still owns identifying and bounding this normalized disagreement observable. -/
+theorem source_error_le_retry :
+    globalErrorProbability contexts tapes prover openingMaps params statement ≤
+      IndependentExecution.testError shape width +
+        globalRetryDisagreementProbability contexts tapes prover openingMaps params statement := by
+  have testNonnegative : 0 ≤ IndependentExecution.testError shape width := testError_nonnegative
+  let retry := fun context => retryDisagreementProbability (tapes context) (prover context)
+    (openingMaps context) params (statement context)
+  have retryRange (context : Context) : 0 ≤ retry context ∧ retry context ≤ 1 :=
+    retryDisagreementProbability_range (tapes context) (prover context)
+      (openingMaps context) params (statement context)
+  calc
+    _ ≤ mean contexts (fun context => IndependentExecution.testError shape width + retry context) := by
+      apply mean_mono contexts _ _ 1 (IndependentExecution.testError shape width + 1)
+      · intro context
+        have range := probability_ranges (tapes context) (prover context)
+          (openingMaps context) params (statement context)
+        rw [abs_of_nonneg range.1]
+        exact range.2.1.trans range.2.2
+      · intro context
+        rw [abs_of_nonneg (add_nonneg testNonnegative (retryRange context).1)]
+        exact _root_.add_le_add (le_refl _) (retryRange context).2
+      · intro context
+        exact local_source_error_le_retry (tapes context) (prover context)
+          (openingMaps context) params (statement context)
+          freshBound (constantLaw context) (degreeCovers context)
+    _ = _ := by
+      rw [mean_add contexts _ _ (IndependentExecution.testError shape width) 1
+        (fun _ => by rw [abs_of_nonneg testNonnegative])
+        (fun context => by rw [abs_of_nonneg (retryRange context).1]; exact (retryRange context).2),
+        mean_const]
+      rfl
+
+/-- The existing one-run extractor has the linear v1.2 source-success bound
+once the normalized disagreement is identified with the selected retry
+experiment. No change to that source extractor or its checks is required. -/
+theorem source_success_ge_retry :
+    globalSuccessProbability contexts tapes prover openingMaps params statement -
+      IndependentExecution.testError shape width -
+      globalRetryDisagreementProbability contexts tapes prover openingMaps params statement ≤
+      globalSourceProbability contexts tapes prover openingMaps params statement := by
+  have partition := global_success_partition contexts tapes prover openingMaps params statement
+  have error := source_error_le_retry contexts tapes prover openingMaps params statement
+    freshBound constantLaw degreeCovers
+  linarith
 
 /-- B.2 equations (13)–(20) for the actual causal execution events. The
 square-root loss uses arbitrary context and private-tape PMFs, including aborts.

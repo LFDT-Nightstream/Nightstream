@@ -160,4 +160,45 @@ theorem source_success_bound (contexts : PMF Context) :
     exact (ProductionKey.key relation ajtai).statement_sumcheckDegreeBound_le
       (running context) (fresh context)
 
+include checkCorrect strongSet correct bounded in
+/-- The selected NIFS source output satisfies the v1.2 linear bound on the
+same checked C receipt and actual weak continuation. The normalized retry
+disagreement remains explicit until the stopped binding reduction supplies
+its computed success and resource bounds. -/
+theorem source_success_retry_bound (contexts : PMF Context) :
+    StrongProbability.clockMean contexts
+      (originalSuccess relation ajtai running fresh originalFirstPhase publicCheck continuation) -
+      weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
+      PaperCompositionProbability.retryDisagreementProbability contexts
+        (firstPhase originalFirstPhase publicCheck) (none : Endpoint relation ajtai)
+        (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)
+        (fun _ => PaperAlgebra.openingMaps ajtai) productionGlobalParams
+        (fun context => (ProductionKey.key relation ajtai).statement (running context) (fresh context)) ≤
+      PaperCompositionProbability.sourceProbability contexts
+        (firstPhase originalFirstPhase publicCheck)
+        (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)
+        (fun _ => PaperAlgebra.openingMaps ajtai) productionGlobalParams
+        (fun context => (ProductionKey.key relation ajtai).statement (running context) (fresh context)) := by
+  apply PaperCompositionProbability.source_success_ge_retry_from_weak contexts
+    (firstPhase originalFirstPhase publicCheck) (none : Endpoint relation ajtai)
+    (suffixLaw relation ajtai running fresh continuation) (consume relation ajtai program)
+    (fun _ => PaperAlgebra.openingMaps ajtai) productionGlobalParams
+    (fun context => (ProductionKey.key relation ajtai).statement (running context) (fresh context))
+    (originalSuccess relation ajtai running fresh originalFirstPhase publicCheck continuation)
+    (weakLoss relation ajtai)
+  · intro context alpha gamma point
+    unfold originalSuccess
+    split
+    · exact le_rfl
+    · exact (WeakExtraction.continuation_success_range relation ajtai
+        (running context) (fresh context) _).1
+  · exact local_weak_bound relation ajtai running fresh originalFirstPhase publicCheck continuation
+      program checkCorrect laws strongSet correct bounds bounded
+  · rfl
+  · intro context
+    exact (ProductionKey.key relation ajtai).constantLaw
+  · intro context
+    exact (ProductionKey.key relation ajtai).statement_sumcheckDegreeBound_le
+      (running context) (fresh context)
+
 end NightstreamFPrime.Lifecycle.Nifs.InteractiveComposition

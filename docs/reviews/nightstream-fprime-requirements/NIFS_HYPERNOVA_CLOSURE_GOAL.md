@@ -716,3 +716,27 @@ passed: static 8.87 seconds, build 5.78 seconds (3,910 jobs), axioms 2.98 second
 `SELECTED_ASSIGNMENT_EVIDENCE.zip`; `ASSURANCE_SURFACE.md` states its exact
 scope. This supplies the complete-assignment evidence for
 `H.compat.encode_valid`. The accepted-successor consumer remains to validate.
+
+## Accepted successors and performance scope
+
+Both public `HyperNovaAcceptedNext` extension theorems passed their first
+checks: recursive 2.68 seconds and base 2.78 seconds. They construct the
+accepted successor, exact fresh commitment and retained opening from the
+same complete assignment. The recursive branch retains the actual NIFS child
+witnesses. The base branch retains the proved zero default witnesses, using
+its dummy verifier result only for row construction. The sampler and counter
+conditions are explicit; unconditional perfect completeness is not claimed.
+
+The library imports both results and the audit lists them directly. Ordered
+gates passed: static 8.84 seconds, build 6.39 seconds (3,911 jobs), axioms
+2.98 seconds (3,999 jobs), with only the allowed axiom set. Source, review and
+logs are in `HYPERNOVA_ACCEPTED_NEXT_EVIDENCE.zip`. These declarations supply
+the remaining model evidence for base advice, recursive witness updates,
+fresh encoding and commitment, returned envelope and conditional completeness.
+Rust execution evidence remains a separate axis.
+
+The owner approved: "Yes, keep performance separate." The formal cost bound
+in `H.size.runtime` is removed from the Lean proof/link closure target.
+Complete production execution cost and feasibility remain open, measured
+performance work. This decision proves no new cost bound and closes no Rust
+performance obligation.

@@ -161,6 +161,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
+import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw

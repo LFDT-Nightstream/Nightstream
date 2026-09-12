@@ -623,3 +623,33 @@ use another branch or worktree. The R draft had already been saved and pushed
 at `a2e477ef` on `wip/rlc-entry-kernel` before this instruction; preserve that
 record without further work there. Temporary source review files are not
 checked production proofs. Keep the closure branch green at each commit.
+
+The owner then required all previously diverted work to be merged toward this
+same branch. Preserve the stopped R source and failure log as unvalidated
+review material outside the production Lean tree, merge that history into
+the closure branch, and remove the temporary branch after preservation.
+
+## Actual native C/R checkpoint
+
+The staged producer now calls the same C/R helper as the complete selected
+NIFS prover. It builds the actual base witness and selected-key commitment,
+uses the production matrix evaluator, and verifies the original running
+authority and C/R transcript before saving the parent and witness.
+
+The production command passed in 229.96 seconds: source construction and
+commitment 37.30 seconds, C 76.04 seconds, R 8.53 seconds. A separate saved
+parent command passed in 134.74 seconds. It reconstructed the original inputs,
+replayed both transcript fields, split the saved R witness with the existing
+splitter, recomputed all digit commitments, and checked their reconstruction
+against the accepted R commitment. All 16 digits were saved; indices 0 through
+5 are nonzero. Both commands stayed within the owner's 300-second cap.
+
+The small shared-prefix comparison passed and the changed-witness rejection
+test passed. Neither fixture test alone establishes full-profile conformance.
+Workspace formatting passed. Ordered Lean gates passed: static 8.68 seconds,
+build 0.89 seconds (3,908 jobs), axioms 1.00 second (3,996 jobs). Source hashes,
+logs and saved-artifact hashes are in `NATIVE_PARENT_EVIDENCE.zip`.
+
+D openings, complete NIFS assembly, final mutation checks and comparison
+with the independent complete Lean result remain open. The package, pins,
+protocol, cryptographic assumptions and requirements statuses are unchanged.

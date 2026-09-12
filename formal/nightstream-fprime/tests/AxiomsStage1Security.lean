@@ -11,6 +11,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
+import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
@@ -101,6 +102,8 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.law_eq_bind_atContext
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaRealInput.realSuccess_of_terminal
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaCompleteness.recursive_nifs_of_sampler_success
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.recursive_extend_of_sampler_success
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.base_extend_of_sampler_success
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaStepData.stepHolds_and_wellFormed
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.source_failure_probability_le
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw.initial_marginal

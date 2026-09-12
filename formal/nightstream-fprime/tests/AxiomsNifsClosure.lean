@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun
 import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
@@ -436,6 +437,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.check_correct
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.checked_suffix_work_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.callClock_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.run
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.run_rejected
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.run_firstHit
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.run_exhausted
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.run_work_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.coordinateSuccess_firstHit
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun.selected_binding_le_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingProbability.binding_le_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.postClock_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.suffixLaw_eq_workLaw

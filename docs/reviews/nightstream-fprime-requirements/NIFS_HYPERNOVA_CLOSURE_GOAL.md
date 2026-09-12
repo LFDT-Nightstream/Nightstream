@@ -895,3 +895,33 @@ disagreement observable. The computed stopped MSIS reduction, termination,
 complete cost/query connection and final exported NIFS/HyperNova consumers
 still need integration. No hardness advantage, FS improvement or full v1.2
 security closure is claimed. The requirements map remains unchanged.
+
+## V1.2 executable retry check and complete-call cost checked
+
+`AdaptiveBinding.check` executes the existing weak terminal result, decoder
+and checked source finish, then tests whether a source was returned.
+`check_correct` identifies its Boolean result with actual relaxed success.
+It does not test source membership or witness disagreement. A private
+executable decoder uses the existing source count; `decode_eq_spec` proves
+identical returned values and work to the full-key decoder.
+
+`check_some_eq` retains the exact terminal and source-finish clocks.
+`checked_suffix_work_eq` adds every charged weak query, including rejected
+queries, to those same endpoint costs. `callClock_eq` connects a complete
+checked call, including prefix aborts, to `InteractiveWork.totalClock + 1`.
+The extra transition is the final presence test. This is the existing
+declared cost model, not a machine-runtime or permutation-query theorem.
+
+Ordered gates pass: static 8.90 seconds; library 4.38 seconds (3,915 jobs);
+axioms 4.51 seconds (4,003 jobs). The executable checker and all public
+theorems are directly audited. Focused checks took 2.09 to 2.38 seconds.
+The decoder equality passed on check six, including one isolated diagnostic:
+an inferred `(FullShape ...).logicalWidth` produced separate length atoms;
+an explicit `logicalWidth` argument resolved it. The suffix cost equality
+passed on check five after universe, let and arithmetic normalization fixes;
+the complete-call cost equality passed on check two. New warnings were removed.
+
+`SUPERNEO_V1_2_ADAPTIVE_CHECK_EVIDENCE.zip` retains sources and all check logs.
+The full stopped-pair driver, its actual MSIS success/termination/work/query
+connections and final NIFS/HyperNova security exports remain open. No
+requirements status or cryptographic assumption changes at this checkpoint.

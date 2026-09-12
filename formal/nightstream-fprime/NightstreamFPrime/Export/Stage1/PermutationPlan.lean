@@ -795,6 +795,38 @@ theorem canonicalInvocation_witnessStart_of_transcript
   rw [List.getD_eq_getElem (l := _) (d := 0) mappedBound] at selected
   simpa only [List.getElem_map, List.get_eq_getElem] using selected
 
+private theorem canonicalWitnessStarts_output_getD
+    (index : Nat) (afterTranscript : 718 ≤ index) (bound : index < 7604) :
+    (canonicalWitnessStarts ()).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (PiCCSInvocations.outputWitnessStart + (index - 718) * 592) := by
+  rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
+    rw [piCcsWitnessStarts_length]
+    exact bound)]
+  rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append_right _ _ _ _ (by
+    rw [sequentialWitnessStarts_length]
+    exact afterTranscript)]
+  rw [sequentialWitnessStarts_length]
+  exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
+    6886 (index - 718) (by omega)
+
+/-- A selected post-ordinary C invocation has the source address owned by
+the output-absorption schedule. No invocation list is evaluated. -/
+theorem canonicalInvocation_witnessStart_of_output
+    (index : Fin (Data.permutationInvocations ()).length)
+    (afterTranscript : 718 ≤ index.val) (bound : index.val < 7604) :
+    ((Data.permutationInvocations ()).get index).witnessStart =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (PiCCSInvocations.outputWitnessStart + (index.val - 718) * 592) := by
+  have selected := canonicalWitnessStarts_output_getD index.val afterTranscript bound
+  rw [canonicalWitnessStarts_materializes] at selected
+  have mappedBound : index.val <
+      ((Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart)).length := by
+    simpa only [List.length_map] using index.isLt
+  rw [List.getD_eq_getElem (l := _) (d := 0) mappedBound] at selected
+  simpa only [List.getElem_map, List.get_eq_getElem] using selected
+
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcSamplerBlocks ()
 

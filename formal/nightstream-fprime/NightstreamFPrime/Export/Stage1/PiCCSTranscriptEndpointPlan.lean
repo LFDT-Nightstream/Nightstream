@@ -1002,7 +1002,8 @@ private theorem statementTrace_state_endpoint_of_shape
       PiCCSInvocations.challengeWitnessStart - 8 by rfl]
   rw [startEq]
 
-private theorem statementFinalState_endpoint_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem statementFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth)
@@ -1020,7 +1021,8 @@ private theorem statementFinalState_endpoint_of_shape
     _ = _ := statementTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-private theorem challengeActions_eq_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem challengeActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
@@ -1092,7 +1094,8 @@ private theorem challengeTrace_state_endpoint_of_shape
       PiCCSInvocations.roundWitnessStart - 8 by rfl]
   rw [startEq]
 
-private theorem challengeFinalState_endpoint_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem challengeFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth)
@@ -1181,7 +1184,8 @@ private theorem roundTrace_state_endpoint_of_shape
   rw [show PiCCSTranscriptDirectSemantics.roundCount = 252 by rfl]
   rw [startEq]
 
-private theorem roundFinalState_endpoint_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem roundFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth)
@@ -1291,7 +1295,8 @@ theorem outputFinalState_endpoint_of_shape
     _ = _ := outputTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-private theorem roundInitialState_eq_challengeFinalState_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem roundInitialState_eq_challengeFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
@@ -1316,7 +1321,8 @@ private theorem roundInitialState_eq_challengeFinalState_of_shape
     (PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
       relationPublicFits)
 
-private theorem outputInitialState_eq_roundFinalState_of_shape
+/-- The existing C phase source wiring is independent of the relation width. -/
+theorem outputInitialState_eq_roundFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth) :

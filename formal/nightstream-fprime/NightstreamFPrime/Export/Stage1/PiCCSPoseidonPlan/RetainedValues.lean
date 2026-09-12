@@ -209,7 +209,8 @@ private def applicationSboxColumn (application : Lifecycle.Stage1.Application.Pr
     Nat.lt_of_lt_of_le (physicalSboxColumn index row).isLt
       (PiRLCProductPlan.basePackage_fits application)⟩
 
-private theorem retainedSource_sbox
+/-- Each retained C S-box source is the exact original package coordinate. -/
+theorem retainedSource_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)

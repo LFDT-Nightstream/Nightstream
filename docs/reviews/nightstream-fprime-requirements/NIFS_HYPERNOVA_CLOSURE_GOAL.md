@@ -698,3 +698,21 @@ complete selected-assignment theorem. The package and identity pins are
 unchanged. Avoid `rfl` across allocation-map aliases when it causes the kernel
 to evaluate large column guards; use the owner equalities or narrow explicit
 simplification instead.
+
+## Complete selected assignment
+
+`SelectedAssignmentCompleteness.complete` now constructs one canonical
+assignment satisfying the complete selected structural plan, with strict
+carrier norm below two, exact public output digest and actual application
+advice. Its explicit hypotheses are the semantic step, well-formed preimages,
+fresh public link, accepted NIFS advice, recursive-result agreement and advice
+width. It assumes no phase rows or completeness callback.
+
+The phase join passed its first isolated check. The public theorem passed in
+2.23 seconds after a local reserved identifier was renamed. All statements
+and the reviewed assignment correspondence are unchanged. Ordered gates
+passed: static 8.87 seconds, build 5.78 seconds (3,910 jobs), axioms 2.98 seconds
+(3,998 jobs). It is imported and directly audited. Evidence is retained in
+`SELECTED_ASSIGNMENT_EVIDENCE.zip`; `ASSURANCE_SURFACE.md` states its exact
+scope. This supplies the complete-assignment evidence for
+`H.compat.encode_valid`. The accepted-successor consumer remains to validate.

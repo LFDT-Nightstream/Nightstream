@@ -29,6 +29,7 @@ import NightstreamFPrime.Layout.Stage1.NifsSourceReadback
 import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 import NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
+import NightstreamFPrime.Export.Stage1.SelectedAssignmentCompleteness
 import NightstreamFPrime.Export.Stage1.PermutationActionCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryPhysicalCompleteness
@@ -150,6 +151,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness.pilot_prefix
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness.complete
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness.complete
+#audit_axioms NightstreamFPrime.Export.Stage1.SelectedAssignmentCompleteness.complete
 #audit_axioms NightstreamFPrime.Export.Stage1.PermutationCompilerTransport.compileActions_complete_of_sourceConstraints
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets.permutations_of_physical
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryPhysicalCompleteness.ordinaryRows_of_physical

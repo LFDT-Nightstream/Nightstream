@@ -124,11 +124,11 @@ theorem invocation_witnessStart (index : Index) :
     (index.val * 592) (by
       norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])
 
-/-- Accepted physical rows force the stored outputs to equal the computed
-readout. This derives source agreement from constraints, not from a packet
-encoding or a caller-supplied output-coherence assertion. -/
-theorem env_eq_of_rows (source : Env)
-    (rows : PoseidonRetainedBlock.basePackage.RowsHold source) :
+/-- The actual transcript permutation rows force their stored outputs to
+equal the computed readout. Other package rows are not required. -/
+theorem env_eq_of_invocations (source : Env)
+    (rows : ∀ index, PermutationInvocationHolds (PilotData.circuitPackage ())
+      (invocation index) source) :
     env source = source := by
   funext column
   cases found : PermutationOutput.Readout.decode phaseStart
@@ -143,9 +143,17 @@ theorem env_eq_of_rows (source : Env)
         (PermutationOutput.Readout.outputColumn phaseStart index lane) = _
       rw [PermutationOutput.Readout.env_outputColumn]
       have output := PermutationOutput.invocation_finalLayer (invocation index) source
-        (PoseidonRetainedBlock.invocation_holds source rows (physicalIndex index))
+        (rows index)
       have selected := congrFun output lane
       rw [invocation_witnessStart] at selected
       exact selected.symm
+
+/-- Accepted package rows supply the exact transcript invocation rows. -/
+theorem env_eq_of_rows (source : Env)
+    (rows : PoseidonRetainedBlock.basePackage.RowsHold source) :
+    env source = source := by
+  apply env_eq_of_invocations source
+  intro index
+  exact PoseidonRetainedBlock.invocation_holds source rows (physicalIndex index)
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout

@@ -420,3 +420,39 @@ existing family conformance theorems while retaining the same width-erased
 packet definitions; its file check and library build passed. None of these
 results replaces the final complete selected-plan theorem or an ordered
 checkpoint gate.
+
+`HyperNovaStepData.stepHolds_and_wellFormed` now passes and builds the exact
+next semantic state from prior acceptance, an actual accepted local fold,
+and the explicit counter condition. `CanonicalPublicOutput.rowsZero` and
+`NextPreimageCompleteness.rowsZero_of_completed` pass and close the four
+public digest pins and five next-preimage rows on the same canonical
+assignment. `PiRLCRetainedCompleteness.rowsZero_of_completed` also passes
+and derives the combined product and First54 rows from cumulative physical
+rows. These are focused results; C and R permutation/ordinary consumers,
+the stopped pilot connection, and the complete structural-plan assembly
+remain open. Neither pending approval has been received.
+
+## Compiler consumer checkpoint in progress
+
+The actual C transcript readback now passes in
+`PiCCSCompletedReadout.transitionEnv_of_completed` and
+`outputValue_of_completed`. `RunningTransitionCompletedAssignment.rowsZero_of_completed`
+uses that readback and passes. R product/First54 and ordinary sampler plans
+pass from actual cumulative physical rows; the ordinary proof uses the
+checked `PiRLCSamplerPoseidonValues.outputValue_of_packets`. The three final
+envelope helpers pass in the temporary accepted-next draft. The complete
+recursive/base theorems still need the whole selected assignment theorem.
+
+C accounting is explicit: two completed prerequisite contracts (the generic
+action-compiler projection and the Layout child-list accessor), followed by
+nine C consumer candidates: physical packets 2, ordinary physical projection
+5, completed readout 2. The tenth C consumer candidate is reserved for the
+complete ordinary/Poseidon/endpoint bundle after source review. A new helper
+filename does not start a new budget. R has used six cumulative candidates:
+retained plan 1, output values 2, ordinary sampler 3. The pilot remains
+stopped at ten, with its separate requested repair round pending.
+
+A separate task saved and pushed WIP commit `28ef2c35` while this work
+continued. Its message records an incomplete checkpoint and a failing axiom
+check. The later focused results do not convert that commit into a green
+checkpoint. The full ordered gates and requirements update remain pending.

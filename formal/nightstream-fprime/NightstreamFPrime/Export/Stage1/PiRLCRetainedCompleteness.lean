@@ -102,7 +102,9 @@ private theorem semantics_of_packets
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-private theorem copied_packets
+/-- The completed physical prefix supplies all PiRLC child packets after the
+canonical source copy. Agreement is proved only on the actual row support. -/
+theorem packets_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -165,7 +167,7 @@ theorem rowsZero_of_completed
           (PerApplicationSourceAssignment.ofCompleted application target applicationPrivate)).assignment := by
   let base := PerApplicationSourceAssignment.ofCompleted application target applicationPrivate
   let raw := canonicalRawValues application base
-  have packets := copied_packets application relation ajtai target applicationPrivate physical
+  have packets := packets_of_completed application relation ajtai target applicationPrivate physical
   have semantics := semantics_of_packets application base packets
   have groups : raw.groupValue = PiRLCProductPlan.honestGroupValue
       (PiRLCRetainedInputs.productInputs

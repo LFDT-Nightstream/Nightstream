@@ -34,6 +34,7 @@ import NightstreamFPrime.Circuit
 import NightstreamFPrime.Gadgets
 import NightstreamFPrime.Lifecycle
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Layout
 import NightstreamFPrime.Export

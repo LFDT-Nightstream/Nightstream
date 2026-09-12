@@ -925,3 +925,33 @@ the complete-call cost equality passed on check two. New warnings were removed.
 The full stopped-pair driver, its actual MSIS success/termination/work/query
 connections and final NIFS/HyperNova security exports remain open. No
 requirements status or cryptographic assumption changes at this checkpoint.
+
+## V1.2 finite-prefix MSIS driver checked
+
+`AdaptiveBindingRun.run` retains the first accepted observation, uses
+`AcceptedRetry.search` to find the next accepted observation, and invokes
+the existing integer-vector reduction on exactly that pair. Its first-hit,
+initial-rejection and exhaustion equations retain all consumed clocks and
+ignore the unused suffix. `run_work_le` charges retry work only when the
+first call accepts, then adds the proved integer-output bound and control
+transitions.
+
+`coordinateSuccess_firstHit` identifies the actual emitted-vector event
+with the existing binding reduction's success on those observations.
+`selected_binding_le_success` proves the binding-event bound for any such
+supported selected pair, with the existing source-count loss. It does not
+need an independent-pair premise or choose the vector by existence.
+
+Ordered gates pass: static 8.82 seconds; library 4.09 seconds (3,916 jobs);
+axioms 4.48 seconds (4,004 jobs). The driver and every public theorem are
+directly audited. Each new declaration passed its first focused check, in
+2.09 to 2.20 seconds. Exact sources and logs are retained in
+`SUPERNEO_V1_2_ADAPTIVE_RUN_EVIDENCE.zip`.
+
+The probability and expected-work composition over fresh complete calls,
+the permutation-query accounting and final NIFS/HyperNova security exports
+remain open. The prefix is an execution trace for the online oracle model;
+no runtime table-generation cost is silently dropped. For the next mean
+calculation, use the existing value law and actual per-call mean cost:
+the driver never branches on recorded clocks. A new joint PMF for every
+completed NIFS clock is not required for expected-work composition.

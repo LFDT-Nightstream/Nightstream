@@ -456,3 +456,12 @@ A separate task saved and pushed WIP commit `28ef2c35` while this work
 continued. Its message records an incomplete checkpoint and a failing axiom
 check. The later focused results do not convert that commit into a green
 checkpoint. The full ordered gates and requirements update remain pending.
+
+The complete C bundle has been placed from the reviewed manifest
+`/tmp/nightstream-c-complete-bundle-manifest.json`. C consumer candidate ten
+has now started against `PiCCSCompletedAssignment`; this spends the remaining
+C candidate and must not be repeated under a helper filename. The target
+returns the ordinary, Poseidon and endpoint row conjunction on the same
+canonical assignment. R permutation candidate seven is queued separately and
+may run only if its C dependencies have passed. `validate.sh build` accepts
+only its first target; the two checks require separate capped commands.

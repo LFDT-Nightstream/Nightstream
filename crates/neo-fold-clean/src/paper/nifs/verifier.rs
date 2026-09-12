@@ -116,7 +116,7 @@ fn validate_running_parent_authority_paper_exact(
     }
 }
 
-fn validate_running_parent_authority(
+pub(crate) fn validate_running_parent_authority(
     pp: &Params,
     s: &Structure,
     combine: DecMixer,

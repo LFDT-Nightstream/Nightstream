@@ -13,7 +13,12 @@ use p3_field::PrimeCharacteristicRing;
 use super::Poseidon2HashChainV1Package;
 use crate::engine::transcript::Transcript;
 use crate::paper::{
-    construction2::RunningInstance, nifs, params::Params, reductions::pi_ccs::Proof, relations::CcsInstance,
+    construction2::RunningInstance,
+    nifs,
+    params::Params,
+    pi_ccs, pi_rlc,
+    reductions::pi_ccs::Proof,
+    relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsInstance},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +41,26 @@ impl Poseidon2HashChainV1Package {
         fresh: Vec<CcsInstance>,
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
+        self.validate_prover_sources(&fresh, &running)?;
+        let params = Params::for_ccs_shape(
+            self.structure.n,
+            self.structure.m,
+            self.structure.t(),
+            self.structure.max_degree(),
+        )?;
+        let cache = self.build_superneo_cache()?;
+        let mut transcript = Transcript::session();
+        Ok(nifs::prove_owned_with_rows(
+            &mut transcript,
+            &params,
+            &self.structure,
+            &cache,
+            fresh,
+            running,
+        )?)
+    }
+
+    fn validate_prover_sources(&self, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), ProveError> {
         if fresh.len() != PI_CCS_V1_1_SOURCE_COUNT - PI_DEC_V1_1_CHILD_COUNT
             || running.claims.len() != PI_DEC_V1_1_CHILD_COUNT
             || !running.prover_shape_is_valid()
@@ -44,7 +69,7 @@ impl Poseidon2HashChainV1Package {
         }
         let blocks = self.structure.m.div_ceil(D);
         let public = PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS;
-        for source in &fresh {
+        for source in fresh {
             if source.claim.m_in != public
                 || source.claim.x.len() != public
                 || source.witness.Z.rows() != D
@@ -67,22 +92,57 @@ impl Poseidon2HashChainV1Package {
                 return Err(ProveError::Input("running carrier or public prefix does not match"));
             }
         }
+        Ok(())
+    }
+
+    /// Fixture boundary for the actual C/R prefix. This returns a parent,
+    /// not a complete NIFS proof. The full prover uses the same phase helper.
+    /// The verifier replay also checks the original running-parent authority
+    /// and the exact producer transcript position before any output is saved.
+    #[doc(hidden)]
+    pub fn prove_parent(
+        &self,
+        fresh: Vec<CcsInstance>,
+        running: RunningInstance,
+    ) -> Result<(pi_ccs::Proof, pi_rlc::Output), ProveError> {
+        self.validate_prover_sources(&fresh, &running)?;
         let params = Params::for_ccs_shape(
             self.structure.n,
             self.structure.m,
             self.structure.t(),
             self.structure.max_degree(),
         )?;
+        let fresh_claims = fresh
+            .iter()
+            .map(|source| source.claim.clone())
+            .collect::<Vec<_>>();
+        let prior = running.claims_only();
         let cache = self.build_superneo_cache()?;
         let mut transcript = Transcript::session();
-        Ok(nifs::prove_owned_with_rows(
-            &mut transcript,
+        let (proof, parent) =
+            nifs::prove_parent_with_rows(&mut transcript, &params, &self.structure, &cache, fresh, running)?;
+        drop(cache);
+        let mut replay = Transcript::session();
+        nifs::validate_running_parent_authority(&params, &self.structure, ajtai_dec_mixer, &prior)?;
+        let outputs = pi_ccs::verify(&mut replay, &params, &self.structure, &fresh_claims, &prior, &proof)
+            .map_err(nifs::Error::from)?;
+        pi_rlc::verify(
+            &mut replay,
             &params,
             &self.structure,
-            &cache,
-            fresh,
-            running,
-        )?)
+            ajtai_rlc_mixer,
+            &outputs,
+            &pi_rlc::Proof {
+                combined: parent.claim.clone(),
+            },
+        )
+        .map_err(nifs::Error::from)?;
+        if replay.snapshot() != transcript.snapshot() {
+            return Err(ProveError::Input(
+                "C/R producer and verifier transcript positions differ",
+            ));
+        }
+        Ok((proof, parent))
     }
 
     /// Prove the selected PiCCS phase. Header, parameters, transcript and

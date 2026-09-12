@@ -614,3 +614,12 @@ The pilot checkpoint passed its ordered gates: static 8.76 seconds, library
 44.74 seconds (3,996 jobs). Only the allowed axiom set occurs. Sources and logs
 are recorded in `PILOT_COMPLETION_EVIDENCE.zip`. The R draft was not imported
 or audited and no checked obligation was removed to obtain these results.
+
+## Owner instruction: one branch
+
+The owner now prohibits parallel branches. Continue all work on the existing
+`nico/f-prime-constraints-cuda-formal` branch and worktree. Do not create or
+use another branch or worktree. The R draft had already been saved and pushed
+at `a2e477ef` on `wip/rlc-entry-kernel` before this instruction; preserve that
+record without further work there. Temporary source review files are not
+checked production proofs. Keep the closure branch green at each commit.

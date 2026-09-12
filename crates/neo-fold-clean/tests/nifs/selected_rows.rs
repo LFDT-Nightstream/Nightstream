@@ -60,6 +60,18 @@ fn selected_rows_resources_preserve_normal_nifs_replay() {
     let fresh_claim = fresh.claim.clone();
     let running = RunningInstance::canonical_zero(&params, &structure, D, LaneCommitmentMode::Plain).unwrap();
     let running_public = running.claims_only();
+    let mut parent_transcript = Transcript::session();
+    let (parent_ccs, parent) = super::prove_parent_with_rows(
+        &mut parent_transcript,
+        &params,
+        &structure,
+        &cache,
+        vec![fresh.clone()],
+        running.clone(),
+    )
+    .unwrap();
+    let parent_claim = parent.claim;
+    drop((parent.witness, parent.projection));
     let mut prover_transcript = Transcript::session();
     let (next, proof) = super::prove_owned_with_rows(
         &mut prover_transcript,
@@ -89,5 +101,15 @@ fn selected_rows_resources_preserve_normal_nifs_replay() {
     assert_eq!(next.witnesses.len(), PI_DEC_V1_1_CHILD_COUNT);
     assert_eq!(proof.pi_ccs.outputs.len(), PI_CCS_V1_1_SOURCE_COUNT);
     assert_eq!(prover_transcript.snapshot(), verifier_transcript.snapshot());
+    assert_eq!(parent_ccs, proof.pi_ccs, "staged prefix preserves the actual C proof");
+    assert_eq!(
+        parent_claim, proof.pi_rlc.combined,
+        "staged prefix preserves the actual R parent"
+    );
+    assert_eq!(
+        parent_transcript.snapshot(),
+        prover_transcript.snapshot(),
+        "D does not change the C/R transcript"
+    );
     println!("selected_rows_normal_nifs_elapsed={:?}", started.elapsed());
 }

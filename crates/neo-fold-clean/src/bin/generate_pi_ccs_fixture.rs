@@ -249,6 +249,33 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "prove-owned-parent")
+    {
+        assert_eq!(arguments.len(), 4,
+            "usage: generate_pi_ccs_fixture prove-owned-parent <published-package> <base-fixture> <fresh-output-directory>");
+        owned_nifs::parent::prove(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "check-owned-parent")
+    {
+        assert_eq!(arguments.len(), 5,
+            "usage: generate_pi_ccs_fixture check-owned-parent <published-package> <base-fixture> <parent-directory> <fresh-material-directory>");
+        owned_nifs::parent::check(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+        );
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "prove-owned-nifs")
     {
         assert_eq!(arguments.len(), 4, "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture> <fresh-output-directory>");

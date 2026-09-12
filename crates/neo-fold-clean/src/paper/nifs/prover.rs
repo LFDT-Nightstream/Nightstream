@@ -17,7 +17,7 @@
 //! | Adapter dispatch | Adapter entrypoints | no | Materialized proof verified by NIFS.V |
 
 use neo_ajtai::AjtaiSModule;
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend};
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
 use neo_reductions::superneo_eval::SuperneoEvalCache;
 
 use crate::engine::transcript::Transcript;
@@ -132,17 +132,37 @@ pub(crate) fn prove_owned_with_rows(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn prove_owned_inner(
+struct ParentReduction {
+    pi_ccs_proof: pi_ccs::Proof,
+    pi_rlc_proof: pi_rlc::Proof,
+    rlc_out: pi_rlc::Output,
+    pi_dec_precompute: PiDecProverPrecompute,
+}
+
+/// The exact selected C/R prefix used by the complete NIFS prover.
+pub(crate) fn prove_parent_with_rows(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    mut resources: ProverResources<'_>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
+    cache: &SuperneoEvalCache,
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
-) -> Result<(RunningInstance, NifsProof), Error> {
+) -> Result<(pi_ccs::Proof, pi_rlc::Output), Error> {
+    let mut resources = ProverResources::SelectedRows { cache };
+    let parent = prove_parent_inner(tr, pp, s, &mut resources, ajtai_rlc_mixer, fresh, running)?;
+    Ok((parent.pi_ccs_proof, parent.rlc_out))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_parent_inner(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    resources: &mut ProverResources<'_>,
+    mix_rhos_commits: RlcMixer,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+) -> Result<ParentReduction, Error> {
     crate::heap::release_unused_pages();
     #[cfg(feature = "perf-timers")]
     let t_witnesses = std::time::Instant::now();
@@ -156,7 +176,7 @@ fn prove_owned_inner(
     // 1. Π_CCS — fold K fresh CCS into K+k CE claims at r'.
     #[cfg(feature = "perf-timers")]
     let t_ccs = std::time::Instant::now();
-    let (pi_ccs_proof, pi_dec_precompute) = match &mut resources {
+    let (pi_ccs_proof, pi_dec_precompute) = match resources {
         ProverResources::General {
             cache, log, backend, ..
         } => match backend.as_mut() {
@@ -206,6 +226,32 @@ fn prove_owned_inner(
     drop(fresh_witnesses);
     drop(running);
     crate::heap::release_unused_pages();
+
+    Ok(ParentReduction {
+        pi_ccs_proof,
+        pi_rlc_proof,
+        rlc_out,
+        pi_dec_precompute,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_owned_inner(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    mut resources: ProverResources<'_>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+) -> Result<(RunningInstance, NifsProof), Error> {
+    let ParentReduction {
+        pi_ccs_proof,
+        pi_rlc_proof,
+        rlc_out,
+        pi_dec_precompute,
+    } = prove_parent_inner(tr, pp, s, &mut resources, mix_rhos_commits, fresh, running)?;
 
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]

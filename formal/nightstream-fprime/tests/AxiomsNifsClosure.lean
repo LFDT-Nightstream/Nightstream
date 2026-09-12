@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding
 import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
@@ -430,6 +431,11 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.pairMean_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.outputMean_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.SequentialObservationLaw.retryDisagreement_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.check
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.check_some_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.check_correct
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.checked_suffix_work_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding.callClock_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingProbability.binding_le_success
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.postClock_range
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingWork.suffixLaw_eq_workLaw

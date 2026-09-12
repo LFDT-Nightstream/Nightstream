@@ -1,0 +1,1089 @@
+{
+  "title": "Nightstream proof map",
+  "description": "Verifier semantics, knowledge extraction, and recursive soundness.",
+  "inspiration": "https://zcash.github.io/ironwood/formal-verification/proof-map.html",
+  "nodes": [
+    {
+      "id": "accept",
+      "label": [
+        "Verifier acceptance"
+      ],
+      "kind": "definition",
+      "record": "H.terminal.select_key",
+      "role": "Defines acceptance of a terminal statement and its proof envelope by the selected outer verifier. The outgoing proof route assumes this predicate holds for the submitted input; the definition does not claim that every proof is accepted.",
+      "refs": [
+        {
+          "record": "H.terminal.select_key",
+          "file": "PerApplicationTerminal.lean",
+          "symbol": "Holds"
+        }
+      ],
+      "summary": "This is the starting event: the selected terminal verifier accepts a statement and proof envelope."
+    },
+    {
+      "id": "context",
+      "label": [
+        "Verifier context"
+      ],
+      "kind": "theorem",
+      "record": "N.binding.context",
+      "role": "The checked public boundary identifies the verifier-owned context, or a named Poseidon2 collision. Collision alternatives remain explicit.",
+      "refs": [
+        {
+          "record": "N.binding.context",
+          "file": "PerApplicationVerifierBoundAssignment.lean",
+          "symbol": "semantics_imply_contextKey"
+        }
+      ],
+      "summary": "Bind the proof to the verifier-selected context and retain the collision alternative."
+    },
+    {
+      "id": "rows",
+      "label": [
+        "Circuit satisfaction"
+      ],
+      "kind": "theorem",
+      "record": "H.terminal.fresh_opening",
+      "role": "The terminal fresh opening supplies the actual selected rows and public boundary. The encoded witness is connected to the selected relation.",
+      "refs": [
+        {
+          "record": "H.terminal.fresh_opening",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "terminal_implies_rowsAndPublic"
+        }
+      ],
+      "summary": "Connect the accepted fresh opening to the exact selected circuit rows and public input."
+    },
+    {
+      "id": "step",
+      "label": [
+        "F′ step semantics"
+      ],
+      "kind": "theorem",
+      "record": "N.local.actual_step",
+      "role": "Accepted selected rows and a checked public boundary imply the complete typed step, or the stated collision alternative. This includes the actual decoded C/R/D values.",
+      "refs": [
+        {
+          "record": "N.local.actual_step",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "selectedRowsAndCheckedPublic_imply_stepOrCollision"
+        }
+      ],
+      "summary": "Show that the folding phases and the surrounding state describe the same recursive step."
+    },
+    {
+      "id": "safe",
+      "label": [
+        "No hash collision"
+      ],
+      "kind": "premise",
+      "record": "H.security.history",
+      "role": "The deterministic history implication uses the collision-free branch. A collision-resistance assumption does not prove that this event always holds; its failure needs a probability bound.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaHistory.lean",
+          "symbol": "run_correct"
+        }
+      ],
+      "summary": "The deterministic recovery argument follows the collision-free branch. The probability bound must also account for the collision branch."
+    },
+    {
+      "id": "base",
+      "label": [
+        "Base case"
+      ],
+      "kind": "theorem",
+      "record": "H.security.reverse_base",
+      "role": "The first accepted step reaches the bottom predecessor without calling the NIFS extractor. A named state-hash collision remains an alternative.",
+      "refs": [
+        {
+          "record": "H.security.reverse_base",
+          "file": "HyperNovaPredecessor.lean",
+          "symbol": "terminal_one_implies_baseOrCollision"
+        }
+      ],
+      "summary": "Recover the valid base case without a NIFS extraction call."
+    },
+    {
+      "id": "children",
+      "label": [
+        "Child openings"
+      ],
+      "kind": "premise",
+      "record": "H.terminal.running_openings",
+      "role": "Required by the knowledge reduction. These are openings of the exact verifier-returned children, not merely 16 arbitrary claims. The terminal connection supplies this premise.",
+      "refs": [
+        {
+          "record": "N.security.fiat_shamir",
+          "file": "FiatShamirTransfer.lean",
+          "symbol": "realSuccess_implies_exact_children"
+        }
+      ],
+      "summary": "The reduction needs witnesses for the exact returned claims. Terminal acceptance supplies them in the stated branch."
+    },
+    {
+      "id": "actual-success",
+      "label": [
+        "NIFS success event"
+      ],
+      "kind": "theorem",
+      "record": "H.terminal.running_openings",
+      "role": "An accepted non-base terminal proof, with the stated collision-free condition, supplies actual NIFS acceptance and valid witnesses for its exact children.",
+      "refs": [
+        {
+          "record": "H.terminal.running_openings",
+          "file": "HyperNovaRealInput.lean",
+          "symbol": "realSuccess_of_terminal"
+        }
+      ],
+      "summary": "Connect terminal acceptance to the exact NIFS success event used by the extraction theorem."
+    },
+    {
+      "id": "ccs",
+      "label": [
+        "PiCCS row semantics"
+      ],
+      "kind": "theorem",
+      "record": "C.connection.actual",
+      "role": "The selected rows yield the actual PiCCS phase and transcript hashes. This is a local verifier connection.",
+      "refs": [
+        {
+          "record": "C.connection.actual",
+          "file": "ActualPiCCSInputs.lean",
+          "symbol": "selectedRowsAndPublic_imply_phaseAndHashes"
+        }
+      ],
+      "summary": "The selected rows reproduce the PiCCS checks and transcript values."
+    },
+    {
+      "id": "rlc",
+      "label": [
+        "PiRLC challenge sampling"
+      ],
+      "kind": "theorem",
+      "record": "R.connection.challenges",
+      "role": "The accepted sampler rows produce the verifier challenges and the same public combination used by the selected key.",
+      "refs": [
+        {
+          "record": "R.connection.challenges",
+          "file": "ActualPiRLC.lean",
+          "symbol": "selectedRowsAndPublic_imply_keyChallenges"
+        }
+      ],
+      "summary": "Accepted sampler rows give exactly the challenges used by the verifier."
+    },
+    {
+      "id": "dec",
+      "label": [
+        "PiDEC output semantics"
+      ],
+      "kind": "theorem",
+      "record": "D.connection.output",
+      "role": "The decoded child messages produce the exact output carried by the recursive state.",
+      "refs": [
+        {
+          "record": "D.connection.output",
+          "file": "ActualPiDECOutput.lean",
+          "symbol": "selectedRowsAndPublic_imply_output"
+        }
+      ],
+      "summary": "The computed child claims equal the claims stored in the next state."
+    },
+    {
+      "id": "strong",
+      "label": [
+        "PiCCS extraction"
+      ],
+      "kind": "theorem",
+      "record": "C.security.probability",
+      "role": "The interactive strong reduction gives source extraction under its stated uniform-coin, checker and work premises. Its loss is not by itself a deployed false-acceptance probability.",
+      "refs": [
+        {
+          "record": "C.security.probability",
+          "file": "StrongExtraction.lean",
+          "symbol": "probability_and_expected_work"
+        }
+      ],
+      "summary": "Bound extraction failure under the stated interactive coin model."
+    },
+    {
+      "id": "weak",
+      "label": [
+        "PiRLC extraction"
+      ],
+      "kind": "theorem",
+      "record": "R.security.probability",
+      "role": "The coordinate extractor proves success and expected-work bounds and returns the inverse-difference openings. Low-norm invertibility remains explicit.",
+      "refs": [
+        {
+          "record": "R.security.probability",
+          "file": "CoordinateExtraction.lean",
+          "symbol": "bounds_and_openings"
+        }
+      ],
+      "summary": "Bound the extractor’s success and work when it recovers openings before the combination."
+    },
+    {
+      "id": "parent",
+      "label": [
+        "PiDEC reconstruction"
+      ],
+      "kind": "theorem",
+      "record": "D.security.children",
+      "role": "Valid openings for the exact child output reconstruct a valid opening of the actual parent.",
+      "refs": [
+        {
+          "record": "D.security.children",
+          "file": "OutputWitnessConsumer.lean",
+          "symbol": "accepted_outputWitness_extracts_parent"
+        }
+      ],
+      "summary": "Valid child openings recombine into an opening of their exact parent."
+    },
+    {
+      "id": "extraction",
+      "label": [
+        "NIFS extraction"
+      ],
+      "kind": "theorem",
+      "record": "N.security.composition",
+      "role": "The concrete selected consumer connects the checked prefix, child and parent checks, returned source values, success probability and declared work. The FS model, invertibility and clock conditions remain premises.",
+      "refs": [
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "finishValue_probability_and_expected_work"
+        }
+      ],
+      "summary": "Quantify how often the selected extractor recovers valid witnesses for the claims before a fold."
+    },
+    {
+      "id": "predecessor",
+      "label": [
+        "Predecessor recovery"
+      ],
+      "kind": "theorem",
+      "record": "H.security.predecessor_accepts",
+      "role": "Actual returned source witnesses reconstruct the exact predecessor terminal proof, or identify a state-hash collision.",
+      "refs": [
+        {
+          "record": "H.security.predecessor_accepts",
+          "file": "HyperNovaPredecessor.lean",
+          "symbol": "terminal_implies_predecessorOrCollision"
+        }
+      ],
+      "summary": "Use the returned witnesses to reconstruct the predecessor, or identify a state-hash collision."
+    },
+    {
+      "id": "bounds",
+      "label": [
+        "Depth and work bounds"
+      ],
+      "kind": "premise",
+      "record": "H.security.constant_step_scope",
+      "role": "History depth stays symbolic but is fixed independently of the security parameter. The source laws, total query interpretation, primitive bounds and finite moments must satisfy the stated contracts.",
+      "refs": [
+        {
+          "record": "H.security.constant_step_scope",
+          "file": "HyperNovaSourceWork.lean",
+          "symbol": "expected_work_polynomial_bound"
+        }
+      ],
+      "assumption": "constant_depth",
+      "summary": "The bounds retain symbolic depth and explicit query, storage and clock conditions."
+    },
+    {
+      "id": "history",
+      "label": [
+        "History reconstruction"
+      ],
+      "kind": "theorem",
+      "record": "H.security.history",
+      "role": "The reverse program returns forward-ordered application advice with the correct length and final state, under source success and no encountered collision.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaHistory.lean",
+          "symbol": "run_correct"
+        }
+      ],
+      "summary": "Return a valid sequence of application steps reaching the claimed final state, under the stated source-success and collision conditions."
+    },
+    {
+      "id": "visited",
+      "label": [
+        "Source distribution"
+      ],
+      "kind": "theorem",
+      "record": "H.security.reverse_recursive",
+      "role": "The operational history and guarded NIFS experiments use the same source values and context law. These are the laws used by the probability composition.",
+      "refs": [
+        {
+          "record": "H.security.reverse_recursive",
+          "file": "HyperNovaVisitedLaw.lean",
+          "symbol": "visitedDraw_marginal"
+        },
+        {
+          "record": "H.security.reverse_recursive",
+          "file": "HyperNovaGuardedSourceLaw.lean",
+          "symbol": "law_eq_guardedDraw"
+        }
+      ],
+      "summary": "Show that the probability calculation follows the history extractor’s actual source calls."
+    },
+    {
+      "id": "probability",
+      "label": [
+        "History error bound"
+      ],
+      "kind": "theorem",
+      "record": "H.security.history",
+      "role": "The bound counts the first marked source and hash failures in the same actual reverse run. It retains the shared FS functions and exact MSIS event probabilities.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "history_probability_bound"
+        }
+      ],
+      "summary": "Bound failure on the actual reverse run. Cryptographic losses remain explicit parameters."
+    },
+    {
+      "id": "work",
+      "label": [
+        "Expected extraction work"
+      ],
+      "kind": "theorem",
+      "record": "H.security.constant_step_scope",
+      "role": "Expected source work is composed on the unconditional operational laws, including abort paths. The declared clock excludes payload decoding, copying, advice evaluation and machine runtime.",
+      "refs": [
+        {
+          "record": "H.security.constant_step_scope",
+          "file": "HyperNovaSourceWork.lean",
+          "symbol": "expected_work_polynomial_bound"
+        }
+      ],
+      "summary": "Bound declared source-operation work. Payload processing and machine runtime have a separate scope."
+    },
+    {
+      "id": "deployed",
+      "label": [
+        "Verifier error bound"
+      ],
+      "kind": "open",
+      "record": "N.security.error_budget",
+      "role": "Still open: connect the selected verifier failure event to a complete bound over uses, depth and adversarial queries. Extraction loss, honest rejection and cryptographic advantages must keep their separate meanings.",
+      "refs": [],
+      "summary": "Still open: a false-acceptance bound for the selected verification setup, over repeated uses and the stated attack budgets."
+    },
+    {
+      "id": "encoding",
+      "label": [
+        "Witness encoding"
+      ],
+      "kind": "open",
+      "record": "H.compat.encode_valid",
+      "role": "Local C/R/D construction is checked. Later physical, application and norm connections are work in progress; the complete selected encoding still needs its final checked consumer.",
+      "refs": [],
+      "summary": "Construct all private values and connect them to the complete selected circuit."
+    },
+    {
+      "id": "native",
+      "label": [
+        "Native prover"
+      ],
+      "kind": "open",
+      "record": "P.assurance.full_native_chain",
+      "role": "The complete selected native C/R/D proof and required conformance result are not closed. Fixture comparisons and partial producer timings keep their recorded scope.",
+      "refs": [],
+      "summary": "Finish the real C/R/D producer and validate its complete saved result."
+    },
+    {
+      "id": "extension",
+      "label": [
+        "Prover completeness"
+      ],
+      "kind": "open",
+      "record": "H.security.perfect_completeness",
+      "role": "The honest successor producer must connect folding, encoding, commitment and the final terminal checks. Sampler availability and successor counter range remain explicit.",
+      "refs": [],
+      "summary": "Show that a valid next computation produces another accepted proof, with sampler and counter conditions explicit."
+    },
+    {
+      "id": "uniform",
+      "label": [
+        "Uniform challenges"
+      ],
+      "kind": "premise",
+      "record": "C.security.probability",
+      "role": "Uniform verifier coins support the interactive probability theorems. Connecting the selected transcript to that model is a separate FS premise.",
+      "refs": [],
+      "assumption": "uniform_challenges",
+      "summary": "Interactive bounds use their stated verifier-coin law. The real transcript connection is handled separately."
+    },
+    {
+      "id": "invertibility",
+      "label": [
+        "Low-norm invertibility"
+      ],
+      "kind": "assumption",
+      "record": "R.security.probability",
+      "role": "The selected extraction algebra requires the external low-norm invertibility result with the exact ring and profile.",
+      "refs": [],
+      "assumption": "low_norm_invertibility",
+      "summary": "The selected extractor needs the external low-norm invertibility result."
+    },
+    {
+      "id": "msis",
+      "label": [
+        "Fixed-matrix MSIS"
+      ],
+      "kind": "assumption",
+      "record": "N.security.binding",
+      "role": "The approved Nightstream-specific fixed-matrix hardness assumption. The binding reduction does not turn this into a hardness theorem or inherit uniform-matrix estimates.",
+      "refs": [],
+      "assumption": "fixed_matrix_msis",
+      "summary": "The commitment relies on the approved hardness assumption for Nightstream’s exact fixed matrix."
+    },
+    {
+      "id": "fs",
+      "label": [
+        "Fiat–Shamir transfer"
+      ],
+      "kind": "assumption",
+      "record": "N.security.fiat_shamir",
+      "role": "The approved additive-Poseidon2 transfer retains unspecified g and delta functions. It does not supply a numerical security level or an identity transfer.",
+      "refs": [],
+      "assumption": "fiat_shamir",
+      "summary": "The approved assumption connects the actual Poseidon2 transcript to the interactive security experiment. Its loss is not yet numerical."
+    },
+    {
+      "id": "hash",
+      "label": [
+        "Poseidon2 security"
+      ],
+      "kind": "assumption",
+      "record": "H.security.hash_assumption",
+      "role": "A bound for the selected hash and context-binding collision events is an external security input. It cannot be read as a zero probability of collision.",
+      "refs": [],
+      "assumption": "poseidon2",
+      "summary": "The final estimate needs a bound for collisions in the actual state and authority encodings."
+    }
+  ],
+  "edges": [
+    {
+      "source": "accept",
+      "target": "rows",
+      "kind": "uses",
+      "note": "The accepted fresh opening supplies rows and the public boundary.",
+      "refs": [
+        {
+          "record": "H.terminal.fresh_opening",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "terminal_implies_rowsAndPublic"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "accept",
+      "target": "context",
+      "kind": "uses",
+      "note": "Use the selected checked public context; the collision branch is explicit.",
+      "refs": [
+        {
+          "record": "N.binding.context",
+          "file": "PerApplicationVerifierBoundAssignment.lean",
+          "symbol": "semantics_imply_contextKey"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "rows",
+      "target": "ccs",
+      "kind": "uses",
+      "note": "These are projections of the same selected assignment, not separate inputs.",
+      "refs": [
+        {
+          "record": "C.connection.actual",
+          "file": "ActualPiCCSInputs.lean",
+          "symbol": "selectedRowsAndPublic_imply_phaseAndHashes"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "rows",
+      "target": "rlc",
+      "kind": "uses",
+      "note": "These are projections of the same selected assignment, not separate inputs.",
+      "refs": [
+        {
+          "record": "R.connection.challenges",
+          "file": "ActualPiRLC.lean",
+          "symbol": "selectedRowsAndPublic_imply_keyChallenges"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "rows",
+      "target": "dec",
+      "kind": "uses",
+      "note": "These are projections of the same selected assignment, not separate inputs.",
+      "refs": [
+        {
+          "record": "D.connection.output",
+          "file": "ActualPiDECOutput.lean",
+          "symbol": "selectedRowsAndPublic_imply_output"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "context",
+      "target": "step",
+      "kind": "uses",
+      "note": "Joint connection: the same rows, public boundary and context supply the actual typed step, or a named collision.",
+      "refs": [
+        {
+          "record": "N.local.actual_step",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "selectedRowsAndCheckedPublic_imply_stepOrCollision"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "ccs",
+      "target": "step",
+      "kind": "uses",
+      "note": "Joint connection: the same rows, public boundary and context supply the actual typed step, or a named collision.",
+      "refs": [
+        {
+          "record": "N.local.actual_step",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "selectedRowsAndCheckedPublic_imply_stepOrCollision"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "rlc",
+      "target": "step",
+      "kind": "uses",
+      "note": "Joint connection: the same rows, public boundary and context supply the actual typed step, or a named collision.",
+      "refs": [
+        {
+          "record": "N.local.actual_step",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "selectedRowsAndCheckedPublic_imply_stepOrCollision"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "dec",
+      "target": "step",
+      "kind": "uses",
+      "note": "Joint connection: the same rows, public boundary and context supply the actual typed step, or a named collision.",
+      "refs": [
+        {
+          "record": "N.local.actual_step",
+          "file": "ActualContextSecurity.lean",
+          "symbol": "selectedRowsAndCheckedPublic_imply_stepOrCollision"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "accept",
+      "target": "actual-success",
+      "kind": "uses",
+      "note": "Requires the same non-base terminal statement and no state-hash collision. Public NIFS acceptance alone is not this event.",
+      "refs": [
+        {
+          "record": "H.terminal.running_openings",
+          "file": "HyperNovaRealInput.lean",
+          "symbol": "realSuccess_of_terminal"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "step",
+      "target": "actual-success",
+      "kind": "uses",
+      "note": "Requires the same non-base terminal statement and no state-hash collision. Public NIFS acceptance alone is not this event.",
+      "refs": [
+        {
+          "record": "H.terminal.running_openings",
+          "file": "HyperNovaRealInput.lean",
+          "symbol": "realSuccess_of_terminal"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "safe",
+      "target": "actual-success",
+      "kind": "requires",
+      "note": "The theorem takes the collision-free branch and a positive predecessor iteration.",
+      "overview": false
+    },
+    {
+      "source": "actual-success",
+      "target": "children",
+      "kind": "supplies",
+      "note": "Supplies the witnesses for the exact verifier-returned children; no arbitrary-child premise is left here.",
+      "refs": [
+        {
+          "record": "N.security.fiat_shamir",
+          "file": "FiatShamirTransfer.lean",
+          "symbol": "realSuccess_implies_exact_children"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "children",
+      "target": "parent",
+      "kind": "requires",
+      "note": "The parent-opening consumer requires these exact valid child openings.",
+      "refs": [
+        {
+          "record": "D.security.children",
+          "file": "OutputWitnessConsumer.lean",
+          "symbol": "accepted_outputWitness_extracts_parent"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "strong",
+      "target": "extraction",
+      "kind": "uses",
+      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "refs": [
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "finishValue_probability_and_expected_work"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "weak",
+      "target": "extraction",
+      "kind": "uses",
+      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "refs": [
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "finishValue_probability_and_expected_work"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "parent",
+      "target": "extraction",
+      "kind": "uses",
+      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "refs": [
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "finishValue_probability_and_expected_work"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "actual-success",
+      "target": "extraction",
+      "kind": "uses",
+      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "refs": [
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "finishValue_probability_and_expected_work"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "extraction",
+      "target": "predecessor",
+      "kind": "uses",
+      "note": "The successful returned values supply the exact predecessor source memberships. Failure events are retained.",
+      "refs": [
+        {
+          "record": "H.security.predecessor_accepts",
+          "file": "HyperNovaSource.lean",
+          "symbol": "finishValue_source_iff_terminalHolds"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "accept",
+      "target": "base",
+      "kind": "uses",
+      "note": "Base alternative for the first accepted step; no NIFS source call is needed there.",
+      "refs": [
+        {
+          "record": "H.security.reverse_base",
+          "file": "HyperNovaPredecessor.lean",
+          "symbol": "terminal_one_implies_baseOrCollision"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "predecessor",
+      "target": "history",
+      "kind": "uses",
+      "note": "The recursive and base cases construct one forward-ordered history on the successful, collision-free route.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaHistory.lean",
+          "symbol": "run_correct"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "base",
+      "target": "history",
+      "kind": "uses",
+      "note": "The recursive and base cases construct one forward-ordered history on the successful, collision-free route.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaHistory.lean",
+          "symbol": "run_correct"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "safe",
+      "target": "history",
+      "kind": "requires",
+      "note": "The deterministic implication assumes no encountered collision; the probability result accounts for that failure event.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaHistory.lean",
+          "symbol": "run_correct"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "extraction",
+      "target": "visited",
+      "kind": "uses",
+      "note": "The guarded experiment retains the operational source values and original context law.",
+      "refs": [
+        {
+          "record": "H.security.reverse_recursive",
+          "file": "HyperNovaGuardedSourceLaw.lean",
+          "symbol": "law_eq_guardedDraw"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "history",
+      "target": "probability",
+      "kind": "uses",
+      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "history_probability_bound"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "visited",
+      "target": "probability",
+      "kind": "uses",
+      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "history_probability_bound"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "extraction",
+      "target": "probability",
+      "kind": "uses",
+      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "refs": [
+        {
+          "record": "H.security.history",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "history_probability_bound"
+        }
+      ],
+      "overview": false
+    },
+    {
+      "source": "visited",
+      "target": "work",
+      "kind": "uses",
+      "note": "Charges every operational source call, including abort and false-mark paths.",
+      "refs": [
+        {
+          "record": "H.security.constant_step_scope",
+          "file": "HyperNovaSourceWork.lean",
+          "symbol": "expected_work_polynomial_bound"
+        }
+      ],
+      "overview": true
+    },
+    {
+      "source": "bounds",
+      "target": "extraction",
+      "kind": "requires",
+      "note": "Use the declared symbolic depth, query/model and clock conditions at this consumer. No numerical deployment budget is selected.",
+      "overview": false
+    },
+    {
+      "source": "bounds",
+      "target": "probability",
+      "kind": "requires",
+      "note": "Use the declared symbolic depth, query/model and clock conditions at this consumer. No numerical deployment budget is selected.",
+      "overview": false
+    },
+    {
+      "source": "bounds",
+      "target": "work",
+      "kind": "requires",
+      "note": "Use the declared symbolic depth, query/model and clock conditions at this consumer. No numerical deployment budget is selected.",
+      "overview": false
+    },
+    {
+      "source": "uniform",
+      "target": "strong",
+      "kind": "requires",
+      "note": "The interactive sumcheck and mixing laws need the stated uniform verifier coins.",
+      "overview": false
+    },
+    {
+      "source": "uniform",
+      "target": "weak",
+      "kind": "requires",
+      "note": "The coordinate experiment uses its stated challenge distribution.",
+      "overview": false
+    },
+    {
+      "source": "invertibility",
+      "target": "weak",
+      "kind": "requires",
+      "note": "The inverse-difference opening construction needs low-norm invertibility.",
+      "overview": false
+    },
+    {
+      "source": "msis",
+      "target": "extraction",
+      "kind": "requires",
+      "note": "The local reduction returns a short-kernel event; the hardness advantage stays external.",
+      "overview": false
+    },
+    {
+      "source": "fs",
+      "target": "extraction",
+      "kind": "requires",
+      "note": "The approved transfer applies to actual witness-bearing NIFS success with the same selected setup.",
+      "overview": false
+    },
+    {
+      "source": "fs",
+      "target": "probability",
+      "kind": "requires",
+      "note": "One shared g/delta family must apply to the exact guarded visited experiments.",
+      "overview": false
+    },
+    {
+      "source": "probability",
+      "target": "deployed",
+      "kind": "open",
+      "note": "Missing full false-acceptance event connection and instantiated advantage terms. A history extraction bound is not automatically the deployed error bound.",
+      "overview": true
+    },
+    {
+      "source": "hash",
+      "target": "deployed",
+      "kind": "open",
+      "note": "Account for the actual collision events with the appropriate shared-query advantage.",
+      "overview": false
+    },
+    {
+      "source": "work",
+      "target": "deployed",
+      "kind": "open",
+      "note": "Relate the claimed security resources to the admitted adversary and reduction budgets; the declared source clock is not machine runtime.",
+      "overview": true
+    },
+    {
+      "source": "step",
+      "target": "encoding",
+      "kind": "open",
+      "note": "Construct the complete canonical assignment from a valid step; a rows-to-step implication is not its inverse constructor.",
+      "overview": false
+    },
+    {
+      "source": "encoding",
+      "target": "extension",
+      "kind": "open",
+      "note": "Use the fully checked encoding, commitment and sampler-success conditions to build the accepted successor.",
+      "overview": true
+    },
+    {
+      "source": "encoding",
+      "target": "native",
+      "kind": "open",
+      "note": "Connect the complete selected assignment and witness values to the actual native pipeline.",
+      "overview": false
+    },
+    {
+      "source": "extension",
+      "target": "native",
+      "kind": "open",
+      "note": "The actual native implementation must satisfy the honest successor contract. A tested Rust run is not a premise of the mathematical completeness theorem.",
+      "overview": true
+    }
+  ],
+  "layers": [
+    {
+      "id": "goal",
+      "title": "Security goal",
+      "rows": [
+        [
+          "deployed"
+        ]
+      ],
+      "column": "main"
+    },
+    {
+      "id": "history",
+      "title": "HyperNova",
+      "rows": [
+        [
+          "probability",
+          "work"
+        ],
+        [
+          "history",
+          "visited"
+        ],
+        [
+          "predecessor",
+          "base"
+        ]
+      ],
+      "column": "main"
+    },
+    {
+      "id": "folding",
+      "title": "NIFS",
+      "rows": [
+        [
+          "extraction"
+        ],
+        [
+          "strong",
+          "weak",
+          "parent"
+        ],
+        [
+          "actual-success",
+          "children"
+        ]
+      ],
+      "column": "main"
+    },
+    {
+      "id": "verifier",
+      "title": "Verifier semantics",
+      "rows": [
+        [
+          "step"
+        ],
+        [
+          "ccs",
+          "rlc",
+          "dec"
+        ],
+        [
+          "context",
+          "rows"
+        ],
+        [
+          "accept"
+        ]
+      ],
+      "column": "main"
+    },
+    {
+      "id": "assumptions",
+      "title": "Premises & assumptions",
+      "rows": [
+        [
+          "uniform"
+        ],
+        [
+          "invertibility"
+        ],
+        [
+          "msis"
+        ],
+        [
+          "fs"
+        ],
+        [
+          "hash"
+        ],
+        [
+          "safe"
+        ],
+        [
+          "bounds"
+        ]
+      ],
+      "column": "side"
+    },
+    {
+      "id": "construction",
+      "title": "Prover construction",
+      "rows": [
+        [
+          "encoding"
+        ],
+        [
+          "extension"
+        ],
+        [
+          "native"
+        ]
+      ],
+      "column": "side"
+    }
+  ]
+}

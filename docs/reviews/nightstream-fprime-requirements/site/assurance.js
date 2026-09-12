@@ -16,6 +16,11 @@ const RequirementAssurance = (() => {
     for (const node of leaves) if (node.origin !== 'out_of_scope') result[category(axis, node[axis])]++;
     return result;
   }
+  function progress(axis, values) {
+    const finished = axis === 'proof' ? values.proved : axis === 'connection' ? values.connected : values.tested + values.implemented;
+    const total = Object.entries(values).reduce((sum, [key, count]) => sum + (['assumed', 'not_applicable'].includes(key) ? 0 : count), 0);
+    return {finished, total};
+  }
   function scenario(budget, text) {
     if (!/^\d+$/.test(text) || BigInt(text) < 1n) throw Error('Enter a positive whole number.');
     const p = budget.parameters;
@@ -149,6 +154,6 @@ const RequirementAssurance = (() => {
     evidence.append(el('p', 'Required independent approvals remain open. Publishing requires a clean committed source snapshot and reruns the reference check. No secret checker key or self-issued approval is created by this site.', 'scope-notice'));
     return {views: {readiness, assumptions, risk, evidence}, sourceUrl, premiseLink};
   }
-  return {categories, category, counts, scenario, build};
+  return {categories, category, counts, progress, scenario, build};
 })();
 if (typeof module !== 'undefined') module.exports = RequirementAssurance;

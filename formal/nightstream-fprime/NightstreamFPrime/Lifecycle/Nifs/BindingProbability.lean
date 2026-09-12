@@ -145,18 +145,22 @@ variable
   (accessCorrect : CostedWitnessProjection.Correct access)
 
 include strongSet correct accessCorrect in
-/-- The loss is the selected arity, not the size of the witness space. Every
-term uses the actual endpoints and the same charged parent-opening checker. -/
-theorem local_binding_le_success (context : Context) :
-    InteractiveAgreement.localBindingProbability relation ajtai running fresh
-        originalFirstPhase publicCheck continuation program context ≤
-      localSuccessProbability ajtai program access relation running fresh
-        originalFirstPhase publicCheck continuation context * PaperProfile.arity.total := by
-  unfold InteractiveAgreement.localBindingProbability localSuccessProbability
-  rw [← PaperCompositionAgreement.pairMean_mul_const]
-  apply PaperCompositionAgreement.pairMean_mono
-  intro left right leftSupported rightSupported
-  dsimp only
+/-- Any two supported observations with a binding collision give the actual
+uniform-coordinate reduction a success probability of at least `1 / 17`.
+No independence premise is needed here: a caller may select the observations
+after retries, provided it proves their support in the actual suffix laws.
+The fixed-seed hardness bound remains the external premise recorded in
+`docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md`. -/
+theorem supported_binding_le_success (context : Context)
+    (left right : PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)
+    (leftSupported : PaperCompositionAgreement.Supported
+      (InteractiveComposition.suffixLaw relation ajtai running fresh continuation context) left)
+    (rightSupported : PaperCompositionAgreement.Supported
+      (InteractiveComposition.suffixLaw relation ajtai running fresh continuation context) right) :
+    (if InteractiveAgreement.BindingEvent relation ajtai running fresh program context left right
+      then (1 : ℝ) else 0) ≤
+      observationSuccess ajtai program access relation left right * PaperProfile.arity.total := by
   by_cases event : InteractiveAgreement.BindingEvent relation ajtai running fresh program context left right
   · rw [if_pos event]
     cases left with
@@ -185,6 +189,21 @@ theorem local_binding_le_success (context : Context) :
           exact rightContinuation.parentChecker_spec response
   · rw [if_neg event]
     exact mul_nonneg (observationSuccess_range ajtai program access relation left right).1 (Nat.cast_nonneg _)
+
+include strongSet correct accessCorrect in
+/-- The loss is the selected arity, not the size of the witness space. Every
+term uses the actual endpoints and the same charged parent-opening checker. -/
+theorem local_binding_le_success (context : Context) :
+    InteractiveAgreement.localBindingProbability relation ajtai running fresh
+        originalFirstPhase publicCheck continuation program context ≤
+      localSuccessProbability ajtai program access relation running fresh
+        originalFirstPhase publicCheck continuation context * PaperProfile.arity.total := by
+  unfold InteractiveAgreement.localBindingProbability localSuccessProbability
+  rw [← PaperCompositionAgreement.pairMean_mul_const]
+  apply PaperCompositionAgreement.pairMean_mono
+  intro left right leftSupported rightSupported
+  exact supported_binding_le_success ajtai program access relation running fresh
+    continuation strongSet correct accessCorrect context left right leftSupported rightSupported
 
 /-- Average the actual reduction success over the original context law.
 The accessor is the one supplied by that context's checked source program. -/

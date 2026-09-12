@@ -838,3 +838,30 @@ The selected NIFS call law and its clock must still be identified with this
 supplied-call interface. The computed selected-endpoint MSIS reduction,
 permutation-query accounting and final linear-loss consumers remain open.
 No theorem or requirement record is relabeled as full v1.2 closure here.
+
+## V1.2 retained NIFS observation law checked
+
+`SequentialObservationLaw.law` keeps each actual checked prefix receipt and
+its selected suffix endpoint. `supported` supplies the endpoint support
+needed by the computed binding reduction. `value_hasSum`, `pairMean_eq` and
+`outputMean_eq` identify all observables, independent pairs and decoded
+outputs with the existing sequential and strong-extractor means. No new
+probability, independence or boundedness premise is added.
+
+`BindingProbability.supported_binding_le_success` now exposes the existing
+pointwise reduction for any supported pair. The previous independent-pair
+theorem consumes that result. The actual uniform coordinate choice retains
+the selected arity loss; the fixed-key MSIS premise is unchanged.
+
+Ordered gates pass: static 8.81 seconds; library 24.00 seconds (3,914 jobs);
+axioms 4.49 seconds (4,002 jobs). All public theorems are directly audited.
+The binding check passed in 2.34 seconds; observation checks took less than
+2.4 seconds. The pure-value sum helper required explicit function and beta
+normal-form annotations. Three failed file invocations are retained, including
+one repeated unchanged normalization error while adding the endpoint lemma.
+`SUPERNEO_V1_2_OBSERVATION_EVIDENCE.zip` retains exact sources and all logs.
+
+The stopped selection, its complete NIFS clock, permutation-query accounting
+and the final linear-loss consumers remain open. This component establishes
+the actual observation marginal; it does not supply a clock joint law or a
+hardness advantage for the stopped reduction. No map status changes here.

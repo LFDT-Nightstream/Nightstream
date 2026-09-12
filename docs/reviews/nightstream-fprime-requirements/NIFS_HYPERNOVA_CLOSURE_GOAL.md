@@ -662,3 +662,39 @@ outside the production Lean tree, with `R_ENTRY_FAILURE.log` and
 `R_ENTRY_WIP.md`. Its original source hash is unchanged. This archive is not
 a checked theorem and does not close R permutation. All further work uses
 the closure branch; the temporary branch is removed after this merge.
+
+## Owner approval for the R rewrite
+
+The owner approved one further isolated R entry check: "Yes, check this repair
+once." Use a proved `physicalInvocation_entry` equation to transport the
+existing input and row facts, then compose at the physical invocation with
+reflexive witness equality. The previous ten attempts remain counted. This
+authorizes one additional `entry_sboxes` validation, on the closure branch,
+without recursion or heartbeat overrides. It has not yet run.
+
+## R sampler permutation closed
+
+The owner supplied `r-entry-fix.patch`, which superseded the proposed invocation
+identity route. Independent review confirmed only two proof-body changes:
+explicit simplification of the witness-start aliases at the failing `rfl`,
+and removal of an unused simp argument. Every statement and premise is unchanged.
+No new identity representation, allocation, option override or protocol change
+was introduced.
+
+The approved entry check produced no kernel error in the declaration. Its
+temporary prefix had an incorrect closing section name after the proof and
+exited with that harness error. The exact attached production module then
+passed its owner build in 7.49 seconds, including the complete
+`PiRLCSamplerPoseidonCompleteness.rowsZero_of_completed` consumer. There was
+no further proof candidate. Ordered gates passed: static 8.46 seconds, build
+4.00 seconds (3,909 jobs), axioms 4.68 seconds (3,997 jobs), with only the
+allowed axiom set. Logs, the failed temporary harness and the checked source
+are retained in `R_ENTRY_REPAIR_EVIDENCE.zip`.
+
+The module is imported by the library root and directly audited. The three
+obsolete R draft review files are removed in this same checkpoint; their
+history remains on the closure branch. R permutation no longer blocks the
+complete selected-assignment theorem. The package and identity pins are
+unchanged. Avoid `rfl` across allocation-map aliases when it causes the kernel
+to evaluate large column guards; use the owner equalities or narrow explicit
+simplification instead.

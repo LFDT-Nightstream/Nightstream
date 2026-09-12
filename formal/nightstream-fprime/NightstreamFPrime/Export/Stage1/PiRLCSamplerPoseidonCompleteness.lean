@@ -90,7 +90,7 @@ private theorem entry_absorb (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
   fin_cases lane <;>
     simp [Layer.evalState, Hash.absorbE, PiRLCSamplerCompleteness.entryWords,
       TranscriptAbsorption.constantWords, TranscriptAbsorption.frameWords,
-      PiRLCSamplerPoseidonPlan.entryWord, Spec.Poseidon2.rate]
+      PiRLCSamplerPoseidonPlan.entryWord]
 
 section Values
 
@@ -319,7 +319,9 @@ private theorem entry_sboxes
           (PiRLCStarts.entryRowStart source.val)
           (PiRLCSamplerInvocations.sourceLogicalStart source.val)
           (PiRLCSamplerCompleteness.entryPermutationState source.val)
-      _ = PermutationPlan.samplerSourceWitnessStartAt source.val ⟨0, by decide⟩ := by rfl
+      _ = PermutationPlan.samplerSourceWitnessStartAt source.val ⟨0, by decide⟩ := by
+        simp only [PermutationPlan.samplerSourceWitnessStartAt, PiRLCSamplerInvocations.sourceLogicalStart,
+          if_pos]
       _ = (PiRLCSamplerPoseidonValues.physicalInvocation
           (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩)).witnessStart :=
         (sourceWitnessStart source ⟨0, by decide⟩).symm

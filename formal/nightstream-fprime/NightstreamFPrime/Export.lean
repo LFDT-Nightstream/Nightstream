@@ -223,6 +223,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryCompleteness
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCFirst54Conformance
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows

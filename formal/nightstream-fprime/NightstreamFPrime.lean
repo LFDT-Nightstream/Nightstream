@@ -23,6 +23,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.AcceptedRetryLaw
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CostedWitnessProjection
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction

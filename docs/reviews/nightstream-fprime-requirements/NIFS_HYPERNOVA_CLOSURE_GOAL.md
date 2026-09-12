@@ -806,3 +806,35 @@ The actual fresh NIFS call law, stopped endpoint distribution, selected
 binding reduction and final linear-loss consumers remain open. These scalar
 sums alone do not establish those connections. Existing package, transcript,
 Rust conformance and cryptographic assumptions are unchanged.
+
+## V1.2 finite-driver probability and work law checked
+
+`AcceptedRetryLaw.runLaw` is the distribution of the actual finite retry
+driver over fresh clocked responses. Its value and work recurrences retain
+the correlation between a response and its runtime. The accepted-event
+theorem covers arbitrary sets, including a disagreement event determined
+by an earlier response; it is not limited to singleton examples.
+
+`valueLaw_event_tendsto` derives accepted event mass divided by the local
+success rate from finite executions. `entered_exhaustion_tendsTo_zero`
+handles zero-success contexts without entering a retry. With finite one-call
+mean work, `entered_expectedWork_tendsto` proves the cancellation for the
+actual driver, including the vanishing finite-prefix exhaustion charge.
+`entered_expectedCalls_tendsto` counts all consumed oracle responses and
+gives at most one entered retry call in expectation. Adding the base call
+gives at most two calls. This is not yet a permutation-query count.
+
+Ordered gates pass: static 8.78 seconds; library 3.80 seconds (3,913 jobs);
+axioms 6.39 seconds (4,001 jobs). The library's curated root imports this
+proof module, and every public theorem has a direct audit. All final isolated
+checks take less than two seconds. The step law, finite accepted-value sum
+and work recurrence each needed a second check; the other new declarations
+passed their first check. The work-recurrence first check was a missing
+notation scope, followed by a removed unused simp argument. The more general
+accepted-event theorem replaces the temporary singleton-limit theorem.
+
+`SUPERNEO_V1_2_RETRY_LAW_EVIDENCE.zip` retains source and all check logs.
+The selected NIFS call law and its clock must still be identified with this
+supplied-call interface. The computed selected-endpoint MSIS reduction,
+permutation-query accounting and final linear-loss consumers remain open.
+No theorem or requirement record is relabeled as full v1.2 closure here.

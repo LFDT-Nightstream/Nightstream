@@ -276,12 +276,40 @@ fn main() {
     }
     if arguments
         .first()
-        .is_some_and(|mode| mode == "prove-owned-nifs")
+        .is_some_and(|mode| mode == "open-owned-child")
     {
-        assert_eq!(arguments.len(), 4, "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture> <fresh-output-directory>");
-        let output = Path::new(&arguments[3]);
+        assert_eq!(arguments.len(), 7,
+            "usage: generate_pi_ccs_fixture open-owned-child <published-package> <base-fixture> <parent-directory> <material-directory> <child-index> <fresh-output-file>");
+        owned_nifs::parent::open_child(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            arguments[5].parse().expect("D child index"),
+            Path::new(&arguments[6]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "prove-owned-nifs" || mode == "assemble-owned-nifs")
+    {
+        let staged = arguments[0] == "assemble-owned-nifs";
+        assert_eq!(arguments.len(), if staged { 7 } else { 4 },
+            "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture> <fresh-output-directory> OR assemble-owned-nifs <published-package> <base-fixture> <parent-directory> <material-directory> <opening-directory> <fresh-output-directory>");
+        let output = Path::new(arguments.last().expect("fresh output directory"));
         assert!(!output.exists(), "use a fresh external output directory");
-        let actual = owned_nifs::prove(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        let actual = if staged {
+            owned_nifs::parent::assemble::assemble(
+                Path::new(&arguments[1]),
+                Path::new(&arguments[2]),
+                Path::new(&arguments[3]),
+                Path::new(&arguments[4]),
+                Path::new(&arguments[5]),
+            )
+        } else {
+            owned_nifs::prove(Path::new(&arguments[1]), Path::new(&arguments[2]))
+        };
         fs::create_dir(output).expect("fresh actual-proof directory");
         for (name, value) in [
             ("pi_ccs_input.json", &actual.result["pi_ccs_input"]),

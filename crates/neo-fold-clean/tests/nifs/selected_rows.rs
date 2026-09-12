@@ -3,9 +3,12 @@
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_matrix, PRODUCTION_CARRIER_WIDTH, PRODUCTION_MESSAGE_COLUMNS,
 };
-use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
-use neo_math::{D, F};
-use neo_reductions::superneo_eval::SuperneoEvalCacheBuilder;
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly, V1_1Evaluations};
+use neo_math::{D, F, K};
+use neo_reductions::{
+    common::split_b_matrix_k_with_nonzero_flags,
+    superneo_eval::{SuperneoEvalCacheBuilder, SuperneoZBlocks},
+};
 use nightstream_fprime::{PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT};
 use p3_field::PrimeCharacteristicRing;
 
@@ -14,6 +17,7 @@ use crate::paper::{
     construction2::{LaneCommitmentMode, RunningInstance},
     nifs,
     params::Params,
+    pi_dec,
     relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsInstance},
 };
 
@@ -70,6 +74,47 @@ fn selected_rows_resources_preserve_normal_nifs_replay() {
         running.clone(),
     )
     .unwrap();
+    let (digits, flags) =
+        split_b_matrix_k_with_nonzero_flags(&parent.witness, params.k_rho() as usize, params.b()).unwrap();
+    assert!(flags.iter().any(|&active| active), "nonzero child is covered");
+    assert!(flags.iter().any(|&active| !active), "zero child is covered");
+    let commitments = digits
+        .iter()
+        .map(commit_production_signed_unit_matrix)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let openings = digits
+        .iter()
+        .zip(&flags)
+        .map(|(digit, &nonzero)| {
+            if nonzero {
+                let blocks = SuperneoZBlocks::from_witness_mat(digit, structure.m).unwrap();
+                let mut evaluated = cache
+                    .eval_real_v1_1_openings(&parent.claim.r, std::slice::from_ref(&blocks))
+                    .unwrap();
+                assert_eq!(evaluated.len(), 1);
+                evaluated.pop().unwrap()
+            } else {
+                V1_1Evaluations {
+                    eval_k: vec![K::ZERO; D],
+                    eval_a: vec![vec![K::ZERO; D]; structure.t()],
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    let (staged_children, staged_d) = pi_dec::prove_from_split_material(
+        &params,
+        &structure,
+        None,
+        None,
+        ajtai_dec_mixer,
+        &parent.claim,
+        digits,
+        flags,
+        commitments,
+        openings.clone(),
+    )
+    .unwrap();
     let parent_claim = parent.claim;
     drop((parent.witness, parent.projection));
     let mut prover_transcript = Transcript::session();
@@ -95,6 +140,19 @@ fn selected_rows_resources_preserve_normal_nifs_replay() {
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
+    assert_eq!(staged_d, proof.pi_dec, "staged D preserves every normal child field");
+    assert_eq!(staged_children.claims, next.claims);
+    assert!(
+        staged_children.witnesses == next.witnesses,
+        "staged and normal D return identical digit witnesses"
+    );
+    for (opening, child) in openings.iter().zip(&proof.pi_dec.children) {
+        assert_eq!(opening.eval_k.as_slice(), &child.eval_k[..D], "all 54 Pad coefficients");
+        assert_eq!(opening.eval_a.len(), structure.t());
+        for (expected, actual) in opening.eval_a.iter().zip(&child.eval_a) {
+            assert_eq!(expected.as_slice(), &actual[..D], "all 54 coefficients of every matrix");
+        }
+    }
     assert_eq!(next.parent_authority, verified.parent_authority);
     assert_eq!(next.parent_authority, Some(proof.pi_rlc.combined.clone()));
     assert_eq!(next.claims.len(), PI_DEC_V1_1_CHILD_COUNT);

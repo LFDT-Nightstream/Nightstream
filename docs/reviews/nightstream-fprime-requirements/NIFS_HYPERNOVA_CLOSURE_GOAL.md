@@ -740,3 +740,22 @@ in `H.size.runtime` is removed from the Lean proof/link closure target.
 Complete production execution cost and feasibility remain open, measured
 performance work. This decision proves no new cost bound and closes no Rust
 performance obligation.
+
+## Actual selected C/R/D conformance complete
+
+The saved actual C/R parent now supplies complete D production openings and
+an accepted 945,983-byte normal NIFS proof. Each active child opening passed
+within 300 seconds; the exact zero children use the checked normal zero
+branch. Complete assembly passed in 146.77 seconds and rejected all 43 NIFS
+mutations. The independent Lean C/R/D result passed in 15.97 seconds. Strict
+comparison passed in 20.23 seconds, including all 55 D rejection cases.
+The retained current-package regression passed in 39.29 seconds.
+
+Ordered static, build and axioms gates passed in 8.76, 0.90 and 0.99 seconds
+(3,911 library jobs; 3,999 audit jobs). Source snapshots, logs and retained
+actual/Lean results are in `NATIVE_NIFS_EVIDENCE.zip`; the report with the same
+stem states the exact scope and package pins. Existing C/R evidence is reused.
+No package, protocol or assumption changed. This closes the selected-base
+actual-witness execution and comparison gap. Later recursive inputs, universal
+Rust semantics, the production proof backend and performance remain separate;
+no deployment security budget follows from these executed checks.

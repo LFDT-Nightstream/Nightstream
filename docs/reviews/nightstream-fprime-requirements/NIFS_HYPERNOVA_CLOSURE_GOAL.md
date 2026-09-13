@@ -66,10 +66,31 @@ actual child matrices and commits the exact new fresh assignment. The
 the scalar-reference commitment and the initial empty case. Ordered gates
 and source review pass. See [the envelope evidence](NATIVE_ENVELOPE_EVIDENCE.md).
 
-The next consumer is selected terminal verification: external state/public
-link, full running CE evaluations and fresh CCS membership, using the
-existing package-owned cache and evaluators. Parent/frame caches remain
-non-authoritative; terminal verification performs no additional fold.
+### Selected terminal and active goal closed, 2026-09-13
+
+Commit `5b544af3ed00c1a7b5610e8c314d269150ad98e8` checks the external
+state/public link, every running CE opening and the complete fresh CCS
+relation with the package-owned cache. Initial and actual successor
+acceptance pass. Rehashed and recommitted Pad/matrix mutations and a
+recommitted private unit mutation reject at the required checks. Each
+case passes within 300 seconds. Ordered static, library and axiom gates,
+formatting and independent source/scope reviews pass. See
+[the terminal result and evidence](NATIVE_TERMINAL_EVIDENCE.md).
+
+The selected trace now connects initial state, the complete base assignment,
+actual C/R/D, the exact successor assignment, retained openings and terminal
+acceptance. The existing base-construction evidence also closes the stale
+`H.prover.base_default` Rust note for this scope. Together with the frozen
+linear-security checkpoint, this completes the active proof and selected
+implementation-link goal. No additional mathematical or functional
+obligation remains for that trace. Local map/evidence registration names
+the exact code and retains scoped Rust statuses.
+
+The approved FS/MSIS boundaries, mathematical invertibility premise and
+declared-clock/query conditions remain explicit. Later-running execution
+coverage, protected-checker/production approval, a new backend, numerical
+deployment choices and performance remain separate. The live site is not
+republished by this repository update.
 
 Owner request: 2026-09-11. This is the combined task scope, including the
 owner's correction after the app goal was created. Neither part below is

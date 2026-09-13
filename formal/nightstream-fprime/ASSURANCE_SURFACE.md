@@ -9,14 +9,26 @@ The selected native NIFS-to-successor bridge is checked at `68c5d94a`.
 It constructs the complete caller packet from the actual saved NIFS output,
 matches every caller word with Lean, and passes independent complete
 physical/logical rows and child mutations. See [the exact execution scope](../../docs/reviews/nightstream-fprime-requirements/NATIVE_SUCCESSOR_EVIDENCE.md).
-Child witness retention, fresh commitment in the returned envelope and
-selected terminal execution remain separate from this claims-only packet.
+Child witness retention and terminal verification are supplied by the
+subsequent checkpoints below.
 
 The next native milestone, `50127ac9`, retains all actual child witnesses and
 commits and retains the exact complete fresh matrix in the existing proof-state
 type. Its initial empty case and actual successor pass the recorded checks.
 See [the envelope evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.md).
-Selected terminal CE evaluations and fresh CCS acceptance remain separate.
+
+At `5b544af3`, the selected native terminal verifier accepts that same
+complete envelope against the independent Lean endpoint. It recomputes
+all running commitments and Pad/matrix evaluations, the full state/public
+link, and the fresh commitment and complete CCS relation. Rehashed and
+recommitted Pad/matrix mutations reject at their specific opening checks;
+a recommitted private unit mutation fails a CCS row. Initial/counter/state
+checks pass, and non-authoritative parent/frame/scalar caches are ignored.
+All four full-profile cases pass within the native cap. See
+[the terminal evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_TERMINAL_EVIDENCE.md).
+This closes the recorded initial/base/actual-C-R-D/successor/terminal trace.
+It does not extend execution coverage to later running inputs, prove
+arbitrary Rust semantics, select a new backend or grant production approval.
 
 **Selected rows and completeness.** Declaration names below omit only the common `NightstreamFPrime` namespace.
 

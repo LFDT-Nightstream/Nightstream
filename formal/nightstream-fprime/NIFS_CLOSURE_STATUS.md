@@ -1,5 +1,18 @@
 # NIFS closure status
 
+The selected v1.2 linear-security extension is checked at
+`1ad23f557b73e0564a27b62e20fe9d01a688f6b0`.
+`NifsClosure.source_probability_linear_bound` uses the loss
+`weakLoss + testError + 17 * adaptiveMsisSuccess` under the approved FS model.
+The MSIS term is the limit of the actual adaptive driver's success law;
+its termination and declared work are proved separately. The final
+`HyperNovaVisitedSecurity.history_probability_linear_bound` consumes this
+result at the actual guarded visits. Ordered gates, the exact lean-graph
+target and independent review pass. See
+[the milestone report](../../docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_LINEAR_SECURITY.md)
+for the full scope and evidence. The older square-root results and their
+checkpoint record follow. No numerical security or new Rust closure is claimed.
+
 Checked source: `01a8fd8ca68280c7f642451ab33bc714cee5bc98`. All four gates pass.
 The selected extraction consumer now constructs the implementation checks.
 The three recorded requirement-link proposals are applied. Their recorded

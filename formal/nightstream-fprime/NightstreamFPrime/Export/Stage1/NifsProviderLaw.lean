@@ -186,4 +186,67 @@ theorem source_probability_bound
     g deltaFS Q model scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock
     sourceCheckClock accessClock lowNorm bounds bounded
 
+/-- Apply the additive retry bound to the same fixed operational source
+law through its exact supported-provider equality. -/
+theorem source_probability_linear_bound
+    (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
+    (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
+    (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+      (fun context => PiCCSInputCheck.running (inputs context))
+      (fun context => PiCCSInputCheck.fresh (inputs context)) law originalFirstPhase abortTape
+      (supportedProvider inputs tapes rawCall checkClock storageClock parentClock storageBound
+        storageBounded baseSummable (FiatShamirTransfer.contextLaw relation law)
+        (InteractiveComposition.firstPhase originalFirstPhase
+          (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))))
+      g deltaFS Q)
+    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
+    (sourceCheckClock : Context → PiCCSStoredSourceProbability.CheckClock)
+    (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
+    (lowNorm : Phi81StrongSet.LowNormInvertibility)
+    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
+    (bounded : PiRLC.PaperForkExtractionWork.Bounded
+      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
+      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+        assignmentSubClock scalarActionClock) bounds) :
+    let running := fun context => PiCCSInputCheck.running (inputs context)
+    let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
+    let contexts := FiatShamirTransfer.contextLaw relation law
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let checked := InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running)
+    let provider := supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable contexts checked
+    let extended := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts checked
+      abortTape provider
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+      InteractiveComposition.weakLoss relation productionAjtaiKey -
+      IndependentExecution.testError productionShape 9 -
+      AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+        originalFirstPhase (SupportedExtraction.publicCheck running) extended
+        (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)
+          (sourceCheckClock context) (accessClock context)) contexts * PaperProfile.arity.total ≤
+      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase
+        (continuation inputs tapes rawCall checkClock storageClock parentClock storageBound
+          storageBounded baseSummable) program).toOuterMeasure
+        {sample | CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
+  dsimp only
+  rw [source_law_eq_supported_extension inputs tapes rawCall checkClock storageClock parentClock
+    storageBound storageBounded baseSummable (FiatShamirTransfer.contextLaw relation law)
+    originalFirstPhase abortTape]
+  exact NifsClosure.source_probability_linear_bound inputs law originalFirstPhase abortTape
+    (fun context coins output state _ => tapes context coins output state)
+    (fun context coins output state _ => rawCall context coins output state)
+    (fun context coins output state _ => checkClock context coins output state)
+    (fun context coins output state _ => storageClock context coins output state)
+    (fun context coins output state _ => parentClock context coins output state)
+    (fun context coins output state _ => storageBound context coins output state)
+    (fun context coins output state _ => storageBounded context coins output state)
+    (fun context coins output state _ => baseSummable context coins output state)
+    g deltaFS Q model scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock
+    sourceCheckClock accessClock lowNorm bounds bounded
+
 end NightstreamFPrime.Export.Stage1.NifsProviderLaw

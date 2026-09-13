@@ -251,4 +251,157 @@ theorem history_probability_bound
   intro j _member
   exact add_le_add_right (each j) _
 
+/-- The v1.2 per-visit source-failure bound uses the actual adaptive MSIS
+reduction, including both acceptance gates. The visited law, guarded FS
+models and source program are unchanged. This probability statement does
+not assert a global work bound or discharge query applicability. -/
+theorem source_failure_probability_linear_le
+    (initial : PMF (Statement × Envelope)) (depth : Nat)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
+    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
+    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
+    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
+    (lowNorm : Phi81StrongSet.LowNormInvertibility)
+    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
+    (bounded : PiRLC.PaperForkExtractionWork.Bounded
+      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
+      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+        assignmentSubClock scalarActionClock) bounds) :
+    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
+    let visits := fun j : Fin depth => visitedLaw source initial j.val
+    let running := fun visit => PiCCSInputCheck.running (inputs visit)
+    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
+    let firstPhase := guardedPrefix originalFirstPhase
+    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
+    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
+    let provider := fun j : Fin depth =>
+      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+        storageBound storageBounded baseSummable (contexts j) checked
+    let extended := fun j : Fin depth =>
+      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
+        abortTape (provider j)
+    (∀ j : Fin depth,
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+    ∀ j : Fin depth,
+      (((visits j).bind (guardedDraw source)).toOuterMeasure
+        {draw | MarkedSourceFailure draw}).toReal ≤
+      ((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
+        g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal + deltaFS (queries j) +
+        InteractiveComposition.weakLoss relation productionAjtaiKey +
+        IndependentExecution.testError productionShape 9 +
+        AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+          firstPhase (SupportedExtraction.publicCheck running) (extended j)
+          (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
+            (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total := by
+  dsimp only
+  intro models j
+  let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+    storageBound storageBounded baseSummable
+  let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    assignmentSubClock scalarActionClock
+  let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
+  let visits := visitedLaw source initial j.val
+  have extracted := NifsProviderLaw.source_probability_linear_bound inputs tapes rawCall checkClock storageClock
+    parentClock storageBound storageBounded baseSummable (realLaw visits) (guardedPrefix originalFirstPhase)
+    abortTape g deltaFS (queries j) (models j) scalarSubClock inverseAdapterClock
+    assignmentSubClock scalarActionClock sourceCheckClock accessClock lowNorm bounds bounded
+  dsimp only at extracted
+  rw [HyperNovaVisitedAcceptance.realSuccessProbability_eq_goodActive] at extracted
+  simp only [HyperNovaGuardedSourceLaw.realLaw_context_marginal] at extracted ⊢
+  have sameLaw : HyperNovaSourceLaw.law inputs visits (guardedPrefix originalFirstPhase) continuation program =
+      visits.bind (guardedDraw source) :=
+    HyperNovaGuardedSourceLaw.law_eq_guardedDraw originalFirstPhase continuation program visits
+  rw [sameLaw] at extracted
+  have partition := HyperNovaGuardedSourceLaw.first_source_failure_mass_eq
+    originalFirstPhase continuation program visits
+  rw [HyperNovaGuardedSourceLaw.law_eq_guardedDraw] at partition
+  change ((visits.bind (guardedDraw source)).toOuterMeasure
+      {draw | MarkedSourceFailure draw}).toReal = _ at partition
+  rw [partition]
+  dsimp only [visits, source, continuation, program] at extracted ⊢
+  linarith only [extracted]
+
+/-- Final v1.2 history probability bound under the approved guarded FS
+models. Each actual visit contributes additive test loss and the computed
+adaptive MSIS success with its uniform source-coordinate loss. Depth and
+queries remain parameters. Fixed-seed hardness, efficient translation,
+global work and query applicability are separate explicit obligations. -/
+theorem history_probability_linear_bound
+    (initial : PMF (Statement × Envelope)) (depth : Nat)
+    (depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
+    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
+    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
+    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
+    (lowNorm : Phi81StrongSet.LowNormInvertibility)
+    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
+    (bounded : PiRLC.PaperForkExtractionWork.Bounded
+      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
+      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+        assignmentSubClock scalarActionClock) bounds) :
+    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
+    let visits := fun j : Fin depth => visitedLaw source initial j.val
+    let running := fun visit => PiCCSInputCheck.running (inputs visit)
+    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
+    let firstPhase := guardedPrefix originalFirstPhase
+    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
+    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
+    let provider := fun j : Fin depth =>
+      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+        storageBound storageBounded baseSummable (contexts j) checked
+    let extended := fun j : Fin depth =>
+      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
+        abortTape (provider j)
+    (∀ j : Fin depth,
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+    (initial.toOuterMeasure {input |
+      PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
+        Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2}).toReal ≤
+      ((HyperNovaHistoryLaw.law source initial).toOuterMeasure
+        {sample | HyperNovaHistoryProbability.AdviceReturned sample}).toReal +
+        ∑ j : Fin depth,
+          (((visits j).toOuterMeasure
+              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
+            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
+              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
+              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              IndependentExecution.testError productionShape 9 +
+              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+                firstPhase (SupportedExtraction.publicCheck running) (extended j)
+                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
+                  (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total)) := by
+  dsimp only
+  intro models
+  let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+    storageBound storageBounded baseSummable
+  let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    assignmentSubClock scalarActionClock
+  let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
+  have first := first_failure_real_bound source initial depth depthBound
+  have each := source_failure_probability_linear_le tapes rawCall checkClock storageClock parentClock
+    storageBound storageBounded baseSummable initial depth originalFirstPhase abortTape g deltaFS queries
+    scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock accessClock
+    lowNorm bounds bounded models
+  apply first.trans
+  apply add_le_add_right
+  apply Finset.sum_le_sum
+  intro j _member
+  exact add_le_add_right (each j) _
+
 end NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity

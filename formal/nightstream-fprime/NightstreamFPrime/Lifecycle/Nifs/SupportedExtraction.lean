@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement
 import NightstreamFPrime.Lifecycle.Nifs.BindingProbability
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability
 import NightstreamFPrime.Lifecycle.Nifs.BindingWork
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
@@ -171,6 +172,37 @@ theorem returned_source_bound_with_msis :
     (fun context => (sourceProgram context).access) (fun context => (sourceCorrect context).access) contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
     (_root_.add_le_add reduction (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
+
+include lowNorm correct bounded sourceCorrect in
+/-- The v1.2 additive source bound uses the actual adaptive MSIS reduction
+under the original context law. Both selected calls pass the executable
+relaxed check; zero-success contexts remain in the experiment. Hardness and
+resource applicability remain separate from this probability inequality. -/
+theorem returned_source_bound_with_adaptive_msis :
+    let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
+      (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider
+    StrongProbability.clockMean contexts
+      (InteractiveComposition.originalSuccess relation ajtai running fresh originalFirstPhase
+        (publicCheck running) continuation) - InteractiveComposition.weakLoss relation ajtai -
+      IndependentExecution.testError productionShape 9 -
+      AdaptiveBindingProbability.successProbability relation ajtai program running fresh
+        originalFirstPhase (publicCheck running) continuation sourceProgram contexts * PaperProfile.arity.total ≤
+      InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
+        (publicCheck running) continuation program sourceProgram contexts := by
+  dsimp only
+  let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
+    (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider
+  rw [InteractiveOutput.returnedSourceProbability_eq relation ajtai running fresh
+    originalFirstPhase (publicCheck running) continuation program sourceProgram sourceCorrect contexts]
+  have source := InteractiveComposition.source_success_retry_bound relation ajtai running fresh
+    originalFirstPhase (publicCheck running) continuation program (publicCheck_correct relation ajtai running fresh)
+    (PaperExtractionAlgebra.extractionAlgebra ajtai)
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct bounds bounded contexts
+  have reduction := AdaptiveBindingProbability.retryDisagreement_le_success relation ajtai program running fresh
+    originalFirstPhase (publicCheck running) continuation sourceProgram
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct contexts
+    (fun context => (sourceCorrect context).access) sourceCorrect
+  exact (sub_le_sub_left reduction _).trans source
 
 include lowNorm correct bounded sourceCorrect in
 /-- The same checked execution has both the selected source-return bound

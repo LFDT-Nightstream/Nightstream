@@ -516,6 +516,12 @@ resumes an existing target result need not generate another graph.
 
 ## Maintaining registrations
 
+The [HyperNova linear-security milestone](HYPERNOVA_LINEAR_SECURITY.md) registers
+the final target, its allowed premises, checked dependencies and ordered
+validation gates. Run `explain hypernova-linear-security` for its current blockers.
+The literal target and its closure witness are in `tests/EvidenceTargets.lean`.
+Separate graph roots retain the probability and actual-clock correspondence.
+
 The [obligation map](obligations.json) is a reviewed expectation, not generated
 proof progress. Update its draft as the proof develops:
 

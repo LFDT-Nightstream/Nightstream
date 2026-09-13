@@ -62,6 +62,10 @@ impl Stage1Envelope {
     pub fn is_initial(&self) -> bool {
         self.proof.is_initial()
     }
+
+    pub(super) fn into_parts(self) -> (Stage1State, ProofState) {
+        (self.state, self.proof)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

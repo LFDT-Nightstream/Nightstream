@@ -1,94 +1,33 @@
-//! `neo-fold-clean` — paper-faithful, audit-first SuperNeo IVC integrator.
+//! Nightstream Stage 1 over the selected Lean-emitted SuperNeo package.
 //!
-//! ## Public lifecycle (terminal-only IVC path)
+//! The selected lifecycle owns its relation, parameters and commitment key.
+//! Verification takes the expected state from the caller's application.
 //!
-//! ```ignore
-//! use neo_fold_clean::{
-//!     frontends::direct_ccs, prove, extend, finish_uncompressed,
-//!     verify_uncompressed, CcsInstance, FoldSchedule,
-//! };
+//! ```no_run
+//! use neo_fold_clean::{Poseidon2HashChainV1Package, Stage1Envelope, Stage1State};
+//! use neo_math::F;
 //!
-//! let prep = direct_ccs::preprocess_seeded(&r1cs, seed)?;
-//!
-//! // Build one CCS instance per row of user computation.
-//! let rows: Vec<CcsInstance> = user_assignments.iter().map(|z| {
-//!     direct_ccs::build_instance(&prep, &r1cs, z)
-//! }).collect::<Result<Vec<_>, _>>()?;
-//!
-//! // Pick a batch size. Schedule.partition slices rows into fold steps.
-//! //   FoldSchedule::RowsPerStep(1)  — one row per fold (default, lowest latency)
-//! //   FoldSchedule::RowsPerStep(n)  — n rows per fold (amortise per-fold cost)
-//! //   FoldSchedule::WholeRun        — all rows in one fold step
-//! let steps = FoldSchedule::RowsPerStep(4).partition(rows)?;
-//!
-//! // `prove` returns an `UncompressedAudit` — the in-flight proof,
-//! // with the per-step audit trail attached because `extend` may want
-//! // to push more batches into it.
-//! let mut audit = prove(&prep, steps)?;
-//!
-//! // More rows arrive later? Partition them and `extend`.
-//! let extra = FoldSchedule::RowsPerStep(4).partition(more_rows)?;
-//! for step in extra {
-//!     audit = extend(&prep, audit, step)?;
+//! # fn example(package_bytes: &[u8], z0: [F; 4], messages: &[[F; 4]],
+//! #     expected: Stage1State) -> Result<(), Box<dyn std::error::Error>> {
+//! let package = Poseidon2HashChainV1Package::load(package_bytes)?;
+//! let mut envelope = Stage1Envelope::initial(z0);
+//! for &message in messages {
+//!     envelope = package.extend(envelope, message)?;
 //! }
-//!
-//! // Finalize and drop the per-step audit trail. Authoritative plain F'
-//! // preserves HyperNova's running/latest pair; Nebula and one-chunk
-//! // relations flush latest through a terminal fold. Generic direct CCS has
-//! // no terminal-induction capability, so this compact path verifies only a
-//! // single chunk.
-//! let proof = finish_uncompressed(&prep, audit)?;
-//! verify_uncompressed(&prep, &proof)?;
-//!
-//! // A Lean-native CCS relation can instead use `finish_with_spartan` and
-//! // `verify_spartan`. That path lowers only the terminal relation to R1CS
-//! // and uses WHIR inside repeated Spartan proofs. The terminal statement is
-//! // explicit and separate from the proof:
-//! // let terminal = finish_uncompressed(&prep, audit)?;
-//! // let (statement, proof) = finish_with_spartan(&prep, &manifest, terminal)?;
-//! // verify_spartan(&prep, &manifest, &expected, &statement, &proof)?;
+//! package.verify(&expected, &envelope)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
-//! ## Audit / decider path (diagnostic + Spartan)
+//! The first extension constructs the base assignment. Later extensions use
+//! the actual NIFS prover and retain the returned child and fresh witnesses.
+//! Sampler failure and a counter without a canonical successor return errors.
+//! The terminal envelope contains complete openings and carries no proof history.
 //!
-//! Tests, the Spartan decider statement, and chain-replay debugging
-//! need the per-step audit trail kept. Use the `_audit` variants:
-//!
-//! ```ignore
-//! use neo_fold_clean::{finish_uncompressed_with_audit, verify_uncompressed_audit};
-//!
-//! let audit_finalized = finish_uncompressed_with_audit(&prep, audit)?;
-//!
-//! // Terminal-only check on the projected proof. Whether multi-chunk
-//! // verification is allowed is a capability of the preprocessing relation,
-//! // not a property callers can opt into.
-//! verify_uncompressed(&prep, &audit_finalized.proof)?;
-//!
-//! // Linear-time chain replay — catches audit-trail tampers (steps,
-//! // public_batches, final_fold.nifs) that the IVC verifier ignores
-//! // by design.
-//! verify_uncompressed_audit(&prep, &audit_finalized)?;
-//! ```
-//!
-//! Generic callers that need multi-chunk verification keep the audit trail
-//! (`finish_uncompressed_with_audit` + `verify_uncompressed_audit`). The
-//! authoritative Nebula F' chain may drop it after finalization because its
-//! preprocessing certifies the folded induction. Reach for audit variants for
-//! diagnostics, the Spartan decider statement, or red-team tests that mutate
-//! audit-trail fields.
-//!
-//! ## Where do `(z, m_in)` come from?
-//!
-//! The caller. ccs-direct is a generic frontend; it does not run a VM and
-//! does not know what computation you are proving.
-//!
-//! - **`z = [x, w]`** — your satisfying assignment, length `structure.m`.
-//! - **`m_in`** — split point: `z[..m_in] = x` (public), `z[m_in..] = w` (private).
-//!
-//! ## Where to start reading
-//!
-//! Auditor: start with [`paper/mod.rs`](crate::paper) for the glossary,
-//! then follow the public lifecycle into `paper/`.
+//! The generic lifecycle and other frontends below have their own relation
+//! and validation scopes. They do not supply the selected Stage 1 assurance
+//! result. See `formal/nightstream-fprime/ASSURANCE_SURFACE.md` for the exact
+//! checked scope and explicit assumptions.
 
 pub mod config;
 pub mod engine;
@@ -101,7 +40,7 @@ pub mod stage1;
 
 // ── Public lifecycle re-exports. Keep this surface small. ─────────────────
 
-// Terminal-only lifecycle path.
+// Generic relation lifecycle; the selected Stage 1 workflow uses the package methods.
 pub use lifecycle::{
     extend, finish_uncompressed, preprocess, prove, verify_uncompressed, verify_uncompressed_with_opening_backend,
     Error, FinalWitnessOpeningBackend, Preprocessing, PublicImage, Uncompressed,
@@ -109,7 +48,7 @@ pub use lifecycle::{
 
 // Audit / decider path — chain-replay verifier, Spartan statement, diagnostic
 // tests. See the crate-level docs for when each is appropriate; reach for
-// these only when the production names above don't fit the use case.
+// these interfaces according to their separate relation and backend scope.
 pub use lifecycle::{
     build_decider_statement, finish_uncompressed_with_audit, verify_uncompressed_audit, UncompressedAudit,
 };
@@ -124,4 +63,4 @@ pub use paper::construction2::{
 pub use paper::params::Params;
 pub use paper::relations::{CcsInstance, CcsWitness, CeClaim, DecMixer, RlcMixer, Structure};
 pub use relation_artifact::{RelationArtifactError, RelationArtifactReceipt, VerifierKeyRelationArtifact};
-pub use stage1::Poseidon2HashChainV1Package;
+pub use stage1::{Poseidon2HashChainV1Package, Stage1Envelope, Stage1State};

@@ -58,6 +58,77 @@ def run
         ⟨emitted.value, emitted.work + 4⟩
   else ⟨none, first.work + initial.work + 2⟩
 
+/-- Project the existing retry clock and its actual postprocessing work.
+This is a view of `search` and `runPair`, not a separate execution model. -/
+def retryWork
+    (first : PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)
+    (following : List (Result (PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)))
+    (coordinate : Fin PaperProfile.arity.total) : Nat :=
+  let searched := AcceptedRetry.search (AdaptiveBinding.check relation ajtai program sourceProgram) following
+  searched.work + match searched.value.1 with
+    | none => 0
+    | some second =>
+        (BindingReduction.runPair program sourceProgram.access ⟨first, 0⟩ ⟨second, 0⟩ coordinate).work
+
+/-- The exhausted prefix contributes the existing search return transition. -/
+theorem retryWork_nil
+    (first : PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)
+    (coordinate : Fin PaperProfile.arity.total) :
+    retryWork relation ajtai program sourceProgram first [] coordinate = 1 := rfl
+
+/-- Exact retry recurrence: every entered call and check is charged, and
+only its acceptance branch performs the integer-vector computation. -/
+theorem retryWork_cons
+    (first : PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)
+    (packet : Result (PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape))
+    (following : List (Result (PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)))
+    (coordinate : Fin PaperProfile.arity.total) :
+    retryWork relation ajtai program sourceProgram first (packet :: following) coordinate =
+      packet.work + (AdaptiveBinding.check relation ajtai program sourceProgram packet.value).work + 3 +
+        (if (AdaptiveBinding.check relation ajtai program sourceProgram packet.value).value then
+          (BindingReduction.runPair program sourceProgram.access
+            ⟨first, 0⟩ ⟨packet.value, 0⟩ coordinate).work
+        else retryWork relation ajtai program sourceProgram first following coordinate) := by
+  dsimp only [retryWork]
+  cases accepted : (AdaptiveBinding.check relation ajtai program sourceProgram packet.value).value with
+  | false =>
+      simp only [AcceptedRetry.search, accepted, Bool.false_eq_true, ↓reduceIte]
+      omega
+  | true => simp only [AcceptedRetry.search, accepted, ↓reduceIte]
+
+/-- The actual returned clock has the exact branch structure used by the
+mean recurrence. No source cost is replaced by an unconditional upper bound
+in this equality. -/
+theorem run_work_eq
+    (first : Result (PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape))
+    (following : List (Result (PaperCompositionAgreement.Observation State
+      (InteractiveComposition.Endpoint relation ajtai) productionShape)))
+    (coordinate : Fin PaperProfile.arity.total) :
+    (run relation ajtai program sourceProgram first following coordinate).work =
+      first.work + (AdaptiveBinding.check relation ajtai program sourceProgram first.value).work +
+        (if (AdaptiveBinding.check relation ajtai program sourceProgram first.value).value then
+          retryWork relation ajtai program sourceProgram first.value following coordinate + 4
+        else 2) := by
+  dsimp only [run, retryWork]
+  cases accepted : (AdaptiveBinding.check relation ajtai program sourceProgram first.value).value with
+  | false => simp only [Bool.false_eq_true, ↓reduceIte]
+  | true =>
+      simp only [↓reduceIte]
+      cases selected : (AcceptedRetry.search
+        (AdaptiveBinding.check relation ajtai program sourceProgram) following).value.1 with
+      | none => simp only [Nat.add_zero, Nat.add_assoc]
+      | some second =>
+          dsimp only
+          rw [BindingReduction.runPair_work_eq]
+          simp only [Nat.add_assoc]
+
 /-- A rejected first call makes no retry or binding call. Its actual prefix,
 query and checker costs remain, together with branch and return. -/
 theorem run_rejected

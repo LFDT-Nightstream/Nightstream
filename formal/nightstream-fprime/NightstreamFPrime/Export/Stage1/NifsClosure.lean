@@ -181,6 +181,58 @@ theorem source_probability_bound :
     (HyperNovaSourceLaw.source_event_mass_eq inputs contexts originalFirstPhase continuation program).symm))
 
 include model lowNorm bounded in
+/-- The same selected source PMF satisfies the additive retry bound. The
+MSIS term measures the actual adaptive reduction with this source program. -/
+theorem source_probability_linear_bound :
+    let running := fun context => PiCCSInputCheck.running (inputs context)
+    let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
+    let contexts := FiatShamirTransfer.contextLaw relation law
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram
+      (inputs context) (checkClock context) (accessClock context)
+    let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+      (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+      abortTape
+      (NifsExtractionProvider.provider inputs contexts
+        (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+        tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+      InteractiveComposition.weakLoss relation productionAjtaiKey -
+      IndependentExecution.testError productionShape 9 -
+      AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+        originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram contexts *
+          PaperProfile.arity.total ≤
+      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
+        {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
+  dsimp only
+  let contexts := FiatShamirTransfer.contextLaw relation law
+  let running := fun context => PiCCSInputCheck.running (inputs context)
+  let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
+  let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    assignmentSubClock scalarActionClock
+  let provider := NifsExtractionProvider.provider inputs contexts
+    (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+    tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable
+  let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+    (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+    abortTape provider
+  have lower := FiatShamirTransfer.returned_source_bound_with_adaptive_msis relation productionAjtaiKey
+    running fresh law originalFirstPhase abortTape provider g deltaFS Q model program
+    (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)
+      (checkClock context) (accessClock context)) lowNorm
+    (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock) bounds bounded
+    (fun context => PiCCSStoredSourceProbability.sourceProgram_correct
+      (inputs context) (checkClock context) (accessClock context))
+  have storedEvent := PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue
+    inputs contexts originalFirstPhase (SupportedExtraction.publicCheck running)
+    continuation program checkClock accessClock
+  exact lower.trans (le_of_eq (storedEvent.trans
+    (HyperNovaSourceLaw.source_event_mass_eq inputs contexts originalFirstPhase continuation program).symm))
+
+include model lowNorm bounded in
 /-- The actual stored source event and the prepared reduction use the same
 constructed provider and exact checked prefix. The remaining premises are
 external transfer/invertibility and explicit declared-clock moment bounds.

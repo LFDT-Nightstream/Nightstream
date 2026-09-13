@@ -7,6 +7,13 @@ reference. The complete objective remains HyperNova lifecycle, recursive
 closure and security, with the required NIFS security and selected Rust
 conformance links. Existing validated results are reused where applicable.
 
+The current milestone is registered as `hypernova-linear-security` in
+`scripts/lean_graph/obligations.json`. Its target, allowed premises, checked
+dependencies and ordered gates are recorded in
+`scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md`. Use `explain` and the existing
+declaration queries to select the next blocker. Close this milestone before
+starting another; do not expand lean-graph or run parallel proof milestones.
+
 `SUPERNEO_V1_2_DELTA.md` records the paper changes and named consumers before
 proof edits. The linear-loss upgrade must establish adaptive uniqueness,
 the actual retry law, emitted MSIS output, and full declared work/query

@@ -17,6 +17,15 @@ class ConformanceRegistrationTests(unittest.TestCase):
     def selected(self, obligation):
         return gate_order(self.policy, self.policy["obligations"][obligation]["gates"])
 
+    def test_build_commands_do_not_drop_required_targets(self):
+        # validate.sh's build branch reads only ${2}; later targets are ignored.
+        for name, gate in self.gates.items():
+            for command in gate["commands"]:
+                argv = command["argv"]
+                if argv[:3] == ["bash", "scripts/validate.sh", "build"]:
+                    with self.subTest(gate=name, argv=argv):
+                        self.assertLessEqual(len(argv[3:]), 1)
+
     def test_pilot_uses_regenerated_current_inputs(self):
         order = self.selected("pilot-conformance")
         for name in ("pilot-result", "pilot-rows"):

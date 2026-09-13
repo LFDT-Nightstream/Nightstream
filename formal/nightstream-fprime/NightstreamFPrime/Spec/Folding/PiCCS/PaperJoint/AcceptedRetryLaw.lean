@@ -23,7 +23,10 @@ open AcceptedRetry
 
 variable {Value : Type*}
 
-private noncomputable def prefixes (calls : PMF (Result Value)) :
+/-- Independent latent call prefixes used to prove the driver's law. The
+executed search determines which calls and clocks are consumed; this PMF
+does not prescribe runtime construction of its unused suffix. -/
+noncomputable def prefixes (calls : PMF (Result Value)) :
     Nat → PMF (List (Result Value))
   | 0 => PMF.pure []
   | count + 1 => calls.bind fun packet => (prefixes calls count).map (List.cons packet)

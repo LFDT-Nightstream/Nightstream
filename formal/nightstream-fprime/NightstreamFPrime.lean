@@ -35,6 +35,9 @@ import NightstreamFPrime.Gadgets
 import NightstreamFPrime.Lifecycle
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingRun
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingLaw
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability
+import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Layout
 import NightstreamFPrime.Export

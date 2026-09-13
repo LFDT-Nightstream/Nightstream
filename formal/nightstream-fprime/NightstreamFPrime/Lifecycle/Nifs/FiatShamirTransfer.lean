@@ -202,6 +202,29 @@ theorem returned_source_bound_with_msis :
   exact (sub_le_sub_right (sub_le_sub_right transfer _) _).trans extracted
 
 include model lowNorm correct bounded sourceCorrect in
+/-- Transfer the v1.2 additive bound without changing the approved FS
+model. The MSIS term is the actual stopped reduction under the same context
+law; efficient translation and query applicability remain external. -/
+theorem returned_source_bound_with_adaptive_msis :
+    let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
+      (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+      abortTape provider
+    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+      InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
+      AdaptiveBindingProbability.successProbability relation ajtai program running fresh
+        originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram
+        (contextLaw relation law) * PaperProfile.arity.total ≤
+      InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
+        (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
+  dsimp only
+  have transfer := model.successTransfer
+  unfold originalSuccessProbability at transfer
+  have extracted := SupportedExtraction.returned_source_bound_with_adaptive_msis relation ajtai running fresh
+    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
+    correct bounds bounded sourceCorrect
+  exact (sub_le_sub_right (sub_le_sub_right (sub_le_sub_right transfer _) _) _).trans extracted
+
+include model lowNorm correct bounded sourceCorrect in
 /-- A supplied bound on that exact same-key success probability can be used
 without changing the FS hypothesis or its real verifier-success event. -/
 theorem returned_source_bound_of_msis

@@ -160,7 +160,8 @@ fn state_fields(words: [u64; 4]) -> [F; 4] {
 
 /// Load an original base fixture or the exact saved envelope files. Directory
 /// paths inside envelope metadata are not followed; all source files are
-/// read from the directory selected by the caller.
+/// read from the directory selected by the caller. Saved witnesses are prover
+/// inputs: `check_path` separately checks their complete commitment openings.
 pub fn load_path(package_path: &Path, source_path: &Path) -> ActualSources {
     if !source_path.is_dir() {
         return load(package_path, &fs::read(source_path).expect("original base fixture"));
@@ -262,7 +263,15 @@ pub fn load_path(package_path: &Path, source_path: &Path) -> ActualSources {
         fresh,
         running,
     };
-    check_saved_source_openings(&actual, started);
+    let width = actual.package.structure().m;
+    validate_fresh_witness_tail_zero(&actual.fresh.witness.Z, width, "saved fresh source")
+        .expect("complete fresh shape and zero tail");
+    check_saved_public(&actual.fresh.witness.Z, &fresh_public(&actual.fresh), width)
+        .expect("original fresh source public projection");
+    assert_eq!(actual.running.claims.len(), actual.running.witnesses.len());
+    for (claim, witness) in actual.running.claims.iter().zip(&actual.running.witnesses) {
+        check_saved_public(witness, &claim.X, width).expect("original running source public projection");
+    }
     actual
 }
 
@@ -275,17 +284,22 @@ fn fresh_public(fresh: &CcsInstance) -> Mat<F> {
     public
 }
 
+fn check_saved_public(witness: &Mat<F>, public: &Mat<F>, logical_width: usize) -> Result<(), &'static str> {
+    let projected = project_x_from_witness_mat(witness, logical_width, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
+        .map_err(|_| "source complete witness shape")?;
+    if projected != *public {
+        return Err("source public projection differs");
+    }
+    Ok(())
+}
+
 fn check_saved_opening(
     witness: &Mat<F>,
     commitment: &Commitment,
     public: &Mat<F>,
     logical_width: usize,
 ) -> Result<(), &'static str> {
-    let projected = project_x_from_witness_mat(witness, logical_width, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS)
-        .map_err(|_| "source complete witness shape")?;
-    if projected != *public {
-        return Err("source public projection differs");
-    }
+    check_saved_public(witness, public, logical_width)?;
     let actual =
         commit_production_signed_unit_matrix(witness).map_err(|_| "source fixed-key shape or strict unit norm")?;
     if actual != *commitment {
@@ -325,8 +339,8 @@ fn check_saved_source_openings(actual: &ActualSources, started: Instant) {
     }
 }
 
-/// Loader-only authenticity check plus a private signed-unit substitution.
-/// The changed witness keeps its original public input, shape and claim.
+/// Required source-opening stage before a saved-source conformance sequence.
+/// A private signed-unit substitution keeps the public input, shape and claim.
 pub fn check_path(package_path: &Path, source_path: &Path) {
     assert!(
         source_path.is_dir(),
@@ -334,6 +348,7 @@ pub fn check_path(package_path: &Path, source_path: &Path) {
     );
     let started = Instant::now();
     let actual = load_path(package_path, source_path);
+    check_saved_source_openings(&actual, started);
     let witness = &actual.fresh.witness.Z;
     let (positive, negative) = witness
         .packed_signed_unit_column_masks()

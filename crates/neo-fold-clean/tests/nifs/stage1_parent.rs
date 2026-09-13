@@ -27,12 +27,15 @@ use neo_fold_clean::{
 use neo_math::{D, F, K};
 use neo_reductions::{
     common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
+    optimized_engine::optimized_verify_with_trace,
     superneo_eval::SuperneoZBlocks,
 };
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::stage1_actual::{self, ActualSources};
+use super::stage1_values::{ccs_input, ccs_phase};
 
 type Claim = CeClaim<Commitment, F, K>;
 
@@ -234,10 +237,18 @@ pub fn prove(package_path: &Path, source_path: &Path, output: &Path) {
     );
 }
 
-/// Execute only C on the authenticated original source witnesses. The saved
-/// members are ordinary proof inputs, verified again before the R stage.
+/// Execute only C on the original source witnesses. Complete source openings
+/// are a separate required stage; native C acceptance checks the proof against
+/// the original public claims. The same proof is replayed before R.
 pub fn prove_ccs(package_path: &Path, source_path: &Path, output: &Path) {
-    assert!(!output.exists(), "fresh C proof file");
+    let input_output = output.with_extension("input.json");
+    let phase_output = output.with_extension("phase.json");
+    assert!(
+        [output, &input_output, &phase_output]
+            .into_iter()
+            .all(|path| !path.exists()),
+        "fresh C proof and conformance files"
+    );
     let started = Instant::now();
     let ActualSources {
         package,
@@ -245,10 +256,7 @@ pub fn prove_ccs(package_path: &Path, source_path: &Path, output: &Path) {
         fresh,
         running,
     } = stage1_actual::load_path(package_path, source_path);
-    println!(
-        "actual_selected_ccs_sources_authenticated_elapsed={:?}",
-        started.elapsed()
-    );
+    println!("actual_selected_ccs_sources_loaded_elapsed={:?}", started.elapsed());
     let proof = package
         .prove_pi_ccs(
             std::slice::from_ref(&fresh.claim),
@@ -258,7 +266,26 @@ pub fn prove_ccs(package_path: &Path, source_path: &Path, output: &Path) {
         )
         .expect("selected C prover on original complete witnesses");
     println!("actual_selected_ccs_proved_elapsed={:?}", started.elapsed());
-    drop(replay_ccs(&params, package.structure(), &fresh.claim, &running, &proof));
+    let (verified_transcript, _) = replay_ccs(&params, package.structure(), &fresh.claim, &running, &proof);
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 8], 0);
+    let (valid, trace) = optimized_verify_with_trace(
+        &mut transcript,
+        params.inner(),
+        package.structure(),
+        std::slice::from_ref(&fresh.claim),
+        &running.claims,
+        &proof.outputs,
+        &proof.sumcheck,
+    )
+    .expect("C trace on the original claims");
+    assert!(valid);
+    assert_eq!(verified_transcript.snapshot().state(), trace.outgoing_state);
+    assert!(proof
+        .outputs
+        .iter()
+        .all(|claim| claim.r == trace.round_challenges));
+    save(&input_output, &ccs_input(&fresh.claim, &running.claims, &proof));
+    save(&phase_output, &ccs_phase(&proof, &trace, valid));
     println!("actual_selected_ccs_verified_elapsed={:?}", started.elapsed());
     let record = SavedCcs {
         schema: 1,
@@ -276,7 +303,7 @@ pub fn prove_ccs(package_path: &Path, source_path: &Path, output: &Path) {
     );
 }
 
-/// Replay C on the same authenticated sources, then compute R from their
+/// Replay C on the same original sources, then compute R from their
 /// original complete matrices. The public wrapper borrows these moved Mats
 /// and calls the normal prove_refs implementation without cloning them.
 pub fn prove_after_ccs(package_path: &Path, source_path: &Path, ccs_file: &Path, output: &Path) {
@@ -289,10 +316,7 @@ pub fn prove_after_ccs(package_path: &Path, source_path: &Path, ccs_file: &Path,
         fresh,
         running,
     } = stage1_actual::load_path(package_path, source_path);
-    println!(
-        "actual_selected_rlc_sources_authenticated_elapsed={:?}",
-        started.elapsed()
-    );
+    println!("actual_selected_rlc_sources_loaded_elapsed={:?}", started.elapsed());
     assert_eq!(saved.schema, 1);
     assert_eq!(saved.structural_identifier, package.structural_identifier());
     assert_eq!(saved.package_identity, package.package_identity());

@@ -14,7 +14,7 @@
   },
   "independence": {
     "common_inputs": "Original fresh witness, the 16 original running witnesses, original public claims and the fixed setup.",
-    "rust_inputs": "The PiCCS proof messages and final claims remain supplied inputs. Lean checks C and derives rho itself.",
+    "rust_inputs": "PiCCS sum-check polynomial coefficients and final Eval_K/Eval_A values are supplied inputs. Lean checks C and derives rho itself.",
     "comparison_only": "The actual Rust combined parent is never passed to the Lean executable.",
     "scope": "Complete PiRLC witness replay for the retained nonzero-running trace. Full NIFS independence requires later PiCCS prover replay."
   },
@@ -330,7 +330,12 @@
     "path": "/tmp/nightstream-native-nonzero-parent-2/parent-witness.json",
     "bytes": 5198469952,
     "sha256": "5264a806081176b9e1571c87c181418b94bfa84a856c8c0164deece15d957c0c",
-    "producer": "prove-owned-rlc on the original source directory and saved C proof"
+    "producer": "prove-owned-rlc on the original source directory and saved C proof",
+    "current_source_commit": "9cb553c4",
+    "current_generated_path": "/tmp/nightstream-pirlc-current-parent-1/parent-witness.json",
+    "current_generated_sha256": "5264a806081176b9e1571c87c181418b94bfa84a856c8c0164deece15d957c0c",
+    "current_witness_and_public_parent": "Both files match the already compared outputs byte-for-byte (cmp exit 0).",
+    "regression_gate": "pirlc-witness-values regenerates the input capture and current Rust parent, then calculates Lean ranges and compares all coefficients. A saved parent alone is not a Rust prover regression gate."
   },
   "ranges": [
     {
@@ -550,6 +555,34 @@
         "--no-run"
       ],
       "max_rss_kib": 1409376
+    },
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 87.8848595690215,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "prove-owned-rlc",
+        "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "/tmp/nightstream-native-nonzero-sources-1",
+        "/tmp/nightstream-native-nonzero-ccs-2.json",
+        "/tmp/nightstream-pirlc-current-parent-1"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "path": "/tmp/nightstream-pirlc-current-producer-1.log",
+      "bytes": 3112,
+      "sha256": "12c5261310b2bb4896be6cd98663574de5e0390df628801b48fde77e286cdcb9",
+      "max_rss_kib": 6389456
     }
   ],
   "metadata_gate": {

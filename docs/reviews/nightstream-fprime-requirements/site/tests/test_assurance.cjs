@@ -13,7 +13,7 @@ const foundation = leaves.filter(n => n.id.startsWith('F.'));
 assert.deepEqual(progress('proof', counts(foundation, 'proof')), {finished: 75, total: 75});
 assert.deepEqual(progress('connection', counts(foundation, 'connection')), {finished: 84, total: 84});
 assert.deepEqual(progress('rust', counts(foundation, 'rust')), {finished: 68, total: 70});
-assert.deepEqual(progress('proof', counts(leaves.filter(n => n.id.startsWith('N.')), 'proof')), {finished: 17, total: 18});
+assert.deepEqual(progress('proof', counts(leaves.filter(n => n.id.startsWith('N.')), 'proof')), {finished: 18, total: 18});
 assert.deepEqual(progress('proof', counts([], 'proof')), {finished: 0, total: 0});
 assert.equal(Object.hasOwn(data.error_budget, 'example_uses'), false);
 const result = scenario(data.error_budget, '1');

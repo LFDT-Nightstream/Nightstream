@@ -67,7 +67,11 @@ def export_assurance(data, publication, references):
     budget = data['error_budget']
     result = error_scenario(budget, '1')
     risk = intro('Conditional error bounds')
-    risk += [text(budget['not_a_total_bound']), '', '## Specified interactive test', '', text(budget['event']), '',
+    risk += [text(budget['not_a_total_bound']), '']
+    if bound := budget.get('symbolic_terminal'):
+        risk += ['## Symbolic bound for the selected terminal verifier', '', text(bound['event']), '',
+                 text(bound['formula']), '', text(bound['terms']), '', text(bound['premises_and_external_conditions']), '']
+    risk += ['## Specified interactive test', '', text(budget['event']), '',
              text(budget['formula']), '', f'Per test: `{result["numerator"]} / {result["denominator"]}`.', '',
              text(budget['scenario_note']), '', text(budget['accumulation']), '',
              'Full obligation: ' + records([budget['owner_record']]), '', '## Deployment parameters', '']
@@ -92,8 +96,11 @@ def export_assurance(data, publication, references):
     for run in data['provenance']['evidence']:
         evidence += ['## ' + text(run['label']), '', '- Checked code: `' + run['code_commit'] + '`.',
                      '- Performed by: ' + text(run['performed_by']), '- Date: ' + text(run['date']),
-                     '- Authority: ' + text(run['authority']), '- Scope: ' + text(run['scope']), '',
-                     '[Report](' + source(run['report']) + ') · [Retained archive](' + source(run['archive']) + ')', '']
+                     '- Authority: ' + text(run['authority']), '- Scope: ' + text(run['scope']), '']
+        links = '[Report](' + source(run['report']) + ')'
+        if run.get('archive'):
+            links += ' · [Retained archive](' + source(run['archive']) + ')'
+        evidence += [links, '']
     evidence += ['Required independent approvals remain open. Publication requires committed source inputs and a new reference check. File hashes identify evidence; they do not establish proof meaning or conformance.', '']
     return {name + '.md': '\n'.join(lines) for name, lines in [
         ('assumptions', assumptions), ('readiness', readiness), ('error-budget', risk), ('evidence', evidence)]}

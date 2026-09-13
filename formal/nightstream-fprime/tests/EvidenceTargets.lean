@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
+import NightstreamFPrime.Export.Stage1.ActualPiDECOutput
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
@@ -105,6 +106,37 @@ def PiCCSPublicAssignment : Prop :=
 
 theorem piCCSPublicAssignment : PiCCSPublicAssignment :=
   ActualPiCCSInputs.selectedRowsAndPublic_imply_phaseAndHashes
+
+/-- Arbitrary selected rows and their actual public input imply the full
+typed step at the decoded context. Verifier-context binding is separate. -/
+def Stage1Assignment : Prop :=
+  ∀ (application : Lifecycle.Stage1.Application.Program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (ajtai : AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+      (publicFits := PerApplicationFixedPoint.publicFits application))
+    (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
+    (digest : Digest),
+    digest.length = 4 →
+    Phi81Relation.projectPublicInput
+      (shape := FullShape (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application))
+      (Phi81CarrierLayout.extendAssignment 0 assignment) =
+        encHash (publicFits := PerApplicationFixedPoint.publicFits application) digest →
+    (PerApplicationFixedPoint.structuralPlan application fits).RowsZero assignment →
+    StepHoldsFor (PerApplicationFixedPoint.relation application fits) ajtai
+      (ActualStep.contextKey application assignment) application
+      (ActualStep.input application fits assignment
+        (ActualStep.decodedFresh application assignment)
+        (ActualPiDECMessages.proof application fits assignment))
+      (ActualStep.output application assignment digest)
+
+theorem stage1Assignment : Stage1Assignment := by
+  intro application fits ajtai assignment digest fixed publicEqual rows
+  exact ActualPiDECOutput.selectedRowsAndPublic_imply_step
+    application fits ajtai assignment digest publicEqual rows fixed
+
+#audit_axioms stage1Assignment
 
 /-- Actual terminal membership must supply the arbitrary opening and all
 row/public premises, plus exact advertised-state matching or a named collision. -/

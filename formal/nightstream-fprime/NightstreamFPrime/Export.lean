@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

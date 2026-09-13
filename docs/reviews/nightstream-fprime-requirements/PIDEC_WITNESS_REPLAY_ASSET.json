@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "status": "prepared_upload_pending",
+  "source_commit": "dd908f2b383d2d0a83ca80c226a84a1091fe87ec",
+  "archive": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/PIDEC_PRIVATE_REPLAY_EVIDENCE-499203c540bc2856d2b4c183988f1597a01e0dbe7361c60a7c8aa6cee8c6b62f.zip",
+    "bytes": 260100782,
+    "sha256": "499203c540bc2856d2b4c183988f1597a01e0dbe7361c60a7c8aa6cee8c6b62f"
+  },
+  "members": 38,
+  "crc_check": "passed",
+  "required_input_asset_sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
+  "release_tag": "stage1-evidence-dd908f2b",
+  "remote_url": null,
+  "fresh_download_verified": false,
+  "scope": "Complete private digits only; independent D commitments and evaluations remain open."
+}

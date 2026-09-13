@@ -10,6 +10,17 @@ measure **PiRLC first** before integrating PiDEC, PiCCS or HyperNova replay.
 PiCCS starts with a measured first round on the actual witness when that
 milestone begins. Full independence requires the composed phases.
 
+The owner also requires a SuperNeo + HyperNova run with Nebula inactive.
+Use the selected `Poseidon2HashChainV1Package` and plain commitments:
+fresh, running and parent claims carry `adv = None`. The selected NIFS
+resources contain no `LaneScheme`. Reject unexpected auxiliary commitments;
+preserve the complete HyperNova state, transcript, witnesses and tails.
+Nebula code being compiled into the crate is not Nebula relation execution.
+The regression `selected_plain_step_rejects_auxiliary_commitments` passes:
+the unchanged plain input is accepted, and zero/nonzero auxiliary tuples
+on fresh, running and supplied-parent claims reject. See
+`SELECTED_PLAIN_REPLAY.json` for the source hashes and bounded test command.
+
 The local PiRLC checkpoint now passes: all 253,011,276 carrier coefficients
 match the actual Rust parent, and a change to the last tail coefficient
 rejects in its range. The prepared kernel and selected `honestResponse`
@@ -37,6 +48,15 @@ Lean's two ranges took 8.38 and 142.15 seconds. The next operation is a
 measured fixed-key commitment contribution from these same digits, followed
 by complete commitments and evaluations. No PiCCS or HyperNova replay is
 claimed by this private digit result.
+
+The first commitment-block pilot is proved and measured. Its latest serial
+measurement is 147 ms for the exact key block and 69 ms for all child
+products, including encoding and writes; all variants return identical
+product bytes. `PIDEC_COMMITMENT_PILOT.json` records this limited result.
+Full commitment accumulation remains open. The next required speed step is
+proved native-word execution of the existing ChaCha schedule, followed by
+measuring the product loop; the original seed/framing/field reduction stay
+fixed. Do not start a full scan from the present per-block cost.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

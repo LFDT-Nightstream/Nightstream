@@ -19,6 +19,7 @@
 #   validate.sh pi-rlc-witness-replay <PiCCS-input> <source-capture> <output> <start-block> <end-block>
 #   validate.sh pi-dec-witness-replay <Lean-parent-range> <output> <start-block> <end-block>
 #   validate.sh pi-dec-witness-replay-boundaries <new-results-directory>
+#   validate.sh pi-dec-commitment-block <Lean-parent-range> <output>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
@@ -83,6 +84,10 @@ case "$phase" in
   pi-dec-witness-replay-boundaries)
     if (( $# != 2 )); then echo "usage: validate.sh pi-dec-witness-replay-boundaries <new-results-directory>" >&2; exit 2; fi
     capped python3 -B tests/pi_dec_witness_replay.py "$2"
+    ;;
+  pi-dec-commitment-block)
+    if (( $# != 3 )); then echo "usage: validate.sh pi-dec-commitment-block <Lean-parent-range> <output>" >&2; exit 2; fi
+    capped lake exe measurePiDECCommitmentBlock -- "$2" "$3"
     ;;
   identity)
     if (( $# != 1 )); then echo "usage: validate.sh identity" >&2; exit 2; fi

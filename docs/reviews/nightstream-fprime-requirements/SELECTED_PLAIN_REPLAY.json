@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "scope": "Selected SuperNeo + HyperNova replay with Nebula memory relations inactive.",
+  "mode": "Poseidon2HashChainV1Package and LaneCommitmentMode::Plain; all semantic claims have adv=None.",
+  "test": "selected_plain_step_rejects_auxiliary_commitments",
+  "result": "passed",
+  "cases": [
+    "unchanged plain input accepted",
+    "fresh adv Some zero rejected",
+    "fresh adv Some nonzero rejected",
+    "running adv Some zero rejected",
+    "running adv Some nonzero rejected",
+    "supplied parent adv Some zero rejected",
+    "supplied parent adv Some nonzero rejected"
+  ],
+  "source_sha256": {
+    "crates/neo-fold-clean/tests/nifs/stage1_lifecycle.rs": "5b6666ae3b7fbb231e540b066d163367e39e0f6aca5f975bae46862263c9fe48",
+    "crates/neo-fold-clean/tests/nifs/stage1_actual.rs": "5b980efe9d133897f8ab7935ff76ac783af92fdc8e53f4e0754bd83ca551c623",
+    "crates/neo-fold-clean/src/stage1/step_inputs.rs": "1934ef46cbf3eae20c073d26b3b95d08be032239a07562b30bdd2bd818b249f7",
+    "crates/neo-fold-clean/src/paper/nifs/prover.rs": "27bb1bc80bf2b39c0090db3d3b2bf525eba43b1895de3d683b1f4569d4e44612"
+  },
+  "gate": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 300,
+    "elapsed_seconds": 64.14002725610044,
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "neo-fold-clean",
+      "--release",
+      "--test",
+      "nifs_stage1_lifecycle",
+      "selected_plain_step_rejects_auxiliary_commitments",
+      "--",
+      "--exact",
+      "--nocapture"
+    ],
+    "cwd": "/home/nicoarq/develop/Nightstream",
+    "evidence": "development diagnostic only",
+    "peak_rss_kib": 4335544
+  },
+  "log": {
+    "path": "/tmp/nightstream-selected-plain-isolation-1.log",
+    "sha256": "7c531e2e3c00e04f6284579f118e12c3a721f6aeefe0b3cc443029e37f92931d"
+  },
+  "boundaries": [
+    "Nebula code can remain compiled into the crate; the selected relation and NIFS resources contain no LaneScheme.",
+    "This adds no Rust feature, environment variable, protocol flag or new profile.",
+    "Terminal verification still ignores non-authoritative parent-cache metadata.",
+    "The shared native mixed_adv helper can allocate temporary rho matrices before returning None; the Nebula memory relation remains inactive."
+  ],
+  "registration": "The existing R/D value gates already run the source loader guards. This ordinary regression also needs the committed package, base and recursive fixture artifacts in a fresh checkout.",
+  "full_rust_test_build": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 300,
+    "elapsed_seconds": 9.182993160095066,
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "neo-fold-clean",
+      "--release",
+      "--no-run"
+    ],
+    "cwd": "/home/nicoarq/develop/Nightstream",
+    "evidence": "development diagnostic only"
+  }
+}

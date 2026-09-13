@@ -108,7 +108,13 @@ const RequirementAssurance = (() => {
     }
 
     const risk = el('div'); const budget = data.error_budget;
-    risk.append(el('p', budget.not_a_total_bound, 'scope-notice'), el('h2', 'Interactive algebraic test term'), el('p', budget.event), el('p', budget.formula, 'formula'));
+    risk.append(el('p', budget.not_a_total_bound, 'scope-notice'));
+    if (budget.symbolic_terminal) {
+      const bound = budget.symbolic_terminal;
+      risk.append(el('h2', 'Symbolic bound for the selected terminal verifier'), el('p', bound.event),
+        el('p', bound.formula, 'formula'), el('p', bound.terms), el('p', bound.premises_and_external_conditions));
+    }
+    risk.append(el('h2', 'Interactive algebraic test term'), el('p', budget.event), el('p', budget.formula, 'formula'));
     const perTest = scenario(budget, '1');
     risk.append(el('p', 'Per specified test: ' + perTest.numerator + ' / ' + perTest.denominator + '. Calculated decimal and bit values are rounded.', 'muted'));
     const form = el('form', undefined, 'risk-form');
@@ -149,7 +155,9 @@ const RequirementAssurance = (() => {
     for (const run of data.provenance.evidence) {
       const card = el('section', undefined, 'panel'); card.append(el('h2', run.label));
       fields(card, [['Checked code', run.code_commit], ['Performed by', run.performed_by], ['Date', run.date], ['Authority', run.authority]]);
-      card.append(el('p', run.scope), link('Report', sourceUrl(run.report)), el('span', ' · '), link('Retained archive', sourceUrl(run.archive))); evidence.append(card);
+      card.append(el('p', run.scope), link('Report', sourceUrl(run.report)));
+      if (run.archive) card.append(el('span', ' · '), link('Retained archive', sourceUrl(run.archive)));
+      evidence.append(card);
     }
     evidence.append(el('p', 'Required independent approvals remain open. Publishing requires a clean committed source snapshot and reruns the reference check. No secret checker key or self-issued approval is created by this site.', 'scope-notice'));
     return {views: {readiness, assumptions, risk, evidence}, sourceUrl, premiseLink};

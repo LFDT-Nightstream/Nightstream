@@ -57,7 +57,7 @@
     {
       "id": "step",
       "label": [
-        "F′ step semantics"
+        "F\u2032 step semantics"
       ],
       "kind": "theorem",
       "record": "N.local.actual_step",
@@ -222,7 +222,7 @@
           "symbol": "bounds_and_openings"
         }
       ],
-      "summary": "Bound the extractor’s success and work when it recovers openings before the combination."
+      "summary": "Bound the extractor\u2019s success and work when it recovers openings before the combination."
     },
     {
       "id": "parent",
@@ -330,21 +330,27 @@
           "symbol": "law_eq_guardedDraw"
         }
       ],
-      "summary": "Show that the probability calculation follows the history extractor’s actual source calls."
+      "summary": "Show that the probability calculation follows the history extractor\u2019s actual source calls."
     },
     {
       "id": "probability",
       "label": [
-        "History error bound"
+        "Linear source and",
+        "history bounds"
       ],
       "kind": "theorem",
       "record": "H.security.history",
-      "role": "The bound counts the first marked source and hash failures in the same actual reverse run. It retains the shared FS functions and exact MSIS event probabilities.",
+      "role": "The linear source and history bounds use the same actual guarded visits, shared FS functions and adaptive MSIS event probabilities.",
       "refs": [
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_probability_linear_bound"
+        },
+        {
+          "record": "H.security.reverse_recursive",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "source_failure_probability_linear_le"
         }
       ],
       "summary": "Bound failure on the actual reverse run. Cryptographic losses remain explicit parameters."
@@ -369,13 +375,20 @@
     {
       "id": "deployed",
       "label": [
-        "Verifier error bound"
+        "Symbolic verifier",
+        "error bound"
       ],
-      "kind": "open",
+      "kind": "theorem",
       "record": "N.security.error_budget",
-      "role": "Still open: connect the selected verifier failure event to a complete bound over uses, depth and adversarial queries. Extraction loss, honest rejection and cryptographic advantages must keep their separate meanings.",
-      "refs": [],
-      "summary": "Still open: a false-acceptance bound for the selected verification setup, over repeated uses and the stated attack budgets."
+      "role": "Selected full-opening terminal acceptance without an advertised-length forward history is bounded on the original mixed law. Depth, queries, g, deltaFS, marked hash mass and actual adaptive MSIS probability remain explicit; useful cryptographic bounds and production approval remain external.",
+      "refs": [
+        {
+          "record": "N.security.error_budget",
+          "file": "HyperNovaFalseAcceptance.lean",
+          "symbol": "probability_linear_bound"
+        }
+      ],
+      "summary": "Proved conditional false-acceptance bound for the selected terminal verifier. No numerical deployment budget or bare NIFS acceptance claim is supplied."
     },
     {
       "id": "encoding",
@@ -461,12 +474,12 @@
       "role": "The approved Nightstream-specific fixed-matrix hardness assumption. The binding reduction does not turn this into a hardness theorem or inherit uniform-matrix estimates.",
       "refs": [],
       "assumption": "fixed_matrix_msis",
-      "summary": "The commitment relies on the approved hardness assumption for Nightstream’s exact fixed matrix."
+      "summary": "The commitment relies on the approved hardness assumption for Nightstream\u2019s exact fixed matrix."
     },
     {
       "id": "fs",
       "label": [
-        "Fiat–Shamir transfer"
+        "Fiat\u2013Shamir transfer"
       ],
       "kind": "assumption",
       "record": "N.security.fiat_shamir",
@@ -827,7 +840,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_probability_linear_bound"
         }
       ],
       "overview": true
@@ -841,7 +854,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_probability_linear_bound"
         }
       ],
       "overview": true
@@ -855,7 +868,7 @@
         {
           "record": "H.security.history",
           "file": "HyperNovaVisitedSecurity.lean",
-          "symbol": "history_probability_bound"
+          "symbol": "history_probability_linear_bound"
         }
       ],
       "overview": false
@@ -940,22 +953,34 @@
     {
       "source": "probability",
       "target": "deployed",
-      "kind": "open",
-      "note": "Missing full false-acceptance event connection and instantiated advantage terms. A history extraction bound is not automatically the deployed error bound.",
-      "overview": true
+      "kind": "uses",
+      "note": "The event-to-first-failures bridge applies the linear source bound at the same actual visited laws.",
+      "overview": true,
+      "refs": [
+        {
+          "record": "H.security.reverse_recursive",
+          "file": "HyperNovaVisitedSecurity.lean",
+          "symbol": "source_failure_probability_linear_le"
+        },
+        {
+          "record": "N.security.error_budget",
+          "file": "HyperNovaFalseAcceptance.lean",
+          "symbol": "probability_linear_bound"
+        }
+      ]
     },
     {
       "source": "hash",
       "target": "deployed",
-      "kind": "open",
-      "note": "Account for the actual collision events with the appropriate shared-query advantage.",
+      "kind": "requires",
+      "note": "The theorem counts actual marked hash-collision mass. A useful advantage bound and shared-query applicability remain external.",
       "overview": false
     },
     {
       "source": "work",
       "target": "deployed",
-      "kind": "open",
-      "note": "Relate the claimed security resources to the admitted adversary and reduction budgets; the declared source clock is not machine runtime.",
+      "kind": "requires",
+      "note": "The theorem retains declared clocks, storage bounds and moments. Useful FS/MSIS resource applicability remains external; these clocks are not machine runtime.",
       "overview": true
     },
     {

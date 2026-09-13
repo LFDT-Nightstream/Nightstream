@@ -25,7 +25,9 @@ test('history security uses its actual premises without depending on native comp
   for (const id of ['native', 'extension', 'encoding']) assert.ok(!trace.inputs.has(id), id);
   assert.ok(trace.outputs.has('deployed'));
   assert.equal(diagram.edges.find(e => e.source === 'actual-success' && e.target === 'children').kind, 'supplies');
-  assert.equal(diagram.edges.find(e => e.source === 'probability' && e.target === 'deployed').kind, 'open');
+  const terminal = diagram.edges.find(e => e.source === 'probability' && e.target === 'deployed');
+  assert.equal(terminal.kind, 'uses');
+  assert.ok(terminal.refs.some(ref => ref.file === 'HyperNovaFalseAcceptance.lean' && ref.symbol === 'probability_linear_bound'));
 });
 
 test('selection isolates direct connections; the full graph remains available', () => {

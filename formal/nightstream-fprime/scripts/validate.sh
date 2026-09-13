@@ -17,6 +17,8 @@
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
 #   validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>
 #   validate.sh pi-rlc-witness-replay <PiCCS-input> <source-capture> <output> <start-block> <end-block>
+#   validate.sh pi-dec-witness-replay <Lean-parent-range> <output> <start-block> <end-block>
+#   validate.sh pi-dec-witness-replay-boundaries <new-results-directory>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
@@ -72,6 +74,15 @@ case "$phase" in
     if (( $# != 6 )); then echo "usage: validate.sh pi-rlc-witness-replay <C-input> <source-capture> <output> <start-block> <end-block>" >&2; exit 2; fi
     shift
     capped lake exe replayPiRLCWitness -- "$@"
+    ;;
+  pi-dec-witness-replay)
+    if (( $# != 5 )); then echo "usage: validate.sh pi-dec-witness-replay <Lean-parent-range> <output> <start-block> <end-block>" >&2; exit 2; fi
+    shift
+    capped lake exe replayPiDECWitness -- "$@"
+    ;;
+  pi-dec-witness-replay-boundaries)
+    if (( $# != 2 )); then echo "usage: validate.sh pi-dec-witness-replay-boundaries <new-results-directory>" >&2; exit 2; fi
+    capped python3 -B tests/pi_dec_witness_replay.py "$2"
     ;;
   identity)
     if (( $# != 1 )); then echo "usage: validate.sh identity" >&2; exit 2; fi

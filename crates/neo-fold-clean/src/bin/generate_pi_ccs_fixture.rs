@@ -256,6 +256,17 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "compare-pidec-replay")
+    {
+        assert!(
+            arguments.len() >= 3,
+            "usage: generate_pi_ccs_fixture compare-pidec-replay <actual-child-directory> <Lean-range>..."
+        );
+        owned_nifs::pidec_replay::compare(Path::new(&arguments[1]), &arguments[2..]);
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "export-pirlc-target")
     {
         assert_eq!(arguments.len(), 5,

@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.Values
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
@@ -42,6 +43,13 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 
 /-! Axiom audits for the strict production PiDEC public split. -/
+
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_eq_some_iff
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_value
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_assignment
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness.splitChecked_honestWitness
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness.splitChecked_block_honestWitness
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_implies_paper

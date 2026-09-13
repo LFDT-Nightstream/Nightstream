@@ -32,7 +32,7 @@ fn create(path: &Path) -> BufWriter<File> {
     )
 }
 
-fn masks(witness: &Mat<F>, block: usize) -> (u64, u64) {
+pub(super) fn masks(witness: &Mat<F>, block: usize) -> (u64, u64) {
     if let Some((positive, negative)) = witness.packed_signed_unit_column_masks() {
         let pair = (positive[block], negative[block]);
         assert_eq!(pair.0 & pair.1, 0);

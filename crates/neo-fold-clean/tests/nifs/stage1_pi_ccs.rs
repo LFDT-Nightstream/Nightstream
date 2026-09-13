@@ -1,6 +1,6 @@
 //! Normal selected PiCCS proving from an executed witness, without supplied images or openings.
 
-mod stage1_actual;
+pub mod stage1_actual;
 pub mod stage1_values;
 
 use neo_math::{F, K};
@@ -9,9 +9,15 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use stage1_actual::{artifact, ActualBase};
+use stage1_actual::ActualSources;
 use stage1_values::words;
 use std::{fs, time::Instant};
+
+fn artifact(name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts")
+        .join(name)
+}
 
 #[test]
 #[ignore = "Full selected base PiCCS call; witness, commitment and both cache passes are inside the 300-second test cap."]
@@ -24,7 +30,7 @@ fn selected_pi_ccs_prover_from_actual_base_sources() {
         json!(format!("{:x}", Sha256::digest(&fixture_bytes))),
         expected["base_fixture_sha256"]
     );
-    let ActualBase {
+    let ActualSources {
         package,
         params,
         fresh,

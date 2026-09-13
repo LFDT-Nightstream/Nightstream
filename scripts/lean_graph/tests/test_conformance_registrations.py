@@ -123,7 +123,8 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_registrations_keep_exact_targets_and_review_requirements(self):
         for name in ("pilot-assignment", "piccs-assignment", "piccs-public-assignment",
-                     "stage1-assignment", "stage1-terminal-assignment", "stage1-terminal-parent"):
+                     "stage1-assignment", "stage1-terminal-assignment", "stage1-terminal-parent",
+                     "hypernova-terminal-false-acceptance"):
             self.assertEqual(set(self.policy["obligations"][name]["reviews"]),
                              {"target-meaning", "decomposition"})
         for name in ("compiler-coverage", "piccs-coverage"):
@@ -134,6 +135,24 @@ class ConformanceRegistrationTests(unittest.TestCase):
         self.assertEqual(self.gates["assignment-targets"]["commands"][1]["completion"]["closures"]
                          ["LeanGraph.Targets.Stage1Assignment"], "LeanGraph.Targets.stage1Assignment")
         self.assertTrue(self.policy["obligations"]["stage1-baseline"]["open_requirements"])
+        target = "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance"
+        closure = "LeanGraph.Targets.hyperNovaTerminalFalseAcceptance"
+        self.assertEqual(self.policy["obligations"]["hypernova-terminal-false-acceptance"]["target"], target)
+        self.assertEqual(self.gates["assignment-targets"]["commands"][1]["completion"]["closures"][target], closure)
+        self.assertIn(closure, self.gates["assignment-targets"]["declaration_freshness"]["roots"])
+
+    def test_baseline_build_requires_binary_harness_and_integration_target(self):
+        self.assertIn("stage1-test-build", self.selected("stage1-baseline"))
+        command = self.gates["stage1-test-build"]["commands"][0]
+        self.assertEqual(command["argv"],
+                         ["cargo", "test", "-p", "neo-fold-clean", "--release", "--no-run"])
+        lines = ["Finished `release` profile",
+                 "Executable unittests src/bin/generate_pi_ccs_fixture.rs",
+                 "Executable tests/nifs/stage1_nifs_execution.rs"]
+        completion("\n".join(lines), command["completion"])
+        for omitted in range(len(lines)):
+            with self.subTest(omitted=omitted), self.assertRaises(EvidenceError):
+                completion("\n".join(lines[:omitted] + lines[omitted + 1:]), command["completion"])
 
     def test_compiler_inventory_covers_every_leaf_and_export_connection(self):
         self.assertIn("compiler-declarations", self.selected("compiler-coverage"))

@@ -177,7 +177,7 @@ fn check_next_metadata(packet: &Stage1StepInputs, original: &NifsProof) {
 struct Fixture {
     package: Poseidon2HashChainV1Package,
     loaded: nightstream_fprime::LoadedPerApplicationPackage,
-    base: Value,
+    base: Option<Value>,
     expected: Value,
     wire: Vec<u8>,
     state: Stage1State,
@@ -229,7 +229,46 @@ impl Fixture {
         Self {
             package,
             loaded,
-            base,
+            base: Some(base),
+            expected,
+            wire,
+            state,
+            running,
+            fresh,
+            proof,
+            message,
+        }
+    }
+
+    fn load_later(source_directory: &Path, actual_directory: &Path, expected_path: &Path) -> Self {
+        let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+        let package = Poseidon2HashChainV1Package::load(&bytes).unwrap();
+        let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+        let prior = read(source_directory.join("envelope.json"));
+        assert_eq!(prior["schema"], 1);
+        let state = Stage1State::new(
+            prior["iteration"].as_u64().unwrap(),
+            fields(&prior["z0"]).try_into().unwrap(),
+            fields(&prior["current"]).try_into().unwrap(),
+        );
+        let claims = serde_json::from_value(prior["running_claims"].clone()).unwrap();
+        let parent = serde_json::from_value(prior["running_parent"].clone()).unwrap();
+        let running = RunningInstance::new(claims, Vec::new(), parent);
+        let fresh = serde_json::from_slice(&fs::read(source_directory.join("fresh-claim.json")).unwrap()).unwrap();
+        let actual = read(actual_directory.join("actual_result.json"));
+        let proof = proof(&actual);
+        let wire = fs::read(actual_directory.join("proof.bin")).unwrap();
+        assert!(proof.canonical_bytes() == wire, "exact later native proof");
+        let expected = read(expected_path.to_owned());
+        let request = read(source_directory.join("next-message-input.json"));
+        assert_eq!(request[0], state.iteration());
+        assert_eq!(fields(&request[1]), state.z0());
+        assert_eq!(fields(&request[2]), state.current());
+        let message = fields(&request[3]).try_into().unwrap();
+        Self {
+            package,
+            loaded,
+            base: None,
             expected,
             wire,
             state,
@@ -356,10 +395,49 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
 /// Capped fixture action. The large child matrices are supplied as explicit
 /// paths; ordinary tests do not depend on a machine-local witness directory.
 pub fn complete_envelope(digit_directory: &Path, output_directory: &Path) {
+    complete_fixture(Fixture::load(), digit_directory, output_directory);
+}
+
+/// Complete a later successor from the exact saved prior claims, new native
+/// proof and independent Lean caller packet. Source openings are checked by
+/// the staged producer; the caller and all retained child openings are checked here.
+pub fn complete_later_envelope(
+    source_directory: &Path,
+    actual_directory: &Path,
+    expected_path: &Path,
+    digit_directory: &Path,
+    output_directory: &Path,
+) {
+    complete_fixture(
+        Fixture::load_later(source_directory, actual_directory, expected_path),
+        digit_directory,
+        output_directory,
+    );
+}
+
+fn complete_fixture(fixture: Fixture, digit_directory: &Path, output_directory: &Path) {
     let started = Instant::now();
     assert!(!output_directory.exists(), "use a fresh envelope output directory");
-    let fixture = Fixture::load();
     let packet = fixture.packet();
+    let encoded = fixture
+        .loaded
+        .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
+        .unwrap();
+    let expected_private: Vec<u64> = serde_json::from_value(fixture.expected[2].clone()).unwrap();
+    let expected_public: Vec<u64> = serde_json::from_value(fixture.expected[3].clone()).unwrap();
+    assert!(
+        encoded.private_values() == expected_private,
+        "every independent Lean private input"
+    );
+    assert_eq!(
+        encoded.public_values(),
+        expected_public,
+        "every independent Lean public input"
+    );
+    assert_eq!(json!(packet.output_digest()), fixture.expected[4][1]);
+    assert_eq!(json!(packet.next_public_input()), fixture.expected[4][2]);
+    check_next_metadata(&packet, &fixture.proof);
+    drop((encoded, expected_private, expected_public));
     let expected_running = packet.next_running().clone();
     let expected_state = packet.next_state();
     let digits = (0..16)
@@ -525,15 +603,17 @@ pub fn complete_envelope(digit_directory: &Path, output_directory: &Path) {
     let initial = Stage1Envelope::initial(fixture.state.z0());
     assert!(initial.is_initial());
     assert!(initial.running().is_none() && initial.fresh().is_none());
-    assert_eq!(initial.state().iteration(), fixture.base[2][28].as_u64().unwrap());
-    assert_eq!(
-        initial.state().z0(),
-        fields(&json!(&fixture.base[2].as_array().unwrap()[30..34])).as_slice()
-    );
-    assert_eq!(
-        initial.state().current(),
-        fields(&json!(&fixture.base[2].as_array().unwrap()[35..39])).as_slice()
-    );
+    if let Some(base) = &fixture.base {
+        assert_eq!(initial.state().iteration(), base[2][28].as_u64().unwrap());
+        assert_eq!(
+            initial.state().z0(),
+            fields(&json!(&base[2].as_array().unwrap()[30..34])).as_slice()
+        );
+        assert_eq!(
+            initial.state().current(),
+            fields(&json!(&base[2].as_array().unwrap()[35..39])).as_slice()
+        );
+    }
 
     fs::create_dir(output_directory).unwrap();
     serde_json::to_writer(

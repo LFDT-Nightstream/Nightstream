@@ -256,6 +256,36 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "check-later-terminal")
+    {
+        assert_eq!(arguments.len(), 6,
+            "usage: generate_pi_ccs_fixture check-later-terminal <case> <envelope-directory> <child-directory> <Lean-step-fixture> <new-result-file>");
+        terminal::check_against(
+            &arguments[1],
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            Path::new(&arguments[5]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "complete-later-envelope")
+    {
+        assert_eq!(arguments.len(), 6,
+            "usage: generate_pi_ccs_fixture complete-later-envelope <source-directory> <actual-proof-directory> <Lean-step-fixture> <child-directory> <new-output-directory>");
+        lifecycle::complete_later_envelope(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            Path::new(&arguments[5]),
+        );
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "check-owned-terminal")
     {
         assert_eq!(arguments.len(), 5,
@@ -282,10 +312,49 @@ fn main() {
     }
     if arguments
         .first()
+        .is_some_and(|mode| mode == "check-owned-sources")
+    {
+        assert_eq!(
+            arguments.len(),
+            3,
+            "usage: generate_pi_ccs_fixture check-owned-sources <published-package> <source-envelope-directory>"
+        );
+        owned_nifs::check_sources(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "prove-owned-ccs")
+    {
+        assert_eq!(arguments.len(), 4,
+            "usage: generate_pi_ccs_fixture prove-owned-ccs <published-package> <base-fixture-or-source-directory> <new-ccs-file>");
+        owned_nifs::parent::prove_ccs(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "prove-owned-rlc")
+    {
+        assert_eq!(arguments.len(), 5,
+            "usage: generate_pi_ccs_fixture prove-owned-rlc <published-package> <base-fixture-or-source-directory> <ccs-file> <new-parent-directory>");
+        owned_nifs::parent::prove_after_ccs(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+        );
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "prove-owned-parent")
     {
         assert_eq!(arguments.len(), 4,
-            "usage: generate_pi_ccs_fixture prove-owned-parent <published-package> <base-fixture> <fresh-output-directory>");
+            "usage: generate_pi_ccs_fixture prove-owned-parent <published-package> <base-fixture-or-source-directory> <fresh-output-directory>");
         owned_nifs::parent::prove(
             Path::new(&arguments[1]),
             Path::new(&arguments[2]),
@@ -298,7 +367,7 @@ fn main() {
         .is_some_and(|mode| mode == "check-owned-parent")
     {
         assert_eq!(arguments.len(), 5,
-            "usage: generate_pi_ccs_fixture check-owned-parent <published-package> <base-fixture> <parent-directory> <fresh-material-directory>");
+            "usage: generate_pi_ccs_fixture check-owned-parent <published-package> <base-fixture-or-source-directory> <parent-directory> <fresh-material-directory>");
         owned_nifs::parent::check(
             Path::new(&arguments[1]),
             Path::new(&arguments[2]),
@@ -312,7 +381,7 @@ fn main() {
         .is_some_and(|mode| mode == "open-owned-child")
     {
         assert_eq!(arguments.len(), 7,
-            "usage: generate_pi_ccs_fixture open-owned-child <published-package> <base-fixture> <parent-directory> <material-directory> <child-index> <fresh-output-file>");
+            "usage: generate_pi_ccs_fixture open-owned-child <published-package> <base-fixture-or-source-directory> <parent-directory> <material-directory> <child-index> <fresh-output-file>");
         owned_nifs::parent::open_child(
             Path::new(&arguments[1]),
             Path::new(&arguments[2]),
@@ -329,7 +398,7 @@ fn main() {
     {
         let staged = arguments[0] == "assemble-owned-nifs";
         assert_eq!(arguments.len(), if staged { 7 } else { 4 },
-            "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture> <fresh-output-directory> OR assemble-owned-nifs <published-package> <base-fixture> <parent-directory> <material-directory> <opening-directory> <fresh-output-directory>");
+            "usage: generate_pi_ccs_fixture prove-owned-nifs <published-package> <base-fixture-or-source-directory> <fresh-output-directory> OR assemble-owned-nifs <published-package> <base-fixture-or-source-directory> <parent-directory> <material-directory> <opening-directory> <fresh-output-directory>");
         let output = Path::new(arguments.last().expect("fresh output directory"));
         assert!(!output.exists(), "use a fresh external output directory");
         let actual = if staged {

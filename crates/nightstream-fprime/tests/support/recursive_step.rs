@@ -155,9 +155,12 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     assert_eq!(
         prior,
         &base_private[STATE_PREIMAGE_WORDS..2 * STATE_PREIMAGE_WORDS],
-        "actual base output is the next prior"
+        "the preceding checked caller output is the next prior"
     );
-    assert_eq!(prior[28], 1, "recursive branch");
+    assert!(
+        prior[28] > 0 && prior[28] + 1 < MODULUS,
+        "recursive counter has a canonical successor"
+    );
     assert_eq!(
         parent::with_running(prior, &input[6]),
         prior,
@@ -174,7 +177,7 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     application.extend_from_slice(message);
     let application_output = hash(&application);
     let mut next = prior.to_vec();
-    next[28] = 2;
+    next[28] = prior[28] + 1;
     next[35..39].copy_from_slice(&application_output);
     assert_eq!(
         output,
@@ -213,5 +216,8 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     assert_eq!(&fixture[4][4], ccs_state);
     assert_eq!(&fixture[4][5], rlc_state);
     assert_eq!(fixture[4][6], json!(parent_public));
-    println!("recursive_caller_binding=passed prior_iteration=1 output_iteration=2 children=16 matrix_families=14");
+    println!(
+        "recursive_caller_binding=passed prior_iteration={} output_iteration={} children=16 matrix_families=14",
+        prior[28], next[28]
+    );
 }

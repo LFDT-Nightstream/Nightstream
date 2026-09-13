@@ -5,6 +5,7 @@ import NightstreamFPrime.Export.Stage1.ActualPiDECOutput
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
+import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import tests.EvidenceMetadata
 
 /-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
@@ -306,6 +307,87 @@ theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
   @HyperNovaVisitedSecurity.history_probability_linear_bound
 
 #audit_axioms hyperNovaLinearSecurity
+
+/-- The selected terminal false-acceptance event and its exact symbolic loss. -/
+def HyperNovaTerminalFalseAcceptance : Prop :=
+  ∀ (State Tape : Type)
+  (tapes : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
+  (rawCall : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State →
+      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
+  (checkClock : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
+  (storageClock : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
+  (parentClock : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
+  (storageBound : Visit → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → Nat)
+  (storageBounded : ∀ visit coins output state assignments,
+    storageClock visit coins output state assignments ≤ storageBound visit coins output state)
+  (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
+    (tapes visit coins output state tape).toReal *
+      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
+        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
+          (checkClock visit coins output state) (storageClock visit coins output state))
+        (rawCall visit coins output state) vector tape : ℝ))
+  [DecidableEq RingF]
+  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
+    (initial : PMF (Statement × Envelope)) (depth : Nat)
+    (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
+    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
+    (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
+    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
+    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
+    (_lowNorm : Phi81StrongSet.LowNormInvertibility)
+    (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
+    (_bounded : PiRLC.PaperForkExtractionWork.Bounded
+      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
+      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+        assignmentSubClock scalarActionClock) bounds),
+    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
+    let visits := fun j : Fin depth => visitedLaw source initial j.val
+    let running := fun visit => PiCCSInputCheck.running (inputs visit)
+    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
+    let firstPhase := guardedPrefix originalFirstPhase
+    let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
+    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
+    let provider := fun j : Fin depth =>
+      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+        storageBound storageBounded baseSummable (contexts j) checked
+    let extended := fun j : Fin depth =>
+      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
+        abortTape (provider j)
+    (∀ j : Fin depth,
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+    (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance input}).toReal ≤
+      ∑ j : Fin depth,
+          (((visits j).toOuterMeasure
+              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
+            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
+              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
+              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              IndependentExecution.testError productionShape 9 +
+              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+                firstPhase (SupportedExtraction.publicCheck running) (extended j)
+                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
+                  (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
+
+/-- The original mixed-law event bridge discharges the registered criterion. -/
+theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
+  @HyperNovaFalseAcceptance.probability_linear_bound
+
+#audit_axioms hyperNovaTerminalFalseAcceptance
 
 end HyperNovaSecurity
 

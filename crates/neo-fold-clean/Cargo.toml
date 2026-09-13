@@ -215,7 +215,7 @@ path = "tests/nifs/stage1_pi_ccs.rs"
 
 [[test]]
 name = "nifs_stage1_nifs"
-path = "tests/nifs/stage1_nifs.rs"
+path = "tests/nifs/stage1_nifs_execution.rs"
 
 [[test]]
 name = "nifs_stage1_lifecycle"

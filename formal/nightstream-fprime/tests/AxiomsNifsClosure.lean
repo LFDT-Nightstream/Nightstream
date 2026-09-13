@@ -666,7 +666,5 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.parentChecker_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.batchAt_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsExtractionProvider.continuationAt
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.source_probability_bound
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsClosure.finishValue_probability_and_expected_work
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_law_eq_supported_extension
-#audit_axioms NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_probability_bound

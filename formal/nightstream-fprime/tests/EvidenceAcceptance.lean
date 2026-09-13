@@ -12,3 +12,5 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.Stage1TerminalAssignment by LeanGraph.Targets.stage1TerminalAssignment
 #evidence_closed LeanGraph.Targets.Stage1TerminalParent by LeanGraph.Targets.stage1TerminalParent
 #evidence_closed LeanGraph.Targets.HyperNovaLinearSecurity by LeanGraph.Targets.hyperNovaLinearSecurity
+
+#evidence_closed LeanGraph.Targets.HyperNovaTerminalFalseAcceptance by LeanGraph.Targets.hyperNovaTerminalFalseAcceptance

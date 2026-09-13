@@ -5,6 +5,13 @@ Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`, 17 sources, 16 childr
 14 matrices, 28 rounds, and Poseidon2 binding. A successful build checks the
 stated conclusions under their stated hypotheses.
 
+The selected native NIFS-to-successor bridge is checked at `68c5d94a`.
+It constructs the complete caller packet from the actual saved NIFS output,
+matches every caller word with Lean, and passes independent complete
+physical/logical rows and child mutations. See [the exact execution scope](../../docs/reviews/nightstream-fprime-requirements/NATIVE_SUCCESSOR_EVIDENCE.md).
+Child witness retention, fresh commitment in the returned envelope and
+selected terminal execution remain separate from this claims-only packet.
+
 **Selected rows and completeness.** Declaration names below omit only the common `NightstreamFPrime` namespace.
 
 | Exact declaration | Proved result and scope |

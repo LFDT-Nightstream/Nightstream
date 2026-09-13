@@ -12,6 +12,12 @@ physical/logical rows and child mutations. See [the exact execution scope](../..
 Child witness retention, fresh commitment in the returned envelope and
 selected terminal execution remain separate from this claims-only packet.
 
+The next native milestone, `50127ac9`, retains all actual child witnesses and
+commits and retains the exact complete fresh matrix in the existing proof-state
+type. Its initial empty case and actual successor pass the recorded checks.
+See [the envelope evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.md).
+Selected terminal CE evaluations and fresh CCS acceptance remain separate.
+
 **Selected rows and completeness.** Declaration names below omit only the common `NightstreamFPrime` namespace.
 
 | Exact declaration | Proved result and scope |

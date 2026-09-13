@@ -23,6 +23,14 @@ boundaries. The public flow is `Stage1Envelope::initial(z0)`,
 Its open requirements remain until their actual tests and review exist.
 This registration does not change lean-graph's schema or acceptance rules.
 
+The symbolic terminal false-acceptance target and six-record reconciliation
+passed at `8084c256` and `5222c1d5`. The current staged nonzero C/R/D result,
+complete proof bytes and mutations pass; see `NONZERO_NIFS_GATES.json` and
+`NONZERO_NIFS_REVIEW.json` in `docs/reviews/nightstream-fprime-requirements`.
+The aggregate stays compiler-closed while the later full assignment,
+terminal and public active-call checks remain open. Evidence delivery and
+external production approval remain separate.
+
 ## Checkpoint requirements
 
 The checkpoint must compile every `neo-fold-clean` test target with

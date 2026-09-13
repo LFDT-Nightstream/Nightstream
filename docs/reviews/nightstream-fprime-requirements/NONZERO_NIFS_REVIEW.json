@@ -1,0 +1,408 @@
+{
+  "schema": 1,
+  "reviewer": "/root/review_linear_security_contract",
+  "reviewed_at_utc": "2026-09-13T10:05:05.391793+00:00",
+  "review_kind": "Independent local source and artifact review; not controlled-checker approval",
+  "base_commit": "5222c1d5c442a56f0b961aa99bdb3d5e95d9d1b6",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "verdict": "pass",
+  "scope": "The staged actual nonzero-running C/R/D milestone, with exact original C input, seven required D openings, normal NIFS verification, full independent Lean result and native wire/D comparison. This is not complete Stage 1 baseline closure.",
+  "current_source_hashes": {
+    "crates/neo-fold-clean/tests/nifs/stage1_actual.rs": "5b980efe9d133897f8ab7935ff76ac783af92fdc8e53f4e0754bd83ca551c623",
+    "crates/neo-fold-clean/tests/nifs/stage1_parent.rs": "6cf33d05a5f7325ff5fa49cf6e5cddff0c911f1b21160e3dd6303fd779e95397",
+    "crates/neo-fold-clean/tests/nifs/stage1_assemble.rs": "fac5d0c562818948991c4f0383573898ae90eb93be17969daebcdad6d760d55b",
+    "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs": "97ffe53720bc9843bed0e002431356879a66fb3d385b2b4be868b1c8d22c3c3c",
+    "crates/neo-fold-clean/tests/nifs/nifs_actual_mutations.rs": "e46cf3fabc7141afcc10a40e609fe10bf2616354e94292d24c2e2720169746d2",
+    "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture/native_dec.rs": "3c124430f6a1b1d06dc85c3fa828ceb567c8b71ec62cb42a77f8735b4e4b064f"
+  },
+  "uncommitted_source_changes": [
+    "crates/neo-fold-clean/tests/nifs/stage1_actual.rs",
+    "crates/neo-fold-clean/tests/nifs/stage1_parent.rs"
+  ],
+  "read_only_artifact_comparisons": {
+    "final_C_input_bytes_equal_C2": true,
+    "actual_C_input_equal_C2": true,
+    "actual_C_phase_equal_C2": true,
+    "complete_Lean_C_prefix_equal_prior_C": true,
+    "complete_Lean_CR_prefix_equal_prior_R": true,
+    "full_Lean_input_equal_original_C2": true,
+    "actual_C_phase_equal_full_Lean": true,
+    "actual_R_parent_equal_full_Lean": true,
+    "actual_children_equal_file_and_Lean": true,
+    "package_identity_equal_Lean": true,
+    "outgoing_state_equal_R_and_D": true,
+    "all_three_phase_acceptances": true,
+    "complete_result_shapes": true,
+    "wire_has_reported_byte_length": true
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/nightstream-native-nonzero-nifs-1/pi_ccs_input.json",
+      "bytes": 657064,
+      "sha256": "e6ef86bb64d6a9ec9819bb3786d9444f470eaa626e56fe8584612bd989865d08"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-nifs-1/children.json",
+      "bytes": 446185,
+      "sha256": "de6d8a3da7880a7abe2a4f71f289f393c761a313a6dcf39d88bf9297cab0ccb5"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-nifs-1/actual_result.json",
+      "bytes": 1615535,
+      "sha256": "9afed0ec6589ccecd8df88824acd43002db78c0190fa9f169cab5c44d489f80c"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-nifs-1/proof.bin",
+      "bytes": 945983,
+      "sha256": "c6997ff92df97645e0bdb293638859c781d3e77046a5b579d68b94fc26d73bb9"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-nifs-1.lean.json",
+      "bytes": 4722709,
+      "sha256": "56d67e9de738feef757ecec382067f2a724baebe41db865e8dd152c21707891d"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-ccs-2.input.json",
+      "bytes": 657064,
+      "sha256": "e6ef86bb64d6a9ec9819bb3786d9444f470eaa626e56fe8584612bd989865d08"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-ccs-2.phase.json",
+      "bytes": 450952,
+      "sha256": "1433dd4c7b8e25b7ea69c2bab1c82e92f9397f3854743396d466899bfc67d8eb"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-ccs-2.lean.json",
+      "bytes": 1696689,
+      "sha256": "37353dccaed67cc52de8a1972ebc03801f33b8bf434e14fce82c84c8d6246972"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-parent-2.lean.json",
+      "bytes": 3222951,
+      "sha256": "0d6a980a6968b89f83d6bc968857c56f49a43c9bac5311ef113693013a7ece21"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-parent-2/parent.json",
+      "bytes": 1653079,
+      "sha256": "09a5a7319b615a74093ee14cc1c31fb9df5a4ef7f20cde86271ceca07844f3aa"
+    }
+  ],
+  "prior_R_correspondence": "The full Lean C/R prefix exactly equals the previously checked R result. Current parent.json and that result still match the hashes in the prior parent comparison. Actual final parent values equal the full Lean R commitment/public/point/Pad/matrix output. Existing optimized-rlc evidence records the complete 11-field indexed comparison and its rejection cases.",
+  "source_and_opening_boundary": "The original iteration-2 source files have the separate completed check-owned-sources and exact-byte evidence. Current stage loading retains typed shape/public/state/parent checks; that load alone is not an individual commitment-opening check. Each required saved D opening names the same replayed parent, exact indexed commitment and transcript state/cursor. Assembly recomputes the full parent split and commitments and compares every digit Mat before the normal D and NIFS owners run.",
+  "zero_children": {
+    "indices": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "basis": "stage1_assemble derives zero evaluations only after recomputed split flags and exact digit Mat equality. Separate zero opening files are not required.",
+    "child_7": "Cancelled as unnecessary; not a passed check.",
+    "children_8_through_15": "Not started, as recorded.",
+    "disposition_record": {
+      "path": "/tmp/nightstream-nonzero-opening-queue-disposition.json",
+      "bytes": 505,
+      "sha256": "ab27dac78e844dfea5835e7adb480ae48ed842a9ddafb43b5abe4d163fd65ae7"
+    }
+  },
+  "root_reported_executions": {
+    "attribution": "The execution results and metrics below are read from root-produced logs. This reviewer did not run or repeat Lean, Cargo, tests, a producer, or native comparison.",
+    "required_child_openings": [
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-0-1.log",
+        "sha256": "c5c42bcc50ec6a4bd4027e90d1362ebeedbdc11fca1959f2beae826475552793",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 217.47674871899653,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27840172,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "0",
+          "/tmp/nightstream-native-nonzero-openings-1/child-0.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-1-1.log",
+        "sha256": "7fab92b2fa16c68b6e28989b3e3ec884892327a72c64d2050b91557ae8b73fc8",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 220.07677706493996,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27779956,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "1",
+          "/tmp/nightstream-native-nonzero-openings-1/child-1.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-2-1.log",
+        "sha256": "a11290addf5ba3f99fb2d95fb8c48c13653752ddbb44e9ae39dc8f69e0a6eba3",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 217.69845723197795,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27839892,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "2",
+          "/tmp/nightstream-native-nonzero-openings-1/child-2.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-3-1.log",
+        "sha256": "127b2ca436127d3c7f314eb314c0bd3a74f69cf3bc16c974aa3ecdc7c6d3a546",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 216.54159487399738,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27840616,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "3",
+          "/tmp/nightstream-native-nonzero-openings-1/child-3.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-4-1.log",
+        "sha256": "b93f0215c8fee51163243fc72b87f44d0b73332231d4b58181d8a1828e6844cc",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 214.6131497489987,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27841116,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "4",
+          "/tmp/nightstream-native-nonzero-openings-1/child-4.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-5-1.log",
+        "sha256": "b00dee62b3a093cc0a1ca36adfcf11fb460f09264cb7645cf6db3919fbb77a26",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 210.66676841594744,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27839156,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "5",
+          "/tmp/nightstream-native-nonzero-openings-1/child-5.json"
+        ]
+      },
+      {
+        "log": "/tmp/nightstream-baseline-nonzero-child-6-1.log",
+        "sha256": "335b305bc1f1c7c42ce7530217552a1a6815f123024351acaa31014bdc380bdf",
+        "outcome": "passed",
+        "exit": 0,
+        "elapsed_seconds": 198.29315413499717,
+        "cap_seconds": 300,
+        "peak_rss_kib": 27839388,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--features",
+          "perf-timers",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "open-owned-child",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-2",
+          "/tmp/nightstream-native-nonzero-material-1",
+          "6",
+          "/tmp/nightstream-native-nonzero-openings-1/child-6.json"
+        ]
+      }
+    ],
+    "assembly": {
+      "log": "/tmp/nightstream-baseline-nonzero-assembly-1.log",
+      "sha256": "ad8dd25eaa6d2d4153842a000737f77d5d9f6dbe8a0bfcd47e21d2d071bbf834",
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 155.14829325093888,
+      "cap_seconds": 300,
+      "peak_rss_kib": 5527748,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "assemble-owned-nifs",
+        "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "/tmp/nightstream-native-nonzero-sources-1",
+        "/tmp/nightstream-native-nonzero-parent-2",
+        "/tmp/nightstream-native-nonzero-material-1",
+        "/tmp/nightstream-native-nonzero-openings-1",
+        "/tmp/nightstream-native-nonzero-nifs-1"
+      ]
+    },
+    "full_Lean": {
+      "log": "/tmp/nightstream-baseline-nonzero-nifs-lean-1.log",
+      "sha256": "cc8d47add705212ba511ee23173f004633556f89970a69fc3dfbe5d80704a5f9",
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 14.99373895896133,
+      "cap_seconds": 1500,
+      "peak_rss_kib": 3829420,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-input-check",
+        "9705822157724451396",
+        "520958727644325895",
+        "9285622073986934000",
+        "874020794279380938",
+        "/tmp/nightstream-native-nonzero-nifs-1/pi_ccs_input.json",
+        "/tmp/nightstream-native-nonzero-nifs-1/children.json",
+        "/tmp/nightstream-native-nonzero-nifs-1.lean.json"
+      ]
+    },
+    "native_wire_and_D_comparison": {
+      "log": "/tmp/nightstream-baseline-nonzero-nifs-comparison-1.log",
+      "sha256": "96c30acaf9a5a2fdd0b9e87cd4de924ad8512afddeda7fd7ae6de594ff756749",
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 20.294412955990992,
+      "cap_seconds": 300,
+      "peak_rss_kib": 3433208,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "check-owned-nifs",
+        "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "/tmp/nightstream-native-nonzero-nifs-1",
+        "/tmp/nightstream-native-nonzero-nifs-1.lean.json"
+      ]
+    }
+  },
+  "comparison_claims": {
+    "full_Lean_result_fields": 10,
+    "D_result_fields": 17,
+    "proof_bytes": 945983,
+    "logged_NIFS_mutation_rejections": 43,
+    "logged_D_mutation_rejections": 55,
+    "wire_comparison_basis": "The existing check_wire owner reconstructs expected bytes from the full independent Lean result. The root-produced comparison log reports equality of all 945983 bytes; this reviewer checked the artifact identity and size, not a new native wire execution."
+  },
+  "blockers": [
+    "The later 2-to-3 independent caller packet, complete assignment/raw-row comparison and completed successor envelope remain open.",
+    "Selected terminal acceptance and recomputed-binding rejection cases for that later envelope remain open.",
+    "Successful uninterrupted public active extension and absent/changed-cache recovery with these actual nonzero sources remain open. Staged C/R/D success does not close that claim.",
+    "External authentication, release upload, remote byte verification and fresh-download replay remain open. The current source changes and evidence also need their final pinned checkpoint."
+  ],
+  "material_findings": [],
+  "exclusions": [
+    "No repository edit, build, test, archive compression or remote action was performed.",
+    "No final baseline, production backend, universal Rust semantics or new cryptographic security claim.",
+    "Earlier failed capped attempts and the cancelled child-7 invocation are not relabeled as passing."
+  ]
+}

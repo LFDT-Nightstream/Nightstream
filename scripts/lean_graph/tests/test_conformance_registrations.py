@@ -121,15 +121,19 @@ class ConformanceRegistrationTests(unittest.TestCase):
             if gate.get("identity_bound"):
                 self.assertTrue(set(self.policy["identity_inputs"]) <= set(scope["inputs"]))
 
-    def test_registrations_do_not_grant_review_or_full_step_closure(self):
+    def test_registrations_keep_exact_targets_and_review_requirements(self):
         for name in ("pilot-assignment", "piccs-assignment", "piccs-public-assignment",
-                     "stage1-terminal-assignment", "stage1-terminal-parent"):
+                     "stage1-assignment", "stage1-terminal-assignment", "stage1-terminal-parent"):
             self.assertEqual(set(self.policy["obligations"][name]["reviews"]),
                              {"target-meaning", "decomposition"})
         for name in ("compiler-coverage", "piccs-coverage"):
             self.assertIn("formula-coverage", self.policy["obligations"][name]["reviews"])
         self.assertTrue(self.policy["obligations"]["piccs-coverage"]["coverage"])
-        self.assertIsNone(self.policy["obligations"]["stage1-assignment"]["target"])
+        self.assertEqual(self.policy["obligations"]["stage1-assignment"]["target"],
+                         "LeanGraph.Targets.Stage1Assignment")
+        self.assertEqual(self.gates["assignment-targets"]["commands"][1]["completion"]["closures"]
+                         ["LeanGraph.Targets.Stage1Assignment"], "LeanGraph.Targets.stage1Assignment")
+        self.assertTrue(self.policy["obligations"]["stage1-baseline"]["open_requirements"])
 
     def test_compiler_inventory_covers_every_leaf_and_export_connection(self):
         self.assertIn("compiler-declarations", self.selected("compiler-coverage"))

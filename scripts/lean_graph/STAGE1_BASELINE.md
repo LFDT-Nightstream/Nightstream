@@ -5,7 +5,8 @@
 The owner changed the active target on September 13: independently execute
 the selected prover computations in Lean and Rust from the same setup,
 public inputs and original witnesses. Rust results enter only comparison
-checks. Preserve the current SuperNeo v1.2 profile and package. Finish and
+checks. Preserve SuperNeo v1.2 and the selected Nightstream Goldilocks
+profile (`b = 2`, `k_rho = 16`) and package. Finish and
 measure **PiRLC first** before integrating PiDEC, PiCCS or HyperNova replay.
 PiCCS starts with a measured first round on the actual witness when that
 milestone begins. Full independence requires the composed phases.
@@ -49,14 +50,23 @@ measured fixed-key commitment contribution from these same digits, followed
 by complete commitments and evaluations. No PiCCS or HyperNova replay is
 claimed by this private digit result.
 
-The first commitment-block pilot is proved and measured. Its latest serial
-measurement is 147 ms for the exact key block and 69 ms for all child
-products, including encoding and writes; all variants return identical
-product bytes. `PIDEC_COMMITMENT_PILOT.json` records this limited result.
-Full commitment accumulation remains open. The next required speed step is
-proved native-word execution of the existing ChaCha schedule, followed by
-measuring the product loop; the original seed/framing/field reduction stay
-fixed. Do not start a full scan from the present per-block cost.
+The commitment kernels now use proved native-word ChaCha and the existing
+proved native-word field operations. Both measured block products match the
+earlier specification-backed outputs. First-use key time includes package
+dimension initialization; it must not be charged to every block.
+`PIDEC_COMMITMENT_PILOT.json` records the measurements. The complete first
+range, `0..74272`, finished in 155.69 seconds at 1,511,560 KiB peak memory.
+Use that measured extent for the remaining ranges. The input partitioner
+copies the original Lean parent lines and records their hashes; missing
+blocks remain exact zero.
+
+`LeanGraph.Targets.PiDECCommitmentReplay` names the final commitment target.
+Its only premise is the successful checked split of the supplied parent.
+The proved key, product and finite sum yield every child commitment in
+`honestMessages`. The new graph gates require all 64 contiguous ranges,
+all 16 by 22 by 54 commitment coefficients, and changed-target rejection.
+The full executed comparison is still open. Complete child evaluations
+follow commitment closure; PiCCS and HyperNova replay remain later milestones.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

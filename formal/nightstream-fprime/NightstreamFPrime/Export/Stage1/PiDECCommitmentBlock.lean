@@ -1,4 +1,6 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Export.NativeAjtaiChaCha
+import NightstreamFPrime.Export.Stage1.PiDECNativeProduct
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 
@@ -20,7 +22,7 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
 /-- A zero digit contributes the exact zero ring without multiplication. -/
 def multiplyChild (key child : StoredRing) : StoredRing :=
   if ∀ lane : Fin ringDegree, child.get lane = 0 then Vector.replicate ringDegree 0
-  else Vector.ofFn (ringFMul key.get child.get)
+  else PiDECNativeProduct.multiply key child
 
 /-- Zero omission preserves the complete semantic key product. -/
 theorem multiplyChild_value (key child : StoredRing) :
@@ -32,15 +34,13 @@ theorem multiplyChild_value (key child : StoredRing) :
     funext lane
     change (Vector.replicate ringDegree (0 : F))[lane.val] = 0
     rw [Vector.getElem_replicate]
-  · funext lane
-    change (Vector.ofFn (ringFMul key.get child.get))[lane.val] = _
-    rw [Vector.getElem_ofFn]
+  · exact PiDECNativeProduct.multiply_value key child
 
 /-- Materialize the exact lazy key at one row and block. -/
 def keyBlock {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) : StoredRing :=
-  Vector.ofFn (setup.verifierKey row block)
+  Vector.ofFn (NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient setup row block)
 
 /-- Stored access is the existing semantic key coordinate. -/
 theorem keyBlock_value {verifierRows messageColumns : Nat}
@@ -48,8 +48,9 @@ theorem keyBlock_value {verifierRows messageColumns : Nat}
     (row : Fin verifierRows) (block : Fin messageColumns) :
     (keyBlock setup row block).get = setup.verifierKey row block := by
   funext lane
-  change (Vector.ofFn (setup.verifierKey row block))[lane.val] = _
-  rw [Vector.getElem_ofFn]
+  change (Vector.ofFn
+    (NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient setup row block))[lane.val] = _
+  rw [Vector.getElem_ofFn, NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq]
 
 /-- Share one materialized key across the sixteen child products. -/
 def products (key : StoredRing) (children : Vector StoredRing productionGlobalParams.k) :

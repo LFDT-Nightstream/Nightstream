@@ -4,6 +4,8 @@ import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
@@ -55,6 +57,26 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.multiplyChild_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.keyBlock_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.products_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.zero_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.add_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.fold_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.sum_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.sum_contributions_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.childBlocks_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.sum_contributions_eq_ajtaiRow
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.fold_parts_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.combine_partialSums_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages.sum_contributions_honestMessages
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.quarterRound_eq
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.nativeStep_map
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.doubleRound_map
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.runDoubleRounds_map
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.initialState_map
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.blockWords_eq
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.first256Nat_eq
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.wideCoefficientNat_eq
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_implies_paper

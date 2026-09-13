@@ -19,13 +19,30 @@ proof edits. The linear-loss upgrade must establish adaptive uniqueness,
 the actual retry law, emitted MSIS output, and full declared work/query
 accounting. Its current strategy enters after relaxed acceptance and returns
 the next accepted response. This avoids adding a source-membership checker;
-the selected disagreement probability still needs its stopped-law proof.
+the selected disagreement probability is connected by the stopped-law proof
+in the completed milestone below.
 
 The approved fixed-seed MSIS and additive-Poseidon2 FS boundaries remain
 explicit. Stronger assumptions, a general FS formalization, numerical
 deployment budgets, profile changes and machine-runtime proofs are not
 authorized by this extension. Only `nico/f-prime-constraints-cuda-formal` is
 used. The existing owner-approved attempt limit and one-build queue remain.
+
+### Linear-security milestone closed, 2026-09-12
+
+Commit `1ad23f557b73e0564a27b62e20fe9d01a688f6b0` proves
+`HyperNovaVisitedSecurity.history_probability_linear_bound`. The actual
+adaptive reduction's output law, both acceptance checks, entered termination,
+declared work and preparation bounds are connected to the selected NIFS and
+history consumers. Static, library, axioms, the exact lean-graph target and
+metadata export pass on one source snapshot. Independent review passes.
+See [the result and evidence](SUPERNEO_V1_2_LINEAR_SECURITY.md).
+
+The graph's protected-checker acceptance is separate from these validated
+local records. The approved external FS/MSIS conditions remain explicit.
+The next required milestone is selected Rust lifecycle conformance beyond
+the already validated actual-base C/R/D stages. Reuse those stages and name
+the next missing handoff and its comparison before editing production code.
 
 Owner request: 2026-09-11. This is the combined task scope, including the
 owner's correction after the app goal was created. Neither part below is

@@ -1,0 +1,15 @@
+{
+  "status": "prepared; not uploaded",
+  "path": "/home/nicoarq/develop/nightstream-stage1-evidence/PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
+  "bytes": 644154701,
+  "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
+  "source_commit": "9cb553c49fcfe8e4f58cebeaf868f57a4ae6a535",
+  "archive_crc_check": "passed",
+  "repository": "LFDT-Nightstream/Nightstream",
+  "proposed_release_tag": "stage1-evidence-9cb553c4",
+  "remote_asset_url": null,
+  "remote_verification": "pending authentication and upload",
+  "inputs": "The archive contains all17 original witnesses as regular files, original claims/envelope, saved C, regenerated-input reference captures and both Lean ranges. Rust target generation is the recorded prove-owned-rlc command.",
+  "source_report": "PIRLC_WITNESS_REPLAY.json",
+  "replay_recipe": "PIRLC_WITNESS_REPLAY.md"
+}

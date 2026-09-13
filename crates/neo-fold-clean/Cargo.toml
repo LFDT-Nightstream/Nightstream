@@ -218,6 +218,10 @@ name = "nifs_stage1_nifs"
 path = "tests/nifs/stage1_nifs.rs"
 
 [[test]]
+name = "nifs_stage1_lifecycle"
+path = "tests/nifs/stage1_lifecycle.rs"
+
+[[test]]
 name = "nifs_pi_rlc_sampler_lean_parity"
 path = "tests/nifs/pi_rlc_sampler_lean_parity.rs"
 

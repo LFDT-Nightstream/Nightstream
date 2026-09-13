@@ -1,4 +1,5 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerBits
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
@@ -554,6 +555,14 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Layout.R1CS.segmentsHold_ofFn_get
 #audit_axioms NightstreamFPrime.Layout.R1CS.segmentsHold_get
 #audit_axioms NightstreamFPrime.Layout.R1CS.rowsHold_lowerConstraints_ofFn_get
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.witnessBlockStep_toRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.witnessBlockPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessAction.multiplySigned_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.preparedWitnessBlockStep_toRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.preparedWitnessBlockPartials_toRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.honestResponse_assignment
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse
 #audit_axioms NightstreamFPrime.Layout.R1CS.lowerConstraint_eq_lowerGenericConstraint_of_fresh_pos
 #audit_axioms NightstreamFPrime.Layout.R1CS.LoweringPlan.rowsHold_segments_of_constraints
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.PacketProjection.physicalRows_imply_packets

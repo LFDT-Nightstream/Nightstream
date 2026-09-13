@@ -1,5 +1,51 @@
 # Current Stage 1 baseline closure
 
+## Active goal: independent prover replay
+
+The owner changed the active target on September 13: independently execute
+the selected prover computations in Lean and Rust from the same setup,
+public inputs and original witnesses. Rust results enter only comparison
+checks. Preserve the current SuperNeo v1.2 profile and package. Finish and
+measure **PiRLC first** before integrating PiDEC, PiCCS or HyperNova replay.
+PiCCS starts with a measured first round on the actual witness when that
+milestone begins. Full independence requires the composed phases.
+
+The local PiRLC checkpoint now passes: all 253,011,276 carrier coefficients
+match the actual Rust parent, and a change to the last tail coefficient
+rejects in its range. The prepared kernel and selected `honestResponse`
+bridge pass the axiom audit and exact target check. Static/build/axioms and
+the complete Rust test build pass. `PIRLC_WITNESS_REPLAY.json` in the
+requirements review directory records the source hashes, commands, times
+and memory. Release upload and fresh-download verification remain external.
+The next computation milestone is PiDEC, using the Lean-computed parent.
+
+For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
+challenges. The PiCCS messages and final claims are Rust inputs until the
+PiCCS prover replay is complete. The 17 source witnesses are original inputs;
+the Rust combined witness is only a target. Compare every coefficient of
+the complete carrier, including tails, and reject a changed target
+coefficient with its block and lane. Missing source blocks mean exact zero,
+not omitted comparison coverage.
+
+Each plain executable kernel must have an audited equality with the
+existing specification. No new `native_decide`, `implemented_by`, `extern`
+or assumed comparison result can supply that equality. PiRLC uses
+`PiRLCFinite.combineAssignments`, connected to the honest response, and
+the existing ring action; later phases use their existing prover semantics.
+
+Register each milestone's exact target, premises, dependencies, gates and
+open requirements in `obligations.json`. A kernel proof does not close its
+execution gate. Bind inputs and targets by path, SHA-256, producer, source
+commit and regeneration command. Large inputs must be retrievable through
+the selected GitHub release assets before the result is called reproducible.
+Record time and peak memory per invocation. Derive chunk sizes from a
+measured run; the Lean cap is 1,500 seconds and the native cap is 300 seconds.
+Retain one build queue, the owner's ten-attempt rule, this checkout and
+`nico/f-prime-constraints-cuda-formal` only. Replay gives evidence on tested
+inputs; it does not prove universal Rust correctness.
+
+## Earlier baseline and retained evidence
+
 Owner: the user's September 13 baseline goal. Work only on
 `nico/f-prime-constraints-cuda-formal`, starting from `f714497c`.
 

@@ -6,6 +6,8 @@ pub mod active;
 mod mutations;
 #[path = "stage1_parent.rs"]
 pub mod parent;
+#[path = "stage1_pirlc_replay.rs"]
+pub mod pirlc_replay;
 #[path = "stage1_actual.rs"]
 mod stage1_actual;
 #[path = "stage1_values.rs"]

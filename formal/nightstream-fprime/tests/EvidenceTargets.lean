@@ -6,6 +6,7 @@ import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
+import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import tests.EvidenceMetadata
 
 /-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
@@ -390,5 +391,28 @@ theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
 #audit_axioms hyperNovaTerminalFalseAcceptance
 
 end HyperNovaSecurity
+
+/-- The prepared executable computes every full-carrier block of the existing
+PiRLC assignment combination. Challenges and all 17 source assignments are inputs;
+no expected Rust parent or source-validity premise occurs in the statement. -/
+def PiRLCWitnessReplay : Prop :=
+  ∀ (shape : Phi81Relation.Shape)
+    (challenges : Fin PiRLCNonzero.SourceCount → RingF)
+    (assignments : Fin PiRLCNonzero.SourceCount → Phi81Relation.Assignment shape)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)),
+    ((PiRLCWitnessBlock.preparedWitnessBlockPartials challenges
+      (PiRLCWitnessBlock.prepareWitnessActions challenges)
+      (fun source => PiRLCPartialTrace.MaterializedRingF.ofRing
+        (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
+          (assignments source) block))).map PiRLCPartialTrace.MaterializedRingF.toRing).getLast? =
+      some (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
+        (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments
+          challenges assignments) block)
+
+/-- The audited block equality supplies the literal replay criterion. -/
+theorem piRLCWitnessReplay : PiRLCWitnessReplay :=
+  fun _ => PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?
+
+#audit_axioms piRLCWitnessReplay
 
 end LeanGraph.Targets

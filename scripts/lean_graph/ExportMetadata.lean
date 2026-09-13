@@ -23,3 +23,5 @@ Run through validate.sh after building the library and tests.EvidenceTargets.
 #evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.prepared_expected_work_polynomial_bound
 
 #evidence_export LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
+#evidence_export LeanGraph.Targets.piRLCWitnessReplay
+#evidence_export NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse

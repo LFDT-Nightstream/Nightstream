@@ -1,8 +1,13 @@
 //! Compare the actual NIFS-to-successor handoff with the independent Lean caller packet.
 
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::BufWriter,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use neo_ajtai::Commitment;
+use neo_ajtai::{nightstream_fprime_setup::commit_production_signed_units, Commitment};
 use neo_ccs::Mat;
 use neo_fold_clean::{
     paper::{
@@ -12,7 +17,7 @@ use neo_fold_clean::{
         pi_ccs, pi_dec, pi_rlc,
         relations::{CcsClaim, CeClaim},
     },
-    stage1::{Stage1State, Stage1StepInputs},
+    stage1::{CompleteStepError, Stage1Envelope, Stage1State, Stage1StepInputs},
     Poseidon2HashChainV1Package,
 };
 use neo_math::{from_complex, D, F, K};
@@ -169,45 +174,95 @@ fn check_next_metadata(packet: &Stage1StepInputs, original: &NifsProof) {
     assert_eq!(next.parent_authority.as_ref(), Some(&parent));
 }
 
+struct Fixture {
+    package: Poseidon2HashChainV1Package,
+    loaded: nightstream_fprime::LoadedPerApplicationPackage,
+    base: Value,
+    expected: Value,
+    wire: Vec<u8>,
+    state: Stage1State,
+    running: RunningInstance,
+    fresh: CcsClaim,
+    proof: NifsProof,
+    message: [F; 4],
+}
+
+impl Fixture {
+    fn load() -> Self {
+        let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+        let package = Poseidon2HashChainV1Package::load(&bytes).unwrap();
+        let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+        let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
+        let expected = read(artifact(
+            "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
+        ));
+        let saved = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/nifs/fixtures/stage1_actual_nifs");
+        let actual = read(saved.join("actual_result.json"));
+        let proof = proof(&actual);
+        let wire = fs::read(saved.join("proof.bin")).unwrap();
+        assert!(proof.canonical_bytes() == wire, "exact retained native proof");
+        let params = Params::for_ccs_shape(
+            package.structure().n,
+            package.structure().m,
+            package.structure().t(),
+            package.structure().max_degree(),
+        )
+        .unwrap();
+        let mut running = RunningInstance::canonical_zero(&params, package.structure(), 270, LaneCommitmentMode::Plain)
+            .unwrap()
+            .claims_only();
+        let prior_digest: [u64; 4] = serde_json::from_value(base[4][1].clone()).unwrap();
+        for child in &mut running.claims {
+            child.fold_digest = frame(prior_digest);
+        }
+        running.parent_authority.as_mut().unwrap().fold_digest = frame(prior_digest);
+        let fresh = CcsClaim {
+            c: commitment(&actual["pi_ccs_input"][1]),
+            x: fields(&actual["pi_ccs_input"][2]),
+            m_in: 270,
+            adv: None,
+        };
+        let z0 = [202, 203, 204, 205].map(field); // Existing base fixture inputs.
+        let current: [F; 4] = fields(&base[4][0]).try_into().unwrap();
+        let state = Stage1State::new(1, z0, current);
+        let message = [7, 11, 13, 17].map(field); // Same advice as the Lean reference.
+        Self {
+            package,
+            loaded,
+            base,
+            expected,
+            wire,
+            state,
+            running,
+            fresh,
+            proof,
+            message,
+        }
+    }
+
+    fn packet(&self) -> Stage1StepInputs {
+        self.package
+            .step_inputs(&self.state, &self.running, &self.fresh, &self.proof, self.message)
+            .unwrap()
+    }
+}
+
 #[test]
 fn actual_nifs_builds_the_checked_successor_assignment() {
-    let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
-    let package = Poseidon2HashChainV1Package::load(&bytes).unwrap();
-    let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
-    let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
-    let expected = read(artifact(
-        "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
-    ));
-    let saved = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/nifs/fixtures/stage1_actual_nifs");
-    let actual = read(saved.join("actual_result.json"));
-    let proof = proof(&actual);
-    let wire = fs::read(saved.join("proof.bin")).unwrap();
-    assert!(proof.canonical_bytes() == wire, "exact retained native proof");
-    let params = Params::for_ccs_shape(
-        package.structure().n,
-        package.structure().m,
-        package.structure().t(),
-        package.structure().max_degree(),
-    )
-    .unwrap();
-    let mut running = RunningInstance::canonical_zero(&params, package.structure(), 270, LaneCommitmentMode::Plain)
-        .unwrap()
-        .claims_only();
-    let prior_digest: [u64; 4] = serde_json::from_value(base[4][1].clone()).unwrap();
-    for child in &mut running.claims {
-        child.fold_digest = frame(prior_digest);
-    }
-    running.parent_authority.as_mut().unwrap().fold_digest = frame(prior_digest);
-    let fresh = CcsClaim {
-        c: commitment(&actual["pi_ccs_input"][1]),
-        x: fields(&actual["pi_ccs_input"][2]),
-        m_in: 270,
-        adv: None,
-    };
-    let z0 = [202, 203, 204, 205].map(field); // Existing base fixture inputs.
-    let current: [F; 4] = fields(&base[4][0]).try_into().unwrap();
-    let state = Stage1State::new(1, z0, current);
-    let message = [7, 11, 13, 17].map(field); // Same advice as the Lean reference.
+    let Fixture {
+        package,
+        loaded,
+        expected,
+        wire,
+        state,
+        running,
+        fresh,
+        proof,
+        message,
+        ..
+    } = Fixture::load();
+    let z0 = state.z0();
+    let current = state.current();
     let packet = package
         .step_inputs(&state, &running, &fresh, &proof, message)
         .unwrap();
@@ -296,4 +351,218 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
     assert!(package
         .step_inputs(&state, &running, &fresh, &detached_point, message)
         .is_err());
+}
+
+/// Capped fixture action. The large child matrices are supplied as explicit
+/// paths; ordinary tests do not depend on a machine-local witness directory.
+pub fn complete_envelope(digit_directory: &Path, output_directory: &Path) {
+    let started = Instant::now();
+    assert!(!output_directory.exists(), "use a fresh envelope output directory");
+    let fixture = Fixture::load();
+    let packet = fixture.packet();
+    let expected_running = packet.next_running().clone();
+    let expected_state = packet.next_state();
+    let digits = (0..16)
+        .map(|child| {
+            let bytes = fs::read(digit_directory.join(format!("digit-{child}.json"))).unwrap();
+            serde_json::from_slice::<Mat<F>>(&bytes).expect("validated compact actual child")
+        })
+        .collect::<Vec<_>>();
+    println!("envelope_actual_inputs_elapsed={:?}", started.elapsed());
+
+    // Reject the exact handoff defects before the valid completion. These
+    // cases fail at the first child, without checking unchanged later children.
+    let rejected = |witnesses| {
+        fixture
+            .package
+            .complete_step(fixture.packet(), witnesses)
+            .unwrap_err()
+    };
+    let mut missing = digits.clone();
+    missing.pop();
+    assert!(matches!(rejected(missing), CompleteStepError::Input(_)));
+    let mut extra = digits.clone();
+    extra.push(Mat::virtual_constant(D, digits[0].cols(), F::ZERO));
+    assert!(matches!(rejected(extra), CompleteStepError::Input(_)));
+    let mut wrong_shape = digits.clone();
+    wrong_shape[0] = Mat::virtual_constant(D, 1, F::ZERO);
+    assert!(matches!(
+        rejected(wrong_shape),
+        CompleteStepError::ChildWitness { index: 0, .. }
+    ));
+    let masks = digits[0]
+        .packed_signed_unit_column_masks()
+        .expect("actual active first child");
+    let mut positive = masks.0.to_vec();
+    let negative = masks.1.to_vec();
+    // Flip coefficient zero while retaining a valid signed-unit encoding.
+    if negative[0] & 1 == 0 {
+        positive[0] ^= 1;
+    } else {
+        positive[0] |= 1;
+    }
+    let mut changed_negative = negative.clone();
+    changed_negative[0] &= !1;
+    let mut wrong_public = digits.clone();
+    wrong_public[0] =
+        Mat::compact_signed_unit_from_column_masks(D, digits[0].cols(), &positive, &changed_negative).unwrap();
+    assert!(matches!(
+        rejected(wrong_public),
+        CompleteStepError::ChildWitness {
+            index: 0,
+            reason: "witness public projection differs from the verified child"
+        }
+    ));
+
+    // A nonunit private value exercises the dense fallback without changing
+    // the required public prefix. Zero allocation touches only these entries.
+    let mut nonunit = Mat::zero(D, digits[0].cols(), F::ZERO);
+    for row in 0..D {
+        for column in 0..5 {
+            nonunit[(row, column)] = digits[0][(row, column)];
+        }
+    }
+    nonunit[(0, 5)] = F::from_u64(2);
+    let mut bad_norm = digits.clone();
+    bad_norm[0] = nonunit;
+    assert!(matches!(
+        rejected(bad_norm),
+        CompleteStepError::ChildWitness {
+            index: 0,
+            reason: "witness does not have the fixed-key shape and strict signed-unit norm"
+        }
+    ));
+
+    let mut positive = masks.0.to_vec();
+    let mut negative = masks.1.to_vec();
+    if negative[5] & 1 == 0 {
+        positive[5] ^= 1;
+    } else {
+        positive[5] |= 1;
+        negative[5] &= !1;
+    }
+    let mut detached_private = digits.clone();
+    detached_private[0] =
+        Mat::compact_signed_unit_from_column_masks(D, digits[0].cols(), &positive, &negative).unwrap();
+    assert!(matches!(
+        rejected(detached_private),
+        CompleteStepError::ChildWitness {
+            index: 0,
+            reason: "fixed-key commitment differs from the verified child"
+        }
+    ));
+    println!("envelope_handoff_rejections=passed elapsed={:?}", started.elapsed());
+
+    // Compare the complete retained values with the actual supplied matrices.
+    let expected_digits = digits.clone();
+    let envelope = fixture
+        .package
+        .complete_step(packet, digits)
+        .expect("complete actual successor envelope");
+    assert!(!envelope.is_initial());
+    assert_eq!(*envelope.state(), expected_state);
+    let running = envelope.running().unwrap();
+    assert_eq!(running.claims, expected_running.claims);
+    assert_eq!(running.parent_authority, expected_running.parent_authority);
+    assert_eq!(running.witnesses.len(), 16);
+    for (actual, expected) in running.witnesses.iter().zip(&expected_digits) {
+        assert_eq!((actual.rows(), actual.cols()), (expected.rows(), expected.cols()));
+        if let (Some(a), Some(b)) = (
+            actual.packed_signed_unit_column_masks(),
+            expected.packed_signed_unit_column_masks(),
+        ) {
+            assert!(a == b, "all signed-unit coefficients are retained");
+        } else if let (Some(a), Some(b)) = (actual.virtual_constant_value(), expected.virtual_constant_value()) {
+            assert_eq!(a, b);
+        } else {
+            assert!(actual == expected, "every actual child witness is retained");
+        }
+    }
+    drop(expected_digits);
+    println!(
+        "envelope_retained_children_and_fresh_commitment_elapsed={:?}",
+        started.elapsed()
+    );
+
+    // Independent input is the Lean caller packet, not the native constructor.
+    let private: Vec<u64> = serde_json::from_value(fixture.expected[2].clone()).unwrap();
+    let public: Vec<u64> = serde_json::from_value(fixture.expected[3].clone()).unwrap();
+    let physical = fixture.loaded.execute_witness(&private, &public).unwrap();
+    let logical = fixture
+        .loaded
+        .execute_logical_assignment(&physical)
+        .unwrap();
+    drop(physical);
+    let fresh = envelope.fresh().unwrap();
+    assert!(fresh.witness.w.is_empty());
+    assert!(fresh.claim.adv.is_none());
+    assert_eq!(fresh.claim.m_in, 270);
+    assert_eq!(fresh.claim.x, fields(&fixture.expected[4][2]));
+    for (column, &value) in logical.balanced_values().iter().enumerate() {
+        let expected = if value < 0 { -F::ONE } else { F::from_u64(value as u64) };
+        assert_eq!(
+            fresh.witness.Z[(column % D, column / D)],
+            expected,
+            "fresh carrier coordinate {column}"
+        );
+    }
+    neo_reductions::common::validate_fresh_witness_tail_zero(
+        &fresh.witness.Z,
+        fixture.package.structure().m,
+        "selected successor fresh witness",
+    )
+    .unwrap();
+    let mut carrier = logical.balanced_values().to_vec();
+    carrier.resize(fresh.witness.Z.rows() * fresh.witness.Z.cols(), 0);
+    assert_eq!(
+        commit_production_signed_units(&carrier).unwrap(),
+        fresh.claim.c,
+        "same complete reference assignment committed"
+    );
+    drop((logical, carrier));
+    assert!(fixture.proof.canonical_bytes() == fixture.wire);
+
+    let initial = Stage1Envelope::initial(fixture.state.z0());
+    assert!(initial.is_initial());
+    assert!(initial.running().is_none() && initial.fresh().is_none());
+    assert_eq!(initial.state().iteration(), fixture.base[2][28].as_u64().unwrap());
+    assert_eq!(
+        initial.state().z0(),
+        fields(&json!(&fixture.base[2].as_array().unwrap()[30..34])).as_slice()
+    );
+    assert_eq!(
+        initial.state().current(),
+        fields(&json!(&fixture.base[2].as_array().unwrap()[35..39])).as_slice()
+    );
+
+    fs::create_dir(output_directory).unwrap();
+    serde_json::to_writer(
+        BufWriter::new(fs::File::create(output_directory.join("fresh-witness.json")).unwrap()),
+        &fresh.witness.Z,
+    )
+    .unwrap();
+    serde_json::to_writer(
+        BufWriter::new(fs::File::create(output_directory.join("fresh-claim.json")).unwrap()),
+        &fresh.claim,
+    )
+    .unwrap();
+    let record = json!({
+        "schema": 1,
+        "scope": "prover envelope; terminal CE evaluations and acceptance remain separate",
+        "iteration": envelope.state().iteration(),
+        "z0": envelope.state().z0().map(|value| value.as_canonical_u64()),
+        "current": envelope.state().current().map(|value| value.as_canonical_u64()),
+        "running_claims": running.claims,
+        "running_parent": running.parent_authority,
+        "child_witness_directory": digit_directory,
+        "child_witness_count": running.witnesses.len(),
+        "fresh_witness_file": "fresh-witness.json",
+        "fresh_claim_file": "fresh-claim.json",
+    });
+    fs::write(
+        output_directory.join("envelope.json"),
+        serde_json::to_vec(&record).unwrap(),
+    )
+    .unwrap();
+    println!("actual_successor_envelope=passed elapsed={:?}", started.elapsed());
 }

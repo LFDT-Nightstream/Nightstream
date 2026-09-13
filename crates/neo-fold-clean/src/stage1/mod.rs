@@ -13,11 +13,13 @@ use nightstream_fprime::{
 
 use crate::paper::relations::Structure;
 
+mod complete;
 mod evaluation;
 mod inputs;
 mod prove;
 mod step_inputs;
 
+pub use complete::{CompleteStepError, Stage1Envelope};
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
 

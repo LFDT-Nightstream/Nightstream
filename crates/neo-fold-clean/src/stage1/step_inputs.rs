@@ -76,6 +76,7 @@ pub struct Stage1StepInputs {
     output_preimage: Vec<u64>,
     output_digest: [u64; 4],
     next_public_input: Vec<u64>,
+    next_state: Stage1State,
     next_running: RunningInstance,
 }
 
@@ -104,10 +105,18 @@ impl Stage1StepInputs {
         &self.next_public_input
     }
 
+    pub fn next_state(&self) -> Stage1State {
+        self.next_state
+    }
+
     /// Claims and checked parent cache, framed for the next state digest.
     /// The original NIFS proof retains its own transcript-frame metadata.
     pub fn next_running(&self) -> &RunningInstance {
         &self.next_running
+    }
+
+    pub(super) fn into_running(self) -> RunningInstance {
+        self.next_running
     }
 }
 
@@ -299,6 +308,7 @@ impl Poseidon2HashChainV1Package {
             output_preimage,
             output_digest,
             next_public_input,
+            next_state: Stage1State::new(state.iteration + 1, state.z0, output),
             next_running,
         })
     }

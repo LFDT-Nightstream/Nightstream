@@ -12,7 +12,7 @@
 #   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
 #   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>
-#   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> <path>
+#   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> [<prior-state-message>] <path>
 #   validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
 #   validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>
@@ -122,11 +122,11 @@ case "$phase" in
     capped lake exe emitBaseStepFixture -- "$2" "$3" "$4" "$5" "$6"
     ;;
   recursive-step-fixture)
-    if (( $# != 8 )); then
-      echo "usage: validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> <path>" >&2
+    if (( $# != 8 && $# != 9 )); then
+      echo "usage: validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> [<prior-state-message>] <path>" >&2
       exit 2
     fi
-    capped lake exe emitRecursiveStepFixture -- "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+    capped lake exe emitRecursiveStepFixture -- "${@:2}"
     ;;
   pi-ccs-parity)
     if (( $# != 6 )); then

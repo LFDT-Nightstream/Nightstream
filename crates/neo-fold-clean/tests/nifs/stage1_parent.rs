@@ -1,5 +1,5 @@
 //! Save and replay the actual selected C/R parent before D openings.
-//! Original package and fixture inputs own replay. Saved witness values are
+//! Original package and source inputs own replay. Saved witness values are
 //! checked by recomputing their fixed-key commitment; file metadata is not authority.
 
 #[path = "stage1_assemble.rs"]
@@ -22,6 +22,7 @@ use neo_fold_clean::{
         pi_ccs, pi_dec, pi_rlc,
         relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, Structure},
     },
+    Poseidon2HashChainV1Package,
 };
 use neo_math::{D, F, K};
 use neo_reductions::{
@@ -31,9 +32,19 @@ use neo_reductions::{
 use p3_field::PrimeCharacteristicRing;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::stage1_actual::{self, ActualBase};
+use super::stage1_actual::{self, ActualSources};
 
 type Claim = CeClaim<Commitment, F, K>;
+
+#[derive(Serialize, Deserialize)]
+struct SavedCcs {
+    schema: u64,
+    structural_identifier: [u64; 4],
+    package_identity: [u64; 4],
+    verification_key_digest: [u64; 4],
+    sumcheck: pi_ccs::SumcheckProof,
+    outputs: Vec<Claim>,
+}
 
 #[derive(Serialize, Deserialize)]
 struct SavedParent {
@@ -90,14 +101,13 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
         .expect("complete typed checkpoint members")
 }
 
-fn replay(
+fn replay_ccs(
     params: &Params,
     structure: &Structure,
     fresh: &CcsClaim,
     running: &RunningInstance,
     proof: &pi_ccs::Proof,
-    parent: &Claim,
-) -> Poseidon2TranscriptSnapshot {
+) -> (Transcript, Vec<Claim>) {
     let prior_parent = running
         .parent_authority
         .as_ref()
@@ -122,6 +132,18 @@ fn replay(
         proof,
     )
     .expect("saved C proof on original sources");
+    (transcript, outputs)
+}
+
+fn replay(
+    params: &Params,
+    structure: &Structure,
+    fresh: &CcsClaim,
+    running: &RunningInstance,
+    proof: &pi_ccs::Proof,
+    parent: &Claim,
+) -> Poseidon2TranscriptSnapshot {
+    let (mut transcript, outputs) = replay_ccs(params, structure, fresh, running, proof);
     let verified = pi_rlc::verify(
         &mut transcript,
         params,
@@ -135,6 +157,29 @@ fn replay(
     .expect("saved R proof on actual C outputs");
     assert_eq!(&verified, parent);
     transcript.snapshot()
+}
+
+fn save_parent(
+    output: &Path,
+    package: &Poseidon2HashChainV1Package,
+    proof: pi_ccs::Proof,
+    parent: pi_rlc::Output,
+    position: Poseidon2TranscriptSnapshot,
+) {
+    let record = SavedParent {
+        schema: 1,
+        structural_identifier: package.structural_identifier(),
+        package_identity: package.package_identity(),
+        verification_key_digest: package.verification_key_digest(),
+        sumcheck: proof.sumcheck,
+        ccs_outputs: proof.outputs,
+        rlc_parent: parent.claim,
+        transcript_state: position.state(),
+        transcript_absorbed: position.absorbed(),
+    };
+    fs::create_dir(output).expect("fresh parent checkpoint directory");
+    save(&output.join("parent.json"), &record);
+    save(&output.join("parent-witness.json"), &parent.witness);
 }
 
 fn commit_parent(params: &Params, witness: &Mat<F>, expected: &Commitment) -> CommittedSplit {
@@ -159,15 +204,15 @@ fn commit_parent(params: &Params, witness: &Mat<F>, expected: &Commitment) -> Co
 
 /// Produce C/R from the original selected witness. No expected proof or
 /// opening data is supplied. The parent commitment check is a separate stage.
-pub fn prove(package_path: &Path, fixture_path: &Path, output: &Path) {
+pub fn prove(package_path: &Path, source_path: &Path, output: &Path) {
     assert!(!output.exists(), "fresh parent checkpoint directory");
     let started = Instant::now();
-    let ActualBase {
+    let ActualSources {
         package,
         params,
         fresh,
         running,
-    } = stage1_actual::load(package_path, &fs::read(fixture_path).expect("original base fixture"));
+    } = stage1_actual::load_path(package_path, source_path);
     let fresh_claim = fresh.claim.clone();
     let prior = running.claims_only();
     let (proof, parent) = package
@@ -181,20 +226,7 @@ pub fn prove(package_path: &Path, fixture_path: &Path, output: &Path) {
         &proof,
         &parent.claim,
     );
-    let record = SavedParent {
-        schema: 1,
-        structural_identifier: package.structural_identifier(),
-        package_identity: package.package_identity(),
-        verification_key_digest: package.verification_key_digest(),
-        sumcheck: proof.sumcheck,
-        ccs_outputs: proof.outputs,
-        rlc_parent: parent.claim,
-        transcript_state: position.state(),
-        transcript_absorbed: position.absorbed(),
-    };
-    fs::create_dir(output).expect("fresh parent checkpoint directory");
-    save(&output.join("parent.json"), &record);
-    save(&output.join("parent-witness.json"), &parent.witness);
+    save_parent(output, &package, proof, parent, position);
     println!(
         "actual_selected_parent=saved commitment_check=pending output={} elapsed={:?}",
         output.display(),
@@ -202,14 +234,121 @@ pub fn prove(package_path: &Path, fixture_path: &Path, output: &Path) {
     );
 }
 
-fn load_verified_parent(package_path: &Path, fixture_path: &Path, input: &Path) -> (ActualBase, SavedParent) {
-    let saved: SavedParent = load(&input.join("parent.json"));
-    let ActualBase {
+/// Execute only C on the authenticated original source witnesses. The saved
+/// members are ordinary proof inputs, verified again before the R stage.
+pub fn prove_ccs(package_path: &Path, source_path: &Path, output: &Path) {
+    assert!(!output.exists(), "fresh C proof file");
+    let started = Instant::now();
+    let ActualSources {
         package,
         params,
         fresh,
         running,
-    } = stage1_actual::load(package_path, &fs::read(fixture_path).expect("original base fixture"));
+    } = stage1_actual::load_path(package_path, source_path);
+    println!(
+        "actual_selected_ccs_sources_authenticated_elapsed={:?}",
+        started.elapsed()
+    );
+    let proof = package
+        .prove_pi_ccs(
+            std::slice::from_ref(&fresh.claim),
+            std::slice::from_ref(&fresh.witness),
+            &running.claims,
+            &running.witnesses,
+        )
+        .expect("selected C prover on original complete witnesses");
+    println!("actual_selected_ccs_proved_elapsed={:?}", started.elapsed());
+    drop(replay_ccs(&params, package.structure(), &fresh.claim, &running, &proof));
+    println!("actual_selected_ccs_verified_elapsed={:?}", started.elapsed());
+    let record = SavedCcs {
+        schema: 1,
+        structural_identifier: package.structural_identifier(),
+        package_identity: package.package_identity(),
+        verification_key_digest: package.verification_key_digest(),
+        sumcheck: proof.sumcheck,
+        outputs: proof.outputs,
+    };
+    save(output, &record);
+    println!(
+        "actual_selected_ccs=saved output={} elapsed={:?}",
+        output.display(),
+        started.elapsed()
+    );
+}
+
+/// Replay C on the same authenticated sources, then compute R from their
+/// original complete matrices. The public wrapper borrows these moved Mats
+/// and calls the normal prove_refs implementation without cloning them.
+pub fn prove_after_ccs(package_path: &Path, source_path: &Path, ccs_file: &Path, output: &Path) {
+    assert!(!output.exists(), "fresh parent checkpoint directory");
+    let started = Instant::now();
+    let saved: SavedCcs = load(ccs_file);
+    let ActualSources {
+        package,
+        params,
+        fresh,
+        running,
+    } = stage1_actual::load_path(package_path, source_path);
+    println!(
+        "actual_selected_rlc_sources_authenticated_elapsed={:?}",
+        started.elapsed()
+    );
+    assert_eq!(saved.schema, 1);
+    assert_eq!(saved.structural_identifier, package.structural_identifier());
+    assert_eq!(saved.package_identity, package.package_identity());
+    assert_eq!(saved.verification_key_digest, package.verification_key_digest());
+    let proof = pi_ccs::Proof {
+        sumcheck: saved.sumcheck,
+        outputs: saved.outputs,
+    };
+    let (mut transcript, outputs) = replay_ccs(&params, package.structure(), &fresh.claim, &running, &proof);
+    println!("actual_selected_rlc_ccs_replayed_elapsed={:?}", started.elapsed());
+    let prior = running.claims_only();
+    let fresh_claim = fresh.claim;
+    let mut witnesses = Vec::with_capacity(1 + running.witnesses.len());
+    witnesses.push(fresh.witness.Z);
+    witnesses.extend(running.witnesses);
+    let (parent, _) = pi_rlc::prove(
+        &mut transcript,
+        &params,
+        package.structure(),
+        ajtai_rlc_mixer,
+        &outputs,
+        &witnesses,
+    )
+    .expect("normal R prover on original C source matrices");
+    drop((witnesses, outputs));
+    println!("actual_selected_rlc_proved_elapsed={:?}", started.elapsed());
+    let position = replay(
+        &params,
+        package.structure(),
+        &fresh_claim,
+        &prior,
+        &proof,
+        &parent.claim,
+    );
+    assert_eq!(
+        position,
+        transcript.snapshot(),
+        "C/R producer and verifier positions agree"
+    );
+    println!("actual_selected_rlc_verified_elapsed={:?}", started.elapsed());
+    save_parent(output, &package, proof, parent, position);
+    println!(
+        "actual_selected_parent=saved from_saved_ccs=true commitment_check=pending output={} elapsed={:?}",
+        output.display(),
+        started.elapsed()
+    );
+}
+
+fn load_verified_parent(package_path: &Path, source_path: &Path, input: &Path) -> (ActualSources, SavedParent) {
+    let saved: SavedParent = load(&input.join("parent.json"));
+    let ActualSources {
+        package,
+        params,
+        fresh,
+        running,
+    } = stage1_actual::load_path(package_path, source_path);
     assert_eq!(saved.schema, 1);
     assert_eq!(saved.structural_identifier, package.structural_identifier());
     assert_eq!(saved.package_identity, package.package_identity());
@@ -233,7 +372,7 @@ fn load_verified_parent(package_path: &Path, fixture_path: &Path, input: &Path) 
         "replayed C/R sponge position"
     );
     (
-        ActualBase {
+        ActualSources {
             package,
             params,
             fresh,
@@ -246,11 +385,11 @@ fn load_verified_parent(package_path: &Path, fixture_path: &Path, input: &Path) 
 /// Recreate the original sources, replay the saved C/R proofs and recompute
 /// the saved witness commitment. Persist the computed split and commitments
 /// for the later D owner; no child claims or openings are produced here.
-pub fn check(package_path: &Path, fixture_path: &Path, input: &Path, material: &Path) {
+pub fn check(package_path: &Path, source_path: &Path, input: &Path, material: &Path) {
     assert!(!material.exists(), "fresh checked parent material directory");
     let started = Instant::now();
-    let (actual, saved) = load_verified_parent(package_path, fixture_path, input);
-    let ActualBase {
+    let (actual, saved) = load_verified_parent(package_path, source_path, input);
+    let ActualSources {
         package,
         params,
         fresh,
@@ -296,18 +435,11 @@ fn check_digit(params: &Params, parent: &Mat<F>, loaded: &Mat<F>, child: usize) 
 /// saved digit is checked against a freshly computed canonical split, and
 /// its commitment is recomputed before the evaluator sees it. The output
 /// is proof data; later assembly must run the normal D and NIFS verifiers.
-pub fn open_child(
-    package_path: &Path,
-    fixture_path: &Path,
-    input: &Path,
-    material: &Path,
-    child: usize,
-    output: &Path,
-) {
+pub fn open_child(package_path: &Path, source_path: &Path, input: &Path, material: &Path, child: usize, output: &Path) {
     assert!(!output.exists(), "fresh child opening file");
     let started = Instant::now();
-    let (actual, saved) = load_verified_parent(package_path, fixture_path, input);
-    let ActualBase {
+    let (actual, saved) = load_verified_parent(package_path, source_path, input);
+    let ActualSources {
         package,
         params,
         fresh,

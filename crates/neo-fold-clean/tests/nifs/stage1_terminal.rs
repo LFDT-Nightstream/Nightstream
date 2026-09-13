@@ -68,6 +68,24 @@ fn change_units(witness: &Mat<F>, updates: impl IntoIterator<Item = (usize, F)>)
 /// recompute the fresh commitment, so commitment agreement cannot hide a
 /// missing CE evaluation or fresh-row check.
 pub fn check(case: &str, envelope_directory: &Path, child_directory: &Path, output: &Path) {
+    check_against(
+        case,
+        envelope_directory,
+        child_directory,
+        &artifact("nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json"),
+        output,
+    );
+}
+
+/// Check the same terminal predicate against an explicitly supplied Lean
+/// caller packet for a later step. The expected state remains external.
+pub fn check_against(
+    case: &str,
+    envelope_directory: &Path,
+    child_directory: &Path,
+    expected_path: &Path,
+    output: &Path,
+) {
     assert!(matches!(
         case,
         "accepted" | "ce-evaluation" | "ce-matrix-evaluation" | "fresh-private"
@@ -78,9 +96,7 @@ pub fn check(case: &str, envelope_directory: &Path, child_directory: &Path, outp
         &fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap(),
     )
     .unwrap();
-    let reference = read(&artifact(
-        "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
-    ));
+    let reference = read(expected_path);
     let private = reference[2].as_array().unwrap();
     let start = PI_CCS_V1_1_STATE_PREIMAGE_WORDS;
     let expected = Stage1State::new(

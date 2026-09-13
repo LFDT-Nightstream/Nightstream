@@ -1,0 +1,601 @@
+{
+  "schema": 1,
+  "scope": "Local feedback gates; source/hash-bound reports, including failed attempts. Later nonzero C/R/D execution is open.",
+  "storage": "External files prepared for GitHub release assets; upload pending.",
+  "logs": [
+    {
+      "file": "nightstream-baseline-test-targets-1.log",
+      "bytes": 1981,
+      "sha256": "4412dc932b117ed441127024c93abf722f2e26fb9d64578cb5bfac24b796a664",
+      "result": {
+        "outcome": "failed",
+        "exit": 101,
+        "cap_seconds": 300,
+        "elapsed_seconds": 79.61910738097504,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--no-run"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "reported_max_rss_kib": 1202140
+    },
+    {
+      "file": "nightstream-baseline-test-targets-2.log",
+      "bytes": 1799,
+      "sha256": "15e156e3e876532a27486f1e518b4508b744c5134f79a81e93b7011048890df3",
+      "result": {
+        "outcome": "failed",
+        "exit": 101,
+        "cap_seconds": 300,
+        "elapsed_seconds": 29.9430582880741,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--no-run"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "reported_max_rss_kib": 640724
+    },
+    {
+      "file": "nightstream-baseline-test-targets-3.log",
+      "bytes": 3186,
+      "sha256": "c86b14cdf4aed46b6b4e8cb3b34de1d710120f3074edaaf54b189de395ed8f46",
+      "result": {
+        "outcome": "failed",
+        "exit": 101,
+        "cap_seconds": 300,
+        "elapsed_seconds": 30.33904065308161,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--no-run"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "reported_max_rss_kib": 716072
+    },
+    {
+      "file": "nightstream-baseline-test-targets-4.log",
+      "bytes": 14406,
+      "sha256": "dba84b8439e52266a91376a8df8184e7d761aeb7f51369e9ab4376dc5017ce7e",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 18.15803966706153,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--no-run"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "reported_max_rss_kib": 617372
+    },
+    {
+      "file": "nightstream-baseline-moved-integration-1.log",
+      "bytes": 31621,
+      "sha256": "b89f21ea2fbfcb7690af33e947efc6efdab8908072bc4f66e3b6e9a723212c68",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 20.452966137090698,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--test",
+          "nifs_stage1_nifs",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "reported_max_rss_kib": 3432844
+    },
+    {
+      "file": "nightstream-baseline-nonzero-source-check-1.log",
+      "bytes": 1903,
+      "sha256": "1184892177ab90de9bde4747f7750a9ceebecfc1a50a93f9443b7b463a6671e0",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 134.64219627599232,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "check-owned-sources",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-nonzero-parent-1.log",
+      "bytes": 1928,
+      "sha256": "1866f0458abbbf28448114caca1be9468d8f8ec4d88b92df18f0bdf39140e7c0",
+      "result": {
+        "outcome": "interrupted",
+        "exit": 130,
+        "cap_seconds": 300,
+        "elapsed_seconds": 302.0756674229633,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "prove-owned-parent",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-parent-1"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-nonzero-ccs-1.log",
+      "bytes": 1992,
+      "sha256": "a1c70652a550ff272cc056d94f985d46872e3fa9bc37190a0b694e064aa6dcf8",
+      "result": {
+        "outcome": "interrupted",
+        "exit": 130,
+        "cap_seconds": 300,
+        "elapsed_seconds": 301.8996855240548,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--bin",
+          "generate_pi_ccs_fixture",
+          "--",
+          "prove-owned-ccs",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "/tmp/nightstream-native-nonzero-sources-1",
+          "/tmp/nightstream-native-nonzero-ccs-1.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-acceptance-1.log",
+      "bytes": 12198,
+      "sha256": "57d5e026a92fcabdb646b5dfaad01f56d62f69e366d3226e2adaea54d2a2eae5",
+      "result": {
+        "outcome": "failed",
+        "exit": 1,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 6.2246998329646885,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "NightstreamFPrime/Export/Stage1/HyperNovaFalseAcceptance.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-acceptance-2.log",
+      "bytes": 544,
+      "sha256": "a6d56f1b3ddd0739e4d393855eb14ffe5ebb4cb8a4ace6408544aee22ec77ba3",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 2.318431515013799,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "NightstreamFPrime/Export/Stage1/HyperNovaFalseAcceptance.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-target-1.log",
+      "bytes": 154161,
+      "sha256": "f264071555d9c0222f1a632a97b2d38143be11807f6f48067ed439cddbdcc35d",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 4.5222589840414,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build",
+          "tests.EvidenceTargets"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-acceptance-target-check-1.log",
+      "bytes": 1461,
+      "sha256": "cc06ef23b878c643c31dc3027312691fda628851d2d6625379b9b51beb61d7b6",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 2.1185202209744602,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "tests/EvidenceAcceptance.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-feedback-graph-tests-1.log",
+      "bytes": 182,
+      "sha256": "5f4ddb43f9c2b027b04887cdc455c874351bd0be9fe40cb40384fe8afe5239f2"
+    },
+    {
+      "file": "nightstream-baseline-feedback-final-static.log",
+      "bytes": 489,
+      "sha256": "fb741c7d7a82dc431e9b06b3e3872a58b70baf54f997a9b98986073862ceea8c",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 8.878451823955402,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "static"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-feedback-final-build.log",
+      "bytes": 171356,
+      "sha256": "54cb83d1229cf9525bab40593509002d83ce231bff5a36b92e410b51b4c2dd81",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 11.536995045025833,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-feedback-final-axioms.log",
+      "bytes": 1067215,
+      "sha256": "998fee5ec8369b367e00adc396aed9ea3e4f57f54eebe220e13727838adaf1c4",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 4.622860756004229,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "axioms"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-emitter-old-bytes-1.log",
+      "bytes": 126014,
+      "sha256": "037ab54aba0f1bac6bffeb2f67cf9fff9bd99a638de738fbc0c34b878945181b",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 13.335542915039696,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/old-default-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-emitter-explicit-bytes-1.log",
+      "bytes": 126110,
+      "sha256": "698072640f7f846a7464315806d4e1a99504fc5d68c2ca8494f645e69e26baf1",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 12.737415569019504,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/valid.json",
+          "/tmp/nightstream-baseline-emitter-cases/explicit-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-checkpoint-1.log",
+      "bytes": 1064,
+      "sha256": "73eac5647d842e9a0d6e4db1497414ab6c6b552b6a85d2cb585cad434ab11079",
+      "result": {
+        "outcome": "timeout",
+        "exit": 124,
+        "cap_seconds": 1500,
+        "elapsed_seconds_including_cleanup": 1540.14,
+        "maximum_process_rss_kib": 10894524,
+        "scope": "Combined frozen graph checkpoint; completed metadata, boundaries and literal-target gates survive. Security-validation did not complete in this invocation."
+      }
+    },
+    {
+      "file": "nightstream-baseline-false-security-gate-2.log",
+      "bytes": 14815,
+      "sha256": "98cda8ef8fbfdc603c40f69fc36a2e05a98fab6af72514c96fb62d00ccbece93",
+      "maximum_process_rss_kib": 11049956,
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "run": "97f16091b5c645229136564936320d14"
+      }
+    },
+    {
+      "file": "nightstream-baseline-recursive-checker-build-1.log",
+      "bytes": 1383,
+      "sha256": "f25f5a979f64ae301436d74be80ebeb1120a6b2957d6dc8e1ffae0640bb436c1",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 18.49683611106593,
+        "command": [
+          "cargo",
+          "build",
+          "-p",
+          "nightstream-fprime",
+          "--release",
+          "--bin",
+          "check_package_conformance"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 531736
+    },
+    {
+      "file": "nightstream-baseline-emitter-zero-counter-1.log",
+      "bytes": 127344,
+      "sha256": "a335c67fc268e297ce16515214f1264878227dd25289e9e59c63bcc8a98bc9f1",
+      "result": {
+        "outcome": "failed",
+        "exit": 1,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.4250807909993455,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/zero-counter.json",
+          "/tmp/nightstream-baseline-emitter-cases/zero-counter-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 1473608,
+      "expected_rejection": {
+        "outcome": "pass",
+        "reason": "prior counter must be positive with a canonical successor",
+        "no_output": true
+      }
+    },
+    {
+      "file": "nightstream-baseline-emitter-counter-no-successor-1.log",
+      "bytes": 127384,
+      "sha256": "b4c12c48d88a534516658e45b95b835f2e54acd1bfa2cddc82325b9d47109ace",
+      "result": {
+        "outcome": "failed",
+        "exit": 1,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.324374131974764,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/counter-no-successor.json",
+          "/tmp/nightstream-baseline-emitter-cases/counter-no-successor-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 1475580,
+      "expected_rejection": {
+        "outcome": "pass",
+        "reason": "prior counter must be positive with a canonical successor",
+        "no_output": true
+      }
+    },
+    {
+      "file": "nightstream-baseline-emitter-wrong-state-width-1.log",
+      "bytes": 127324,
+      "sha256": "080883ecfef719259f25347c357eda61f77de69424eaf652486e32692df6e940",
+      "result": {
+        "outcome": "failed",
+        "exit": 2,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.27611450990662,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/wrong-state-width.json",
+          "/tmp/nightstream-baseline-emitter-cases/wrong-state-width-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 1475200,
+      "expected_rejection": {
+        "outcome": "pass",
+        "reason": "expected four state or message words",
+        "no_output": true
+      }
+    },
+    {
+      "file": "nightstream-baseline-emitter-noncanonical-word-1.log",
+      "bytes": 127317,
+      "sha256": "2fe13270f47b2d7b0ffb5aa8e8f38697ebafc650ba2470602651af91b4f01ec0",
+      "result": {
+        "outcome": "failed",
+        "exit": 2,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.325399841996841,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "recursive-step-fixture",
+          "18363630987318625048",
+          "9406776669274472459",
+          "1104198490699942438",
+          "1757792822492309855",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-baseline-emitter-cases/noncanonical-word.json",
+          "/tmp/nightstream-baseline-emitter-cases/noncanonical-word-output.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 1475456,
+      "expected_rejection": {
+        "outcome": "pass",
+        "reason": "noncanonical Goldilocks word",
+        "no_output": true
+      }
+    },
+    {
+      "file": "nightstream-baseline-recursive-checker-regression-1.log",
+      "bytes": 5046,
+      "sha256": "fa62e54a6c99eaa6da9e78d5804970496c5d455cb2d1f7dfdea5ae00ff29224b",
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 35.67364711605478,
+        "command": [
+          "cargo",
+          "run",
+          "-p",
+          "nightstream-fprime",
+          "--release",
+          "--bin",
+          "check_package_conformance",
+          "--",
+          "recursive",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-binding-v1.json",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-ajtai-setup-v1-parity.json",
+          "12322613552781674794",
+          "11618660216342328080",
+          "8890015725622288919",
+          "10115040070495147315",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-expanded.json",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
+          "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json",
+          "/tmp/nightstream-native-lifecycle/pi_ccs_input.json",
+          "/tmp/nightstream-native-lifecycle/children.json",
+          "/tmp/nightstream-native-lifecycle/lean-result.json",
+          "/tmp/nightstream-native-lifecycle/lean-result.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+        "evidence": "development diagnostic only"
+      },
+      "maximum_process_rss_kib": 3632528
+    }
+  ]
+}

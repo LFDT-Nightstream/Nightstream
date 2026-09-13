@@ -14,7 +14,7 @@ use neo_reductions::common::validate_superneo_witness_mat;
 use nightstream_fprime::PI_DEC_V1_1_CHILD_COUNT;
 use p3_field::PrimeCharacteristicRing;
 
-use super::super::{stage1_actual::ActualBase, Observed};
+use super::super::{stage1_actual::ActualSources, Observed};
 use super::{commit_parent, load, load_verified_parent, CommittedSplit, SavedChildOpening, SavedSplit};
 
 /// Read the exact ordered saved material, construct the normal D proof, and
@@ -22,14 +22,14 @@ use super::{commit_parent, load, load_verified_parent, CommittedSplit, SavedChil
 /// not recalculate saved openings or certify them as witness evaluations.
 pub fn assemble(
     package_path: &Path,
-    fixture_path: &Path,
+    source_path: &Path,
     parent_dir: &Path,
     material_dir: &Path,
     opening_dir: &Path,
 ) -> Observed {
     let started = Instant::now();
-    let (actual, saved) = load_verified_parent(package_path, fixture_path, parent_dir);
-    let ActualBase {
+    let (actual, saved) = load_verified_parent(package_path, source_path, parent_dir);
+    let ActualSources {
         package,
         params,
         fresh,

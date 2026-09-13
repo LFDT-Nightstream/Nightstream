@@ -2,10 +2,10 @@ import NightstreamFPrime.Export.Stage1.BaseStepFixture
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 /-!
-Owns the next caller packet after the checked base fixture. It consumes the
-actual PiCCS proof and sixteen child claims, computes the shared transcript
-and hashes, and uses the existing caller-packet schema. Opening validity and
-the complete exported witness assignment must be checked separately.
+Owns the next caller packet from an explicit prior state, application message,
+actual PiCCS proof and sixteen child claims. It uses the existing typed state,
+transcript and caller-packet schema. Opening validity and the complete exported
+witness assignment must be checked separately.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RecursiveStepFixture
@@ -33,10 +33,15 @@ private def extensionWords (value : K) : List F := [value.c0, value.c1]
 private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue (extensionWords value))
 
-def valueIO (context : VerifierContext.Digest4)
+private def valueFromPriorIO (context : VerifierContext.Digest4)
+    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (message : AppWitness)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
     IO Value := do
-  let prior := BaseStepFixture.outputPreimage context
+  unless decide (0 < prior.iteration ∧ prior.iteration + 1 < goldilocksModulus) do
+    throw (IO.userError "recursive fixture: prior counter must be positive with a canonical successor")
+  unless decide (prior.z0.length = 4 ∧ prior.current.length = 4 ∧ message.length = 4) do
+    throw (IO.userError "recursive fixture: states and message must contain four words")
   let priorWords := serializePreimage (publicFits := publicFits) prior
   let priorDigest := Poseidon2.hash priorWords
   let priorPublic : PublicInput := encHash (publicFits := publicFits) priorDigest
@@ -73,7 +78,6 @@ def valueIO (context : VerifierContext.Digest4)
       (fun values => values.toList)) do
     throw (IO.userError "recursive fixture: child public inputs differ from the checked split")
   let childRunning := PiCCSInputCheck.running { input with running := children }
-  let message := BaseStepFixture.applicationMessage
   let applicationOutput := Lifecycle.Stage1.Poseidon2HashChainV1.step
     prior.current message
   let next := { prior with
@@ -102,5 +106,27 @@ def valueIO (context : VerifierContext.Digest4)
       wordsValue (List.ofFn nextFreshPublic), pointValue phase.point.coordinates,
       wordsValue phase.outgoing, wordsValue batch.finalState,
       wordsValue parentValues.toList]]
+
+/-- Construct a later caller packet from the actual prior state and C input.
+The caller supplies the verifier context; running claims come from the same
+typed C input whose fresh public hash is checked by the shared constructor. -/
+def valueFromStateIO (context : VerifierContext.Digest4)
+    (iteration : Nat) (z0 current : AppState) (message : AppWitness)
+    (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
+    IO Value :=
+  valueFromPriorIO context {
+    verifierKeys := fun _ => context.toList
+    iteration := iteration
+    z0 := z0
+    current := current
+    running := fun _ => PiCCSInputCheck.running input
+    pc := 1 } message input children
+
+/-- Preserve the checked base-output fixture as the default caller. -/
+def valueIO (context : VerifierContext.Digest4)
+    (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
+    IO Value :=
+  valueFromPriorIO context (BaseStepFixture.outputPreimage context)
+    BaseStepFixture.applicationMessage input children
 
 end NightstreamFPrime.Export.Stage1.RecursiveStepFixture

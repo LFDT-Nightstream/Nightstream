@@ -21,3 +21,5 @@ Run through validate.sh after building the library and tests.EvidenceTargets.
 #evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.retryMean_succ_eq_runWork
 #evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.driverMean_eq_runWork
 #evidence_export NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork.prepared_expected_work_polynomial_bound
+
+#evidence_export LeanGraph.Targets.hyperNovaTerminalFalseAcceptance

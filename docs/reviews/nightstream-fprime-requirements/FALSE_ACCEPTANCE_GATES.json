@@ -1,0 +1,162 @@
+{
+  "schema": 1,
+  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+  "snapshot": "1d295235d73109bb82b356c3f2c9012d8939494b325e7f973415c78262693230",
+  "gate_mode": "diagnostic local compiler evidence; not controlled-checker approval",
+  "gates": [
+    {
+      "gate": "declaration-metadata",
+      "run": "0b017e36d29e4823a5ae17a0974d03ad",
+      "outcome": "pass",
+      "record_sha256": "91cdbd38ed92775c1ac50c976f85be2175894e73e5a897b87acb0a009dcefb67",
+      "commands": [
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 483.1442281299969
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "tests.EvidenceTargets"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 4.322836343082599
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "file",
+            "../../scripts/lean_graph/ExportMetadata.lean"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 265.6536657239776
+        }
+      ]
+    },
+    {
+      "gate": "boundaries",
+      "run": "bc6de3a8f4eb473ab943625cd4ba1988",
+      "outcome": "pass",
+      "record_sha256": "97b4a56877fd5682d4503236ebdb0f87b30403a86e948e5e227eb7a86b091f83",
+      "commands": [
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "static"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 8.627539015957154
+        }
+      ]
+    },
+    {
+      "gate": "assignment-targets",
+      "run": "5f6910ba2c404b95bea0a80df80ab0fb",
+      "outcome": "pass",
+      "record_sha256": "75bf25c2aa127e48f9d8584c053ae4337b845604724cb4b429226b752228eae6",
+      "commands": [
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "tests.EvidenceTargets"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 2.3696013659937307
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "file",
+            "tests/EvidenceAcceptance.lean"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 1.9179419239517301
+        }
+      ]
+    },
+    {
+      "gate": "security-validation",
+      "run": "97f16091b5c645229136564936320d14",
+      "outcome": "pass",
+      "record_sha256": "29f725c947b50cedfde0a7bdc974565b67918a67769e69a38c383444ac32752e",
+      "commands": [
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 487.5300584399374
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "axioms"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 62.83218114904594
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "tests.EvidenceTargets"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 0.8654098770348355
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "file",
+            "tests/EvidenceAcceptance.lean"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 1.9176254690391943
+        },
+        {
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "file",
+            "../../scripts/lean_graph/ExportMetadata.lean"
+          ],
+          "outcome": "pass",
+          "elapsed_seconds": 258.6936897980049
+        }
+      ]
+    }
+  ],
+  "decomposition_review": "9952aa4485294d6495bd7ee2fdb14c01d23a7decbb25a6160d5ba58ce759321b",
+  "external_conditions": [
+    "Controlled checker authority and accepted reviews are not supplied by these local records.",
+    "Cryptographic applicability, useful transfer bounds and production/backend approval remain explicit external conditions.",
+    "The active Rust extension and later nonzero-running execution remain open."
+  ],
+  "failed_aggregate_checkpoint": {
+    "exit": 124,
+    "cap_seconds": 1500,
+    "elapsed_seconds_including_cleanup": 1540.14,
+    "maximum_process_rss_kib": 10894524
+  },
+  "completed_security_gate": {
+    "elapsed_seconds_including_orchestration": 987.48,
+    "maximum_process_rss_kib": 11049956
+  }
+}

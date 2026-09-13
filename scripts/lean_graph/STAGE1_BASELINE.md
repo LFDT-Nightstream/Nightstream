@@ -23,6 +23,58 @@ boundaries. The public flow is `Stage1Envelope::initial(z0)`,
 Its open requirements remain until their actual tests and review exist.
 This registration does not change lean-graph's schema or acceptance rules.
 
+## Checkpoint requirements
+
+The checkpoint must compile every `neo-fold-clean` test target with
+`cargo test -p neo-fold-clean --release --no-run`, including the fixture
+binary's test harness. Integration tests must stay in their integration
+target; removing a failing harness is not the repair.
+
+Commit reports and SHA-256 manifests. Store new evidence archives outside
+Git; do not put generated witnesses or graph metadata in Git inside archives.
+Existing committed archives remain historical evidence until verified
+external copies and replacement references exist. Do not rewrite history.
+Each named gate must have a documented fresh-checkout command and available
+inputs. Small test inputs belong in the test fixtures directory; larger
+external inputs need a retrieval location and checked manifest before the
+gate is called reproducible. The owner selected GitHub release assets in
+this repository on September 13. Record the release, asset URL and hash.
+
+Before another expensive recursive run, record its measured stage costs,
+memory measurements and the basis of its feasibility estimate. The existing
+300-second native cap applies. An invocation that reaches it is a failed
+slice. Report the stage and measurement; do not repeat an unchanged run or
+silently convert failure into an ignored pass. The owner chose to keep the
+existing project limits and report measured memory on September 13; the
+review's proposed 64 GB ceiling is not adopted.
+
+Only the coordinator runs Lean, Cargo and validation commands. Subagents
+may read, draft and review. Reused Ironwood code must retain its verified
+upstream license, authors and exact source commit. The reviewed snapshot is
+Apache-2.0 OR MIT, Copyright (c) 2026 Zcash Protocol Developers, commit
+`22dfee003b639eff660f68ea69a98a00409a9cb1`; preserve the notices described in
+`external/ironwood/PROVENANCE.md`. A review citation is not code reuse.
+Publish the requirements map only from committed inputs.
+
+The public flow remains `Stage1Envelope::initial`, `package.extend` and
+`package.verify`. Add no redundant initialization wrapper or public state
+machine interface. Remove obsolete square-root assurance consumers only
+after their uses and map references move to validated linear consumers.
+General lemmas still required by those consumers are not obsolete.
+
+## Named map dispositions
+
+These are closure decisions and required evidence, not premature status changes.
+
+| Record | Disposition | Required result or condition |
+| --- | --- | --- |
+| `N.security.error_budget` | Close the symbolic selected-terminal bound; numerical deployment choices are out of scope. | Connect terminal acceptance with no valid application history to the existing first-failure and linear visited bounds. Keep depth, queries, `g`, FS loss, marked hash collisions and actual adaptive MSIS advantage explicit. Do not substitute an extraction-success bound for false acceptance. |
+| `L.language.expressions` | Close as a definition. | `Circuit.Basic.Expr` and `Env` supply the required evaluation semantics. Its `definition` status is accurate; no additional theorem is required by this record. |
+| `L.language.contract` | Close as a definition. | `FormalCircuit` requires specification, footprint, soundness and completeness fields. Concrete production instances and their compiler gates remain the separate implementation evidence. |
+| `L.encoding.actual` | Close the stale technical link. | `ActualPiDECOutput.selectedRowsAndPublic_imply_step`, the literal `Stage1Assignment` target and the terminal context/collision target cover arbitrary assignments. |
+| `P.binding.context` | Close the selected technical link; production approval remains external. | Canonical descriptor plus `ActualContextSecurity.terminal_implies_matchingStepOrCollision`, exact assignment target and package-owned Rust context checks. |
+| `P.delivery.terminal` | Close the selected terminal implementation; approved backend delivery remains external. | Selected `stage1::verify`, the typed Lean terminal target and reproducible acceptance/rejection checks on actual openings. Remove the stale citation to the generic verifier. |
+
 ## Premises and limits
 
 The assignment target uses the actual public projection, a four-word digest,

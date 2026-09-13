@@ -1,0 +1,518 @@
+{
+  "schema": 1,
+  "prepared_at_utc": "2026-09-13T06:47:18.796754+00:00",
+  "repository": "LFDT-Nightstream/Nightstream",
+  "proposed_tag": "stage1-evidence-48f06fab",
+  "source_cut_commit": "48f06fabef53d3f8f20eb501077b756fb529a805",
+  "upload_status": "pending",
+  "remote_verification_status": "pending",
+  "evidence_scope": "Exact copies of the tracked archives at the source cut. Archive records retain their original dates, assumptions, test limits, memory reports, exclusions and outcomes. Historical evidence can include failed, timed-out, rejected, incomplete and superseded attempts. Copy verification is not a claim that every archived check passed.",
+  "memory_policy": "Existing memory limits and recorded memory measurements are retained without change; no new memory limit is introduced.",
+  "assets": [
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/COMPILER_REPAIR_EVIDENCE.zip",
+      "source_git_blob": "7e0c2b6ae84faa2bfd9f9b9a5e49c13da7db7125",
+      "asset_name": "COMPILER_REPAIR_EVIDENCE-94cba9d43f3adaab9efd941dba7ea569ca15490c55f079e94a40dfef04991908.zip",
+      "bytes": 133497,
+      "sha256": "94cba9d43f3adaab9efd941dba7ea569ca15490c55f079e94a40dfef04991908",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_ACCEPTED_NEXT_EVIDENCE.zip",
+      "source_git_blob": "d967e76891b9e405a35f4a012b1823f37149895d",
+      "asset_name": "HYPERNOVA_ACCEPTED_NEXT_EVIDENCE-bd778da7b0b34e459abc6290a7e7bc5021a839304f1a5d25baeb242532863e97.zip",
+      "bytes": 131832,
+      "sha256": "bd778da7b0b34e459abc6290a7e7bc5021a839304f1a5d25baeb242532863e97",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_GUARDED_CONTEXT_EVIDENCE.zip",
+      "source_git_blob": "934242a361f6f86cfaf227b6d29482dcf8d0543c",
+      "asset_name": "HYPERNOVA_GUARDED_CONTEXT_EVIDENCE-2d4eb337ae22fb59ecea113b74953d080437d7d868e50b452af560acb87ec7d6.zip",
+      "bytes": 137691,
+      "sha256": "2d4eb337ae22fb59ecea113b74953d080437d7d868e50b452af560acb87ec7d6",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_HISTORY_EVIDENCE.zip",
+      "source_git_blob": "11286783b3f626a1a3ceaeaec6e36370a15ac870",
+      "asset_name": "HYPERNOVA_HISTORY_EVIDENCE-0f87fe4aecc2c1cf669706e1cc21f9774eebf27b69b20ef741f4be2fdd38b0e5.zip",
+      "bytes": 123604,
+      "sha256": "0f87fe4aecc2c1cf669706e1cc21f9774eebf27b69b20ef741f4be2fdd38b0e5",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_INITIAL_DEC_INPUTS_EVIDENCE.zip",
+      "source_git_blob": "7c19b7abba7b4aa0d7a6d828f4a6afcb3277e898",
+      "asset_name": "HYPERNOVA_INITIAL_DEC_INPUTS_EVIDENCE-cd73aad8904691032f084124164f5ceb1f7289486a5fdddf0e52cf509a009d30.zip",
+      "bytes": 156289,
+      "sha256": "cd73aad8904691032f084124164f5ceb1f7289486a5fdddf0e52cf509a009d30",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_LAW_EVIDENCE.zip",
+      "source_git_blob": "acdfc6854565dffb47203362e46ee517677add60",
+      "asset_name": "HYPERNOVA_LAW_EVIDENCE-135186ae779f70e50bc38785586258d40cae691b79f2cffe452336e626575b78.zip",
+      "bytes": 231979,
+      "sha256": "135186ae779f70e50bc38785586258d40cae691b79f2cffe452336e626575b78",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_PREDECESSOR_EVIDENCE.zip",
+      "source_git_blob": "b46c3c7fcca95d5fe42c25e97006d8681424cc5e",
+      "asset_name": "HYPERNOVA_PREDECESSOR_EVIDENCE-2457db6680cde49a462dbaa4aec0c4c1f19b81c9220f2423b81bdd38506025e2.zip",
+      "bytes": 114940,
+      "sha256": "2457db6680cde49a462dbaa4aec0c4c1f19b81c9220f2423b81bdd38506025e2",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_SECURITY_EVIDENCE.zip",
+      "source_git_blob": "ddc83598d9b964df16a32a9e8d848777f0294cf0",
+      "asset_name": "HYPERNOVA_SECURITY_EVIDENCE-11d9b0d0a78c95331f0f1bcb42bf18bc01131c971248779187a2b4952e713c56.zip",
+      "bytes": 154841,
+      "sha256": "11d9b0d0a78c95331f0f1bcb42bf18bc01131c971248779187a2b4952e713c56",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_SOURCE_WORK_EVIDENCE.zip",
+      "source_git_blob": "7c669bf38202c1a8788d10f0b4e4e9f5647af267",
+      "asset_name": "HYPERNOVA_SOURCE_WORK_EVIDENCE-c367847f1ad9705951ab04a2629549527756f7cd7e066edde4720ffb0536a479.zip",
+      "bytes": 160140,
+      "sha256": "c367847f1ad9705951ab04a2629549527756f7cd7e066edde4720ffb0536a479",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/HYPERNOVA_STEP_CONSTRUCTION_EVIDENCE.zip",
+      "source_git_blob": "076ea4dd8ac40d6563782316b489e4ae86b5346f",
+      "asset_name": "HYPERNOVA_STEP_CONSTRUCTION_EVIDENCE-a1579300f77d59dd9eb506a056a0555aea95c2a4f16b421ef266e3814af0853e.zip",
+      "bytes": 281211,
+      "sha256": "a1579300f77d59dd9eb506a056a0555aea95c2a4f16b421ef266e3814af0853e",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.zip",
+      "source_git_blob": "f8c10447a0ada903418cafd91e6152a56a3f758c",
+      "asset_name": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+      "bytes": 39165413,
+      "sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.zip",
+      "source_git_blob": "4c1fe94de306b720dbfa4a7f697a2bcc1dcaba57",
+      "asset_name": "NATIVE_NIFS_EVIDENCE-2c14aefd8319331d62d12103b549f04978d45561cd4c62ced864981b6d1d6b91.zip",
+      "bytes": 2402471,
+      "sha256": "2c14aefd8319331d62d12103b549f04978d45561cd4c62ced864981b6d1d6b91",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NATIVE_PARENT_EVIDENCE.zip",
+      "source_git_blob": "c3cd1b8931507e65a39d89929d952bec03940ac6",
+      "asset_name": "NATIVE_PARENT_EVIDENCE-3f172178747d6f68b322025d746cd23fd0ac97a59c376f3137aeee87dbf8f9dd.zip",
+      "bytes": 149284,
+      "sha256": "3f172178747d6f68b322025d746cd23fd0ac97a59c376f3137aeee87dbf8f9dd",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NATIVE_SUCCESSOR_EVIDENCE.zip",
+      "source_git_blob": "99358f990ee5a836536e4bcee01f9653e9b5259e",
+      "asset_name": "NATIVE_SUCCESSOR_EVIDENCE-c62823dad86c82f4ddfc257e48e3df9de73957efaaa772e68ea34842ef417315.zip",
+      "bytes": 2106593,
+      "sha256": "c62823dad86c82f4ddfc257e48e3df9de73957efaaa772e68ea34842ef417315",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NATIVE_TERMINAL_EVIDENCE.zip",
+      "source_git_blob": "918062be132b562c9089f25c73065278001acb1a",
+      "asset_name": "NATIVE_TERMINAL_EVIDENCE-2485915eb86f50cddfa3ad8406e512075d4a0c3fd56c6f7a0745768d1daa021a.zip",
+      "bytes": 177825,
+      "sha256": "2485915eb86f50cddfa3ad8406e512075d4a0c3fd56c6f7a0745768d1daa021a",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_BINDING_REDUCTION_EVIDENCE.zip",
+      "source_git_blob": "8d6a4de61efb9dd83832fd14c66cb4c159b3bf95",
+      "asset_name": "NIFS_BINDING_REDUCTION_EVIDENCE-6829f33e826f7813d518f1ca4b0a98f12dac449fff3593bb850bd745fbcc74b8.zip",
+      "bytes": 260428,
+      "sha256": "6829f33e826f7813d518f1ca4b0a98f12dac449fff3593bb850bd745fbcc74b8",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_CACHE_WIDTH_AND_PARENT_DRAFT.zip",
+      "source_git_blob": "a9731a981b3af07ab9e694ea0d538dbd17654c67",
+      "asset_name": "NIFS_CACHE_WIDTH_AND_PARENT_DRAFT-6cd0e3e803587bdd25cf2f4856aca2fc83a8708ffb7cdd97d19c940cc62783fc.zip",
+      "bytes": 103568,
+      "sha256": "6cd0e3e803587bdd25cf2f4856aca2fc83a8708ffb7cdd97d19c940cc62783fc",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_CCS_RLC_EVIDENCE.zip",
+      "source_git_blob": "be21e96e122089b0d39a9d3ab4da622d01e1ede3",
+      "asset_name": "NIFS_CCS_RLC_EVIDENCE-4b0d2530fe7c50ba28b8457383c4e13eaffff582ff5ce80444d95b6d9328890d.zip",
+      "bytes": 13120889,
+      "sha256": "4b0d2530fe7c50ba28b8457383c4e13eaffff582ff5ce80444d95b6d9328890d",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_CLOSURE_EVIDENCE.zip",
+      "source_git_blob": "f9fb9b34d1f2c231673c6b3765b67f0f917681c0",
+      "asset_name": "NIFS_CLOSURE_EVIDENCE-f20474e53a64b5c505b2979c1171ee554fd1ffa8d95520ae1b520d90a30d1b52.zip",
+      "bytes": 1257884,
+      "sha256": "f20474e53a64b5c505b2979c1171ee554fd1ffa8d95520ae1b520d90a30d1b52",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_COMPLETE_REPLAY_EVIDENCE.zip",
+      "source_git_blob": "05d0dc7bfde370cd73c0ea4cd39551c09a40ef9d",
+      "asset_name": "NIFS_COMPLETE_REPLAY_EVIDENCE-5a74f1f2527f5de2d7a88ddc6ff40d1c7709352fc26f7e2318346f5dc0a28987.zip",
+      "bytes": 4478198,
+      "sha256": "5a74f1f2527f5de2d7a88ddc6ff40d1c7709352fc26f7e2318346f5dc0a28987",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_CONCRETE_CONSUMER_EVIDENCE_01a8fd8c.zip",
+      "source_git_blob": "d09c30e3452181ca137b327ccfc58d23825df901",
+      "asset_name": "NIFS_CONCRETE_CONSUMER_EVIDENCE_01a8fd8c-9808e2878384349c3d6d8af284216525475b9df0d0a557b6f0043c9631c2a8c5.zip",
+      "bytes": 117633,
+      "sha256": "9808e2878384349c3d6d8af284216525475b9df0d0a557b6f0043c9631c2a8c5",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_CONSUMERS_EVIDENCE.zip",
+      "source_git_blob": "7b02b69af1229fdecf55a2f500ceab63ecfabefb",
+      "asset_name": "NIFS_CONSUMERS_EVIDENCE-b6c7ce78ba0a25b1b7e63eac07d4e91e8443f82c1f42a829655e37f8d332eec1.zip",
+      "bytes": 534949,
+      "sha256": "b6c7ce78ba0a25b1b7e63eac07d4e91e8443f82c1f42a829655e37f8d332eec1",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip",
+      "source_git_blob": "c1d463938e55a156a1abd116940557a4e00b0892",
+      "asset_name": "NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE-11aa7369a8399d256cbbf2ae12eb24329ee219852a9a73f354224aa71da8d5b7.zip",
+      "bytes": 13645188,
+      "sha256": "11aa7369a8399d256cbbf2ae12eb24329ee219852a9a73f354224aa71da8d5b7",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_EXECUTED_PROBE_EVIDENCE.zip",
+      "source_git_blob": "479b2ca4e02886ea73e8b46eca5f55a01fd55f01",
+      "asset_name": "NIFS_EXECUTED_PROBE_EVIDENCE-3cc2e3eaa5def6f7a65e74aa31fb4f43c9f7c624fa6a759c98060c23adc8f543.zip",
+      "bytes": 62943,
+      "sha256": "3cc2e3eaa5def6f7a65e74aa31fb4f43c9f7c624fa6a759c98060c23adc8f543",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_INTERACTIVE_EVIDENCE.zip",
+      "source_git_blob": "df9c30a05816f447c3fa275e7c7219b1f5e1bac4",
+      "asset_name": "NIFS_INTERACTIVE_EVIDENCE-481a4a15b765dd2f8fbdd9c7ee62ddd44c77218f7d5edfbe187f96ee69f9fcb2.zip",
+      "bytes": 151904,
+      "sha256": "481a4a15b765dd2f8fbdd9c7ee62ddd44c77218f7d5edfbe187f96ee69f9fcb2",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_MATRIX_AND_PREIMAGE_EVIDENCE.zip",
+      "source_git_blob": "ee0540b207e0557a0778f5175501409722d3ce70",
+      "asset_name": "NIFS_MATRIX_AND_PREIMAGE_EVIDENCE-81c9c304c061ba9e6017c1af3c947fbac2e3f56d1f8b7a5272b6ca52c438380f.zip",
+      "bytes": 439383,
+      "sha256": "81c9c304c061ba9e6017c1af3c947fbac2e3f56d1f8b7a5272b6ca52c438380f",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_MATRIX_ENTRY_EVIDENCE.zip",
+      "source_git_blob": "c4c9d9de939c0f8e58f7c9374d96b101c1870b0f",
+      "asset_name": "NIFS_MATRIX_ENTRY_EVIDENCE-974bce9d470133d7e4e619708dbaab8f9b6d2ad34320f0378c789413ac37eaab.zip",
+      "bytes": 495729,
+      "sha256": "974bce9d470133d7e4e619708dbaab8f9b6d2ad34320f0378c789413ac37eaab",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_NATIVE_CACHE_EVIDENCE.zip",
+      "source_git_blob": "ad21053cc2d26e42d0bbfb1d06cecd51596b2b4b",
+      "asset_name": "NIFS_NATIVE_CACHE_EVIDENCE-8a82d2cc1b1e623edac9a6ce465f7c90df0c98cb09bb9559425ae977cc38b9c8.zip",
+      "bytes": 49325,
+      "sha256": "8a82d2cc1b1e623edac9a6ce465f7c90df0c98cb09bb9559425ae977cc38b9c8",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_NATIVE_D_PRIMITIVES_EVIDENCE.zip",
+      "source_git_blob": "1ddf1ca3ecf8ade174ef50c0d53f0fbb397744c6",
+      "asset_name": "NIFS_NATIVE_D_PRIMITIVES_EVIDENCE-5b2033c0008325996892152c2d896915bbe006139c0f61a96d6090d1ed400dcc.zip",
+      "bytes": 51374,
+      "sha256": "5b2033c0008325996892152c2d896915bbe006139c0f61a96d6090d1ed400dcc",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_NATIVE_PICCS_EVIDENCE.zip",
+      "source_git_blob": "218e016797ba7f6a21c5740cc1dc6d69980503c1",
+      "asset_name": "NIFS_NATIVE_PICCS_EVIDENCE-f910918b7901172bbd47816e55295e2bb321786171445d44ce558012a6184322.zip",
+      "bytes": 91136,
+      "sha256": "f910918b7901172bbd47816e55295e2bb321786171445d44ce558012a6184322",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_OPENING_AND_PROVER_EVIDENCE.zip",
+      "source_git_blob": "5d6b9b907eb93a489d181f9dc17ac5a316f3e51d",
+      "asset_name": "NIFS_OPENING_AND_PROVER_EVIDENCE-6d4c13bed5c756e2af38ccb9e9feba0828955f82cf9b235f926fa9aa3cc61106.zip",
+      "bytes": 2398676,
+      "sha256": "6d4c13bed5c756e2af38ccb9e9feba0828955f82cf9b235f926fa9aa3cc61106",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_PREPARATION_AND_PICCS_EVIDENCE.zip",
+      "source_git_blob": "49173c421b7f7cc2c16bc96c67524aed67564f6f",
+      "asset_name": "NIFS_PREPARATION_AND_PICCS_EVIDENCE-76a2d3a6010e35253465fb8c1aaa42bb527f828198344fb05268016f465c6499.zip",
+      "bytes": 3804162,
+      "sha256": "76a2d3a6010e35253465fb8c1aaa42bb527f828198344fb05268016f465c6499",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_PRIMITIVES_AND_SHORTFALL_EVIDENCE.zip",
+      "source_git_blob": "21b56fc049525fba741247b566e11824318489f9",
+      "asset_name": "NIFS_PRIMITIVES_AND_SHORTFALL_EVIDENCE-d7f338834ba122e269b8bd72f2926c3a52673a3edb230bb6a5368c0a78af9080.zip",
+      "bytes": 305251,
+      "sha256": "d7f338834ba122e269b8bd72f2926c3a52673a3edb230bb6a5368c0a78af9080",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_PROOF_LINKS_EVIDENCE.zip",
+      "source_git_blob": "e1a8b40c154d6beb76345a7af7b1bf7d8636c6a9",
+      "asset_name": "NIFS_PROOF_LINKS_EVIDENCE-08cec760ae59ab818373ebd401d40655749515f8cdd920aed09c67559bea9aba.zip",
+      "bytes": 123521,
+      "sha256": "08cec760ae59ab818373ebd401d40655749515f8cdd920aed09c67559bea9aba",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_PUBLIC_AND_BATCH_EVIDENCE.zip",
+      "source_git_blob": "70ac96eaa78780c358dcb264d3daff4e5ec4b48f",
+      "asset_name": "NIFS_PUBLIC_AND_BATCH_EVIDENCE-950783ee98dbb14d1414713f0f4387f61bde178fb27cf6a376db9cf9bd2ad961.zip",
+      "bytes": 585490,
+      "sha256": "950783ee98dbb14d1414713f0f4387f61bde178fb27cf6a376db9cf9bd2ad961",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_RLC_PARENT_EVIDENCE.zip",
+      "source_git_blob": "5472a0edec3503e15b3d1727b8415d665957ce41",
+      "asset_name": "NIFS_RLC_PARENT_EVIDENCE-e58ca0b05ea2976994bf3075934b16d69c9b1587eada3cb197ba3a094047d471.zip",
+      "bytes": 81421,
+      "sha256": "e58ca0b05ea2976994bf3075934b16d69c9b1587eada3cb197ba3a094047d471",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_ROWS_AND_FIBERS_EVIDENCE.zip",
+      "source_git_blob": "ecee6c3e87221546e36a3809ccfa76881b439c8a",
+      "asset_name": "NIFS_ROWS_AND_FIBERS_EVIDENCE-d093b01b5d6298506399500070ba5a7d2084b7cc1f884f63c684a8cecd4c6972.zip",
+      "bytes": 395171,
+      "sha256": "d093b01b5d6298506399500070ba5a7d2084b7cc1f884f63c684a8cecd4c6972",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_RUNNING_AND_NATIVE_RLC_EVIDENCE.zip",
+      "source_git_blob": "74da1b1b55f9727168de2ec90c68058f80dd7324",
+      "asset_name": "NIFS_RUNNING_AND_NATIVE_RLC_EVIDENCE-b69f229bbbda9cbdc734d103c3536fcea307e5725c136c3f88b2e4d7b18264e4.zip",
+      "bytes": 5106610,
+      "sha256": "b69f229bbbda9cbdc734d103c3536fcea307e5725c136c3f88b2e4d7b18264e4",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_SELECTED_CHECKER_EVIDENCE.zip",
+      "source_git_blob": "aa37baf82b739d1dfc723427a605c149a63dfad7",
+      "asset_name": "NIFS_SELECTED_CHECKER_EVIDENCE-93f15fe0dba47beed79e10ef51936aa995e87a6585c9e24bd855d1c84b38ca5b.zip",
+      "bytes": 61840,
+      "sha256": "93f15fe0dba47beed79e10ef51936aa995e87a6585c9e24bd855d1c84b38ca5b",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_STORED_AND_SAMPLER_EVIDENCE.zip",
+      "source_git_blob": "4343a28de73d0c76938a4287d963555200176950",
+      "asset_name": "NIFS_STORED_AND_SAMPLER_EVIDENCE-d5c3e2711857ed469fd90cb713e0cd0945df57de0c4d4b6536f82d6509b64efc.zip",
+      "bytes": 270167,
+      "sha256": "d5c3e2711857ed469fd90cb713e0cd0945df57de0c4d4b6536f82d6509b64efc",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_UNIT_AND_OUTPUT_EVIDENCE.zip",
+      "source_git_blob": "da2eb620b36c2d18a207825e1a016f8670eaa49d",
+      "asset_name": "NIFS_UNIT_AND_OUTPUT_EVIDENCE-732d61b2e481b199e85e51fece389eac177212bb89e32cac65b214b8bd2b75d4.zip",
+      "bytes": 466075,
+      "sha256": "732d61b2e481b199e85e51fece389eac177212bb89e32cac65b214b8bd2b75d4",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/NIFS_UNUSED_ALLOCATIONS_EVIDENCE.zip",
+      "source_git_blob": "ae021b896e86738674b6ba81588cc0d7485c1c28",
+      "asset_name": "NIFS_UNUSED_ALLOCATIONS_EVIDENCE-3056fb831c35d71403b473460933f5629516dc9e2a1d24dcb182c2cdf753430c.zip",
+      "bytes": 4561711,
+      "sha256": "3056fb831c35d71403b473460933f5629516dc9e2a1d24dcb182c2cdf753430c",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/PILOT_COMPLETION_EVIDENCE.zip",
+      "source_git_blob": "2b1245c95ecfe51dff9e6b6cec70ec6866cc1409",
+      "asset_name": "PILOT_COMPLETION_EVIDENCE-45dd2d17fb2bb8ab1fa4ad5b96186245b0adc2751210cd452cacc90644674330.zip",
+      "bytes": 123670,
+      "sha256": "45dd2d17fb2bb8ab1fa4ad5b96186245b0adc2751210cd452cacc90644674330",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/R_ENTRY_REPAIR_EVIDENCE.zip",
+      "source_git_blob": "8b640fa1ee0be434a429efa4b25b8ebec8847ba0",
+      "asset_name": "R_ENTRY_REPAIR_EVIDENCE-5588c0cf441879aea512e97ccf8a6d4be8d5f2a5ab563a040bd1226e0665229a.zip",
+      "bytes": 144354,
+      "sha256": "5588c0cf441879aea512e97ccf8a6d4be8d5f2a5ab563a040bd1226e0665229a",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SELECTED_ASSIGNMENT_EVIDENCE.zip",
+      "source_git_blob": "ad436a9b59b5ed887158f9bd107e497cdde0867f",
+      "asset_name": "SELECTED_ASSIGNMENT_EVIDENCE-62cb0e3a44c43f5ddc9f736c8b6003cf19dc28832684f3ac9ca270f704f3eb9d.zip",
+      "bytes": 129102,
+      "sha256": "62cb0e3a44c43f5ddc9f736c8b6003cf19dc28832684f3ac9ca270f704f3eb9d",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/STAGE1_BASELINE_AUDIT.zip",
+      "source_git_blob": "1cdc1491291c0cf713227a5843007ab7a6e66de8",
+      "asset_name": "STAGE1_BASELINE_AUDIT-07edfb2061167b7fe3dfa5ee6069ed0cd5f014b1d08c8483f97dcf6d4ed1983f.zip",
+      "bytes": 284000,
+      "sha256": "07edfb2061167b7fe3dfa5ee6069ed0cd5f014b1d08c8483f97dcf6d4ed1983f",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/STAGE1_PUBLIC_BASE_EVIDENCE.zip",
+      "source_git_blob": "37ef987c60be8fbe11a8157fa2e893b6c409853e",
+      "asset_name": "STAGE1_PUBLIC_BASE_EVIDENCE-f662227d11e386d6162830ff6486ac5357466f7dbca9237f930f02407406680a.zip",
+      "bytes": 136195,
+      "sha256": "f662227d11e386d6162830ff6486ac5357466f7dbca9237f930f02407406680a",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_ADAPTIVE_CHECK_EVIDENCE.zip",
+      "source_git_blob": "efa6e74d4f7100061b3eb3e432d0e4ba1033319d",
+      "asset_name": "SUPERNEO_V1_2_ADAPTIVE_CHECK_EVIDENCE-1e82599ebfd433c6ea1d8c10d73d6a3a995efa89d3291a8b1ef653f43c01b7f0.zip",
+      "bytes": 145752,
+      "sha256": "1e82599ebfd433c6ea1d8c10d73d6a3a995efa89d3291a8b1ef653f43c01b7f0",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_ADAPTIVE_RUN_EVIDENCE.zip",
+      "source_git_blob": "c538c4eec138e1968a59742754e30b715c32d0e3",
+      "asset_name": "SUPERNEO_V1_2_ADAPTIVE_RUN_EVIDENCE-5bc23cefd3df479c9e992c5b5facce4a985be4c86d7be69fe6acb901bba7695f.zip",
+      "bytes": 132553,
+      "sha256": "5bc23cefd3df479c9e992c5b5facce4a985be4c86d7be69fe6acb901bba7695f",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_LINEAR_EVIDENCE.zip",
+      "source_git_blob": "e33fca79b64c31c10ea2426deadf6c75468a4bd0",
+      "asset_name": "SUPERNEO_V1_2_LINEAR_EVIDENCE-716a82b49eb418af1e8e58a812d9b0488fb5fa14ac1b51f0a41203d1db278ab4.zip",
+      "bytes": 158608,
+      "sha256": "716a82b49eb418af1e8e58a812d9b0488fb5fa14ac1b51f0a41203d1db278ab4",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_LINEAR_SECURITY_EVIDENCE.zip",
+      "source_git_blob": "85ef4685c20b09b447fcb8bc00f344edb373fda2",
+      "asset_name": "SUPERNEO_V1_2_LINEAR_SECURITY_EVIDENCE-5eafcef9cf672b712d0f0a96251057ca9a5a67bc051632ee6aa3c2a69055c23b.zip",
+      "bytes": 38844481,
+      "sha256": "5eafcef9cf672b712d0f0a96251057ca9a5a67bc051632ee6aa3c2a69055c23b",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_OBSERVATION_EVIDENCE.zip",
+      "source_git_blob": "1803723cd23aa6b86e6179a3d86ad513b55bd0fc",
+      "asset_name": "SUPERNEO_V1_2_OBSERVATION_EVIDENCE-d17ccbd28c2225eaf952a686f4b0cde3c6dabf2dbba4d112eef9b0cb702e2881.zip",
+      "bytes": 133918,
+      "sha256": "d17ccbd28c2225eaf952a686f4b0cde3c6dabf2dbba4d112eef9b0cb702e2881",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_RETRY_EVIDENCE.zip",
+      "source_git_blob": "bb70c0d566b99cef57bcc2ac3cbb82b1e3f8c0b2",
+      "asset_name": "SUPERNEO_V1_2_RETRY_EVIDENCE-baceb982fae87c8e8a7b3515fb0aae33fbef8418d649d9cbca66c06332d7dd64.zip",
+      "bytes": 276419,
+      "sha256": "baceb982fae87c8e8a7b3515fb0aae33fbef8418d649d9cbca66c06332d7dd64",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_RETRY_LAW_EVIDENCE.zip",
+      "source_git_blob": "fb73db103e360435e02c024e9e4914e2e6f832ec",
+      "asset_name": "SUPERNEO_V1_2_RETRY_LAW_EVIDENCE-e4568f758b2a9bfbf786fbc66c5ee716ebd02a7398b6a6faa36c5c7db7a34c0d.zip",
+      "bytes": 133029,
+      "sha256": "e4568f758b2a9bfbf786fbc66c5ee716ebd02a7398b6a6faa36c5c7db7a34c0d",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "docs/reviews/nightstream-fprime-requirements/conformance-fixes-evidence.zip",
+      "source_git_blob": "7099cd4278a8ddb45e20fe0014aed07a78c1464b",
+      "asset_name": "conformance-fixes-evidence-64a20544094cbfab59864a77cad9981e9f0df139c7053fea3e66c85e846ed434.zip",
+      "bytes": 3152142,
+      "sha256": "64a20544094cbfab59864a77cad9981e9f0df139c7053fea3e66c85e846ed434",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    },
+    {
+      "source_path": "external original child inputs, checked against the committed envelope manifest",
+      "source_git_blob": null,
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "bytes": 162917001,
+      "sha256": "933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e",
+      "upload_status": "pending",
+      "remote_verification_status": "pending"
+    }
+  ],
+  "upload_blocker": "Authenticated GitHub release access is not available in this environment."
+}

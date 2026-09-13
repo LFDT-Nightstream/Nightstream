@@ -1,0 +1,344 @@
+{
+  "schema": 1,
+  "reviewer": "/root/review_linear_security_contract",
+  "review_kind": "Independent diagnostic source review; not protected-checker approval",
+  "timestamp_utc": "2026-09-13T08:15:34.547181+00:00",
+  "worktree": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "base_commit": "48f06fabef53d3f8f20eb501077b756fb529a805",
+  "reviewed_state": "Formatted uncommitted tracked diff against base_commit",
+  "reviewed_sources": [
+    {
+      "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+      "sha256": "a96e479bfb707b19445f6061a8fe6217a441b3cd7b52ff946165e36780ed463f"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_actual.rs",
+      "sha256": "4371bea8c4f32f2af87db99ec2d2a4403257e72ba864a2833c0e1fcc03e09576"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_assemble.rs",
+      "sha256": "fac5d0c562818948991c4f0383573898ae90eb93be17969daebcdad6d760d55b"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_lifecycle.rs",
+      "sha256": "c5b8e1d90d3806ace68d837bf20b0155803397c86f4702febd6ee12c25915902"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+      "sha256": "97ffe53720bc9843bed0e002431356879a66fb3d385b2b4be868b1c8d22c3c3c"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_parent.rs",
+      "sha256": "061b3e03de52b3e9bdc0a564e221773824d75c42a78295b48c911716b3942e39"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_pi_ccs.rs",
+      "sha256": "5dc7da6a6d7bcab6d5c7a8dcd15a2d694101f080f94c4f6a14a260c7e5c8d5b0"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_terminal.rs",
+      "sha256": "c4be2ea05ac554cfddf0b3039500c3d5b831e4490d978004bfa7535220dd1909"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/RecursiveStepFixtureMain.lean",
+      "sha256": "d5a2385d162a2ba9c0a9223448d66373bea1c92123fe325d0047fe19f0fc2fd0"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RecursiveStepFixture.lean",
+      "sha256": "ac8520006345718a67991e703b3966a146b6cf36a120d559a336fac923dcf66a"
+    },
+    {
+      "path": "formal/nightstream-fprime/scripts/validate.sh",
+      "sha256": "ef9a9b841d940454913600897ffbfa0abf464e3cf1491c95ee4283979d0a6e8a"
+    },
+    {
+      "path": "crates/nightstream-fprime/tests/support/recursive_step.rs",
+      "sha256": "805670bdfa049a0918f5e11d0c1a84abec6f4db5f7fa7c6ad657dc164054c4d9"
+    },
+    {
+      "path": "crates/neo-fold-clean/Cargo.toml",
+      "sha256": "bf7a5811a4c730bb383c3972b37477d2fc90c5bcf2e9272eb586fb4221e5ebd9"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs_execution.rs",
+      "sha256": "de3e0b4ef924e83d0b650dc2e8b345782274912a69aa71de5e90212f520dcc68"
+    }
+  ],
+  "contract": "Use the saved iteration-two envelope with its actual fresh witness and sixteen ordered running witnesses for staged nonzero-running C/R/D conformance. Bind the new proof and children to the same prior state, construct and check the complete successor against an independent Lean caller packet, and use that packet as the external state for the existing terminal predicate.",
+  "verdict": "pass",
+  "verdict_scope": "Source correspondence and sufficient check wiring for the stated staged conformance slice. No new execution result is asserted.",
+  "material_findings": [],
+  "assessments": [
+    {
+      "name": "Saved source authenticity",
+      "verdict": "pass",
+      "owners": [
+        "stage1_actual::load_path",
+        "stage1_actual::check_saved_source_openings",
+        "stage1_actual::check_saved_opening",
+        "stage1_actual::check_path"
+      ],
+      "reason": "The directory loader reads the exact fresh claim, fresh Z, and ordered digit-0 through digit-15 matrices from the explicit source directory. It checks package-owned context, canonical active state, complete state/public binding, recomputed frames and the saved parent/child public authority. Each complete Z must have the selected shape and public projection and open its exact claimed fixed-key commitment with strict signed-unit norm. The fresh tail must be zero. The substitution case preserves shape, public data and claim while changing a private signed-unit coordinate, and requires commitment rejection. Metadata paths and stored digests do not authorize the source."
+    },
+    {
+      "name": "Original source use in staged C/R/D",
+      "verdict": "pass",
+      "owners": [
+        "stage1_parent::prove",
+        "stage1_parent::load_verified_parent",
+        "stage1_parent::check",
+        "stage1_parent::open_child",
+        "stage1_assemble",
+        "stage1_nifs"
+      ],
+      "reason": "The staged paths use the same load_path source boundary. Replay starts from the original fresh and running claims, checks the saved C/R result and transcript, and preserves the exact parent used for the new canonical split. Child checks compare the new complete canonical digit matrices, commitments and opening records. Activity is derived from the new split. Assembly and normal NIFS verification retain the full new proof and children."
+    },
+    {
+      "name": "Later state, proof and caller packet",
+      "verdict": "pass",
+      "owners": [
+        "stage1_lifecycle::Fixture::load_later",
+        "stage1_lifecycle::Fixture::packet",
+        "stage1_lifecycle::complete_later_envelope",
+        "stage1_lifecycle::complete_fixture"
+      ],
+      "reason": "The later fixture uses the saved prior state, original running claims/parent and original fresh claim. It checks the reconstructed new proof against its canonical proof.bin bytes. The explicit message request must match the same prior iteration, initial state and current state. The existing package step_inputs verifier binds that prior state and those claims to the exact new proof. Every encoded private/public word, output digest and next public input is compared with the explicit Lean caller packet. Completion checks and retains the supplied new child matrices, compares every fresh carrier coordinate with the assignment from that Lean packet, checks the scalar reference commitment and preserves the source proof bytes."
+    },
+    {
+      "name": "Independent Lean later caller",
+      "verdict": "pass",
+      "owners": [
+        "NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueFromStateIO",
+        "NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueFromPriorIO",
+        "RecursiveStepFixtureMain.parseState",
+        "formal/nightstream-fprime/scripts/validate.sh"
+      ],
+      "reason": "The new entry accepts an explicit canonical prior state and message. The shared constructor checks a positive counter with a canonical successor, the complete fresh public hash, the same running input, actual C acceptance, shared child point and canonical child public split, then computes the application output and next packet. The old base-output entry keeps its prior inputs. Full D opening validity remains in the separate existing independent C/R/D check and native terminal predicate; this caller emitter does not claim that validity by itself."
+    },
+    {
+      "name": "Later terminal state authority",
+      "verdict": "pass",
+      "owners": [
+        "stage1_terminal::check_against",
+        "generate_pi_ccs_fixture complete-later-envelope",
+        "generate_pi_ccs_fixture check-later-terminal",
+        "generate_pi_ccs_fixture check-owned-sources"
+      ],
+      "reason": "The later terminal entry reads its external expected state from the supplied independent Lean packet and compares the envelope with it before the existing full terminal predicate. Existing accepted and rehashed/recommitted Eval_K, Eval_A and fresh-private cases remain available for the later envelope. CLI arguments preserve the distinct original source, new proof, new child matrices, independent packet and fresh output locations."
+    }
+  ],
+  "applicability_conditions": [
+    "This saved-source action uses the retained canonical parent and recomputed matching frames. It does not establish recovery from absent or changed non-authoritative caches.",
+    "The explicit source directory must contain the original envelope, fresh claim, complete fresh Z and all sixteen original digit files. The later caller also reads next-message-input.json there. Embedded directory metadata is ignored.",
+    "Prior full CE and fresh-CCS validity uses the already checked unchanged source artifact. Earlier manifest comparisons identify that artifact and its evidence; hashes are not protocol authority. The new loader adds the individual complete witness opening checks that the C/R proof engine does not perform for original sources.",
+    "The independent complete C/R/D comparison must use the newly emitted actual input and child files. The new Lean caller emitter alone does not check all child openings."
+  ],
+  "execution_pending_at_review": [
+    "Further nonzero-running C/R/D production, complete independent Lean comparison, and the later caller/envelope/terminal execution remain open. Previous capped C/R and isolated C failures remain failures.",
+    "Successful active public extension and absent/changed-cache recovery coverage remain open.",
+    "Remote authentication, release upload, remote byte verification and fresh-download replay remain open.",
+    "Approved production/backend delivery and numerical or concrete FS/MSIS/query/work applicability are not granted by these source reviews."
+  ],
+  "exclusions": [
+    "No builds or tests were run by this reviewer.",
+    "No claim of successful uninterrupted public extend execution or of its runtime under the native cap.",
+    "No universal Rust semantics proof, new cryptographic claim, protocol/profile change, runtime target or new assumption.",
+    "No requirement to repeat full prior terminal verification inside each staged prover invocation.",
+    "Repository sources were read only. The only write was this local review record."
+  ],
+  "initial_source_review": {
+    "timestamp_utc": "2026-09-13T05:58:35.163752+00:00",
+    "reviewed_sources": [
+      {
+        "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+        "sha256": "511db24b25ba37abe4b531d85932d5f2951f3c6c8ebf776f8318eb5a532fbe80"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_actual.rs",
+        "sha256": "521494c99f7dcfbe4d5990d3556165bd5c59599bea76277255bd439ea31b27ec"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_assemble.rs",
+        "sha256": "fac5d0c562818948991c4f0383573898ae90eb93be17969daebcdad6d760d55b"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_lifecycle.rs",
+        "sha256": "c5b8e1d90d3806ace68d837bf20b0155803397c86f4702febd6ee12c25915902"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+        "sha256": "eee78183ad3f86f93ca776f27fc222f3c9308f6f5e291f407285d0e344e1b4f8"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_parent.rs",
+        "sha256": "ad44d3f06b2f930091a08c66d59e79efe658578366d0b2b92ad6b543954d0426"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_pi_ccs.rs",
+        "sha256": "ff4b1934ba10e15ab801739c0ee07550f714a06b61c5105511872ad99ead33af"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_terminal.rs",
+        "sha256": "c4be2ea05ac554cfddf0b3039500c3d5b831e4490d978004bfa7535220dd1909"
+      },
+      {
+        "path": "formal/nightstream-fprime/NightstreamFPrime/Export/RecursiveStepFixtureMain.lean",
+        "sha256": "d5a2385d162a2ba9c0a9223448d66373bea1c92123fe325d0047fe19f0fc2fd0"
+      },
+      {
+        "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/RecursiveStepFixture.lean",
+        "sha256": "ac8520006345718a67991e703b3966a146b6cf36a120d559a336fac923dcf66a"
+      },
+      {
+        "path": "formal/nightstream-fprime/scripts/validate.sh",
+        "sha256": "ef9a9b841d940454913600897ffbfa0abf464e3cf1491c95ee4283979d0a6e8a"
+      }
+    ],
+    "verdict": "pass"
+  },
+  "staging_delta_review": {
+    "timestamp_utc": "2026-09-13T06:14:20.176913+00:00",
+    "verdict": "pass",
+    "scope": "Only the added C/R staging boundary, typed source read change, CLI routes and generalized raw-row counter check.",
+    "reviewed_sources": [
+      {
+        "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+        "sha256": "a96e479bfb707b19445f6061a8fe6217a441b3cd7b52ff946165e36780ed463f"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_actual.rs",
+        "sha256": "81f5afc569588b6f3bff20e6896ac824a8fbe4c76ec876c32cfa187a4fd20fa6"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_parent.rs",
+        "sha256": "061b3e03de52b3e9bdc0a564e221773824d75c42a78295b48c911716b3942e39"
+      },
+      {
+        "path": "crates/nightstream-fprime/tests/support/recursive_step.rs",
+        "sha256": "805670bdfa049a0918f5e11d0c1a84abec6f4db5f7fa7c6ad657dc164054c4d9"
+      }
+    ],
+    "material_findings": [],
+    "assessments": [
+      {
+        "name": "C production and saved proof boundary",
+        "verdict": "pass",
+        "owners": [
+          "stage1_parent::prove_ccs",
+          "stage1_parent::replay_ccs",
+          "Poseidon2HashChainV1Package::prove_pi_ccs",
+          "pi_ccs_joint_protocol::bind_and_sample_with_trace"
+        ],
+        "reason": "C uses the existing selected row prover on the original fresh and ordered running claims and witnesses after all saved-source opening checks. The shared C binder resets the transcript to the existing v1_1 zero state before its normal absorbs and challenges. C is verified on the original sources before saving. Saved package identifiers are checked, and the proof is verified again after loading; no saved transcript state authorizes the R input."
+      },
+      {
+        "name": "R replay, witness order and parent persistence",
+        "verdict": "pass",
+        "owners": [
+          "stage1_parent::prove_after_ccs",
+          "stage1_parent::replay",
+          "stage1_parent::save_parent",
+          "pi_rlc::prove",
+          "pi_rlc::prove_refs",
+          "nifs::work::chain_witness_refs"
+        ],
+        "reason": "R reloads and checks every original source opening. It starts from the actual C verifier transcript and its returned output claims. Its witness vector contains fresh Z first and the sixteen original running matrices in their original order, matching the normal NIFS witness order. The public pi_rlc::prove wrapper borrows these matrices and calls the unchanged prove_refs owner. Complete C/R replay checks the parent and must equal the R producer snapshot, including the absorb cursor. The common save_parent preserves the existing parent/proof/witness schema. The later full parent commitment check and D checks remain separate required stages."
+      },
+      {
+        "name": "Typed source read and CLI",
+        "verdict": "pass",
+        "owners": [
+          "stage1_actual::read",
+          "generate_pi_ccs_fixture prove-owned-ccs",
+          "generate_pi_ccs_fixture prove-owned-rlc"
+        ],
+        "reason": "Reading the same bytes with fs::read and serde_json::from_slice retains the same typed data validation and all opening, shape, public, norm, tail and state checks. CLI routes keep the selected package, original source directory, saved C proof and fresh parent output as distinct explicit inputs."
+      },
+      {
+        "name": "Independent raw-row caller binding",
+        "verdict": "pass",
+        "owners": [
+          "crates/nightstream-fprime/tests/support/recursive_step.rs::check_fixture"
+        ],
+        "reason": "The helper still compares the entire prior preimage with the preceding checked caller output and compares the complete running input, public hash, C proof fields, children, transcript states and caller slots. It requires a positive prior with canonical successor, then sets the new counter to prior+1. Canonical word decoding makes this addition nonwrapping. The repeated-message assertion remains; this helper supports the selected repeated-message case and does not claim arbitrary-message coverage."
+      },
+      {
+        "name": "Mutation gates",
+        "verdict": "pass",
+        "owners": [
+          "stage1_actual::check_path",
+          "stage1_assemble::assemble",
+          "stage1_nifs::observe",
+          "stage1_nifs::compare"
+        ],
+        "reason": "The source substitution gate remains unchanged. The staged C/R output uses the same parent schema and downstream assembly/observation path, including normal NIFS verification and actual-proof mutations. The existing independent result/wire comparison and its mutation gates are not removed or bypassed by this split."
+      }
+    ],
+    "root_reported_execution": {
+      "combined_C_R_run_1": "failed at the 300-second cap",
+      "source_checks_elapsed_seconds": 118.6,
+      "parent_output": "none reported",
+      "isolated_C_status_at_request": "running under the 300-second cap",
+      "attribution": "Reported by root; no runtime was executed or independently rechecked by this reviewer."
+    },
+    "remaining_scope": "Successful capped isolated C, R and downstream conformance checks still require their execution logs. This review does not convert the combined-run timeout into a pass or establish uninterrupted public production."
+  },
+  "superseded_source_review": {
+    "path": "/tmp/nightstream-baseline-nonzero-harness-review.json",
+    "sha256": "e788c93a8df365ae69d10f1c18573a8e92bc8064112321efbaa632be0ebfc50b",
+    "timestamp_utc": "2026-09-13T06:14:20.176913+00:00",
+    "verdict": "pass",
+    "changed_file_hashes": [
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_actual.rs",
+        "superseded_sha256": "81f5afc569588b6f3bff20e6896ac824a8fbe4c76ec876c32cfa187a4fd20fa6",
+        "current_sha256": "4371bea8c4f32f2af87db99ec2d2a4403257e72ba864a2833c0e1fcc03e09576"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+        "superseded_sha256": "eee78183ad3f86f93ca776f27fc222f3c9308f6f5e291f407285d0e344e1b4f8",
+        "current_sha256": "97ffe53720bc9843bed0e002431356879a66fb3d385b2b4be868b1c8d22c3c3c"
+      },
+      {
+        "path": "crates/neo-fold-clean/tests/nifs/stage1_pi_ccs.rs",
+        "superseded_sha256": "ff4b1934ba10e15ab801739c0ee07550f714a06b61c5105511872ad99ead33af",
+        "current_sha256": "5dc7da6a6d7bcab6d5c7a8dcd15a2d694101f080f94c4f6a14a260c7e5c8d5b0"
+      }
+    ],
+    "status": "Superseded only for final source identity; the earlier bounded findings remain recorded."
+  },
+  "output_path": "/tmp/nightstream-baseline-nonzero-final-review.json",
+  "root_reported_final_validation": {
+    "source": "Reported by root; no gate or test was run again by this reviewer.",
+    "frozen_gate_run": "97f16091b5c645229136564936320d14",
+    "frozen_gate_outcome": "passed",
+    "malformed_emitter_cases": {
+      "count": 4,
+      "result": "all rejected with no output"
+    },
+    "affected_raw_recursive_checker_regression": {
+      "outcome": "passed",
+      "elapsed_seconds": 35.67
+    },
+    "scope": "These reported results do not establish later nonzero-running C/R/D or terminal execution, remote authentication, upload or fresh-download replay."
+  },
+  "open_boundaries_at_final_review": [
+    "Further nonzero-running C/R/D production, complete independent Lean comparison, and the later caller/envelope/terminal execution remain open. Previous capped C/R and isolated C failures remain failures.",
+    "Successful active public extension and absent/changed-cache recovery coverage remain open.",
+    "Remote authentication, release upload, remote byte verification and fresh-download replay remain open.",
+    "Approved production/backend delivery and numerical or concrete FS/MSIS/query/work applicability are not granted by these source reviews."
+  ],
+  "final_delta_assessment": {
+    "verdict": "pass",
+    "scope": "Final typed-reader and test helper/visibility changes; no review of new protocol or execution claims.",
+    "findings": [
+      "stage1_actual::read retains fs::read plus serde_json::from_slice into the same typed structures. State/public/frame, prior-parent, complete shape, norm, tail and individual commitment-opening checks remain unchanged. Removing its cfg(test) artifact path helper changes no source data or validation.",
+      "Both selected_nifs_prover_from_actual_base_sources and selected_nifs_saved_actual_result_matches_lean move intact to stage1_nifs_execution.rs. Their differences are artifact-helper qualification, line formatting and equivalent trailing-comma removal. The ignored full producer stays ignored with its original cap-failure reason; the saved-result integration test retains its actual subprocess success and all three required completion markers.",
+      "Cargo keeps the nifs_stage1_nifs test target name and changes only its source path to stage1_nifs_execution.rs. The shared CLI runner no longer includes the integration tests. No fixture harness is disabled by this change.",
+      "stage1_pi_ccs supplies the same artifact path helper locally and exposes stage1_actual only through the test module tree. Its original PiCCS test and checks remain. No public protocol API or trust boundary changes."
+    ],
+    "preservation": "The complete NIFS verifier, actual proof/wire comparison and mutation owners remain in the shared runner. These changes preserve the reviewed source, transcript, child-order and independent expected-packet contracts."
+  },
+  "completed_source_check_context": "The existing source-check log, separately inspected during terminal-input archive preparation, reports all seventeen opening checks and the private source substitution rejection. It was not rerun for this final source review."
+}

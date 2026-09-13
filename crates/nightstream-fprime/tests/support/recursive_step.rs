@@ -49,25 +49,102 @@ fn encode(digest: [u64; 4]) -> Vec<u64> {
     result
 }
 
-pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8], previous: &[u8], folded: &[u8]) {
+pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8], previous: &[u8], handoff: &[u8]) {
     let fixture = read(fixture);
     let base = read(base);
     let input = read(input);
     let children = read(children);
     let previous = read(previous);
-    let folded = read(folded);
+    let handoff = read(handoff);
     assert_eq!(fixture.as_array().expect("caller packet").len(), 5);
     assert_eq!(fixture[0], 1);
     assert_eq!(base[0], 1);
     assert_eq!(input[0], 2);
     assert_eq!(previous[0], 1);
-    assert_eq!(folded[0], 1);
+    assert_eq!(handoff[0], 1);
     assert_eq!(fixture[1], base[1]);
-    assert_eq!(fixture[1], folded[2]);
     assert_eq!(previous[1], input, "exact preceding PiCCS input and proof");
     assert_eq!(previous[5][0], 1, "preceding acceptance record");
     assert_eq!(children[0], previous[5][6], "exact preceding output point");
-    assert_eq!(children[0], folded[12]);
+    let handoff_fields = handoff.as_array().expect("handoff record");
+    let (ccs_state, rlc_state, parent_public) = match handoff_fields.len() {
+        10 => {
+            // PiDECInputCheck.checkValueIO retains the complete C/R/D result.
+            for (field, length) in [
+                (1, 7),
+                (2, 5),
+                (3, 3),
+                (4, 2),
+                (5, 15),
+                (6, 7),
+                (7, 11),
+                (8, 7),
+                (9, 17),
+            ] {
+                assert_eq!(
+                    handoff[field]
+                        .as_array()
+                        .expect("complete phase fields")
+                        .len(),
+                    length,
+                    "complete C/R/D field {field} shape"
+                );
+            }
+            assert_eq!(handoff[1], input, "exact complete-result PiCCS input");
+            assert_eq!(
+                &handoff_fields[..6],
+                previous
+                    .as_array()
+                    .expect("preceding PiCCS result")
+                    .get(..6)
+                    .expect("complete PiCCS prefix"),
+                "same complete PiCCS prefix"
+            );
+            for phase in [5, 7, 9] {
+                assert_eq!(handoff[phase][0], 1, "accepted phase {phase}");
+            }
+            assert_eq!(
+                handoff[9][16]
+                    .as_array()
+                    .expect("PiDEC returned output")
+                    .len(),
+                2
+            );
+            assert_eq!(handoff[9][16][0], 1, "PiDEC returned children");
+            assert_eq!(handoff[9][16][1], children, "exact complete-result children");
+            assert_eq!(handoff[7][5], children[0], "same PiRLC and child point");
+            let public = words(&handoff[7][4]);
+            assert_eq!(public.len(), PUBLIC, "complete-result parent public width");
+            assert!(
+                public
+                    .iter()
+                    .all(|&word| word.min(MODULUS - word) < 1 << 16),
+                "strict parent bound"
+            );
+            (&handoff[5][14], &handoff[7][9], public)
+        }
+        13 => {
+            assert_eq!(fixture[1], handoff[2]);
+            assert_eq!(children[0], handoff[12]);
+            let centered: Vec<i64> = serde_json::from_value(handoff[10].clone()).expect("folded public integers");
+            assert!(
+                centered.iter().all(|value| value.unsigned_abs() < 1 << 16),
+                "strict parent bound"
+            );
+            let public = centered
+                .iter()
+                .map(|&value| {
+                    if value < 0 {
+                        MODULUS - value.unsigned_abs()
+                    } else {
+                        value as u64
+                    }
+                })
+                .collect::<Vec<_>>();
+            (&handoff[5], &handoff[7], public)
+        }
+        _ => panic!("expected complete C/R/D result or retained folded metadata"),
+    };
     let private = words(&fixture[2]);
     let public = words(&fixture[3]);
     let base_private = words(&base[2]);
@@ -133,23 +210,8 @@ pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8],
     }
     assert_eq!(fixture[4][3], children[0]);
     assert_eq!(fixture[4][4], previous[5][14]);
-    assert_eq!(fixture[4][4], folded[5]);
-    assert_eq!(fixture[4][5], folded[7]);
-    let centered: Vec<i64> = serde_json::from_value(folded[10].clone()).expect("folded public integers");
-    assert!(
-        centered.iter().all(|value| value.unsigned_abs() < 1 << 16),
-        "strict parent bound"
-    );
-    let parent_public = centered
-        .iter()
-        .map(|&value| {
-            if value < 0 {
-                MODULUS - value.unsigned_abs()
-            } else {
-                value as u64
-            }
-        })
-        .collect::<Vec<_>>();
+    assert_eq!(&fixture[4][4], ccs_state);
+    assert_eq!(&fixture[4][5], rlc_state);
     assert_eq!(fixture[4][6], json!(parent_public));
     println!("recursive_caller_binding=passed prior_iteration=1 output_iteration=2 children=16 matrix_families=14");
 }

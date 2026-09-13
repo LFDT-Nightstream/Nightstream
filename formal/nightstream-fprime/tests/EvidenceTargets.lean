@@ -7,6 +7,7 @@ import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
+import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import tests.EvidenceMetadata
 
 /-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
@@ -414,5 +415,23 @@ theorem piRLCWitnessReplay : PiRLCWitnessReplay :=
   fun _ => PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?
 
 #audit_axioms piRLCWitnessReplay
+
+/-- The executable returns all canonical private digits exactly when the
+complete supplied parent is bounded. No expected Rust child is an input. -/
+def PiDECWitnessReplay : Prop :=
+  ∀ (width : Nat) (parent : Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment width),
+    Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked parent =
+      if ∀ column, centeredMagnitude (parent.get column) <
+          Phi81Relation.PiDECAlgebra.Radix.combinedBound then
+        some (Vector.ofFn fun child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex =>
+          Vector.ofFn fun column : Fin width =>
+            Phi81Relation.PiDECAlgebra.Radix.splitScalar (parent.get column) child)
+      else none
+
+/-- The total kernel equality includes successful and rejected inputs. -/
+theorem piDECWitnessReplay : PiDECWitnessReplay :=
+  fun _ => Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec
+
+#audit_axioms piDECWitnessReplay
 
 end LeanGraph.Targets

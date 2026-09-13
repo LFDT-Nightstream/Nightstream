@@ -15,3 +15,4 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 
 #evidence_closed LeanGraph.Targets.HyperNovaTerminalFalseAcceptance by LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
 #evidence_closed LeanGraph.Targets.PiRLCWitnessReplay by LeanGraph.Targets.piRLCWitnessReplay
+#evidence_closed LeanGraph.Targets.PiDECWitnessReplay by LeanGraph.Targets.piDECWitnessReplay

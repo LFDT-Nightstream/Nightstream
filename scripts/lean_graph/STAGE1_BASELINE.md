@@ -19,6 +19,25 @@ requirements review directory records the source hashes, commands, times
 and memory. Release upload and fresh-download verification remain external.
 The next computation milestone is PiDEC, using the Lean-computed parent.
 
+PiDEC has two required results: every private digit, then every child
+commitment and evaluation computed from those digits. The private target is
+`LeanGraph.Targets.PiDECWitnessReplay`: total equality with the existing
+scalar split, including rejection outside the strict bound and successful
+output for every bounded input. The selected honest-witness bridge fixes
+the message consumer. Preserve parent provenance from the PiRLC replay;
+native children enter only the comparison. All 16 children and complete
+carrier tails must match. Check signed boundary values and changed-target
+rejection. Private digit agreement alone does not close the message result.
+
+The local private PiDEC checkpoint passes: all 4,048,180,416 child
+coefficients match freshly generated Rust children, and the final-tail
+mutation rejects. The total kernel, selected consumer, exact target, audits,
+boundary tests and Rust test build pass. See `PIDEC_WITNESS_REPLAY.json`.
+Lean's two ranges took 8.38 and 142.15 seconds. The next operation is a
+measured fixed-key commitment contribution from these same digits, followed
+by complete commitments and evaluations. No PiCCS or HyperNova replay is
+claimed by this private digit result.
+
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the
 PiCCS prover replay is complete. The 17 source witnesses are original inputs;

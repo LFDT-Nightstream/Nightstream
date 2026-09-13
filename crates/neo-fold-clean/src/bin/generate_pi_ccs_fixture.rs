@@ -27,6 +27,9 @@ mod owned_nifs;
 #[path = "../../tests/nifs/stage1_lifecycle.rs"]
 mod lifecycle;
 
+#[path = "../../tests/nifs/stage1_terminal.rs"]
+mod terminal;
+
 #[path = "generate_pi_ccs_fixture/child_commitment.rs"]
 mod child_commitment;
 #[path = "generate_pi_ccs_fixture/child_evaluations.rs"]
@@ -251,6 +254,20 @@ fn prepare(candidate: &Path, expected: [u64; 4], fixture: &Path, output: &Path) 
 
 fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "check-owned-terminal")
+    {
+        assert_eq!(arguments.len(), 5,
+            "usage: generate_pi_ccs_fixture check-owned-terminal <accepted|ce-evaluation|fresh-private> <envelope-directory> <actual-child-directory> <new-result-file>");
+        terminal::check(
+            &arguments[1],
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+        );
+        return;
+    }
     if arguments
         .first()
         .is_some_and(|mode| mode == "complete-owned-envelope")

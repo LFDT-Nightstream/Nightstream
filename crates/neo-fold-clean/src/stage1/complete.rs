@@ -28,6 +28,15 @@ pub struct Stage1Envelope {
 }
 
 impl Stage1Envelope {
+    /// Load untrusted active proof data. Only the selected terminal verifier
+    /// can establish acceptance of its statement and openings.
+    pub fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
+        Self {
+            state,
+            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+        }
+    }
+
     /// The exact bottom case has zero iterations and no running or fresh proof.
     pub fn initial(z0: [F; 4]) -> Self {
         Self {

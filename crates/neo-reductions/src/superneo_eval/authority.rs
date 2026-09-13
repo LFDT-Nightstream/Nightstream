@@ -1,7 +1,7 @@
 //! Exact CCS relation checks over the verifier-owned compact matrix cache.
 
 use neo_ccs::SparsePoly;
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
@@ -35,6 +35,25 @@ pub fn check_ccs_relation_zero_cached(
     polynomial: &SparsePoly<F>,
     assignment: &[K],
 ) -> Result<(), SuperneoCachedRelationError> {
+    let (_, columns, _) = cache
+        .relation_shape()
+        .ok_or(SuperneoCachedRelationError::Empty)?;
+    if assignment.len() != columns {
+        return Err(SuperneoCachedRelationError::AssignmentWidth {
+            expected: columns,
+            got: assignment.len(),
+        });
+    }
+    check_ccs_relation_zero_cached_with_blocks(cache, polynomial, &SuperneoZBlocks::from_z(assignment))
+}
+
+/// Check the same exact CCS rows directly from complete witness blocks.
+/// All blocks must be real and cover the cache's complete padded width.
+pub fn check_ccs_relation_zero_cached_with_blocks(
+    cache: &SuperneoEvalCache,
+    polynomial: &SparsePoly<F>,
+    assignment: &SuperneoZBlocks,
+) -> Result<(), SuperneoCachedRelationError> {
     let (rows, columns, matrix_count) = cache
         .relation_shape()
         .ok_or(SuperneoCachedRelationError::Empty)?;
@@ -51,13 +70,13 @@ pub fn check_ccs_relation_zero_cached(
             got: polynomial.arity(),
         });
     }
-    if assignment.len() != columns {
+    let assignment_width = assignment.block_len() * D;
+    if assignment_width != columns {
         return Err(SuperneoCachedRelationError::AssignmentWidth {
             expected: columns,
-            got: assignment.len(),
+            got: assignment_width,
         });
     }
-    let assignment = SuperneoZBlocks::from_z(assignment);
     if !assignment.imag_all_zero {
         return Err(SuperneoCachedRelationError::NonRealAssignment);
     }
@@ -68,7 +87,7 @@ pub fn check_ccs_relation_zero_cached(
         .par_iter()
         .map(|matrix| {
             let mut values = vec![F::ZERO; rows];
-            matrix.fill_row_dots_base_with_blocks(&mut values, &assignment);
+            matrix.fill_row_dots_base_with_blocks(&mut values, assignment);
             values
         })
         .collect::<Vec<_>>();
@@ -78,7 +97,7 @@ pub fn check_ccs_relation_zero_cached(
         .iter()
         .map(|matrix| {
             let mut values = vec![F::ZERO; rows];
-            matrix.fill_row_dots_base_with_blocks(&mut values, &assignment);
+            matrix.fill_row_dots_base_with_blocks(&mut values, assignment);
             values
         })
         .collect::<Vec<_>>();

@@ -5,9 +5,10 @@ use neo_ccs::{
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
-    build_superneo_eval_cache, check_ccs_relation_zero_cached, eval_all_mats_cached, eval_all_mats_cached_with_blocks,
-    eval_all_mats_direct, eval_all_mats_ring_cached, eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed,
-    eval_ring_linear_forms_real_z_blocks, SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoZBlocks,
+    build_superneo_eval_cache, check_ccs_relation_zero_cached, check_ccs_relation_zero_cached_with_blocks,
+    eval_all_mats_cached, eval_all_mats_cached_with_blocks, eval_all_mats_direct, eval_all_mats_ring_cached,
+    eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed, eval_ring_linear_forms_real_z_blocks,
+    SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoZBlocks,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -196,15 +197,77 @@ fn compact_relation_authority_matches_exact_rowwise_ccs_satisfaction() {
         .map(|index| F::from_bool(index % 2 == 0))
         .collect::<Vec<_>>();
     let as_extension = |values: &[F]| values.iter().copied().map(K::from).collect::<Vec<_>>();
+    let as_blocks = |values: &[F]| {
+        let positive = values
+            .iter()
+            .enumerate()
+            .fold(0_u64, |mask, (lane, value)| {
+                mask | (u64::from(*value == F::ONE) << lane)
+            });
+        let negative = values
+            .iter()
+            .enumerate()
+            .fold(0_u64, |mask, (lane, value)| {
+                mask | (u64::from(*value == -F::ONE) << lane)
+            });
+        let witness: Mat<F> =
+            Mat::compact_signed_unit_from_column_masks(D, 1, &[positive], &[negative]).expect("signed-unit witness");
+        SuperneoZBlocks::from_witness_mat(&witness, D).expect("complete witness blocks")
+    };
 
     check_ccs_rowwise_zero(&structure, &assignment, &[]).expect("raw rowwise relation");
     check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)).expect("compact rowwise relation");
+    check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment))
+        .expect("column-mask rowwise relation");
 
-    assignment[7] = F::from_u64(2);
+    assignment[7] = -F::ONE;
     assert!(check_ccs_rowwise_zero(&structure, &assignment, &[]).is_err());
     assert_eq!(
         check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)),
         Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
+    );
+    assert_eq!(
+        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment)),
+        Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
+    );
+}
+
+#[test]
+fn compact_relation_authority_checks_padded_width_and_real_assignment() {
+    let logical_width = D + 1;
+    let structure = CcsStructure::new_sparse(
+        vec![CcsMatrix::Identity { n: logical_width }],
+        SparsePoly::new(1, vec![]),
+    )
+    .expect("padded relation");
+    let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
+    let mut assignment = vec![K::ZERO; 2 * D];
+    check_ccs_relation_zero_cached(&cache, &structure.f, &assignment).expect("complete dense width");
+    check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment))
+        .expect("complete block width");
+
+    assert_eq!(
+        check_ccs_relation_zero_cached(&cache, &structure.f, &assignment[..logical_width]),
+        Err(SuperneoCachedRelationError::AssignmentWidth {
+            expected: 2 * D,
+            got: logical_width,
+        }),
+    );
+    assert_eq!(
+        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::with_block_len(1)),
+        Err(SuperneoCachedRelationError::AssignmentWidth {
+            expected: 2 * D,
+            got: D,
+        }),
+    );
+    assignment[0] = K::from_coeffs([F::ZERO, F::ONE]);
+    assert_eq!(
+        check_ccs_relation_zero_cached(&cache, &structure.f, &assignment),
+        Err(SuperneoCachedRelationError::NonRealAssignment),
+    );
+    assert_eq!(
+        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment)),
+        Err(SuperneoCachedRelationError::NonRealAssignment),
     );
 }
 

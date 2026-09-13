@@ -26,7 +26,9 @@ pub use artifact::{
     SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
     VerifiedSuperneoCacheArtifact,
 };
-pub use authority::{check_ccs_relation_zero_cached, SuperneoCachedRelationError};
+pub use authority::{
+    check_ccs_relation_zero_cached, check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError,
+};
 pub use baseline::{
     eval_all_mats_direct, eval_all_mats_superneo, eval_all_mats_transformed, eval_mle_direct_matrix,
     eval_mle_superneo_from_original, eval_mle_transformed_matrix, is_superneo_compatible_shape,

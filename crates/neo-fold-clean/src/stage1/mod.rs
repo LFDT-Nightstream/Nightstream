@@ -18,10 +18,12 @@ mod evaluation;
 mod inputs;
 mod prove;
 mod step_inputs;
+mod verify;
 
 pub use complete::{CompleteStepError, Stage1Envelope};
 pub use prove::ProveError;
 pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
+pub use verify::VerifyError;
 
 pub use inputs::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,

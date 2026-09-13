@@ -44,6 +44,20 @@ The next required milestone is selected Rust lifecycle conformance beyond
 the already validated actual-base C/R/D stages. Reuse those stages and name
 the next missing handoff and its comparison before editing production code.
 
+### Actual-child successor assignment closed, 2026-09-13
+
+Commit `68c5d94a5839cec355e20f39a5eaff2204a9956b` adds the selected native
+`step_inputs` bridge and exercises `execute_step_witness` on the saved actual
+NIFS output. Every caller word matches the independent Lean successor
+packet. Complete physical/logical rows, logical norm and public projection,
+state/frame/counter rejection and independent child mutations pass.
+Static, library and axioms pass in order; independent source review passes.
+See [the exact scope and evidence](NATIVE_SUCCESSOR_EVIDENCE.md).
+
+The next required handoff retains the actual child witnesses and commits the
+new fresh assignment in the returned envelope. Selected terminal acceptance
+remains open. Do not treat the claims-only packet as a returned proof state.
+
 Owner request: 2026-09-11. This is the combined task scope, including the
 owner's correction after the app goal was created. Neither part below is
 optional. The task ends only when its required claims have closing evidence,

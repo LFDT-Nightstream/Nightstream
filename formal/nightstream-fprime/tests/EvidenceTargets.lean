@@ -8,6 +8,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
 import tests.EvidenceMetadata
 
 /-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
@@ -433,5 +434,36 @@ theorem piDECWitnessReplay : PiDECWitnessReplay :=
   fun _ => Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec
 
 #audit_axioms piDECWitnessReplay
+
+/-- Every child and every production commitment row, using the same successful
+stored split and summing the actual computed block contributions. -/
+def PiDECCommitmentReplay : Prop :=
+  let shape := PaperAlgebra.FullShape
+    (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
+    (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
+  ∀ (parent : Spec.CE.Instance (PaperAlgebra.Structure shape.logicalWidth)
+      (Phi81Relation.PublicInput shape) PaperAlgebra.Point
+      PaperAlgebra.Evaluation PaperAlgebra.Commitment)
+    (parentWitness : Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment shape.carrierWidth)
+    (childWitnesses : Vector (Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment shape.carrierWidth)
+      productionGlobalParams.k),
+    Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked parentWitness = some childWitnesses →
+    ∀ (child : Fin productionGlobalParams.k)
+      (row : Fin Poseidon2HashChainV1Setup.verifierRows),
+      (PiDECCommitmentFold.sum fun block =>
+        (PiDECCommitmentBlock.contributions Poseidon2HashChainV1Setup.productionSetup
+          row block (PiDECCommitmentFold.childBlocks
+            (shape := shape) childWitnesses block)).get child).get =
+        (Spec.Folding.PiDEC.PaperVerifier.honestMessages
+          (PaperAlgebra.piDecAlgebra Poseidon2HashChainV1Setup.productionAjtaiKey)
+          parent (Spec.Folding.Nifs.StoredAssignmentArithmetic.view parentWitness) child).commitment row
+
+theorem piDECCommitmentReplay : PiDECCommitmentReplay := by
+  dsimp only [PiDECCommitmentReplay]
+  intro parent parentWitness childWitnesses success child row
+  exact PiDECCommitmentHonestMessages.sum_contributions_honestMessages
+    parent parentWitness childWitnesses success child row
+
+#audit_axioms piDECCommitmentReplay
 
 end LeanGraph.Targets

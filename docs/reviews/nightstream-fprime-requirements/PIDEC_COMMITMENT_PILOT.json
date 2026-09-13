@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "scope": "Feasibility measurement of all fixed-key row contributions for one actual PiDEC block; not a complete commitment.",
+  "scope": "Measured exact selected key and child products; two actual blocks separate first-use initialization from repeated work. No full commitment comparison is claimed.",
   "source_base_commit": "dd908f2b383d2d0a83ca80c226a84a1091fe87ec",
   "input": "First stored block of the exact Lean PiRLC parent range recorded by PIRLC_WITNESS_REPLAY.json.",
   "kernel": "NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.contributions_value",
@@ -122,20 +122,170 @@
     {
       "path": "/tmp/nightstream-pidec-commitment-block-0-plain.json",
       "sha256": "0f99f46fd8580bf43145b96d5f023148077553fa056575d1593926edb6bb4195"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-commitment-two-blocks-word.json",
+      "sha256": "0f99f46fd8580bf43145b96d5f023148077553fa056575d1593926edb6bb4195"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-commitment-two-blocks-word.json.next.json",
+      "sha256": "989251098629b13bcd101e766fc9c600f9922cc66d1b218b27f0e93a9e51440f"
     }
   ],
-  "current_method": "Direct existing key projection; materialized existing ring multiplication; exact zero-child skipping. No clock-model changes.",
+  "current_method": "NativeAjtaiChaCha.coefficient equals the existing indexed setup coefficient. PiDECNativeProduct.multiply equals ringFMul and reuses the existing proved UInt64 field operations. The sixteen child products retain exact zero skipping. IO.wait forces joins before timing.",
   "current_split_ms": {
-    "key_compute_encode_write": 147,
-    "products_compute_encode_write": 69
+    "first_block": {
+      "key_compute": 93,
+      "key_encode_write": 1,
+      "products_compute": 0,
+      "products_encode_write": 2
+    },
+    "second_block": {
+      "key_compute": 0,
+      "key_encode_write": 0,
+      "products_compute": 1,
+      "products_encode_write": 1
+    },
+    "timer_resolution_ms": 1
   },
-  "interpretation": "The current serial per-block cost is too large for a full commitment scan. Native-word key generation and product execution need measured improvements before extending to full ranges. No full-scan timing is claimed.",
-  "next": "Prove and measure native-word ChaCha execution against the exact existing generator, preserving its seed, nonce, lane counter, round schedule and field reduction.",
+  "interpretation": "First-use key time includes a shared initialization of derived package dimensions. It is not a per-block cost. Both current product files equal the earlier specification-backed files byte for byte. Native field execution reduces the measured warm product from 9 ms to at most 1 ms at the timer resolution. A full range must determine throughput.",
+  "next": "Complete the remaining measured-size ranges, compare every full child commitment with Rust, then replay all child evaluations.",
   "caps": {
     "lean_seconds": 1500,
     "native_seconds": 300
   },
-  "gates": {
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "full_rust_test_build": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 300,
+    "elapsed_seconds": 9.182993160095066,
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "neo-fold-clean",
+      "--release",
+      "--no-run"
+    ],
+    "cwd": "/home/nicoarq/develop/Nightstream",
+    "evidence": "development diagnostic only"
+  },
+  "native_execution_results": [
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.123046659049578,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-block",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-commitment-block-0-native-key.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-commitment-block-native-key-pilot-1.log",
+      "completion": [
+        "pidec_commitment_block=measured block=0 rows=22 children=16 product_coefficients=19008 key_compute_encode_write_ms=95 products_compute_encode_write_ms=67 compute_encode_write_ms=162"
+      ],
+      "peak_rss_kib": 1478984
+    },
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.0750080570578575,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-block",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-commitment-block-0-signed.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-commitment-block-signed-pilot-1.log",
+      "completion": [
+        "pidec_commitment_block=measured block=0 rows=22 children=16 product_coefficients=19008 key_compute_encode_write_ms=93 products_compute_encode_write_ms=40 compute_encode_write_ms=133"
+      ],
+      "peak_rss_kib": 1478672
+    },
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.024021624936722,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-block",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-commitment-block-0-parallel.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-commitment-block-parallel-pilot-1.log",
+      "completion": [
+        "pidec_commitment_block=measured block=0 rows=22 children=16 product_coefficients=19008 key_compute_encode_write_ms=93 products_compute_encode_write_ms=10 compute_encode_write_ms=103"
+      ],
+      "peak_rss_kib": 1512284
+    },
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.073515246040188,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-block",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-commitment-two-blocks-joined.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-commitment-two-blocks-joined-1.log",
+      "completion": [
+        "pidec_commitment_block=measured block=0 rows=22 children=16 product_coefficients=19008 key_compute_ms=87 key_encode_write_ms=0 products_compute_ms=9 products_encode_write_ms=1 compute_encode_write_ms=97",
+        "pidec_commitment_block=measured block=1 rows=22 children=16 product_coefficients=19008 key_compute_ms=0 key_encode_write_ms=0 products_compute_ms=9 products_encode_write_ms=1 compute_encode_write_ms=10"
+      ],
+      "peak_rss_kib": 1512044
+    },
+    {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.172627302003093,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-block",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-commitment-two-blocks-word.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-commitment-two-blocks-word-1.log",
+      "completion": [
+        "pidec_commitment_block=measured block=0 rows=22 children=16 product_coefficients=19008 key_compute_ms=93 key_encode_write_ms=1 products_compute_ms=0 products_encode_write_ms=2 compute_encode_write_ms=96",
+        "pidec_commitment_block=measured block=1 rows=22 children=16 product_coefficients=19008 key_compute_ms=0 key_encode_write_ms=0 products_compute_ms=1 products_encode_write_ms=1 compute_encode_write_ms=2"
+      ],
+      "peak_rss_kib": 1512004
+    }
+  ],
+  "additional_equalities": [
+    "NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq",
+    "NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value",
+    "NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.sum_contributions_eq_ajtaiRow"
+  ],
+  "current_gate_status": "Ordered static/build/axioms, exact target, focused metadata and Rust test build pass; see PIDEC_COMMITMENT_REPLAY.json. Full comparison remains open.",
+  "prior_checkpoint_gates": {
     "static": {
       "outcome": "passed",
       "exit": 0,
@@ -179,29 +329,14 @@
       "log_path": "/tmp/nightstream-pidec-pilot-axioms-1.log"
     }
   },
-  "source_sha256": {
+  "prior_source_sha256": {
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentBlock.lean": "7dc58ce9a9b4accca2dfc5c4f140e68716d8a7e0c984a89f34c014b5fb39e6aa",
     "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECCommitmentBlockMain.lean": "8c72acff067fc924043eafcfc3cb201f81a98d240a86aa975ba98b2f3127da48"
   },
-  "axioms": [
-    "propext",
-    "Classical.choice",
-    "Quot.sound"
-  ],
-  "full_rust_test_build": {
-    "outcome": "passed",
-    "exit": 0,
-    "cap_seconds": 300,
-    "elapsed_seconds": 9.182993160095066,
-    "command": [
-      "cargo",
-      "test",
-      "-p",
-      "neo-fold-clean",
-      "--release",
-      "--no-run"
-    ],
-    "cwd": "/home/nicoarq/develop/Nightstream",
-    "evidence": "development diagnostic only"
+  "source_sha256": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/NativeAjtaiChaCha.lean": "c324aab55b2e65537a1140b2bd67d4169bb5eb0203123a6a0ba82450b51af421",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECNativeProduct.lean": "5770e342f71cb781d867a336e9e1d4f84a2722d117b8c5b6b0835059fc71ae87",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentBlock.lean": "f48bb7bbeaf6672802cb52b6adaa44c1e321f226d72c41d0dac4175db4a56424",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECCommitmentBlockMain.lean": "14dddfad4d98cfc6022f130adefc42e2b3bacd20758055a4aa1f8687f05c1021"
   }
 }

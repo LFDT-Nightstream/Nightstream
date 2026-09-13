@@ -17,7 +17,7 @@ unexecuted paths and external approval; none is silently treated as another.
 | --- | --- | --- |
 | Arbitrary selected assignment | `ActualPiDECOutput.selectedRowsAndPublic_imply_step` gives the full decoded-context step. The new literal `LeanGraph.Targets.Stage1Assignment` and its closure pass the build and exact acceptance check. | Final graph snapshot/metadata and map reconciliation. |
 | Transcript, decoder and emitted package records | The T/L open model links and several P loader, pin, conversion and terminal descriptions are stale. Exact declarations and preserved artifact hashes are listed in the audit. | Correct these entries at the completed baseline evidence update. |
-| Public lifecycle | Empty initialization and complete terminal verification exist. Native proving, caller construction and witness completion exist as separate operations. | One public `package.extend(envelope, message)` with private base construction and the actual recursive producer. |
+| Public lifecycle | `package.extend(envelope, message)` now connects private base construction and the active native producer. The public base call passes a full Lean-carrier and reference-commitment comparison, then terminal verification. | Execute the successful active call and cache recovery with actual nonzero running witnesses. The base test does not cover that path. |
 | Nonzero running execution | The saved iteration-2 envelope has six nonzero running witnesses; its retained inputs match the earlier manifests. | The current stage loader always creates base inputs. Add the actual later-input route, execute C/R/D, and compare the complete later caller assignment and terminal output. |
 | Selected public authority | Stage 1 uses the package-owned relation. Legacy public routes require the scope check recorded in the runtime audit. | Resolve applicable Stage 1 authority paths without starting Stage 2. |
 | Production approval and execution limits | Local proof and conformance records exist. The uninterrupted full producer previously exceeded 300 seconds. | Keep these conditions explicit; staged results do not claim an uninterrupted execution or external approval. |
@@ -43,3 +43,25 @@ The full audit and initial findings are retained in
 `STAGE1_BASELINE_AUDIT.zip`. The next active implementation obligation is
 the public lifecycle. The approved profile and cryptographic boundaries,
 one build queue, ten-round owner override and command caps remain in force.
+
+## Public base checkpoint
+
+The public base test passes in 199.45 seconds. It calls
+`Stage1Envelope::initial`, `package.extend` and `package.verify`, compares
+every logical carrier coordinate with the independent Lean base fixture,
+checks the 45 zero tail coordinates and the scalar-reference commitment,
+and checks counter rejection. Dummy base NIFS public digits remain separate
+from the retained zero running witnesses.
+
+The affected recursive handoff regression also passes: 100.66 seconds,
+including compilation, with the existing commitment and point mutation
+checks. It reuses the earlier iteration-1-to-2 proof and does not execute
+the new active public producer. The selected public API documentation
+example compiles. Independent source review passes with exact source
+hashes and leaves active extension and cache recovery open.
+
+Ordered static, build and axiom checks pass in 8.88, 0.97 and 1.02 seconds.
+No package definition, emitted bytes or pins changed. Logs, source snapshots
+and the source review are retained in `STAGE1_PUBLIC_BASE_EVIDENCE.zip`.
+The next check loads the actual iteration-2 envelope and its six nonzero
+running witnesses into the existing staged C/R/D producer.

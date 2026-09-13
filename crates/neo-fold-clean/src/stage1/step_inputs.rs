@@ -70,14 +70,14 @@ pub enum StepInputError {
 /// an accepted envelope; `next_running` contains no prover witnesses.
 #[derive(Debug)]
 pub struct Stage1StepInputs {
-    pi_ccs: PiCcsV1_1PackageInputs,
-    pi_dec: PiDecV1_1PackageInputs,
-    application_witness: [u64; 4],
-    output_preimage: Vec<u64>,
-    output_digest: [u64; 4],
-    next_public_input: Vec<u64>,
-    next_state: Stage1State,
-    next_running: RunningInstance,
+    pub(super) pi_ccs: PiCcsV1_1PackageInputs,
+    pub(super) pi_dec: PiDecV1_1PackageInputs,
+    pub(super) application_witness: [u64; 4],
+    pub(super) output_preimage: Vec<u64>,
+    pub(super) output_digest: [u64; 4],
+    pub(super) next_public_input: Vec<u64>,
+    pub(super) next_state: Stage1State,
+    pub(super) next_running: RunningInstance,
 }
 
 impl Stage1StepInputs {
@@ -132,45 +132,18 @@ impl Poseidon2HashChainV1Package {
         proof: &nifs::NifsProof,
         message: [F; 4],
     ) -> Result<Stage1StepInputs, StepInputError> {
-        if state.iteration == 0 || state.iteration >= F::ORDER_U64 - 1 {
-            return Err(StepInputError::Input(
-                "recursive counter must be positive and have a canonical successor",
-            ));
-        }
-        if fresh.adv.is_some()
-            || running
-                .claims
-                .iter()
-                .chain(running.parent_authority.iter())
-                .any(|claim| claim.adv.is_some())
+        let (prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
+        if running
+            .parent_authority
+            .iter()
+            .any(|claim| claim.adv.is_some())
         {
             return Err(StepInputError::Input(
                 "selected plain claims cannot carry auxiliary commitments",
             ));
         }
         let context = self.binding.verifier_context().digest().map(F::from_u64);
-        let prior_preimage = serialize_pi_ccs_v1_1_state_preimage(
-            context,
-            state.iteration,
-            state.z0,
-            state.current,
-            &running.claims,
-            1,
-        )?;
-        let prior_digest = pi_ccs_v1_1_state_hash(&prior_preimage)?;
         let prior_public_input = encode_pi_ccs_v1_1_public_input(prior_digest)?;
-        if fresh.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
-            || fresh.x.len() != prior_public_input.len()
-            || fresh
-                .x
-                .iter()
-                .zip(&prior_public_input)
-                .any(|(field, word)| field.as_canonical_u64() != *word)
-        {
-            return Err(StepInputError::Input(
-                "fresh public input differs from the recomputed prior state hash",
-            ));
-        }
         let prior_frame = digest_bytes(prior_digest);
         if running
             .claims
@@ -210,15 +183,7 @@ impl Poseidon2HashChainV1Package {
             ));
         }
 
-        let mut application_input = Vec::with_capacity(APPLICATION_TAG.len() + state.current.len() + message.len());
-        application_input.extend(
-            APPLICATION_TAG
-                .iter()
-                .map(|&byte| F::from_u64(u64::from(byte))),
-        );
-        application_input.extend_from_slice(&state.current);
-        application_input.extend_from_slice(&message);
-        let output = poseidon2_hash(&application_input);
+        let output = application_output(state.current, message);
         let output_preimage = serialize_pi_ccs_v1_1_state_preimage(
             context,
             state.iteration + 1,
@@ -312,9 +277,64 @@ impl Poseidon2HashChainV1Package {
             next_running,
         })
     }
+
+    /// Check semantic prior data before native cache construction or proving.
+    /// Parent caches and frame metadata do not enter the state preimage.
+    pub(super) fn checked_prior_state(
+        &self,
+        state: &Stage1State,
+        running: &RunningInstance,
+        fresh: &CcsClaim,
+    ) -> Result<(Vec<u64>, [u64; 4]), StepInputError> {
+        if state.iteration == 0 || state.iteration >= F::ORDER_U64 - 1 {
+            return Err(StepInputError::Input(
+                "recursive counter must be positive and have a canonical successor",
+            ));
+        }
+        if fresh.adv.is_some() || running.claims.iter().any(|claim| claim.adv.is_some()) {
+            return Err(StepInputError::Input(
+                "selected plain claims cannot carry auxiliary commitments",
+            ));
+        }
+        let preimage = serialize_pi_ccs_v1_1_state_preimage(
+            self.binding.verifier_context().digest().map(F::from_u64),
+            state.iteration,
+            state.z0,
+            state.current,
+            &running.claims,
+            1,
+        )?;
+        let digest = pi_ccs_v1_1_state_hash(&preimage)?;
+        let public = encode_pi_ccs_v1_1_public_input(digest)?;
+        if fresh.m_in != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+            || fresh.x.len() != public.len()
+            || fresh
+                .x
+                .iter()
+                .zip(&public)
+                .any(|(field, word)| field.as_canonical_u64() != *word)
+        {
+            return Err(StepInputError::Input(
+                "fresh public input differs from the recomputed prior state hash",
+            ));
+        }
+        Ok((preimage, digest))
+    }
 }
 
-fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
+pub(super) fn application_output(current: [F; 4], message: [F; 4]) -> [F; 4] {
+    let mut input = Vec::with_capacity(APPLICATION_TAG.len() + current.len() + message.len());
+    input.extend(
+        APPLICATION_TAG
+            .iter()
+            .map(|&byte| F::from_u64(u64::from(byte))),
+    );
+    input.extend_from_slice(&current);
+    input.extend_from_slice(&message);
+    poseidon2_hash(&input)
+}
+
+pub(super) fn digest_bytes(words: [u64; 4]) -> [u8; 32] {
     let mut bytes = [0; 32];
     for (lane, word) in words.into_iter().enumerate() {
         bytes[lane * 8..(lane + 1) * 8].copy_from_slice(&word.to_le_bytes());

@@ -6,7 +6,7 @@
   "bytes": 262454838,
   "sha256": "b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1",
   "source_base_commit": "854327d91ca36412f957ac5becbde30bb117b715",
-  "source_cut": "Source snapshots and hashes inside the archive; final checkpoint supplies the code anchor. Public active calls have not run.",
+  "source_cut": "Checked fixture source at target_commit. Terminal acceptance ran at854327d9 before the test-only mutation split; source snapshots and hashes distinguish those cuts. The two public active calls have not run.",
   "scope": "Staged nonzero C/R/D, complete2-to-3 successor and terminal acceptance/rejection evidence. Includes later envelope and all16 digits for direct terminal replay. The5.2GB R intermediate is regenerated,not archived.",
   "members": [
     {
@@ -679,5 +679,7 @@
       "bytes": 12418,
       "sha256": "eaa9ba257479c8e47b86119e6d7516809691da9f0c25f52254fb9f481203ae60"
     }
-  ]
+  ],
+  "release_tag": "stage1-evidence-7310cf24",
+  "target_commit": "7310cf246221384614a7e776730c1a0ec65d8a56"
 }

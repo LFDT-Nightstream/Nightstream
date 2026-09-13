@@ -23,6 +23,10 @@ use serde_json::json;
 #[path = "../../tests/nifs/stage1_nifs.rs"]
 mod owned_nifs;
 
+#[allow(dead_code, unused_imports)]
+#[path = "../../tests/nifs/stage1_lifecycle.rs"]
+mod lifecycle;
+
 #[path = "generate_pi_ccs_fixture/child_commitment.rs"]
 mod child_commitment;
 #[path = "generate_pi_ccs_fixture/child_evaluations.rs"]
@@ -247,6 +251,18 @@ fn prepare(candidate: &Path, expected: [u64; 4], fixture: &Path, output: &Path) 
 
 fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "complete-owned-envelope")
+    {
+        assert_eq!(
+            arguments.len(),
+            3,
+            "usage: generate_pi_ccs_fixture complete-owned-envelope <actual-child-directory> <new-output-directory>"
+        );
+        lifecycle::complete_envelope(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        return;
+    }
     if arguments
         .first()
         .is_some_and(|mode| mode == "prove-owned-parent")

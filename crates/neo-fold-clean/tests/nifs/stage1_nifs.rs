@@ -1,5 +1,7 @@
 //! Actual selected C/R/D proving and strict comparison with a separate Lean result.
 
+#[path = "stage1_active.rs"]
+pub mod active;
 #[path = "nifs_actual_mutations.rs"]
 mod mutations;
 #[path = "stage1_parent.rs"]

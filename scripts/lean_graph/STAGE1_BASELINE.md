@@ -27,9 +27,11 @@ The symbolic terminal false-acceptance target and six-record reconciliation
 passed at `8084c256` and `5222c1d5`. The current staged nonzero C/R/D result,
 complete proof bytes and mutations pass; see `NONZERO_NIFS_GATES.json` and
 `NONZERO_NIFS_REVIEW.json` in `docs/reviews/nightstream-fprime-requirements`.
-The aggregate stays compiler-closed while the later full assignment,
-terminal and public active-call checks remain open. Evidence delivery and
-external production approval remain separate.
+The complete later assignment and terminal checks also pass; see
+`NONZERO_SUCCESSOR_GATES.json` and `NONZERO_SUCCESSOR_REVIEW.json`.
+The aggregate stays compiler-closed while the two public active-call checks
+await their specific execution allowance. Evidence delivery and external
+production approval remain separate.
 
 ## Checkpoint requirements
 
@@ -93,9 +95,9 @@ verifier authority remains the separate terminal/hash contract.
 Reuse the approved cryptographic premises, mathematical invertibility,
 declared clock and query conditions, conditional sampler success, and
 canonical counter bounds. No new security model or numerical budget is
-selected. The previous executed trace stops at iteration 2; it does not
-prove the new nonzero-running execution requirement. Capped stages may
-supply their exact evidence, but cannot be reported as an uninterrupted run.
+selected. The checked staged trace now reaches iteration 3 from actual
+nonzero running witnesses. Capped stages supply their exact evidence and
+terminal acceptance; they are not an uninterrupted public `extend` run.
 
 One active obligation and one Lean/Rust build queue apply. The standing
 owner override is ten rounds per obligation for this session; previous

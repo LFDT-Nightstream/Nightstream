@@ -58,6 +58,19 @@ The next required handoff retains the actual child witnesses and commits the
 new fresh assignment in the returned envelope. Selected terminal acceptance
 remains open. Do not treat the claims-only packet as a returned proof state.
 
+### Actual successor envelope closed, 2026-09-13
+
+Commit `50127ac92e4ceb9baac3a6fb07c2494429d0bcf3` checks and retains all
+actual child matrices and commits the exact new fresh assignment. The
+156.28-second check covers witness substitutions, every fresh coordinate,
+the scalar-reference commitment and the initial empty case. Ordered gates
+and source review pass. See [the envelope evidence](NATIVE_ENVELOPE_EVIDENCE.md).
+
+The next consumer is selected terminal verification: external state/public
+link, full running CE evaluations and fresh CCS membership, using the
+existing package-owned cache and evaluators. Parent/frame caches remain
+non-authoritative; terminal verification performs no additional fold.
+
 Owner request: 2026-09-11. This is the combined task scope, including the
 owner's correction after the app goal was created. Neither part below is
 optional. The task ends only when its required claims have closing evidence,

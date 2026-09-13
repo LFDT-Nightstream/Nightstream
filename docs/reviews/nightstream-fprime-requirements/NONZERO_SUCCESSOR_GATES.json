@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "milestone": "Complete staged nonzero-running2-to-3 successor and selected terminal verification",
+  "outcome": "passed",
+  "execution": "staged",
+  "source_base_commit": "854327d91ca36412f957ac5becbde30bb117b715",
+  "source_cut": "The containing commit supplies the listed current source bytes. The accepted terminal path ran before test-only staging at the base commit; the production verifier is unchanged.",
+  "source_files": [
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_terminal.rs",
+      "sha256": "eaa9ba257479c8e47b86119e6d7516809691da9f0c25f52254fb9f481203ae60"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+      "sha256": "6554927ac7cc31847bcc8aea781690e0b79c5c1965adee20c8110ab580d35de0"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+      "sha256": "76f90c774492ddc7e218cbf1cfeb34812ab62a0f88ea391e55652a32d7957587"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+      "sha256": "539f57e74d3d0327014b1c1570a6e5bebec1534bd3f51d375b6e07f236a5bff2"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/stage1/verify.rs",
+      "sha256": "ec5e2a2cb777f09351fcef01ccbc5e4e5a5b6520e29f71766c80dfc8655faf66"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/stage1/extend.rs",
+      "sha256": "f78e92945518d4140a53921770cf03b835ec7267146699840067fe61e7ee1e11"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/stage1/complete.rs",
+      "sha256": "110fe11cf166600197d869e321977e59d2f8c212a2b65db6d8c82d00d221c85b"
+    }
+  ],
+  "prior_NIFS": "854327d9; NONZERO_NIFS_GATES.json and NONZERO_NIFS_REVIEW.json",
+  "checked_result": {
+    "prior_iteration": 2,
+    "output_iteration": 3,
+    "physical_rows": 29225729,
+    "logical_rows": 6377559,
+    "children": 16,
+    "matrix_families": 14,
+    "fresh_assignment": "Every coordinate and zero tail matched the independent Lean caller assignment; the independent complete reference commitment matched.",
+    "binding": "Caller public/private words, counter,state,outputhash,all child claims and complete matrices match."
+  },
+  "terminal_cases": [
+    {
+      "case": "accepted",
+      "iteration": 3,
+      "passed": true,
+      "result": "Ok(())",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 296.065092652,
+      "file_sha256": "28605ca3649f93434cb16b04adc34c66c9e94097a070ddbff2a9a8ebd4069a7c"
+    },
+    {
+      "case": "ce-evaluation",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" })",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 295.514174399,
+      "file_sha256": "2a421aa7fca8e35846cb1100dc08e31d269968353b4bea1bf3a8bee8318fd69a"
+    },
+    {
+      "case": "ce-matrix-evaluation",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" })",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 294.71526017,
+      "file_sha256": "1c136c6e48e8ec52d84a52ce72d4ab0a1f41cbc5e93b3d48dbcff9472b6264f3"
+    },
+    {
+      "case": "fresh-private",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(FreshRelation(UnsatisfiedRow { row: 0 }))",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 296.707548406,
+      "file_sha256": "2c04a94fe5c5b4181a491ef36bc4ec4f42d141aba27c26a067397bef5a6847ba"
+    }
+  ],
+  "mutation_staging": "Preparation recomputes the modified hash/public input and fresh commitment. The saved-data check always invokes the unchanged public verifier and requires the original exact errors. No saved flag can yield success.",
+  "gates": [
+    {
+      "log": "nightstream-baseline-nonzero-step-lean-1.log",
+      "sha256": "268ac3cecb0ef40b2adf6467fbfb25192a3a47257da85410a3b97e6f2fa81668",
+      "exit": 0,
+      "seconds": 13.03793556895107,
+      "max_rss_kib": 1478428,
+      "cap_seconds": 1500
+    },
+    {
+      "log": "nightstream-baseline-nonzero-envelope-1.log",
+      "sha256": "8fd58daa8ea3f61ed0f092c12a3b602ed4f8e4fcbda4d74e2827d82af8b33a30",
+      "exit": 0,
+      "seconds": 187.04934625397436,
+      "max_rss_kib": 5984528,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-rows-1.log",
+      "sha256": "de2602001f23e470ebbf25fe9837bf817b12986c835e8adc1cd38991fe8f89e7",
+      "exit": 0,
+      "seconds": 36.08031455101445,
+      "max_rss_kib": 3635304,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-accepted-1.log",
+      "sha256": "038e39eb7237e178171b2d085d39d817558a3fc9328a12dac32dd6fefc5e02f4",
+      "exit": 0,
+      "seconds": 298.2089933640091,
+      "max_rss_kib": 29073664,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-terminal-staging-build-1.log",
+      "sha256": "244ac2f39af2acb5a97e71c0f66f48bac524588a9e33fffe1a673ad941dd88b4",
+      "exit": 0,
+      "seconds": 21.402533455984667,
+      "max_rss_kib": 646136,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-prepare-ce-evaluation-1.log",
+      "sha256": "6873c46df91d52020545eda9b2699c2864b355ddea243a8d0628f9f463a88090",
+      "exit": 0,
+      "seconds": 39.72406989498995,
+      "max_rss_kib": 3384312,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-ce-evaluation-1.log",
+      "sha256": "68b8286ad8025312a3126bfa506cfa96bab5a65c11d4a43e70ce5607807d72c8",
+      "exit": 0,
+      "seconds": 296.11728199606296,
+      "max_rss_kib": 29121244,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-prepare-ce-matrix-evaluation-1.log",
+      "sha256": "d3d384d5ad9eeb2e13e9902b7d2356c9ebe205df820db5ba4cf64866909133c7",
+      "exit": 0,
+      "seconds": 39.9314557260368,
+      "max_rss_kib": 3384204,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-ce-matrix-evaluation-1.log",
+      "sha256": "ec1eb57da16e7889e44efd8453ad927e10b6b2c1926b1ce22449109c7900e027",
+      "exit": 0,
+      "seconds": 295.34584337403066,
+      "max_rss_kib": 29121116,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-prepare-fresh-private-1.log",
+      "sha256": "881354c61d41db2f6d78c7f52ab5ff5eb25bb30d495182ce51b0ebef9f655f29",
+      "exit": 0,
+      "seconds": 39.8546708219219,
+      "max_rss_kib": 3384648,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-nonzero-terminal-fresh-private-1.log",
+      "sha256": "849d56d21e39f3073745e856d4b8ca305c1d238366655873facb1c24ddd5d885",
+      "exit": 0,
+      "seconds": 297.33729081996717,
+      "max_rss_kib": 29121112,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-public-active-build-2.log",
+      "sha256": "43bcc6f3e27d0248b379c9170c1c419b4ec78979a953b71eb59fbe4bbd39a0e8",
+      "exit": 0,
+      "seconds": 21.901948362006806,
+      "max_rss_kib": 663260,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-public-active-rejection-1.log",
+      "sha256": "789a5fef8ce74e49feafe28ade88543a0e4d3fbad9ca7ae5fd9253d02e680f32",
+      "exit": 0,
+      "seconds": 61.872713758959435,
+      "max_rss_kib": 4769016,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-successor-test-build-1.log",
+      "sha256": "fa1760ecebf426bd291aaf7869e398cb2c2305afeaaeaea87090f00cc9e88878",
+      "exit": 0,
+      "seconds": 22.607366929063573,
+      "max_rss_kib": 654996,
+      "cap_seconds": 300
+    },
+    {
+      "log": "nightstream-baseline-successor-static-1.log",
+      "sha256": "2dbe1c81818f641872879b531f7486539078814def70807a10189aa9e4b8f26b",
+      "exit": 0,
+      "seconds": 8.978140783961862,
+      "max_rss_kib": 17840,
+      "cap_seconds": 1500
+    },
+    {
+      "log": "nightstream-baseline-successor-build-1.log",
+      "sha256": "a52afa1f3a697d362a873e6b3f958ce3cb0a8452ada11ef5dc58ad0fd1c95266",
+      "exit": 0,
+      "seconds": 0.9151562359184027,
+      "max_rss_kib": 896532,
+      "cap_seconds": 1500
+    },
+    {
+      "log": "nightstream-baseline-successor-axioms-1.log",
+      "sha256": "8b37294e3261dd35366c2177f9fdaa0c9b5c9fa327c0eaac9e0bdcd6d11fe187",
+      "exit": 0,
+      "seconds": 0.9150916159851477,
+      "max_rss_kib": 883024,
+      "cap_seconds": 1500
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/nightstream-native-nonzero-step-1.json",
+      "name": "nightstream-native-nonzero-step-1.json",
+      "bytes": 1446131,
+      "sha256": "d7bb65dd4179a009a412498e231471781dc96db739b296d3344fba1cc8890945"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-envelope-1/envelope.json",
+      "name": "envelope.json",
+      "bytes": 1566104,
+      "sha256": "54e1e835df10cfc4c5cb06ce9041050bdb52e05752919490047dff11d8fb50ab"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-envelope-1/fresh-claim.json",
+      "name": "fresh-claim.json",
+      "bytes": 39448,
+      "sha256": "839f0ea46f8c474ca1d35b460ecb737e4800493dbde3c3e3f75ab5943f2c3bdc"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-envelope-1/fresh-witness.json",
+      "name": "fresh-witness.json",
+      "bytes": 107246512,
+      "sha256": "3a44cd134dc235908dc75f1f1e592cdf12c5849e565c1bf111a21dda4c5a9a28"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-0.json",
+      "name": "digit-0.json",
+      "bytes": 102021062,
+      "sha256": "62aeb61b2e902baa1105e4ccc7aea9e7b8ef14585a6395eacfae79bb2933234a"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-1.json",
+      "name": "digit-1.json",
+      "bytes": 101644886,
+      "sha256": "e1f80efb90a916a484336ca8ec1c1855d295d1cfe925741e33e81bf0c7eafdb2"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-2.json",
+      "name": "digit-2.json",
+      "bytes": 99898099,
+      "sha256": "f449c7774893bce7e3baade64cf1042a91c86b3ac94b8296fba4aba991273818"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-3.json",
+      "name": "digit-3.json",
+      "bytes": 96154908,
+      "sha256": "1ccd2deda31c167d9013a8aab418d7f7ab4e2425341ea29b400c4d6f372f6a98"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-4.json",
+      "name": "digit-4.json",
+      "bytes": 91874096,
+      "sha256": "f098e0998a1bf90b4659449d15413d4af02c3f587519452961c90bc2b0b17792"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-5.json",
+      "name": "digit-5.json",
+      "bytes": 68396626,
+      "sha256": "c874ec597da5fb920de2743282e9b642f9c82e5a9f912d51781850ca2d3974a9"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-6.json",
+      "name": "digit-6.json",
+      "bytes": 19882979,
+      "sha256": "fe9bbb6c159d9c2cef2aded2bdae523c1859e453e8fa05ef6ededda3ceee60eb"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-7.json",
+      "name": "digit-7.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-8.json",
+      "name": "digit-8.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-9.json",
+      "name": "digit-9.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-10.json",
+      "name": "digit-10.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-11.json",
+      "name": "digit-11.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-12.json",
+      "name": "digit-12.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-13.json",
+      "name": "digit-13.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-14.json",
+      "name": "digit-14.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-material-1/digit-15.json",
+      "name": "digit-15.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    }
+  ],
+  "public_active": {
+    "short_rehashed_child_rejection": "passed at61.87seconds, exactPriorFamily(PiDec(ChildXLowNorm))",
+    "full_calls": "parent-absent andparent-changed are compiled and independently reviewed; notrun pending explicit invocation allowance.",
+    "proposal": "PUBLIC_ACTIVE_VALIDATION.md",
+    "review": "PUBLIC_ACTIVE_REVIEW.json"
+  },
+  "review": "NONZERO_SUCCESSOR_REVIEW.json",
+  "delivery": "Reports and hashes are committed; rawdata and logs remain outsideGit. GitHub release upload and fresh-download verification are pending authentication.",
+  "remaining": [
+    "Full public active-extension calls",
+    "Release delivery and map publication from committed inputs",
+    "External production approval; no new backend is supplied."
+  ]
+}

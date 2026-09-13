@@ -256,6 +256,55 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "check-public-active")
+    {
+        assert_eq!(arguments.len(), 6,
+            "usage: generate_pi_ccs_fixture check-public-active <case> <package> <source-directory> <checked-envelope-directory> <checked-child-directory>");
+        owned_nifs::active::check_public_active(
+            &arguments[1],
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            Path::new(&arguments[5]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "reject-active-child-public")
+    {
+        assert_eq!(
+            arguments.len(),
+            3,
+            "usage: generate_pi_ccs_fixture reject-active-child-public <package> <source-directory>"
+        );
+        owned_nifs::active::reject_active_child_public(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        return;
+    }
+    if arguments.first().is_some_and(|mode| {
+        matches!(
+            mode.as_str(),
+            "prepare-terminal-mutation" | "check-prepared-terminal-mutation"
+        )
+    }) {
+        assert_eq!(arguments.len(), 6,
+            "usage: generate_pi_ccs_fixture <prepare-terminal-mutation|check-prepared-terminal-mutation> <case> <envelope-directory> <child-directory> <Lean-step-fixture> <new-output-path>");
+        let action = if arguments[0] == "prepare-terminal-mutation" {
+            terminal::prepare_mutation
+        } else {
+            terminal::check_prepared_mutation
+        };
+        action(
+            &arguments[1],
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            Path::new(&arguments[5]),
+        );
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "check-later-terminal")
     {
         assert_eq!(arguments.len(), 6,

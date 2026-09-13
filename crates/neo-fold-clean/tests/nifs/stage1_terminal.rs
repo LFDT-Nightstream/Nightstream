@@ -2,6 +2,7 @@
 
 use std::{
     fs,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -22,6 +23,7 @@ use neo_fold_clean::{
 use neo_math::{D, F, K};
 use nightstream_fprime::PI_CCS_V1_1_STATE_PREIMAGE_WORDS;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use serde::Serialize;
 use serde_json::{json, Value};
 
 fn artifact(name: &str) -> PathBuf {
@@ -32,6 +34,12 @@ fn artifact(name: &str) -> PathBuf {
 
 fn read(path: &Path) -> Value {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+
+fn save(path: &Path, value: &impl Serialize) {
+    let mut writer = BufWriter::new(fs::File::create(path).unwrap());
+    serde_json::to_writer(&mut writer, value).unwrap();
+    writer.flush().unwrap();
 }
 
 fn state_words(value: &Value) -> [F; 4] {
@@ -85,6 +93,71 @@ pub fn check_against(
     child_directory: &Path,
     expected_path: &Path,
     output: &Path,
+) {
+    run(
+        case,
+        envelope_directory,
+        child_directory,
+        expected_path,
+        output,
+        Action::Verify,
+    );
+}
+
+/// Save the changed claims and recommitted fresh witness in a separate capped
+/// stage. These files are untrusted inputs to the normal terminal verifier.
+pub fn prepare_mutation(
+    case: &str,
+    envelope_directory: &Path,
+    child_directory: &Path,
+    expected_path: &Path,
+    output: &Path,
+) {
+    assert_ne!(case, "accepted");
+    run(
+        case,
+        envelope_directory,
+        child_directory,
+        expected_path,
+        output,
+        Action::SaveMutation,
+    );
+}
+
+/// Run the same rejection assertion on a previously prepared changed envelope.
+/// No preparation result or saved flag can replace `package.verify`.
+pub fn check_prepared_mutation(
+    case: &str,
+    envelope_directory: &Path,
+    child_directory: &Path,
+    expected_path: &Path,
+    output: &Path,
+) {
+    assert_ne!(case, "accepted");
+    run(
+        case,
+        envelope_directory,
+        child_directory,
+        expected_path,
+        output,
+        Action::VerifySaved,
+    );
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Action {
+    Verify,
+    SaveMutation,
+    VerifySaved,
+}
+
+fn run(
+    case: &str,
+    envelope_directory: &Path,
+    child_directory: &Path,
+    expected_path: &Path,
+    output: &Path,
+    action: Action,
 ) {
     assert!(matches!(
         case,
@@ -168,7 +241,7 @@ pub fn check_against(
             claim.fold_digest = [0; 32];
         }
         fresh.witness.w = vec![F::from_u64(2)];
-    } else if matches!(case, "ce-evaluation" | "ce-matrix-evaluation") {
+    } else if action != Action::VerifySaved && matches!(case, "ce-evaluation" | "ce-matrix-evaluation") {
         if case == "ce-evaluation" {
             running.claims[0].eval_k[0] += K::ONE;
         } else {
@@ -191,7 +264,7 @@ pub fn check_against(
             .collect();
         fresh.witness.Z = change_units(&fresh.witness.Z, fresh.claim.x.iter().copied().enumerate());
         fresh.claim.c = commit_production_signed_unit_matrix(&fresh.witness.Z).unwrap();
-    } else {
+    } else if action != Action::VerifySaved {
         // The first private coordinate follows the package's full public prefix.
         let coordinate = fresh.claim.m_in;
         let old = fresh.witness.Z[(coordinate % D, coordinate / D)];
@@ -200,6 +273,24 @@ pub fn check_against(
         fresh.claim.c = commit_production_signed_unit_matrix(&fresh.witness.Z).unwrap();
     }
     println!("terminal_case_prepared case={case} elapsed={:?}", started.elapsed());
+    if action == Action::SaveMutation {
+        fs::create_dir(output).expect("fresh mutation directory");
+        let record = json!({
+            "schema": 1,
+            "iteration": state.iteration(),
+            "z0": state.z0().map(|word| word.as_canonical_u64()),
+            "current": state.current().map(|word| word.as_canonical_u64()),
+            "running_claims": running.claims,
+        });
+        save(&output.join("envelope.json"), &record);
+        save(&output.join("fresh-claim.json"), &fresh.claim);
+        save(&output.join("fresh-witness.json"), &fresh.witness.Z);
+        println!(
+            "terminal_mutation_saved case={case} verification=pending elapsed={:?}",
+            started.elapsed()
+        );
+        return;
+    }
     let envelope = Stage1Envelope::from_parts(state, running, fresh);
 
     if case == "accepted" {

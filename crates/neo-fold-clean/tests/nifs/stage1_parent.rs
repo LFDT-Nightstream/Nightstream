@@ -40,13 +40,13 @@ use super::stage1_values::{ccs_input, ccs_phase};
 type Claim = CeClaim<Commitment, F, K>;
 
 #[derive(Serialize, Deserialize)]
-struct SavedCcs {
-    schema: u64,
-    structural_identifier: [u64; 4],
-    package_identity: [u64; 4],
-    verification_key_digest: [u64; 4],
-    sumcheck: pi_ccs::SumcheckProof,
-    outputs: Vec<Claim>,
+pub(super) struct SavedCcs {
+    pub(super) schema: u64,
+    pub(super) structural_identifier: [u64; 4],
+    pub(super) package_identity: [u64; 4],
+    pub(super) verification_key_digest: [u64; 4],
+    pub(super) sumcheck: pi_ccs::SumcheckProof,
+    pub(super) outputs: Vec<Claim>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -104,7 +104,7 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
         .expect("complete typed checkpoint members")
 }
 
-fn replay_ccs(
+pub(super) fn replay_ccs(
     params: &Params,
     structure: &Structure,
     fresh: &CcsClaim,

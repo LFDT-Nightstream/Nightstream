@@ -16,6 +16,7 @@
 #   validate.sh pi-ccs-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh pi-ccs-input-check <input-json-path> <output-path>
 #   validate.sh pi-rlc-input-check <package[4]> <PiCCS-input> <output-path>
+#   validate.sh pi-rlc-witness-replay <PiCCS-input> <source-capture> <output> <start-block> <end-block>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
@@ -67,6 +68,11 @@ case "$phase" in
   static) bash scripts/check-boundaries.sh ;;
   build)  capped lake build "${2:-NightstreamFPrime}" ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
+  pi-rlc-witness-replay)
+    if (( $# != 6 )); then echo "usage: validate.sh pi-rlc-witness-replay <C-input> <source-capture> <output> <start-block> <end-block>" >&2; exit 2; fi
+    shift
+    capped lake exe replayPiRLCWitness -- "$@"
+    ;;
   identity)
     if (( $# != 1 )); then echo "usage: validate.sh identity" >&2; exit 2; fi
     identity_output="$(mktemp "${TMPDIR:-/tmp}/nightstream-fprime-identity.XXXXXX.json")"

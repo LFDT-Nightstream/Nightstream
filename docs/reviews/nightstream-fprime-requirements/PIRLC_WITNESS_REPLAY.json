@@ -1,0 +1,605 @@
+{
+  "schema": 1,
+  "milestone": "PiRLC private witness replay",
+  "outcome": "passed locally",
+  "source_base_commit": "d114e47b94dd4eab81ca1423552fa8ce3754915b",
+  "source_cut": "The containing commit supplies the changed source bytes listed here; untouched source comes from source_base_commit.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "ring_degree": 54,
+    "sources": 17,
+    "carrier_blocks": 4685394,
+    "carrier_coefficients": 253011276
+  },
+  "independence": {
+    "common_inputs": "Original fresh witness, the 16 original running witnesses, original public claims and the fixed setup.",
+    "rust_inputs": "The PiCCS proof messages and final claims remain supplied inputs. Lean checks C and derives rho itself.",
+    "comparison_only": "The actual Rust combined parent is never passed to the Lean executable.",
+    "scope": "Complete PiRLC witness replay for the retained nonzero-running trace. Full NIFS independence requires later PiCCS prover replay."
+  },
+  "theorems": [
+    "NightstreamFPrime.Export.Stage1.PiRLCWitnessAction.multiplySigned_correct",
+    "NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?",
+    "NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse",
+    "LeanGraph.Targets.piRLCWitnessReplay"
+  ],
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "source_files": [
+    {
+      "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+      "bytes": 28797,
+      "sha256": "0238c6e163ca14139d2316abf1edf31d01f2578c9066f0df2139c6450599b73e"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+      "bytes": 6311,
+      "sha256": "915caa27a6ef6e3bc39dfaded54f4c2be5abf7bc1d8c265f078870c8c63bd4c5"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_parent.rs",
+      "bytes": 21414,
+      "sha256": "b0ad690c81d08844650d0220a621aab90251f8c7694214df72af8055547ff663"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export.lean",
+      "bytes": 15389,
+      "sha256": "b0530d9d40f1bdb40fb941c9abad282c4677e28f54d97a52ef4ee9e03f2fcb0d"
+    },
+    {
+      "path": "formal/nightstream-fprime/lakefile.toml",
+      "bytes": 4841,
+      "sha256": "645daa3c455396b4f20bcfdfe1075e7c54e842e7b11c53df2aedddaf607607b2"
+    },
+    {
+      "path": "formal/nightstream-fprime/scripts/validate.sh",
+      "bytes": 10297,
+      "sha256": "cbacc692293ac55fc51600f3522e1b95d022e3f06615a2a7d201d9ea508430b2"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/AxiomsStage1PiRLCExport.lean",
+      "bytes": 54191,
+      "sha256": "ff2c91f75a7b0ab936f21f596dc26158fee843c5472fe4dd5ecdba7d046e959f"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/EvidenceAcceptance.lean",
+      "bytes": 1077,
+      "sha256": "73f7a52f91dc0c4d23e0784af99895f1c409d14268777e52a8f49b5b4c2278a4"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/EvidenceTargets.lean",
+      "bytes": 25815,
+      "sha256": "eb02eb3cb668da03286ce0780e283742ecd52a9da37665d7230f3f6f3895bf9e"
+    },
+    {
+      "path": "scripts/lean_graph/ExportMetadata.lean",
+      "bytes": 1649,
+      "sha256": "ad5bf9f0ef251a6d8f18239cf0dfe9cc3b6b0333f9d8e34301f1f42c0211e04c"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_pirlc_replay.rs",
+      "bytes": 8702,
+      "sha256": "7220f30b20406e3a91bbdd7895afad7f8bd001d974bcda24e16a8e0a5ae7b292"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/PiRLCWitnessReplayMain.lean",
+      "bytes": 6595,
+      "sha256": "e9b24a655e67fb3b96ead81126e80c88a01e68d0aeef4301fa6006f1aecb45c7"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCWitnessAction.lean",
+      "bytes": 4151,
+      "sha256": "98a5b712abc32b1456614d6824ffbeb15019dbf03a322c1f48addf956a7859fb"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCWitnessBlock.lean",
+      "bytes": 11722,
+      "sha256": "be3b07f818086d0190738faee92b12904d80351cf1633e3d80f6aeba653f5f01"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCWitnessHonestResponse.lean",
+      "bytes": 3446,
+      "sha256": "99c69ac5786c4d3fb5c797e6c85e345826ee7eef76c60e3109204b195714423b"
+    }
+  ],
+  "capture": [
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+      "bytes": 562056218,
+      "sha256": "b4b093059cfb8da5266e9a7188348958a6a93b512e7c854b6157b7ad57fb8619",
+      "proposed_archive_member": "pirlc-replay/sources.jsonl"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+      "bytes": 657063,
+      "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc",
+      "proposed_archive_member": "pirlc-replay/ccs-input.json"
+    }
+  ],
+  "original_witnesses": [
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/fresh-witness.json",
+      "bytes": 96258853,
+      "sha256": "7bd60a061039a60df4a10ac6642f4a93f437b723af889901436d76000a4b8778",
+      "source_index": 0,
+      "role": "fresh",
+      "resolved_original_path": "/tmp/nightstream-native-envelope-1/fresh-witness.json",
+      "asset_name": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+      "archive_member": "output/fresh-witness.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-0.json",
+      "bytes": 90671538,
+      "sha256": "7645853931a22b280594822a5f50c461ea616b4cd553afbac4433d52cdf4cf56",
+      "source_index": 1,
+      "role": "running[0]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-0.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-0.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-1.json",
+      "bytes": 90422650,
+      "sha256": "3087882365e6a36adeb3e147bd3d9e0860bb8d6c24943e6108664e8497ebe34e",
+      "source_index": 2,
+      "role": "running[1]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-1.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-1.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-2.json",
+      "bytes": 88108411,
+      "sha256": "ad44d68e0446874cc89efb63ac0a366ea5d4152a9b775abbce01adea0bc8bbc7",
+      "source_index": 3,
+      "role": "running[2]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-2.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-2.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-3.json",
+      "bytes": 84230535,
+      "sha256": "ba98664c57e846a7134122ac7fc80439f6843c38617aee7b384a9fccc1caa0c0",
+      "source_index": 4,
+      "role": "running[3]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-3.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-3.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-4.json",
+      "bytes": 70277656,
+      "sha256": "a77ce096b028d961ddb81c166b22625f19686f86d92fa869f86852144069c06c",
+      "source_index": 5,
+      "role": "running[4]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-4.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-4.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-5.json",
+      "bytes": 20662166,
+      "sha256": "d126d8362918e6d0e306812bb08b650a4bfc862c575d4b7d7d34f8b9a2121ac9",
+      "source_index": 6,
+      "role": "running[5]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-5.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-5.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-6.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 7,
+      "role": "running[6]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-6.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-6.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-7.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 8,
+      "role": "running[7]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-7.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-7.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-8.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 9,
+      "role": "running[8]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-8.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-8.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-9.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 10,
+      "role": "running[9]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-9.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-9.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-10.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 11,
+      "role": "running[10]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-10.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-10.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-11.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 12,
+      "role": "running[11]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-11.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-11.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-12.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 13,
+      "role": "running[12]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-12.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-12.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-13.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 14,
+      "role": "running[13]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-13.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-13.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-14.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 15,
+      "role": "running[14]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-14.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-14.json",
+      "matches_existing_manifest": true
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-sources-1/digit-15.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "source_index": 16,
+      "role": "running[15]",
+      "resolved_original_path": "/tmp/nightstream-native-parent-material-1/digit-15.json",
+      "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "archive_member": "child-witnesses/digit-15.json",
+      "matches_existing_manifest": true
+    }
+  ],
+  "saved_C_proof": {
+    "path": "/tmp/nightstream-native-nonzero-ccs-2.json",
+    "bytes": 1528011,
+    "sha256": "2aa529506960877997c9b735ca31f8377535bee8ea7d7d9caa177adcd112bbab",
+    "asset_name": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+    "archive_member": "nonzero-c/nightstream-native-nonzero-ccs-2.json",
+    "matches_existing_manifest": true
+  },
+  "source_openings": {
+    "evidence": "docs/reviews/nightstream-fprime-requirements/NONZERO_NIFS_GATES.json",
+    "log": {
+      "path": "/tmp/nightstream-baseline-nonzero-source-check-2.log",
+      "bytes": 3005,
+      "sha256": "6d8807f096551806d86c181e76e39c574638048ef981ffe7042474e15e9529bf"
+    },
+    "reuse": "All 17 source hashes match the earlier opening check. Source export alone does not check commitments."
+  },
+  "target": {
+    "path": "/tmp/nightstream-native-nonzero-parent-2/parent-witness.json",
+    "bytes": 5198469952,
+    "sha256": "5264a806081176b9e1571c87c181418b94bfa84a856c8c0164deece15d957c0c",
+    "producer": "prove-owned-rlc on the original source directory and saved C proof"
+  },
+  "ranges": [
+    {
+      "start": 0,
+      "end": 74272,
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+      "bytes": 47310348,
+      "sha256": "306d0a4b392da3478652ba85f9f3e4d57c834b2e7f8a4c779c6e0e08090469b4"
+    },
+    {
+      "start": 74272,
+      "end": 4685394,
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.jsonl",
+      "bytes": 1749669091,
+      "sha256": "36c4b9fe2289e3ec4871b2137acee19750c8d39c04665bb6df8269200095d3ef"
+    }
+  ],
+  "comparison": {
+    "coefficients": 253011276,
+    "gap_or_overlap": "rejected",
+    "tail_mutation": {
+      "outcome": "rejected",
+      "block": 4685393,
+      "lane": 53,
+      "range": [
+        74272,
+        4685394
+      ]
+    },
+    "native_comparison_seconds_without_build": 20.102557833
+  },
+  "gates": [
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1.log",
+      "bytes": 2283,
+      "sha256": "7fa667aa282dbf172158f4e937135876e476c84fd421995963418ba3523c3bc4",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 42.44355094898492,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "export-pirlc-replay",
+        "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "/tmp/nightstream-native-nonzero-sources-1",
+        "/tmp/nightstream-native-nonzero-ccs-2.json",
+        "/tmp/nightstream-pirlc-replay-capture-1"
+      ],
+      "max_rss_kib": 4173464
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.log",
+      "bytes": 127559,
+      "sha256": "bcab8427ffa97720ff73c1bedbdb3c06250503b6425300c9251268bb983db905",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 52.97802988893818,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-rlc-witness-replay",
+        "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "0",
+        "74272"
+      ],
+      "max_rss_kib": 1504976
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.log",
+      "bytes": 127620,
+      "sha256": "9f8b4600b1886dd392646cb4da96b6d74642fa49c9240311a2871b99f9aa4052",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 1085.0511835690122,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-rlc-witness-replay",
+        "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.jsonl",
+        "74272",
+        "4685394"
+      ],
+      "max_rss_kib": 1503796
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-witness-full-comparison-1.log",
+      "bytes": 2209,
+      "sha256": "2f87803d301b373e29a45a37c957eb25e12b67d841f4540f96c62bc3014f41a7",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 42.54324422206264,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "compare-pirlc-replay",
+        "/tmp/nightstream-native-nonzero-parent-2/parent-witness.json",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.jsonl"
+      ],
+      "max_rss_kib": 1979264
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-checkpoint-static.log",
+      "bytes": 1343,
+      "sha256": "4471ef427e7ef9b9d0b3155c16f51b50888a3f6c9be052095472cad337788665",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 8.926736660068855,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "max_rss_kib": 18032
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-checkpoint-build.log",
+      "bytes": 171883,
+      "sha256": "bfb2482f9518033f041b39537423a1a3837eedb63d37c5ae1a133d2a00900952",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 3.820212248014286,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "max_rss_kib": 3888380
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-checkpoint-axioms.log",
+      "bytes": 1069746,
+      "sha256": "7e437e1e8f7908e36a7be4febb9cfcabdcc5384d38552e3ca60c31e529af5fd7",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 4.623764395946637,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "max_rss_kib": 3924080
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-checkpoint-targets.log",
+      "bytes": 155066,
+      "sha256": "8878ca00f80d3adf9d98dfdb6b48322224edc405c22868933bdeb814500386cb",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 0.8650378360180184,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "tests.EvidenceTargets"
+      ],
+      "max_rss_kib": 899424
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-checkpoint-target-acceptance.log",
+      "bytes": 2458,
+      "sha256": "bb5f9a5d30283f8df46c44aa36a58d8ff4b7430fb3879e2e70fffee8360daa9f",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 1.9173162510851398,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "tests/EvidenceAcceptance.lean"
+      ],
+      "max_rss_kib": 3857916
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-test-build-1.log",
+      "bytes": 14660,
+      "sha256": "6914d6a899cf61f741d0262f3d48b17af002c33a5eb9c08a87d79edcc0e51352",
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 162.1511522559449,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--no-run"
+      ],
+      "max_rss_kib": 1409376
+    }
+  ],
+  "metadata_gate": {
+    "path": "/tmp/nightstream-pirlc-checkpoint-metadata.log",
+    "sha256": "763e5d0362218bd4706e3ac795cbde6b4df71f86211304f870d573efec9bdeb9",
+    "exit": 0,
+    "seconds": 228.16742687905207,
+    "selected_roots": [
+      "LeanGraph.Targets.piRLCWitnessReplay",
+      "NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse"
+    ]
+  },
+  "review": {
+    "agent": "review_linear_security_contract",
+    "outcome": "no code blocker",
+    "scope": "Source/target separation, source and lane order, signed masks, sparse zero semantics, full coverage, tail mutation and the executable-to-spec path."
+  },
+  "ironwood": "The input/output separation and replay-to-reference theorem pattern informed this work. No Ironwood source code was copied. Reviewed local reference: Zcash/Snark/Fixtures/Prover at 895aa37fd8e4d494be5fc439fb611d158bb02fe2.",
+  "delivery": {
+    "status": "local evidence; release preparation and remote retrieval verification pending",
+    "repository": "LFDT-Nightstream/Nightstream",
+    "existing_source_assets": [
+      {
+        "asset_name": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+        "bytes": 39165413,
+        "sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+        "upload_status": "pending",
+        "remote_verification_status": "pending",
+        "release_tag": "stage1-evidence-48f06fab",
+        "local_prepared_path": "/home/nicoarq/develop/nightstream-stage1-evidence/NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip"
+      },
+      {
+        "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+        "bytes": 162917001,
+        "sha256": "933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e",
+        "upload_status": "pending",
+        "remote_verification_status": "pending",
+        "release_tag": "stage1-evidence-48f06fab",
+        "local_prepared_path": "/home/nicoarq/develop/nightstream-stage1-evidence/NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip"
+      },
+      {
+        "asset_name": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+        "bytes": 262454838,
+        "sha256": "b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1",
+        "release_tag": "stage1-evidence-7310cf24",
+        "status": "prepared; upload and fresh-download verification pending authentication",
+        "use": "Optional retrieval of the exact saved C proof; C can instead be regenerated from the original 17 sources.",
+        "local_prepared_path": "/home/nicoarq/develop/nightstream-stage1-evidence/STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip"
+      }
+    ],
+    "credential_condition": "No GitHub CLI configuration or GH_TOKEN/GITHUB_TOKEN is available in this session."
+  }
+}

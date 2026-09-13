@@ -256,6 +256,45 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "export-pirlc-target")
+    {
+        assert_eq!(arguments.len(), 5,
+            "usage: generate_pi_ccs_fixture export-pirlc-target <actual-parent-witness> <start-block> <end-block> <new-output>");
+        owned_nifs::pirlc_replay::export_target(
+            Path::new(&arguments[1]),
+            arguments[2].parse().unwrap(),
+            arguments[3].parse().unwrap(),
+            Path::new(&arguments[4]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "export-pirlc-replay")
+    {
+        assert_eq!(arguments.len(), 5,
+            "usage: generate_pi_ccs_fixture export-pirlc-replay <package> <source-directory> <saved-C-proof> <new-capture-directory>");
+        owned_nifs::pirlc_replay::export_sources(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+        );
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "compare-pirlc-replay")
+    {
+        assert!(
+            arguments.len() >= 3,
+            "usage: generate_pi_ccs_fixture compare-pirlc-replay <actual-parent-witness> <Lean-range>..."
+        );
+        owned_nifs::pirlc_replay::compare(Path::new(&arguments[1]), &arguments[2..]);
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "check-public-active")
     {
         assert_eq!(arguments.len(), 6,

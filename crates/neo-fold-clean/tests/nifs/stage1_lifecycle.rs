@@ -8,7 +8,7 @@ use std::{
 };
 
 use neo_ajtai::{nightstream_fprime_setup::commit_production_signed_units, Commitment};
-use neo_ccs::Mat;
+use neo_ccs::{LaneCommitments, Mat};
 use neo_fold_clean::{
     paper::{
         construction2::{LaneCommitmentMode, RunningInstance},
@@ -17,7 +17,7 @@ use neo_fold_clean::{
         pi_ccs, pi_dec, pi_rlc,
         relations::{CcsClaim, CeClaim},
     },
-    stage1::{CompleteStepError, Stage1Envelope, Stage1State, Stage1StepInputs},
+    stage1::{CompleteStepError, Stage1Envelope, Stage1State, Stage1StepInputs, StepInputError},
     Poseidon2HashChainV1Package,
 };
 use neo_math::{from_complex, D, F, K};
@@ -390,6 +390,44 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
     assert!(package
         .step_inputs(&state, &running, &fresh, &detached_point, message)
         .is_err());
+}
+
+#[test]
+fn selected_plain_step_rejects_auxiliary_commitments() {
+    let fixture = Fixture::load();
+    let _ = fixture.packet(); // The unchanged plain input is accepted.
+    for value in [F::ZERO, F::ONE] {
+        let mut commitment = Commitment::zeros(D, fixture.fresh.c.kappa);
+        commitment.data[0] = value;
+        let auxiliary = LaneCommitments {
+            ops: commitment.clone(),
+            is: commitment.clone(),
+            fs: commitment,
+        };
+        let reject = |running: &RunningInstance, fresh: &CcsClaim, location: &str| {
+            let error = fixture
+                .package
+                .step_inputs(&fixture.state, running, fresh, &fixture.proof, fixture.message)
+                .unwrap_err();
+            assert!(
+                matches!(&error, StepInputError::Input(message)
+                    if *message == "selected plain claims cannot carry auxiliary commitments"),
+                "{location}, auxiliary word {value:?}: {error}"
+            );
+        };
+
+        let mut fresh = fixture.fresh.clone();
+        fresh.adv = Some(auxiliary.clone());
+        reject(&fixture.running, &fresh, "fresh claim");
+
+        let mut running = fixture.running.claims_only();
+        running.claims.last_mut().unwrap().adv = Some(auxiliary.clone());
+        reject(&running, &fixture.fresh, "running claim");
+
+        let mut running = fixture.running.claims_only();
+        running.parent_authority.as_mut().unwrap().adv = Some(auxiliary);
+        reject(&running, &fixture.fresh, "supplied parent claim");
+    }
 }
 
 /// Capped fixture action. The large child matrices are supplied as explicit

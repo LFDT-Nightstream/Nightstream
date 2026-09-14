@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "source_base_commit": "2ff3dfa00c609fead3ea5f32c85451f91aae24f9",
-  "status": "checked matrix range kernels and initial actual ranges; complete matrix replay open",
+  "source_base_commit": "aab01b4192580d7fe8225523f04d036c53671122",
+  "status": "first Poseidon block and pilot ordinary block replayed completely; full matrix replay open",
   "graph_obligation": "pidec-evaluation-replay",
   "scope": {
     "complete_matrix_rows": 6377559,
@@ -29,6 +29,14 @@
         452704
       ],
       [
+        452704,
+        806802
+      ],
+      [
+        806802,
+        1160900
+      ],
+      [
         3051784,
         3053114
       ],
@@ -41,7 +49,11 @@
         4100120
       ]
     ],
-    "coverage_note": "Only these disjoint active row ranges have actual values. Endpoint probes and older overlapping ranges do not add coverage."
+    "coverage_note": "Only these disjoint active row ranges have actual values. Endpoint probes and older overlapping ranges do not add coverage.",
+    "complete_compact_blocks": [
+      0,
+      5
+    ]
   },
   "independence": "Lean computes from the complete independently replayed R parent. Its evaluation point comes from accepted Lean verification of Rust PiCCS messages. Native matrix outputs are not inputs. Full independence still requires PiCCS prover replay.",
   "comparison": "Both parallel slice paths match every byte of their previous actual range outputs. PIDEC_MATRIX_RANGES.json records only disjoint actual coverage. Complete native matrix comparison remains open.",
@@ -406,49 +418,49 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 9.32795999001246,
+      "elapsed_seconds": 9.480147565016523,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-slices-checkpoint-static-1.log",
-        "sha256": "ae3b91dc7041506b954d59a9a37a8611ed44ab7948010f93ca131c72ca03e3be",
-        "bytes": 1342
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block0-static-1.log",
+        "sha256": "79aed64e076c42d0bd50f9d0238a8e1c6ac640f39370a34d8c6bc4e675a74f9e",
+        "bytes": 1343
       },
-      "peak_rss_kib": 19388
+      "peak_rss_kib": 18880
     },
     "build": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 5.626583317993209,
+      "elapsed_seconds": 0.915115721989423,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-slices-checkpoint-build-1.log",
-        "sha256": "51e8227ae62f120fd3e0ac98f119db45ad8d7ab4ccf6d72a73fc4a4f4caa0ac2",
-        "bytes": 172052
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block0-build-1.log",
+        "sha256": "148cb22c1480731e80416e34b5b426c4b81ed4ee90e933ec4fde5e3274e8228f",
+        "bytes": 171779
       },
-      "peak_rss_kib": 3892476
+      "peak_rss_kib": 890020
     },
     "axioms": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 3.0197919480269775,
+      "elapsed_seconds": 1.0158575359964743,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-slices-checkpoint-axioms-1.log",
-        "sha256": "ee5b59b2b630fd4c7fe0983c9da47c21644e77f96947c11a792242d33445bf4b",
-        "bytes": 1092463
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block0-axioms-1.log",
+        "sha256": "555c80e95a785a8c32220a1db22afb9fd297bc194799115a090c41899713d0ce",
+        "bytes": 1092445
       },
-      "peak_rss_kib": 3811644
+      "peak_rss_kib": 877144
     },
     "registrations": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 0.2639720169827342,
+      "elapsed_seconds": 0.2641419230494648,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-slices-checkpoint-registrations-1.log",
-        "sha256": "fae20f5af10c506a81a84eae8a39fa78f883bf5662e0255f5f787f25cb1dfde0",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block0-registrations-1.log",
+        "sha256": "545f430715673d099a484d3d5c4e3d8d96ffaed248fa13bf12971f5ed0042e61",
         "bytes": 1287
       },
-      "peak_rss_kib": 22636
+      "peak_rss_kib": 22588
     },
     "matrix_merge_build": {
       "outcome": "passed",
@@ -844,5 +856,14 @@
       }
     ]
   },
-  "range_index": "PIDEC_MATRIX_RANGES.json"
+  "range_index": "PIDEC_MATRIX_RANGES.json",
+  "block0_complete": {
+    "rows": 1160900,
+    "invocations": 12350,
+    "ranges": 6,
+    "values_per_range": 24192,
+    "scope": "All 16 children, 14 matrices and 54 K coefficients in every range; all use the accepted C point and original Lean parent. Full native comparison remains open.",
+    "latest_range_seconds": 789.5314803770743,
+    "range_index": "PIDEC_MATRIX_RANGES.json"
+  }
 }

@@ -172,6 +172,12 @@ same output bytes for both kernel kinds. Their maximum child spans fall from
 5.20 to 2.76 s (Poseidon) and 9.99 to 7.04 s (C ordinary). Parent loading
 remains variable; these task spans do not measure complete command speed.
 
+The first Poseidon block is now complete: all 12,350 invocations and
+1,160,900 rows have actual range results. Its final two equal ranges used
+3,767 invocations each, sized from measured rates under the 1,500 s cap.
+The range index records exact contiguous coverage; other matrix blocks and
+the complete native comparison remain open.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

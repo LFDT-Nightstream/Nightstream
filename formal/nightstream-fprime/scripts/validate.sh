@@ -27,6 +27,7 @@
 #   validate.sh pi-dec-evaluation-replay pad <C-input> <Lean-parent-range> <output> <start> <end>
 #   validate.sh pi-dec-pad-merge <output> <range>...
 #   validate.sh pi-dec-pad-merge-boundaries <new-results-directory>
+#   validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
@@ -123,6 +124,10 @@ case "$phase" in
   pi-dec-pad-merge-boundaries)
     if (( $# != 2 )); then echo "usage: validate.sh pi-dec-pad-merge-boundaries <new-results-directory>" >&2; exit 2; fi
     timeout -k 10 300 python3 -B tests/pi_dec_pad_merge.py .lake/build/bin/replayPiDECEvaluation "$2"
+    ;;
+  pi-dec-matrix-rows)
+    if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>" >&2; exit 2; fi
+    capped lake exe measurePiDECMatrixRows -- "$2" "$3" "$4"
     ;;
   pi-dec-evaluation-block)
     if (( $# != 3 && $# != 4 )); then echo "usage: validate.sh pi-dec-evaluation-block [<C-input>] <Lean-parent-range> <output>" >&2; exit 2; fi

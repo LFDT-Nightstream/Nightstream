@@ -20,6 +20,13 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
 import NightstreamFPrime.Export.Stage1.PiDECPadBlockRange
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
+import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
+import NightstreamFPrime.Export.Stage1.PiDECSourceIndex
+import NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
+import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
@@ -560,3 +567,26 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_decomposition
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment.rowsZero_of_completed
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport.kernel_eq_evalSparse
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.stateValues_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.stateStep_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.rowValues_get
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.rowsStep_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows.rowsFrom_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows.values_length
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows.stored_value
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock.loadRow?_encodeProd
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock.row?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock.row?_eq_none_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows.blockRow?_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows.row?_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows.row?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows.row?_eq_none_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSourceIndex.findRange_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource.row?_eq_sourceRows_getElem?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource.row?_eq_programRow
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows.sourceRow_value

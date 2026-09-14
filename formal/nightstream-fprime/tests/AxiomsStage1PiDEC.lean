@@ -39,6 +39,9 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
+import NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure
+import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
+import NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
@@ -637,3 +640,11 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.zero_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.add_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.add_ranges
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure.fold_adjacent_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure.splitBlocks_eq_childBlocks
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentMagnitude.coefficient_le_maximumMagnitude
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentMagnitude.cachedDigit_eq_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead.sparse_sum_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead.invocation_sum_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead.ifActive_sparse_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead.ifActive_invocation_value

@@ -3,6 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
+import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
@@ -14,6 +15,8 @@ Execute a contiguous selected matrix-row range from the independent
 Lean parent. The accepted C execution supplies the point. Every child, matrix
 port and Phi81 output coefficient is computed; native outputs are not inputs.
 This is a staged matrix replay result, not a complete matrix-family result.
+The guard's equality proofs are in PiDECMatrixZeroRead. Importing those
+reference-plan proofs here would initialize the full plan at startup.
 -/
 
 set_option autoImplicit false
@@ -53,6 +56,11 @@ private def range (ccsPath outputPath : System.FilePath)
   report [("event", .str "parent_ready"), ("storage", .str "centered_integer"),
     ("blocks", Lean.toJson parents.size), ("records", Lean.toJson records),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - parentStarted))]
+  let magnitudeStarted ← IO.monoNanosNow
+  let maximum ← IO.wait (Task.spawn fun _ =>
+    PiDECParentMagnitude.maximumMagnitude parents)
+  report [("event", .str "parent_magnitude_ready"), ("maximum", Lean.toJson maximum),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - magnitudeStarted))]
   let tablesStarted ← IO.monoNanosNow
   let tables ← IO.wait (Task.spawn fun _ => PiDECParentSparseRead.prepare ())
   report [("event", .str "basis_ready"),
@@ -136,7 +144,7 @@ private def range (ccsPath outputPath : System.FilePath)
           else 0
         let started ← IO.monoNanosNow
         let values ← IO.wait (Task.spawn fun _ =>
-          evaluate read)
+          PiDECParentMagnitude.ifActive maximum child (fun _ => evaluate read))
         return (values, (← IO.monoNanosNow) - started))
     let mut allValues : Array (Vector MaterializedRingK matrixCount) := #[]
     for child in [:tasks.size] do
@@ -146,6 +154,7 @@ private def range (ccsPath outputPath : System.FilePath)
         | .error error => throw error
       allValues := allValues.push values
       report [("event", .str "child_complete"), ("child", Lean.toJson child),
+        ("zero_from_parent_bound", .bool (decide (maximum < 2 ^ child))),
         ("compute_ns", Lean.toJson computeNs)]
     let encodeK := fun value : K => Value.array [.atom value.c0.val, .atom value.c1.val]
     let output := Value.array [.atom 1, .atom program.rowCount, .atom first, .atom finish,

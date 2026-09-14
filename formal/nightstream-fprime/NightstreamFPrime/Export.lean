@@ -37,6 +37,9 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
+import NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure
+import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
+import NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

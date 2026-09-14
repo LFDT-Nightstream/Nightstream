@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_base_commit": "c3e8a1e9fa875f9a505f12d8521737258fca34cb",
+  "source_base_commit": "cbea54e27db3386d068303aa06c472af6455354a",
   "status": "checked matrix range kernels and initial actual ranges; complete matrix replay open",
   "graph_obligation": "pidec-evaluation-replay",
   "scope": {
@@ -21,6 +21,10 @@
         151904
       ],
       [
+        151904,
+        302304
+      ],
+      [
         4100086,
         4100120
       ]
@@ -28,7 +32,7 @@
     "coverage_note": "Only these disjoint active row ranges have actual values. Endpoint probes and older overlapping ranges do not add coverage."
   },
   "independence": "Lean computes from the complete independently replayed R parent. Its evaluation point comes from accepted Lean verification of Rust PiCCS messages. Native matrix outputs are not inputs. Full independence still requires PiCCS prover replay.",
-  "comparison": "The cached sparse forms preserve every byte for rows [0,1504). The additional rows [1504,151904) have an actual complete range result. These results compute all 16 children and 14 matrix families from the Lean parent. Complete native matrix comparison remains open.",
+  "comparison": "The input-derived zero-child guard preserves every output byte for rows [0,1504). Further actual rows [151904,302304) pass. Every range retains all 16 children, 14 matrix families and 54 K coefficients; full native matrix comparison remains open.",
   "proof": {
     "declarations": [
       "PiDECMatrixSelectedBatch.selectedIntInvocationRange_eq_range",
@@ -49,10 +53,18 @@
       "PiDECParentIntRead.sparseRead_map_valMinAbs",
       "PiDECPoseidonNumericStep.stepValues_value",
       "PiDECPoseidonNumericRows.stored_value",
-      "PiDECMatrixSparseRange.sum_value"
+      "PiDECMatrixSparseRange.sum_value",
+      "PiDECParentMagnitude.coefficient_le_maximumMagnitude",
+      "PiDECParentMagnitude.cachedDigit_eq_zero",
+      "PiDECMatrixZeroRead.ifActive_sparse_value",
+      "PiDECMatrixZeroRead.ifActive_invocation_value"
     ],
     "consumer": "PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages remains the complete-family target.",
-    "audit": "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean"
+    "audit": "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean",
+    "composition_connections": [
+      "PiDECMatrixMergeClosure.fold_adjacent_eq_range",
+      "PiDECMatrixMergeClosure.splitBlocks_eq_childBlocks"
+    ]
   },
   "measurements": {
     "dense_invocation": {
@@ -210,20 +222,13 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 106.51522483804729,
-      "command": [
-        "bash",
-        "scripts/validate.sh",
-        "pi-dec-parent-boundaries",
-        "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
-        "/tmp/nightstream-pidec-parent-boundaries-3"
-      ],
+      "elapsed_seconds": 109.2710592270596,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-parent-boundaries-3.log",
-        "sha256": "6a56e59710e0c45021faf3849686c1dbbd5656b31182defd6c4ce9ccc6636d7f",
-        "bytes": 2180
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-parent-boundaries-4.log",
+        "sha256": "dfd79a9a8811c769add510dda58c80880fc4195ba9f6af584fe3df1aa8589f9d",
+        "bytes": 2179
       },
-      "peak_rss_kib": 1769512
+      "peak_rss_kib": 1756772
     },
     "poseidon_cached_forms": {
       "outcome": "passed",
@@ -262,6 +267,30 @@
         "sha256": "ac8f2530ff951011b00a7d8499deaa327dab031578e84cd9a5e9804fd5f7ad3c",
         "bytes": 1125
       }
+    },
+    "poseidon_second_large_range": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 671.7333644629689,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-151904-302304-1.log",
+        "sha256": "ab799c43fba9c38e31cec229e86dc1e53a83dd8c12383248bd716c71359df07f",
+        "bytes": 141703
+      },
+      "peak_rss_kib": 4596144
+    },
+    "poseidon_guard_byte_comparison": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 30.319472832023166,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-0-1504-inactive-2.log",
+        "sha256": "7d7412b74d2e2f313eaff15e27b4f8b49a629fe54481e861b08f672eaacd225b",
+        "bytes": 142180
+      },
+      "peak_rss_kib": 3506316
     }
   },
   "equal_outputs": [
@@ -326,58 +355,58 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 9.376956890919246,
+      "elapsed_seconds": 9.377297677099705,
       "command": [
         "bash",
         "scripts/validate.sh",
         "static"
       ],
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-commit-static-1.log",
-        "sha256": "b5cd2c2d0878f171b4bbe73eec3827ec5b7a20f236014d58f3aa4a062c694858",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-inactive-checkpoint-static-1.log",
+        "sha256": "6d514221bf59ab4265b29e4d0c9baab2ae8849d980fa19c0bfce79ca3f312587",
         "bytes": 1343
       },
-      "peak_rss_kib": 19532
+      "peak_rss_kib": 19260
     },
     "build": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 7.027797581045888,
+      "elapsed_seconds": 5.524396228021942,
       "command": [
         "bash",
         "scripts/validate.sh",
         "build"
       ],
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-commit-build-1.log",
-        "sha256": "8e8ed33437ae3299494408a4f15c48ba2e61c1d76624657d6c62700d81f73d69",
-        "bytes": 172140
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-inactive-checkpoint-build-1.log",
+        "sha256": "ed32ee66d00508e29007ab6df4b9a7921949b44a16b1677c654eba2ab0351b04",
+        "bytes": 171965
       },
-      "peak_rss_kib": 3889184
+      "peak_rss_kib": 3889188
     },
     "axioms": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 2.919454220100306,
+      "elapsed_seconds": 3.0704894359223545,
       "command": [
         "bash",
         "scripts/validate.sh",
         "axioms"
       ],
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-commit-axioms-1.log",
-        "sha256": "26cb66082a58f36f8f4afe85cf40ccb328659f189e23e45f726ecec25c20b32b",
-        "bytes": 1090728
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-inactive-checkpoint-axioms-1.log",
+        "sha256": "4620c48fd56072ab1729ee49a98c1a2b9df3ccbca53ff274772911abd2cc48c3",
+        "bytes": 1091974
       },
-      "peak_rss_kib": 3805972
+      "peak_rss_kib": 3808796
     },
     "registrations": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 0.2644738290691748,
+      "elapsed_seconds": 0.26414309500250965,
       "command": [
         "python3",
         "-B",
@@ -386,11 +415,11 @@
         "scripts.lean_graph.tests.test_conformance_registrations"
       ],
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-commit-registrations-1.log",
-        "sha256": "ad99558dfd46cbb406bb8d7a2dacb74a7e23a58d7073e0dd063ff5c44f83dccd",
-        "bytes": 1287
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-inactive-checkpoint-registrations-1.log",
+        "sha256": "5aca3a72b9344f4c490f4d8146e44a35b6249f3073cd41a68b613013126385d6",
+        "bytes": 1288
       },
-      "peak_rss_kib": 22584
+      "peak_rss_kib": 22608
     },
     "matrix_merge_build": {
       "outcome": "passed",
@@ -430,7 +459,44 @@
       },
       "peak_rss_kib": 1490604
     },
-    "identity": "Not rerun: the selected package and identity pins are unchanged."
+    "identity": "Not rerun: the selected package and identity pins are unchanged.",
+    "matrix_replay_build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 5.926822372945026,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "replayPiDECMatrix"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-inactive-build-3.log",
+        "sha256": "695281342b5422baf9aecb514eb63402065841d4df3b2c077e1432630b698a40",
+        "bytes": 127308
+      },
+      "peak_rss_kib": 3887884
+    },
+    "magnitude_and_guard_boundaries": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 109.2710592270596,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-parent-boundaries",
+        "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+        "/tmp/nightstream-pidec-parent-boundaries-4"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-parent-boundaries-4.log",
+        "sha256": "dfd79a9a8811c769add510dda58c80880fc4195ba9f6af584fe3df1aa8589f9d",
+        "bytes": 2179
+      },
+      "peak_rss_kib": 1756772
+    }
   },
   "unchanged": "Rust code, the selected package, identity pins and cryptographic assumptions are unchanged.",
   "delivery": "Logs, exact commands and outputs remain outside Git in the recorded evidence directory. GitHub release upload and fresh-download reproduction remain open.",
@@ -438,13 +504,13 @@
   "source_files": [
     {
       "path": "formal/nightstream-fprime/NightstreamFPrime/Export.lean",
-      "sha256": "b73cac7a51d2f550b2e32b16211e19db367056035dc621311ec979d20ae496dc",
-      "bytes": 17714
+      "sha256": "d5ccae4b0314e586d3409109a86b3d4655d76ca9b031b4f3ee3d0a8cb10ee6b2",
+      "bytes": 17896
     },
     {
       "path": "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECMatrixReplayMain.lean",
-      "sha256": "765944b5dea1d7fbcc2efddc2ccd94e9bbd15abe81af136e2365a3d23d7a78d9",
-      "bytes": 9984
+      "sha256": "bc72c8cfe24b897e5a305472c3563cb3d40d1da44d9e9d9ddab2cae77db0fa00",
+      "bytes": 10618
     },
     {
       "path": "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECMatrixRowsMeasure.lean",
@@ -503,8 +569,8 @@
     },
     {
       "path": "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean",
-      "sha256": "45de10facec7e4b8c1ceacd2ad9dccb0248e9f3254dbd7c644ff87464bcdd15e",
-      "bytes": 50292
+      "sha256": "65f98bd621f49d21faca08d66b9eb3ce175f7e1c34921348960b631246214d83",
+      "bytes": 51198
     },
     {
       "path": "formal/nightstream-fprime/tests/pi_dec_parent_input.py",
@@ -535,6 +601,21 @@
       "path": "formal/nightstream-fprime/tests/pi_dec_matrix_merge.py",
       "sha256": "e795821e7fb2f6d4bbef99e24ca5a24eb92c643f93a82d6f48080752f44f1254",
       "bytes": 9793
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixMergeClosure.lean",
+      "sha256": "304fd89da184bc67966de99a5d0520ab015125206b8a9aa00ee8de109cd7c07b",
+      "bytes": 5306
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECParentMagnitude.lean",
+      "sha256": "6125b8e4a206ba0d99f2e1417dd80d2cd0e2df2198c47203bff54774879ffea4",
+      "bytes": 4142
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixZeroRead.lean",
+      "sha256": "d6ccc82d459a9c77add19c13124c14757bf9d86fa827f6bcb78ba839ab67bd48",
+      "bytes": 7240
     }
   ],
   "optimizations": {
@@ -553,7 +634,29 @@
       "max_child_compute_seconds": 0.367054432,
       "loaded_rows_seconds": 0.09671264
     },
-    "cached_interface": "Cache the existing input, S-box and output sparse forms once per invocation. cachedInterface_eq preserves the complete existing interface. The same 16-invocation output is byte-identical; maximum child arithmetic is 5.924650986 seconds, previously 6.827671261 seconds. Complete command time is dominated by parent loading and varies between runs."
+    "cached_interface": "Cache the existing input, S-box and output sparse forms once per invocation. cachedInterface_eq preserves the complete existing interface. The same 16-invocation output is byte-identical; maximum child arithmetic is 5.924650986 seconds, previously 6.827671261 seconds. Complete command time is dominated by parent loading and varies between runs.",
+    "zero_children": {
+      "maximum_source": "Lean maximumMagnitude over the complete actual Int parent, including tails; no external bound is supplied.",
+      "observed_maximum": 115,
+      "guard": "maximumMagnitude parents < 2 ^ child.val",
+      "observed_zero_children": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "maximum_scan_seconds": 0.580162628,
+      "before_max_child_task_seconds": 5.924650986,
+      "after_max_child_task_seconds": 5.203260098,
+      "same_bytes": true,
+      "timing_scope": "Child task times include scheduling and first-use work. Total times also include parent loading: it varied from 101.45 seconds in the cached-form run to 12.30 seconds here, so total speed change is not attributed to the zero guard.",
+      "semantics": "All source/interface/range checks remain active and all output coefficients are emitted. The guard has unconditional equality to both existing range kernels."
+    }
   },
   "actual_outputs": [
     {
@@ -585,6 +688,16 @@
       "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-1504-151904-1.json",
       "sha256": "a7920452ba9d52f1df2d3393908286be59236f59aa38f5b42230dc2bb0e7eac7",
       "bytes": 106810
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-151904-302304-1.json",
+      "sha256": "d2084c6ad61a2963e0aea2da8877c836500392162bfce80310955139f24761d0",
+      "bytes": 106999
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-0-1504-inactive-2.json",
+      "sha256": "119630aa41cc54627641815f0871c9aa634b14a88288d7df59230bbde749515f",
+      "bytes": 106986
     }
   ],
   "current_cli": "validate.sh pi-dec-matrix-range <C-input> <new-output> <block> <first-local-row> <last-exclusive> <Lean-parent-ranges>...",
@@ -599,6 +712,11 @@
       "block": 0,
       "first_local_row": 1504,
       "last_local_row_exclusive": 151904
+    },
+    {
+      "block": 0,
+      "first_local_row": 151904,
+      "last_local_row_exclusive": 302304
     },
     {
       "block": 10,
@@ -636,6 +754,16 @@
       "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-command-0-1504-151904-1.json",
       "sha256": "6660edebad265855f057ef7e604e2ec1fb2d70674de92cdd0818a2c265f1c8c2",
       "bytes": 4946
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-command-0-151904-302304-1.json",
+      "sha256": "d646c092db16659c58bef218b4681b3f9867520ee58f11ba0c2c257dd635c035",
+      "bytes": 4950
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-command-0-0-1504-inactive-2.json",
+      "sha256": "469d901c54d1491fbc8d1a60648dcc7b4d1cc2ebc676cb70e87934fede509a6e",
+      "bytes": 4945
     }
   ],
   "source_snapshot_before_shared_reads": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/range-before-shared-reads/sources.json",
@@ -651,5 +779,32 @@
     "tested_scope": "Synthetic codec/addition only. Every one of the 24,192 matrix words has an independently calculated modular sum. All 1,728 Pad words and 56 point words are preserved. Both modulus-wrap cases and 22 malformed-input rejections pass. This is not source-derived full matrix replay.",
     "output_format": "[1,4685394,point,pad,matrices], consumed by the existing Rust compare-pidec-evaluations command.",
     "remaining": "Generate all actual row ranges before using the merger output for the full native comparison."
+  },
+  "stopped_startup_probe": {
+    "log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-0-0-1504-inactive-1.log",
+      "sha256": "fdd43bedb0d7f34ddf9605532fe3ac956bfa57151b247c6b43bf421c5c4cf5b3",
+      "bytes": 140131
+    },
+    "outcome": "stopped, exit 143; no output produced",
+    "reason": "A runtime import of the selected-range proof module initialized its full reference plan before point_ready. Generated C showed eager selectedPlan initialization. Moving the executable guard to the magnitude module restored point_ready to 1.612 seconds; the equality proofs remain in the audited library.",
+    "observed_process_rss_kib": 1470324,
+    "source_snapshots": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/PiDECMatrixZeroRead-startup-failure.lean",
+        "sha256": "b8d6def186c3582677ec12947b59371271ef3d0e8cdaaf74ab64dcb73d32c0aa",
+        "bytes": 7730
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/PiDECParentMagnitude-before-guard-move.lean",
+        "sha256": "5b2013d56395a769e4c6393a9a27b601b8d31de28a82162b2db5b2305ca71408",
+        "bytes": 3476
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/PiDECMatrixReplayMain-startup-failure.lean",
+        "sha256": "24c9b3408d1b97f44b5e36fe51ef21a39ce893228675365a1d8652cb0bcd8b65",
+        "bytes": 10474
+      }
+    ]
   }
 }

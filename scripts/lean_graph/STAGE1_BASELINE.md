@@ -193,6 +193,12 @@ passed in 620.48 s, 158.01 s and 706.51 s. The contiguous saved prefix is now
 [0,3,864,783). These are PiDEC child evaluations of verifier rows; PiCCS
 prover replay and the complete native matrix comparison stay open.
 
+The R sampler blocks are complete, including all 220,881 ordinary rows for
+17 sources. The first source passed in 141.02 s; the remaining 16 sources
+passed together in 491.60 s with peak RSS 5,480,796 KiB. The saved prefix,
+including the earlier first product group, now reaches row 4,100,120.
+Product and later rows remain before the complete matrix comparison.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

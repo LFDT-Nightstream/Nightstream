@@ -77,6 +77,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.sum_contributions_eq_ajtaiRow
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.fold_parts_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.combine_partialSums_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.workerSlot_add_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages.sum_contributions_honestMessages
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock.barBlock_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock.rowBlock_value
@@ -100,6 +101,8 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_eq_evaluate
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_prefix_eq_evaluate
+#audit_axioms NightstreamFPrime.Export.NativePoseidon2.reduceWide64_canonical
+#audit_axioms NightstreamFPrime.Export.NativePoseidon2.reduceWide64_denote
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.quarterRound_eq
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.nativeStep_map
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.doubleRound_map
@@ -111,6 +114,12 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.zero_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.add_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.addProduct_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulateContributions_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.addPreparedProduct_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulatePreparedContributions_eq
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_implies_paper

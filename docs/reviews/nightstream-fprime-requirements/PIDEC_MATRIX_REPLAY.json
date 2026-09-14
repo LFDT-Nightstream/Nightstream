@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "source_base_commit": "fb10503ec6f6a7b8fd0adeae1c99324086bface3",
-  "status": "first two Poseidon blocks and pilot ordinary block replayed completely; full matrix replay open",
+  "source_base_commit": "5cf48b6cd846cacd3e730a083e575ed1e42051f8",
+  "status": "first three Poseidon blocks and pilot ordinary block replayed completely; full matrix replay open",
   "graph_obligation": "pidec-evaluation-replay",
   "scope": {
     "complete_matrix_rows": 6377559,
@@ -49,6 +49,14 @@
         2321800
       ],
       [
+        2321800,
+        2679188
+      ],
+      [
+        2679188,
+        3036576
+      ],
+      [
         3051784,
         3053114
       ],
@@ -65,6 +73,7 @@
     "complete_compact_blocks": [
       0,
       1,
+      2,
       5
     ]
   },
@@ -431,49 +440,49 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 9.43020881304983,
+      "elapsed_seconds": 9.42820521700196,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block1-static-1.log",
-        "sha256": "1ca66f1a420968c9b83a515e43e9ac887efba5c2ca4543bc0a05a7c95b0011a7",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block2-static-1.log",
+        "sha256": "25d48609b93be95e5b83ab6d116afca218131b679586dbb68eb121357aee2069",
         "bytes": 1342
       },
-      "peak_rss_kib": 19292
+      "peak_rss_kib": 19144
     },
     "build": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 1.015357919037342,
+      "elapsed_seconds": 0.9652444439707324,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block1-build-1.log",
-        "sha256": "6e991878ff6f70d4bf97535abf8823de56d8de64cc3b15a325f9be7e4ccdeec1",
-        "bytes": 171779
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block2-build-1.log",
+        "sha256": "17ec15211bffdc0673e29efa1db9384c4e3e9cc92f6d91cd8dea0ef012545769",
+        "bytes": 171780
       },
-      "peak_rss_kib": 878028
+      "peak_rss_kib": 879632
     },
     "axioms": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 1.01527360198088,
+      "elapsed_seconds": 1.0152864550473168,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block1-axioms-1.log",
-        "sha256": "ce81bf74fddece43a9fc8741718ad77dadc9a612140e07bbbd935411f1e92444",
-        "bytes": 1092443
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block2-axioms-1.log",
+        "sha256": "a5b12abc1fd6c49fb67eb835d78fe62780d65aafb27e6883f3ddee27bae4d0c3",
+        "bytes": 1092445
       },
-      "peak_rss_kib": 874888
+      "peak_rss_kib": 887192
     },
     "registrations": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 0.2640424919081852,
+      "elapsed_seconds": 0.26398426899686456,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block1-registrations-1.log",
-        "sha256": "687b6b3301b7ec4f3559af665bf70c0fc290bec02cce432eaefe58a6e7da3684",
-        "bytes": 1286
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-block2-registrations-1.log",
+        "sha256": "eecf761ddca064c10b42b8a858ec3a1f84836e31ac4ff1721bfb0f13a765e3ca",
+        "bytes": 1288
       },
-      "peak_rss_kib": 22700
+      "peak_rss_kib": 22632
     },
     "matrix_merge_build": {
       "outcome": "passed",
@@ -887,6 +896,17 @@
     "elapsed_seconds": 2689.422656425042,
     "maximum_range_seconds": 1004.8723790509393,
     "peak_rss_kib": 6340860,
+    "scope": "All 16 children, 14 matrices and 54 K coefficients in every range; all use the accepted C point and original Lean parent. Remaining blocks and the complete native comparison are open.",
+    "range_index": "PIDEC_MATRIX_RANGES.json"
+  },
+  "block2_complete": {
+    "rows": 714776,
+    "invocations": 7604,
+    "ranges": 2,
+    "values_per_range": 24192,
+    "elapsed_seconds": 1691.668691274128,
+    "maximum_range_seconds": 917.9772570250789,
+    "peak_rss_kib": 6129348,
     "scope": "All 16 children, 14 matrices and 54 K coefficients in every range; all use the accepted C point and original Lean parent. Remaining blocks and the complete native comparison are open.",
     "range_index": "PIDEC_MATRIX_RANGES.json"
   }

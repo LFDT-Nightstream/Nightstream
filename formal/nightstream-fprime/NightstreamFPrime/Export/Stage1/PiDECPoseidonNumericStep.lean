@@ -221,4 +221,66 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
       exact fullRowValues_value read interface Spec.Poseidon2.terminalConstants
         round nextSbox state
 
+private def fullStepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
+    (interface : PoseidonSboxPlan.Interface logicalWidth)
+    (constants : List (List Nat)) (round nextSbox : Nat)
+    (state : Vector F 8) : List PortValues × Vector F 8 :=
+  let selector := read interface.oneColumn
+  let outputs := Vector.ofFn fun lane : Fin 8 =>
+    retainedValue read interface (nextSbox + lane.val)
+  (List.ofFn fun lane : Fin 8 =>
+      RowSemantics.sbox selector
+        (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
+        (outputs.get lane),
+    Vector.ofFn (Layer.externalF outputs.get))
+
+private theorem fullStepValues_value {logicalWidth : Nat}
+    (read : Fin logicalWidth → F) (interface : PoseidonSboxPlan.Interface logicalWidth)
+    (constants : List (List Nat)) (round nextSbox : Nat) (state : Vector F 8) :
+    fullStepValues read interface constants round nextSbox state =
+      (fullRowValues read interface constants round nextSbox state,
+        fullState read interface nextSbox) := by
+  apply Prod.ext
+  · simp only [fullStepValues, fullRowValues, materialize_get]
+  · rfl
+
+/-- Compute each retained output once, then share it between the existing
+row values and the stored next state. Missing retained indices still read zero. -/
+def stepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
+    (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
+    (state : Vector F 8) : Permutation.Step → List PortValues × Vector F 8
+  | .initialLayer => ([], Vector.ofFn (Layer.externalF state.get))
+  | .initialFullRound round =>
+      fullStepValues read interface Spec.Poseidon2.initialConstants round nextSbox state
+  | .partialRound round =>
+      let selector := read interface.oneColumn
+      let output := retainedValue read interface nextSbox
+      let replaced := Vector.ofFn fun lane : Fin 8 =>
+        if lane.val = 0 then output else state.get lane
+      ([RowSemantics.sbox selector
+          (state.get 0 + Spec.Poseidon2.ofNat
+            (Spec.Poseidon2.internalConstants.getD round 0) * selector)
+          output],
+        Vector.ofFn (Layer.internalF replaced.get))
+  | .terminalFullRound round =>
+      fullStepValues read interface Spec.Poseidon2.terminalConstants round nextSbox state
+
+/-- Total equality for every numeric state, sparse read, round and retained
+index. No selector or row-satisfaction assumption is required. -/
+theorem stepValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
+    (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
+    (state : Vector F 8) (step : Permutation.Step) :
+    stepValues read interface nextSbox state step =
+      (rowsStep read interface nextSbox state step,
+        stateStep read interface nextSbox state step) := by
+  cases step with
+  | initialLayer => rfl
+  | initialFullRound round =>
+      exact fullStepValues_value read interface Spec.Poseidon2.initialConstants
+        round nextSbox state
+  | partialRound round => rfl
+  | terminalFullRound round =>
+      exact fullStepValues_value read interface Spec.Poseidon2.terminalConstants
+        round nextSbox state
+
 end NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep

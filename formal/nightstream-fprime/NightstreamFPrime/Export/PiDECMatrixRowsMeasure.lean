@@ -68,41 +68,8 @@ private def measureRow (output : IO.FS.Handle) (program : MatrixProgram.Program)
           ("row", Lean.toJson ordinal),
           ("elapsed_ns", Lean.toJson (descriptorAt - beforeLookup))])
         let some descriptor := descriptor | throw (IO.userError "product descriptor rejected")
-        let one ← IO.wait (Task.spawn fun _ => product.oneColumn? logicalWidth)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_one"), ("present", Lean.toJson one.isSome)])
-        let challenge ← IO.wait (Task.spawn fun _ => product.challengeState? logicalWidth descriptor)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_challenge"), ("present", Lean.toJson challenge.isSome)])
-        let input ← IO.wait (Task.spawn fun _ => product.inputState? logicalWidth descriptor)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_input"), ("present", Lean.toJson input.isSome)])
-        let groups ← IO.wait (Task.spawn fun _ => product.groupOutput? logicalWidth descriptor)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_groups"), ("present", Lean.toJson groups.isSome)])
-        let storedOutput ← IO.wait (Task.spawn fun _ =>
-          product.output.form? logicalWidth descriptor.invocation)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_output"), ("present", Lean.toJson storedOutput.isSome)])
-        let some one := one | throw (IO.userError "product one rejected")
-        let some challenge := challenge | throw (IO.userError "product challenge rejected")
-        let some input := input | throw (IO.userError "product input rejected")
-        let left := fun lane => SparseForm.add (challenge lane)
-          (SparseForm.singleton one (-2))
-        let raw ← IO.wait (Task.spawn fun _ =>
-          Phi81ProductPlan.rawTerms 1 left input descriptor.lane.val)
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_raw_one"), ("terms", Lean.toJson raw.length)])
-        let folded ← IO.wait (Task.spawn fun _ =>
-          Phi81ProductPlan.rawTerms (-1) left input (Phi81ProductPlan.foldedDegree descriptor.lane))
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_raw_folded"), ("terms", Lean.toJson folded.length)])
-        let twice ← IO.wait (Task.spawn fun _ =>
-          Phi81ProductPlan.rawTerms (Phi81ProductPlan.twiceCoefficient descriptor.lane)
-            left input (descriptor.lane.val + 81))
-        emit output (Lean.Json.mkObj [
-          ("event", .str "product_raw_twice"), ("terms", Lean.toJson twice.length)])
-        let interface ← IO.wait (Task.spawn fun _ => product.interface? logicalWidth descriptor)
+        let interface ← IO.wait (Task.spawn fun _ =>
+          PiDECProductInterface.interface? product logicalWidth descriptor)
         let interfaceAt ← IO.monoNanosNow
         emit output (Lean.Json.mkObj [
           ("event", .str "product_interface"), ("block", Lean.toJson blockIndex),

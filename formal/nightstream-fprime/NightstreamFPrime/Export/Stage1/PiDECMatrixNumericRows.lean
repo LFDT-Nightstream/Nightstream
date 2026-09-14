@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
+import NightstreamFPrime.Export.Stage1.PiDECProductRow
 import NightstreamFPrime.Layout.MatrixProgram.Program
 
 /-!
@@ -70,6 +71,8 @@ def blockRow? (block : MatrixProgram.Block) {columns : Nat}
   | .poseidon poseidon =>
       (PiDECPoseidonNumericBlock.row? poseidon read ordinal).map fun values =>
         Vector.ofFn values.get
+  | .phi81Product product =>
+      (PiDECProductRow.blockRow? product columns ordinal).map (sparseValues read)
   | other => (other.row? columns sourceRow ordinal).map (sparseValues read)
 
 /-- Complete optional-output equality at the block boundary. No successful
@@ -82,7 +85,8 @@ theorem blockRow?_eq (block : MatrixProgram.Block) {columns : Nat}
   cases block with
   | ordinary block => rfl
   | multiplicationGrid block => rfl
-  | phi81Product block => rfl
+  | phi81Product block =>
+      simp only [blockRow?, MatrixProgram.Block.row?, PiDECProductRow.blockRow?_value]
   | pin block => rfl
   | poseidon block =>
       apply option_ports_ext

@@ -66,6 +66,42 @@ theorem rowsFrom_value {columns : Nat} (read : Fin columns → F)
         nextIndex_value interface next state step, inductionHypothesis]
       simp only [PoseidonSboxPlan.compile, List.map_append]
 
+/-- Carry the final stored state with the row list. The paired step shares
+its retained reads between row construction and the next linear state. -/
+def rowsWithState {columns : Nat} (read : Fin columns → F)
+    (interface : PoseidonSboxPlan.Interface columns) :
+    Nat → Vector F 8 → List Permutation.Step → List PortValues × Vector F 8
+  | _, state, [] => ([], state)
+  | next, state, step :: rest =>
+      let current := stepValues read interface next state step
+      let remaining := rowsWithState read interface (nextIndex next step) current.2 rest
+      (current.1 ++ remaining.1, remaining.2)
+
+private theorem rowsWithState_rows {columns : Nat} (read : Fin columns → F)
+    (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
+    (state : Vector F 8) (steps : List Permutation.Step) :
+    (rowsWithState read interface next state steps).1 =
+      rowsFrom read interface next state steps := by
+  induction steps generalizing next state with
+  | nil => rfl
+  | cons step rest inductionHypothesis =>
+      rw [rowsWithState, stepValues_value]
+      dsimp only
+      rw [inductionHypothesis, rowsFrom]
+
+private theorem rowsWithState_state {columns : Nat} (read : Fin columns → F)
+    (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
+    (state : PoseidonSboxPlan.State columns) (steps : List Permutation.Step) :
+    (rowsWithState read interface next (stateValues read state) steps).2 =
+      stateValues read (PoseidonSboxPlan.compile interface next state steps).state := by
+  induction steps generalizing next state with
+  | nil => rfl
+  | cons step rest inductionHypothesis =>
+      rw [rowsWithState, stepValues_value]
+      dsimp only
+      rw [stateStep_eq, nextIndex_value, inductionHypothesis]
+      rfl
+
 private def referenceRowValues {columns : Nat} (read : Fin columns → F) :
     PoseidonSboxPlan.Row columns → PortValues
   | .sbox forms => rowValues read forms
@@ -105,18 +141,34 @@ private theorem pinValues_value {columns : Nat} (read : Fin columns → F)
     PoseidonSboxPlan.trace_state_eq_directOutput, stateValues_value,
     SparseLayer.evalState, sub_eq_add_neg, neg_one_mul]
 
-/-- Compute all 94 existing port-value records once. The final eight pins
-use the proved direct-output form, rather than expanding the sparse trace. -/
+/-- Compute all 94 existing port-value records. The final eight pins reuse
+the stored final state, so every retained S-box output is evaluated once. -/
 def values {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : List PortValues :=
-  rowsFrom read interface 0 (stateValues read interface.input) Permutation.schedule ++
-    pinValues read interface
+  let produced := rowsWithState read interface 0
+    (stateValues read interface.input) Permutation.schedule
+  let selector := read interface.oneColumn
+  produced.1 ++ List.ofFn fun lane : Fin 8 =>
+    RowSemantics.pin selector
+      ((interface.output lane).evalSparse read - produced.2.get lane)
 
 private theorem values_eq_rows {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     values read interface = (PoseidonSboxPlan.rows interface).map
       (referenceRowValues read) := by
-  rw [values, rowsFrom_value, pinValues_value]
+  have finalState :
+      (rowsWithState read interface 0 (stateValues read interface.input)
+        Permutation.schedule).2 =
+      stateValues read (PoseidonSboxPlan.directOutput interface) := by
+    rw [rowsWithState_state]
+    simpa only [PoseidonSboxPlan.trace] using
+      congrArg (stateValues read) (PoseidonSboxPlan.trace_state_eq_directOutput interface)
+  unfold values
+  dsimp only
+  rw [rowsWithState_rows, finalState]
+  change rowsFrom read interface 0 (stateValues read interface.input)
+    Permutation.schedule ++ pinValues read interface = _
+  rw [rowsFrom_value, pinValues_value]
   simp only [PoseidonSboxPlan.rows, PoseidonSboxPlan.trace, List.map_append,
     List.map_map, Function.comp_def, referenceRowValues]
 

@@ -1,5 +1,7 @@
-import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
-import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
+import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
+import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
+import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
+import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 
@@ -240,5 +242,256 @@ theorem selectedInvocation_eq_range
   apply congrArg (SparseForm.evalSparse (selectedPlan.portForm globalRow port))
   funext column
   exact parentRead_value parents child output column
+
+/-- The same guarded parent reader over the existing centered integer cache.
+The quotient/remainder addressing and zero branch match the field reader. -/
+def intParentRead {count columns : Nat} (parents : Fin count → Vector Int ringDegree)
+    (child : Fin productionGlobalParams.k) : Fin ringDegree → Fin columns → F :=
+  let forms := PiDECParentSparseRead.prepare ()
+  fun output column =>
+    if live : column.val / ringDegree < count then
+      PiDECParentIntRead.sparseRead forms (parents ⟨column.val / ringDegree, live⟩)
+        ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
+    else 0
+
+/-- Mapping the actual field parents to centered integers preserves the
+complete guarded read. The bound covers all parent lanes, including tails;
+no caller supplies a cache-correctness premise. -/
+theorem intParentRead_map_valMinAbs {count columns : Nat}
+    (parents : Fin count → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (child : Fin productionGlobalParams.k) :
+    intParentRead (columns := columns)
+        (fun block => (parents block).map
+          (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child =
+      parentRead (columns := columns) parents child := by
+  funext output column
+  dsimp only [intParentRead, parentRead]
+  by_cases live : column.val / ringDegree < count
+  · simp only [dif_pos live]
+    exact PiDECParentIntRead.sparseRead_map_valMinAbs
+      (PiDECParentSparseRead.prepare ()) (parents ⟨column.val / ringDegree, live⟩)
+      (bounded ⟨column.val / ringDegree, live⟩)
+      ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
+  · simp only [dif_neg live]
+
+/-- The integer-parent invocation computes the same selected canonical range.
+Selection, interface loading and range bounds are unchanged. The additional
+strict bound is exactly the existing loader check on every parent coefficient. -/
+theorem selectedIntInvocation_eq_range
+    (parents : Fin blockCount → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (point : PaperAlgebra.Point)
+    (blockIndex : Nat) (block : Poseidon.Block)
+    (selected : selectedProgram.blocks[blockIndex]? = some (.poseidon block))
+    (invocation : Fin block.invocationCount)
+    (interface : PoseidonSboxPlan.Interface selectedColumns)
+    (loaded : PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns invocation =
+      some interface)
+    (rangeFits :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ selectedProgram.rowCount)
+    (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
+    let first :=
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        (Fin.encodeProd (invocation, (0 : Fin 94))).val
+    ((PiDECMatrixInvocation.sum first point
+      (PiDECMatrixInvocation.prepare
+        (intParentRead (fun block => (parents block).map
+          (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+        interface)).get port).toRing =
+      ((PiDECEvaluationBatch.range first 94 point
+        (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
+  dsimp only
+  rw [intParentRead_map_valMinAbs parents bounded child]
+  exact selectedInvocation_eq_range parents point blockIndex block selected
+    invocation interface loaded rangeFits child port
+
+private theorem sumInvocationParts_eq_range {arity ports children : Nat}
+    (first count : Nat) (point : CubePoint K arity)
+    (rows : Nat → Vector StoredRing children)
+    (parts : Nat → Vector PiRLCPartialTrace.MaterializedRingK ports)
+    (port : Fin ports) (child : Fin children) :
+    (∀ index, index < count →
+      ((parts index).get port).toRing =
+        ((PiDECEvaluationBatch.range (first + 94 * index) 94 point rows).get child).toRing) →
+    ((PiDECEvaluationBatch.sum count parts).get port).toRing =
+      ((PiDECEvaluationBatch.range first (94 * count) point rows).get child).toRing := by
+  induction count with
+  | zero =>
+      intro _
+      change ((PiDECEvaluationBatch.zero ports).get port).toRing =
+        ((PiDECEvaluationBatch.zero children).get child).toRing
+      rw [PiDECEvaluationBatch.zero_value, PiDECEvaluationBatch.zero_value]
+  | succ count inductionHypothesis =>
+      intro each
+      have previous := inductionHypothesis (fun index live =>
+        each index (Nat.lt_trans live (Nat.lt_succ_self count)))
+      have last := each count (Nat.lt_succ_self count)
+      have joined := PiDECEvaluationBatch.range_append first (94 * count) 94
+        point rows child
+      rw [PiDECEvaluationBatch.add_value] at joined
+      have sumStep : PiDECEvaluationBatch.sum (count + 1) parts =
+          PiDECEvaluationBatch.add (PiDECEvaluationBatch.sum count parts) (parts count) := by
+        simp only [PiDECEvaluationBatch.sum, Nat.fold_succ]
+      calc
+        _ = ringKAdd ((PiDECEvaluationBatch.sum count parts).get port).toRing
+            ((parts count).get port).toRing := by
+          rw [sumStep, PiDECEvaluationBatch.add_value]
+        _ = ringKAdd
+            ((PiDECEvaluationBatch.range first (94 * count) point rows).get child).toRing
+            ((PiDECEvaluationBatch.range (first + 94 * count) 94 point rows).get child).toRing := by
+          rw [previous, last]
+        _ = ((PiDECEvaluationBatch.range first (94 * count + 94) point rows).get child).toRing :=
+          joined.symm
+        _ = _ := by rw [Nat.mul_succ]
+
+/-- The ordered integer-parent invocation range is exactly the corresponding
+canonical matrix range for every child and port. The loaded interfaces must
+be those selected by the existing program at firstInvocation + index. All
+parent lanes retain the same strict bound as the single-invocation runner.
+No expected value or caller source/read agreement is assumed. -/
+theorem selectedIntInvocationRange_eq_range
+    (parents : Fin blockCount → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (point : PaperAlgebra.Point) (blockIndex : Nat) (block : Poseidon.Block)
+    (selected : selectedProgram.blocks[blockIndex]? = some (.poseidon block))
+    (firstInvocation count : Nat)
+    (invocationsFit : firstInvocation + count ≤ block.invocationCount)
+    (interfaces : Vector (PoseidonSboxPlan.Interface selectedColumns) count)
+    (loaded : ∀ index : Fin count,
+      PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns
+        ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
+    (rangeFits :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        94 * firstInvocation + 94 * count ≤ selectedProgram.rowCount)
+    (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
+    let first :=
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        94 * firstInvocation
+    ((PiDECMatrixInvocationRange.sum first point
+      (intParentRead (fun block => (parents block).map
+        (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+      interfaces).get port).toRing =
+      ((PiDECEvaluationBatch.range first (94 * count) point
+        (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
+  dsimp only
+  let first :=
+    ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+      94 * firstInvocation
+  change ((PiDECMatrixInvocationRange.sum first point
+    (intParentRead (fun block => (parents block).map
+      (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+    interfaces).get port).toRing = _
+  unfold PiDECMatrixInvocationRange.sum
+  apply sumInvocationParts_eq_range first count point _ _ port child
+  intro index live
+  rw [dif_pos live]
+  let invocation : Fin block.invocationCount := ⟨firstInvocation + index, by omega⟩
+  have loadedIndex :
+      PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns invocation =
+        some (interfaces.get ⟨index, live⟩) :=
+    loaded ⟨index, live⟩
+  have startEq :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        (Fin.encodeProd (invocation, (0 : Fin 94))).val = first + 94 * index := by
+    dsimp only [invocation, first, Fin.encodeProd, Fin.mkDivMod]
+    omega
+  have lastFits : first + 94 * index + 94 ≤ selectedProgram.rowCount := by
+    change first + 94 * count ≤ selectedProgram.rowCount at rangeFits
+    omega
+  have invocationFits :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ selectedProgram.rowCount := by
+    rw [startEq]
+    exact lastFits
+  have single := selectedIntInvocation_eq_range parents bounded point blockIndex block
+    selected invocation (interfaces.get ⟨index, live⟩) loadedIndex invocationFits child port
+  dsimp only at single
+  rw [startEq] at single
+  exact single
+
+/-- A contiguous vector loaded by the exact canonical program yields its
+complete canonical weighted range for every child and port. All parent
+lanes retain the existing strict bound, including carried tails. The only
+row premise records successful canonical loads; no expected matrix values
+or caller read/source agreement are accepted. -/
+theorem selectedIntSparseRange_eq_range
+    (parents : Fin blockCount → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (point : PaperAlgebra.Point) (firstRow count : Nat)
+    (forms : Vector (MatrixProgram.RowForms selectedColumns) count)
+    (loaded : ∀ index : Fin count,
+      selectedProgram.row? selectedColumns selectedSource (firstRow + index.val) =
+        some (forms.get index))
+    (rangeFits : firstRow + count ≤ selectedProgram.rowCount)
+    (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
+    ((PiDECMatrixSparseRange.sum firstRow point
+      (intParentRead (fun block => (parents block).map
+        (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+      forms).get port).toRing =
+      ((PiDECEvaluationBatch.range firstRow count point
+        (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
+  rw [intParentRead_map_valMinAbs parents bounded child]
+  have countEq : selectedProgram.rowCount = selectedPlan.rowCount :=
+    PerApplicationMatrixProgram.matrixProgram_rowCount_eq_structuralPlan
+      Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
+  have covered : firstRow + count ≤ selectedPlan.rowCount :=
+    rangeFits.trans_eq countEq
+  funext output
+  rw [PiDECMatrixSparseRange.sum_value, PiDECEvaluationBatch.range_value]
+  apply numericSum_congr count
+  intro index live
+  rw [dif_pos live]
+  have globalBound : firstRow + index < selectedPlan.rowCount := by omega
+  let globalRow : Fin selectedPlan.rowCount := ⟨firstRow + index, globalBound⟩
+  have canonical :=
+    Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms globalRow
+  change selectedProgram.row? selectedColumns selectedSource (firstRow + index) =
+    some (selectedPlan.forms globalRow) at canonical
+  have formsEq : forms.get ⟨index, live⟩ = selectedPlan.forms globalRow :=
+    Option.some.inj ((loaded ⟨index, live⟩).symm.trans canonical)
+  rw [formsEq]
+  change extensionOps.mul (PiDECEvaluationWeights.weight point (firstRow + index))
+      (K.embed ((selectedPlan.portForm globalRow port).evalSparse
+        (parentRead parents child output))) = _
+  apply congrArg (fun value : F =>
+    extensionOps.mul (PiDECEvaluationWeights.weight point (firstRow + index)) (K.embed value))
+  rw [PiDECEvaluationFromBlocks.matrixRow, dif_pos globalBound,
+    PiDECEvaluationFromBlocks.programForm_value,
+    PiDECEvaluationBlockSupport.kernel_eq_evalSparse]
+  apply congrArg (SparseForm.evalSparse (selectedPlan.portForm globalRow port))
+  funext column
+  exact parentRead_value parents child output column
+
+/-- Loading a selected block row through the canonical cache is exactly the
+canonical program load at its global offset. Both some and none results
+are preserved; no row or source agreement is supplied by the caller. -/
+theorem selectedCachedBlockRow_eq_program
+    (blockIndex : Nat) (block : MatrixProgram.Block)
+    (selected : selectedProgram.blocks[blockIndex]? = some block)
+    (localOrdinal : Nat) (live : localOrdinal < block.rowCount) :
+    block.row? selectedColumns
+        (fun source => (PiDECCanonicalSourceCache.stored
+          Poseidon2HashChainV1Package.application)[source]?) localOrdinal =
+      selectedProgram.row? selectedColumns selectedSource
+        (((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+          localOrdinal) := by
+  have sourceEq :
+      (fun source => (PiDECCanonicalSourceCache.stored
+        Poseidon2HashChainV1Package.application)[source]?) = selectedSource := by
+    funext source
+    exact PiDECCanonicalSourceCache.stored_value
+      Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits source
+  calc
+    _ = block.row? selectedColumns selectedSource localOrdinal :=
+      congrArg (fun source : Nat → Option R1CS.Row =>
+        block.row? selectedColumns source localOrdinal) sourceEq
+    _ = _ := (program_selected_row selectedProgram selectedColumns selectedSource
+      blockIndex block selected localOrdinal live).symm
 
 end NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch

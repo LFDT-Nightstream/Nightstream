@@ -20,7 +20,7 @@ def stream(first=0, last=BLOCKS, records=(), terminator=True, extra=""):
     return "\n".join(lines) + "\n" + extra
 
 
-def check_case(binary, ccs, directory, name, ranges, error=None):
+def check_case(binary, ccs, directory, name, ranges, error=None, first=0, last=94):
     paths = []
     for index, text in enumerate(ranges):
         path = directory / f"{name}.{index}.jsonl"
@@ -29,7 +29,7 @@ def check_case(binary, ccs, directory, name, ranges, error=None):
         paths.append(str(path))
     output = directory / f"{name}.output.json"
     result = subprocess.run(
-        [str(binary), str(ccs), str(output), "0", "0", *paths],
+        [str(binary), str(ccs), str(output), "0", str(first), str(last), *paths],
         capture_output=True, text=True, timeout=300,
     )
     text = result.stdout + result.stderr
@@ -83,6 +83,14 @@ def main():
                "missing parent terminator")
     check_case(binary, ccs, directory, "after_terminator", [stream(extra="[]\n")],
                "extra data after parent terminator")
+    check_case(binary, ccs, directory, "empty_invocation_range", [stream()],
+               "invalid selected matrix row range", last=0)
+    check_case(binary, ccs, directory, "reversed_invocation_range", [stream()],
+               "invalid selected matrix row range", first=1, last=0)
+    check_case(binary, ccs, directory, "past_invocation_range", [stream()],
+               "invalid selected matrix row range", last=6_377_559)
+    check_case(binary, ccs, directory, "incomplete_poseidon_invocation", [stream()],
+               "Poseidon range must contain complete 94-row invocations", last=1)
     print("pidec_parent_boundaries=passed scope=decoder_coverage_and_zero_action", flush=True)
 
 

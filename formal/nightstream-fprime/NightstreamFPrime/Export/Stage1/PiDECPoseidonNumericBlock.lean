@@ -18,6 +18,31 @@ open NightstreamFPrime.Spec.ProductionRelation.RowSemantics (PortValues)
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout.ProductionRelation
 
+private theorem vector_get_ofFn {Alpha : Type} {count : Nat}
+    (values : Fin count → Alpha) : (Vector.ofFn values).get = values := by
+  funext index
+  change (Vector.ofFn values)[index.val] = values index
+  rw [Vector.getElem_ofFn]
+
+/-- Store the existing sparse forms once per loaded interface. The cache is
+independent of the child and output lane used to evaluate those forms. -/
+private def cachedInterface {columns : Nat}
+    (interface : PoseidonSboxPlan.Interface columns) :
+    PoseidonSboxPlan.Interface columns :=
+  let input := Vector.ofFn interface.input
+  let sboxes := Vector.ofFn interface.sboxOutput
+  let output := Vector.ofFn interface.output
+  { oneColumn := interface.oneColumn
+    input := input.get
+    sboxOutput := sboxes.get
+    output := output.get }
+
+private theorem cachedInterface_eq {columns : Nat}
+    (interface : PoseidonSboxPlan.Interface columns) :
+    cachedInterface interface = interface := by
+  cases interface
+  simp only [cachedInterface, vector_get_ofFn]
+
 /-- Reuse one checked interface for all rows of an invocation. The runner
 can call NumericRows.stored once after this succeeds. -/
 def loadInvocation? (block : Poseidon.Block) (columns : Nat)
@@ -28,7 +53,8 @@ def loadInvocation? (block : Poseidon.Block) (columns : Nat)
       if slotCountEq : block.retained.slotCount = block.invocationCount * 86 then
         if retainedFits : block.retained.start + block.retained.coordinateCount ≤ columns then
           (block.input.state? columns block.oneColumn invocation.val).map fun input =>
-            block.invocationInterface columns oneBound slotCountEq retainedFits input invocation
+            cachedInterface (block.invocationInterface columns oneBound slotCountEq
+              retainedFits input invocation)
         else none
       else none
     else none
@@ -70,6 +96,7 @@ private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) 
   by_cases rowBound : ordinal < block.rowCount
   · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?, dif_pos rowBound]
     unfold loadInvocation?
+    simp only [cachedInterface_eq]
     split_ifs <;> simp_all only [Option.map_none, Option.map_map]
     all_goals
       cases block.input.state? columns block.oneColumn

@@ -37,6 +37,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
+import NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
@@ -633,3 +634,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntSparseRange_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_of_grouped_loaded
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedCachedBlockRow_eq_program
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.zero_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.add_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum.add_ranges

@@ -494,4 +494,101 @@ theorem selectedCachedBlockRow_eq_program
     _ = _ := (program_selected_row selectedProgram selectedColumns selectedSource
       blockIndex block selected localOrdinal live).symm
 
+/-- A bounded slice of the already loaded invocation vector computes its
+canonical subrange. Slice loads come from the original full-vector loads;
+no new interface or value-agreement premise is supplied. -/
+theorem selectedIntInvocationSlice_eq_range
+    (parents : Fin blockCount → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (point : PaperAlgebra.Point) (blockIndex : Nat) (block : Poseidon.Block)
+    (selected : selectedProgram.blocks[blockIndex]? = some (.poseidon block))
+    (firstInvocation count : Nat)
+    (invocationsFit : firstInvocation + count ≤ block.invocationCount)
+    (interfaces : Vector (PoseidonSboxPlan.Interface selectedColumns) count)
+    (loaded : ∀ index : Fin count,
+      PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns
+        ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
+    (rangeFits :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        94 * firstInvocation + 94 * count ≤ selectedProgram.rowCount)
+    (lo hi : Nat) (lo_le_hi : lo ≤ hi) (hi_le_count : hi ≤ count)
+    (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
+    let first :=
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        94 * firstInvocation
+    ((PiDECMatrixInvocationRange.sum (first + 94 * lo) point
+      (intParentRead (fun block => (parents block).map
+        (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+      (interfaces.extract lo hi)).get port).toRing =
+      ((PiDECEvaluationBatch.range (first + 94 * lo) (94 * (hi - lo)) point
+        (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
+  have sliceFits : firstInvocation + lo + (min hi count - lo) ≤ block.invocationCount := by
+    rw [Nat.min_eq_left hi_le_count]
+    omega
+  have sliceLoaded : ∀ index : Fin (min hi count - lo),
+      PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns
+        ⟨firstInvocation + lo + index.val, by have := index.isLt; omega⟩ =
+          some ((interfaces.extract lo hi).get index) := by
+    intro index
+    have localBound : index.val < hi - lo := by
+      simpa only [Nat.min_eq_left hi_le_count] using index.isLt
+    have fullBound : lo + index.val < count := by omega
+    change PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns
+        ⟨firstInvocation + lo + index.val, by omega⟩ =
+      some ((interfaces.extract lo hi)[index.val])
+    rw [Vector.getElem_extract]
+    simpa only [Nat.add_assoc, Vector.get] using loaded ⟨lo + index.val, fullBound⟩
+  have sliceRangeFits :
+      ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
+        94 * (firstInvocation + lo) + 94 * (min hi count - lo) ≤
+          selectedProgram.rowCount := by
+    rw [Nat.min_eq_left hi_le_count]
+    omega
+  have result := selectedIntInvocationRange_eq_range parents bounded point blockIndex block
+    selected (firstInvocation + lo) (min hi count - lo) sliceFits
+    (interfaces.extract lo hi) sliceLoaded sliceRangeFits child port
+  dsimp only at result ⊢
+  simpa only [Nat.min_eq_left hi_le_count, Nat.mul_add, Nat.add_assoc] using result
+
+/-- A bounded slice of the already loaded sparse rows computes the matching
+canonical subrange. The source, parent bounds and full-vector load authority
+are unchanged; the slice introduces only its explicit index bounds. -/
+theorem selectedIntSparseSlice_eq_range
+    (parents : Fin blockCount → StoredRing)
+    (bounded : ∀ block input,
+      centeredMagnitude ((parents block).get input) < Radix.combinedBound)
+    (point : PaperAlgebra.Point) (firstRow count : Nat)
+    (forms : Vector (MatrixProgram.RowForms selectedColumns) count)
+    (loaded : ∀ index : Fin count,
+      selectedProgram.row? selectedColumns selectedSource (firstRow + index.val) =
+        some (forms.get index))
+    (rangeFits : firstRow + count ≤ selectedProgram.rowCount)
+    (lo hi : Nat) (lo_le_hi : lo ≤ hi) (hi_le_count : hi ≤ count)
+    (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
+    ((PiDECMatrixSparseRange.sum (firstRow + lo) point
+      (intParentRead (fun block => (parents block).map
+        (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
+      (forms.extract lo hi)).get port).toRing =
+      ((PiDECEvaluationBatch.range (firstRow + lo) (hi - lo) point
+        (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
+  have sliceLoaded : ∀ index : Fin (min hi count - lo),
+      selectedProgram.row? selectedColumns selectedSource (firstRow + lo + index.val) =
+        some ((forms.extract lo hi).get index) := by
+    intro index
+    have localBound : index.val < hi - lo := by
+      simpa only [Nat.min_eq_left hi_le_count] using index.isLt
+    have fullBound : lo + index.val < count := by omega
+    change selectedProgram.row? selectedColumns selectedSource
+        (firstRow + lo + index.val) = some ((forms.extract lo hi)[index.val])
+    rw [Vector.getElem_extract]
+    simpa only [Nat.add_assoc, Vector.get] using loaded ⟨lo + index.val, fullBound⟩
+  have sliceRangeFits : firstRow + lo + (min hi count - lo) ≤ selectedProgram.rowCount := by
+    rw [Nat.min_eq_left hi_le_count]
+    omega
+  have result := selectedIntSparseRange_eq_range parents bounded point
+    (firstRow + lo) (min hi count - lo) (forms.extract lo hi) sliceLoaded sliceRangeFits
+    child port
+  simpa only [Nat.min_eq_left hi_le_count] using result
+
 end NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch

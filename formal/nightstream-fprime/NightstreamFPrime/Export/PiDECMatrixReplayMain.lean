@@ -80,8 +80,9 @@ private def range (ccsPath outputPath : System.FilePath)
     let finish := blockStart + lastRow
     unless finish ≤ program.rowCount do throw (IO.userError "range exceeds matrix row domain")
     let loadStarted ← IO.monoNanosNow
-    let evaluate : (Fin ringDegree → Fin logicalWidth → F) →
-        Vector MaterializedRingK matrixCount ← match selectedEq : selected with
+    let (unitCount, evaluate) : Nat × (Nat → Nat →
+        (Fin ringDegree → Fin logicalWidth → F) →
+        Vector MaterializedRingK matrixCount) ← match selectedEq : selected with
       | .poseidon block => do
           unless firstRow % 94 = 0 && lastRow % 94 = 0 do
             throw (IO.userError "Poseidon range must contain complete 94-row invocations")
@@ -97,7 +98,9 @@ private def range (ccsPath outputPath : System.FilePath)
                 block logicalWidth ⟨firstRow / 94 + index.val, invBound⟩
               | throw (IO.userError "selected invocation interface rejected")
             pure interface
-          pure fun read => PiDECMatrixInvocationRange.sum first phase.point read interfaces
+          pure (invocations, fun lo hi read =>
+            PiDECMatrixInvocationRange.sum (first + 94 * lo) phase.point read
+              (interfaces.extract lo hi))
       | .phi81Product block => do
           if aligned : firstRow % 34 = 0 ∧ lastRow % 34 = 0 then
             let invocations := lastRow / 34 - firstRow / 34
@@ -117,7 +120,9 @@ private def range (ccsPath outputPath : System.FilePath)
                   (interfaces.get ⟨index.val / 34, groupBound⟩) (index.val % 34)
                 | throw (IO.userError "selected product row rejected")
               pure row.meaningfulForm
-            pure fun read => PiDECMatrixSparseRange.sum first phase.point read forms
+            pure (count, fun lo hi read =>
+              PiDECMatrixSparseRange.sum (first + lo) phase.point read
+                (forms.extract lo hi))
           else throw (IO.userError "Phi81 range must contain complete 34-row invocations")
       | other => do
           let cache ← IO.wait (Task.spawn fun _ =>
@@ -127,35 +132,87 @@ private def range (ccsPath outputPath : System.FilePath)
             let some row := other.row? logicalWidth source (firstRow + index.val)
               | throw (IO.userError "selected sparse row rejected")
             pure row
-          pure fun read => PiDECMatrixSparseRange.sum first phase.point read forms
+          pure (count, fun lo hi read =>
+            PiDECMatrixSparseRange.sum (first + lo) phase.point read
+              (forms.extract lo hi))
     report [("event", .str "range_begin"), ("block", Lean.toJson blockIndex),
       ("block_rows", Lean.toJson selected.rowCount),
       ("first_local_row", Lean.toJson firstRow), ("last_local_row_exclusive", Lean.toJson lastRow),
       ("start", Lean.toJson first), ("end", Lean.toJson finish),
       ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]
+    unless 0 < unitCount do throw (IO.userError "empty selected matrix unit range")
+    let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+    let children := List.finRange productionGlobalParams.k
+    let activeCount := (children.filter fun child =>
+      decide (¬ maximum < 2 ^ child.val)).length
+    let arithmeticStarted ← IO.monoNanosNow
     let mut tasks := #[]
-    for child in List.finRange productionGlobalParams.k do
-      tasks := tasks.push (← IO.asTask do
+    let mut activeRank := 0
+    let mut taskCount := 0
+    for child in children do
+      let mut childTasks := #[]
+      unless maximum < 2 ^ child.val do
+        let parts := min unitCount (max 1
+          (workers / activeCount + if activeRank < workers % activeCount then 1 else 0))
         let read := fun (output : Fin ringDegree) (column : Fin logicalWidth) =>
           if live : column.val / ringDegree < Poseidon2HashChainV1Setup.messageColumns then
             PiDECParentIntRead.sparseRead tables
               (parents.get ⟨column.val / ringDegree, live⟩)
               ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
           else 0
-        let started ← IO.monoNanosNow
-        let values ← IO.wait (Task.spawn fun _ =>
-          PiDECParentMagnitude.ifActive maximum child (fun _ => evaluate read))
-        return (values, (← IO.monoNanosNow) - started))
+        for slice in [:parts] do
+          let lo := unitCount * slice / parts
+          let hi := unitCount * (slice + 1) / parts
+          childTasks := childTasks.push (← IO.asTask do
+            let sliceStarted ← IO.monoNanosNow
+            let values ← IO.wait (Task.spawn fun _ => evaluate lo hi read)
+            let sliceFinished ← IO.monoNanosNow
+            return (values, sliceStarted, sliceFinished))
+        activeRank := activeRank + 1
+        taskCount := taskCount + parts
+      tasks := tasks.push childTasks
+    report [("event", .str "slices_queued"), ("workers", Lean.toJson workers),
+      ("active_children", Lean.toJson activeCount), ("units", Lean.toJson unitCount),
+      ("tasks", Lean.toJson taskCount),
+      ("queue_ns", Lean.toJson ((← IO.monoNanosNow) - arithmeticStarted))]
     let mut allValues : Array (Vector MaterializedRingK matrixCount) := #[]
-    for child in [:tasks.size] do
-      let result ← IO.wait tasks[child]!
-      let (values, computeNs) ← match result with
-        | .ok value => pure value
-        | .error error => throw error
+    for child in children do
+      let childTasks := tasks[child.val]!
+      let mut total := PiDECEvaluationBatch.zero matrixCount
+      let mut firstCompute : Option Nat := none
+      let mut lastCompute := 0
+      let mut sliceComputeNs := 0
+      let mut mergeNs := 0
+      for slice in [:childTasks.size] do
+        let result ← IO.wait childTasks[slice]!
+        let (partValues, sliceStarted, sliceFinished) ← match result with
+          | .ok value => pure value
+          | .error error => throw error
+        let mergeStarted ← IO.monoNanosNow
+        total := PiDECEvaluationBatch.add total partValues
+        let mergeElapsed := (← IO.monoNanosNow) - mergeStarted
+        firstCompute := some (match firstCompute with
+          | none => sliceStarted
+          | some earlier => min earlier sliceStarted)
+        lastCompute := max lastCompute sliceFinished
+        sliceComputeNs := sliceComputeNs + (sliceFinished - sliceStarted)
+        mergeNs := mergeNs + mergeElapsed
+        report [("event", .str "slice_complete"), ("child", Lean.toJson child.val),
+          ("slice", Lean.toJson slice),
+          ("first_unit", Lean.toJson (unitCount * slice / childTasks.size)),
+          ("last_unit_exclusive", Lean.toJson (unitCount * (slice + 1) / childTasks.size)),
+          ("start_ns", Lean.toJson (sliceStarted - arithmeticStarted)),
+          ("compute_ns", Lean.toJson (sliceFinished - sliceStarted)),
+          ("merge_ns", Lean.toJson mergeElapsed)]
+      let values := PiDECParentMagnitude.ifActive maximum child (fun _ => total)
+      let computeNs := match firstCompute with
+        | none => 0
+        | some earliest => lastCompute - earliest
       allValues := allValues.push values
-      report [("event", .str "child_complete"), ("child", Lean.toJson child),
-        ("zero_from_parent_bound", .bool (decide (maximum < 2 ^ child))),
-        ("compute_ns", Lean.toJson computeNs)]
+      report [("event", .str "child_complete"), ("child", Lean.toJson child.val),
+        ("zero_from_parent_bound", .bool (decide (maximum < 2 ^ child.val))),
+        ("compute_ns", Lean.toJson computeNs), ("slices", Lean.toJson childTasks.size),
+        ("slice_compute_ns", Lean.toJson sliceComputeNs), ("merge_ns", Lean.toJson mergeNs)]
     let encodeK := fun value : K => Value.array [.atom value.c0.val, .atom value.c1.val]
     let output := Value.array [.atom 1, .atom program.rowCount, .atom first, .atom finish,
       .array (phase.point.coordinates.map encodeK),

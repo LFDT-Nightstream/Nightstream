@@ -178,6 +178,10 @@ The first Poseidon block is now complete: all 12,350 invocations and
 The range index records exact contiguous coverage; other matrix blocks and
 the complete native comparison remain open.
 
+The second Poseidon block has its first 4,117 invocations replayed, covering
+global rows [1,160,900,1,547,898). This range passed in 1,004.87 s with peak
+RSS 6,339,000 KiB. Its remaining rows are still open.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

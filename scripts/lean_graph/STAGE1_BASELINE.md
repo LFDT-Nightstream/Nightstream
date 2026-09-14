@@ -205,6 +205,12 @@ ranges passed in 1,190.92 s and 1,274.49 s, with peak RSS 10,330,588 KiB.
 The saved prefix now reaches row 4,786,750. Public-input and evaluation
 products, First54 grids and later blocks remain before the full comparison.
 
+Public-input products and all Eval_K products now have complete matrix
+results. The two-cell measurement also covers the first two Eval_A sources,
+including all 14 blocks and both source rules. The combined range passed
+in 634.41 s. Saved coverage reaches row 5,108,050; the remaining 15 Eval_A
+sources, First54 grids and later rows remain before the full comparison.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

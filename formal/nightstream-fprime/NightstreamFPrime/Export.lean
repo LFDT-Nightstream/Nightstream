@@ -25,6 +25,14 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 import NightstreamFPrime.Export.Stage1.PiDECSourceIndex
 import NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows
+import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
+import NightstreamFPrime.Export.Stage1.PiDECParentScalarRead
+import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
+import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
+import NightstreamFPrime.Export.Stage1.PiDECProductRow
+import NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary
+import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
+import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

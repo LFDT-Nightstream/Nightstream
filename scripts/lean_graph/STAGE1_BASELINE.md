@@ -116,9 +116,17 @@ The next probe exposed full-package source scans in C ordinary rows. The
 proved packet accessor now reads that block's first and last rows in 83.04 ms
 and 183.83 ms. These are endpoint feasibility measurements with a column-index
 read, not actual-witness replay. Ten endpoints in blocks 0 through 4 were
-measured. Full execution still needs shared packet/invocation storage and
-efficient source access for the remaining ordinary blocks. Pilot is next;
-preserve its existing index-table order. See `PIDEC_PAD_REPLAY.json`.
+measured. The shared canonical source cache now preserves every lookup and
+builds 1,412,568 rows in 1.37 s. Pilot endpoints pass through this cache.
+The first actual Poseidon invocation computes rows [0,94) for all children,
+matrices and lanes. The sparse reader output matches the dense Lean reader
+byte for byte; total command time fell from 107.45 s to 74.27 s, including
+57.84 s to load the complete parent. Peak RSS was 8,104,956 KiB.
+`PiDECMatrixSelectedBatch.selectedInvocation_eq_range` identifies this
+computation with the canonical weighted range. This is one partial range,
+not a complete Rust matrix comparison. Phi81 product interface construction
+is the current measured blocker. The integer parent reader is proved but
+is not yet used or measured by the executable. See `PIDEC_MATRIX_REPLAY.json`.
 
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution

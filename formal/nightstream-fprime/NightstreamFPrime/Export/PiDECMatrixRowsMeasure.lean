@@ -1,7 +1,8 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
-import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows
+import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
+import NightstreamFPrime.Export.Stage1.PiDECProductRow
 
 /-!
 Measure existing matrix-row evaluation at the first and last valid row of
@@ -56,7 +57,62 @@ private def measureRow (output : IO.FS.Handle) (program : MatrixProgram.Program)
       ("ports", Lean.toJson Spec.ProductionRelation.matrixCount)])
     return
   let beforeLookup ← IO.monoNanosNow
-  let result ← IO.wait (Task.spawn fun _ => program.row? logicalWidth sourceRow ordinal)
+  let result ← match block with
+    | .phi81Product product => do
+        let localRow := ordinal - blockStart
+        let descriptor ← IO.wait (Task.spawn fun _ =>
+          MatrixProgram.Phi81Product.descriptor? product.families (localRow / 34))
+        let descriptorAt ← IO.monoNanosNow
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_descriptor"), ("block", Lean.toJson blockIndex),
+          ("row", Lean.toJson ordinal),
+          ("elapsed_ns", Lean.toJson (descriptorAt - beforeLookup))])
+        let some descriptor := descriptor | throw (IO.userError "product descriptor rejected")
+        let one ← IO.wait (Task.spawn fun _ => product.oneColumn? logicalWidth)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_one"), ("present", Lean.toJson one.isSome)])
+        let challenge ← IO.wait (Task.spawn fun _ => product.challengeState? logicalWidth descriptor)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_challenge"), ("present", Lean.toJson challenge.isSome)])
+        let input ← IO.wait (Task.spawn fun _ => product.inputState? logicalWidth descriptor)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_input"), ("present", Lean.toJson input.isSome)])
+        let groups ← IO.wait (Task.spawn fun _ => product.groupOutput? logicalWidth descriptor)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_groups"), ("present", Lean.toJson groups.isSome)])
+        let storedOutput ← IO.wait (Task.spawn fun _ =>
+          product.output.form? logicalWidth descriptor.invocation)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_output"), ("present", Lean.toJson storedOutput.isSome)])
+        let some one := one | throw (IO.userError "product one rejected")
+        let some challenge := challenge | throw (IO.userError "product challenge rejected")
+        let some input := input | throw (IO.userError "product input rejected")
+        let left := fun lane => SparseForm.add (challenge lane)
+          (SparseForm.singleton one (-2))
+        let raw ← IO.wait (Task.spawn fun _ =>
+          Phi81ProductPlan.rawTerms 1 left input descriptor.lane.val)
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_raw_one"), ("terms", Lean.toJson raw.length)])
+        let folded ← IO.wait (Task.spawn fun _ =>
+          Phi81ProductPlan.rawTerms (-1) left input (Phi81ProductPlan.foldedDegree descriptor.lane))
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_raw_folded"), ("terms", Lean.toJson folded.length)])
+        let twice ← IO.wait (Task.spawn fun _ =>
+          Phi81ProductPlan.rawTerms (Phi81ProductPlan.twiceCoefficient descriptor.lane)
+            left input (descriptor.lane.val + 81))
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_raw_twice"), ("terms", Lean.toJson twice.length)])
+        let interface ← IO.wait (Task.spawn fun _ => product.interface? logicalWidth descriptor)
+        let interfaceAt ← IO.monoNanosNow
+        emit output (Lean.Json.mkObj [
+          ("event", .str "product_interface"), ("block", Lean.toJson blockIndex),
+          ("row", Lean.toJson ordinal),
+          ("elapsed_ns", Lean.toJson (interfaceAt - descriptorAt))])
+        let some interface := interface | throw (IO.userError "product interface rejected")
+        IO.wait (Task.spawn fun _ =>
+          (PiDECProductRow.row? interface (localRow % 34)).map
+            Layout.ProductionRelation.ProductSumPlan.Row.meaningfulForm)
+    | _ => IO.wait (Task.spawn fun _ => program.row? logicalWidth sourceRow ordinal)
   let afterLookup ← IO.monoNanosNow
   let some forms := result | do
     emit output (Lean.Json.mkObj [
@@ -118,14 +174,16 @@ private def measure (outputPath : System.FilePath) (firstBlock lastBlock : Nat) 
     ("event", .str "source_accessor_begin"),
     ("program_task_ns", Lean.toJson (afterProgram - beforeProgram))])
   let beforeSource ← IO.monoNanosNow
-  let sourceRow ← IO.wait (Task.spawn fun _ => PiDECCanonicalSourceRows.sourceRow
-    Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits)
+  let cache ← IO.wait (Task.spawn fun _ =>
+    PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
+  let sourceRow := fun source => cache[source]?
   let afterSource ← IO.monoNanosNow
   let logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application
   emit output (Lean.Json.mkObj [
     ("event", .str "program"), ("logical_width", Lean.toJson logicalWidth),
     ("block_count", Lean.toJson program.blocks.length),
     ("row_count", Lean.toJson program.rowCount),
+    ("stored_source_rows", Lean.toJson cache.size),
     ("ports", Lean.toJson Spec.ProductionRelation.matrixCount),
     ("source_accessor_task_ns", Lean.toJson (afterSource - beforeSource))])
   let mut blockIndex := 0

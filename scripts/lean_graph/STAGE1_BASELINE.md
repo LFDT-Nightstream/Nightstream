@@ -123,10 +123,23 @@ matrices and lanes. The sparse reader output matches the dense Lean reader
 byte for byte; total command time fell from 107.45 s to 74.27 s, including
 57.84 s to load the complete parent. Peak RSS was 8,104,956 KiB.
 `PiDECMatrixSelectedBatch.selectedInvocation_eq_range` identifies this
-computation with the canonical weighted range. This is one partial range,
-not a complete Rust matrix comparison. Phi81 product interface construction
-is the current measured blocker. The integer parent reader is proved but
-is not yet used or measured by the executable. See `PIDEC_MATRIX_REPLAY.json`.
+computation with the canonical weighted range. The integer parent reader
+now matches the same bytes and lowers peak RSS to 3,451,752 KiB; its one-time
+load is slower. The Phi81 loader now uses direct finite-index selection,
+with total equality to the original loader. All remaining block endpoints
+pass; the final Phi81 row lookup takes 1.80 ms.
+
+The Poseidon schedule now shares each retained read between row and state
+construction and reuses its final state for pins. The existing row theorem
+is preserved. The actual 16-invocation result matches its prior bytes, while
+the slowest child's arithmetic falls from 13.65 s to 6.83 s. The selected
+range theorem covers every child and matrix. The sparse range theorem and
+exact cache/grouped-load theorems cover the other opcodes. The executor now
+accepts block-local row bounds, with complete 94-row Poseidon and 34-row
+Phi81 groups required. Its actual first Phi81 group passes in 0.37 s of
+arithmetic after loading the parent. These are partial ranges; complete
+coverage, the Lean merge and native matrix comparison remain open. See
+`PIDEC_MATRIX_REPLAY.json`.
 
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution

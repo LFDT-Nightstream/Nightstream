@@ -32,8 +32,11 @@ import NightstreamFPrime.Export.Stage1.PiDECParentScalarRead
 import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
+import NightstreamFPrime.Export.Stage1.PiDECProductInterface
 import NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
+import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
+import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
@@ -613,6 +616,8 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.productRow_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.row?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductInterface.loadFin?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductInterface.interface?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary.row?_kernel_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary.storedInvocation_row
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation.prepare_value
@@ -620,3 +625,11 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentIntRead.cachedDigit_eq_splitScalar
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentIntRead.sparseRead_map_valMinAbs
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedInvocation_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.intParentRead_map_valMinAbs
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntInvocation_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntInvocationRange_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.stepValues_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange.sum_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntSparseRange_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_of_grouped_loaded
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedCachedBlockRow_eq_program

@@ -1,11 +1,12 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
+import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 
 /-!
 Read the independently replayed PiRLC parent for indexed PiDEC evaluation.
 The input format is the existing sparse parent range stream. Range coverage,
 canonical field words, coefficient bounds and record order are checked before
-the stored parent is returned. Missing records denote the existing zero block.
+the centered integer parent is returned. Missing records denote the existing
+zero block. The canonical field input format is unchanged.
 -/
 
 set_option autoImplicit false
@@ -14,10 +15,9 @@ namespace NightstreamFPrime.Export.PiDECParentInput
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
-open NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic (StoredAssignment)
 open NightstreamFPrime.Export.Stage1
 
-abbrev ParentBlocks := Vector (StoredAssignment ringDegree)
+abbrev ParentBlocks := Vector (Vector Int ringDegree)
   Poseidon2HashChainV1Setup.messageColumns
 
 private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
@@ -28,26 +28,26 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
 /-- Use the same canonical field decoder as the Pad range runner, and check
 the strict parent bound before any child digit is requested. -/
 private def decodeBlock (line : String) :
-    Except String (Nat × StoredAssignment ringDegree) := do
+    Except String (Nat × Vector Int ringDegree) := do
   let fields ← (← Lean.Json.parse line).getArr?
   match fields.toList with
   | [block, coefficients] =>
       let block ← block.getNat?
       let words ← coefficients.getArr?
-      let mut values : Array F := #[]
+      let mut values : Array Int := #[]
       for word in words do
         let value ← word.getNat?
         unless value < goldilocksModulus do throw "noncanonical parent coefficient"
         let coefficient := Radix.fieldOfNat value
         unless centeredMagnitude coefficient < Radix.combinedBound do
           throw "parent exceeds the strict B bound"
-        values := values.push coefficient
+        values := values.push (ZMod.valMinAbs (n := goldilocksModulus) coefficient)
       if size : values.size = ringDegree then return (block, ⟨values, size⟩)
       else throw "expected 54 parent coefficients"
   | _ => throw "expected parent block and coefficient array"
 
 private def readRange (path : System.FilePath) :
-    IO (Nat × Nat × Array (StoredAssignment ringDegree) × Nat) := do
+    IO (Nat × Nat × Array (Vector Int ringDegree) × Nat) := do
   let input ← IO.FS.Handle.mk path .read
   let headerLine ← input.getLine
   let header ← checked do
@@ -58,7 +58,7 @@ private def readRange (path : System.FilePath) :
   unless blocks = Poseidon2HashChainV1Setup.messageColumns &&
       first < last && last ≤ blocks do
     throw (IO.userError "invalid selected parent range")
-  let zero : StoredAssignment ringDegree := Vector.replicate ringDegree 0
+  let zero : Vector Int ringDegree := Vector.replicate ringDegree 0
   let mut values := Array.replicate (last - first) zero
   let mut next := first
   let mut records := 0
@@ -84,8 +84,8 @@ the supplied canonical order. No Rust witness or evaluation is read here. -/
 def read (paths : List String) : IO (ParentBlocks × Nat) := do
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
   let mut pending : Array (Task (Except IO.Error
-    (Nat × Nat × Array (StoredAssignment ringDegree) × Nat))) := #[]
-  let mut complete : Array (StoredAssignment ringDegree) := #[]
+    (Nat × Nat × Array (Vector Int ringDegree) × Nat))) := #[]
+  let mut complete : Array (Vector Int ringDegree) := #[]
   let mut cursor := 0
   let mut records := 0
   let mut remaining := paths

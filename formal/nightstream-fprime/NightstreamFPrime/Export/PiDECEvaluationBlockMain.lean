@@ -1,15 +1,19 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
+import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
+import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
 /-!
-Measure selected Pad rows 1 and 2 on actual Lean parent block 0.
-Compare every child coefficient with the existing basis kernel. This is a
-single-block calculation; full row and point accumulation remain separate
-obligations. No Rust expected output is an input.
+Measure actual Lean parent block 0. The two-argument mode compares Pad rows
+1 and 2 with the basis kernel. The three-argument mode derives the common
+point from accepted C execution and accumulates all 54 Pad rows of this block.
+Both modes emit computed values only; neither claims complete-carrier replay.
+No Rust expected output is an input.
 -/
 
 set_option autoImplicit false
@@ -100,13 +104,69 @@ private def measure (parentPath outputPath : System.FilePath) : IO UInt32 := do
   measureRow block children ⟨2, by decide⟩ (outputPath.toString ++ ".next.json")
   return 0
 
+/-- Process every Pad row of actual block zero with the point derived by C.
+Output: [1,totalBlocks,block,rowCount,point[28][2],pad[16][54][2]].
+This is one complete block contribution, not the full Pad evaluation. -/
+private def measurePad (ccsPath parentPath outputPath : System.FilePath) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let ccs ← checked (PiCCSInputCheck.parse (← IO.FS.readFile ccsPath))
+  let phase ← IO.wait (Task.spawn fun _ => PiCCSInputCheck.execute ccs)
+  unless phase.accepted do throw (IO.userError "C input rejected")
+  let pointReady ← IO.monoNanosNow
+  let input ← IO.FS.Handle.mk parentPath .read
+  let (start, finish) ← readRange input
+  let (block, parent) ← readBlock input start finish
+  unless start = 0 && block = 0 do throw (IO.userError "expected actual parent block zero")
+  let some children := StoredSplit.splitChecked parent
+    | throw (IO.userError "parent exceeds the strict B bound")
+  let layout := Folding.PiCCS.CanonicalRowLayout.layout Lifecycle.cubeVariables
+    (Phi81CarrierLayout.carrierWidth PiDECInputCheck.logicalWidth)
+    PiDECInputCheck.relation.cubeFits
+  let rows := fun index : Nat =>
+    if within : index < ringDegree then
+      let vertex := NumericBooleanDomain.vertex Lifecycle.cubeVariables
+        ⟨index, Nat.lt_trans within (by decide)⟩
+      PiDECEvaluationBlock.rowBlock (PiDECEvaluationPadBlock.form layout vertex) block children
+    else
+      Vector.replicate productionGlobalParams.k (Vector.replicate ringDegree (0 : F))
+  let prepared ← IO.monoNanosNow
+  -- Waiting forces the stored batch before stopping the kernel timer.
+  let computed ← IO.wait (Task.spawn fun _ =>
+    PiDECEvaluationBatch.accumulate ringDegree phase.point rows)
+  let computedAt ← IO.monoNanosNow
+  let weights := Vector.ofFn fun lane : Fin ringDegree =>
+    PiDECEvaluationWeights.weight phase.point (block * ringDegree + lane.val)
+  let accelerated ← IO.wait (Task.spawn fun _ =>
+    PiDECPadWeightedProduct.products weights children)
+  let acceleratedAt ← IO.monoNanosNow
+  for child in List.finRange productionGlobalParams.k do
+    for lane in List.finRange ringDegree do
+      unless (accelerated.get child).toRing lane = (computed.get child).toRing lane do
+        throw (IO.userError s!"weighted Pad mismatch at child {child.val}, lane {lane.val}")
+  let encodeK := fun value : K =>
+    Value.array [.atom value.c0.val, .atom value.c1.val]
+  let value := Value.array [.atom 1, .atom Poseidon2HashChainV1Setup.messageColumns,
+    .atom block, .atom ringDegree,
+    .array (phase.point.coordinates.map encodeK),
+    .array (List.ofFn fun child : Fin productionGlobalParams.k =>
+      .array (List.ofFn fun lane : Fin ringDegree =>
+        encodeK ((accelerated.get child).toRing lane)))]
+  IO.FS.writeFile outputPath (value.render ++ "\n")
+  let finished ← IO.monoNanosNow
+  IO.println s!"pidec_pad_block_measure=computed accepted_ccs=true accelerated_match=true block={block} rows={ringDegree} children={productionGlobalParams.k} extension_values={productionGlobalParams.k * ringDegree} field_words={productionGlobalParams.k * ringDegree * 2} ccs_nanos={pointReady - started} input_split_nanos={prepared - pointReady} reference_nanos={computedAt - prepared} accelerated_nanos={acceleratedAt - computedAt} compare_encode_write_nanos={finished - acceleratedAt} total_ms={(finished - started) / 1000000}"
+  return 0
+
 end NightstreamFPrime.Export.PiDECEvaluationBlockMeasurement
 
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | [ccsPath, parentPath, outputPath] =>
+      NightstreamFPrime.Export.PiDECEvaluationBlockMeasurement.measurePad
+        ccsPath parentPath outputPath
   | [parentPath, outputPath] =>
       NightstreamFPrime.Export.PiDECEvaluationBlockMeasurement.measure parentPath outputPath
   | _ =>
-      IO.eprintln "usage: measurePiDECEvaluationBlock <Lean-parent-range> <new-output>"
+      IO.eprintln "usage: measurePiDECEvaluationBlock [<C-input>] <Lean-parent-range> <new-output>"
       return 2

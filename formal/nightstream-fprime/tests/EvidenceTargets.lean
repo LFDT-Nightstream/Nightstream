@@ -9,6 +9,8 @@ import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 import tests.EvidenceMetadata
 
 /-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
@@ -465,5 +467,31 @@ theorem piDECCommitmentReplay : PiDECCommitmentReplay := by
     parent parentWitness childWitnesses success child row
 
 #audit_axioms piDECCommitmentReplay
+
+/-- Every complete child evaluation family at the common parent point is
+computed from the same successfully split witness. No expected message,
+opening or cryptographic premise is supplied to the evaluation kernel. -/
+def PiDECChildEvaluationReplay : Prop :=
+  let shape := PaperAlgebra.FullShape
+    (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
+    (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
+  ∀ (values : PiDECInputCheck.ParentValues)
+    (parentWitness : Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment shape.carrierWidth)
+    (childWitnesses : Vector (Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment shape.carrierWidth)
+      productionGlobalParams.k),
+    Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked parentWitness = some childWitnesses →
+    ∀ child : Fin productionGlobalParams.k,
+      #[(PiDECEvaluationFromBlocks.familyFromBlocks
+        (PiDECCommitmentFold.childBlocks (shape := shape) childWitnesses) values.point).get child] =
+        (Spec.Folding.PiDEC.PaperVerifier.honestMessages
+          (PaperAlgebra.piDecAlgebra Poseidon2HashChainV1Setup.productionAjtaiKey)
+          (PiDECInputCheck.parent values)
+          (Spec.Folding.Nifs.StoredAssignmentArithmetic.view parentWitness) child).evaluations
+
+theorem piDECChildEvaluationReplay : PiDECChildEvaluationReplay := by
+  dsimp only [PiDECChildEvaluationReplay]
+  exact PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages
+
+#audit_axioms piDECChildEvaluationReplay
 
 end LeanGraph.Targets

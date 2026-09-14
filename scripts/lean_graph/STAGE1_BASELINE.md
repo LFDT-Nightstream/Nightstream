@@ -164,6 +164,14 @@ through `PiDECMatrixZeroRead` initialized a reference plan before C execution;
 the stopped log is retained. The executable now imports only the magnitude
 and guard module, while library/audit imports retain the equality proofs.
 
+`PIDEC_MATRIX_RANGES.json` is the compact index of actual disjoint results and
+remaining row gaps. It excludes historical duplicate and synthetic outputs.
+The next large Poseidon range passes in 488.61 s. The pilot ordinary block
+and first C ordinary range also pass. Worker-derived slices now preserve the
+same output bytes for both kernel kinds. Their maximum child spans fall from
+5.20 to 2.76 s (Poseidon) and 9.99 to 7.04 s (C ordinary). Parent loading
+remains variable; these task spans do not measure complete command speed.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

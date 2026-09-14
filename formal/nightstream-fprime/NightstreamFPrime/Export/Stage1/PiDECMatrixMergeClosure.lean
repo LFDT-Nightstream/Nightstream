@@ -26,8 +26,8 @@ open PiDECMatrixRangeSum (Values)
 /-- The actual nested add fold preserves arbitrary adjacent canonical ranges.
 Each part equality is supplied by the existing selected range theorem.
 The merger's positive endpoints imply the weaker monotonicity used here.
-Specializing cuts count to the selected row count gives the full accumulator. -/
-theorem fold_adjacent_eq_range {arity : Nat}
+At start zero, specializing cuts count to the selected row count gives the full accumulator. -/
+theorem fold_adjacent_eq_range {arity : Nat} (start : Nat)
     (cuts : Nat → Nat) (parts : Nat → Values) (point : CubePoint K arity)
     (rows : Fin matrixCount → Nat → Vector StoredRing productionGlobalParams.k)
     (first : cuts 0 = 0) (count : Nat)
@@ -35,12 +35,12 @@ theorem fold_adjacent_eq_range {arity : Nat}
     (∀ index, index < count → cuts index ≤ cuts (index + 1)) →
     (∀ index, index < count →
       (((parts index).get child).get port).toRing =
-        ((PiDECEvaluationBatch.range (cuts index) (cuts (index + 1) - cuts index)
+        ((PiDECEvaluationBatch.range (start + cuts index) (cuts (index + 1) - cuts index)
           point (rows port)).get child).toRing) →
     (((Nat.fold count (fun index _ accumulated =>
         PiDECMatrixRangeSum.add accumulated (parts index)) PiDECMatrixRangeSum.zero).get
       child).get port).toRing =
-      ((PiDECEvaluationBatch.range 0 (cuts count) point (rows port)).get child).toRing := by
+      ((PiDECEvaluationBatch.range start (cuts count) point (rows port)).get child).toRing := by
   induction count with
   | zero =>
       intro _ _
@@ -56,11 +56,27 @@ theorem fold_adjacent_eq_range {arity : Nat}
       have last := each count (Nat.lt_succ_self count)
       have completeCount : cuts count + (cuts (count + 1) - cuts count) = cuts (count + 1) :=
         Nat.add_sub_of_le (ordered count (Nat.lt_succ_self count))
-      have joined := PiDECEvaluationBatch.range_append 0 (cuts count)
+      have joined := PiDECEvaluationBatch.range_append start (cuts count)
         (cuts (count + 1) - cuts count) point (rows port) child
-      rw [PiDECEvaluationBatch.add_value, Nat.zero_add, completeCount] at joined
+      rw [PiDECEvaluationBatch.add_value, completeCount] at joined
       rw [Nat.fold_succ, PiDECMatrixRangeSum.add_value, previous, last]
       exact joined.symm
+
+/-- Proportional worker cuts cover the full unit interval in order. The
+worker count affects execution only; neither values nor rows choose a cut. -/
+theorem proportionalCuts (units parts : Nat) (positive : 0 < parts) :
+    units * 0 / parts = 0 ∧ units * parts / parts = units ∧
+      ∀ index, index < parts →
+        units * index / parts ≤ units * (index + 1) / parts ∧
+          units * (index + 1) / parts ≤ units := by
+  refine ⟨by simp, Nat.mul_div_cancel units positive, ?_⟩
+  intro index bound
+  constructor
+  · exact Nat.div_le_div_right (Nat.mul_le_mul_left units (Nat.le_succ index))
+  · calc
+      units * (index + 1) / parts ≤ units * parts / parts :=
+        Nat.div_le_div_right (Nat.mul_le_mul_left units (by omega))
+      _ = units := Nat.mul_div_cancel units positive
 
 private theorem get_ofFn {Alpha : Type} {count : Nat}
     (values : Fin count → Alpha) (index : Fin count) :

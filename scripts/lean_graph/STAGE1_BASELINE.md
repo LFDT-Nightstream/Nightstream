@@ -74,37 +74,42 @@ Lean read/sum/write took 376 ms. `PIDEC_COMMITMENT_REPLAY.json` and
 `PIDEC_COMMITMENT_RANGES.json` record the full evidence. Complete child
 evaluations are next; PiCCS and HyperNova replay remain later milestones.
 
-The next record, `pidec-evaluation-replay`, remains open. Its planned final
-target is `LeanGraph.Targets.PiDECChildEvaluationReplay`, with consumer
-`PiDECEvaluationHonestMessages.family_honestMessages`. For every successful
-stored split and every child, the computed family at `ParentValues.point`
-must equal `honestMessages.evaluations`: separate Pad and all 14 matrices,
-each with all 54 extension-field coefficients. Both field coordinates must
-be compared. Only the point and Lean-generated children enter the
-calculation; parent commitments and claimed evaluations do not.
+The record `pidec-evaluation-replay` remains open for complete execution.
+Its exact target, `LeanGraph.Targets.PiDECChildEvaluationReplay`, now passes
+with the audited `PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages`
+consumer. The only premise is a successful checked split. The kernel computes
+Pad and all 14 matrix families at `ParentValues.point`, with all 54 extension
+coefficients per family. The graph records this target and its metadata gate.
+No claimed evaluation, opening or cryptographic premise enters the kernel.
 
-The block leaf preserves duplicate and cancelling sparse entries. Complete
-selected matrix and Pad row sums now have checked sparse kernels. The kernel
-visits distinct block indices from each row; all omitted blocks are proved
-zero. The selected numeric row interface also proves the complete padded
-suffix is zero. Point-weighted accumulation equals Boolean evaluation,
-including the bounded prefix form. The public
-`ExplicitMatrix.rowRing_eq_sumRange` wrapper reuses the existing Pad proof.
+The shared block executor reads the canonical compact matrix program. Its
+proof identifies the result with the existing `PaperAlgebra.evaluationFamily`
+and `honestMessages`. Sparse rows retain repeated and cancelling entries;
+omitted blocks and the selected padded suffix are proved zero. The former
+unchecked family draft has been replaced by these checked modules.
 
-The final `PaperAlgebra.evaluationFamily` and `honestMessages` composition
-and complete value execution remain open. The unchecked consumer draft is
-retained in `PIDEC_EVALUATION_FAMILY_DRAFT.lean.txt`, outside the Lean library.
-`PIDEC_EVALUATION_ROWS.json` records this proof checkpoint. Register the final
-target and full value/mutation gates when the composed kernel is checked.
-The private-witness and commitment targets cannot close this record.
+For Pad, `PiDECPadWeightedProduct.products_value` proves the accelerated
+weighted product equals the 54-row sum. `PiDECPadBlockRange` connects complete
+block coverage to the full Pad accumulator. At actual parent block 0, every
+accelerated child value matched the earlier row kernel. The weighted kernel
+took 2.60 ms after initialization; the reference call took 112.35 ms including
+initialization. This is not a steady-state speed comparison.
 
-Existing execution evidence remains actual Lean parent block 0 at selected
-Pad rows 1 and 2, all 864 child coefficients each. The first kernel call took
-86 ms; the next took 0 ms at 1 ms resolution. This separates initialization
-from repeated work; it does not bound full evaluation time.
-`PIDEC_EVALUATION_PILOT.json` preserves that measurement. Native evaluation
-targets for the same parent are retained and source-bound in
-`PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required.
+The first full range, blocks `0..74272`, now computes all 864 extension-field
+partial values from the Lean parent and Lean-derived C point. Read, compute
+and addition took 35.67 s; the complete command took 45.03 s with 3,864,584 KiB
+peak RSS. Reuse this result and the existing parent partitions. The remaining
+63 Pad ranges, their complete sum and native comparison, and all 14 matrix
+executions are still open. The Rust complete-value comparator compiles; it has
+not yet received the complete independent Lean result. The Pad merge boundary
+gate checks decoding and complete contiguous coverage, not production values.
+
+`PIDEC_EVALUATION_FAMILY.json` records this proof and first-range checkpoint.
+Earlier measurements remain in `PIDEC_EVALUATION_PILOT.json` and
+`PIDEC_EVALUATION_ROWS.json`. Native targets for the same parent are retained
+in `PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required. The complete
+value gate will require all 25,920 field words, the common point and a changed
+target rejection. Kernel closure alone does not close this replay record.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

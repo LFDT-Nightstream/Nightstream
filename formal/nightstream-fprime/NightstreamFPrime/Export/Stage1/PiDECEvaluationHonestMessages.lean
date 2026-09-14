@@ -1,5 +1,3 @@
--- Unchecked draft retained for the next evaluation milestone.
--- Not imported by the Lean library or counted as a proved result.
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
@@ -101,7 +99,8 @@ theorem family_eq_evaluationFamily
     apply congrArg (fun values : BooleanVertex cubeVariables → K =>
       (BooleanTable.tabulate values).evaluate extensionOps point)
     funext vertex
-    rw [PiDECEvaluationSelectedPrefix.padRow_value assignments child vertex]
+    exact congrArg (fun value : RingF => K.embed (value lane))
+      (PiDECEvaluationSelectedPrefix.padRow_value assignments child vertex)
   · funext matrix lane
     rw [PiDECEvaluationWeights.accumulate_prefix_eq_evaluate
       selectedPlan.rowCount point (PiDECEvaluationSelectedPrefix.matrixRow assignments child matrix)
@@ -111,7 +110,8 @@ theorem family_eq_evaluationFamily
     apply congrArg (fun values : BooleanVertex cubeVariables → K =>
       (BooleanTable.tabulate values).evaluate extensionOps point)
     funext vertex
-    rw [PiDECEvaluationSelectedPrefix.matrixRow_value assignments child matrix vertex]
+    exact congrArg (fun value : RingF => K.embed (value lane))
+      (PiDECEvaluationSelectedPrefix.matrixRow_value assignments child matrix vertex)
 
 /-- For the successful checked split of this parent witness, the computed
 array is the exact honest child-message evaluation array at values.point.

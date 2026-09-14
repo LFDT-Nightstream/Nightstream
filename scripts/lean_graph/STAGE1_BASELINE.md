@@ -211,6 +211,15 @@ including all 14 blocks and both source rules. The combined range passed
 in 634.41 s. Saved coverage reaches row 5,108,050; the remaining 15 Eval_A
 sources, First54 grids and later rows remain before the full comparison.
 
+The next pure Eval_A range, 411,264 rows, reached the 1,500 s cap and
+added no coverage. `PIDEC_EVALUATION_PERFORMANCE.json` records that failure
+and the scalar update optimization, whose existing specification theorem
+passes unchanged. All bytes match on the actual 7,344-row comparison;
+unprofiled command time changed from 120.79 to 120.23 s. This is a small
+gain. The profile points to sparse-row evaluation as the main cost.
+The Lean runtime fork is reviewed but not benchmarked or installed.
+Re-measure pure Eval_A before selecting another large range.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

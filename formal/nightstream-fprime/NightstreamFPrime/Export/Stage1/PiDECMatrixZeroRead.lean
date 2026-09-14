@@ -108,7 +108,7 @@ private theorem parentRead_zero {count columns : Nat}
   funext output column
   dsimp only [PiDECMatrixSelectedBatch.intParentRead]
   split_ifs with live
-  · unfold PiDECParentIntRead.sparseRead
+  · rw [PiDECParentIntRead.sparseRead_eq_evalSparse]
     have digits : (fun input => PiDECParentIntRead.cachedDigit
         ((parents.get ⟨column.val / ringDegree, live⟩).get input) child) =
         fun _ => (0 : F) := by

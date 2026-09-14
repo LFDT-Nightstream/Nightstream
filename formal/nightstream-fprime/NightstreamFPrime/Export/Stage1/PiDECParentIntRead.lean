@@ -57,14 +57,36 @@ theorem cachedDigit_eq_splitScalar (value : F) (child : Radix.ChildIndex)
     centered_nonneg, Radix.splitScalar, if_pos bounded, Radix.boundedDigit,
     Radix.magnitudeDigit, Radix.natBit]
 
-/-- The existing sparse entries request only their cached scalar digits.
-No field conversion, bound check, power or child array is built per read. -/
+/-- Use the cached bit and sign to skip, add or subtract each coefficient.
+The sparse entries and their order are unchanged. -/
 def sparseRead
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (parent : Vector Int ringDegree) (basis : Fin ringDegree)
     (child : Radix.ChildIndex) (output : Fin ringDegree) : F :=
-  ((forms.get basis).get output).evalSparse
-    (fun input => cachedDigit (parent.get input) child)
+  ((forms.get basis).get output).entries.foldl (fun total entry =>
+    let value := parent.get entry.column
+    if value.natAbs.testBit child.val then
+      if 0 ≤ value then total + entry.coefficient else total - entry.coefficient
+    else total) 0
+
+/-- The signed-bit fold is the original sparse evaluation for arbitrary
+stored coefficients and integer parent values. -/
+theorem sparseRead_eq_evalSparse
+    (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
+    (parent : Vector Int ringDegree) (basis : Fin ringDegree)
+    (child : Radix.ChildIndex) (output : Fin ringDegree) :
+    sparseRead forms parent basis child output =
+      ((forms.get basis).get output).evalSparse
+        (fun input => cachedDigit (parent.get input) child) := by
+  unfold sparseRead SparseForm.evalSparse
+  apply congrArg (fun step : F → SparseEntry ringDegree → F =>
+    ((forms.get basis).get output).entries.foldl step 0)
+  funext total entry
+  by_cases positive : 0 ≤ parent.get entry.column
+  · cases bit : (parent.get entry.column).natAbs.testBit child.val <;>
+      simp [cachedDigit, bit, positive]
+  · cases bit : (parent.get entry.column).natAbs.testBit child.val <;>
+      simp [cachedDigit, bit, positive, Fin.sub_eq_add_neg]
 
 /-- Mapping one parent block to its existing centered integer view preserves
 every read of the same sparse forms. The only premise is the original
@@ -78,7 +100,8 @@ theorem sparseRead_map_valMinAbs
         (parent.map (fun value => ZMod.valMinAbs (n := goldilocksModulus) value))
         basis child output =
       PiDECParentSparseRead.read forms parent basis child output := by
-  unfold sparseRead PiDECParentSparseRead.read
+  rw [sparseRead_eq_evalSparse]
+  unfold PiDECParentSparseRead.read
   apply congrArg (fun source : Fin ringDegree → F =>
     ((forms.get basis).get output).evalSparse source)
   funext input

@@ -111,7 +111,8 @@
     "change": "Filter exact zero coefficients from each selected outer matrix form before its 54-output loop.",
     "owner": "NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange.row",
     "equality_authority": "NightstreamFPrime.Export.Stage1.PiDECParentSparseRead.filterZero_evalSparse",
-    "reason": "Ordinary.compileCombination? inserts its constant-column entry even when the coefficient is zero. evalSparse still reads and multiplies it. The existing identity preserves arbitrary reads, duplicate nonzero entries and their order."
+    "reason": "Ordinary.compileCombination? inserts its constant-column entry even when the coefficient is zero. evalSparse still reads and multiplies it. The existing identity preserves arbitrary reads, duplicate nonzero entries and their order.",
+    "scope": "Ordinary rows only. Source review indicates that the current Phi81 Eval_A forms have no stored zero coefficients, so filtering them is not the current optimization target."
   },
   "runtime_fork": {
     "url": "https://github.com/nicarq/lean4-optimized/commit/884cd4a5dc0dbc8d99189c333466d36d916c7af1",
@@ -332,11 +333,193 @@
     },
     "package_sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
     "runtime_toolchain": "leanprover/lean4:v4.30.0",
-    "requirements_statuses": true,
-    "completed_matrix_prefix": [
-      0,
-      5108050
-    ]
+    "requirements_statuses": true
   },
-  "delivery": "Reports and SHA-256 values are committed. Raw files and profiles remain outside Git. GitHub release publication remains open."
+  "delivery": "Reports and SHA-256 values are committed. Raw files and profiles remain outside Git. GitHub release publication remains open.",
+  "signed_digit_read": {
+    "status": "proved, audited, exact byte comparison and ordered checkpoint gates passed",
+    "source_base_commit": "b1177ef3610356ba523e328bd236957765741f71",
+    "source_patch_sha256": "e53f074ce937aedfe52988ef3d8b10f726978dd363b497a3624c4e0b814dd106",
+    "module": "NightstreamFPrime.Export.Stage1.PiDECParentIntRead",
+    "definition": "sparseRead",
+    "public_theorem": "sparseRead_map_valMinAbs",
+    "public_statement_unchanged": true,
+    "explanation": "Use the existing natAbs bit and sign to skip, add or subtract each sparse coefficient. The equality holds for arbitrary coefficients and integer parent values. The existing public bridge retains its strict parent-bound premise.",
+    "generated_code": "No general field multiplication or indirect digit-reader call remains in this inner fold.",
+    "local_rows": [
+      1007964,
+      1059372
+    ],
+    "scope": "One complete actual Eval_A source: all 14 blocks, 54 lanes, two cells and 34 rows per cell; unchanged original parent, point and 16 workers. This is an unprofiled before/after comparison, not a full-production speed bound.",
+    "measurements": {
+      "before": {
+        "command_seconds": 276.6655840439489,
+        "parent_seconds": 82.427885848,
+        "replay_seconds": 271.227109685,
+        "arithmetic_span_seconds": 178.287959508,
+        "sum_slice_seconds": 2191.275443564,
+        "peak_rss_kib": 4506124
+      },
+      "after": {
+        "command_seconds": 240.97630708792713,
+        "parent_seconds": 82.470942968,
+        "replay_seconds": 235.487012765,
+        "arithmetic_span_seconds": 142.348364095,
+        "sum_slice_seconds": 2064.736098888,
+        "peak_rss_kib": 4505492
+      },
+      "equality": {
+        "all_bytes_equal": true,
+        "bytes": 143571,
+        "sha256": "e28ca6afeb1765eec2be04e7256c26f38be94afe04b0143b8138045fe70a2d0a",
+        "matrix_field_words": 24192
+      },
+      "reduction_percent": {
+        "command_seconds": 12.899789136892604,
+        "replay_seconds": 13.177184596889358,
+        "arithmetic_span_seconds": 20.15817305452271,
+        "sum_slice_seconds": 5.77468912215755
+      }
+    },
+    "baseline_record": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-10-1007964-1059372-1.record.json",
+      "sha256": "ef71349b3806a2be5ce27134bd4c033ae244faa5c85e1f37122ed3f13391cdc3",
+      "bytes": 1031
+    },
+    "before_artifacts": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/before-artifacts.json",
+      "sha256": "7c9e132afa9188abe9e7b5e36ce03f00ce9268cbdb0e39de4f83da4765a664d5",
+      "bytes": 840
+    },
+    "after_artifacts": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/after-artifacts.json",
+      "sha256": "ee60cb75ffba80a1f7b1822619f78a5449d1846ac6b1ad0fd9db92294599675b",
+      "bytes": 968
+    },
+    "patch": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/signed-read.patch",
+      "sha256": "e53f074ce937aedfe52988ef3d8b10f726978dd363b497a3624c4e0b814dd106",
+      "bytes": 3013
+    },
+    "files": {
+      "nightstream-pidec-signed-read-after-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-1.json",
+        "sha256": "e28ca6afeb1765eec2be04e7256c26f38be94afe04b0143b8138045fe70a2d0a",
+        "bytes": 143571
+      },
+      "nightstream-pidec-signed-read-after-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-1.log",
+        "sha256": "d89f88dd1f3e34423f30edb779fc24d1f86fd20267db536ea8c68f3e823df825",
+        "bytes": 145514
+      },
+      "nightstream-pidec-signed-read-after-command-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-command-1.json",
+        "sha256": "fac479e194cd59de425e6ba105939ba499a3d9d5cefaa9e891bd95eef78ebdd4",
+        "bytes": 4942
+      },
+      "nightstream-pidec-signed-read-comparison-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-comparison-1.json",
+        "sha256": "4e0275d6611e55ac05771af366013e415d6a6e0fe760e3b3bf0a53d5a6176635",
+        "bytes": 893
+      },
+      "nightstream-pidec-signed-read-file-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-file-1.log",
+        "sha256": "c4790384ec2003cdd28a65c47a8db525d87787a1d4a01e0ecf5d53b4b1fa4931",
+        "bytes": 1439
+      },
+      "nightstream-pidec-signed-read-build-executable-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-build-executable-1.log",
+        "sha256": "a55e304c51681acd59825697aefbd01072adec1a7b8181a56cf11dcc2ccf2e77",
+        "bytes": 127457
+      },
+      "nightstream-pidec-product-eval-a-single-plan.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-product-eval-a-single-plan.json",
+        "sha256": "dc4ef851261ba57f5487b8d09643025e0eef100cbaf6ac0ec00e34d91d5e8285",
+        "bytes": 783
+      }
+    },
+    "gates": {
+      "static": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 9.42761855199933,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "static"
+        ],
+        "peak_rss_kib": 19620,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-static-2.log",
+          "sha256": "f62f339f83eac23359190581f873091fd465c5243d5a5ecd0b05c469c56784f1"
+        }
+      },
+      "build": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 7.728714333032258,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build"
+        ],
+        "peak_rss_kib": 3893840,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-build-2.log",
+          "sha256": "e71e4068406c5cd58ebe99a4d10ebc5e06481ed87344711e4edc27e16bdbc81f"
+        }
+      },
+      "axioms": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 3.019242628943175,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "axioms"
+        ],
+        "peak_rss_kib": 3808464,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-axioms-2.log",
+          "sha256": "f47b424f4010568050783f28d6692d27dc5308308f9288cdf1b47d24673998df"
+        }
+      },
+      "registrations": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 0.2640433970373124,
+        "command": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "scripts.lean_graph.tests.test_conformance_registrations"
+        ],
+        "peak_rss_kib": 22664,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-registrations-1.log",
+          "sha256": "bcc250e7053a8e6febd181262d2cc2325e7999d6a35bebea9b840923120ebbdd"
+        }
+      }
+    },
+    "equality_theorem": "sparseRead_eq_evalSparse",
+    "consumer": "PiDECMatrixZeroRead.parentRead_zero now rewrites the equality interface instead of unfolding sparseRead.",
+    "checked_source_patch_sha256": "c53fc480309ddb7f971203c1a36d7eecd02b22442719ddd3708e03d189cf7fcb",
+    "checked_source_note": "The measured runtime change is unchanged. The final source also exposes and audits the equality interface, and uses it in the zero-child consumer proof.",
+    "final_binary_equals_measured_binary": true,
+    "resolved_build_failure": {
+      "module": "PiDECMatrixZeroRead",
+      "cause": "The consumer unfolded the old reader body.",
+      "repair": "Use the audited sparseRead_eq_evalSparse interface.",
+      "focused_check_seconds": 2.218346787034534
+    }
+  },
+  "current_completed_matrix_prefix": [
+    0,
+    5159458
+  ]
 }

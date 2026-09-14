@@ -83,26 +83,28 @@ each with all 54 extension-field coefficients. Both field coordinates must
 be compared. Only the point and Lean-generated children enter the
 calculation; parent commitments and claimed evaluations do not.
 
-The checked block leaf preserves duplicate and cancelling sparse entries.
-Selected matrix and complete-carrier Pad block specialization now pass.
-The remaining proof steps are complete row sums, common-point accumulation,
-and equality with the existing `PaperAlgebra.evaluationFamily`. The final message bridge then uses
-`splitChecked_honestWitness`. No opening, acceptance, norm or cryptographic
-premise is needed for the evaluation-family equality. The measured run uses actual Lean parent block 0 at selected Pad rows 1
-and 2. Both match all 864 coefficients. The first kernel call took 86 ms;
-the next took 0 ms at 1 ms resolution. This supports separating initialization
-from repeated work and does not give a full evaluation-time bound. After the complete kernel
-exists, register its exact target, audit/metadata and full value/mutation
-gates. The graph currently reports the missing target and computation;
-the private-witness and commitment targets cannot close this record.
+The block leaf preserves duplicate and cancelling sparse entries. Complete
+selected matrix and Pad row sums now have checked sparse kernels. The kernel
+visits distinct block indices from each row; all omitted blocks are proved
+zero. The selected numeric row interface also proves the complete padded
+suffix is zero. Point-weighted accumulation equals Boolean evaluation,
+including the bounded prefix form. The public
+`ExplicitMatrix.rowRing_eq_sumRange` wrapper reuses the existing Pad proof.
 
-The next required interface is one public `ExplicitMatrix.rowRing_eq_sumRange`
-wrapper around the existing private decomposition proof. It supplies Pad's
-complete row sum without copying that proof. Matrix row decomposition and
-common-point reconstruction already have public theorems. Native evaluation
+The final `PaperAlgebra.evaluationFamily` and `honestMessages` composition
+and complete value execution remain open. The unchecked consumer draft is
+retained in `PIDEC_EVALUATION_FAMILY_DRAFT.lean.txt`, outside the Lean library.
+`PIDEC_EVALUATION_ROWS.json` records this proof checkpoint. Register the final
+target and full value/mutation gates when the composed kernel is checked.
+The private-witness and commitment targets cannot close this record.
+
+Existing execution evidence remains actual Lean parent block 0 at selected
+Pad rows 1 and 2, all 864 child coefficients each. The first kernel call took
+86 ms; the next took 0 ms at 1 ms resolution. This separates initialization
+from repeated work; it does not bound full evaluation time.
+`PIDEC_EVALUATION_PILOT.json` preserves that measurement. Native evaluation
 targets for the same parent are retained and source-bound in
-`PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required for them.
-`PIDEC_EVALUATION_PILOT.json` records the checked row interfaces and measurement.
+`PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

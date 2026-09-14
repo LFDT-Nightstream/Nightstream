@@ -11,6 +11,10 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationRows
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.CommitmentRecomposition
@@ -52,6 +56,8 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 
 /-! Axiom audits for the strict production PiDEC public split. -/
 
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC.ExplicitMatrix.rowRing_eq_sumRange
+
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_eq_some_iff
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_value
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_assignment
@@ -80,6 +86,20 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock.form_coefficient
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock.rowBlock_paddedEntry
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows.rowBlock_eq_blockRowRing
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport.rowBlock_zero_of_not_mem
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport.kernel_eq_fullBlockSum
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationRows.row_empty_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationRows.matrixRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationRows.padRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix.matrixRow_outside
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix.padRow_outside
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix.matrixRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix.padRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.weight_at_vertex
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.addWeighted_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_eq_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights.accumulate_prefix_eq_evaluate
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.quarterRound_eq
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.nativeStep_map
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.doubleRound_map

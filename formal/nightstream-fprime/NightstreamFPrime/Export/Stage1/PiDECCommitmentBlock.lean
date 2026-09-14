@@ -40,17 +40,14 @@ theorem multiplyChild_value (key child : StoredRing) :
 def keyBlock {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) : StoredRing :=
-  Vector.ofFn (NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient setup row block)
+  NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock setup row block
 
 /-- Stored access is the existing semantic key coordinate. -/
 theorem keyBlock_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) :
-    (keyBlock setup row block).get = setup.verifierKey row block := by
-  funext lane
-  change (Vector.ofFn
-    (NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient setup row block))[lane.val] = _
-  rw [Vector.getElem_ofFn, NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq]
+    (keyBlock setup row block).get = setup.verifierKey row block :=
+  NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value setup row block
 
 /-- Share one materialized key across the sixteen child products. -/
 def products (key : StoredRing) (children : Vector StoredRing productionGlobalParams.k) :

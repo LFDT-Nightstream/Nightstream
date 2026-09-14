@@ -166,18 +166,54 @@ private theorem fold64_denote (key digit : StoredRing) (degree : Nat) (inputs : 
         ih _ (rawStep64_canonical _ _ degree acc input (toWords_canonical key) ha),
         rawStep64_denote key digit degree acc input ha]
 
+private def rawPairs (degree : Nat) : List (Nat × Nat) :=
+  (List.range ringDegree).filterMap fun input =>
+    if input ≤ degree ∧ degree - input < ringDegree then
+      some (input, degree - input)
+    else none
+
+private def rawPairTable (_ : Unit) : Vector (List (Nat × Nat)) (2 * ringDegree - 1) :=
+  Vector.ofFn fun degree => rawPairs degree.val
+
 private def rawCoefficient64 (key digit : Vector UInt64 ringDegree) (degree : Nat) : UInt64 :=
-  (List.range ringDegree).foldl (rawStep64 key digit degree) 0
+  let pairs := if live : degree < 2 * ringDegree - 1 then
+    (rawPairTable ()).get ⟨degree, live⟩
+    else rawPairs degree
+  pairs.foldl (fun acc pair =>
+    accumulate64 acc (read64 key pair.1) (read64 digit pair.2)) 0
+
+private theorem rawCoefficient64_eq_fold (key digit : Vector UInt64 ringDegree)
+    (degree : Nat) :
+    rawCoefficient64 key digit degree =
+      (List.range ringDegree).foldl (rawStep64 key digit degree) 0 := by
+  have pairs :
+      (if live : degree < 2 * ringDegree - 1 then
+        (rawPairTable ()).get ⟨degree, live⟩
+      else rawPairs degree) = rawPairs degree := by
+    split_ifs with live
+    · change (Vector.ofFn (fun index : Fin (2 * ringDegree - 1) =>
+        rawPairs index.val))[degree] = _
+      rw [Vector.getElem_ofFn]
+    · rfl
+  unfold rawCoefficient64
+  rw [pairs, rawPairs, List.foldl_filterMap]
+  apply congrArg (fun step : UInt64 → Nat → UInt64 =>
+    (List.range ringDegree).foldl step 0)
+  funext acc input
+  unfold rawStep64
+  split_ifs <;> rfl
 
 private theorem rawCoefficient64_canonical (key digit : Vector UInt64 ringDegree)
     (degree : Nat) (keyCanonical : ∀ lane, (key.get lane).toNat < goldilocksModulus) :
-    (rawCoefficient64 key digit degree).toNat < goldilocksModulus :=
-  fold64_canonical key digit degree keyCanonical (List.range ringDegree) 0 (by decide)
+    (rawCoefficient64 key digit degree).toNat < goldilocksModulus := by
+  rw [rawCoefficient64_eq_fold]
+  exact fold64_canonical key digit degree keyCanonical (List.range ringDegree) 0 (by decide)
 
 private theorem rawCoefficient64_denote (key digit : StoredRing) (degree : Nat) :
     (rawCoefficient64 (toWords key) (toWords digit) degree).denote =
       rawMulCoeffF key.get digit.get degree := by
-  unfold rawCoefficient64 rawMulCoeffF
+  rw [rawCoefficient64_eq_fold]
+  unfold rawMulCoeffF
   rw [fold64_denote key digit degree (List.range ringDegree) 0 (by decide), zero_denote]
 
 private def foldedCoefficients64 (key digit : Vector UInt64 ringDegree) :

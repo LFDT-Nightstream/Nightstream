@@ -45,14 +45,24 @@ private theorem signedTerm_eq_mul (coefficient value : F)
       _ = (-1) * value := (ConcreteCarrier.baseLaws.neg_mul 1 value).symm
       _ = value * (-1) := ConcreteCarrier.baseLaws.mul_comm _ _
 
+private theorem foldl_eq_sumRange (term : Nat → F) (count : Nat) :
+    (List.range count).foldl (fun acc input => acc + term input) 0 =
+      sumRange ConcreteCarrier.baseOps count term := by
+  induction count with
+  | zero => rfl
+  | succ count ih =>
+      simpa only [List.range_succ, List.foldl_append, List.foldl_cons,
+        List.foldl_nil, sumRange] using
+          congrArg (fun value : F => value + term count) ih
+
 private def applySigned (table : FixedArray MaterializedRingF ringDegree)
     (source : MaterializedRingF) : MaterializedRingF :=
   MaterializedRingF.ofRing fun output =>
-    sumRange ConcreteCarrier.baseOps ringDegree fun input =>
-      if live : input < ringDegree then
+    (List.range ringDegree).foldl (fun acc input =>
+      acc + if live : input < ringDegree then
         signedTerm (source.toRing ⟨input, live⟩)
           ((table.get ⟨input, live⟩).toRing output)
-      else 0
+      else 0) 0
 
 /-- Reject any coefficient outside {-1, 0, 1} before using the signed action. -/
 def multiplySigned (table : FixedArray MaterializedRingF ringDegree)
@@ -70,7 +80,7 @@ private theorem applySigned_toRing (challenge source : MaterializedRingF)
   unfold applySigned
   rw [MaterializedRingF.toRing_ofRing]
   funext output
-  rw [CarrierAction.ringFMul_apply_eq_rightLinear]
+  rw [foldl_eq_sumRange, CarrierAction.ringFMul_apply_eq_rightLinear]
   apply sumRange_congr
   intro input live
   simp only [dif_pos live, prepare, FixedArray.get_ofFn,

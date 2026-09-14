@@ -1,0 +1,88 @@
+From 884cd4a5dc0dbc8d99189c333466d36d916c7af1 Mon Sep 17 00:00:00 2001
+From: Nico Arqueros <nico@dcspark.io>
+Date: Mon, 14 Sep 2026 15:26:32 -0500
+Subject: [PATCH] perf(runtime): construct uint64 mpz values without split
+ temporaries
+
+Signed-off-by: Nico Arqueros <nico@dcspark.io>
+---
+ src/runtime/mpz.cpp                           | 14 +++++---
+ tests/compile/uint64_to_nat.lean              | 32 +++++++++++++++++++
+ tests/compile/uint64_to_nat.lean.out.expected |  1 +
+ 3 files changed, 42 insertions(+), 5 deletions(-)
+ create mode 100644 tests/compile/uint64_to_nat.lean
+ create mode 100644 tests/compile/uint64_to_nat.lean.out.expected
+
+diff --git a/src/runtime/mpz.cpp b/src/runtime/mpz.cpp
+index c255b3d355..a40494d983 100644
+--- a/src/runtime/mpz.cpp
++++ b/src/runtime/mpz.cpp
+@@ -38,11 +38,15 @@ mpz::mpz(int v) {
+     mpz_init_set_si(m_val, v);
+ }
+ 
+-mpz::mpz(uint64 v):
+-    mpz(static_cast<unsigned>(v)) {
+-    mpz tmp(static_cast<unsigned>(v >> 32));
+-    mpz_mul_2exp(tmp.m_val, tmp.m_val, 32);
+-    mpz_add(m_val, m_val, tmp.m_val);
++mpz::mpz(uint64 v) {
++    if constexpr (std::numeric_limits<unsigned long>::digits >= std::numeric_limits<uint64>::digits) {
++        mpz_init_set_ui(m_val, static_cast<unsigned long>(v));
++    } else {
++        mpz_init_set_ui(m_val, static_cast<unsigned>(v));
++        mpz tmp(static_cast<unsigned>(v >> 32));
++        mpz_mul_2exp(tmp.m_val, tmp.m_val, 32);
++        mpz_add(m_val, m_val, tmp.m_val);
++    }
+ }
+ 
+ mpz::mpz(int64 v) {
+diff --git a/tests/compile/uint64_to_nat.lean b/tests/compile/uint64_to_nat.lean
+new file mode 100644
+index 0000000000..7144348a63
+--- /dev/null
++++ b/tests/compile/uint64_to_nat.lean
+@@ -0,0 +1,32 @@
++/-!
++Check UInt64.toNat at the 32-bit split, tagged-Nat boundaries, the Goldilocks
++modulus, and UInt64's maximum. Inputs and expected Nats use separate literals.
++-/
++
++@[noinline] private def convertUInt64 (value : UInt64) : Nat :=
++  value.toNat
++
++private def boundaryCases : Array (UInt64 × Nat) := #[
++  (0x00000000_00000000, 0),
++  (0x00000000_00000001, 1),
++  (0x00000000_7fffffff, 2147483647),
++  (0x00000000_80000000, 2147483648),
++  (0x00000000_ffffffff, 4294967295),
++  (0x00000001_00000000, 4294967296),
++  (0x00000001_00000001, 4294967297),
++  (0x7fffffff_ffffffff, 9223372036854775807),
++  (0x80000000_00000000, 9223372036854775808),
++  (0x80000000_00000001, 9223372036854775809),
++  (0xffffffff_00000000, 18446744069414584320),
++  (0xffffffff_00000001, 18446744069414584321),
++  (0xffffffff_00000002, 18446744069414584322),
++  (0xffffffff_ffffffff, 18446744073709551615)
++]
++
++def main : IO Unit := do
++  for (input, expected) in boundaryCases do
++    -- Keep conversion in the runtime loop; do not round-trip the expected Nat.
++    let actual := convertUInt64 input
++    unless actual == expected do
++      throw (IO.userError s!"UInt64.toNat: expected {expected}, got {actual}")
++  IO.println "UInt64.toNat boundaries passed"
+diff --git a/tests/compile/uint64_to_nat.lean.out.expected b/tests/compile/uint64_to_nat.lean.out.expected
+new file mode 100644
+index 0000000000..5061fbb3db
+--- /dev/null
++++ b/tests/compile/uint64_to_nat.lean.out.expected
+@@ -0,0 +1 @@
++UInt64.toNat boundaries passed
+-- 
+2.38.1
+

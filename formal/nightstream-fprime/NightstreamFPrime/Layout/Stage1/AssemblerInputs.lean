@@ -304,8 +304,8 @@ private theorem priorPrivateCount_eq
   change Lifecycle.PriorStateHash.logicalPrivateCount
     PilotProduction.priorInterface (priorOffset program) = 7311464
   unfold Lifecycle.PriorStateHash.logicalPrivateCount
-    Lifecycle.PriorStateHash.hashLength
-  rw [PilotProduction.priorInterface_preimage_apply,
+  rw [Lifecycle.PriorStateHash.hashLength_eq,
+    PilotProduction.priorInterface_preimage_apply,
     PilotProduction.priorPreimage_chunkCount]
 
 theorem parent_outputHashOffset_eq

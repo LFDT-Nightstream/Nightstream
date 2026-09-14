@@ -150,6 +150,20 @@ the complete Pad result in the existing native comparison format. Its
 range-addition declarations are audited. Complete source-derived matrix
 coverage and the final actual merged comparison remain open.
 
+The next actual range, `[151904,302304)`, passes in 671.73 s. The complete
+parent has measured magnitude 115. Lean now computes that maximum itself,
+and a proved guard returns explicit zero rings for children above the
+maximum's bit positions. All 16 children and every load guard remain.
+The same 16-invocation output has unchanged bytes. Its maximum scan takes
+0.58 s; child task times include scheduling, and parent-load times vary.
+Arbitrary adjacent range addition and the full split-block identity now
+have focused checked declarations in `PiDECMatrixMergeClosure`.
+
+Keep the full-plan proof imports outside the replay executable. An import
+through `PiDECMatrixZeroRead` initialized a reference plan before C execution;
+the stopped log is retained. The executable now imports only the magnitude
+and guard module, while library/audit imports retain the equality proofs.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

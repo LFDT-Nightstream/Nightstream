@@ -17,6 +17,7 @@ type PadValues = Vec<Vec<KWords>>;
 type MatrixValues = Vec<Vec<Vec<KWords>>>;
 type NativeChildren = (Vec<KWords>, Vec<Vec<u64>>, Vec<Vec<u64>>, PadValues, MatrixValues);
 type LeanEvaluations = (u64, usize, Vec<KWords>, PadValues, MatrixValues);
+type LeanPadMerge = (u64, usize, usize, usize, Vec<KWords>, PadValues);
 
 struct Evaluations {
     point: Vec<KWords>,
@@ -24,11 +25,10 @@ struct Evaluations {
     matrices: MatrixValues,
 }
 
-fn validate(values: &Evaluations, source: &str) {
-    assert_eq!(values.point.len(), POINT, "{source}: complete common point");
-    assert_eq!(values.pad.len(), CHILDREN, "{source}: all Pad children");
-    assert_eq!(values.matrices.len(), CHILDREN, "{source}: all matrix children");
-    for (coordinate, pair) in values.point.iter().enumerate() {
+fn validate_point_pad(point: &[KWords], pad: &[Vec<KWords>], source: &str) {
+    assert_eq!(point.len(), POINT, "{source}: complete common point");
+    assert_eq!(pad.len(), CHILDREN, "{source}: all Pad children");
+    for (coordinate, pair) in point.iter().enumerate() {
         for (component, &word) in pair.iter().enumerate() {
             assert!(
                 word < F::ORDER_U64,
@@ -36,14 +36,9 @@ fn validate(values: &Evaluations, source: &str) {
             );
         }
     }
-    for child in 0..CHILDREN {
-        assert_eq!(values.pad[child].len(), D, "{source}: Pad lanes at child {child}");
-        assert_eq!(
-            values.matrices[child].len(),
-            MATRICES,
-            "{source}: matrix families at child {child}"
-        );
-        for (lane, pair) in values.pad[child].iter().enumerate() {
+    for (child, values) in pad.iter().enumerate() {
+        assert_eq!(values.len(), D, "{source}: Pad lanes at child {child}");
+        for (lane, pair) in values.iter().enumerate() {
             for (component, &word) in pair.iter().enumerate() {
                 assert!(
                     word < F::ORDER_U64,
@@ -51,6 +46,18 @@ fn validate(values: &Evaluations, source: &str) {
                 );
             }
         }
+    }
+}
+
+fn validate(values: &Evaluations, source: &str) {
+    validate_point_pad(&values.point, &values.pad, source);
+    assert_eq!(values.matrices.len(), CHILDREN, "{source}: all matrix children");
+    for child in 0..CHILDREN {
+        assert_eq!(
+            values.matrices[child].len(),
+            MATRICES,
+            "{source}: matrix families at child {child}"
+        );
         for matrix in 0..MATRICES {
             assert_eq!(
                 values.matrices[child][matrix].len(),
@@ -75,12 +82,12 @@ fn compare_pair(actual: &KWords, expected: &KWords, location: &str) -> Result<()
     Ok(())
 }
 
-// Both inputs have passed the same complete shape and canonical-word checks.
-fn compare_values(actual: &Evaluations, expected: &Evaluations) -> Result<(), String> {
+// Inputs have passed the complete point/Pad shape and canonical-word checks.
+fn compare_point_pad(actual: &Evaluations, point: &[KWords], pad: &[Vec<KWords>]) -> Result<(), String> {
     for coordinate in 0..POINT {
         compare_pair(
             &actual.point[coordinate],
-            &expected.point[coordinate],
+            &point[coordinate],
             &format!("point mismatch at coordinate {coordinate}"),
         )?;
     }
@@ -88,10 +95,18 @@ fn compare_values(actual: &Evaluations, expected: &Evaluations) -> Result<(), St
         for lane in 0..D {
             compare_pair(
                 &actual.pad[child][lane],
-                &expected.pad[child][lane],
+                &pad[child][lane],
                 &format!("evaluation mismatch at child {child}, family pad, matrix none, lane {lane}"),
             )?;
         }
+    }
+    Ok(())
+}
+
+// Both inputs have also passed the full matrix shape and canonical-word checks.
+fn compare_values(actual: &Evaluations, expected: &Evaluations) -> Result<(), String> {
+    compare_point_pad(actual, &expected.point, &expected.pad)?;
+    for child in 0..CHILDREN {
         for matrix in 0..MATRICES {
             for lane in 0..D {
                 compare_pair(
@@ -105,13 +120,7 @@ fn compare_values(actual: &Evaluations, expected: &Evaluations) -> Result<(), St
     Ok(())
 }
 
-/// Lean emits [1,blocks,point,pad,matrix], with K encoded as [re,im].
-/// Native children use the existing [point,commitments,public,pad,matrix]
-/// format. Normalize native field words through F; reject noncanonical Lean
-/// words. Commitments and public inputs have their exact transport dimensions
-/// checked here; their semantic comparisons remain in their existing gates.
-pub fn compare(native_path: &Path, lean_path: &Path) {
-    let started = Instant::now();
+fn read_native(native_path: &Path) -> Evaluations {
     let (point, commitments, public, pad, matrices): NativeChildren =
         serde_json::from_slice(&fs::read(native_path).expect("native child evaluations file"))
             .expect("complete native child output schema");
@@ -141,6 +150,17 @@ pub fn compare(native_path: &Path, lean_path: &Path) {
         }
     }
     validate(&actual, "native");
+    actual
+}
+
+/// Lean emits [1,blocks,point,pad,matrix], with K encoded as [re,im].
+/// Native children use the existing [point,commitments,public,pad,matrix]
+/// format. Normalize native field words through F; reject noncanonical Lean
+/// words. Commitments and public inputs have their exact transport dimensions
+/// checked here; their semantic comparisons remain in their existing gates.
+pub fn compare(native_path: &Path, lean_path: &Path) {
+    let started = Instant::now();
+    let mut actual = read_native(native_path);
 
     let (schema, blocks, point, pad, matrices): LeanEvaluations =
         serde_json::from_slice(&fs::read(lean_path).expect("Lean evaluations file"))
@@ -166,6 +186,38 @@ pub fn compare(native_path: &Path, lean_path: &Path) {
     println!(
         "pidec_evaluation_replay=passed children={CHILDREN} matrices={MATRICES} lanes={D} evaluation_words={} point_words={} blocks={blocks} target_mutation=rejected child={child} family=matrix matrix={matrix} lane={lane} component={component} elapsed={:?}",
         CHILDREN * (1 + MATRICES) * D * 2,
+        POINT * 2,
+        started.elapsed()
+    );
+}
+
+/// Compare a complete Lean Pad merge [1,blocks,0,blocks,point,pad].
+/// This checks only Pad and the common point; full matrix comparison remains
+/// in compare. Rust supplies no values to the independent Lean calculation.
+pub fn compare_pad(native_path: &Path, lean_path: &Path) {
+    let started = Instant::now();
+    let mut actual = read_native(native_path);
+    let (schema, blocks, start, end, point, pad): LeanPadMerge =
+        serde_json::from_slice(&fs::read(lean_path).expect("Lean Pad merge file"))
+            .expect("complete Lean Pad merge schema");
+    assert_eq!(schema, 1, "Lean Pad merge schema");
+    assert_eq!(blocks, PRODUCTION_MESSAGE_COLUMNS as usize, "complete selected carrier");
+    assert_eq!((start, end), (0, blocks), "complete Lean Pad coverage including tails");
+    validate_point_pad(&point, &pad, "Lean Pad");
+    compare_point_pad(&actual, &point, &pad).expect("complete independent PiDEC Pad values match");
+
+    let child = CHILDREN - 1;
+    let lane = D - 1;
+    let component = 1;
+    let word = &mut actual.pad[child][lane][component];
+    *word = (F::from_u64(*word) + F::ONE).as_canonical_u64();
+    assert_eq!(
+        compare_point_pad(&actual, &point, &pad).unwrap_err(),
+        format!("evaluation mismatch at child {child}, family pad, matrix none, lane {lane}, component {component}")
+    );
+    println!(
+        "pidec_pad_evaluation_replay=passed children={CHILDREN} lanes={D} pad_words={} point_words={} blocks={blocks} target_mutation=rejected child={child} family=pad matrix=none lane={lane} component={component} elapsed={:?}",
+        CHILDREN * D * 2,
         POINT * 2,
         started.elapsed()
     );

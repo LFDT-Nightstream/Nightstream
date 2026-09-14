@@ -18,6 +18,13 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
 import NightstreamFPrime.Export.Stage1.PiDECPadBlockRange
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
+import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
+import NightstreamFPrime.Export.Stage1.PiDECSourceIndex
+import NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
+import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

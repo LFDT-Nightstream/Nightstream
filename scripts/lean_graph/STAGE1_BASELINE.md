@@ -95,21 +95,38 @@ accelerated child value matched the earlier row kernel. The weighted kernel
 took 2.60 ms after initialization; the reference call took 112.35 ms including
 initialization. This is not a steady-state speed comparison.
 
-The first full range, blocks `0..74272`, now computes all 864 extension-field
-partial values from the Lean parent and Lean-derived C point. Read, compute
-and addition took 35.67 s; the complete command took 45.03 s with 3,864,584 KiB
-peak RSS. Reuse this result and the existing parent partitions. The remaining
-63 Pad ranges, their complete sum and native comparison, and all 14 matrix
-executions are still open. The Rust complete-value comparator compiles; it has
-not yet received the complete independent Lean result. The Pad merge boundary
-gate checks decoding and complete contiguous coverage, not production values.
+The complete Pad replay now passes. All 64 contiguous ranges cover every
+one of the 4,685,394 carrier blocks, including the tails. Lean derives the
+point from accepted C execution, splits the Lean parent blocks, computes each
+weighted product, and adds all partial sums. Rust only decodes and compares.
+All 1,728 Pad field words and all 56 point words match native children. A
+change at child 15, lane 53, imaginary component rejects at that location.
+The range commands took 1,759.75 s in total, with a largest run of 45.03 s and
+peak RSS of 3,864,584 KiB. Final Lean read/sum/write took 35 ms. See
+`PIDEC_PAD_REPLAY.json` and `PIDEC_PAD_RANGES.json` for the source-bound record.
 
-`PIDEC_EVALUATION_FAMILY.json` records this proof and first-range checkpoint.
-Earlier measurements remain in `PIDEC_EVALUATION_PILOT.json` and
-`PIDEC_EVALUATION_ROWS.json`. Native targets for the same parent are retained
-in `PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required. The complete
-value gate will require all 25,920 field words, the common point and a changed
-target rejection. Kernel closure alone does not close this replay record.
+All 14 matrix families remain open. The first sparse Poseidon row probe was
+stopped after 248.19 s with observed process RSS of 29,122,284 KiB. The proved
+numeric reader now evaluates the same first row's 14 ports in 4.20 ms. Its
+equivalence preserves arbitrary reads, retained outputs, selector-scaled
+constants and failed lookups. `kernel_eq_evalSparse` connects this scalar
+interpretation to the existing child-coefficient kernel without added premises.
+
+The next probe exposed full-package source scans in C ordinary rows. The
+proved packet accessor now reads that block's first and last rows in 83.04 ms
+and 183.83 ms. These are endpoint feasibility measurements with a column-index
+read, not actual-witness replay. Ten endpoints in blocks 0 through 4 were
+measured. Full execution still needs shared packet/invocation storage and
+efficient source access for the remaining ordinary blocks. Pilot is next;
+preserve its existing index-table order. See `PIDEC_PAD_REPLAY.json`.
+
+The complete family target and metadata gate remain in the graph. Kernel
+closure and the successful Pad result do not close the matrix execution
+requirement. Full comparison must cover all 25,920 evaluation field words,
+the common point and a changed target. Native targets are retained in
+`PIDEC_EVALUATION_TARGETS.json`; no native producer rerun is required. Earlier
+proof and first-range checkpoints remain in `PIDEC_EVALUATION_FAMILY.json`,
+`PIDEC_EVALUATION_PILOT.json` and `PIDEC_EVALUATION_ROWS.json`.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

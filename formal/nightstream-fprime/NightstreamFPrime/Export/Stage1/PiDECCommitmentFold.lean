@@ -202,4 +202,35 @@ theorem combine_partialSums_value {leftCount rightCount : Nat}
     (add (sum left) (sum right)).get = (fold right (sum left)).get := by
   rw [add_value, fold_value, sum_value right]
 
+private theorem ringFold_add_right (values : List RingF) (initial extra : RingF) :
+    values.foldl ringFAdd (ringFAdd initial extra) =
+      ringFAdd (values.foldl ringFAdd initial) extra := by
+  induction values generalizing initial with
+  | nil => rfl
+  | cons value values ih =>
+      simp only [List.foldl_cons]
+      have swap : ringFAdd (ringFAdd initial extra) value =
+          ringFAdd (ringFAdd initial value) extra := by
+        funext lane
+        change (initial lane + extra lane) + value lane =
+          (initial lane + value lane) + extra lane
+        calc
+          _ = initial lane + (extra lane + value lane) :=
+            ConcreteCarrier.baseLaws.add_assoc _ _ _
+          _ = initial lane + (value lane + extra lane) :=
+            congrArg (fun term : F => initial lane + term)
+              (ConcreteCarrier.baseLaws.add_comm _ _)
+          _ = _ := (ConcreteCarrier.baseLaws.add_assoc _ _ _).symm
+      rw [swap, ih]
+
+/-- Adding one contribution to any worker slot increases the complete slot
+sum by that contribution. The unchanged prefix and suffix include slots that
+receive no block in the final partial batch. -/
+theorem workerSlot_add_value (before after : List RingF)
+    (current contribution initial : RingF) :
+    (before ++ ringFAdd current contribution :: after).foldl ringFAdd initial =
+      ringFAdd ((before ++ current :: after).foldl ringFAdd initial) contribution := by
+  simp only [List.foldl_append, List.foldl_cons]
+  rw [← ringAdd_assoc, ringFold_add_right]
+
 end NightstreamFPrime.Export.Stage1.PiDECCommitmentFold

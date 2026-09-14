@@ -183,6 +183,10 @@ and global rows [1,160,900,2,321,800). Its final two ranges passed in 833.78
 and 850.77 s. All three ranges are retained with complete values and source
 records; remaining matrix blocks and the complete native comparison are open.
 
+The third large Poseidon block is complete: all 7,604 invocations and
+714,776 rows have saved results. Its two ranges passed in 917.98 and
+773.69 s. The first three blocks now cover global rows [0,3,036,576).
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

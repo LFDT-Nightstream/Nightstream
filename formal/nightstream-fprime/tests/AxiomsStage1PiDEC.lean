@@ -160,6 +160,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.first256Nat_eq
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.wideCoefficientNat_eq
 #audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq
+#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected

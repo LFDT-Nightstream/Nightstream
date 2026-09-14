@@ -441,5 +441,6 @@
   },
   "independent_review": "The reviewer confirmed the finalizer arithmetic is Lean-only, the range/dimension/canonical checks cover the complete result, the existing sum proofs apply, and the mutations alter actual inputs and targets. The reviewer did not build.",
   "range_reuse": "The full range scan ran at 4507891b. The later change adds only the Lean final sum and direct Rust comparison; existing stored arithmetic, key, digit, product and per-block kernels are unchanged. The 64 source-bound range outputs were reused.",
-  "delivery_asset_index": "docs/reviews/nightstream-fprime-requirements/PIDEC_COMMITMENT_ASSET.json"
+  "delivery_asset_index": "docs/reviews/nightstream-fprime-requirements/PIDEC_COMMITMENT_ASSET.json",
+  "performance_report": "PIDEC_COMMITMENT_PERFORMANCE.json"
 }

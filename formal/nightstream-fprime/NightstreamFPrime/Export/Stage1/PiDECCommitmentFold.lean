@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
+import NightstreamFPrime.Export.NativePoseidon2RoundCore
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 /-!
@@ -18,6 +19,8 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
   (ringFSum ajtaiRow blockSum)
+open NightstreamFPrime.Export.NativePoseidon2
+  (add64 add64_canonical add64_denote)
 
 /-- The stored additive identity. -/
 def zero : StoredRing := Vector.replicate ringDegree 0
@@ -27,16 +30,51 @@ theorem zero_value : zero.get = ringFZero := by
   change (Vector.replicate ringDegree (0 : F))[lane.val] = 0
   rw [Vector.getElem_replicate]
 
-/-- Materialize every coefficient of the ring sum. -/
+@[inline] private def addCoefficient (left right : F) : F :=
+  let a := UInt64.ofNatLT left.val (Nat.lt_trans left.isLt (by decide))
+  let b := UInt64.ofNatLT right.val (Nat.lt_trans right.isLt (by decide))
+  ⟨(add64 a b).toNat, add64_canonical a b
+    (by simpa only [a, UInt64.toNat_ofNatLT] using left.isLt)
+    (by simpa only [b, UInt64.toNat_ofNatLT] using right.isLt)⟩
+
+private theorem canonicalWord_denote (word : UInt64)
+    (canonical : word.toNat < goldilocksModulus) :
+    (⟨word.toNat, canonical⟩ : F) = word.denote := by
+  apply Fin.ext
+  change word.toNat = word.toNat % goldilocksModulus
+  exact (Nat.mod_eq_of_lt canonical).symm
+
+private theorem addCoefficient_value (left right : F) :
+    addCoefficient left right = left + right := by
+  let a := UInt64.ofNatLT left.val (Nat.lt_trans left.isLt (by decide))
+  let b := UInt64.ofNatLT right.val (Nat.lt_trans right.isLt (by decide))
+  have ha : a.toNat < goldilocksModulus := by
+    simpa only [a, UInt64.toNat_ofNatLT] using left.isLt
+  have hb : b.toNat < goldilocksModulus := by
+    simpa only [b, UInt64.toNat_ofNatLT] using right.isLt
+  have aValue : a.denote = left := by
+    apply Fin.ext
+    change a.toNat % goldilocksModulus = left.val
+    simp only [a, UInt64.toNat_ofNatLT, Nat.mod_eq_of_lt left.isLt]
+  have bValue : b.denote = right := by
+    apply Fin.ext
+    change b.toNat % goldilocksModulus = right.val
+    simp only [b, UInt64.toNat_ofNatLT, Nat.mod_eq_of_lt right.isLt]
+  calc
+    addCoefficient left right = (add64 a b).denote :=
+      canonicalWord_denote (add64 a b) (add64_canonical a b ha hb)
+    _ = left + right := by rw [add64_denote a b ha hb, aValue, bValue]
+
+/-- Materialize every coefficient with native-word field addition. -/
 def add (left right : StoredRing) : StoredRing :=
-  Vector.ofFn fun lane => left.get lane + right.get lane
+  Vector.ofFn fun lane => addCoefficient (left.get lane) (right.get lane)
 
 theorem add_value (left right : StoredRing) :
     (add left right).get = ringFAdd left.get right.get := by
   funext lane
   change (Vector.ofFn (fun index : Fin ringDegree =>
-    left.get index + right.get index))[lane.val] = _
-  rw [Vector.getElem_ofFn]
+    addCoefficient (left.get index) (right.get index)))[lane.val] = _
+  rw [Vector.getElem_ofFn, addCoefficient_value]
   rfl
 
 private theorem ringAdd_assoc (left middle right : RingF) :

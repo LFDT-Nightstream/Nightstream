@@ -1,0 +1,213 @@
+{
+  "schema": 1,
+  "status": "source-equivalent optimization; actual range comparison passed",
+  "base_commit": "6bda6e843c777e8e3158af52cc484644b62972b6",
+  "incoming_commits": [
+    "7fc449ef428f4905cb42e48253c97ce8956e228d",
+    "f721ae232c1c0a3d7591b60e9db324137accf621"
+  ],
+  "tested_merge_tree_before_evidence": "96ea393ca30dc1dacdd537f68f1e579739c97a22",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "package": "unchanged"
+  },
+  "input": {
+    "path": "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+    "sha256": "306d0a4b392da3478652ba85f9f3e4d57c834b2e7f8a4c779c6e0e08090469b4",
+    "bytes": 47310348,
+    "range": [
+      0,
+      74272
+    ],
+    "parent_blocks": 4685394,
+    "authority": "original independently replayed Lean PiRLC parent"
+  },
+  "comparison": {
+    "scope": "one actual original Lean parent range, not the other report\u2019s generated fixture",
+    "blocks": 74272,
+    "coefficients_compared": 19008,
+    "all_bytes_equal": true,
+    "measurements": {
+      "before": {
+        "compute_read_write_ms": 148600,
+        "wall_seconds": 155.3377108889399,
+        "whole_command_peak_rss_kib": 3859424,
+        "output_sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4"
+      },
+      "after": {
+        "compute_read_write_ms": 105833,
+        "wall_seconds": 113.57603367592674,
+        "whole_command_peak_rss_kib": 3854600,
+        "output_sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4"
+      }
+    },
+    "replay_time_reduction_percent": 28.77994616419919,
+    "memory_note": "Whole-command RSS includes lake/executable compilation; do not infer a runtime memory reduction."
+  },
+  "scope": "One actual source range on the same Linux machine and existing Lean worker setting. The complete production commitment scan is retained from its previous checkpoint.",
+  "proofs": [
+    "NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value",
+    "NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value",
+    "NightstreamFPrime.Export.Stage1.PiDECCommitmentFold.add_value",
+    "NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.contributions_value",
+    "NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages.sum_contributions_honestMessages"
+  ],
+  "source_review": "No changed specification or stronger caller premise. Key inputs, ordered convolution, Phi81 reduction and field addition retain their equality proofs. The new key theorem is audited.",
+  "runs": {
+    "before": {
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-before-1.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-before-1.log",
+        "sha256": "b2393d861c7fc53dfcff83fe84df0960b96a069a691f6f83f89ac13c1d854b66",
+        "bytes": 127045
+      },
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-before-command-1.json",
+        "sha256": "ca790031940a255c3e6c2fe9a6b10397f5aa09b3a2b2bb68cbee92014e9caa7f",
+        "bytes": 520
+      }
+    },
+    "after": {
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-after-1.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-after-1.log",
+        "sha256": "e2cc0b3d9a6e85963c84391c2a1137e22babf7374cdf925cbb04b1762d5968cd",
+        "bytes": 127515
+      },
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-after-command-1.json",
+        "sha256": "01ec2e8d48052df89c7cd816c4eaeb56629f05ca3e42e60218d17f929c0ae7af",
+        "bytes": 665
+      }
+    }
+  },
+  "gates": {
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 9.378311341977678,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-static-1.log",
+        "sha256": "65905d0c39cf0bcf09ffcceb2e04a49b8808af4e53021e174dd17783720c3e1c",
+        "bytes": 1343
+      },
+      "peak_rss_kib": 19656
+    },
+    "build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 30.029142510029487,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-build-1.log",
+        "sha256": "7c184e4100bbe6ff555094c27240cf5f7d3577b40568a7ba47f364a2ae63f610",
+        "bytes": 173589
+      },
+      "peak_rss_kib": 5834164
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 4.472881997935474,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-axioms-1.log",
+        "sha256": "160dd0d07f0c91dc3c7c4d31b9b87851112dbed9f6efd6474769a021bcd485ee",
+        "bytes": 1092613
+      },
+      "peak_rss_kib": 3879524
+    },
+    "metadata": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 17.44907836499624,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "../../scripts/lean_graph/PiDECCommitmentMetadata.lean"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-metadata-1.log",
+        "sha256": "85fd26737a839d2ae32023df3adcf479e0ccd193046367c8d265f6006cf97d56",
+        "bytes": 84291605
+      },
+      "peak_rss_kib": 4572096
+    },
+    "boundaries": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 20.30284923093859,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-merge-boundaries",
+        "/tmp/nightstream-pidec-perf-merge-after-1.json",
+        "/tmp/nightstream-pidec-perf-merge-boundaries-1"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-boundaries-1.log",
+        "sha256": "e5c1ff5b8c156ff4143190dfc83a54ca1cfaf43f5586b63fd1333348314d9e57",
+        "bytes": 1659
+      },
+      "peak_rss_kib": 1479828
+    },
+    "registrations": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 0.26401169307064265,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "scripts.lean_graph.tests.test_conformance_registrations"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-registrations-1.log",
+        "sha256": "304aaa2f03fd1b6098efddbeb6d6a19e8a71fc3ff1a27679485aebdcad810309",
+        "bytes": 1287
+      },
+      "peak_rss_kib": 22656
+    }
+  },
+  "delivery": "Reports and hashes are in Git. Raw outputs and logs are retained outside Git; GitHub release delivery remains open.",
+  "comparison_record": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nightstream-pidec-perf-merge-comparison-1.json",
+    "sha256": "b2c15ea75009c01bb4e478e64acc1c5771faaa7d7f95d1a2c2840ffc601051fd",
+    "bytes": 853
+  },
+  "worker_count": 16,
+  "platform": {
+    "system": "Linux",
+    "architecture": "x86_64"
+  }
+}

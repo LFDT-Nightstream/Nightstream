@@ -9,6 +9,10 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationRows
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

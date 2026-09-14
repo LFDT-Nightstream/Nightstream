@@ -1104,6 +1104,33 @@ private theorem rowRing_eq_blockSum
       rw [kernelImage_eq_sumFinF]
     _ = _ := rfl
 
+/-- Public complete-carrier block sum for an explicit matrix, including Pad.
+This exposes the existing decomposition through `sumRange`; callers do not
+need the private block representations or a new decomposition proof. -/
+theorem rowRing_eq_sumRange
+    {shape : Shape}
+    (system : Structure shape)
+    (matrix : PaperLinearAlgebra.BooleanMatrix F
+      shape.rowVariables shape.carrierWidth)
+    (assignment : Assignment shape)
+    (vertex : BooleanVertex shape.rowVariables)
+    (output : Fin ringDegree) :
+    rowRing system matrix assignment vertex output =
+      sumRange ConcreteCarrier.baseOps
+        (Phi81ColumnLayout.blockCount shape.carrierWidth) (fun block =>
+          if hb : block < Phi81ColumnLayout.blockCount shape.carrierWidth then
+            sumRange ConcreteCarrier.baseOps ringDegree (fun lane =>
+              if hl : lane < ringDegree then
+                system.matrixSource.paddedEntry ConcreteCarrier.baseOps
+                    matrix vertex ⟨block, hb⟩ ⟨lane, hl⟩ *
+                  CarrierAction.kernelImage ⟨lane, hl⟩
+                    (CarrierAction.assignmentBlock assignment ⟨block, hb⟩) output
+              else 0)
+          else 0) := by
+  have equal := congrArg (fun value : RingF => value output)
+    (rowRing_eq_blockSum system matrix assignment vertex)
+  simpa only [blockRowSum, blockRowRing, sumFinF] using equal
+
 private theorem blockRowRing_eq_sumRingF
     {shape : Shape}
     (system : Structure shape)

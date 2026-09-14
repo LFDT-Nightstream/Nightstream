@@ -29,6 +29,8 @@
 #   validate.sh pi-dec-pad-merge-boundaries <new-results-directory>
 #   validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>
 #   validate.sh pi-dec-matrix-range <C-input> <new-output> <block> <first-local-row> <last-exclusive> <Lean-parent-ranges>...
+#   validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>...
+#   validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>
 #   validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
@@ -139,6 +141,15 @@ case "$phase" in
   pi-dec-parent-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>" >&2; exit 2; fi
     timeout -k 10 300 python3 -B tests/pi_dec_parent_input.py .lake/build/bin/replayPiDECMatrix "$2" "$3"
+    ;;
+  pi-dec-matrix-merge)
+    if (( $# < 5 )); then echo "usage: validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>..." >&2; exit 2; fi
+    shift
+    capped lake exe mergePiDECMatrix -- "$@"
+    ;;
+  pi-dec-matrix-merge-boundaries)
+    if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>" >&2; exit 2; fi
+    timeout -k 10 300 python3 -B tests/pi_dec_matrix_merge.py .lake/build/bin/mergePiDECMatrix "$2" "$3" "$4"
     ;;
   pi-dec-evaluation-block)
     if (( $# != 3 && $# != 4 )); then echo "usage: validate.sh pi-dec-evaluation-block [<C-input>] <Lean-parent-range> <output>" >&2; exit 2; fi

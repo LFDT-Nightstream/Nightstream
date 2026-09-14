@@ -102,6 +102,11 @@ root = "NightstreamFPrime.Export.PiDECMatrixReplayMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "mergePiDECMatrix"
+root = "NightstreamFPrime.Export.PiDECMatrixMergeMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "measurePiDECEvaluationBlock"
 root = "NightstreamFPrime.Export.PiDECEvaluationBlockMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

@@ -138,8 +138,17 @@ exact cache/grouped-load theorems cover the other opcodes. The executor now
 accepts block-local row bounds, with complete 94-row Poseidon and 34-row
 Phi81 groups required. Its actual first Phi81 group passes in 0.37 s of
 arithmetic after loading the parent. These are partial ranges; complete
-coverage, the Lean merge and native matrix comparison remain open. See
+coverage and native matrix comparison remain open. See
 `PIDEC_MATRIX_REPLAY.json`.
+
+Sparse interface forms are now cached once per invocation, with equality
+to the existing interface. The repeated 16-invocation result has unchanged
+bytes. A further 1,600 invocations, rows `[1504,151904)`, pass in 646.16 s
+at 4,596,052 KiB peak RSS. The Lean merger checks complete contiguous row
+coverage and the C-derived point, sums every matrix coefficient, and joins
+the complete Pad result in the existing native comparison format. Its
+range-addition declarations are audited. Complete source-derived matrix
+coverage and the final actual merged comparison remain open.
 
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution

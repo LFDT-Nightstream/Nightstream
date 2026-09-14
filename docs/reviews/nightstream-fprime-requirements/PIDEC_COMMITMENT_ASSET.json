@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "status": "prepared; release upload and fresh-download check pending",
+  "destination": "GitHub release assets in this repository",
+  "source_base_commit": "4507891b1a150d086c9e4eeb3f2a21b46a7a5d6c",
+  "archive": {
+    "file": "PIDEC_COMMITMENT_REPLAY_EVIDENCE-a9091fd5c3f51118e4ceb2838627b57812d10a29fa26850b8a2d46b097fc7ea8.zip",
+    "local_path": "/home/nicoarq/develop/nightstream-stage1-evidence/PIDEC_COMMITMENT_REPLAY_EVIDENCE-a9091fd5c3f51118e4ceb2838627b57812d10a29fa26850b8a2d46b097fc7ea8.zip",
+    "bytes": 14694631,
+    "sha256": "a9091fd5c3f51118e4ceb2838627b57812d10a29fa26850b8a2d46b097fc7ea8",
+    "members": 158,
+    "crc_check": "passed",
+    "download_url": null
+  },
+  "inputs": {
+    "file": "PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
+    "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4"
+  },
+  "reproduction_gate": "pidec-commitment-values",
+  "report_sha256": "7b41aab368844fc005325c206574cf0347c4209e74716904bf5027aee1fb1d8f",
+  "range_manifest_sha256": "0752fe5e73fe5e83e2755885ba697e67d323f6135d6cdbcaacc435ecdb4f71dd",
+  "scope": "Complete private children and commitments have local execution evidence. Child evaluations, independent PiCCS, HyperNova construction and composed prover replay remain open."
+}

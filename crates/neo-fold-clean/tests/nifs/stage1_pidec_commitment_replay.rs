@@ -1,4 +1,4 @@
-//! Compare complete Rust child commitments with summed independent Lean ranges.
+//! Compare complete Rust child commitments with complete independent Lean values.
 
 use std::{fs::File, io::BufReader, path::Path, time::Instant};
 
@@ -14,7 +14,7 @@ struct SavedCommitments {
     commitments: [Commitment; CHILDREN],
 }
 
-type LeanRange = (u64, usize, usize, usize, Vec<Vec<Vec<u64>>>);
+type LeanCommitments = (u64, usize, usize, usize, Vec<Vec<Vec<u64>>>);
 
 fn compare_values(actual: &[Commitment; CHILDREN], expected: &[Commitment; CHILDREN]) -> Result<(), String> {
     for child in 0..CHILDREN {
@@ -42,10 +42,10 @@ fn compare_values(actual: &[Commitment; CHILDREN], expected: &[Commitment; CHILD
     Ok(())
 }
 
-/// Each Lean file has [1,blocks,start,end,rows[children[54 coefficients]]].
-/// Ranges must cover the complete carrier exactly once. Rust commitments are
-/// only targets; this comparison neither generates nor changes Lean outputs.
-pub fn compare(split_path: &Path, ranges: &[String]) {
+/// Lean emits [1,blocks,0,blocks,rows[children[54 coefficients]]] after it
+/// sums every contiguous range. Rust only decodes and compares those complete
+/// values; it does not perform the expected commitment arithmetic.
+pub fn compare(split_path: &Path, lean_path: &Path) {
     let started = Instant::now();
     let actual: SavedCommitments =
         serde_json::from_reader(BufReader::new(File::open(split_path).expect("Rust split file")))
@@ -54,29 +54,27 @@ pub fn compare(split_path: &Path, ranges: &[String]) {
     let rows = neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize;
     let blocks = PRODUCTION_MESSAGE_COLUMNS as usize;
     let mut expected = std::array::from_fn(|_| Commitment::zeros(D, rows));
-    let mut cursor = 0;
-    for path in ranges {
-        let (schema, count, start, end, values): LeanRange =
-            serde_json::from_reader(BufReader::new(File::open(path).expect("Lean commitment range")))
-                .expect("Lean partial commitments");
-        assert_eq!(schema, 1);
-        assert_eq!(count, blocks);
-        assert_eq!(start, cursor, "no gap or overlap in commitment coverage");
-        assert!(start < end && end <= blocks, "valid complete-carrier range");
-        assert_eq!(values.len(), rows, "all key rows");
-        for (row, children) in values.iter().enumerate() {
-            assert_eq!(children.len(), CHILDREN, "all child commitments");
-            for (child, coefficients) in children.iter().enumerate() {
-                assert_eq!(coefficients.len(), D, "all ring coefficients");
-                for (lane, &coefficient) in coefficients.iter().enumerate() {
-                    assert!(coefficient < F::ORDER_U64, "canonical Lean field coefficient");
-                    expected[child].data[row * D + lane] += F::from_u64(coefficient);
-                }
+    let (schema, count, start, end, values): LeanCommitments =
+        serde_json::from_reader(BufReader::new(File::open(lean_path).expect("Lean commitments")))
+            .expect("complete Lean commitments");
+    assert_eq!(schema, 1);
+    assert_eq!(count, blocks);
+    assert_eq!(
+        (start, end),
+        (0, blocks),
+        "complete commitment coverage including tails"
+    );
+    assert_eq!(values.len(), rows, "all key rows");
+    for (row, children) in values.iter().enumerate() {
+        assert_eq!(children.len(), CHILDREN, "all child commitments");
+        for (child, coefficients) in children.iter().enumerate() {
+            assert_eq!(coefficients.len(), D, "all ring coefficients");
+            for (lane, &coefficient) in coefficients.iter().enumerate() {
+                assert!(coefficient < F::ORDER_U64, "canonical Lean field coefficient");
+                expected[child].data[row * D + lane] = F::from_u64(coefficient);
             }
         }
-        cursor = end;
     }
-    assert_eq!(cursor, blocks, "complete commitment coverage including tails");
     compare_values(&actual.commitments, &expected).expect("all independent child commitments match");
 
     let child = CHILDREN - 1;

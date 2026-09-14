@@ -29,7 +29,7 @@ bridge pass the axiom audit and exact target check. Static/build/axioms and
 the complete Rust test build pass. `PIRLC_WITNESS_REPLAY.json` in the
 requirements review directory records the source hashes, commands, times
 and memory. Release upload and fresh-download verification remain external.
-The next computation milestone is PiDEC, using the Lean-computed parent.
+PiDEC uses this Lean-computed parent.
 
 PiDEC has two required results: every private digit, then every child
 commitment and evaluation computed from those digits. The private target is
@@ -45,10 +45,9 @@ The local private PiDEC checkpoint passes: all 4,048,180,416 child
 coefficients match freshly generated Rust children, and the final-tail
 mutation rejects. The total kernel, selected consumer, exact target, audits,
 boundary tests and Rust test build pass. See `PIDEC_WITNESS_REPLAY.json`.
-Lean's two ranges took 8.38 and 142.15 seconds. The next operation is a
-measured fixed-key commitment contribution from these same digits, followed
-by complete commitments and evaluations. No PiCCS or HyperNova replay is
-claimed by this private digit result.
+Lean's two private ranges took 8.38 and 142.15 seconds. The child message
+calculation uses these same digits. No PiCCS or HyperNova replay is claimed
+by this private digit result.
 
 The commitment kernels now use proved native-word ChaCha and the existing
 proved native-word field operations. Both measured block products match the
@@ -65,8 +64,15 @@ Its only premise is the successful checked split of the supplied parent.
 The proved key, product and finite sum yield every child commitment in
 `honestMessages`. The new graph gates require all 64 contiguous ranges,
 all 16 by 22 by 54 commitment coefficients, and changed-target rejection.
-The full executed comparison is still open. Complete child evaluations
-follow commitment closure; PiCCS and HyperNova replay remain later milestones.
+All 64 ranges now pass, covering every one of the 4,685,394 carrier blocks.
+Lean also computes the final sum; Rust only decodes and compares the complete
+values. All 19,008 coefficients match, and a changed coefficient at child 15,
+row 21, lane 53 rejects. Missing ranges, gaps, wrong row counts and noncanonical
+field values reject before Lean emits a result. The ranges took 5,982.10 s in
+total; the largest took 160.41 s at a maximum 1,512,080 KiB peak RSS. The final
+Lean read/sum/write took 376 ms. `PIDEC_COMMITMENT_REPLAY.json` and
+`PIDEC_COMMITMENT_RANGES.json` record the full evidence. Complete child
+evaluations are next; PiCCS and HyperNova replay remain later milestones.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

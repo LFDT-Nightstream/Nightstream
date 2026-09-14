@@ -628,6 +628,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation.prepare_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation.sum_prepare_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentIntRead.cachedDigit_eq_splitScalar
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentIntRead.sparseRead_eq_evalSparse
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentIntRead.sparseRead_map_valMinAbs
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedInvocation_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.intParentRead_map_valMinAbs

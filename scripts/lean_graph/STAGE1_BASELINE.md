@@ -220,6 +220,14 @@ gain. The profile points to sparse-row evaluation as the main cost.
 The Lean runtime fork is reviewed but not benchmarked or installed.
 Re-measure pure Eval_A before selecting another large range.
 
+One complete remaining Eval_A source passed in 276.67 s. Saved coverage
+now reaches row 5,159,458. A direct signed-bit fold preserves the existing
+`sparseRead_map_valMinAbs` statement and every output byte; the same source
+passes in 240.98 s with the new fold. Both measurements and their exact
+source snapshots are in `PIDEC_EVALUATION_PERFORMANCE.json`. The parent
+load remains about 82 s. Use the pure-source rates to size the remaining
+Eval_A execution; the first two small measurements mixed row families.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

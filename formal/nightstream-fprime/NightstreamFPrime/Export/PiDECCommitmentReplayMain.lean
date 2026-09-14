@@ -69,6 +69,62 @@ private def collect (initial : Products)
     | .error error => throw error
   return result
 
+private def writeResult (outputPath : System.FilePath) (blocks start finish : Nat)
+    (accumulated : Products) : IO Unit := do
+  let value := Value.array [.atom 1, .atom blocks, .atom start, .atom finish,
+    .array (List.ofFn fun row : Fin Poseidon2HashChainV1Setup.verifierRows =>
+      .array (List.ofFn fun child : Fin productionGlobalParams.k =>
+        .array (List.ofFn fun lane : Fin ringDegree =>
+          .atom (((accumulated.get row).get child).get lane).val)))]
+  IO.FS.writeFile outputPath (value.render ++ "\n")
+
+private def decodeVector {Alpha : Type} (count : Nat)
+    (decode : Lean.Json → Except String Alpha) (value : Lean.Json) :
+    Except String (Vector Alpha count) := do
+  let entries ← (← value.getArr?).mapM decode
+  if size : entries.size = count then return ⟨entries, size⟩
+  else throw s!"expected {count} entries"
+
+private def decodeCoefficient (value : Lean.Json) : Except String F := do
+  let word ← value.getNat?
+  unless word < goldilocksModulus do throw "noncanonical commitment coefficient"
+  return Radix.fieldOfNat word
+
+private def decodeRange (text : String) : Except String (Nat × Nat × Products) := do
+  let fields ← (← Lean.Json.parse text).getArr?
+  match fields.toList with
+  | [schema, blocks, start, finish, values] =>
+      unless (← schema.getNat?) = 1 &&
+          (← blocks.getNat?) = Poseidon2HashChainV1Setup.messageColumns do
+        throw "expected a selected Lean commitment range"
+      let products ← decodeVector Poseidon2HashChainV1Setup.verifierRows
+        (decodeVector productionGlobalParams.k (decodeVector ringDegree decodeCoefficient)) values
+      return (← start.getNat?, ← finish.getNat?, products)
+  | _ => throw "expected a commitment range header and values"
+
+/-- Combine only complete, contiguous Lean ranges. The final coefficient sums
+use the same audited `PiDECCommitmentFold.sum` as the block replay. -/
+private def merge (outputPath : System.FilePath) (paths : List String) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoMsNow
+  let blocks := Poseidon2HashChainV1Setup.messageColumns
+  let mut cursor := 0
+  let mut parts : Array Products := #[]
+  for path in paths do
+    let (start, finish, products) ← checked (decodeRange (← IO.FS.readFile path))
+    unless start = cursor && start < finish && finish ≤ blocks do
+      throw (IO.userError "commitment ranges have a gap, overlap or invalid endpoint")
+    parts := parts.push products
+    cursor := finish
+  unless cursor = blocks do throw (IO.userError "commitment ranges do not cover the complete carrier")
+  let accumulated : Products := Vector.ofFn fun row => Vector.ofFn fun child =>
+    PiDECCommitmentFold.sum fun index : Fin parts.size =>
+      ((parts[index]).get row).get child
+  writeResult outputPath blocks 0 blocks accumulated
+  let finished ← IO.monoMsNow
+  IO.println s!"pidec_Lean_commitments=passed ranges={parts.size} blocks={blocks} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} coefficients={Poseidon2HashChainV1Setup.verifierRows * productionGlobalParams.k * ringDegree} read_sum_write_ms={finished - started}"
+  return 0
+
 private def replay (parentPath outputPath : System.FilePath) (start finish : Nat) :
     IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
@@ -106,12 +162,7 @@ private def replay (parentPath outputPath : System.FilePath) (start finish : Nat
         computed := computed + 1
   unless (← input.getLine).isEmpty do throw (IO.userError "extra data after parent terminator")
   accumulated ← collect accumulated pending
-  let value := Value.array [.atom 1, .atom blocks, .atom start, .atom finish,
-    .array (List.ofFn fun row : Fin Poseidon2HashChainV1Setup.verifierRows =>
-      .array (List.ofFn fun child : Fin productionGlobalParams.k =>
-        .array (List.ofFn fun lane : Fin ringDegree =>
-          .atom (((accumulated.get row).get child).get lane).val)))]
-  IO.FS.writeFile outputPath (value.render ++ "\n")
+  writeResult outputPath blocks start finish accumulated
   let finished ← IO.monoMsNow
   IO.println s!"pidec_Lean_commitment_range=passed start={start} end={finish} computed_blocks={computed} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} workers={workers} compute_read_write_ms={finished - started}"
   return 0
@@ -121,6 +172,8 @@ end NightstreamFPrime.Export.PiDECCommitmentReplay
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | "merge" :: outputPath :: paths =>
+      NightstreamFPrime.Export.PiDECCommitmentReplay.merge outputPath paths
   | [parentPath, outputPath, start, finish] =>
       match start.toNat?, finish.toNat? with
       | some start, some finish =>
@@ -128,4 +181,5 @@ def main (arguments : List String) : IO UInt32 := do
       | _, _ => throw (IO.userError "range endpoints must be natural numbers")
   | _ =>
       IO.eprintln "usage: replayPiDECCommitment <Lean-parent-range> <new-output> <start-block> <end-block>"
+      IO.eprintln "   or: replayPiDECCommitment merge <new-output> <Lean-range>..."
       return 2

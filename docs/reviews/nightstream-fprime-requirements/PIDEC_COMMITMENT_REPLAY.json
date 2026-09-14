@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "status": "proved kernel and selected target; complete commitment execution pending",
-  "source_base_commit": "987e4ea0",
-  "scope": "Independent PiDEC child commitments from the Lean-computed PiRLC parent. Only the first complete range has finished; complete commitments and evaluations remain open.",
+  "status": "complete independent child commitments matched; child evaluations remain open",
+  "source_base_commit": "4507891b1a150d086c9e4eeb3f2a21b46a7a5d6c",
+  "scope": "All 16 child commitments were independently calculated in Lean from the Lean PiRLC parent, including the final sum of 64 ranges. All 19008 coefficients match actual Rust commitments. Child evaluations, independent PiCCS and full HyperNova prover replay remain open.",
   "target": "LeanGraph.Targets.PiDECCommitmentReplay",
   "closure": "LeanGraph.Targets.piDECCommitmentReplay",
   "consumer": "NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages.sum_contributions_honestMessages",
@@ -11,7 +11,7 @@
   ],
   "independence": [
     "Inputs are the Lean PiRLC parent ranges recorded in PIRLC_WITNESS_REPLAY.json. The inherited PiCCS messages and final claims are still supplied by Rust until independent C replay.",
-    "Lean computes the signed digits, indexed setup key, all ring products and finite sums. Native split.json commitments enter only the final Rust comparison.",
+    "Lean computes the signed digits, indexed setup key, all ring products, each finite range sum and the final sum of all ranges. Native split.json commitments enter only the direct comparison; Rust performs no expected commitment arithmetic.",
     "The selected path uses plain commitments and adv=None; see SELECTED_PLAIN_REPLAY.json."
   ],
   "profile": {
@@ -28,7 +28,7 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 9.077452336903661,
+      "elapsed_seconds": 9.027906955918297,
       "command": [
         "bash",
         "scripts/validate.sh",
@@ -36,15 +36,15 @@
       ],
       "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
       "evidence": "development diagnostic only",
-      "log_path": "/tmp/nightstream-pidec-commitment-static-1.log",
-      "log_sha256": "e5fdac8d5caea165688ec24c4d7603e85b68be6e781a87a510faefcc48784b67",
-      "peak_rss_kib": 19536
+      "log_path": "/tmp/nightstream-pidec-final-commitment-static-1.log",
+      "log_sha256": "3d44c284754066a4b2d39df8cae8fcc30323be969ce8f413c497373e403f50f8",
+      "peak_rss_kib": 18892
     },
     "build": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 3.921999637968838,
+      "elapsed_seconds": 0.9150985860032961,
       "command": [
         "bash",
         "scripts/validate.sh",
@@ -52,15 +52,15 @@
       ],
       "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
       "evidence": "development diagnostic only",
-      "log_path": "/tmp/nightstream-pidec-commitment-build-1.log",
-      "log_sha256": "34875e08cf71f5a3d8d2cc7ca53ebbbae9a421827b772065974dfa7de3be4c23",
-      "peak_rss_kib": 3887292
+      "log_path": "/tmp/nightstream-pidec-final-commitment-build-1.log",
+      "log_sha256": "bb06356396bab6618388b6810105a3c6e852ef7fe02d224ea1e8633de6999db4",
+      "peak_rss_kib": 877700
     },
     "axioms": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 3.121205459930934,
+      "elapsed_seconds": 1.0151970450533554,
       "command": [
         "bash",
         "scripts/validate.sh",
@@ -68,9 +68,9 @@
       ],
       "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
       "evidence": "development diagnostic only",
-      "log_path": "/tmp/nightstream-pidec-commitment-axioms-1.log",
-      "log_sha256": "4c60fca074e5196d4559ba61c1c6f2737851abe11879b900e9b53880624f71f9",
-      "peak_rss_kib": 3838008
+      "log_path": "/tmp/nightstream-pidec-final-commitment-axioms-1.log",
+      "log_sha256": "e3d6ae29b495a0e7ea14dda6cdbe83d13076372d1ccead7194fbbd16f2381fab",
+      "peak_rss_kib": 873420
     },
     "exact_target": {
       "outcome": "passed",
@@ -110,7 +110,7 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 23.71200762805529,
+      "elapsed_seconds": 23.659380798926577,
       "command": [
         "cargo",
         "test",
@@ -121,9 +121,9 @@
       ],
       "cwd": "/home/nicoarq/develop/Nightstream",
       "evidence": "development diagnostic only",
-      "log_path": "/tmp/nightstream-pidec-commitment-rust-build-1.log",
-      "log_sha256": "b29346208b2340cab3cd5f050c97dd3fcd127a0ce670491cf5de596e2ab4951d",
-      "peak_rss_kib": 654464
+      "log_path": "/tmp/nightstream-pidec-final-commitment-rust-build-1.log",
+      "log_sha256": "30a3fc1f3d775489f5a6d09e9fae5b6190a9bbcabf87cfefc4c2c089a1ac4d94",
+      "peak_rss_kib": 644284
     },
     "partition_tests": {
       "outcome": "passed",
@@ -145,7 +145,7 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 0.2643108139745891,
+      "elapsed_seconds": 0.2642508540302515,
       "command": [
         "python3",
         "-B",
@@ -155,9 +155,42 @@
       ],
       "cwd": "/home/nicoarq/develop/Nightstream",
       "evidence": "development diagnostic only",
-      "log_path": "/tmp/nightstream-pidec-commitment-registration-tests-1.log",
-      "log_sha256": "fc818c11886375af9373c8fb6bfbf6f547f2adfb98d7a0de16c0ec6d75b154e9",
-      "peak_rss_kib": 22556
+      "log_path": "/tmp/nightstream-pidec-final-commitment-registrations-1.log",
+      "log_sha256": "7d4fdf11d98028c37366c6e4ec13994f60717ba3fea445326321b8df25de8079",
+      "peak_rss_kib": 22380
+    },
+    "finalizer_file": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 2.368043859023601,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "NightstreamFPrime/Export/PiDECCommitmentReplayMain.lean"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-final-merge-file-1.log",
+      "log_sha256": "35775f0613eb81cde078b269d9ad41a587f02336055d2060a4b379892ef118a5",
+      "peak_rss_kib": 3842940
+    },
+    "format": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 1.9173440410522744,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-final-merge-format-2.log",
+      "log_sha256": "20d0ed12233249107b8c7493c24b879cfdae565d93c7e16ffc7513773bf08a53",
+      "peak_rss_kib": 118736
     }
   },
   "first_complete_range": {
@@ -186,7 +219,7 @@
   },
   "range_extent": {
     "blocks": 74272,
-    "basis": "Actual complete prefix:155.69s,1511560KiB peak. Remaining inputs are split into the same extent; each invocation retains the1500s cap."
+    "basis": "The original complete prefix took155.69s at1511560KiB peak. All remaining ranges used this measured extent; each invocation retained the1500s cap."
   },
   "partition": {
     "outcome": "passed",
@@ -217,18 +250,20 @@
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentBlock.lean": "f48bb7bbeaf6672802cb52b6adaa44c1e321f226d72c41d0dac4175db4a56424",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentFold.lean": "98fd14c60f2abf8e34d4b13afed72e56d9f865a5067e85038fa8b16649adaf0c",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECCommitmentHonestMessages.lean": "cbc614d737d0413aadb27a09af763ecaa618b00c5b6f95b27b78df492ea5553a",
-    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECCommitmentReplayMain.lean": "9bdfa904cc3739e1b63308859222b689488e36d79ecc7a70c125d6b64059c8c1",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECCommitmentReplayMain.lean": "b39ec0d24fb3cde153cc15608122111fd7d6ed4b543f4cbc68c8a6b5ecd2b7c2",
     "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECCommitmentBlockMain.lean": "14dddfad4d98cfc6022f130adefc42e2b3bacd20758055a4aa1f8687f05c1021",
     "formal/nightstream-fprime/tests/EvidenceTargets.lean": "ac37527c1c31b318325df968bf5767cfc93bed46d4ebecc0c932c066a0540713",
     "formal/nightstream-fprime/tests/EvidenceAcceptance.lean": "2f59669680e93289a2e97a1b9fdc744594dcb8c3b51f37fdad177c4768ab35ea",
     "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean": "d19778117abdfc532882da872abf8b978e90052630b3d8ec478f1099816267c9",
     "formal/nightstream-fprime/scripts/split_pidec_parent.py": "2df0b7d37dad36ae44fc7cb6da191443c9c1d9ad715fc29199d63751a157c79b",
     "formal/nightstream-fprime/tests/test_pi_dec_parent_partition.py": "46abb56ec74c64f9e4f064a76bb51e8959bdf5b5efb87e8e0f8b85f161911b67",
-    "crates/neo-fold-clean/tests/nifs/stage1_pidec_commitment_replay.rs": "1d3780a51bc2e1e92510260c56bbf98517647785a8c33208d59ae4756b66f50a",
+    "crates/neo-fold-clean/tests/nifs/stage1_pidec_commitment_replay.rs": "79f0f5b8b815783dd979ab714a53ff6f5d0e10972b9bff347b501a151c8d9395",
     "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs": "156a6c7937494a0db08f8ce6a30771b4e369d0855f75acaef2c7c2a1875d8754",
-    "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs": "d8f24165781c20c1080074403bd9f6cac721c929fca5448067c5e5d127a4a5bd",
+    "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs": "e7d9101872b8f1b367c18ea0f9d1a968b4efcda15e62abf8456cbca1562ad459",
     "scripts/lean_graph/PiDECCommitmentMetadata.lean": "d584764bfd778c1de0e891e5517048bd7e94cc7f7c5632aa3db3407be8a7948a",
-    "scripts/lean_graph/obligations.json": "d236317933482bd81851d0bc263b18c08f0ad2d1b07f696b1cf93e712e246814"
+    "scripts/lean_graph/obligations.json": "a33910f8fe5d03734dd08dd239a50bf12369ffdcf4c7601744e947cb50df06ee",
+    "formal/nightstream-fprime/scripts/validate.sh": "c6c77a7dcc39ef83ce685afc7e19bfd389720a35b9b421ef63f889adbb3d6bf7",
+    "formal/nightstream-fprime/tests/pi_dec_commitment_merge.py": "28258796c2b940b4a77fc66938225830faa642742034c111ec9fc35d85ab52c4"
   },
   "attempts": {
     "native_quarter": 2,
@@ -238,14 +273,173 @@
     "native_product_coefficient": 1,
     "finite_fold": 2,
     "selected_honest_messages": 3,
-    "literal_target": 2
+    "literal_target": 2,
+    "finalizer_file": 1
   },
   "scheduled_external_review": {
-    "read_at_utc": "2026-09-13 22:20:07",
+    "read_at_utc": "2026-09-14 00:20:51",
     "file": "FPRIME_STAGE1_EXTERNAL_REVIEW.md",
     "fable_file": "absent",
-    "disposition": "The unchanged September4 review concerns the separate public Nebula frontend. The selected plain replay path is covered by the new isolation regression; no Stage2 change is needed for this comparison."
+    "disposition": "The unchanged September4 review concerns the separate public Nebula frontend. The selected plain replay path has its own isolation regression; no Stage2 change is needed for this comparison."
   },
-  "delivery": "Reports and hashes in Git; archives remain outside Git for the approved GitHub release destination. Upload and fresh-download verification remain pending.",
-  "next": "Complete all64 contiguous commitment ranges and compare against actual Rust commitments with target mutation rejection; then complete child evaluations."
+  "delivery": "Reports and hashes in Git; outputs and logs are saved outside Git for the approved GitHub release destination. Upload and fresh-download verification remain pending.",
+  "next": "Complete child evaluations from the same Lean-generated digits and common point. PiCCS and HyperNova independent prover replay remain later milestones.",
+  "execution": {
+    "range_source_commit": "4507891b1a150d086c9e4eeb3f2a21b46a7a5d6c",
+    "range_count": 64,
+    "blocks": 4685394,
+    "compared_coefficients": 19008,
+    "range_elapsed_total_seconds": 5982.096360327094,
+    "largest_range_elapsed_seconds": 160.40700305905193,
+    "range_peak_rss_kib": 1512080,
+    "range_manifest": {
+      "path": "docs/reviews/nightstream-fprime-requirements/PIDEC_COMMITMENT_RANGES.json",
+      "sha256": "0752fe5e73fe5e83e2755885ba697e67d323f6135d6cdbcaacc435ecdb4f71dd"
+    },
+    "lean_final_sum": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 8.17993365204893,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-merge",
+        "/tmp/nightstream-pidec-complete-commitments-1.json",
+        "/tmp/nightstream-pidec-commitment-range-0-74272.json",
+        "/tmp/nightstream-pidec-commitment-range-74272-148544.json",
+        "/tmp/nightstream-pidec-commitment-range-148544-222816.json",
+        "/tmp/nightstream-pidec-commitment-range-222816-297088.json",
+        "/tmp/nightstream-pidec-commitment-range-297088-371360.json",
+        "/tmp/nightstream-pidec-commitment-range-371360-445632.json",
+        "/tmp/nightstream-pidec-commitment-range-445632-519904.json",
+        "/tmp/nightstream-pidec-commitment-range-519904-594176.json",
+        "/tmp/nightstream-pidec-commitment-range-594176-668448.json",
+        "/tmp/nightstream-pidec-commitment-range-668448-742720.json",
+        "/tmp/nightstream-pidec-commitment-range-742720-816992.json",
+        "/tmp/nightstream-pidec-commitment-range-816992-891264.json",
+        "/tmp/nightstream-pidec-commitment-range-891264-965536.json",
+        "/tmp/nightstream-pidec-commitment-range-965536-1039808.json",
+        "/tmp/nightstream-pidec-commitment-range-1039808-1114080.json",
+        "/tmp/nightstream-pidec-commitment-range-1114080-1188352.json",
+        "/tmp/nightstream-pidec-commitment-range-1188352-1262624.json",
+        "/tmp/nightstream-pidec-commitment-range-1262624-1336896.json",
+        "/tmp/nightstream-pidec-commitment-range-1336896-1411168.json",
+        "/tmp/nightstream-pidec-commitment-range-1411168-1485440.json",
+        "/tmp/nightstream-pidec-commitment-range-1485440-1559712.json",
+        "/tmp/nightstream-pidec-commitment-range-1559712-1633984.json",
+        "/tmp/nightstream-pidec-commitment-range-1633984-1708256.json",
+        "/tmp/nightstream-pidec-commitment-range-1708256-1782528.json",
+        "/tmp/nightstream-pidec-commitment-range-1782528-1856800.json",
+        "/tmp/nightstream-pidec-commitment-range-1856800-1931072.json",
+        "/tmp/nightstream-pidec-commitment-range-1931072-2005344.json",
+        "/tmp/nightstream-pidec-commitment-range-2005344-2079616.json",
+        "/tmp/nightstream-pidec-commitment-range-2079616-2153888.json",
+        "/tmp/nightstream-pidec-commitment-range-2153888-2228160.json",
+        "/tmp/nightstream-pidec-commitment-range-2228160-2302432.json",
+        "/tmp/nightstream-pidec-commitment-range-2302432-2376704.json",
+        "/tmp/nightstream-pidec-commitment-range-2376704-2450976.json",
+        "/tmp/nightstream-pidec-commitment-range-2450976-2525248.json",
+        "/tmp/nightstream-pidec-commitment-range-2525248-2599520.json",
+        "/tmp/nightstream-pidec-commitment-range-2599520-2673792.json",
+        "/tmp/nightstream-pidec-commitment-range-2673792-2748064.json",
+        "/tmp/nightstream-pidec-commitment-range-2748064-2822336.json",
+        "/tmp/nightstream-pidec-commitment-range-2822336-2896608.json",
+        "/tmp/nightstream-pidec-commitment-range-2896608-2970880.json",
+        "/tmp/nightstream-pidec-commitment-range-2970880-3045152.json",
+        "/tmp/nightstream-pidec-commitment-range-3045152-3119424.json",
+        "/tmp/nightstream-pidec-commitment-range-3119424-3193696.json",
+        "/tmp/nightstream-pidec-commitment-range-3193696-3267968.json",
+        "/tmp/nightstream-pidec-commitment-range-3267968-3342240.json",
+        "/tmp/nightstream-pidec-commitment-range-3342240-3416512.json",
+        "/tmp/nightstream-pidec-commitment-range-3416512-3490784.json",
+        "/tmp/nightstream-pidec-commitment-range-3490784-3565056.json",
+        "/tmp/nightstream-pidec-commitment-range-3565056-3639328.json",
+        "/tmp/nightstream-pidec-commitment-range-3639328-3713600.json",
+        "/tmp/nightstream-pidec-commitment-range-3713600-3787872.json",
+        "/tmp/nightstream-pidec-commitment-range-3787872-3862144.json",
+        "/tmp/nightstream-pidec-commitment-range-3862144-3936416.json",
+        "/tmp/nightstream-pidec-commitment-range-3936416-4010688.json",
+        "/tmp/nightstream-pidec-commitment-range-4010688-4084960.json",
+        "/tmp/nightstream-pidec-commitment-range-4084960-4159232.json",
+        "/tmp/nightstream-pidec-commitment-range-4159232-4233504.json",
+        "/tmp/nightstream-pidec-commitment-range-4233504-4307776.json",
+        "/tmp/nightstream-pidec-commitment-range-4307776-4382048.json",
+        "/tmp/nightstream-pidec-commitment-range-4382048-4456320.json",
+        "/tmp/nightstream-pidec-commitment-range-4456320-4530592.json",
+        "/tmp/nightstream-pidec-commitment-range-4530592-4604864.json",
+        "/tmp/nightstream-pidec-commitment-range-4604864-4679136.json",
+        "/tmp/nightstream-pidec-commitment-range-4679136-4685394.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-final-merge-run-1.log",
+      "log_sha256": "f71f96326dacda02e17c92b5105e12a419077ecbc88d716410ec39a046df7878",
+      "peak_rss_kib": 3860476
+    },
+    "direct_rust_comparison": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 22.556270729983225,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "compare-pidec-commitments",
+        "/tmp/nightstream-pidec-current-material-1/split.json",
+        "/tmp/nightstream-pidec-complete-commitments-1.json"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-final-commitment-compare-1.log",
+      "log_sha256": "485a51e56b221906be3dd34f417e003ae46d5eb8ee9240d0d8d83b8c7e439fc9",
+      "peak_rss_kib": 663424
+    },
+    "malformed_ranges": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 19.802355951978825,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-commitment-merge-boundaries",
+        "/tmp/nightstream-pidec-commitment-range-0-74272.json",
+        "/tmp/nightstream-pidec-final-merge-boundaries-1"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-final-merge-boundaries-1.log",
+      "log_sha256": "b35fd496c6ff176a79d47c6c97ffc2e92012d22c06011fee17b87ed26569868f",
+      "peak_rss_kib": 1479692
+    },
+    "complete_lean_output": {
+      "file": "nightstream-pidec-complete-commitments-1.json",
+      "sha256": "03302cc4ded51de09c0df2bf5fd70dd9981d82c94ccf6b0ab7c4f687cbeff94b"
+    },
+    "native_target": {
+      "file": "split.json",
+      "sha256": "356f9d77260205fc92bd1e49ffed535d6d8944fe733858698399b03bc9c46d6c",
+      "producer_evidence": "PIDEC_WITNESS_REPLAY.json"
+    },
+    "mutation": {
+      "target": "actual Rust commitment",
+      "child": 15,
+      "row": 21,
+      "lane": 53,
+      "change": "add one field element",
+      "outcome": "rejected at the exact coordinate"
+    }
+  },
+  "independent_review": "The reviewer confirmed the finalizer arithmetic is Lean-only, the range/dimension/canonical checks cover the complete result, the existing sum proofs apply, and the mutations alter actual inputs and targets. The reviewer did not build.",
+  "range_reuse": "The full range scan ran at 4507891b. The later change adds only the Lean final sum and direct Rust comparison; existing stored arithmetic, key, digit, product and per-block kernels are unchanged. The 64 source-bound range outputs were reused.",
+  "delivery_asset_index": "docs/reviews/nightstream-fprime-requirements/PIDEC_COMMITMENT_ASSET.json"
 }

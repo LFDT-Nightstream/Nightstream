@@ -258,11 +258,11 @@ fn main() {
         .first()
         .is_some_and(|mode| mode == "compare-pidec-commitments")
     {
-        assert!(
-            arguments.len() >= 3,
-            "usage: generate_pi_ccs_fixture compare-pidec-commitments <actual-split.json> <Lean-range>..."
+        assert_eq!(
+            arguments.len(), 3,
+            "usage: generate_pi_ccs_fixture compare-pidec-commitments <actual-split.json> <complete-Lean-commitments.json>"
         );
-        owned_nifs::pidec_commitment_replay::compare(Path::new(&arguments[1]), &arguments[2..]);
+        owned_nifs::pidec_commitment_replay::compare(Path::new(&arguments[1]), Path::new(&arguments[2]));
         return;
     }
     if arguments

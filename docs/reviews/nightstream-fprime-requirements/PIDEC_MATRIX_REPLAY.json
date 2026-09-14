@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "source_base_commit": "001fd8034505fa8692f0f65af804775f4a6b7599",
-  "status": "actual matrix replay covers the complete C verifier and R sampler blocks; full matrix comparison open",
+  "status": "actual matrix replay covers C, R sampler and all commitment-combination product rows; full matrix comparison open",
   "graph_obligation": "pidec-evaluation-replay",
   "scope": {
     "complete_matrix_rows": 6377559,
@@ -465,49 +465,49 @@
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 9.478559191920795,
+      "elapsed_seconds": 9.37812549690716,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-sampler-complete-static-1.log",
-        "sha256": "4e844e07cea8a5547446cd04d0c2d479915e3ff620c885b668c10c5f2c46b6f6",
-        "bytes": 1343
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-commitment-complete-static-1.log",
+        "sha256": "2c590a0423f9c395cabe0601562fb2161a4794be420a9de461c64f22f65f679e",
+        "bytes": 1342
       },
-      "peak_rss_kib": 19016
+      "peak_rss_kib": 19380
     },
     "build": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 0.8650499579962343,
+      "elapsed_seconds": 0.9153404089156538,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-sampler-complete-build-1.log",
-        "sha256": "4fcf3c3d81ee828ec6299e648f82c6e14e77a7dd98ebcff154d5d9997f9a7767",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-commitment-complete-build-1.log",
+        "sha256": "fceebc151d2712a287455ac64b135a0947da02e611321cb0796ea7e51a49de31",
         "bytes": 171780
       },
-      "peak_rss_kib": 879088
+      "peak_rss_kib": 883520
     },
     "axioms": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 1500,
-      "elapsed_seconds": 0.9653038079850376,
+      "elapsed_seconds": 1.0157943540252745,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-sampler-complete-axioms-1.log",
-        "sha256": "baf969012a89ac4a6fb7564d6b7c638f26066813fbe09d59b2ce97edaf8241b7",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-commitment-complete-axioms-1.log",
+        "sha256": "97124d30725145ea5d3b184c2309d983a5167043f1458887da6ee5a2311e8849",
         "bytes": 1092586
       },
-      "peak_rss_kib": 880124
+      "peak_rss_kib": 873396
     },
     "registrations": {
       "outcome": "passed",
       "exit": 0,
       "cap_seconds": 300,
-      "elapsed_seconds": 0.21402380301151425,
+      "elapsed_seconds": 0.21394631604198366,
       "log": {
-        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-sampler-complete-registrations-1.log",
-        "sha256": "0e1bac6bb6a809d9fa99f2a4d41523c01d0a44fa5a2d61e6f5763df5db83c8cd",
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-commitment-complete-registrations-1.log",
+        "sha256": "a1758769e41e308838c84962374683d181d63e0b29e98089ac38c68f8e32bcb2",
         "bytes": 1287
       },
-      "peak_rss_kib": 22544
+      "peak_rss_kib": 22548
     },
     "matrix_merge_build": {
       "outcome": "passed",
@@ -1085,5 +1085,78 @@
       }
     ],
     "scope": "PiDEC child matrix evaluation of the selected sampler rows. PiRLC product rows and later blocks remain unexecuted beyond the first product group."
+  },
+  "product_block": {
+    "block": 10,
+    "complete_local_prefix": [
+      0,
+      686664
+    ],
+    "complete_families": [
+      "commitment combination: all 17 sources"
+    ],
+    "family_local_boundaries": {
+      "commitment": [
+        0,
+        686664
+      ],
+      "public_input": [
+        686664,
+        842724
+      ],
+      "eval_k": [
+        842724,
+        905148
+      ],
+      "eval_a": [
+        905148,
+        1779084
+      ]
+    },
+    "range_index": "PIDEC_MATRIX_RANGES.json",
+    "latest_ranges": [
+      {
+        "local": [
+          34,
+          80784
+        ],
+        "elapsed_seconds": 465.6120570390485,
+        "peak_rss_kib": 5098588
+      },
+      {
+        "local": [
+          80784,
+          363528
+        ],
+        "elapsed_seconds": 1190.9236205100315,
+        "peak_rss_kib": 9467636
+      },
+      {
+        "local": [
+          363528,
+          686664
+        ],
+        "elapsed_seconds": 1274.4919755330775,
+        "peak_rss_kib": 10330588
+      }
+    ],
+    "range_plans": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-next-sparse-plan.json",
+        "sha256": "57a77d627ca92f73a94b19cfaf91f816f606349492ef133d2f31b5e8863771ea",
+        "bytes": 1379
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-next-plan.json",
+        "sha256": "cba7ec5ee3e21eda134229e485276dedbb47e971d93611c7a61e836deddb347d",
+        "bytes": 1335
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-product-commitment-tail-plan.json",
+        "sha256": "20c8e37aecbe629dae314d9fc980a5d58c256c0545e4f4feee8310e99c7dc494",
+        "bytes": 1237
+      }
+    ],
+    "scope": "PiDEC child matrix evaluation over PiRLC combination rows. The child commitment replay is recorded separately. Public-input and evaluation products, First54 grids and later blocks remain before the complete matrix comparison."
   }
 }

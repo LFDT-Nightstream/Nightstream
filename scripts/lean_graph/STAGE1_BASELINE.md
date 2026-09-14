@@ -199,6 +199,12 @@ passed together in 491.60 s with peak RSS 5,480,796 KiB. The saved prefix,
 including the earlier first product group, now reaches row 4,100,120.
 Product and later rows remain before the complete matrix comparison.
 
+All 686,664 commitment-combination rows in the PiRLC product block have
+complete PiDEC matrix results. The final seven-source and eight-source
+ranges passed in 1,190.92 s and 1,274.49 s, with peak RSS 10,330,588 KiB.
+The saved prefix now reaches row 4,786,750. Public-input and evaluation
+products, First54 grids and later blocks remain before the full comparison.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

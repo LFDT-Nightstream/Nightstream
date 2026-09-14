@@ -187,6 +187,12 @@ The third large Poseidon block is complete: all 7,604 invocations and
 714,776 rows have saved results. Its two ranges passed in 917.98 and
 773.69 s. The first three blocks now cover global rows [0,3,036,576).
 
+The C pin block and ordinary rows for statement binding, the initial
+claim, all 28 sum-check rounds and Eval_K have complete matrix range results.
+The 26-round interval passed in 1,352.25 s with peak RSS 9,999,336 KiB; Eval_K
+passed in 164.55 s. These are PiDEC child evaluations of verifier rows;
+PiCCS prover replay stays open.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

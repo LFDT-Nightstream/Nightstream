@@ -180,24 +180,56 @@ private theorem rawCoefficient64_denote (key digit : StoredRing) (degree : Nat) 
   unfold rawCoefficient64 rawMulCoeffF
   rw [fold64_denote key digit degree (List.range ringDegree) 0 (by decide), zero_denote]
 
-private def folded64 (key digit : Vector UInt64 ringDegree) (output : Fin ringDegree) : UInt64 :=
-  if output.val < ringMiddleDegree then
-    rawCoefficient64 key digit (output.val + ringDegree)
-  else rawCoefficient64 key digit (output.val + ringMiddleDegree)
+private def foldedCoefficients64 (key digit : Vector UInt64 ringDegree) :
+    Vector UInt64 ringMiddleDegree :=
+  Vector.ofFn fun index => rawCoefficient64 key digit (index.val + ringDegree)
+
+private theorem foldedCoefficients64_get (key digit : Vector UInt64 ringDegree)
+    (index : Fin ringMiddleDegree) :
+    (foldedCoefficients64 key digit).get index =
+      rawCoefficient64 key digit (index.val + ringDegree) := by
+  change (Vector.ofFn (fun lane : Fin ringMiddleDegree =>
+    rawCoefficient64 key digit (lane.val + ringDegree)))[index.val] = _
+  rw [Vector.getElem_ofFn]
+
+private def folded64 (coefficients : Vector UInt64 ringMiddleDegree)
+    (output : Fin ringDegree) : UInt64 :=
+  if below : output.val < ringMiddleDegree then
+    coefficients.get ⟨output.val, below⟩
+  else coefficients.get ⟨output.val - ringMiddleDegree, by
+    have live := output.isLt
+    change output.val < 54 at live
+    change output.val - 27 < 27
+    omega⟩
+
+private theorem folded64_value (key digit : Vector UInt64 ringDegree)
+    (output : Fin ringDegree) :
+    folded64 (foldedCoefficients64 key digit) output =
+      if output.val < ringMiddleDegree then
+        rawCoefficient64 key digit (output.val + ringDegree)
+      else rawCoefficient64 key digit (output.val + ringMiddleDegree) := by
+  unfold folded64
+  split_ifs with below
+  · exact foldedCoefficients64_get key digit ⟨output.val, below⟩
+  · rw [foldedCoefficients64_get]
+    congr 1
+    change output.val - 27 + 54 = output.val + 27
+    change ¬ output.val < 27 at below
+    omega
 
 private theorem folded64_canonical (key digit : Vector UInt64 ringDegree)
     (output : Fin ringDegree)
     (keyCanonical : ∀ lane, (key.get lane).toNat < goldilocksModulus) :
-    (folded64 key digit output).toNat < goldilocksModulus := by
-  unfold folded64
+    (folded64 (foldedCoefficients64 key digit) output).toNat < goldilocksModulus := by
+  rw [folded64_value]
   split_ifs <;> exact rawCoefficient64_canonical key digit _ keyCanonical
 
 private theorem folded64_denote (key digit : StoredRing) (output : Fin ringDegree) :
-    (folded64 (toWords key) (toWords digit) output).denote =
+    (folded64 (foldedCoefficients64 (toWords key) (toWords digit)) output).denote =
       if output.val < ringMiddleDegree then
         rawMulCoeffF key.get digit.get (output.val + ringDegree)
       else rawMulCoeffF key.get digit.get (output.val + ringMiddleDegree) := by
-  unfold folded64
+  rw [folded64_value]
   split_ifs <;> exact rawCoefficient64_denote key digit _
 
 private def twice64 (key digit : Vector UInt64 ringDegree) (output : Fin ringDegree) : UInt64 :=
@@ -222,21 +254,23 @@ private theorem twice64_denote (key digit : StoredRing) (output : Fin ringDegree
   · exact rawCoefficient64_denote key digit _
   · exact zero_denote
 
-private def coefficient64 (key digit : Vector UInt64 ringDegree) (output : Fin ringDegree) : UInt64 :=
-  add64 (sub64 (rawCoefficient64 key digit output.val) (folded64 key digit output))
+private def coefficient64 (key digit : Vector UInt64 ringDegree)
+    (folded : Vector UInt64 ringMiddleDegree) (output : Fin ringDegree) : UInt64 :=
+  add64 (sub64 (rawCoefficient64 key digit output.val) (folded64 folded output))
     (twice64 key digit output)
 
 private theorem coefficient64_canonical (key digit : Vector UInt64 ringDegree)
     (output : Fin ringDegree)
     (keyCanonical : ∀ lane, (key.get lane).toNat < goldilocksModulus) :
-    (coefficient64 key digit output).toNat < goldilocksModulus :=
+    (coefficient64 key digit (foldedCoefficients64 key digit) output).toNat < goldilocksModulus :=
   add64_canonical _ _
     (sub64_canonical _ _ (rawCoefficient64_canonical key digit output.val keyCanonical)
       (folded64_canonical key digit output keyCanonical))
     (twice64_canonical key digit output keyCanonical)
 
 private theorem coefficient64_denote (key digit : StoredRing) (output : Fin ringDegree) :
-    (coefficient64 (toWords key) (toWords digit) output).denote =
+    (coefficient64 (toWords key) (toWords digit)
+      (foldedCoefficients64 (toWords key) (toWords digit)) output).denote =
       ringFMul key.get digit.get output := by
   unfold coefficient64
   rw [add64_denote _ _
@@ -259,13 +293,14 @@ private theorem fromWord_denote (word : UInt64) (canonical : word.toNat < goldil
   change word.toNat = word.toNat % goldilocksModulus
   exact (Nat.mod_eq_of_lt canonical).symm
 
-/-- Convert each input once, run native-word convolution and reduction, then
-return the same stored base-field ring. No caller supplies canonicality. -/
+/-- Convert each input once and share raw degrees 54–80 across both output
+halves. Return the same stored base-field ring; no caller supplies canonicality. -/
 def multiply (key digit : StoredRing) : StoredRing :=
   let keyWords := toWords key
   let digitWords := toWords digit
+  let folded := foldedCoefficients64 keyWords digitWords
   Vector.ofFn fun output =>
-    fromWord (coefficient64 keyWords digitWords output)
+    fromWord (coefficient64 keyWords digitWords folded output)
       (coefficient64_canonical keyWords digitWords output (toWords_canonical key))
 
 /-- The complete native-word product is the existing Phi81 multiplication. -/
@@ -273,7 +308,8 @@ theorem multiply_value (key digit : StoredRing) :
     (multiply key digit).get = ringFMul key.get digit.get := by
   funext output
   change (Vector.ofFn (fun lane : Fin ringDegree =>
-    fromWord (coefficient64 (toWords key) (toWords digit) lane)
+    fromWord (coefficient64 (toWords key) (toWords digit)
+      (foldedCoefficients64 (toWords key) (toWords digit)) lane)
       (coefficient64_canonical _ _ lane (toWords_canonical key))))[output.val] = _
   rw [Vector.getElem_ofFn, fromWord_denote]
   exact coefficient64_denote key digit output

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "status": "existing native evaluation targets identified; independent Lean comparison pending",
+  "target_path": "/tmp/nightstream-native-nonzero-nifs-1/children.json",
+  "sha256": "de6d8a3da7880a7abe2a4f71f289f393c761a313a6dcf39d88bf9297cab0ccb5",
+  "producer_source_commit": "854327d91ca36412f957ac5becbde30bb117b715",
+  "producer_evidence": "docs/reviews/nightstream-fprime-requirements/NONZERO_NIFS_GATES.json",
+  "shape": {
+    "point": "field0:28 K values",
+    "pad": "field3:16 by54 K values",
+    "matrices": "field4:16 by14 by54 K values",
+    "K": "two canonical Goldilocks words"
+  },
+  "provenance": "open-owned-child computes each nonzero opening from the checked actual digit witness through eval_real_v1_1_openings. assemble-owned-nifs reads those outputs; it does not create prepared evaluation tables. Children 7 through 15 are exact virtual-zero witnesses.",
+  "identity_review": "Independent read-only comparison matched the complete canonical parent with the current R parent, the complete C input, and all 16 current split commitments. This is value comparison, not digest-based semantic acceptance.",
+  "opening_paths": [
+    "/tmp/nightstream-native-nonzero-openings-1/child-0.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-1.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-2.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-3.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-4.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-5.json",
+    "/tmp/nightstream-native-nonzero-openings-1/child-6.json"
+  ],
+  "opening_logs": [
+    "/tmp/nightstream-baseline-nonzero-child-0-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-1-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-2-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-3-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-4-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-5-1.log",
+    "/tmp/nightstream-baseline-nonzero-child-6-1.log"
+  ],
+  "comparison_scope": "Rust evaluations are comparison targets only. Lean point input comes from its checked R/C path; independent C proof generation remains open."
+}

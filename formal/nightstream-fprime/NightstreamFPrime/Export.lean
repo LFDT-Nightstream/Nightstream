@@ -4,6 +4,11 @@ import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
+import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 import NightstreamFPrime.Export.Codec

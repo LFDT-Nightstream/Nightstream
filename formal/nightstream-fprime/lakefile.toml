@@ -87,6 +87,11 @@ root = "NightstreamFPrime.Export.PiDECCommitmentReplayMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "measurePiDECEvaluationBlock"
+root = "NightstreamFPrime.Export.PiDECEvaluationBlockMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "checkPiDECInput"
 root = "NightstreamFPrime.Export.PiDECInputCheckMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

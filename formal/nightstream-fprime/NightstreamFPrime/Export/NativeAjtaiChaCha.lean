@@ -1,5 +1,6 @@
 import Init.Data.UInt.Bitwise
 import Init.Data.Array.Lemmas
+import Init.Data.Vector.OfFn
 import NightstreamFPrime.Spec.AjtaiSetupV1.WordOperations
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
@@ -159,31 +160,52 @@ theorem initialState_map (seed : List Nat) (row block lane : Nat) :
         (ChaCha20.initialState_canonical seed row block lane word membership)
     _ = _ := Array.map_id _
 
-/-- Ten native double rounds followed by the same ordered modular
-feed-forward additions. The output remains the existing sixteen Nat words. -/
-def blockWords (seed : List Nat) (row block lane : Nat) : List Nat :=
-  let initial := initialState seed row block lane
+private def withLane (initial : Array UInt32) (lane : Nat) : Array UInt32 :=
+  initial.set! 12 (UInt32.ofNat lane)
+
+private theorem withLane_initialState (seed : List Nat) (row block lane : Nat) :
+    withLane (initialState seed row block 0) lane =
+      initialState seed row block lane := by
+  have counter :
+      UInt32.ofNat lane = UInt32.ofNat (lane % ChaCha20.wordModulus) :=
+    (UInt32.ofNat_mod_size (x := lane)).symm
+  unfold withLane initialState
+  rw [counter, Array.set!_eq_setIfInBounds, ← Array.map_setIfInBounds]
+  rfl
+
+private def blockWordsFromState (initial : Array UInt32) : List Nat :=
   let permuted := runDoubleRounds 10 initial
   (List.range 16).map fun index =>
     (permuted.getD index 0 + initial.getD index 0).toNat
 
+/-- Ten native double rounds followed by the same ordered modular
+feed-forward additions. The output remains the existing sixteen Nat words. -/
+def blockWords (seed : List Nat) (row block lane : Nat) : List Nat :=
+  blockWordsFromState (initialState seed row block lane)
+
 theorem blockWords_eq (seed : List Nat) (row block lane : Nat) :
     blockWords seed row block lane = ChaCha20.blockWords seed row block lane := by
-  dsimp only [blockWords, ChaCha20.blockWords]
+  dsimp only [blockWords, blockWordsFromState, ChaCha20.blockWords]
   apply List.map_congr_left
   intro index _membership
   rw [add_toNat, ← getWord_map, ← getWord_map]
   simp only [runDoubleRounds_map, initialState_map]
 
+private def first256FromState (initial : Array UInt32) : Nat :=
+  ((blockWordsFromState initial).take 8).reverse.foldl
+    (fun value word => (value <<< 32) + word) 0
+
 /-- Preserve the existing first-eight-word selection and little-endian
 256-bit assembly exactly. -/
 def first256Nat (seed : List Nat) (row block lane : Nat) : Nat :=
-  ((blockWords seed row block lane).take 8).reverse.foldl
-    (fun value word => value * ChaCha20.wordModulus + word) 0
+  first256FromState (initialState seed row block lane)
 
 theorem first256Nat_eq (seed : List Nat) (row block lane : Nat) :
     first256Nat seed row block lane = ChaCha20.first256Nat seed row block lane := by
-  rw [first256Nat, blockWords_eq]
+  change ((blockWords seed row block lane).take 8).reverse.foldl
+    (fun value word => (value <<< 32) + word) 0 = _
+  rw [blockWords_eq]
+  simp only [Nat.shiftLeft_eq]
   rfl
 
 /-- The existing Goldilocks wide-reduction rule, applied to native rounds. -/
@@ -211,6 +233,34 @@ theorem coefficient_eq {verifierRows messageColumns : Nat}
     (row : Fin verifierRows) (block : Fin messageColumns) (lane : Fin ringDegree) :
     coefficient setup row block lane = setup.verifierKey row block lane := by
   apply Fin.ext
+  exact wideCoefficientNat_eq setup.seed.bytes row.val block.val lane.val
+
+/-- Materialize all 54 key coefficients with one seed and nonce preparation.
+The typed setup supplies every key input; prepared state remains private. -/
+def keyBlock {verifierRows messageColumns : Nat}
+    (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
+    (row : Fin verifierRows) (block : Fin messageColumns) : Vector F ringDegree :=
+  let initial := initialState setup.seed.bytes row.val block.val 0
+  Vector.ofFn fun lane =>
+    ⟨first256FromState (withLane initial lane.val) % goldilocksModulus,
+      Nat.mod_lt _ (by decide)⟩
+
+/-- Every stored lane is the existing indexed key coefficient. -/
+theorem keyBlock_value {verifierRows messageColumns : Nat}
+    (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
+    (row : Fin verifierRows) (block : Fin messageColumns) :
+    (keyBlock setup row block).get = setup.verifierKey row block := by
+  funext lane
+  change (Vector.ofFn (fun selected : Fin ringDegree =>
+    (⟨first256FromState
+      (withLane (initialState setup.seed.bytes row.val block.val 0) selected.val) %
+        goldilocksModulus, Nat.mod_lt _ (by decide)⟩ : F)))[lane.val] = _
+  rw [Vector.getElem_ofFn]
+  apply Fin.ext
+  change first256FromState
+    (withLane (initialState setup.seed.bytes row.val block.val 0) lane.val) %
+      goldilocksModulus = _
+  rw [withLane_initialState]
   exact wideCoefficientNat_eq setup.seed.bytes row.val block.val lane.val
 
 end NightstreamFPrime.Export.NativeAjtaiChaCha

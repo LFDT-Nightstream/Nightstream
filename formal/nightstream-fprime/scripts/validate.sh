@@ -23,6 +23,7 @@
 #   validate.sh pi-dec-commitment-replay <Lean-parent-range> <output> <start-block> <end-block>
 #   validate.sh pi-dec-commitment-merge <output> <Lean-range>...
 #   validate.sh pi-dec-commitment-merge-boundaries <Lean-range> <new-results-directory>
+#   validate.sh pi-dec-evaluation-block <Lean-parent-range> <output>
 #   validate.sh pi-dec-input-check <package[4]> <PiCCS-input> <children> <output-path>
 #   validate.sh pi-dec-mutations <package[4]> <PiCCS-input> <children> <bad-PiCCS-input> <mutations-dir>
 #   validate.sh pi-ccs-ownership-audit <id0> <id1> <id2> <id3> <path>
@@ -105,6 +106,10 @@ case "$phase" in
   pi-dec-commitment-merge-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-commitment-merge-boundaries <Lean-range> <new-results-directory>" >&2; exit 2; fi
     timeout -k 10 300 python3 -B tests/pi_dec_commitment_merge.py "$2" "$3"
+    ;;
+  pi-dec-evaluation-block)
+    if (( $# != 3 )); then echo "usage: validate.sh pi-dec-evaluation-block <Lean-parent-range> <output>" >&2; exit 2; fi
+    capped lake exe measurePiDECEvaluationBlock -- "$2" "$3"
     ;;
   identity)
     if (( $# != 1 )); then echo "usage: validate.sh identity" >&2; exit 2; fi

@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "status": "block kernel and one actual block checked; complete child evaluations open",
+  "source_base_commit": "d2efeb8b",
+  "target": "PiDECEvaluationBlock.rowBlock_value",
+  "scope": "The stored sparse block kernel is connected to every selected active matrix row and the authoritative complete-carrier Pad row. Executed coverage is actual Lean parent block 0 at selected Pad rows 1 and 2, all 864 child coefficients each. Complete row sums, common-point accumulation and final child evaluations remain open.",
+  "measurement": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 1500,
+    "elapsed_seconds": 8.031776817981154,
+    "command": [
+      "bash",
+      "scripts/validate.sh",
+      "pi-dec-evaluation-block",
+      "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+      "/tmp/nightstream-pidec-evaluation-selected-warm-1.json"
+    ],
+    "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+    "evidence": "development diagnostic only",
+    "log_path": "/tmp/nightstream-pidec-evaluation-selected-warm-1.log",
+    "log_sha256": "89080fe1e3ad931ac064f15a0c8a4fa99b28cbf9d10f9e3805e9de4b5497667b",
+    "peak_rss_kib": 3862592
+  },
+  "timing_note": "Two distinct selected Pad rows separate first use from repeated work: row 1 kernel 86 ms/reference 90 ms; row 2 kernel 0 ms/reference 89 ms, at 1 ms clock resolution. This supports an initialization effect and supplies no whole-evaluation runtime bound. Command time and peak RSS include compilation.",
+  "inputs": "Actual Lean PiRLC parent prefix recorded in PIRLC_WITNESS_REPLAY.json; Rust expected outputs are not inputs. PiCCS proof messages remain supplied until independent C replay.",
+  "next": "Expose one public ExplicitMatrix.rowRing_eq_sumRange wrapper around the existing private decomposition proof, then implement complete common-point accumulation and prove the final family equality. The exact full target and native comparison remain open.",
+  "scheduled_external_review": {
+    "read_at_utc": "2026-09-14 02:21:21",
+    "file": "FPRIME_STAGE1_EXTERNAL_REVIEW.md",
+    "fable_file": "absent",
+    "disposition": "Unchanged September4 separate public Nebula frontend finding; the selected plain replay has its own isolation regression."
+  },
+  "outputs": [
+    {
+      "file": "nightstream-pidec-evaluation-selected-warm-1.json",
+      "sha256": "edcae25bdf836374848ad82273e0097a4bfefb88a970576f7af02e83f1992c81",
+      "block": 0,
+      "pad_row": 1,
+      "children": 16,
+      "coefficients": 864
+    },
+    {
+      "file": "nightstream-pidec-evaluation-selected-warm-1.json.next.json",
+      "sha256": "20691dcb83ecf1e3ecf4e2bc030664500dce90c365e4148a102c9aef0b44f76c",
+      "block": 0,
+      "pad_row": 2,
+      "children": 16,
+      "coefficients": 864
+    }
+  ],
+  "source_sha256": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationSourceEntry.lean": "01228d9a5a6c0824e8af4257b5d717d43c6764030ff4cfc27add410ecdb74eed",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationBlock.lean": "2d0b92cf40e1b990aa0ff07c434e0e78739eb6747baea928964a64158b631576",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationSparseBlock.lean": "94f49d9cf2ea2fb94d73894a8a4f674918d37820ceedafbe0f97a7afb8a14010",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationPadBlock.lean": "072f3600737dd2744f20a88337aaa917cf03b20222aa7d06b8ef20153c2aff58",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationSelectedRows.lean": "007761a4e03131c9f774e6e96360b6463335293dda49f16ae5653662340fe29c",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECEvaluationBlockMain.lean": "c2fd6db4ee7d9e7ebefe58e8ddd4e4ffd07066e73ee80700ad1b7ae571328441",
+    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "620d5c2ccaf0b0d50c6409773cc70f03312ce7ea41fb577b7d1d7581bffa2e30",
+    "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean": "7c4ef57c983bac7ba40ced5202402c6ba913ed6323f45680241507faf58a5e57",
+    "formal/nightstream-fprime/lakefile.toml": "095890171f657643a48ab49897a72b49311744064385f7ec0649a98456815923",
+    "formal/nightstream-fprime/scripts/validate.sh": "cbcdb5ad59f7a425b31195179c028541b68edc414bba6398a76e80f41ec9e84a",
+    "scripts/lean_graph/obligations.json": "09d825b8944517ffe9a5a0658d11f285188870487fdf898f7a3410c5f1d60697"
+  },
+  "validation": {
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 9.12817330902908,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-evaluation-checkpoint-static-1.log",
+      "log_sha256": "c6345df9ee079f78809cd97d3a64cd9f27972eabe637799dcd32a4d4b9b64b7c",
+      "peak_rss_kib": 19332
+    },
+    "build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 2.3179363639792427,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-evaluation-checkpoint-build-1.log",
+      "log_sha256": "9a7de4f8003297622c9be5930e7f1ed99a8d1f63cb6d2e3365dc84e07e4019c7",
+      "peak_rss_kib": 3890148
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 3.0194084859685972,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-evaluation-checkpoint-axioms-1.log",
+      "log_sha256": "b2ea8165c022be04f13a5fff3780e2ee225bf68647772e0bae67cd6edfcef518",
+      "peak_rss_kib": 3816588
+    },
+    "registrations": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 0.26412075804546475,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "scripts.lean_graph.tests.test_conformance_registrations"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "log_path": "/tmp/nightstream-pidec-evaluation-registrations-1.log",
+      "log_sha256": "5541555aadb5fe95d4740df71ff8c3135b8b71c36d0cca3f8160fedd539f71a3",
+      "peak_rss_kib": 22656
+    }
+  },
+  "declarations": [
+    "PiDECEvaluationBlock.rowBlock_value",
+    "PiDECEvaluationSparseBlock.rowBlock_coefficient_value",
+    "PiDECEvaluationSourceEntry.source_paddedMatrixEntry",
+    "PiDECEvaluationPadBlock.rowBlock_paddedEntry",
+    "PiDECEvaluationSelectedRows.rowBlock_eq_blockRowRing"
+  ],
+  "reproduction": "From the recorded Lean PiRLC prefix, run scripts/validate.sh pi-dec-evaluation-block <Lean-parent-prefix> <new-output>. The program emits Pad rows 1 and 2 in the output and its .next.json file. Static/build/axioms use repository commands; source witnesses and the Lean prefix are in the PiRLC release asset, whose upload remains pending.",
+  "independent_review": "Pass for this partial checkpoint. Exact block contributions cover duplicate entries, cancellation and carrier tails; executed coverage is only selected Pad rows 1 and 2 on parent block 0. Complete row sums, common-point accumulation and the final family target remain open. The reviewer ran no builds."
+}

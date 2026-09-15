@@ -1,6 +1,6 @@
 //! Static parsing of a wasm (or first embedded core module of a component)
 //! binary into the artifacts the tracer needs before execution: the
-//! `(defined_function_index, pc)` opcode/immediate map, the pc-ROM control
+//! `(defined_function_index, byte_offset)` opcode/immediate map, the dense-PC control
 //! graph, and per-function type/arity/locals metadata.
 //!
 //! Owns the one-time binary walk and the normalized-type-id assignment. Holds
@@ -27,6 +27,9 @@ pub struct WasmProgramArtifacts {
     pub(crate) trace: WasmTraceLoweringTables,
 }
 
+/// Static proof-bound program tables. PCs are zero-based operator indices
+/// across defined functions in module order, including structural and
+/// unexecuted operators. Byte offsets belong only to the trace adapter.
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
     /// Whether default linear memory 0 is supplied by the host. Its initial
@@ -120,7 +123,7 @@ pub struct WasmProgramDecodeEntry {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WasmTraceLoweringTables {
-    /// Static decode table keyed by Wasmtime's `(defined_function_index, pc)`
+    /// Static decode table keyed by Wasmtime's `(defined_function_index, byte_offset)`
     /// pair so guest-debug frames can recover opcode/immediate metadata
     /// without reparsing at trace time.
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
@@ -189,6 +192,7 @@ struct ParsedWasmArtifactsBuilder {
     call_targets: Vec<(u64, u64)>,
     function_metas: BTreeMap<u32, ParsedFunctionMeta>,
     defined_function_index: u32,
+    next_pc: u32,
     imported_function_count: u32,
     raw_type_id_by_index: BTreeMap<u32, u32>,
     raw_type_shape_by_index: BTreeMap<u32, (u8, u8)>,
@@ -219,6 +223,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             call_targets: Vec::new(),
             function_metas: BTreeMap::new(),
             defined_function_index: 0,
+            next_pc: 0,
             imported_function_count: 0,
             raw_type_id_by_index: BTreeMap::new(),
             raw_type_shape_by_index: BTreeMap::new(),
@@ -480,14 +485,18 @@ impl ParsedWasmArtifactsBuilder {
                 let mut entry_pc = None;
                 while !reader.eof() {
                     let offset = reader.original_position() as u32;
+                    let pc = self.next_pc;
+                    self.next_pc = pc
+                        .checked_add(1)
+                        .ok_or_else(|| WasmBuildError::Unsupported("wasm instruction PC exceeds u32".to_string()))?;
                     if entry_pc.is_none() {
-                        entry_pc = Some(u64::from(offset));
+                        entry_pc = Some(u64::from(pc));
                     }
-                    let pc_before = u64::from(offset);
+                    let pc_before = u64::from(pc);
                     let operator = reader
                         .read()
                         .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm operator: {err}")))?;
-                    let pc_after = reader.original_position() as u64;
+                    let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
                         wasmparser::Operator::Loop { .. } => {
@@ -517,9 +526,7 @@ impl ParsedWasmArtifactsBuilder {
                     };
                     let memory = decode_memory_opcode(&operator);
                     let call_return_pc = match &operator {
-                        wasmparser::Operator::Call { .. } | wasmparser::Operator::CallIndirect { .. } => {
-                            Some(reader.original_position() as u64)
-                        }
+                        wasmparser::Operator::Call { .. } | wasmparser::Operator::CallIndirect { .. } => Some(pc_after),
                         _ => None,
                     };
                     let (call_indirect_type_index, expected_type_id) = match &operator {
@@ -595,6 +602,7 @@ impl ParsedWasmArtifactsBuilder {
                     self.opcode_map.insert(
                         (self.defined_function_index, offset),
                         DecodedOpcode {
+                            pc,
                             text: format!("{operator:?}"),
                             memory,
                             decoded,

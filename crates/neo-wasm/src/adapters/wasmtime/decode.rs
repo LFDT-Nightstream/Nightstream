@@ -11,6 +11,7 @@ use crate::isa::WasmOpcode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
+    pub(crate) pc: u32,
     pub(crate) text: String,
     pub(crate) memory: Option<DecodedMemoryOpcode>,
     /// Structurally decoded from `wasmparser::Operator` at map-build time.
@@ -19,9 +20,9 @@ pub(crate) struct DecodedOpcode {
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
     pub(crate) call_indirect_type_index: Option<u32>,
     pub(crate) expected_type_id: Option<u32>,
-    /// For `call` instructions: binary offset of the instruction after the call = return address.
+    /// For `call` instructions: dense PC of the instruction after the call.
     pub(crate) call_return_pc: Option<u64>,
-    /// Byte offset immediately after this instruction's encoding. For `call`
+    /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor.
     pub(crate) pc_after_instruction: u64,
 }

@@ -701,14 +701,8 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
 
     let entry_pc = common::single_function_entry_pc(&artifacts);
     let started = Instant::now();
-    let prep = neo_wasm::nebula::preprocess_seeded(
-        params.clone(),
-        profile,
-        &artifacts,
-        entry_pc,
-        0x57a5_7018,
-    )
-    .expect("production WASM + Nebula preprocessing");
+    let prep = neo_wasm::nebula::preprocess_seeded(params.clone(), profile, &artifacts, entry_pc, 0x57a5_7018)
+        .expect("production WASM + Nebula preprocessing");
     let preprocess_elapsed = started.elapsed();
 
     let relation = prep.inner().relation();

@@ -199,7 +199,13 @@ pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
     let fields = core::iter::once(F::ONE)
-        .chain(layout.auxiliary.continuity.links().map(|link| carried_state_field(state, link.next_step_column)))
+        .chain(
+            layout
+                .auxiliary
+                .continuity
+                .links()
+                .map(|link| carried_state_field(state, link.next_step_column)),
+        )
         .collect::<Vec<_>>();
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }

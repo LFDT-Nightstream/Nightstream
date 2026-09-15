@@ -34,6 +34,7 @@ pub struct WasmtimeTraceStep {
     pub frame_depth: usize,
     pub function: String,
     pub function_index: Option<u32>,
+    /// Zero-based operator index across the module's defined functions.
     pub pc: Option<u32>,
     /// Human-readable opcode label from wasmparser's Debug format, for display only.
     pub opcode: Option<String>,
@@ -78,12 +79,13 @@ pub struct WasmtimeTraceStep {
     pub operand_stack_words_hi: Vec<u32>,
     /// Total number of locals (params + declared) in this frame.
     pub num_locals: u32,
-    /// For `call` instructions: the binary offset of the instruction immediately after
+    /// For `call` instructions: the dense PC of the instruction immediately after
     /// the call (= the return address). Populated at map-build time.
     pub call_return_pc: Option<u64>,
-    /// Byte offset immediately after this instruction's encoding. For `call`
+    /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor, not
-    /// necessarily the runtime next PC.
+    /// necessarily the runtime next PC. Halting rows retain this value even
+    /// when it does not name an instruction in the current function.
     pub pc_after_instruction: Option<u64>,
     /// Per-call host-event input words recorded by the embedder's host
     /// function while servicing this host-call row (see

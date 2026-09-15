@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
@@ -238,11 +239,134 @@ private def replayNorm (publicPath sourcePath outputPath : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def freshRows (program : MatrixProgram.Program)
+    (sourceRow : Nat → Option R1CS.Row) (assignments : Sources)
+    (cached : Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 94))
+    (vertex : BooleanVertex cubeVariables) :
+    IO (Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 94) ×
+      Vector F Spec.ProductionRelation.matrixCount) := do
+  let index := NumericBooleanDomain.index vertex
+  if let some (firstRow, values) := cached then
+    if within : firstRow ≤ index ∧ index < firstRow + 94 then
+      let row : Fin 94 := ⟨index - firstRow, by omega⟩
+      return (cached, Vector.ofFn ((values.get row).get))
+  let read := PiCCSSourceImages.plainRead (assignments (freshSourceIndex ⟨0, by decide⟩))
+  let mut firstRow := 0
+  for block in program.blocks do
+    if index < firstRow + block.rowCount then
+      match block with
+      | .poseidon poseidon =>
+          let some (interface, row) := PiDECPoseidonNumericBlock.loadRow? poseidon
+              PiCCSSourceImages.logicalWidth (index - firstRow)
+            | throw (IO.userError "fresh invocation failed to load")
+          let values := PiDECPoseidonNumericRows.stored read interface
+          return (some (index - row.val, values), Vector.ofFn ((values.get row).get))
+      | _ => break
+    firstRow := firstRow + block.rowCount
+  let some values := PiCCSSourceImages.freshMatrixImage? program sourceRow
+      (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex
+    | throw (IO.userError "fresh matrix row failed to load")
+  return (none, values)
+
+private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
+    (first finish : Nat) (reference : Bool := false) : IO UInt32 := do
+  unless first < finish && finish ≤ 2 ^ (cubeVariables - 1) do
+    throw (IO.userError "invalid fresh pair range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let statementInput ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre statementInput)
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let assignments := sources masks
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let input := PiCCSPublicReplay.verifierInput statementInput
+  let weights := PiCCSTensorWeights.prepare extensionOps coins.alpha.coordinates.tail
+  let program ← IO.wait (Task.spawn fun _ =>
+    PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+  let sourceRows ← IO.wait (Task.spawn fun _ =>
+    PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
+  report [("event", .str "fresh_sources_ready"), ("records", Lean.toJson records),
+    ("rows", Lean.toJson program.rowCount),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let computeStarted ← IO.monoNanosNow
+  let computeRange (first finish : Nat) : IO (FixedPolynomial K 9) := do
+    let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
+    let mut cached := none
+    for index in [first:finish] do
+      if within : index < 2 ^ 27 then
+        let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
+        let lowVertex := PiCCSFirstRound.endpointVertex (by decide) false suffix
+        let highVertex := PiCCSFirstRound.endpointVertex (by decide) true suffix
+        let (next, low) ← freshRows program (fun row => sourceRows[row]?) assignments cached lowVertex
+        cached := next
+        let (next, high) ← freshRows program (fun row => sourceRows[row]?) assignments cached highVertex
+        cached := next
+        let value :=
+          FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
+            (FixedPolynomial.widen extensionOps.toOps (Nat.le_max_left _ _)
+              (if reference then
+                PiCCSFirstRoundPair.ccsPolynomialWithPowers extensionOps input power
+                  (PiCCSCachedSelector.equalitySelector extensionOps suffix coins.alpha weights)
+                  (PiCCSAggregatedImages.nonlinearMessage layout assignments lowVertex low)
+                  (PiCCSAggregatedImages.nonlinearMessage layout assignments highVertex high)
+              else PiCCSFreshPolynomial.ccsPolynomialWithPowers extensionOps input power
+                  (PiCCSCachedSelector.equalitySelector extensionOps suffix coins.alpha weights)
+                  (PiCCSAggregatedImages.nonlinearMessage layout assignments lowVertex low)
+                  (PiCCSAggregatedImages.nonlinearMessage layout assignments highVertex high)))
+        let term : FixedPolynomial K 9 := PiCCSPublicReplay.degree_eq statementInput ▸ value
+        total := FixedPolynomial.add extensionOps.toOps total term
+      else throw (IO.userError "fresh pair exceeds the selected domain")
+    return total
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let parts := min workers (finish - first)
+  let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 9 × Nat))) := #[]
+  for part in [:parts] do
+    let start := first + (finish - first) * part / parts
+    let stop := first + (finish - first) * (part + 1) / parts
+    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+      let rangeStarted ← IO.monoNanosNow
+      let values ← computeRange start stop
+      return (values, (← IO.monoNanosNow) - rangeStarted))
+  let mut total := FixedPolynomial.zero extensionOps.toOps 9
+  let mut part := 0
+  for task in tasks do
+    let (values, rangeNs) ← match ← IO.wait task with
+      | .ok result => pure result
+      | .error error => throw error
+    total := FixedPolynomial.add extensionOps.toOps total values
+    report [("event", .str "fresh_range_accumulated"), ("part", Lean.toJson part),
+      ("first", Lean.toJson (first + (finish - first) * part / parts)),
+      ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+      ("range_ns", Lean.toJson rangeNs)]
+    part := part + 1
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom first, .atom finish,
+    .array (total.coefficients.map extensionValue)]).render ++ "\n")
+  report [("event", .str "fresh_range_complete"), ("first", Lean.toJson first),
+    ("end", Lean.toJson finish), ("reference", Lean.toJson reference),
+    ("workers", Lean.toJson parts),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | ["fresh-reference", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayFresh
+            publicPath sourcePath outputPath first finish true
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
+  | ["fresh", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayFresh
+            publicPath sourcePath outputPath first finish
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
   | ["norm", publicPath, sourcePath, outputPath, first, finish] =>
       match first.toNat?, finish.toNat? with
       | some first, some finish =>
@@ -258,4 +382,6 @@ def main (arguments : List String) : IO UInt32 := do
   | _ =>
       IO.eprintln "usage: replayPiCCSFirstRound <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
       IO.eprintln "       replayPiCCSFirstRound norm <public-input> <original-sources> <new-output> <first-block> <end-block>"
+      IO.eprintln "       replayPiCCSFirstRound fresh <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
+      IO.eprintln "       replayPiCCSFirstRound fresh-reference <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
       return 2

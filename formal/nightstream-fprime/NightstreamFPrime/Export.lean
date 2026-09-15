@@ -284,6 +284,10 @@ import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
+import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache

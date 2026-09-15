@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck/FixedPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed, otherwise unchanged. -/
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed. Coefficient laws were added for the prover replay; executable definitions are unchanged. -/
 
 /-!
 Typed fixed-width polynomials for honest SumCheck round construction.
@@ -618,6 +618,145 @@ multiplication. -/
   | cons index indices inductionHypothesis =>
       rw [sum, evaluate_add ops laws, inductionHypothesis]
       rfl
+
+private theorem coefficients_equal {Field : Type uField} {degree : Nat}
+    {left right : FixedPolynomial Field degree}
+    (same : left.coefficients = right.coefficients) : left = right := by
+  cases left
+  cases right
+  cases same
+  rfl
+
+private theorem scaleCoefficients_zero_left {Field : Type uField}
+    (ops : Ops Field) (laws : Laws ops) (values : List Field) :
+    scaleCoefficients ops ops.zero values = List.replicate values.length ops.zero := by
+  have zero_mul (value : Field) : ops.mul ops.zero value = ops.zero := by
+    rw [laws.mul_comm, laws.mul_zero]
+  induction values with
+  | nil => rfl
+  | cons head tail ih => simp only [scaleCoefficients, List.length_cons,
+      List.replicate_succ, zero_mul, ih]
+
+private theorem scaleCoefficients_zero_right {Field : Type uField}
+    (ops : Ops Field) (laws : Laws ops) (scalar : Field) (count : Nat) :
+    scaleCoefficients ops scalar (List.replicate count ops.zero) =
+      List.replicate count ops.zero := by
+  induction count with
+  | zero => rfl
+  | succ count ih => simp only [List.replicate_succ, scaleCoefficients,
+      laws.mul_zero, ih]
+
+private theorem addCoefficients_nil {Field : Type uField}
+    (ops : Ops Field) (values : List Field) :
+    addCoefficients ops values [] = values := by
+  cases values <;> rfl
+
+private theorem addCoefficients_zeros {Field : Type uField}
+    (ops : Ops Field) (laws : Laws ops) (left right : Nat) :
+    addCoefficients ops (List.replicate left ops.zero) (List.replicate right ops.zero) =
+      List.replicate (max left right) ops.zero := by
+  induction left generalizing right with
+  | zero => simp only [List.replicate_zero, addCoefficients, Nat.zero_max]
+  | succ left ih =>
+      cases right with
+      | zero => simp only [List.replicate_zero, addCoefficients_nil, Nat.max_zero]
+      | succ right => simp only [List.replicate_succ, addCoefficients,
+          laws.zero_add, ih, Nat.succ_max_succ]
+
+private theorem convolution_zero_left {Field : Type uField}
+    (ops : Ops Field) (laws : Laws ops) (count : Nat) (right : List Field)
+    (nonempty : 0 < right.length) :
+    convolution ops (List.replicate (count + 1) ops.zero) right =
+      List.replicate (count + right.length) ops.zero := by
+  induction count with
+  | zero =>
+      simp only [List.replicate_succ, List.replicate_zero, convolution,
+        scaleCoefficients_zero_left ops laws, Nat.zero_add]
+      change addCoefficients ops (List.replicate right.length ops.zero)
+        (List.replicate 1 ops.zero) = _
+      rw [addCoefficients_zeros ops laws]
+      congr 1
+      omega
+  | succ count ih =>
+      rw [show count + 1 + 1 = (count + 1) + 1 from rfl,
+        List.replicate_succ, convolution, ih, scaleCoefficients_zero_left ops laws]
+      change addCoefficients ops (List.replicate right.length ops.zero)
+        (List.replicate (count + right.length + 1) ops.zero) = _
+      rw [addCoefficients_zeros ops laws]
+      congr 1
+      omega
+
+private theorem convolution_zero_right {Field : Type uField}
+    (ops : Ops Field) (laws : Laws ops) (left : List Field) (count : Nat)
+    (nonempty : 0 < left.length) :
+    convolution ops left (List.replicate (count + 1) ops.zero) =
+      List.replicate (left.length + count) ops.zero := by
+  induction left with
+  | nil => simp at nonempty
+  | cons head tail ih =>
+      cases tail with
+      | nil =>
+          simp only [convolution, scaleCoefficients_zero_right ops laws,
+            List.length_cons, List.length_nil, Nat.zero_add]
+          change addCoefficients ops (List.replicate (count + 1) ops.zero)
+            (List.replicate 1 ops.zero) = _
+          rw [addCoefficients_zeros ops laws]
+          congr 1
+          omega
+      | cons next rest =>
+          rw [convolution, ih (by simp), scaleCoefficients_zero_right ops laws]
+          change addCoefficients ops (List.replicate (count + 1) ops.zero)
+            (List.replicate ((next :: rest).length + count + 1) ops.zero) = _
+          rw [addCoefficients_zeros ops laws]
+          congr 1
+          simp only [List.length_cons]
+          omega
+
+/-- Every coefficient of a product with a zero left factor is zero. -/
+theorem mul_zero_left {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
+    (leftDegree : Nat) {rightDegree : Nat} (right : FixedPolynomial Field rightDegree) :
+    mul ops (zero ops leftDegree) right = zero ops (leftDegree + rightDegree) := by
+  apply coefficients_equal
+  change convolution ops (List.replicate (leftDegree + 1) ops.zero) right.coefficients = _
+  rw [convolution_zero_left ops laws leftDegree right.coefficients
+    (by rw [right.coefficients_length]; omega), right.coefficients_length]
+  rfl
+
+/-- Every coefficient of a product with a zero right factor is zero. -/
+theorem mul_zero_right {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
+    {leftDegree : Nat} (left : FixedPolynomial Field leftDegree) (rightDegree : Nat) :
+    mul ops left (zero ops rightDegree) = zero ops (leftDegree + rightDegree) := by
+  apply coefficients_equal
+  change convolution ops left.coefficients (List.replicate (rightDegree + 1) ops.zero) = _
+  rw [convolution_zero_right ops laws left.coefficients rightDegree
+    (by rw [left.coefficients_length]; omega), left.coefficients_length]
+  congr 1
+  omega
+
+private theorem scaleCoefficients_one {Field : Type uField} (ops : Ops Field)
+    (one_mul : ∀ value, ops.mul ops.one value = value) (values : List Field) :
+    scaleCoefficients ops ops.one values = values := by
+  induction values with
+  | nil => rfl
+  | cons head tail ih => simp only [scaleCoefficients, one_mul, ih]
+
+/-- Multiplication by the degree-zero unit keeps the entire coefficient list. -/
+theorem constant_one_mul {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
+    (one_mul : ∀ value, ops.mul ops.one value = value)
+    {degree : Nat} (right : FixedPolynomial Field degree) :
+    (mul ops (constant ops.one) right).coefficients = right.coefficients := by
+  change addCoefficients ops (scaleCoefficients ops ops.one right.coefficients)
+    [ops.zero] = right.coefficients
+  rw [scaleCoefficients_one ops one_mul]
+  have nonempty : right.coefficients ≠ [] := by
+    intro empty
+    have length := right.coefficients_length
+    rw [empty, List.length_nil] at length
+    omega
+  cases entries : right.coefficients with
+  | nil => exact (nonempty entries).elim
+  | cons head tail => simp only [addCoefficients, laws.add_zero, addCoefficients_nil]
+
 
 end FixedPolynomial
 

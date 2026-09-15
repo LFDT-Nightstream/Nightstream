@@ -122,7 +122,9 @@ private theorem evaluate_gatedConstraint (ops : InterpolationOps Field)
     FiniteSumAlgebra.sumMap_mul_left ops laws,
     ← CCSResidualTable.evaluatePolynomial_eq_sumMap ops laws]
 
-private def ccsPolynomialWithPowers (ops : InterpolationOps Field)
+/-- The fresh CCS branch, with each matrix image interpolated before the
+constraint polynomial. The common gamma shift remains with the pair caller. -/
+def ccsPolynomialWithPowers (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (selector : FixedPolynomial Field 1)
     (low high : ProtocolPolynomial.OutputMessage Field shape) :

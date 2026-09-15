@@ -3,6 +3,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 /-!
@@ -82,7 +85,7 @@ private def invocationCache? (program : MatrixProgram.Program)
             firstRow := index - row.val
             fresh := PiDECPoseidonNumericRows.stored
               (PiCCSSourceImages.plainRead (assignments (freshSourceIndex ⟨0, by decide⟩))) interface
-            carried := PiCCSLinearRows.invocation (PiCCSCarriedRead.read matrixBasis blocks) interface }
+            carried := PiCCSCarriedReadCache.invocation matrixBasis blocks interface }
       | _ => return none
     start := start + block.rowCount
   return none
@@ -127,6 +130,10 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
   let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
     (PiCCSFirstRoundPair.powerCount productionShape)
   let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let verifierInput := PiCCSPublicReplay.verifierInput statementInput
+  let normTable := PiCCSNormCache.prepare power
+  let alphaWeights := PiCCSTensorWeights.prepare extensionOps coins.alpha.coordinates.tail
+  let priorWeights := PiCCSTensorWeights.prepare extensionOps verifierInput.priorPoint.coordinates.tail
   let basis ← IO.wait (Task.spawn fun _ => PiCCSAggregatedImages.prepare tables power)
   let blocks := PiCCSAggregatedImages.combinedBlock power assignments
   let program ← IO.wait (Task.spawn fun _ =>
@@ -152,12 +159,11 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
       let imageNs := (← IO.monoNanosNow) - imageStarted
       let kernelStarted ← IO.monoNanosNow
       let constructed ← IO.wait (Task.spawn fun _ =>
-        PiCCSFirstRoundPair.pairPolynomialWithTotals extensionOps
-          (PiCCSPublicReplay.verifierInput statementInput) power
-          (PiCCSFirstRound.equalitySelector extensionOps suffix coins.alpha)
-          (PiCCSFirstRound.equalitySelector extensionOps suffix
-            (PiCCSPublicReplay.verifierInput statementInput).priorPoint) low.1 high.1
-          low.2.1 high.2.1 low.2.2 high.2.2)
+        PiCCSFirstRoundPair.pairPolynomialWithNorm extensionOps verifierInput power
+          (PiCCSCachedSelector.equalitySelector extensionOps suffix coins.alpha alphaWeights)
+          (PiCCSCachedSelector.equalitySelector extensionOps suffix verifierInput.priorPoint priorWeights)
+          low.1 high.1 low.2.1 high.2.1 low.2.2 high.2.2
+          (PiCCSNormCache.sourceNorm normTable power low.1 high.1))
       let term : FixedPolynomial K 9 :=
         PiCCSPublicReplay.degree_eq statementInput ▸ constructed
       total := FixedPolynomial.add extensionOps.toOps total term

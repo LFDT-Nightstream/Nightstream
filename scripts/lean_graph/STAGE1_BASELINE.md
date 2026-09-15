@@ -80,8 +80,9 @@ The active computation milestone is PiCCS round one from the original
 17 witnesses and public inputs. The exact graph target is
 `LeanGraph.Targets.PiCCSFirstRoundReplayKernel`. It combines the complete
 completion-sum formula, original and aggregated source constructors,
-prepared coefficient equality, and stored invocation rows. `piccs-first-round-kernel`
-checks its audit, literal target and dependency graph. The producer input
+prepared coefficient equality, stored invocation rows, and total norm/selector
+cache equality. `piccs-first-round-kernel` checks its audit, literal target and
+dependency graph. The producer input
 contains no Rust rounds or newly claimed evaluations.
 
 The first adjacent pair is measured. Reference polynomial construction took
@@ -98,11 +99,17 @@ invocation and crossing its boundary also matches. A changed target coefficient
 is rejected. The endpoint proof includes all original source lanes and both
 canonical carried sums; stored-row equality retains the loader-success premise.
 
+Weighted original blocks now share each requested read within an invocation.
+The cache theorem covers repeated and missing keys. Prepared norm cubics and
+suffix-selector weights also have complete coefficient equalities. Arbitrary
+extension-field values use the original norm constructor on a cache miss.
+The existing graph target includes the exact combined cached pair expression.
+
 The full first round is still open. A full-domain repetition of the measured
-pair is not an accepted execution plan. The next step is to share weighted
-original blocks across their repeated reads, then assemble the complete fresh
-CCS and norm contributions. This needs complete coefficient,
-challenge/state and mutation comparisons with Rust. Then replay the remaining
+pair is not an accepted execution plan. The next step is to assemble complete
+fresh CCS and norm contributions with proved range coverage and zero omissions.
+This needs complete coefficient, challenge/state and mutation comparisons
+with Rust. Then replay the remaining
 PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference
 path. Future sharing must retain the numeric invocation evaluator.

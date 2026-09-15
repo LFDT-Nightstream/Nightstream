@@ -2,6 +2,9 @@ import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
@@ -392,3 +395,17 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.row?_prepared
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.endpoint_images
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.endpoint_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.cachedRead_prepareCache
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.invocation_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.evaluate_normPair
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomialWithNorm_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTensorWeights.tensorWeightCoordinates_append
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTensorWeights.tensorWeightCoordinates_mod
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTensorWeights.prepare_sizes
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTensorWeights.lookup_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCachedSelector.equalitySelector_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.pairTable_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.weightedLookup_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.signedCode?_some
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.cachedLookup_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.sourceNorm_eq

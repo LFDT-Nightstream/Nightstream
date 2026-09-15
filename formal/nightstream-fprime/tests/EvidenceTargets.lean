@@ -1,5 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
@@ -620,32 +623,66 @@ def PiCCSStoredInvocation : Prop :=
     (index : Fin block.invocationCount)
     (interface : Layout.ProductionRelation.PoseidonSboxPlan.Interface columns),
     PiDECPoseidonNumericBlock.loadInvocation? block columns index = some interface →
-    ∀ (read : Fin columns → K) (row : Fin 94) (port : Fin Spec.ProductionRelation.matrixCount),
-    some (((PiCCSLinearRows.invocation read interface).get row).get port) =
+    ∀ (basis : PiRLCPartialTrace.FixedArray (Vector K ringDegree) ringDegree)
+      (blocks : Nat → Vector K ringDegree) (row : Fin 94) (port : Fin Spec.ProductionRelation.matrixCount),
+    some (((PiCCSCarriedReadCache.invocation basis blocks interface).get row).get port) =
       (block.row? columns (Fin.encodeProd (index, row)).val).map (fun forms =>
         PiCCSSparseEvaluation.evaluateK
           (match Layout.ProductionRelation.meaningfulPort? port with
             | some meaningful => forms meaningful
-            | none => Layout.ProductionRelation.SparseForm.empty) read)
+            | none => Layout.ProductionRelation.SparseForm.empty) (PiCCSCarriedRead.read basis blocks))
 
-theorem piCCSStoredInvocation : PiCCSStoredInvocation :=
-  fun block _ => PiCCSLinearRows.invocation_loaded_value block
+theorem piCCSStoredInvocation : PiCCSStoredInvocation := by
+  intro block columns index interface loaded basis blocks row port
+  rw [PiCCSCarriedReadCache.invocation_eq]
+  exact PiCCSLinearRows.invocation_loaded_value block index interface loaded
+    (PiCCSCarriedRead.read basis blocks) row port
+
+/-- The actual norm and selector caches preserve every pair coefficient.
+Endpoints and carried totals are arbitrary; no signedness premise is needed. -/
+def PiCCSCachedPairKernel : Prop :=
+  ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (powers : Nat → K)
+    (alpha : CubePoint K productionShape.cubeVariables) (suffix : BooleanVertex 27)
+    (low high : ProtocolPolynomial.OutputMessage K productionShape)
+    (padLow padHigh matrixLow matrixHigh : K),
+    PiCCSFirstRoundPair.pairPolynomialWithNorm ConcreteCarrier.extensionOps input powers
+      (PiCCSCachedSelector.equalitySelector ConcreteCarrier.extensionOps suffix alpha
+        (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps alpha.coordinates.tail))
+      (PiCCSCachedSelector.equalitySelector ConcreteCarrier.extensionOps suffix input.priorPoint
+        (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps input.priorPoint.coordinates.tail))
+      low high padLow padHigh matrixLow matrixHigh
+      (PiCCSNormCache.sourceNorm (PiCCSNormCache.prepare powers) powers low high) =
+        PiCCSFirstRoundPair.pairPolynomialWithTotals ConcreteCarrier.extensionOps input powers
+          (PiCCSFirstRound.equalitySelector ConcreteCarrier.extensionOps suffix alpha)
+          (PiCCSFirstRound.equalitySelector ConcreteCarrier.extensionOps suffix input.priorPoint)
+          low high padLow padHigh matrixLow matrixHigh
+
+/-- Compose the total cache equalities at the selected first-coordinate split. -/
+theorem piCCSCachedPairKernel : PiCCSCachedPairKernel := by
+  intro input powers alpha suffix low high padLow padHigh matrixLow matrixHigh
+  rw [PiCCSCachedSelector.equalitySelector_prepare ConcreteCarrier.extensionOps
+      ConcreteCarrier.extensionLaws (by decide) suffix alpha,
+    PiCCSCachedSelector.equalitySelector_prepare ConcreteCarrier.extensionOps
+      ConcreteCarrier.extensionLaws (by decide) suffix input.priorPoint,
+    PiCCSNormCache.sourceNorm_eq,
+    PiCCSFirstRoundPair.pairPolynomialWithNorm_eq]
 
 /-- Kernel closure combines complete completion-sum semantics, original-source
-assembly, aggregated endpoints, and exact prepared coefficients. Executed full-round coverage and
-Rust comparison are separate requirements in the same graph record. -/
+assembly, aggregated endpoints, stored rows, and exact cached coefficients.
+Executed full-round coverage and Rust comparison remain separate requirements. -/
 def PiCCSFirstRoundReplayKernel : Prop :=
   PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
-    PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation
+    PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel
 
 theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
   ⟨piCCSFirstRoundKernel, piCCSOriginalImages, piCCSPreparedPairKernel,
-    piCCSAggregatedEndpoints, piCCSStoredInvocation⟩
+    piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel⟩
 
 #audit_axioms piCCSOriginalImages
 #audit_axioms piCCSPreparedPairKernel
 #audit_axioms piCCSAggregatedEndpoints
 #audit_axioms piCCSStoredInvocation
+#audit_axioms piCCSCachedPairKernel
 #audit_axioms piCCSFirstRoundReplayKernel
 
 end LeanGraph.Targets

@@ -3,6 +3,7 @@ import Init.Data.Array.Lemmas
 import Init.Data.Vector.OfFn
 import NightstreamFPrime.Spec.AjtaiSetupV1.WordOperations
 import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
 /-!
 Native-word execution of the existing indexed Ajtai ChaCha20 generator.
@@ -208,14 +209,108 @@ theorem first256Nat_eq (seed : List Nat) (row block lane : Nat) :
   simp only [Nat.shiftLeft_eq]
   rfl
 
+@[inline] private def pack64 (low high : UInt32) : UInt64 :=
+  low.toUInt64 + (high.toUInt64 <<< 32)
+
+private theorem pack64_toNat (low high : UInt32) :
+    (pack64 low high).toNat = low.toNat + 4294967296 * high.toNat := by
+  have lowBound : low.toNat < 4294967296 := low.toBitVec.isLt
+  have highBound : high.toNat < 4294967296 := high.toBitVec.isLt
+  have shifted : (high.toUInt64 <<< 32).toNat = 4294967296 * high.toNat := by
+    simp only [UInt64.toNat_shiftLeft, UInt64.reduceToNat,
+      UInt32.toNat_toUInt64, Nat.reduceMod, Nat.shiftLeft_eq, Nat.reducePow]
+    rw [Nat.mod_eq_of_lt (by omega)]
+    omega
+  simp only [pack64, UInt64.toNat_add, UInt32.toNat_toUInt64, shifted]
+  rw [Nat.mod_eq_of_lt (by omega)]
+
+private theorem reduceWide64_toNat (low high : UInt64) :
+    (NativePoseidon2.reduceWide64 low high).toNat =
+      (low.toNat + 18446744073709551616 * high.toNat) % goldilocksModulus := by
+  have wordValue (value : UInt64) :
+      value.denote.val = value.toNat % goldilocksModulus := rfl
+  have natValue (value : Nat) :
+      (Poseidon2.ofNat value).val = value % goldilocksModulus := rfl
+  have result := congrArg Fin.val (NativePoseidon2.reduceWide64_denote low high)
+  simp only [Fin.val_add, Fin.val_mul, wordValue, natValue] at result
+  rw [Nat.mod_eq_of_lt (NativePoseidon2.reduceWide64_canonical low high)] at result
+  calc
+    (NativePoseidon2.reduceWide64 low high).toNat =
+        (low.toNat % goldilocksModulus +
+          ((NativePoseidon2.radix % goldilocksModulus *
+            (NativePoseidon2.radix % goldilocksModulus)) % goldilocksModulus *
+              (high.toNat % goldilocksModulus)) % goldilocksModulus) %
+                goldilocksModulus := result
+    _ = (low.toNat + (NativePoseidon2.radix * NativePoseidon2.radix) *
+          high.toNat) % goldilocksModulus := by
+      simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
+    _ = _ := rfl
+
+private def coefficient64FromState (initial : Array UInt32) : UInt64 :=
+  let permuted := runDoubleRounds 10 initial
+  let word := fun index => permuted.getD index 0 + initial.getD index 0
+  NativePoseidon2.reduceWide64 (pack64 (word 0) (word 1))
+    (NativePoseidon2.reduceWide64 (pack64 (word 2) (word 3))
+      (NativePoseidon2.reduceWide64 (pack64 (word 4) (word 5))
+        (pack64 (word 6) (word 7))))
+
+private theorem coefficient64FromState_canonical (initial : Array UInt32) :
+    (coefficient64FromState initial).toNat < goldilocksModulus := by
+  unfold coefficient64FromState
+  exact NativePoseidon2.reduceWide64_canonical _ _
+
+private theorem first256FromState_words (initial : Array UInt32) :
+    first256FromState initial =
+      let permuted := runDoubleRounds 10 initial
+      let word := fun index => (permuted.getD index 0 + initial.getD index 0).toNat
+      word 0 + 4294967296 * (word 1 + 4294967296 *
+        (word 2 + 4294967296 * (word 3 + 4294967296 *
+          (word 4 + 4294967296 * (word 5 + 4294967296 *
+            (word 6 + 4294967296 * word 7)))))) := by
+  dsimp only [first256FromState, blockWordsFromState]
+  generalize runDoubleRounds 10 initial = permuted
+  rw [show List.range 16 = [0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9, 10, 11, 12, 13, 14, 15] from rfl]
+  simp only [List.map_cons, List.map_nil, List.take_succ_cons, List.take_zero,
+    List.reverse_cons, List.reverse_nil, List.cons_append, List.nil_append,
+    List.foldl_cons, List.foldl_nil, Nat.shiftLeft_eq, Nat.reducePow]
+  ring
+
+private theorem coefficient64FromState_toNat (initial : Array UInt32) :
+    (coefficient64FromState initial).toNat =
+      first256FromState initial % goldilocksModulus := by
+  let permuted := runDoubleRounds 10 initial
+  let word := fun index => permuted.getD index 0 + initial.getD index 0
+  change (NativePoseidon2.reduceWide64 (pack64 (word 0) (word 1))
+    (NativePoseidon2.reduceWide64 (pack64 (word 2) (word 3))
+      (NativePoseidon2.reduceWide64 (pack64 (word 4) (word 5))
+        (pack64 (word 6) (word 7))))).toNat = _
+  calc
+    _ = ((pack64 (word 0) (word 1)).toNat + 18446744073709551616 *
+        ((pack64 (word 2) (word 3)).toNat + 18446744073709551616 *
+          ((pack64 (word 4) (word 5)).toNat + 18446744073709551616 *
+            (pack64 (word 6) (word 7)).toNat))) % goldilocksModulus := by
+      simp only [reduceWide64_toNat, Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
+    _ = first256FromState initial % goldilocksModulus := by
+      rw [first256FromState_words]
+      dsimp only [word, permuted]
+      generalize runDoubleRounds 10 initial = state
+      apply congrArg (fun value : Nat => value % goldilocksModulus)
+      simp only [pack64_toNat]
+      ring
+
+attribute [irreducible] coefficient64FromState
+
 /-- The existing Goldilocks wide-reduction rule, applied to native rounds. -/
 def wideCoefficientNat (seed : List Nat) (row block lane : Nat) : Nat :=
-  first256Nat seed row block lane % goldilocksModulus
+  (coefficient64FromState (initialState seed row block lane)).toNat
 
 theorem wideCoefficientNat_eq (seed : List Nat) (row block lane : Nat) :
     wideCoefficientNat seed row block lane =
       AjtaiSetupV1.wideCoefficientNat seed row block lane := by
-  rw [wideCoefficientNat, first256Nat_eq]
+  rw [wideCoefficientNat, coefficient64FromState_toNat]
+  change first256Nat seed row block lane % goldilocksModulus = _
+  rw [first256Nat_eq]
   rfl
 
 /-- Compute the coefficient from the same typed verifier-owned setup.
@@ -224,7 +319,7 @@ def coefficient {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) (lane : Fin ringDegree) : F :=
   ⟨wideCoefficientNat setup.seed.bytes row.val block.val lane.val,
-    by unfold wideCoefficientNat; exact Nat.mod_lt _ (by decide)⟩
+    by unfold wideCoefficientNat; exact coefficient64FromState_canonical _⟩
 
 /-- The native coefficient is the exact existing indexed key coefficient.
 Instantiate setup with the existing productionSetup for the selected key. -/
@@ -242,8 +337,8 @@ def keyBlock {verifierRows messageColumns : Nat}
     (row : Fin verifierRows) (block : Fin messageColumns) : Vector F ringDegree :=
   let initial := initialState setup.seed.bytes row.val block.val 0
   Vector.ofFn fun lane =>
-    ⟨first256FromState (withLane initial lane.val) % goldilocksModulus,
-      Nat.mod_lt _ (by decide)⟩
+    ⟨(coefficient64FromState (withLane initial lane.val)).toNat,
+      coefficient64FromState_canonical _⟩
 
 /-- Every stored lane is the existing indexed key coefficient. -/
 theorem keyBlock_value {verifierRows messageColumns : Nat}
@@ -252,14 +347,13 @@ theorem keyBlock_value {verifierRows messageColumns : Nat}
     (keyBlock setup row block).get = setup.verifierKey row block := by
   funext lane
   change (Vector.ofFn (fun selected : Fin ringDegree =>
-    (⟨first256FromState
-      (withLane (initialState setup.seed.bytes row.val block.val 0) selected.val) %
-        goldilocksModulus, Nat.mod_lt _ (by decide)⟩ : F)))[lane.val] = _
+    (⟨(coefficient64FromState
+      (withLane (initialState setup.seed.bytes row.val block.val 0) selected.val)).toNat,
+        coefficient64FromState_canonical _⟩ : F)))[lane.val] = _
   rw [Vector.getElem_ofFn]
   apply Fin.ext
-  change first256FromState
-    (withLane (initialState setup.seed.bytes row.val block.val 0) lane.val) %
-      goldilocksModulus = _
+  change (coefficient64FromState
+    (withLane (initialState setup.seed.bytes row.val block.val 0) lane.val)).toNat = _
   rw [withLane_initialState]
   exact wideCoefficientNat_eq setup.seed.bytes row.val block.val lane.val
 

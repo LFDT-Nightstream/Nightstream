@@ -485,7 +485,7 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
         rw [phaseStart] at bounds
         omega
 
-def baseRows : List Rows.CompiledRow :=
+def baseRows (_delay : Unit := ()) : List Rows.CompiledRow :=
   pilotRows.map liftPilotCompiledRow ++ Data.arithmeticRows ()
 
 theorem baseRows_rowIndices_nodup :

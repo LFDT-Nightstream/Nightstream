@@ -1,4 +1,7 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
@@ -328,3 +331,41 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.structuralIdentity_eq_canonical
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.structuralIdentityWords_length
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.logicalConstraints_eq_flatten
+
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse.evaluate_monomialPolynomial
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomial_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRound.affine_vertexMessage_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRound.equalitySelector_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRound.vertexPolynomial_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRound.firstRound_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.running_fromCheckInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.fresh_fromCheckInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.verifierInput_fromCheckInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.statementState_eq_key
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.verifierInput_eq_key
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.pre_eq_oracle
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.pre_fromCheckInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.initialClaim_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.initialClaim_fromCheckInput
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.firstRound_eq_derive
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.firstRound_eq_checkTrace
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPublicReplay.degree_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.coefficientRead_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.preparedRead_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.matrixImage_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.cachedMatrixImage_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.padImage_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.kernelRead_constant
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.freshMatrixImage_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.runningMatrix_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.runningPad_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.freshMatrix_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.assignment_sourceProtocolData
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSGammaPowers.prepare_size
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSGammaPowers.prepare_get
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSGammaPowers.lookup_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomialWithPowers_prepared
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.images_sourceProtocolData

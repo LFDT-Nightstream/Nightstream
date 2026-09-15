@@ -1180,5 +1180,6 @@
       2
     ]
   },
-  "performance_review": "PIDEC_EVALUATION_PERFORMANCE.json"
+  "performance_review": "PIDEC_EVALUATION_PERFORMANCE.json",
+  "batch_driver": "PIDEC_MATRIX_BATCH.json"
 }

@@ -228,6 +228,13 @@ source snapshots are in `PIDEC_EVALUATION_PERFORMANCE.json`. The parent
 load remains about 82 s. Use the pure-source rates to size the remaining
 Eval_A execution; the first two small measurements mixed row families.
 
+Nine more Eval_A sources passed together in 1,405.52 s with peak RSS
+13,312,508 KiB. Saved coverage reaches row 5,622,130; five sources,
+First54 grids and later blocks remain. The batch driver reuses the same
+checked parent and point across ranges. Three actual range payloads match
+their single-range outputs byte for byte. Its report is
+`PIDEC_MATRIX_BATCH.json`; this does not close the full native comparison.
+
 The complete family target and metadata gate remain in the graph. Kernel
 closure and the successful Pad result do not close the matrix execution
 requirement. Full comparison must cover all 25,920 evaluation field words,

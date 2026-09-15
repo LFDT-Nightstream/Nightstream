@@ -29,6 +29,7 @@
 #   validate.sh pi-dec-pad-merge-boundaries <new-results-directory>
 #   validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>
 #   validate.sh pi-dec-matrix-range <C-input> <new-output> <block> <first-local-row> <last-exclusive> <Lean-parent-ranges>...
+#   validate.sh pi-dec-matrix-ranges <C-input> <new-output block first last>... -- <Lean-parent-ranges>...
 #   validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>...
 #   validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>
 #   validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>
@@ -137,6 +138,11 @@ case "$phase" in
     if (( $# < 7 )); then echo "usage: validate.sh pi-dec-matrix-range <C-input> <new-output> <block> <first-local-row> <last-exclusive> <Lean-parent-ranges>..." >&2; exit 2; fi
     shift
     capped lake exe replayPiDECMatrix -- "$@"
+    ;;
+  pi-dec-matrix-ranges)
+    if (( $# < 8 )); then echo "usage: validate.sh pi-dec-matrix-ranges <C-input> <new-output block first last>... -- <Lean-parent-ranges>..." >&2; exit 2; fi
+    shift
+    capped lake exe replayPiDECMatrix -- ranges "$@"
     ;;
   pi-dec-parent-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>" >&2; exit 2; fi

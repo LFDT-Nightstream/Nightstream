@@ -142,7 +142,8 @@ private theorem foldl_mul_eq_mul_foldr
       rw [List.foldl_cons, inductionHypothesis]
       exact laws.mul_assoc _ _ _
 
-private def monomialPolynomial
+/-- Explicit coefficient polynomial obtained by substituting affine matrix images. -/
+def monomialPolynomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
     {matrixCount : Nat}
@@ -153,7 +154,8 @@ private def monomialPolynomial
     (productPowers ops monomial.exponents matrixPolynomials
       (canonicalFinIndices matrixCount))
 
-private theorem evaluate_monomialPolynomial
+/-- The explicit affine substitution evaluates to the original sparse monomial. -/
+theorem evaluate_monomialPolynomial
     {Field : Type uField}
     {ops : InterpolationOps Field}
     (laws : InterpolationEvaluationLaws ops)

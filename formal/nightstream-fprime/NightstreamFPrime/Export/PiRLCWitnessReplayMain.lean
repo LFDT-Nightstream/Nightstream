@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
-import NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock
+import NightstreamFPrime.Export.SignedUnitSourceInput
 
 /-!
 Replay PiRLC from original signed-unit source blocks and an accepted C input.
@@ -26,39 +26,6 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
 private def naturals (line : String) : Except String (List Nat) := do
   let values ← (← Lean.Json.parse line).getArr?
   values.toList.mapM Lean.Json.getNat?
-
-private def sourceBlock (positive negative : Nat) : MaterializedRingF :=
-  FixedArray.ofFn fun lane =>
-    if positive.testBit lane.val then (1 : F)
-    else if negative.testBit lane.val then (-1 : F) else 0
-
-private def decodeBlock (line : String) :
-    Except String (Nat × (Fin SourceCount → MaterializedRingF)) := do
-  let values ← (← Lean.Json.parse line).getArr?
-  match values.toList with
-  | [index, entries] =>
-      let block ← index.getNat?
-      let entries ← entries.getArr?
-      let mut values : Array (Nat × Nat) := Array.replicate SourceCount (0, 0)
-      let mut next := 0
-      for entry in entries do
-        let fields ← entry.getArr?
-        let fields ← fields.toList.mapM Lean.Json.getNat?
-        match fields with
-        | [source, positive, negative] =>
-            unless next ≤ source && source < SourceCount do
-              throw "source indices must be unique and increasing"
-            unless positive < 2 ^ ringDegree && negative < 2 ^ ringDegree &&
-                (positive &&& negative) == 0 && (positive ||| negative) != 0 do
-              throw "invalid signed-unit source masks"
-            values := values.set! source (positive, negative)
-            next := source + 1
-        | _ => throw "expected source index and two masks"
-      unless !entries.isEmpty do throw "zero source blocks must be omitted"
-      return (block, fun source =>
-        let pair := values[source.val]!
-        sourceBlock pair.1 pair.2)
-  | _ => throw "expected a block index and source entries"
 
 private def writeValue (output : IO.FS.Handle) (value : Value) : IO Unit :=
   output.putStr (value.render ++ "\n")
@@ -112,7 +79,8 @@ private def replay (ccsPath sourcePath outputPath : System.FilePath)
     if line.trimAscii.toString == "[]" then
       complete := true
     else
-      let (block, values) ← checked (decodeBlock line)
+      let (block, masks) ← checked (SignedUnitSourceInput.decodeBlock line)
+      let values := SignedUnitSourceInput.sourceBlock masks
       unless next ≤ block && block < blocks do
         throw (IO.userError "duplicate or out-of-range source block")
       next := block + 1

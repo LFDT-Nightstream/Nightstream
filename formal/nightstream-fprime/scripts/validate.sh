@@ -90,6 +90,11 @@ case "$phase" in
     ;;
   build)  capped lake build "${2:-NightstreamFPrime}" ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
+  pi-ccs-first-round)
+    if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi
+    shift
+    capped lake exe replayPiCCSFirstRound -- "$@"
+    ;;
   pi-rlc-witness-replay)
     if (( $# != 6 )); then echo "usage: validate.sh pi-rlc-witness-replay <C-input> <source-capture> <output> <start-block> <end-block>" >&2; exit 2; fi
     shift

@@ -76,12 +76,28 @@ calculation evidence. Protected full-generation acceptance and release
 upload/fresh-download verification remain external. Status stays
 `Compiler-closed`.
 
-The next computation milestone is PiCCS round one from the original
-17 witnesses and public inputs. The current honest strategy uses
-`Classical.choose`; a computable round polynomial must be connected to the
-existing completion-sum specification before timing the actual first round.
-Rust round messages and final evaluations must enter only comparisons.
-HyperNova replay and complete proof encoding remain subsequent work.
+The active computation milestone is PiCCS round one from the original
+17 witnesses and public inputs. The exact graph target is
+`LeanGraph.Targets.PiCCSFirstRoundReplayKernel`. It combines the complete
+completion-sum formula, the actual original-source image constructor, and
+exact equality of prepared gamma coefficients. `piccs-first-round-kernel`
+checks its audit, literal target and dependency graph. The producer input
+contains no Rust rounds or newly claimed evaluations.
+
+The first adjacent pair is measured. Reference polynomial construction took
+60.04 seconds; shared gamma powers reduced it to 0.0247 seconds. All ten K
+coefficients (20 field words) remain byte equal. Original-source images take
+about 3.74 seconds per pair. The retained source decoder also preserves the
+complete prior PiRLC prefix. Six input rejection cases pass.
+`PICCS_FIRST_ROUND_REPLAY.json` records the exact scope and source hashes.
+
+The full first round is still open. A full-domain repetition of the measured
+pair is not an accepted execution plan. The next step is a proved accumulation
+that removes repeated linear image work, followed by complete coefficient,
+challenge/state and mutation comparisons with Rust. Then replay the remaining
+PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic
+`program.row?` row caching was measured and removed: it expands a slow reference
+path. Future sharing must retain the numeric invocation evaluator.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

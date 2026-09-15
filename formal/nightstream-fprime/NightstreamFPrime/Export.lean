@@ -283,4 +283,8 @@ import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
+
 /-! Export layer root. Lists the modules of this layer explicitly. -/

@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
@@ -493,5 +495,75 @@ theorem piDECChildEvaluationReplay : PiDECChildEvaluationReplay := by
   exact PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages
 
 #audit_axioms piDECChildEvaluationReplay
+
+/-- The computable complete first-round polynomial evaluates to the existing
+Q completion sum. This kernel target does not assert source-image loading or
+an executed comparison with Rust. Those remain separate replay obligations. -/
+def PiCCSFirstRoundKernel : Prop :=
+  ∀ (data : ProtocolPolynomial.Data K Lifecycle.productionShape)
+    (alpha : CubePoint K Lifecycle.productionShape.cubeVariables)
+    (gamma value : K),
+    (PiCCSFirstRound.firstRound ConcreteCarrier.extensionOps data alpha gamma
+      (remaining := 27) (by decide)).evaluate ConcreteCarrier.extensionOps.toOps value =
+      Spec.SumCheck.Finite.HypercubeTruth.sumCompletions ConcreteCarrier.extensionOps.toOps
+        (ProtocolPolynomial.polynomial ConcreteCarrier.extensionOps data alpha gamma) [value] 27
+
+/-- The complete sum theorem supplies the exact coefficient-kernel target. -/
+theorem piCCSFirstRoundKernel : PiCCSFirstRoundKernel :=
+  fun data alpha gamma value => PiCCSFirstRound.firstRound_evaluate
+    ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws data alpha gamma (by decide) value
+
+#audit_axioms piCCSFirstRoundKernel
+
+/-- The executable image assembly uses the original complete witnesses and
+returns the existing source-connected protocol message. -/
+def PiCCSOriginalImages : Prop :=
+  let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+    Poseidon2HashChainV1Package.fits
+  ∀ (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (vertex : BooleanVertex cubeVariables),
+    PiCCSSourceImages.images?
+      (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+      (fun row => (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?)
+      (PiDECParentSparseRead.prepare ())
+      (PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout witness.assignments vertex =
+        some (ProtocolPolynomial.vertexMessage
+          (((ProductionKey.key relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+            (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+              K.embed witness) vertex)
+
+theorem piCCSOriginalImages : PiCCSOriginalImages :=
+  PiCCSSourceImages.images_sourceProtocolData
+
+/-- Prepared gamma lookup preserves the complete coefficient object. -/
+def PiCCSPreparedPairKernel : Prop :=
+  ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (gamma : K)
+    (alphaSelector priorSelector : Spec.SumCheck.Finite.FixedPolynomial K 1)
+    (low high : ProtocolPolynomial.OutputMessage K productionShape),
+    PiCCSFirstRoundPair.pairPolynomialWithPowers ConcreteCarrier.extensionOps input
+      (PiCCSGammaPowers.lookup ConcreteCarrier.extensionOps.toOps gamma
+        (PiCCSGammaPowers.prepare ConcreteCarrier.extensionOps.toOps gamma
+          (PiCCSFirstRoundPair.powerCount productionShape)))
+      alphaSelector priorSelector low high =
+        PiCCSFirstRoundPair.pairPolynomial ConcreteCarrier.extensionOps input gamma
+          alphaSelector priorSelector low high
+
+theorem piCCSPreparedPairKernel : PiCCSPreparedPairKernel :=
+  fun input gamma => PiCCSFirstRoundPair.pairPolynomialWithPowers_prepared
+    ConcreteCarrier.extensionOps input gamma (PiCCSFirstRoundPair.powerCount productionShape)
+
+/-- Kernel closure combines complete completion-sum semantics, original-source
+assembly, and exact prepared coefficients. Executed full-round coverage and
+Rust comparison are separate requirements in the same graph record. -/
+def PiCCSFirstRoundReplayKernel : Prop :=
+  PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel
+
+theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
+  ⟨piCCSFirstRoundKernel, piCCSOriginalImages, piCCSPreparedPairKernel⟩
+
+#audit_axioms piCCSOriginalImages
+#audit_axioms piCCSPreparedPairKernel
+#audit_axioms piCCSFirstRoundReplayKernel
 
 end LeanGraph.Targets

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.Values
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import tests.AxiomAudit
+import NightstreamFPrime.Export.Stage1.PiDECSignedDigits
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
@@ -119,6 +120,14 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.addProduct_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulateContributions_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.addPreparedProduct_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCyclicCoefficient.coefficient_eq_rightCoefficient
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.offset_toNat
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.offset_bounds
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.prepare_foldF
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.fold64_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.prepare_fold64
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.prepare_none_of_unsupported
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECSignedDigits.prepare_some_of_signed
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulatePreparedContributions_eq
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected

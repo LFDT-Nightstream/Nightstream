@@ -311,4 +311,106 @@ theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     combine_gated ops laws, alphaMatches, priorMatches]
   rfl
 
+/-- Direct equality of both coefficient slots, using the existing sum order. -/
+private theorem weightedSum_affine_coefficients (ops : InterpolationOps Field)
+    {Index : Type uIndex} (indices : List Index) (weight low high : Index → Field) :
+    weightedSum ops indices weight (fun index => affine ops (low index) (high index)) =
+      FixedPolynomial.affine
+        (FiniteSumAlgebra.sumMap ops indices (fun index => ops.mul (weight index) (low index)))
+        (FiniteSumAlgebra.sumMap ops indices
+          (fun index => ops.mul (weight index) (ops.sub (high index) (low index)))) := by
+  induction indices with
+  | nil => rfl
+  | cons index indices ih =>
+      change FixedPolynomial.add ops.toOps
+          (FixedPolynomial.scale ops.toOps (weight index) (affine ops (low index) (high index)))
+          (weightedSum ops indices weight (fun next => affine ops (low next) (high next))) = _
+      rw [ih]
+      rfl
+
+/-- Weighted interpolation is exactly the affine polynomial of weighted
+endpoints. This is coefficient equality, not evaluation injectivity. -/
+private theorem weightedSum_affine_totals (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops) {Index : Type uIndex}
+    (indices : List Index) (weight low high : Index → Field) :
+    weightedSum ops indices weight (fun index => affine ops (low index) (high index)) =
+      affine ops
+        (FiniteSumAlgebra.sumMap ops indices (fun index => ops.mul (weight index) (low index)))
+        (FiniteSumAlgebra.sumMap ops indices (fun index => ops.mul (weight index) (high index))) := by
+  rw [weightedSum_affine_coefficients]
+  unfold affine
+  apply congrArg (FixedPolynomial.affine
+    (FiniteSumAlgebra.sumMap ops indices (fun index => ops.mul (weight index) (low index))))
+  calc
+    _ = FiniteSumAlgebra.sumMap ops indices (fun index =>
+        ops.sub (ops.mul (weight index) (high index)) (ops.mul (weight index) (low index))) := by
+      apply FiniteSumAlgebra.sumMap_congr
+      intro index _
+      exact FiniteSumAlgebra.mul_sub ops laws _ _ _
+    _ = _ := FiniteSumAlgebra.sumMap_sub ops laws indices _ _
+
+/-- The four totals replace only carried-field enumeration. Matrix totals
+are local: the existing matrix gamma shift is still applied exactly once.
+Only freshMatrixImage/sourceAssignment are read from the endpoint messages. -/
+def pairPolynomialWithTotals (ops : InterpolationOps Field)
+    (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
+    (alphaSelector priorSelector : FixedPolynomial Field 1)
+    (low high : ProtocolPolynomial.OutputMessage Field shape)
+    (padLow padHigh matrixLow matrixHigh : Field) :
+    FixedPolynomial Field input.sumcheckDegreeBound :=
+  let pad := FixedPolynomial.mul ops.toOps priorSelector (affine ops padLow padHigh)
+  let matrix := FixedPolynomial.mul ops.toOps priorSelector (affine ops matrixLow matrixHigh)
+  let ccs := ccsPolynomialWithPowers ops input powers alphaSelector low high
+  let norm := FixedPolynomial.mul ops.toOps alphaSelector (normPolynomialWithPowers ops powers low high)
+  let constraints := FixedPolynomial.add ops.toOps
+    (FixedPolynomial.widen ops.toOps (ccsFits input) ccs)
+    (FixedPolynomial.scale ops.toOps (powers shape.freshCount)
+      (FixedPolynomial.widen ops.toOps (fourFits input) norm))
+  FixedPolynomial.add ops.toOps (FixedPolynomial.widen ops.toOps (twoFits input) pad)
+    (FixedPolynomial.add ops.toOps
+      (FixedPolynomial.scale ops.toOps (powers shape.matrixEvaluationOffset)
+        (FixedPolynomial.widen ops.toOps (twoFits input) matrix))
+      (FixedPolynomial.scale ops.toOps (powers shape.constraintOffset) constraints))
+
+/-- Supplying the four original weighted endpoint sums preserves every
+coefficient and the fixed width. The power callback is arbitrary and shared. -/
+theorem pairPolynomialWithTotals_eq (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
+    (alphaSelector priorSelector : FixedPolynomial Field 1)
+    (low high : ProtocolPolynomial.OutputMessage Field shape) :
+    pairPolynomialWithTotals ops input powers alphaSelector priorSelector low high
+      (FiniteSumAlgebra.sumMap ops (canonicalPadCoordinates shape)
+        (fun coordinate => ops.mul (powers coordinate.localGammaExponent) (low.padImage coordinate)))
+      (FiniteSumAlgebra.sumMap ops (canonicalPadCoordinates shape)
+        (fun coordinate => ops.mul (powers coordinate.localGammaExponent) (high.padImage coordinate)))
+      (FiniteSumAlgebra.sumMap ops (canonicalMatrixCoordinates shape)
+        (fun coordinate => ops.mul (powers coordinate.localGammaExponent) (low.matrixImage coordinate)))
+      (FiniteSumAlgebra.sumMap ops (canonicalMatrixCoordinates shape)
+        (fun coordinate => ops.mul (powers coordinate.localGammaExponent) (high.matrixImage coordinate))) =
+      pairPolynomialWithPowers ops input powers alphaSelector priorSelector low high := by
+  unfold pairPolynomialWithTotals pairPolynomialWithPowers
+  rw [weightedSum_affine_totals ops laws (canonicalPadCoordinates shape)
+      (fun coordinate => powers coordinate.localGammaExponent) low.padImage high.padImage,
+    weightedSum_affine_totals ops laws (canonicalMatrixCoordinates shape)
+      (fun coordinate => powers coordinate.localGammaExponent) low.matrixImage high.matrixImage]
+
+/-- Carried message fields do not affect this constructor. Only the four
+nonlinear endpoint projections and the separately supplied totals are read. -/
+theorem pairPolynomialWithTotals_congr (ops : InterpolationOps Field)
+    (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
+    (alphaSelector priorSelector : FixedPolynomial Field 1)
+    (low high replacementLow replacementHigh : ProtocolPolynomial.OutputMessage Field shape)
+    (padLow padHigh matrixLow matrixHigh : Field)
+    (lowFresh : low.freshMatrixImage = replacementLow.freshMatrixImage)
+    (highFresh : high.freshMatrixImage = replacementHigh.freshMatrixImage)
+    (lowAssignment : low.sourceAssignment = replacementLow.sourceAssignment)
+    (highAssignment : high.sourceAssignment = replacementHigh.sourceAssignment) :
+    pairPolynomialWithTotals ops input powers alphaSelector priorSelector low high
+        padLow padHigh matrixLow matrixHigh =
+      pairPolynomialWithTotals ops input powers alphaSelector priorSelector replacementLow replacementHigh
+        padLow padHigh matrixLow matrixHigh := by
+  simp only [pairPolynomialWithTotals, ccsPolynomialWithPowers, normPolynomialWithPowers,
+    lowFresh, highFresh, lowAssignment, highAssignment]
+
 end NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair

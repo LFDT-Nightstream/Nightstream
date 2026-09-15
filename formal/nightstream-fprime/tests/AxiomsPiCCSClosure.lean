@@ -8,6 +8,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
+import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
@@ -465,3 +469,21 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormComplete.finished_norm_eq_fullPairSum
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormComplete.prepared_workers_eq_fullPairSum
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness.blockNorm_eq_normPolynomialWithPowers
+
+-- Exact fresh-polynomial fast path.
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.mul_zero_left
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.mul_zero_right
+#audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.constant_one_mul
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.productPowers_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.monomial_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.ccsPolynomialWithPowers_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.ccsPolynomialWithPowers_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.reference_ccsPolynomialWithPowers_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.selected_terms_positive
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.selected_ccsPolynomialWithPowers_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial.freshMatrixImage?_zero_of_pair_beyond
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge.array_proportional_eq_range
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.verifierInput_eq_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.numericPairFresh?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange_eq_fullPairSum

@@ -115,10 +115,20 @@ to 35.17 seconds, with 1,360,840 KiB peak RSS. `PICCS_NORM_REPLAY.json`
 records inputs, exact scope and the checks. It is not full-Q or transcript
 comparison.
 
-The full first round is still open. A full-domain repetition of the measured
-pair is not an accepted execution plan. The next step is to assemble complete
-fresh CCS and carried Pad/matrix contributions with proved coverage, then
-compose them with the norm result and compare all ten Q coefficients.
+The fresh contribution is also calculated across all 3,188,780 active pairs,
+including row 6,377,558 paired with the first padded row. Exact coefficient
+proofs skip zero monomials and exponent-zero factors. The selected positive
+degree theorem closes the entire remaining Boolean suffix. The Option-preserving
+source constructor is proved equal to the original-source reference sum; its
+IO task and mutable cache loops remain implementation links. The complete run
+took 623.73 seconds and 2,459,352 KiB peak RSS. `PICCS_FRESH_REPLAY.json`
+records its exact scope and source hashes. This is not a full Rust Q comparison.
+
+The full first round is still open. The next step is to calculate complete
+carried Pad/matrix moments, compose the three contributions, and compare all
+ten Q coefficients and the next challenge/state with Rust. Later rounds reuse
+the existing checked `PrefixFold` kernel once Lean-derived image prefixes are
+retained; the current fresh runner stores only its final coefficients.
 This needs complete coefficient, challenge/state and mutation comparisons
 with Rust. Then replay the remaining
 PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic

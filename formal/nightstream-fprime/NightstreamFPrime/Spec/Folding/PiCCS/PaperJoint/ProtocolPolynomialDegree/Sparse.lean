@@ -1,7 +1,9 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomialDegree/Sparse.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed.
+The coefficient constructors are exposed for replay equality proofs;
+their executable definitions are unchanged. -/
 
 /-!
 Sparse-CCS substitution for the paper `Pi_CCS` one-variable degree proof.
@@ -24,7 +26,8 @@ open ProtocolPolynomialDegree.Support
 
 universe uField
 
-private def affinePower
+/-- Affine power with its syntax-derived exact degree. -/
+def affinePower
     {Field : Type uField}
     (ops : InterpolationOps Field)
     (polynomial : Polynomial Field 1)
@@ -54,7 +57,8 @@ private theorem evaluate_affinePower
         CCSResidualTable.pow]
       rw [inductionHypothesis]
 
-private def productPowers
+/-- Ordered product used by monomial substitution, including zero exponents. -/
+def productPowers
     {Field : Type uField}
     (ops : InterpolationOps Field)
     {Index : Type}

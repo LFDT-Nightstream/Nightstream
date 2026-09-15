@@ -1,0 +1,864 @@
+{
+  "schema": 1,
+  "date": "2026-09-15",
+  "base_commit": "a1e804897d48204632641d62695b1106e2ea7d6b",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "status": "Complete fresh first-round contribution calculated; mathematical source-to-sum bridge passes. Complete carried terms and full Rust Q comparison remain open.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "matrices": 14,
+    "fresh_sources": 1,
+    "running_sources": 16,
+    "row_variables": 28,
+    "active_rows": 6377559,
+    "active_pairs": 3188780,
+    "boolean_pairs": 134217728,
+    "package": "unchanged",
+    "toolchain": "leanprover/lean4:v4.30.0; default runtime unchanged"
+  },
+  "independence": {
+    "inputs": [
+      "original source0 witness from the full 17-source capture",
+      "original fresh commitment and public input",
+      "old public running claims"
+    ],
+    "coins": "PiCCSPublicReplay.pre calculates alpha and gamma from the public-only input; no Rust round polynomial or newly claimed evaluation is supplied.",
+    "comparison": "Optimized and reference Lean fresh kernels agree on the same original rows. They share row loading and caches; this isolates the polynomial optimization. Complete Rust Q comparison awaits the carried term.",
+    "lineage": "PIRLC_WITNESS_REPLAY.json and NONZERO_NIFS_GATES.json retain the original source-opening hashes and producer commands."
+  },
+  "coverage": {
+    "pair_interval": [
+      0,
+      3188780
+    ],
+    "last_pair_rows": [
+      6377558,
+      6377559
+    ],
+    "last_high_row": "proved zero padding",
+    "remaining_boolean_pairs": "proved exact zero from positive term degrees and zero matrix rows",
+    "coefficients": 10,
+    "field_words": 20,
+    "outer_constraint_gamma_shift": "included",
+    "alpha_selector": "included",
+    "norm_and_carried": "not part of this output"
+  },
+  "inputs": [
+    {
+      "path": "/tmp/nightstream-piccs-original-public-1.json",
+      "bytes": 410910,
+      "sha256": "54dc9d56e0b0b2cb6c14d9e3cc5d2d56114132721ff9cb35577946f1f64b5a37"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+      "bytes": 562056218,
+      "sha256": "b4b093059cfb8da5266e9a7188348958a6a93b512e7c854b6157b7ad57fb8619"
+    }
+  ],
+  "output": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-complete-active.json",
+    "bytes": 408,
+    "sha256": "6c6405e98fa6b93938e29437aaf5b56f9e7301d270a27b4d608043f2e3242fac"
+  },
+  "proofs": {
+    "fast_kernel": "PiCCSFreshPolynomial.ccsPolynomialWithPowers_value",
+    "source_and_sum": "PiCCSFreshComplete.freshRange_eq_fullPairSum",
+    "numeric_pair": "PiCCSFreshComplete.numericPairFresh?_value",
+    "range": "PiCCSFreshComplete.freshRange?_value",
+    "input_agreement": "PiCCSFreshComplete.verifierInput_eq_sourceProtocolData",
+    "worker_merge": "PiCCSPolynomialRangeMerge.array_proportional_eq_range",
+    "padding": "PiCCSFreshPolynomial.freshMatrixImage?_zero_of_pair_beyond",
+    "zero_polynomial": "PiCCSFreshPolynomial.selected_ccsPolynomialWithPowers_zero",
+    "existing_row_authorities": [
+      "PiCCSSourceImages.freshMatrix_sourceProtocolData",
+      "PiDECPoseidonNumericRows.stored_value",
+      "PiDECPoseidonNumericBlock.row?_value",
+      "PiDECMatrixNumericRows.blockRow?_eq"
+    ],
+    "premises": "Arbitrary original complete assignments, public input, alpha, power callback and column layout. Selected source preservation discharges Option row loads. The worker merger quantifies positive parts and workers equal to their declared ranges.",
+    "boundary": "The Option constructor and arithmetic kernels are proved. This does not verify Main's IO task or mutable invocation-cache loop, nor universally prove Rust execution.",
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ]
+  },
+  "graph": {
+    "obligation": "piccs-first-round-replay",
+    "target": "LeanGraph.Targets.PiCCSFirstRoundReplayKernel",
+    "new_component": "LeanGraph.Targets.PiCCSCompleteFreshKernel",
+    "gate": "piccs-first-round-kernel",
+    "metadata_complete": true
+  },
+  "runs": {
+    "reference_47": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-reference-0-47.log",
+        "bytes": 2208,
+        "sha256": "b4782e682737e922ca43a29604deefad476d24d970cdd40f4f85e6c738bfeca5"
+      },
+      "elapsed_seconds": 24.653054676018655,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-reference-0-47.json",
+        "0",
+        "47"
+      ],
+      "peak_rss_kib": 2440024,
+      "events": [
+        {
+          "elapsed_ns": 22597446232,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "compute_ns": 1130459775,
+          "elapsed_ns": 23728121448,
+          "end": 47,
+          "event": "fresh_range_complete",
+          "first": 0
+        }
+      ]
+    },
+    "fast_47": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-fast-0-47.log",
+        "bytes": 2210,
+        "sha256": "b38ae1de515e593e43b62cd928c93f0cd24d137b173262516d0f05d67ed3d288"
+      },
+      "elapsed_seconds": 21.246051329071634,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-fast-0-47.json",
+        "0",
+        "47"
+      ],
+      "peak_rss_kib": 2458704,
+      "events": [
+        {
+          "elapsed_ns": 19400847977,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "compute_ns": 935287412,
+          "elapsed_ns": 20336332125,
+          "end": 47,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": false
+        }
+      ]
+    },
+    "reference_752": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-reference-0-752.log",
+        "bytes": 2263,
+        "sha256": "a901b674a769043213d894c05af1c95d5d2df0023b085d18af29f109290bb402"
+      },
+      "elapsed_seconds": 24.652285124058835,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh-reference",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-reference-0-752.json",
+        "0",
+        "752"
+      ],
+      "peak_rss_kib": 2458368,
+      "events": [
+        {
+          "elapsed_ns": 21770343110,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "compute_ns": 1958155712,
+          "elapsed_ns": 23728736414,
+          "end": 752,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": true
+        }
+      ]
+    },
+    "fast_752": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-fast-0-752.log",
+        "bytes": 2219,
+        "sha256": "80c8011f842e82ec633968afe32c023ad1ae33317dc1f33b7f281c3e81a01491"
+      },
+      "elapsed_seconds": 21.297579603036866,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-fast-0-752.json",
+        "0",
+        "752"
+      ],
+      "peak_rss_kib": 2459408,
+      "events": [
+        {
+          "elapsed_ns": 19234802529,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "compute_ns": 1127613813,
+          "elapsed_ns": 20362620272,
+          "end": 752,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": false
+        }
+      ]
+    },
+    "parallel_752": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-parallel-0-752.log",
+        "bytes": 3634,
+        "sha256": "d2af418159b072cada33fef5129bd75c4935eeb99189541a06da6ade9dd2cebe"
+      },
+      "elapsed_seconds": 21.24847800389398,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-parallel-0-752.json",
+        "0",
+        "752"
+      ],
+      "peak_rss_kib": 2458464,
+      "events": [
+        {
+          "elapsed_ns": 19161667963,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "end": 47,
+          "event": "fresh_range_accumulated",
+          "first": 0,
+          "part": 0,
+          "range_ns": 20200166
+        },
+        {
+          "end": 94,
+          "event": "fresh_range_accumulated",
+          "first": 47,
+          "part": 1,
+          "range_ns": 28343244
+        },
+        {
+          "end": 141,
+          "event": "fresh_range_accumulated",
+          "first": 94,
+          "part": 2,
+          "range_ns": 24849040
+        },
+        {
+          "end": 188,
+          "event": "fresh_range_accumulated",
+          "first": 141,
+          "part": 3,
+          "range_ns": 25423669
+        },
+        {
+          "end": 235,
+          "event": "fresh_range_accumulated",
+          "first": 188,
+          "part": 4,
+          "range_ns": 25028994
+        },
+        {
+          "end": 282,
+          "event": "fresh_range_accumulated",
+          "first": 235,
+          "part": 5,
+          "range_ns": 25422097
+        },
+        {
+          "end": 329,
+          "event": "fresh_range_accumulated",
+          "first": 282,
+          "part": 6,
+          "range_ns": 28045310
+        },
+        {
+          "end": 376,
+          "event": "fresh_range_accumulated",
+          "first": 329,
+          "part": 7,
+          "range_ns": 24340443
+        },
+        {
+          "end": 423,
+          "event": "fresh_range_accumulated",
+          "first": 376,
+          "part": 8,
+          "range_ns": 23445587
+        },
+        {
+          "end": 470,
+          "event": "fresh_range_accumulated",
+          "first": 423,
+          "part": 9,
+          "range_ns": 24938246
+        },
+        {
+          "end": 517,
+          "event": "fresh_range_accumulated",
+          "first": 470,
+          "part": 10,
+          "range_ns": 24007613
+        },
+        {
+          "end": 564,
+          "event": "fresh_range_accumulated",
+          "first": 517,
+          "part": 11,
+          "range_ns": 28566521
+        },
+        {
+          "end": 611,
+          "event": "fresh_range_accumulated",
+          "first": 564,
+          "part": 12,
+          "range_ns": 24301100
+        },
+        {
+          "end": 658,
+          "event": "fresh_range_accumulated",
+          "first": 611,
+          "part": 13,
+          "range_ns": 24986425
+        },
+        {
+          "end": 705,
+          "event": "fresh_range_accumulated",
+          "first": 658,
+          "part": 14,
+          "range_ns": 28060408
+        },
+        {
+          "end": 752,
+          "event": "fresh_range_accumulated",
+          "first": 705,
+          "part": 15,
+          "range_ns": 23322919
+        },
+        {
+          "compute_ns": 969951693,
+          "elapsed_ns": 20131832181,
+          "end": 752,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": false,
+          "workers": 16
+        }
+      ]
+    },
+    "pilot_prefix": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-pilot-phase.log",
+        "bytes": 3782,
+        "sha256": "56467b7a699c36d38be2a4294f019147ba3d6ff5495564744d4df663752de094"
+      },
+      "elapsed_seconds": 33.62775028392207,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-pilot-phase.json",
+        "0",
+        "403401"
+      ],
+      "peak_rss_kib": 2458984,
+      "events": [
+        {
+          "elapsed_ns": 19360566609,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "end": 25212,
+          "event": "fresh_range_accumulated",
+          "first": 0,
+          "part": 0,
+          "range_ns": 11969664019
+        },
+        {
+          "end": 50425,
+          "event": "fresh_range_accumulated",
+          "first": 25212,
+          "part": 1,
+          "range_ns": 11934913606
+        },
+        {
+          "end": 75637,
+          "event": "fresh_range_accumulated",
+          "first": 50425,
+          "part": 2,
+          "range_ns": 11907316070
+        },
+        {
+          "end": 100850,
+          "event": "fresh_range_accumulated",
+          "first": 75637,
+          "part": 3,
+          "range_ns": 12190073320
+        },
+        {
+          "end": 126062,
+          "event": "fresh_range_accumulated",
+          "first": 100850,
+          "part": 4,
+          "range_ns": 12088573544
+        },
+        {
+          "end": 151275,
+          "event": "fresh_range_accumulated",
+          "first": 126062,
+          "part": 5,
+          "range_ns": 12231238725
+        },
+        {
+          "end": 176487,
+          "event": "fresh_range_accumulated",
+          "first": 151275,
+          "part": 6,
+          "range_ns": 11952441127
+        },
+        {
+          "end": 201700,
+          "event": "fresh_range_accumulated",
+          "first": 176487,
+          "part": 7,
+          "range_ns": 12024302465
+        },
+        {
+          "end": 226913,
+          "event": "fresh_range_accumulated",
+          "first": 201700,
+          "part": 8,
+          "range_ns": 11870448396
+        },
+        {
+          "end": 252125,
+          "event": "fresh_range_accumulated",
+          "first": 226913,
+          "part": 9,
+          "range_ns": 12071606769
+        },
+        {
+          "end": 277338,
+          "event": "fresh_range_accumulated",
+          "first": 252125,
+          "part": 10,
+          "range_ns": 12065255605
+        },
+        {
+          "end": 302550,
+          "event": "fresh_range_accumulated",
+          "first": 277338,
+          "part": 11,
+          "range_ns": 11961320617
+        },
+        {
+          "end": 327763,
+          "event": "fresh_range_accumulated",
+          "first": 302550,
+          "part": 12,
+          "range_ns": 12192266192
+        },
+        {
+          "end": 352975,
+          "event": "fresh_range_accumulated",
+          "first": 327763,
+          "part": 13,
+          "range_ns": 12103923892
+        },
+        {
+          "end": 378188,
+          "event": "fresh_range_accumulated",
+          "first": 352975,
+          "part": 14,
+          "range_ns": 11869214118
+        },
+        {
+          "end": 403401,
+          "event": "fresh_range_accumulated",
+          "first": 378188,
+          "part": 15,
+          "range_ns": 12055910388
+        },
+        {
+          "compute_ns": 13169997448,
+          "elapsed_ns": 32530737500,
+          "end": 403401,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": false,
+          "workers": 16
+        }
+      ]
+    },
+    "complete": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-complete-active.log",
+        "bytes": 3843,
+        "sha256": "7e8f4bedbbd66b2bb8c13ee3e6ef0868dce71d8c3427ad4cc2b7235e7de693c8"
+      },
+      "elapsed_seconds": 623.7339272670215,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fresh",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-fresh-complete-active.json",
+        "0",
+        "3188780"
+      ],
+      "peak_rss_kib": 2459352,
+      "events": [
+        {
+          "elapsed_ns": 19260719571,
+          "event": "fresh_sources_ready",
+          "records": 2844097,
+          "rows": 6377559
+        },
+        {
+          "end": 199298,
+          "event": "fresh_range_accumulated",
+          "first": 0,
+          "part": 0,
+          "range_ns": 94210586445
+        },
+        {
+          "end": 398597,
+          "event": "fresh_range_accumulated",
+          "first": 199298,
+          "part": 1,
+          "range_ns": 95373830978
+        },
+        {
+          "end": 597896,
+          "event": "fresh_range_accumulated",
+          "first": 398597,
+          "part": 2,
+          "range_ns": 95894557819
+        },
+        {
+          "end": 797195,
+          "event": "fresh_range_accumulated",
+          "first": 597896,
+          "part": 3,
+          "range_ns": 95004494048
+        },
+        {
+          "end": 996493,
+          "event": "fresh_range_accumulated",
+          "first": 797195,
+          "part": 4,
+          "range_ns": 95569877704
+        },
+        {
+          "end": 1195792,
+          "event": "fresh_range_accumulated",
+          "first": 996493,
+          "part": 5,
+          "range_ns": 95531171427
+        },
+        {
+          "end": 1395091,
+          "event": "fresh_range_accumulated",
+          "first": 1195792,
+          "part": 6,
+          "range_ns": 94193846661
+        },
+        {
+          "end": 1594390,
+          "event": "fresh_range_accumulated",
+          "first": 1395091,
+          "part": 7,
+          "range_ns": 105440767008
+        },
+        {
+          "end": 1793688,
+          "event": "fresh_range_accumulated",
+          "first": 1594390,
+          "part": 8,
+          "range_ns": 112913956987
+        },
+        {
+          "end": 1992987,
+          "event": "fresh_range_accumulated",
+          "first": 1793688,
+          "part": 9,
+          "range_ns": 126865733109
+        },
+        {
+          "end": 2192286,
+          "event": "fresh_range_accumulated",
+          "first": 1992987,
+          "part": 10,
+          "range_ns": 462523417944
+        },
+        {
+          "end": 2391585,
+          "event": "fresh_range_accumulated",
+          "first": 2192286,
+          "part": 11,
+          "range_ns": 599285766039
+        },
+        {
+          "end": 2590883,
+          "event": "fresh_range_accumulated",
+          "first": 2391585,
+          "part": 12,
+          "range_ns": 602421550676
+        },
+        {
+          "end": 2790182,
+          "event": "fresh_range_accumulated",
+          "first": 2590883,
+          "part": 13,
+          "range_ns": 595227553931
+        },
+        {
+          "end": 2989481,
+          "event": "fresh_range_accumulated",
+          "first": 2790182,
+          "part": 14,
+          "range_ns": 477846902312
+        },
+        {
+          "end": 3188780,
+          "event": "fresh_range_accumulated",
+          "first": 2989481,
+          "part": 15,
+          "range_ns": 111154593179
+        },
+        {
+          "compute_ns": 603360914495,
+          "elapsed_ns": 622621835211,
+          "end": 3188780,
+          "event": "fresh_range_complete",
+          "first": 0,
+          "reference": false,
+          "workers": 16
+        }
+      ]
+    }
+  },
+  "comparisons": {
+    "reference_fast_47_bytes_equal": true,
+    "reference_fast_parallel_752_bytes_equal": true,
+    "fresh_at_zero": [
+      0,
+      0
+    ],
+    "fresh_at_one": [
+      0,
+      0
+    ],
+    "note": "Zero Boolean endpoints are a consistency check on the recorded sum, not a substitute for full Q or Rust comparison."
+  },
+  "performance_scope": "Single source-bound runs. The 403401-pair measurement is a prefix of the first row block, not a complete phase. The smaller runs include first-use cost. Full scan range costs varied from 94 to 602 seconds; this is not a uniform per-row bound.",
+  "gates": {
+    "static": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-static-1.log",
+        "bytes": 1343,
+        "sha256": "0895d8317a04e8018fbd567b6fb2877f120bb92fe48d7b041d63de0fbea9ebe9"
+      },
+      "elapsed_seconds": 9.728626577067189,
+      "cap_seconds": 300,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "peak_rss_kib": 19308,
+      "events": []
+    },
+    "build": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-build-1.log",
+        "bytes": 182827,
+        "sha256": "1bf700e31440dfc9184df0b82c790fb174a5f472791c432a917356971c351b3b"
+      },
+      "elapsed_seconds": 105.61815334996209,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "peak_rss_kib": 8893768,
+      "events": []
+    },
+    "axioms": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-axioms-1.log",
+        "bytes": 1117795,
+        "sha256": "48a48097a97a63c5746e13eb0ac7576308df904f95fa167ed10393b6e7fbcb60"
+      },
+      "elapsed_seconds": 44.66711131099146,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "peak_rss_kib": 5883004,
+      "events": []
+    },
+    "target": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-target-1.log",
+        "bytes": 165617,
+        "sha256": "4e127447c5bb21e4db95d86d57dd21921a7835b960464d6ddbf93ff4fe42c8c7"
+      },
+      "elapsed_seconds": 62.47778016200755,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "tests.EvidenceTargets"
+      ],
+      "peak_rss_kib": 5799532,
+      "events": []
+    },
+    "acceptance": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-acceptance-1.log",
+        "bytes": 3086,
+        "sha256": "96eb7788cd9092f65e7989fa7970a69c43c931374c52e278297d0104a2447203"
+      },
+      "elapsed_seconds": 2.1674751060782,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "tests/EvidenceAcceptance.lean"
+      ],
+      "peak_rss_kib": 3764032,
+      "events": []
+    },
+    "metadata": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-metadata-1.log",
+        "bytes": 149712636,
+        "sha256": "1a34335391f8a5fc7dae5949a06dc0bb9613a27bae6fb3ebf9d7eee1b841adf2"
+      },
+      "elapsed_seconds": 28.10890032199677,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "../../scripts/lean_graph/PiCCSReplayMetadata.lean"
+      ],
+      "peak_rss_kib": 5208436,
+      "events": []
+    }
+  },
+  "reproduction": {
+    "build": "timeout 1500 python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh build replayPiCCSFirstRound",
+    "run": "timeout 1500 python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh lean-executable /absolute/checkout/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound fresh /absolute/public.json /absolute/sources.jsonl /new/output.json 0 3188780",
+    "reference": "Use fresh-reference and the measured pair intervals 0..47 or 0..752. Outputs must match exactly.",
+    "sources": "Original inputs are bound to the hashes above and the existing PiRLC manifest. GitHub release upload and fresh-download reproduction remain pending."
+  },
+  "next": [
+    "complete carried Pad/matrix moments from original running sources",
+    "combine norm, fresh and carried contributions; compare all ten Q coefficients and the next challenge/state with Rust",
+    "retain Lean-derived image prefixes and reuse the already proved PrefixFold for later rounds"
+  ],
+  "evidence_policy": "Report and hashes in Git. Raw logs, generated metadata and source witnesses outside Git. No new archive or protocol data is added to Git.",
+  "reference_outputs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-reference-0-47.json",
+      "bytes": 365,
+      "sha256": "8b528e6e899211cecad851d0c05379cf3843ffd9390628a9363a113f9b43a3e4"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-reference-0-752.json",
+      "bytes": 363,
+      "sha256": "e5c0752df9ef16c01d73902ca5ecd4587b509dc8aeb0ed6784a3c5f1dad834cc"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-reference-last-padding.json",
+      "bytes": 82,
+      "sha256": "a4ca95c98b5492084e62e2c7e487fc62e77b24bc950f97c0acde0a9902889464"
+    }
+  ],
+  "registration_test": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-a1e80489/nightstream-piccs-fresh-registrations-1.log",
+    "bytes": 116,
+    "sha256": "59f977807b06c4e42e94cf76f2bef9706d3723f5b8c8c66abbdac5b97bba7a09"
+  },
+  "source_snapshots": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "6a5b9f5a9d5eac2172e24171e9deb7f08a46411c13a1f6c75773f4dec1b1d1fd",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSFirstRoundMain.lean": "de398e6b4b1cc13c18a955d4a37e7c891de837863b07a76289fcaa0329edf7b8",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundPair.lean": "5a74f54d70ae0698c6dd61375cbcff8332cbeb4e3f4cc718cc8476ce10d25a70",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFreshComplete.lean": "4be1328be415c65c640f6e94c7f6c953d462cf4f7bf4917a39b2274d1e3a60f3",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFreshPadding.lean": "4205cfd22f42e28aca922e8dba84b61d33e03f4cdb08ef8c1f07b8a2ef175a01",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFreshPolynomial.lean": "570771c887298152ee249224981858eff95674015e5b6b8cc5a1550dfa086376",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPolynomialRangeMerge.lean": "37b407a9094d423b496fc0499a11999ba2c7968fe4de02fa8c537752427102f4",
+    "formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/ProtocolPolynomialDegree/Sparse.lean": "eed71e121aa5ba52b5fac6210227f8e762ff822624ca8b19eb5cad84d7bddec0",
+    "formal/nightstream-fprime/NightstreamFPrime/Spec/SumCheck/FixedPolynomial.lean": "de7d47db7d0f29d4d932c0feecbecd23670101bdfeaf176949e90ef08960fc33",
+    "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean": "cf59f8db2eb2ebbe45be05ae5167d57b7978a6fce6508441fff1eb9e969d6f60",
+    "formal/nightstream-fprime/tests/EvidenceTargets.lean": "3808b7ebf2c9a0ed393f282fdc5ee52ebddb5677cbd72e552632f84f88ab1858",
+    "scripts/lean_graph/STAGE1_BASELINE.md": "450edf1878e7e2c2ab08b294fdc402e33cae5e25eb7c32eae7ac3e2e50d760b1",
+    "scripts/lean_graph/obligations.json": "752ac5e15ca0baa3928296add4ccdad63afe60b0027a54573ba146d0a323fd72"
+  }
+}

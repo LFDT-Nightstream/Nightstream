@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
@@ -695,25 +696,41 @@ def PiCCSCompleteNormKernel : Prop :=
 theorem piCCSCompleteNormKernel : PiCCSCompleteNormKernel :=
   PiCCSNormComplete.prepared_workers_eq_fullPairSum
 
+/-- The original-source fresh scan covers the complete Boolean-domain
+contribution, with optional load failures discharged by selected row semantics. -/
+def PiCCSCompleteFreshKernel : Prop :=
+  ∀ (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (layout : UnifiedSources.ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
+    (powers : Nat → K) (alpha : CubePoint K cubeVariables),
+    PiCCSFreshComplete.freshRange? input witness layout powers alpha 0
+        PiCCSFreshComplete.activePairs =
+      some (PiCCSPolynomialRange.range ConcreteCarrier.extensionOps 0 (2 ^ (cubeVariables - 1))
+        (PiCCSFreshComplete.referencePair input witness powers alpha))
+
+theorem piCCSCompleteFreshKernel : PiCCSCompleteFreshKernel :=
+  PiCCSFreshComplete.freshRange_eq_fullPairSum
+
 /-- Kernel closure combines complete completion-sum semantics, original-source
 assembly, aggregated endpoints, stored rows, exact cached coefficients and
-the complete prepared norm scan.
+the complete prepared norm scan and original-source fresh scan.
 Executed full-round coverage and Rust comparison remain separate requirements. -/
 def PiCCSFirstRoundReplayKernel : Prop :=
   PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
     PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel ∧
-    PiCCSCompleteNormKernel
+    PiCCSCompleteNormKernel ∧ PiCCSCompleteFreshKernel
 
 theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
   ⟨piCCSFirstRoundKernel, piCCSOriginalImages, piCCSPreparedPairKernel,
     piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel,
-    piCCSCompleteNormKernel⟩
+    piCCSCompleteNormKernel, piCCSCompleteFreshKernel⟩
 
 #audit_axioms piCCSOriginalImages
 #audit_axioms piCCSPreparedPairKernel
 #audit_axioms piCCSAggregatedEndpoints
 #audit_axioms piCCSStoredInvocation
 #audit_axioms piCCSCompleteNormKernel
+#audit_axioms piCCSCompleteFreshKernel
 #audit_axioms piCCSCachedPairKernel
 #audit_axioms piCCSFirstRoundReplayKernel
 

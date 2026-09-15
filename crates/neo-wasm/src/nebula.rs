@@ -43,6 +43,10 @@ const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
 // apply their committed-coordinate targets separately.
 const WASM_NEBULA_BATCH_SIZE: usize = 3;
 
+#[cfg(test)]
+#[path = "../tests/nebula/dense_pc.rs"]
+mod dense_pc_tests;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WasmNebulaLimits {
     stack_cells: u64,

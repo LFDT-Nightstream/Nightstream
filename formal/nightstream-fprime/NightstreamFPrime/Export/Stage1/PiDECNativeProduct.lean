@@ -1,4 +1,6 @@
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
+import NightstreamFPrime.Export.Stage1.PiDECCyclicCoefficient
+import NightstreamFPrime.Export.Stage1.PiDECSignedDigits
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 import Mathlib.Tactic.SplitIfs
 
@@ -12,6 +14,8 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.Stage1.PiDECNativeProduct
 
 open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
+open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
   (StoredRing)
@@ -107,6 +111,64 @@ private theorem read64_denote (values : StoredRing) (index : Nat) :
   split_ifs with live
   · exact toWords_denote values ⟨index, live⟩
   · exact zero_denote
+
+private def cycleWord (key : Vector UInt64 ringDegree) (index : Nat) : UInt64 :=
+  if index < 27 then read64 key index
+  else if index < 54 then sub64 (read64 key index) (read64 key (index - 27))
+  else sub64 0 (read64 key (index - 27))
+
+private theorem cycleWord_canonical (key : Vector UInt64 ringDegree)
+    (canonical : ∀ lane, (key.get lane).toNat < goldilocksModulus) (index : Nat) :
+    (cycleWord key index).toNat < goldilocksModulus := by
+  unfold cycleWord
+  split_ifs
+  · exact read64_canonical key canonical index
+  · exact sub64_canonical _ _ (read64_canonical key canonical index)
+      (read64_canonical key canonical (index - 27))
+  · exact sub64_canonical _ _ (by decide)
+      (read64_canonical key canonical (index - 27))
+
+private theorem cycleWord_denote (key : StoredRing) (index : Nat) :
+    (cycleWord (toWords key) index).denote =
+      PiDECCyclicCoefficient.cycle key.get index := by
+  unfold cycleWord PiDECCyclicCoefficient.cycle
+  split_ifs
+  · exact read64_denote key index
+  · rw [sub64_denote _ _ (read64_canonical _ (toWords_canonical key) index)
+        (read64_canonical _ (toWords_canonical key) (index - 27)),
+      read64_denote, read64_denote]
+  · rw [sub64_denote _ _ (by decide)
+        (read64_canonical _ (toWords_canonical key) (index - 27)),
+      zero_denote, read64_denote, Fin.sub_eq_add_neg, Fin.zero_add]
+
+/-- Duplicate one period so a signed gather needs no modular index operation. -/
+private def cycleWords (key : Vector UInt64 ringDegree) : Vector UInt64 162 :=
+  let period : Vector UInt64 81 := Vector.ofFn fun index => cycleWord key index.val
+  period ++ period
+
+private theorem cycleWords_get (key : Vector UInt64 ringDegree) (index : Fin 162) :
+    (cycleWords key).get index = cycleWord key (index.val % 81) := by
+  change ((Vector.ofFn (fun lane : Fin 81 => cycleWord key lane.val)) ++
+    (Vector.ofFn (fun lane : Fin 81 => cycleWord key lane.val)))[index.val] = _
+  by_cases below : index.val < 81
+  · rw [Vector.getElem_append_left below, Vector.getElem_ofFn,
+      Nat.mod_eq_of_lt below]
+  · have residue : index.val % 81 = index.val - 81 := by
+      have bound := index.isLt
+      omega
+    rw [Vector.getElem_append_right index.isLt (by omega),
+      Vector.getElem_ofFn, residue]
+
+private theorem cycleWords_canonical (key : Vector UInt64 ringDegree)
+    (canonical : ∀ lane, (key.get lane).toNat < goldilocksModulus) (index : Fin 162) :
+    ((cycleWords key).get index).toNat < goldilocksModulus := by
+  rw [cycleWords_get]
+  exact cycleWord_canonical key canonical _
+
+private theorem cycleWords_denote (key : StoredRing) (index : Fin 162) :
+    ((cycleWords (toWords key)).get index).denote =
+      PiDECCyclicCoefficient.cycle key.get (index.val % 81) := by
+  rw [cycleWords_get, cycleWord_denote]
 
 private def rawStep64 (key digit : Vector UInt64 ringDegree)
     (degree : Nat) (acc : UInt64) (input : Nat) : UInt64 :=
@@ -355,17 +417,194 @@ structure PreparedKey where
   private mk ::
   private words : Vector UInt64 ringDegree
   private canonical : ∀ lane, (words.get lane).toNat < goldilocksModulus
+  private cycle : Vector UInt64 162
+  private cycle_eq : cycle = cycleWords words
 
 /-- Preserve the complete key ring while preparing its native words. -/
 def prepareKey (key : StoredRing) : PreparedKey where
   words := toWords key
   canonical := toWords_canonical key
+  cycle := cycleWords (toWords key)
+  cycle_eq := rfl
 
-/-- One child ring prepared once for all key rows. None records the exact
-zero decision; only nonzero children allocate canonical native words. -/
+private def keyView (key : PreparedKey) : StoredRing :=
+  Vector.ofFn fun lane => fromWord (key.words.get lane) (key.canonical lane)
+
+private theorem keyView_get (key : PreparedKey) (lane : Fin ringDegree) :
+    (keyView key).get lane = fromWord (key.words.get lane) (key.canonical lane) := by
+  change (Vector.ofFn (fun index : Fin ringDegree =>
+    fromWord (key.words.get index) (key.canonical index)))[lane.val] = _
+  rw [Vector.getElem_ofFn]
+
+private theorem keyView_words (key : PreparedKey) :
+    toWords (keyView key) = key.words := by
+  apply Vector.ext
+  intro index bound
+  change (toWords (keyView key)).get ⟨index, bound⟩ = key.words.get ⟨index, bound⟩
+  rw [toWords_get, keyView_get]
+  apply UInt64.toNat_inj.1
+  rw [toWord_toNat]
+  rfl
+
+@[inline] private def gather64 (key : PreparedKey) (base byte : UInt8) : UInt64 :=
+  let index := base + byte
+  if live : index < (162 : UInt8) then
+    key.cycle.uget index.toUSize (by
+      simpa only [UInt8.toNat_toUSize] using UInt8.lt_iff_toNat_lt.mp live)
+  else 0
+
+private theorem gather64_canonical (key : PreparedKey) (base byte : UInt8) :
+    (gather64 key base byte).toNat < goldilocksModulus := by
+  unfold gather64
+  dsimp only
+  split_ifs with live
+  · have bound : (base + byte).toUSize.toNat < 162 := by
+      simpa only [UInt8.toNat_toUSize] using UInt8.lt_iff_toNat_lt.mp live
+    change (key.cycle.get ⟨(base + byte).toUSize.toNat, bound⟩).toNat < _
+    rw [key.cycle_eq]
+    exact cycleWords_canonical key.words key.canonical ⟨_, bound⟩
+  · decide
+
+private theorem gather64_offset (key : PreparedKey) (base : UInt8)
+    (baseBound : base.toNat < 81) (input : Fin ringDegree) :
+    (gather64 key base (PiDECSignedDigits.offset input)).denote =
+      PiDECCyclicCoefficient.cycle (keyView key).get
+        ((base.toNat + 81 - input.val) % 81) := by
+  have inputBound : input.val < 54 := by simpa only [ringDegree] using input.isLt
+  have totalBound : base.toNat + (81 - input.val) < 256 := by omega
+  have indexValue : (base + PiDECSignedDigits.offset input).toUSize.toNat =
+      base.toNat + 81 - input.val := by
+    simp only [UInt8.toNat_toUSize, UInt8.toNat_add, PiDECSignedDigits.offset_toNat]
+    rw [Nat.mod_eq_of_lt totalBound]
+    omega
+  have live : (base + PiDECSignedDigits.offset input).toUSize.toNat < 162 := by
+    rw [indexValue]
+    omega
+  have byteLive : base + PiDECSignedDigits.offset input < (162 : UInt8) :=
+    UInt8.lt_iff_toNat_lt.mpr (by simpa only [UInt8.toNat_toUSize] using live)
+  unfold gather64
+  rw [dif_pos byteLive]
+  change (key.cycle.get
+    ⟨(base + PiDECSignedDigits.offset input).toUSize.toNat, live⟩).denote = _
+  rw [key.cycle_eq, ← keyView_words key, cycleWords_denote]
+  simp only [indexValue]
+
+@[inline] private def gatherBase (output : Fin ringDegree) : UInt8 :=
+  UInt8.ofNat (if output.val < 27 then output.val else output.val + 27)
+
+private theorem gatherBase_toNat (output : Fin ringDegree) :
+    (gatherBase output).toNat =
+      if output.val < 27 then output.val else output.val + 27 := by
+  apply UInt8.toNat_ofNat_of_lt'
+  change (if output.val < 27 then output.val else output.val + 27) < 256
+  have bound := output.isLt
+  change output.val < 54 at bound
+  split_ifs <;> omega
+
+private theorem gatherBase_bound (output : Fin ringDegree) :
+    (gatherBase output).toNat < 81 := by
+  rw [gatherBase_toNat]
+  have bound := output.isLt
+  change output.val < 54 at bound
+  split_ifs <;> omega
+
+private theorem gather64_coefficient (key : PreparedKey)
+    (output input : Fin ringDegree) :
+    (if output.val < 27 then
+      (gather64 key (gatherBase output) (PiDECSignedDigits.offset input)).denote
+    else
+      -(gather64 key (gatherBase output) (PiDECSignedDigits.offset input)).denote) =
+      CarrierAction.rightCoefficient (keyView key).get output input := by
+  simp only [gather64_offset key (gatherBase output) (gatherBase_bound output) input,
+    gatherBase_toNat]
+  rw [← PiDECCyclicCoefficient.coefficient_eq_rightCoefficient]
+  unfold PiDECCyclicCoefficient.coefficient
+  split_ifs <;> rfl
+
+private theorem neg_sumRange (count : Nat) (term : Nat → F) :
+    -sumRange ConcreteCarrier.baseOps count term =
+      sumRange ConcreteCarrier.baseOps count (fun index => -term index) := by
+  induction count with
+  | zero => exact Lean.Grind.AddCommGroup.neg_zero
+  | succ count ih =>
+      change -(sumRange ConcreteCarrier.baseOps count term + term count) =
+        sumRange ConcreteCarrier.baseOps count (fun index => -term index) + -term count
+      rw [Lean.Grind.AddCommGroup.neg_add, ih]
+
+private theorem gatherLinear_eq (key : PreparedKey) (digit : StoredRing)
+    (output : Fin ringDegree) :
+    (if output.val < 27 then
+      PiDECSignedDigits.linearCombination digit
+        (fun byte => (gather64 key (gatherBase output) byte).denote)
+    else
+      -PiDECSignedDigits.linearCombination digit
+        (fun byte => (gather64 key (gatherBase output) byte).denote)) =
+      ringFMul (keyView key).get digit.get output := by
+  rw [CarrierAction.ringFMul_apply_eq_rightLinear]
+  unfold PiDECSignedDigits.linearCombination
+  by_cases low : output.val < 27
+  · rw [if_pos low]
+    apply sumRange_congr
+    intro index live
+    simp only [dif_pos live]
+    have kernel := gather64_coefficient key output ⟨index, live⟩
+    rw [if_pos low] at kernel
+    rw [kernel]
+  · rw [if_neg low, neg_sumRange]
+    apply sumRange_congr
+    intro index live
+    simp only [dif_pos live]
+    have kernel := gather64_coefficient key output ⟨index, live⟩
+    rw [if_neg low] at kernel
+    rw [← Lean.Grind.Fin.neg_mul, kernel]
+
+@[inline] private def addSignedCoefficient64 (key : PreparedKey)
+    (digit : PiDECSignedDigits.Prepared) (output : Fin ringDegree)
+    (initial : UInt64) : UInt64 :=
+  let total := PiDECSignedDigits.fold64 digit (gather64 key (gatherBase output)) 0
+  if output.val < 27 then add64 initial total else sub64 initial total
+
+private theorem addSignedCoefficient64_canonical (key : PreparedKey)
+    (digit : PiDECSignedDigits.Prepared) (output : Fin ringDegree)
+    (initial : UInt64) (initialBound : initial.toNat < goldilocksModulus) :
+    (addSignedCoefficient64 key digit output initial).toNat < goldilocksModulus := by
+  have totalBound := (PiDECSignedDigits.fold64_correct digit
+    (gather64 key (gatherBase output)) (gather64_canonical key (gatherBase output))
+    0 (by decide)).1
+  unfold addSignedCoefficient64
+  split_ifs
+  · exact add64_canonical _ _ initialBound totalBound
+  · exact sub64_canonical _ _ initialBound totalBound
+
+private theorem addSignedCoefficient64_denote (key : PreparedKey)
+    (value : PiDECSignedDigits.Prepared) (digit : StoredRing)
+    (success : PiDECSignedDigits.prepare digit = some value)
+    (output : Fin ringDegree) (initial : UInt64)
+    (initialBound : initial.toNat < goldilocksModulus) :
+    (addSignedCoefficient64 key value output initial).denote =
+      initial.denote + ringFMul (keyView key).get digit.get output := by
+  have totalBound := (PiDECSignedDigits.fold64_correct value
+    (gather64 key (gatherBase output)) (gather64_canonical key (gatherBase output))
+    0 (by decide)).1
+  have totalValue := PiDECSignedDigits.prepare_fold64 digit value success
+    (gather64 key (gatherBase output)) (gather64_canonical key (gatherBase output))
+    0 (by decide)
+  simp only [zero_denote, Fin.zero_add] at totalValue
+  have linear := gatherLinear_eq key digit output
+  unfold addSignedCoefficient64
+  split_ifs with low
+  · rw [add64_denote _ _ initialBound totalBound, totalValue]
+    rw [if_pos low] at linear
+    rw [linear]
+  · rw [sub64_denote _ _ initialBound totalBound, totalValue, Fin.sub_eq_add_neg]
+    rw [if_neg low] at linear
+    rw [linear]
+
+/-- Prepare one child for all key rows. Keep zero, signed support, or
+canonical native words for the general field path. -/
 structure PreparedDigit where
   private mk ::
-  private words : Option (Vector UInt64 ringDegree)
+  private words : Option (Sum PiDECSignedDigits.Prepared (Vector UInt64 ringDegree))
 
 private theorem allZero_iff (digit : StoredRing) :
     digit.all (fun value => value == 0) = true ↔
@@ -379,7 +618,9 @@ private theorem allZero_iff (digit : StoredRing) :
 
 def prepareDigit (digit : StoredRing) : PreparedDigit :=
   if digit.all (fun value => value == 0) then ⟨none⟩
-  else ⟨some (toWords digit)⟩
+  else match PiDECSignedDigits.prepare digit with
+    | some value => ⟨some (.inl value)⟩
+    | none => ⟨some (.inr (toWords digit))⟩
 
 /-- One canonical native-word ring accumulator. Its field view is materialized
 only when the caller finishes a partial sum. -/
@@ -454,12 +695,68 @@ field-valued key and digit inputs retain the generic multiplication path. -/
 def addProduct (initial : Accumulator) (key : PreparedKey) (digit : StoredRing) : Accumulator :=
   addWordProduct initial key (toWords digit)
 
+private theorem canonicalWord_eq (left right : UInt64)
+    (leftBound : left.toNat < goldilocksModulus)
+    (rightBound : right.toNat < goldilocksModulus)
+    (equal : left.denote = right.denote) : left = right := by
+  apply UInt64.toNat_inj.1
+  have values := congrArg Fin.val equal
+  change left.toNat % goldilocksModulus = right.toNat % goldilocksModulus at values
+  simpa only [Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound] using values
+
+private theorem eq_of_finish_get (left right : Accumulator)
+    (equal : left.finish.get = right.finish.get) : left = right := by
+  have wordsEqual : left.words = right.words := by
+    apply Vector.ext
+    intro index bound
+    apply canonicalWord_eq _ _ (left.canonical ⟨index, bound⟩)
+      (right.canonical ⟨index, bound⟩)
+    have laneEqual := congrFun equal ⟨index, bound⟩
+    simpa only [finish_get] using laneEqual
+  cases left
+  cases right
+  cases wordsEqual
+  rfl
+
+@[inline] private def addSignedProduct (initial : Accumulator) (key : PreparedKey)
+    (digit : PiDECSignedDigits.Prepared) : Accumulator where
+  words := Vector.ofFn fun output =>
+    addSignedCoefficient64 key digit output (initial.words.get output)
+  canonical := by
+    intro output
+    change ((Vector.ofFn (fun lane : Fin ringDegree =>
+      addSignedCoefficient64 key digit lane (initial.words.get lane)))[output.val]).toNat < _
+    rw [Vector.getElem_ofFn]
+    exact addSignedCoefficient64_canonical key digit output _ (initial.canonical output)
+
+private theorem addSignedProduct_eq (initial : Accumulator) (key : PreparedKey)
+    (digit : StoredRing) (value : PiDECSignedDigits.Prepared)
+    (success : PiDECSignedDigits.prepare digit = some value) :
+    addSignedProduct initial key value = addProduct initial key digit := by
+  apply eq_of_finish_get
+  funext output
+  simp only [finish_get]
+  change ((Vector.ofFn (fun lane : Fin ringDegree =>
+    addSignedCoefficient64 key value lane (initial.words.get lane)))[output.val]).denote =
+      ((Vector.ofFn (fun lane : Fin ringDegree =>
+        add64 (initial.words.get lane)
+          (coefficient64 key.words (toWords digit)
+            (foldedCoefficients64 key.words (toWords digit)) lane)))[output.val]).denote
+  rw [Vector.getElem_ofFn, Vector.getElem_ofFn,
+    addSignedCoefficient64_denote key value digit success output _ (initial.canonical output),
+    add64_denote _ _ (initial.canonical output)
+      (coefficient64_canonical key.words (toWords digit) output key.canonical)]
+  have product := coefficient64_denote (keyView key) digit output
+  simp only [keyView_words] at product
+  rw [product]
+
 /-- Reuse the child's zero decision and native words across key rows. -/
 def addPreparedProduct (initial : Accumulator) (key : PreparedKey)
     (digit : PreparedDigit) : Accumulator :=
   match digit.words with
   | none => initial
-  | some words => addWordProduct initial key words
+  | some (.inl value) => addSignedProduct initial key value
+  | some (.inr words) => addWordProduct initial key words
 
 theorem addPreparedProduct_eq (initial : Accumulator) (key : PreparedKey)
     (digit : StoredRing) :
@@ -468,7 +765,11 @@ theorem addPreparedProduct_eq (initial : Accumulator) (key : PreparedKey)
       else addProduct initial key digit := by
   unfold prepareDigit addPreparedProduct
   simp only [allZero_iff]
-  split_ifs <;> rfl
+  split_ifs with zero
+  · rfl
+  · cases success : PiDECSignedDigits.prepare digit with
+    | none => rfl
+    | some value => exact addSignedProduct_eq initial key digit value success
 
 theorem addProduct_value (initial : Accumulator) (key digit : StoredRing) :
     (addProduct initial (prepareKey key) digit).finish.get =

@@ -6,6 +6,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
+import NightstreamFPrime.Export.Stage1.PiCCSNormScan
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 /-!
@@ -181,11 +182,73 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def replayNorm (publicPath sourcePath outputPath : System.FilePath)
+    (first finish : Nat) : IO UInt32 := do
+  unless first < finish && finish ≤ PiCCSSourceImages.blockCount do
+    throw (IO.userError "invalid norm block range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let statementInput ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre statementInput)
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  report [("event", .str "norm_sources_ready"), ("records", Lean.toJson records),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    productionShape.sourceCount
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let tail := coins.alpha.coordinates.tail
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let parts := min workers (finish - first)
+  let computeStarted ← IO.monoNanosNow
+  let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 3 × Nat))) := #[]
+  for part in [:parts] do
+    let start := first + (finish - first) * part / parts
+    let stop := first + (finish - first) * (part + 1) / parts
+    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+      let rangeStarted ← IO.monoNanosNow
+      let values ← IO.wait (Task.spawn fun _ => PiCCSNormBuckets.finish power
+        (PiCCSNormScan.range weight masks start (stop - start)))
+      let elapsed := (← IO.monoNanosNow) - rangeStarted
+      return (values, elapsed))
+  report [("event", .str "norm_ranges_queued"), ("ranges", Lean.toJson tasks.size),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted))]
+  let mut total := FixedPolynomial.zero extensionOps.toOps 3
+  let mut part := 0
+  for task in tasks do
+    let (values, rangeNs) ← match ← IO.wait task with
+      | .ok result => pure result
+      | .error error => throw error
+    total := FixedPolynomial.add extensionOps.toOps total values
+    report [("event", .str "norm_range_accumulated"), ("part", Lean.toJson part),
+      ("first_block", Lean.toJson (first + (finish - first) * part / parts)),
+      ("end_block", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+      ("range_ns", Lean.toJson rangeNs),
+      ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted))]
+    part := part + 1
+  let value := Value.array [.atom 1, .atom first, .atom finish,
+    .array (coins.alpha.coordinates.map extensionValue), extensionValue coins.gamma,
+    .array (total.coefficients.map extensionValue)]
+  IO.FS.writeFile outputPath (value.render ++ "\n")
+  report [("event", .str "norm_complete"), ("first_block", Lean.toJson first),
+    ("end_block", Lean.toJson finish), ("workers", Lean.toJson parts),
+    ("complete_carrier", Lean.toJson (first == 0 && finish == PiCCSSourceImages.blockCount)),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | ["norm", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayNorm
+            publicPath sourcePath outputPath first finish
+      | _, _ => throw (IO.userError "block bounds must be natural numbers")
   | [publicPath, sourcePath, outputPath, first, finish] =>
       match first.toNat?, finish.toNat? with
       | some first, some finish =>
@@ -194,4 +257,5 @@ def main (arguments : List String) : IO UInt32 := do
       | _, _ => throw (IO.userError "pair bounds must be natural numbers")
   | _ =>
       IO.eprintln "usage: replayPiCCSFirstRound <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
+      IO.eprintln "       replayPiCCSFirstRound norm <public-input> <original-sources> <new-output> <first-block> <end-block>"
       return 2

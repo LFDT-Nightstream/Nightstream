@@ -26,6 +26,27 @@ class ConformanceRegistrationTests(unittest.TestCase):
                     with self.subTest(gate=name, argv=argv):
                         self.assertLessEqual(len(argv[3:]), 1)
 
+    def test_pidec_saved_comparison_requires_complete_values_and_mutation(self):
+        name = "pidec-evaluation-comparison"
+        gate = self.gates[name]
+        self.assertEqual(gate["inputs"], ["pidec_saved_lean_evaluations", "pidec_saved_native_children"])
+        self.assertFalse(gate.get("identity_bound", False))
+        self.assertEqual(gate["requires"], ["pidec-evaluation-kernel"])
+        command, = gate["commands"]
+        self.assertEqual(command["argv"][-3:], ["compare-pidec-evaluations",
+                         "{input:pidec_saved_native_children}", "{input:pidec_saved_lean_evaluations}"])
+        passed = ("pidec_evaluation_replay=passed children=16 matrices=14 lanes=54 "
+                  "evaluation_words=25920 point_words=56 blocks=4685394 "
+                  "target_mutation=rejected child=15 family=matrix matrix=13 lane=53 component=1 elapsed=1ms")
+        completion(passed, command["completion"])
+        for incomplete in (passed.replace("25920", "1728"), passed.replace("56", "54"),
+                           passed.replace("target_mutation=rejected", "target_mutation=unchecked")):
+            with self.assertRaises(EvidenceError):
+                completion(incomplete, command["completion"])
+        obligation = self.policy["obligations"]["pidec-evaluation-replay"]
+        self.assertIn(name, obligation["gates"])
+        self.assertEqual(obligation["status"], "Compiler-closed")
+
     def test_pilot_uses_regenerated_current_inputs(self):
         order = self.selected("pilot-conformance")
         for name in ("pilot-result", "pilot-rows"):

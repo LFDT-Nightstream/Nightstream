@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "source_base_commit": "5d980276b082ccf7355de98c5b2e297c0259b7e5",
-  "status": "Complete Pad replay passes. The 14 matrix evaluation families remain open.",
+  "status": "Complete local PiDEC evaluations pass; source-bound completion is recorded in PIDEC_COMPLETE_REPLAY.json.",
   "scope": "Every one of 4,685,394 carrier blocks contributes to every child Pad coefficient, including tails. Sparse omissions denote exact zero. All 1,728 output field words and 56 common-point words match the retained actual native child output.",
   "independence": "Lean checks the supplied Rust PiCCS messages and derives the point. It reads the independently replayed Lean PiRLC parent, splits each original block, computes both weighted products and sums all ranges. Rust produces no intermediate expected Pad values. Independence is conditional on the verified Rust PiCCS messages until C prover replay.",
   "proof_chain": [
@@ -464,5 +464,6 @@
     },
     "reproduction_note": "The current driver accepts an explicit block interval. Use 0 4 for the numeric endpoints and 4 5 for C. Earlier diagnostic logs used an all-block driver. These measurements are not matrix value comparison evidence."
   },
-  "checkpoint_note": "Local static, library build and axiom gates passed in that order for this source checkpoint. The source-bound Rust comparison, mutation, release test build and formatting pass are retained. Identity was not rerun: no package, constraint, codec or pin source changed. Protected-checker acceptance and release delivery remain external."
+  "checkpoint_note": "Local static, library build and axiom gates passed in that order for this source checkpoint. The source-bound Rust comparison, mutation, release test build and formatting pass are retained. Identity was not rerun: no package, constraint, codec or pin source changed. Protected-checker acceptance and release delivery remain external.",
+  "complete_execution": "PIDEC_COMPLETE_REPLAY.json"
 }

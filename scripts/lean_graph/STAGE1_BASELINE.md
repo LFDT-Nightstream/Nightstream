@@ -49,199 +49,39 @@ Lean's two private ranges took 8.38 and 142.15 seconds. The child message
 calculation uses these same digits. No PiCCS or HyperNova replay is claimed
 by this private digit result.
 
-The commitment kernels now use proved native-word ChaCha and the existing
-proved native-word field operations. Both measured block products match the
-earlier specification-backed outputs. First-use key time includes package
-dimension initialization; it must not be charged to every block.
-`PIDEC_COMMITMENT_PILOT.json` records the measurements. The complete first
-range, `0..74272`, finished in 155.69 seconds at 1,511,560 KiB peak memory.
-Use that measured extent for the remaining ranges. The input partitioner
-copies the original Lean parent lines and records their hashes; missing
-blocks remain exact zero.
+The complete local PiDEC message replay now passes. Lean computes all
+19,008 commitment field words from the same private digits. It also computes
+all 1,728 Pad words and all 24,192 matrix-evaluation words. The 53 disjoint
+matrix ranges cover every selected row in [0,6,377,559); Lean checks the
+complete range coverage and adds the results. All 25,920 evaluation words
+and all 56 common-point words match Rust. The final changed matrix
+coefficient rejects at child 15, matrix 13, lane 53, imaginary component.
+The earlier complete child comparison also checks all 4,320 verifier-derived
+public words on this same trace. `PIDEC_COMPLETE_REPLAY.json` records the
+sources, proof links, commands, coverage and scope. The range reports retain
+the earlier measurements and compiler fixes.
 
-`LeanGraph.Targets.PiDECCommitmentReplay` names the final commitment target.
-Its only premise is the successful checked split of the supplied parent.
-The proved key, product and finite sum yield every child commitment in
-`honestMessages`. The new graph gates require all 64 contiguous ranges,
-all 16 by 22 by 54 commitment coefficients, and changed-target rejection.
-All 64 ranges now pass, covering every one of the 4,685,394 carrier blocks.
-Lean also computes the final sum; Rust only decodes and compares the complete
-values. All 19,008 coefficients match, and a changed coefficient at child 15,
-row 21, lane 53 rejects. Missing ranges, gaps, wrong row counts and noncanonical
-field values reject before Lean emits a result. The ranges took 5,982.10 s in
-total; the largest took 160.41 s at a maximum 1,512,080 KiB peak RSS. The final
-Lean read/sum/write took 376 ms. `PIDEC_COMMITMENT_REPLAY.json` and
-`PIDEC_COMMITMENT_RANGES.json` record the full evidence. Complete child
-evaluations are next; PiCCS and HyperNova replay remain later milestones.
+The exact targets remain `LeanGraph.Targets.PiDECCommitmentReplay` and
+`LeanGraph.Targets.PiDECChildEvaluationReplay`, with successful checked split
+as the kernel premise. The public projection link retains its explicit
+parent-public-opening premise. No claimed Rust commitment or evaluation
+constructs the Lean expected values. The point remains conditional on
+Lean-verified Rust PiCCS messages until independent PiCCS replay is complete.
 
-The record `pidec-evaluation-replay` remains open for complete execution.
-Its exact target, `LeanGraph.Targets.PiDECChildEvaluationReplay`, now passes
-with the audited `PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages`
-consumer. The only premise is a successful checked split. The kernel computes
-Pad and all 14 matrix families at `ParentValues.point`, with all 54 extension
-coefficients per family. The graph records this target and its metadata gate.
-No claimed evaluation, opening or cryptographic premise enters the kernel.
+The small `pidec-evaluation-comparison` gate rechecks the saved complete
+values and target mutation. It does not establish source-generation
+provenance, package identity, or full proof encoding. The original parent,
+53 source-bound row runs and completed Pad supply the separate local
+calculation evidence. Protected full-generation acceptance and release
+upload/fresh-download verification remain external. Status stays
+`Compiler-closed`.
 
-The shared block executor reads the canonical compact matrix program. Its
-proof identifies the result with the existing `PaperAlgebra.evaluationFamily`
-and `honestMessages`. Sparse rows retain repeated and cancelling entries;
-omitted blocks and the selected padded suffix are proved zero. The former
-unchecked family draft has been replaced by these checked modules.
-
-For Pad, `PiDECPadWeightedProduct.products_value` proves the accelerated
-weighted product equals the 54-row sum. `PiDECPadBlockRange` connects complete
-block coverage to the full Pad accumulator. At actual parent block 0, every
-accelerated child value matched the earlier row kernel. The weighted kernel
-took 2.60 ms after initialization; the reference call took 112.35 ms including
-initialization. This is not a steady-state speed comparison.
-
-The complete Pad replay now passes. All 64 contiguous ranges cover every
-one of the 4,685,394 carrier blocks, including the tails. Lean derives the
-point from accepted C execution, splits the Lean parent blocks, computes each
-weighted product, and adds all partial sums. Rust only decodes and compares.
-All 1,728 Pad field words and all 56 point words match native children. A
-change at child 15, lane 53, imaginary component rejects at that location.
-The range commands took 1,759.75 s in total, with a largest run of 45.03 s and
-peak RSS of 3,864,584 KiB. Final Lean read/sum/write took 35 ms. See
-`PIDEC_PAD_REPLAY.json` and `PIDEC_PAD_RANGES.json` for the source-bound record.
-
-All 14 matrix families remain open. The first sparse Poseidon row probe was
-stopped after 248.19 s with observed process RSS of 29,122,284 KiB. The proved
-numeric reader now evaluates the same first row's 14 ports in 4.20 ms. Its
-equivalence preserves arbitrary reads, retained outputs, selector-scaled
-constants and failed lookups. `kernel_eq_evalSparse` connects this scalar
-interpretation to the existing child-coefficient kernel without added premises.
-
-The next probe exposed full-package source scans in C ordinary rows. The
-proved packet accessor now reads that block's first and last rows in 83.04 ms
-and 183.83 ms. These are endpoint feasibility measurements with a column-index
-read, not actual-witness replay. Ten endpoints in blocks 0 through 4 were
-measured. The shared canonical source cache now preserves every lookup and
-builds 1,412,568 rows in 1.37 s. Pilot endpoints pass through this cache.
-The first actual Poseidon invocation computes rows [0,94) for all children,
-matrices and lanes. The sparse reader output matches the dense Lean reader
-byte for byte; total command time fell from 107.45 s to 74.27 s, including
-57.84 s to load the complete parent. Peak RSS was 8,104,956 KiB.
-`PiDECMatrixSelectedBatch.selectedInvocation_eq_range` identifies this
-computation with the canonical weighted range. The integer parent reader
-now matches the same bytes and lowers peak RSS to 3,451,752 KiB; its one-time
-load is slower. The Phi81 loader now uses direct finite-index selection,
-with total equality to the original loader. All remaining block endpoints
-pass; the final Phi81 row lookup takes 1.80 ms.
-
-The Poseidon schedule now shares each retained read between row and state
-construction and reuses its final state for pins. The existing row theorem
-is preserved. The actual 16-invocation result matches its prior bytes, while
-the slowest child's arithmetic falls from 13.65 s to 6.83 s. The selected
-range theorem covers every child and matrix. The sparse range theorem and
-exact cache/grouped-load theorems cover the other opcodes. The executor now
-accepts block-local row bounds, with complete 94-row Poseidon and 34-row
-Phi81 groups required. Its actual first Phi81 group passes in 0.37 s of
-arithmetic after loading the parent. These are partial ranges; complete
-coverage and native matrix comparison remain open. See
-`PIDEC_MATRIX_REPLAY.json`.
-
-Sparse interface forms are now cached once per invocation, with equality
-to the existing interface. The repeated 16-invocation result has unchanged
-bytes. A further 1,600 invocations, rows `[1504,151904)`, pass in 646.16 s
-at 4,596,052 KiB peak RSS. The Lean merger checks complete contiguous row
-coverage and the C-derived point, sums every matrix coefficient, and joins
-the complete Pad result in the existing native comparison format. Its
-range-addition declarations are audited. Complete source-derived matrix
-coverage and the final actual merged comparison remain open.
-
-The next actual range, `[151904,302304)`, passes in 671.73 s. The complete
-parent has measured magnitude 115. Lean now computes that maximum itself,
-and a proved guard returns explicit zero rings for children above the
-maximum's bit positions. All 16 children and every load guard remain.
-The same 16-invocation output has unchanged bytes. Its maximum scan takes
-0.58 s; child task times include scheduling, and parent-load times vary.
-Arbitrary adjacent range addition and the full split-block identity now
-have focused checked declarations in `PiDECMatrixMergeClosure`.
-
-Keep the full-plan proof imports outside the replay executable. An import
-through `PiDECMatrixZeroRead` initialized a reference plan before C execution;
-the stopped log is retained. The executable now imports only the magnitude
-and guard module, while library/audit imports retain the equality proofs.
-
-`PIDEC_MATRIX_RANGES.json` is the compact index of actual disjoint results and
-remaining row gaps. It excludes historical duplicate and synthetic outputs.
-The next large Poseidon range passes in 488.61 s. The pilot ordinary block
-and first C ordinary range also pass. Worker-derived slices now preserve the
-same output bytes for both kernel kinds. Their maximum child spans fall from
-5.20 to 2.76 s (Poseidon) and 9.99 to 7.04 s (C ordinary). Parent loading
-remains variable; these task spans do not measure complete command speed.
-
-The first Poseidon block is now complete: all 12,350 invocations and
-1,160,900 rows have actual range results. Its final two equal ranges used
-3,767 invocations each, sized from measured rates under the 1,500 s cap.
-The range index records exact contiguous coverage; other matrix blocks and
-the complete native comparison remain open.
-
-The second Poseidon block is also complete, covering all 12,350 invocations
-and global rows [1,160,900,2,321,800). Its final two ranges passed in 833.78
-and 850.77 s. All three ranges are retained with complete values and source
-records; remaining matrix blocks and the complete native comparison are open.
-
-The third large Poseidon block is complete: all 7,604 invocations and
-714,776 rows have saved results. Its two ranges passed in 917.98 and
-773.69 s. The first three blocks now cover global rows [0,3,036,576).
-
-The C pin block and all 811,669 ordinary C verifier rows have complete
-matrix range results. The final Eval_A, CCS/norm and final-identity ranges
-passed in 620.48 s, 158.01 s and 706.51 s. The contiguous saved prefix is now
-[0,3,864,783). These are PiDEC child evaluations of verifier rows; PiCCS
-prover replay and the complete native matrix comparison stay open.
-
-The R sampler blocks are complete, including all 220,881 ordinary rows for
-17 sources. The first source passed in 141.02 s; the remaining 16 sources
-passed together in 491.60 s with peak RSS 5,480,796 KiB. The saved prefix,
-including the earlier first product group, now reaches row 4,100,120.
-Product and later rows remain before the complete matrix comparison.
-
-All 686,664 commitment-combination rows in the PiRLC product block have
-complete PiDEC matrix results. The final seven-source and eight-source
-ranges passed in 1,190.92 s and 1,274.49 s, with peak RSS 10,330,588 KiB.
-The saved prefix now reaches row 4,786,750. Public-input and evaluation
-products, First54 grids and later blocks remain before the full comparison.
-
-Public-input products and all Eval_K products now have complete matrix
-results. The two-cell measurement also covers the first two Eval_A sources,
-including all 14 blocks and both source rules. The combined range passed
-in 634.41 s. Saved coverage reaches row 5,108,050; the remaining 15 Eval_A
-sources, First54 grids and later rows remain before the full comparison.
-
-The next pure Eval_A range, 411,264 rows, reached the 1,500 s cap and
-added no coverage. `PIDEC_EVALUATION_PERFORMANCE.json` records that failure
-and the scalar update optimization, whose existing specification theorem
-passes unchanged. All bytes match on the actual 7,344-row comparison;
-unprofiled command time changed from 120.79 to 120.23 s. This is a small
-gain. The profile points to sparse-row evaluation as the main cost.
-The Lean runtime fork is reviewed but not benchmarked or installed.
-Re-measure pure Eval_A before selecting another large range.
-
-One complete remaining Eval_A source passed in 276.67 s. Saved coverage
-now reaches row 5,159,458. A direct signed-bit fold preserves the existing
-`sparseRead_map_valMinAbs` statement and every output byte; the same source
-passes in 240.98 s with the new fold. Both measurements and their exact
-source snapshots are in `PIDEC_EVALUATION_PERFORMANCE.json`. The parent
-load remains about 82 s. Use the pure-source rates to size the remaining
-Eval_A execution; the first two small measurements mixed row families.
-
-Nine more Eval_A sources passed together in 1,405.52 s with peak RSS
-13,312,508 KiB. Saved coverage reaches row 5,622,130; five sources,
-First54 grids and later blocks remain. The batch driver reuses the same
-checked parent and point across ranges. Three actual range payloads match
-their single-range outputs byte for byte. Its report is
-`PIDEC_MATRIX_BATCH.json`; this does not close the full native comparison.
-
-The complete family target and metadata gate remain in the graph. Kernel
-closure and the successful Pad result do not close the matrix execution
-requirement. Full comparison must cover all 25,920 evaluation field words,
-the common point and a changed target. Native targets are retained in
-`PIDEC_EVALUATION_TARGETS.json`; no native producer rerun is required. Earlier
-proof and first-range checkpoints remain in `PIDEC_EVALUATION_FAMILY.json`,
-`PIDEC_EVALUATION_PILOT.json` and `PIDEC_EVALUATION_ROWS.json`.
+The next computation milestone is PiCCS round one from the original
+17 witnesses and public inputs. The current honest strategy uses
+`Classical.choose`; a computable round polynomial must be connected to the
+existing completion-sum specification before timing the actual first round.
+Rust round messages and final evaluations must enter only comparisons.
+HyperNova replay and complete proof encoding remain subsequent work.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
@@ -667,21 +668,52 @@ theorem piCCSCachedPairKernel : PiCCSCachedPairKernel := by
     PiCCSNormCache.sourceNorm_eq,
     PiCCSFirstRoundPair.pairPolynomialWithNorm_eq]
 
+/-- The prepared and partitioned scan equals the complete norm contribution,
+including the entire zero suffix of the Boolean domain. -/
+def PiCCSCompleteNormKernel : Prop :=
+  ∀
+    (input : ProtocolPolynomial.VerifierInput K productionShape)
+    (gamma : K) (alpha : CubePoint K productionShape.cubeVariables)
+    (masks : Array (Array (Nat × Nat)))
+    (freshLow freshHigh : Nat → Vector F ProductionRelation.matrixCount)
+    (parts : Nat), 0 < parts →
+    let powers := PiCCSGammaPowers.lookup ConcreteCarrier.extensionOps.toOps gamma
+      (PiCCSGammaPowers.prepare ConcreteCarrier.extensionOps.toOps gamma productionShape.sourceCount)
+    let weight := PiCCSTensorWeights.lookup ConcreteCarrier.extensionOps alpha.coordinates.tail
+      (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps alpha.coordinates.tail)
+    PiCCSNormContribution.normTerm input (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma) (PiCCSNormContribution.headSelector alpha)
+        ((Array.ofFn (fun index : Fin parts =>
+          PiCCSNormBuckets.finish powers
+            (PiCCSNormScan.range weight masks (PiCCSSourceImages.blockCount * index.val / parts)
+              (PiCCSSourceImages.blockCount * (index.val + 1) / parts -
+                PiCCSSourceImages.blockCount * index.val / parts)))).foldl
+          (Spec.SumCheck.Finite.FixedPolynomial.add ConcreteCarrier.extensionOps.toOps) (Spec.SumCheck.Finite.FixedPolynomial.zero ConcreteCarrier.extensionOps.toOps 3)) =
+      PiCCSPolynomialRange.range ConcreteCarrier.extensionOps 0 (2 ^ (productionShape.cubeVariables - 1))
+        (PiCCSNormComplete.numericPairNorm input (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma)
+          alpha masks freshLow freshHigh)
+
+theorem piCCSCompleteNormKernel : PiCCSCompleteNormKernel :=
+  PiCCSNormComplete.prepared_workers_eq_fullPairSum
+
 /-- Kernel closure combines complete completion-sum semantics, original-source
-assembly, aggregated endpoints, stored rows, and exact cached coefficients.
+assembly, aggregated endpoints, stored rows, exact cached coefficients and
+the complete prepared norm scan.
 Executed full-round coverage and Rust comparison remain separate requirements. -/
 def PiCCSFirstRoundReplayKernel : Prop :=
   PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
-    PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel
+    PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel ∧
+    PiCCSCompleteNormKernel
 
 theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
   ⟨piCCSFirstRoundKernel, piCCSOriginalImages, piCCSPreparedPairKernel,
-    piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel⟩
+    piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel,
+    piCCSCompleteNormKernel⟩
 
 #audit_axioms piCCSOriginalImages
 #audit_axioms piCCSPreparedPairKernel
 #audit_axioms piCCSAggregatedEndpoints
 #audit_axioms piCCSStoredInvocation
+#audit_axioms piCCSCompleteNormKernel
 #audit_axioms piCCSCachedPairKernel
 #audit_axioms piCCSFirstRoundReplayKernel
 

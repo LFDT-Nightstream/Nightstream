@@ -81,7 +81,8 @@ The active computation milestone is PiCCS round one from the original
 `LeanGraph.Targets.PiCCSFirstRoundReplayKernel`. It combines the complete
 completion-sum formula, original and aggregated source constructors,
 prepared coefficient equality, stored invocation rows, and total norm/selector
-cache equality. `piccs-first-round-kernel` checks its audit, literal target and
+cache equality, and the complete prepared norm scan.
+`piccs-first-round-kernel` checks its audit, literal target and
 dependency graph. The producer input
 contains no Rust rounds or newly claimed evaluations.
 
@@ -105,9 +106,19 @@ suffix-selector weights also have complete coefficient equalities. Arbitrary
 extension-field values use the original norm constructor on a cache miss.
 The existing graph target includes the exact combined cached pair expression.
 
+The norm contribution is now closed for the complete recorded input. The
+prepared worker sum equals the original norm sum over all 2^27 pairs,
+including the proved zero suffix beyond the complete carrier. The four inner
+K coefficients match the actual Rust CPU norm function on all 17 original
+sources; a changed coefficient rejects. The measured scan fell from 139.93
+to 35.17 seconds, with 1,360,840 KiB peak RSS. `PICCS_NORM_REPLAY.json`
+records inputs, exact scope and the checks. It is not full-Q or transcript
+comparison.
+
 The full first round is still open. A full-domain repetition of the measured
 pair is not an accepted execution plan. The next step is to assemble complete
-fresh CCS and norm contributions with proved range coverage and zero omissions.
+fresh CCS and carried Pad/matrix contributions with proved coverage, then
+compose them with the norm result and compare all ten Q coefficients.
 This needs complete coefficient, challenge/state and mutation comparisons
 with Rust. Then replay the remaining
 PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic

@@ -289,6 +289,14 @@ import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
+import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
+import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSNormSource
+import NightstreamFPrime.Export.Stage1.PiCCSNormScan
+import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
+import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
+import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
+import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

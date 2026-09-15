@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "source_base_commit": "001fd8034505fa8692f0f65af804775f4a6b7599",
-  "status": "actual matrix replay covers complete commitment, public-input and Eval_K product families plus two Eval_A sources; full matrix comparison open",
+  "status": "Complete local PiDEC evaluations pass; source-bound completion is recorded in PIDEC_COMPLETE_REPLAY.json.",
   "graph_obligation": "pidec-evaluation-replay",
   "scope": {
     "complete_matrix_rows": 6377559,
@@ -103,7 +103,7 @@
     ]
   },
   "independence": "Lean computes from the complete independently replayed R parent. Its evaluation point comes from accepted Lean verification of Rust PiCCS messages. Native matrix outputs are not inputs. Full independence still requires PiCCS prover replay.",
-  "comparison": "Both parallel slice paths match every byte of their previous actual range outputs. PIDEC_MATRIX_RANGES.json records only disjoint actual coverage. Complete native matrix comparison remains open.",
+  "comparison": "The complete Lean merge matches all 25,920 native evaluation words and 56 point words; changed target rejection passes. PIDEC_COMPLETE_REPLAY.json records the completed result. Earlier per-range comparisons below are retained history.",
   "proof": {
     "declarations": [
       "PiDECMatrixSelectedBatch.selectedIntInvocationRange_eq_range",
@@ -1181,5 +1181,6 @@
     ]
   },
   "performance_review": "PIDEC_EVALUATION_PERFORMANCE.json",
-  "batch_driver": "PIDEC_MATRIX_BATCH.json"
+  "batch_driver": "PIDEC_MATRIX_BATCH.json",
+  "complete_execution": "PIDEC_COMPLETE_REPLAY.json"
 }

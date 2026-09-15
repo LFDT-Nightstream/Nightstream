@@ -87,6 +87,26 @@ root = "NightstreamFPrime.Export.PiDECCommitmentReplayMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "replayPiDECEvaluation"
+root = "NightstreamFPrime.Export.PiDECEvaluationReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "measurePiDECMatrixRows"
+root = "NightstreamFPrime.Export.PiDECMatrixRowsMeasure"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiDECMatrix"
+root = "NightstreamFPrime.Export.PiDECMatrixReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "mergePiDECMatrix"
+root = "NightstreamFPrime.Export.PiDECMatrixMergeMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "measurePiDECEvaluationBlock"
 root = "NightstreamFPrime.Export.PiDECEvaluationBlockMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

@@ -38,11 +38,15 @@ theorem weight_at_vertex {arity : Nat} (point : CubePoint K arity)
         point
 
 /-- Update every stored extension coefficient with the same row weight.
-Materialization occurs before the next numeric row reads the accumulator. -/
+The embedded row has zero imaginary part, so each lane needs two base-field
+products. Materialization occurs before the next row reads the accumulator. -/
 def addWeighted (rowWeight : K) (initial : MaterializedRingK)
     (row : StoredRing) : MaterializedRingK :=
   MaterializedRingK.ofRing fun lane =>
-    K.add (initial.toRing lane) (K.mul rowWeight (K.embed (row.get lane)))
+    let current := initial.toRing lane
+    let scalar := row.get lane
+    ⟨current.c0 + rowWeight.c0 * scalar,
+     current.c1 + rowWeight.c1 * scalar⟩
 
 theorem addWeighted_value (rowWeight : K) (initial : MaterializedRingK)
     (row : StoredRing) :
@@ -50,7 +54,11 @@ theorem addWeighted_value (rowWeight : K) (initial : MaterializedRingK)
       fun lane => extensionOps.add (initial.toRing lane)
         (extensionOps.mul rowWeight (K.embed (row.get lane))) := by
   rw [addWeighted, MaterializedRingK.toRing_ofRing]
-  rfl
+  funext lane
+  change _ = K.add (initial.toRing lane)
+    (K.mul rowWeight (K.embed (row.get lane)))
+  simp only [K.add, K.mul, K.embed,
+    Fin.mul_zero, Fin.add_zero, Fin.zero_add]
 
 /-- Visit the numeric prefix with one stored accumulator. The complete-domain
 consumer below fixes count to exactly 2^arity. -/

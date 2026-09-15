@@ -8,6 +8,8 @@ mod mutations;
 pub mod parent;
 #[path = "stage1_pidec_commitment_replay.rs"]
 pub mod pidec_commitment_replay;
+#[path = "stage1_pidec_evaluation_replay.rs"]
+pub mod pidec_evaluation_replay;
 #[path = "stage1_pidec_replay.rs"]
 pub mod pidec_replay;
 #[path = "stage1_pirlc_replay.rs"]

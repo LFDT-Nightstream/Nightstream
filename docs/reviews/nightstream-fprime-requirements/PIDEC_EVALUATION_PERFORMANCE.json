@@ -1,0 +1,525 @@
+{
+  "schema": 1,
+  "status": "proved scalar specialization; exact output comparison and ordered checkpoint gates passed",
+  "source_base_commit": "34ac7c5d10363e3831ecfa2a7af73c27752918a1",
+  "source_patch_sha256": "1961ae2da3879e92385057587196943406df2cf84512cdecc3cb4b4b7b4a82f4",
+  "graph_obligation": "pidec-evaluation-replay",
+  "scope": "Performance of the existing Lean PiDEC matrix replay on actual original Lean PiRLC parent data, given Lean-verified Rust PiCCS output. This compares old and new Lean output; complete native matrix comparison remains open.",
+  "change": {
+    "module": "NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights",
+    "definition": "addWeighted",
+    "theorem": "addWeighted_value",
+    "statement_unchanged": true,
+    "stronger_premises": false,
+    "generated_field_multiplications_before": 5,
+    "generated_field_multiplications_after": 2,
+    "explanation": "Multiply the row weight by the embedded base-field coefficient using its two coordinates. The existing audited theorem proves equality with extensionOps.mul for arbitrary inputs."
+  },
+  "input": {
+    "block": 10,
+    "local_rows": [
+      842724,
+      850068
+    ],
+    "row_count": 7344,
+    "workers": 16,
+    "worker_authority": "existing Lean runtime setting from host CPU count",
+    "source_manifest": "PIDEC_MATRIX_REPLAY.json",
+    "parent_parts_manifest_sha256": "ec9212aaa7543003aea006a8f55bb69f20cb95442c9868751a7f022ebdee107b",
+    "c_input_sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+  },
+  "equality": {
+    "bytes_compared": 215167,
+    "matrix_field_words": 24192,
+    "point_field_words": 56,
+    "all_bytes_equal": true,
+    "output_sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d"
+  },
+  "unprofiled": {
+    "before": {
+      "command_seconds": 120.78779840201605,
+      "replay_seconds": 115.327901825,
+      "parent_seconds": 81.944578936,
+      "arithmetic_span_seconds": 25.626147562,
+      "sum_slice_seconds": 343.446954251,
+      "peak_rss_kib": 3560872
+    },
+    "after": {
+      "command_seconds": 120.23458446399309,
+      "replay_seconds": 114.904434926,
+      "parent_seconds": 82.029304911,
+      "arithmetic_span_seconds": 25.17179849,
+      "sum_slice_seconds": 332.336630408,
+      "peak_rss_kib": 3561328
+    },
+    "equality": {
+      "all_bytes_equal": true,
+      "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d"
+    },
+    "reduction_percent": {
+      "command_seconds": 0.4580048194782971,
+      "replay_seconds": 0.36718512372017065,
+      "arithmetic_span_seconds": 1.7729901496147504,
+      "sum_slice_seconds": 3.2349460973470467
+    }
+  },
+  "unprofiled_scope": "One retained stock run and one candidate run on the same machine, data, row range and worker setting. The end-to-end difference is small; this is not a general speedup or a full-production measurement.",
+  "profiled": {
+    "stock": {
+      "guard_wall_seconds": 136.57671113603283,
+      "replay_seconds": 123.918723291,
+      "parent_seconds": 81.359156229,
+      "arithmetic_span_seconds": 34.728612812,
+      "max_slice_seconds": 34.727520891,
+      "sum_slice_elapsed_seconds": 344.526298498,
+      "peak_rss_kib": 3569100
+    },
+    "candidate": {
+      "guard_wall_seconds": 128.29346327797975,
+      "replay_seconds": 115.839793951,
+      "parent_seconds": 82.877370048,
+      "arithmetic_span_seconds": 25.149879855,
+      "max_slice_seconds": 25.148872211,
+      "sum_slice_elapsed_seconds": 328.758258634,
+      "peak_rss_kib": 3572124
+    },
+    "equality": {
+      "all_bytes_equal": true,
+      "bytes": 215167,
+      "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d",
+      "matrix_field_words": 24192
+    },
+    "reduction_percent": {
+      "guard_wall_seconds": 6.064905055300985,
+      "replay_seconds": 6.5195388763231055,
+      "arithmetic_span_seconds": 27.581674536940337,
+      "sum_slice_elapsed_seconds": 4.576730407153962
+    }
+  },
+  "profile_scope": "One matched gprofng pair. The larger maximum-task-span change was not reproduced without profiling. Sum of task elapsed times is not CPU time. Profiling percentages below include callees and overlap.",
+  "sampled_cpu": {
+    "tool": "GNU gprofng 2.42, default clock sampling",
+    "stock_total_seconds": 428.119,
+    "candidate_total_seconds": 414.29,
+    "weighted_update_stock_seconds": 23.627,
+    "weighted_update_candidate_seconds": 10.808,
+    "stock_sparse_eval_inclusive_percent": 70.56,
+    "stock_uint64_mpz_constructor_inclusive_percent": 11.8
+  },
+  "next_candidate": {
+    "status": "source-reviewed; not implemented or measured",
+    "change": "Filter exact zero coefficients from each selected outer matrix form before its 54-output loop.",
+    "owner": "NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange.row",
+    "equality_authority": "NightstreamFPrime.Export.Stage1.PiDECParentSparseRead.filterZero_evalSparse",
+    "reason": "Ordinary.compileCombination? inserts its constant-column entry even when the coefficient is zero. evalSparse still reads and multiplies it. The existing identity preserves arbitrary reads, duplicate nonzero entries and their order.",
+    "scope": "Ordinary rows only. Source review indicates that the current Phi81 Eval_A forms have no stored zero coefficients, so filtering them is not the current optimization target."
+  },
+  "runtime_fork": {
+    "url": "https://github.com/nicarq/lean4-optimized/commit/884cd4a5dc0dbc8d99189c333466d36d916c7af1",
+    "commit": "884cd4a5dc0dbc8d99189c333466d36d916c7af1",
+    "upstream_parent": "d024af099ca4bf2c86f649261ebf59565dc8c622",
+    "version": "Lean 4.30.0",
+    "change": "Use one GMP initialization call in mpz(uint64) when unsigned long can hold uint64; retain the narrow-platform fallback.",
+    "status": "reviewed; not benchmarked or adopted",
+    "tests": "The fork adds UInt64-to-Nat boundary cases, including Goldilocks values; they were not run here.",
+    "comparison_plan": "Compile stock and patched mpz.cpp with matching build inputs, replace mpz.cpp.o in separate runtime archive copies, and relink separate replay binaries using the existing response file. Confirm the selected object by linker map and constructor disassembly, then compare exact outputs.",
+    "current_boundary": "Installed private Lean runtime headers and matching libc++ headers are absent. The release object uses Clang/libc++ 19.1.2. System libstdc++ headers are not a compatible substitute. The GMP header/runtime versions also need ABI confirmation.",
+    "trust": "This changes compiled runtime code. Existing Lean theorems do not prove the C++ patch correct. The installed toolchain remains stock."
+  },
+  "failed_large_range": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/capped-eval-a-run.json",
+    "sha256": "9a7741d5b21b183e4a73fbe25978e41bd83e22f03d2fdcea1ad66347742ba7b5",
+    "bytes": 1515
+  },
+  "artifacts": {
+    "stock": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/stock-artifacts.json",
+      "sha256": "6a0453f6469fb287a817fa6b91ac883a584c014cfe66e9d2e88f739bb1b117b5",
+      "bytes": 832
+    },
+    "candidate": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/candidate-artifacts.json",
+      "sha256": "8aa231c37ca174e481f997b95cde3f468da91c838eaad0a09181e4eb644b4d84",
+      "bytes": 1013
+    },
+    "patch": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/scalar-specialization.patch",
+      "sha256": "1961ae2da3879e92385057587196943406df2cf84512cdecc3cb4b4b7b4a82f4",
+      "bytes": 1901
+    },
+    "files": {
+      "nightstream-pidec-weight-stock-profile-command-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-profile-command-1.json",
+        "sha256": "80448632bfa875ea75baf62eedcdba53449c25cc9e5c19c2bdff487616cc6b14",
+        "bytes": 5067
+      },
+      "nightstream-pidec-weight-stock-profile-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-profile-1.json",
+        "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d",
+        "bytes": 215167
+      },
+      "nightstream-pidec-weight-stock-profile-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-profile-1.log",
+        "sha256": "3999f3706ec8abbd53dd355d1bade2898254b26397903c93e004853faca71b1a",
+        "bytes": 145639
+      },
+      "nightstream-pidec-weight-stock-functions-1.txt": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-functions-1.txt",
+        "sha256": "64663d3ee65bf5ad5bab377a00fadd92051ddda326ad9b9555d1aba981494e3b",
+        "bytes": 93700
+      },
+      "nightstream-pidec-weight-candidate-profile-command-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-profile-command-1.json",
+        "sha256": "6e05b1ec8d0c78fa23e1f05745d2bb976446f75d8c5a3b4f5e5c7d8f1613361a",
+        "bytes": 5075
+      },
+      "nightstream-pidec-weight-candidate-profile-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-profile-1.json",
+        "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d",
+        "bytes": 215167
+      },
+      "nightstream-pidec-weight-candidate-profile-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-profile-1.log",
+        "sha256": "44c0aaa13d0a7de130a75c4b9a5e708b5e3d100cc4a8112db8384a3442b666b6",
+        "bytes": 145654
+      },
+      "nightstream-pidec-weight-candidate-functions-1.txt": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-functions-1.txt",
+        "sha256": "4d513c095a01bb9df32fe9f7d444d5e5fdeff6e81250daf8adae8fb14433edf2",
+        "bytes": 90940
+      },
+      "nightstream-pidec-weight-candidate-unprofiled-command-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-unprofiled-command-1.json",
+        "sha256": "9746ec08147a564ce271c31714522e45a9ca809e446003fc80ff6bde7c211bc5",
+        "bytes": 4950
+      },
+      "nightstream-pidec-weight-candidate-unprofiled-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-unprofiled-1.json",
+        "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d",
+        "bytes": 215167
+      },
+      "nightstream-pidec-weight-candidate-unprofiled-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-unprofiled-1.log",
+        "sha256": "3b238b7caa9762e2a7dec3bec96dcc9003e48450c0e962ff734fc5024f1695bb",
+        "bytes": 145460
+      },
+      "nightstream-pidec-weight-comparison-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-comparison-1.json",
+        "sha256": "06fc02e796aab5f90d71395bf7aa581bb4414cb66ae6459e45a44b8c2b99a35c",
+        "bytes": 1005
+      },
+      "nightstream-pidec-weight-unprofiled-comparison-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-unprofiled-comparison-1.json",
+        "sha256": "bb512c144ce13a213b530921a31edc4d93318d24060752bbb88f9e1af569074f",
+        "bytes": 839
+      },
+      "nightstream-pidec-weight-file-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-file-1.log",
+        "sha256": "11148407062b5602888f699c755c74843c5fd77e1d70166bfc77b756f3ab522a",
+        "bytes": 1452
+      },
+      "nightstream-pidec-weight-build-executable-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-build-executable-1.log",
+        "sha256": "68fb3695b1aa4e6f7d8281ce7eb6641553f0b5530b8f1d06e1c6aadec7cea15b",
+        "bytes": 127653
+      },
+      "nightstream-pidec-matrix-range-command-10-842724-850068-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-matrix-range-command-10-842724-850068-1.json",
+        "sha256": "aa7530dbb2851b1c56a39e52871b807757a2c672daabea2de530af0836ae2ebf",
+        "bytes": 4952
+      },
+      "nightstream-pidec-matrix-range-10-842724-850068-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-matrix-range-10-842724-850068-1.json",
+        "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d",
+        "bytes": 215167
+      },
+      "nightstream-pidec-matrix-range-10-842724-850068-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-matrix-range-10-842724-850068-1.log",
+        "sha256": "9c9a81b17c5a2621b0a02fff3e3a0ec4ba785f495f6afd41bb0eca6734cefa93",
+        "bytes": 145463
+      }
+    },
+    "profiles": [
+      {
+        "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-profile-1.er",
+        "manifest": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-stock-profile-1.er.manifest.json",
+          "sha256": "7f09d9eb2b828132f7d4923f2c3d50891bab6d9f9e7936c1234862aa73a8433b",
+          "bytes": 57312
+        }
+      },
+      {
+        "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-profile-1.er",
+        "manifest": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-candidate-profile-1.er.manifest.json",
+          "sha256": "317fad947ffb76847525b243de37e377f8bfde92cfb436b4b3585e68c77855be",
+          "bytes": 57157
+        }
+      }
+    ]
+  },
+  "gates": {
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 9.428190540987998,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "peak_rss_kib": 19216,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-static-1.log",
+        "sha256": "1cb4fdf14a6bb2e26d7684a925cb6de3e4bf754a915769e42cef88133b36f9b2"
+      }
+    },
+    "build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 11.13627550296951,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "peak_rss_kib": 3891684,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-build-1.log",
+        "sha256": "81f7c5bc144ea720f9c4941ecb9324c4e9893ed760932507ea42d78236ebef5f"
+      }
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 4.624124613008462,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "peak_rss_kib": 3883456,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-axioms-1.log",
+        "sha256": "7aede34f3f582c8e344c6f6b8ad6274452853f100988706a6d4f11fde38b3870"
+      }
+    },
+    "registrations": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 0.2641976799350232,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "scripts.lean_graph.tests.test_conformance_registrations"
+      ],
+      "peak_rss_kib": 22676,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-weight-performance/nightstream-pidec-weight-registrations-1.log",
+        "sha256": "d60c5193418ac7c2af1e6c45729c7842962f8ac4fad4d560fc1261d35983e8a1"
+      }
+    }
+  },
+  "unchanged": {
+    "profile": {
+      "b": 2,
+      "k_rho": 16
+    },
+    "package_sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+    "runtime_toolchain": "leanprover/lean4:v4.30.0",
+    "requirements_statuses": true
+  },
+  "delivery": "Reports and SHA-256 values are committed. Raw files and profiles remain outside Git. GitHub release publication remains open.",
+  "signed_digit_read": {
+    "status": "proved, audited, exact byte comparison and ordered checkpoint gates passed",
+    "source_base_commit": "b1177ef3610356ba523e328bd236957765741f71",
+    "source_patch_sha256": "e53f074ce937aedfe52988ef3d8b10f726978dd363b497a3624c4e0b814dd106",
+    "module": "NightstreamFPrime.Export.Stage1.PiDECParentIntRead",
+    "definition": "sparseRead",
+    "public_theorem": "sparseRead_map_valMinAbs",
+    "public_statement_unchanged": true,
+    "explanation": "Use the existing natAbs bit and sign to skip, add or subtract each sparse coefficient. The equality holds for arbitrary coefficients and integer parent values. The existing public bridge retains its strict parent-bound premise.",
+    "generated_code": "No general field multiplication or indirect digit-reader call remains in this inner fold.",
+    "local_rows": [
+      1007964,
+      1059372
+    ],
+    "scope": "One complete actual Eval_A source: all 14 blocks, 54 lanes, two cells and 34 rows per cell; unchanged original parent, point and 16 workers. This is an unprofiled before/after comparison, not a full-production speed bound.",
+    "measurements": {
+      "before": {
+        "command_seconds": 276.6655840439489,
+        "parent_seconds": 82.427885848,
+        "replay_seconds": 271.227109685,
+        "arithmetic_span_seconds": 178.287959508,
+        "sum_slice_seconds": 2191.275443564,
+        "peak_rss_kib": 4506124
+      },
+      "after": {
+        "command_seconds": 240.97630708792713,
+        "parent_seconds": 82.470942968,
+        "replay_seconds": 235.487012765,
+        "arithmetic_span_seconds": 142.348364095,
+        "sum_slice_seconds": 2064.736098888,
+        "peak_rss_kib": 4505492
+      },
+      "equality": {
+        "all_bytes_equal": true,
+        "bytes": 143571,
+        "sha256": "e28ca6afeb1765eec2be04e7256c26f38be94afe04b0143b8138045fe70a2d0a",
+        "matrix_field_words": 24192
+      },
+      "reduction_percent": {
+        "command_seconds": 12.899789136892604,
+        "replay_seconds": 13.177184596889358,
+        "arithmetic_span_seconds": 20.15817305452271,
+        "sum_slice_seconds": 5.77468912215755
+      }
+    },
+    "baseline_record": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-matrix-3b0a8aee/nightstream-pidec-matrix-range-10-1007964-1059372-1.record.json",
+      "sha256": "ef71349b3806a2be5ce27134bd4c033ae244faa5c85e1f37122ed3f13391cdc3",
+      "bytes": 1031
+    },
+    "before_artifacts": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/before-artifacts.json",
+      "sha256": "7c9e132afa9188abe9e7b5e36ce03f00ce9268cbdb0e39de4f83da4765a664d5",
+      "bytes": 840
+    },
+    "after_artifacts": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/after-artifacts.json",
+      "sha256": "ee60cb75ffba80a1f7b1822619f78a5449d1846ac6b1ad0fd9db92294599675b",
+      "bytes": 968
+    },
+    "patch": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/signed-read.patch",
+      "sha256": "e53f074ce937aedfe52988ef3d8b10f726978dd363b497a3624c4e0b814dd106",
+      "bytes": 3013
+    },
+    "files": {
+      "nightstream-pidec-signed-read-after-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-1.json",
+        "sha256": "e28ca6afeb1765eec2be04e7256c26f38be94afe04b0143b8138045fe70a2d0a",
+        "bytes": 143571
+      },
+      "nightstream-pidec-signed-read-after-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-1.log",
+        "sha256": "d89f88dd1f3e34423f30edb779fc24d1f86fd20267db536ea8c68f3e823df825",
+        "bytes": 145514
+      },
+      "nightstream-pidec-signed-read-after-command-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-after-command-1.json",
+        "sha256": "fac479e194cd59de425e6ba105939ba499a3d9d5cefaa9e891bd95eef78ebdd4",
+        "bytes": 4942
+      },
+      "nightstream-pidec-signed-read-comparison-1.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-comparison-1.json",
+        "sha256": "4e0275d6611e55ac05771af366013e415d6a6e0fe760e3b3bf0a53d5a6176635",
+        "bytes": 893
+      },
+      "nightstream-pidec-signed-read-file-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-file-1.log",
+        "sha256": "c4790384ec2003cdd28a65c47a8db525d87787a1d4a01e0ecf5d53b4b1fa4931",
+        "bytes": 1439
+      },
+      "nightstream-pidec-signed-read-build-executable-1.log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-build-executable-1.log",
+        "sha256": "a55e304c51681acd59825697aefbd01072adec1a7b8181a56cf11dcc2ccf2e77",
+        "bytes": 127457
+      },
+      "nightstream-pidec-product-eval-a-single-plan.json": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-product-eval-a-single-plan.json",
+        "sha256": "dc4ef851261ba57f5487b8d09643025e0eef100cbaf6ac0ec00e34d91d5e8285",
+        "bytes": 783
+      }
+    },
+    "gates": {
+      "static": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 9.42761855199933,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "static"
+        ],
+        "peak_rss_kib": 19620,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-static-2.log",
+          "sha256": "f62f339f83eac23359190581f873091fd465c5243d5a5ecd0b05c469c56784f1"
+        }
+      },
+      "build": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 7.728714333032258,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build"
+        ],
+        "peak_rss_kib": 3893840,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-build-2.log",
+          "sha256": "e71e4068406c5cd58ebe99a4d10ebc5e06481ed87344711e4edc27e16bdbc81f"
+        }
+      },
+      "axioms": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 3.019242628943175,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "axioms"
+        ],
+        "peak_rss_kib": 3808464,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-axioms-2.log",
+          "sha256": "f47b424f4010568050783f28d6692d27dc5308308f9288cdf1b47d24673998df"
+        }
+      },
+      "registrations": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 0.2640433970373124,
+        "command": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "scripts.lean_graph.tests.test_conformance_registrations"
+        ],
+        "peak_rss_kib": 22664,
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-signed-read-performance/nightstream-pidec-signed-read-registrations-1.log",
+          "sha256": "bcc250e7053a8e6febd181262d2cc2325e7999d6a35bebea9b840923120ebbdd"
+        }
+      }
+    },
+    "equality_theorem": "sparseRead_eq_evalSparse",
+    "consumer": "PiDECMatrixZeroRead.parentRead_zero now rewrites the equality interface instead of unfolding sparseRead.",
+    "checked_source_patch_sha256": "c53fc480309ddb7f971203c1a36d7eecd02b22442719ddd3708e03d189cf7fcb",
+    "checked_source_note": "The measured runtime change is unchanged. The final source also exposes and audits the equality interface, and uses it in the zero-child consumer proof.",
+    "final_binary_equals_measured_binary": true,
+    "resolved_build_failure": {
+      "module": "PiDECMatrixZeroRead",
+      "cause": "The consumer unfolded the old reader body.",
+      "repair": "Use the audited sparseRead_eq_evalSparse interface.",
+      "focused_check_seconds": 2.218346787034534
+    }
+  },
+  "current_completed_matrix_prefix": [
+    0,
+    6377559
+  ]
+}

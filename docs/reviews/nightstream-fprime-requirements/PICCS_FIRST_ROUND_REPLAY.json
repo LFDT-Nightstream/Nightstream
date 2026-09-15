@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "base_commit": "935b262ab75509081d95387fc29a51829cd73dc8",
-  "status": "partial: one complete 94-row invocation and a cache-boundary crossing match the Lean reference; full first round and Rust comparison remain open",
+  "base_commit": "a003f3b66597aa3d59aac297d408f097e28027b6",
+  "status": "partial: block and coefficient caches preserve both measured ranges; complete first round and Rust comparison remain open",
   "branch": "nico/f-prime-constraints-cuda-formal",
   "scope": "Selected SuperNeo v1.2 profile, b=2, k_rho=16. No protocol, package, or toolchain change.",
   "independence": {
@@ -47,7 +47,13 @@
     "total_optional_endpoint_equality": "PiCCSAggregatedImages.endpoint_images",
     "aggregated_coefficients": "PiCCSFirstRoundPair.pairPolynomialWithTotals_eq",
     "unused_carried_fields": "PiCCSFirstRoundPair.pairPolynomialWithTotals_congr",
-    "stored_invocation": "PiCCSLinearRows.invocation_loaded_value"
+    "stored_invocation": "PiCCSLinearRows.invocation_loaded_value",
+    "cached_block_read": "PiCCSCarriedReadCache.cachedRead_prepareCache",
+    "cached_stored_rows": "PiCCSCarriedReadCache.invocation_eq",
+    "cached_tensor_weight": "PiCCSTensorWeights.lookup_prepare",
+    "cached_selector": "PiCCSCachedSelector.equalitySelector_prepare",
+    "cached_source_norm": "PiCCSNormCache.sourceNorm_eq",
+    "combined_cached_coefficients": "LeanGraph.Targets.piCCSCachedPairKernel"
   },
   "coverage": {
     "pair_start": 0,
@@ -251,14 +257,14 @@
   },
   "gates": {
     "static": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-static-1.log",
-      "sha256": "3e7f4832b9476d011ea18fbe05f3f4558754e0e0ed8030366f2f7be95d0dd3bd",
-      "bytes": 1346,
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-static-1.log",
+      "sha256": "aa5913d90e0eea71f2c7a4b3941f9785d78f79e06022b59a7d5b68203a1eb5f0",
+      "bytes": 1343,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 300,
-        "elapsed_seconds": 9.527833320084028,
+        "elapsed_seconds": 9.577030651969835,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -267,17 +273,17 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 19596
+      "max_rss_kib": 19440
     },
     "build": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-build-1.log",
-      "sha256": "2b0df25eaf4dd8db3ac78c8a9c7fec3efa6ba3745208d77c1114bed3a058fcd7",
-      "bytes": 171890,
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-build-1.log",
+      "sha256": "25d1d18112fcdc05e781da6966082548c87f9e6dcf8c10938b7d7b85ff566583",
+      "bytes": 171884,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 1500,
-        "elapsed_seconds": 3.9210303409490734,
+        "elapsed_seconds": 3.8216952070361003,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -286,17 +292,17 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 3767452
+      "max_rss_kib": 3771524
     },
     "axioms": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-axioms-1.log",
-      "sha256": "577e52a5d6d561698f8cda9dcbac8c1ec6ce76a03233672ba05aa3b7827bec7a",
-      "bytes": 1103564,
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-axioms-1.log",
+      "sha256": "301618d02731defad30f2ec8a454a3c4e68932d738b83386bf7665af70e420c2",
+      "bytes": 1105752,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 1500,
-        "elapsed_seconds": 6.324726220918819,
+        "elapsed_seconds": 6.325695956940763,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -305,17 +311,17 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 3805440
+      "max_rss_kib": 3809548
     },
     "exact_target": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-acceptance-1.log",
-      "sha256": "58d00f4c769de5ef12dd08edb4815533da4a13c7a9ca2af9c2b45c61a250759e",
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-acceptance-1.log",
+      "sha256": "6e367047890e884e0dca7fed6295cb611ce6a814429b7017cb05e53e2d03bd9d",
       "bytes": 3088,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 1500,
-        "elapsed_seconds": 2.168180666049011,
+        "elapsed_seconds": 2.017331919982098,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -325,17 +331,17 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 3747580
+      "max_rss_kib": 3751712
     },
     "dependency_metadata": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-metadata-1.log",
-      "sha256": "e98de2e28a466064f6b1018ee492f488c38eb3b8ac0ad5e3f98b7fa1adcdc9d6",
-      "bytes": 144288627,
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-metadata-1.log",
+      "sha256": "b9dadc6c0088c5ad89be4862b8deca5c56fceb2e1d36a1c31874136ba642c879",
+      "bytes": 145014858,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 1500,
-        "elapsed_seconds": 27.10599343199283,
+        "elapsed_seconds": 27.15952358301729,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -345,17 +351,21 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 5112348
+      "max_rss_kib": 5194664,
+      "metadata": {
+        "root": "LeanGraph.Targets.piCCSFirstRoundReplayKernel",
+        "complete": true
+      }
     },
     "current_runner_build": {
-      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-runner-final-build-1.log",
-      "sha256": "2964afc253162f019e4f5bf1cd9800be3f2b4c10cb0884ecad082e79b46cbaf4",
-      "bytes": 127234,
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-runner-build-1.log",
+      "sha256": "cc588a1ebe4fd87e91904cc8e7c06cb1b93493acf8c7d006baef5942a0882ea4",
+      "bytes": 127233,
       "guard": {
         "outcome": "passed",
         "exit": 0,
         "cap_seconds": 1500,
-        "elapsed_seconds": 3.9217475260375068,
+        "elapsed_seconds": 3.9227186150383204,
         "command": [
           "bash",
           "scripts/validate.sh",
@@ -365,11 +375,11 @@
         "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
         "evidence": "development diagnostic only"
       },
-      "max_rss_kib": 3749744
+      "max_rss_kib": 3753464
     }
   },
   "remaining": [
-    "Share weighted original blocks across repeated reads, then complete the first-round accumulation including every fresh CCS and norm contribution, with proved range coverage and zero omissions.",
+    "Assemble complete fresh CCS and norm contributions with proved range coverage and zero omissions; the measured pair loop is not a full-domain execution plan.",
     "Compare the complete first round, next challenge and transcript state with Rust; reject a changed full-round coefficient.",
     "Replay all 28 PiCCS rounds and final evaluations, then HyperNova and complete proof encoding.",
     "Release upload and fresh-download reproduction remain external."
@@ -563,20 +573,20 @@
     }
   ],
   "registration_tests": {
-    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-aggregation-935b262a/nightstream-piccs-aggregate-registrations-1.log",
-    "sha256": "27230af95156d84834d7cef01a3d9fcf8001e6927aa4553bfac45924f4d89c92",
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-registrations-1.log",
+    "sha256": "b86290788b2bd8aa07fa333ee9935324433c2331f7619c07e98ee088993a226a",
     "bytes": 116
   },
   "source_files_sha256": {
-    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundPair.lean": "10df754c543af1797a5d4d449b896db40e41f4c65444ccdc532e4ca67ceeb1ac",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundPair.lean": "65dc22fb0bfd22a921ca075f3af54353fa1e740170f3f19d2c652c4e1269474e",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRound.lean": "6ffe90f6c2c4ea3b238cfb2ae3512a5ede07ba8101c76964f8fb80b7eabbf984",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSSourceImagesPreservation.lean": "fb6e1e42ee42c7fba6338b05c1afbedae59be3384d2b84058f02a7454b67d977",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSSourceImages.lean": "399408affd8737cc24831c81b78f3efce95fa34e84b6d0f8180383edfe808d05",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSGammaPowers.lean": "0df4dbdccd3fc65bfe27adc22ad5fea2ce53f8ce7cbb07e10088a3a1992d7587",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPublicReplay.lean": "beca445f705358581bd65646a7533c004e975bde52d7e034c4e1378bc65e7f87",
-    "formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSFirstRoundMain.lean": "ec222668f4d273f0cbaad5853ab10f55d8f8e7e744184736d9a314bb725c2af1",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSFirstRoundMain.lean": "7f006a345da8e7618b4d5e86ac1e4df50cc15a8286b74041c88dd78921eea833",
     "formal/nightstream-fprime/NightstreamFPrime/Export/SignedUnitSourceInput.lean": "33fbda5b532ecbbc44842e027205c5c4876bc721ef82773463eee63a49a1e940",
-    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "b4a085c1dcc9a172a832f4d33862a72009456d431abc69e9af746d7d02bbb790",
+    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "fadf11e4a099739db99fd90e76ddd8e728d11cc80ae8c7165ab0f354d4851e44",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImages.lean": "eb80971f5038b93a4c77ff36be6dee5959b97ceebe5b2a1532255374edde9f05",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean": "63c129f0d207aeaf506ad04599120e2b52fad5f278753609a21f7bf200cb85af",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedRead.lean": "edd6522e9bb2346aa1e639680eeba884937be873e86994d362c4a1c4384c0c63",
@@ -584,8 +594,12 @@
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSLinearRows.lean": "70ccaaa58ed4f30bf420c17ca4c225b635bbfe4573ed2bf31827e3ab45f5df9a",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSSparseEvaluation.lean": "4e08465bcadcb641b2a3935dada7071f43e567d422d28858dec23b1fceefed50",
     "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSWeightedBasis.lean": "e3d8bf2a885c5214aab76b887fafdeda0c0dcbc7abe55d71c3b72683abc27fd3",
-    "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean": "d688cc079c3f511729b699cfad23818367e93d761a6be9256d9c0e69ec081082",
-    "formal/nightstream-fprime/tests/EvidenceTargets.lean": "06009412473400c9ddaf28bcf30da6ef3bfd300ca4267510f263944b47615e92"
+    "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean": "72ec10ff99de0afbc1d6f1bc4ab96fe27291e6a125c55ec452b41b416258c42b",
+    "formal/nightstream-fprime/tests/EvidenceTargets.lean": "d4d957dac37cf16b62187238d772efd2a56444c09bd1731af17fd5643ee79695",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCachedSelector.lean": "d41cf8c7602f380740f16c55e92e2e15f7a2e73e0f3b729d0039aca8b3e81feb",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedReadCache.lean": "dff082300e0fe520727f7f251d578cb508070e556d1bf253b8569047344f1d8f",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormCache.lean": "8e288fc22447deef8732397b3ab0d415edd168bc06ecbac29a574f25c18ae246",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSTensorWeights.lean": "35b2d627b193488d62d0ecce03978ccffe975bee115d364379cd59e0a0df9366"
   },
   "aggregation": {
     "measurements": {
@@ -862,5 +876,230 @@
       "bytes": 342
     },
     "decision": "Whole-block value deduplication is not the next step: 2,380,242 of 2,844,097 recorded blocks are distinct. Repeated reads of the same physical block can share its computed weighted value."
+  },
+  "cache_checkpoint": {
+    "measurements": {
+      "block_cache_only": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-block-cached-invocation-measure-2.log",
+        "sha256": "0b3ae7a976a5ccf862ad1f7d9c79df62c8bb439ba07f3ed4230f4c2e0cfdff53",
+        "bytes": 5815,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 22.351245410973206,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+            "/tmp/nightstream-piccs-pairs-0-47-block-cached-v2.json",
+            "0",
+            "47"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        },
+        "max_rss_kib": 2452456,
+        "pairs": 47,
+        "image_seconds": 0.816079873,
+        "kernel_seconds": 0.361341412,
+        "first_pair": {
+          "event": "pair_complete",
+          "image_ns": 802928490,
+          "kernel_ns": 300714480,
+          "pair": 0
+        },
+        "source_and_preparation": [
+          {
+            "elapsed_ns": 90525231,
+            "event": "public_coins_ready"
+          },
+          {
+            "blocks": 4685394,
+            "elapsed_ns": 11635612758,
+            "event": "original_sources_ready",
+            "records": 2844097
+          },
+          {
+            "elapsed_ns": 8192555567,
+            "event": "matrix_basis_ready"
+          }
+        ]
+      },
+      "final_invocation": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-invocation-final-1.log",
+        "sha256": "822a19ecb5f13ea7519dba5ddeca03b2c431db34fa6592d069f7789dcce56844",
+        "bytes": 5806,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 25.857572013046592,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+            "/tmp/nightstream-piccs-pairs-0-47-caches-final.json",
+            "0",
+            "47"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        },
+        "max_rss_kib": 2440516,
+        "pairs": 47,
+        "image_seconds": 0.857315706,
+        "kernel_seconds": 0.361163076,
+        "first_pair": {
+          "event": "pair_complete",
+          "image_ns": 835199598,
+          "kernel_ns": 305917865,
+          "pair": 0
+        },
+        "source_and_preparation": [
+          {
+            "elapsed_ns": 102362681,
+            "event": "public_coins_ready"
+          },
+          {
+            "blocks": 4685394,
+            "elapsed_ns": 14098408618,
+            "event": "original_sources_ready",
+            "records": 2844097
+          },
+          {
+            "elapsed_ns": 8714209204,
+            "event": "matrix_basis_ready"
+          }
+        ]
+      },
+      "final_boundary": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-caches-boundary-final-1.log",
+        "sha256": "29cd6c0eef9dc0080ee8d59a72c42eb33bfb0e4ae78f908d929f41a3f5e1fbec",
+        "bytes": 2496,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 26.756799631053582,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+            "/tmp/nightstream-piccs-pairs-46-48-caches-final.json",
+            "46",
+            "48"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        },
+        "max_rss_kib": 2461144,
+        "pairs": 2,
+        "image_seconds": 2.07839397,
+        "kernel_seconds": 0.301331157,
+        "first_pair": {
+          "event": "pair_complete",
+          "image_ns": 846836100,
+          "kernel_ns": 300116105,
+          "pair": 46
+        },
+        "source_and_preparation": [
+          {
+            "elapsed_ns": 96073995,
+            "event": "public_coins_ready"
+          },
+          {
+            "blocks": 4685394,
+            "elapsed_ns": 14074105056,
+            "event": "original_sources_ready",
+            "records": 2844097
+          },
+          {
+            "elapsed_ns": 8524213121,
+            "event": "matrix_basis_ready"
+          }
+        ]
+      }
+    },
+    "comparisons": [
+      {
+        "range": [
+          0,
+          47
+        ],
+        "field_words": 20,
+        "byte_equal": true,
+        "reference": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-pairs-0-47-reference.json",
+          "sha256": "c5a09ba9299a28ecb59f8894e8d5faf7feb422df2ca3f7fc2bdd78d427d8d280",
+          "bytes": 403
+        },
+        "cached": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-pairs-0-47-caches-final.json",
+          "sha256": "c5a09ba9299a28ecb59f8894e8d5faf7feb422df2ca3f7fc2bdd78d427d8d280",
+          "bytes": 403
+        }
+      },
+      {
+        "range": [
+          46,
+          48
+        ],
+        "field_words": 20,
+        "byte_equal": true,
+        "reference": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-pairs-46-48-reference.json",
+          "sha256": "ef2cb697037628e521b9ef9cded4dc55a48e09263d5dd691364bf487a150fd99",
+          "bytes": 404
+        },
+        "cached": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-pairs-46-48-caches-final.json",
+          "sha256": "ef2cb697037628e521b9ef9cded4dc55a48e09263d5dd691364bf487a150fd99",
+          "bytes": 404
+        }
+      }
+    ],
+    "scope": "The same 47 adjacent pairs and a range crossing the invocation boundary. Every coefficient is compared; neither range is a complete PiCCS round.",
+    "premises": "The combined norm/selector equality accepts arbitrary K endpoints and carried totals. Prepared block reads are equal at every key. The stored-row connection retains the existing successful loader premise.",
+    "measurement_limit": "Cached matrix-read time is lower than the previous invocation run. Input/preparation time varies, and these runs do not establish an end-to-end speed gain from the norm/selector caches.",
+    "negative_check": {
+      "range": [
+        0,
+        47
+      ],
+      "coefficient": 0,
+      "component": 0,
+      "change": "add one modulo Goldilocks",
+      "cmp_exit": 1,
+      "timeout_seconds": 300,
+      "target": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/nightstream-piccs-pairs-0-47-cache-mutated.json",
+        "sha256": "4a07feaf667715ef1336dcb9e58368b693e6ccca99beb93551b7ae27bf3dfe36",
+        "bytes": 403
+      }
+    },
+    "excluded_run": "nightstream-piccs-block-cached-invocation-measure-1.log ran a stale binary after a failed build; its timings are excluded.",
+    "retained_unintegrated_drafts": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/PiCCSNormBlock-complete-draft-retained.lean",
+        "sha256": "055abb923b44d45f38882b701b05dc520003aa6a2b9229a8fe7187f023d4783a",
+        "bytes": 10936
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-caches-a003f3b6/PiCCSPolynomialRange-checked-retained.lean",
+        "sha256": "f6ac2c59edc771a4f9f41121b2488d40a3569d8f93c50643cb6f8a3bbe25a1a0",
+        "bytes": 6811
+      }
+    ],
+    "draft_scope": "The block-range drafts are retained outside the checked tree. They do not establish complete range coverage or execution."
   }
 }

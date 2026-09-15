@@ -286,6 +286,9 @@ import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

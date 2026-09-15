@@ -30,6 +30,7 @@
 #   validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>
 #   validate.sh pi-dec-matrix-range <C-input> <new-output> <block> <first-local-row> <last-exclusive> <Lean-parent-ranges>...
 #   validate.sh pi-dec-matrix-ranges <C-input> <new-output block first last>... -- <Lean-parent-ranges>...
+#   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>...
 #   validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>
 #   validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>
@@ -82,6 +83,11 @@ lean_file() {
 phase="${1:-all}"
 case "$phase" in
   static) bash scripts/check-boundaries.sh ;;
+  lean-executable)
+    if (( $# < 2 )); then echo "usage: validate.sh lean-executable <built-Lean-executable> [arguments...]" >&2; exit 2; fi
+    shift
+    capped "$@"
+    ;;
   build)  capped lake build "${2:-NightstreamFPrime}" ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
   pi-rlc-witness-replay)

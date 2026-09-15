@@ -270,7 +270,7 @@ theorem evalAFamilyConstraints_eq_parent
   intro source
   exact evalASourceConstraints_eq_childConstraints source
 
-def combinationConstraints : List Expr :=
+def combinationConstraints (_delay : Unit := ()) : List Expr :=
   familyConstraints PiRLCStarts.commitmentLogicalStart
       CommitmentCombination.blockCount CommitmentCombination.cellCount 1
       commitmentValueSourceStart ++

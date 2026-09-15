@@ -3,8 +3,8 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingAri
 import Mathlib.Tactic.SplitIfs
 
 /-!
-Native-word execution of the existing PiDEC ring product. Inputs and outputs
-remain StoredRing values; field arithmetic is owned by NativePoseidon2RoundCore.
+Native-word execution of the existing PiDEC ring product and fixed-width
+accumulation. Field arithmetic is owned by NativePoseidon2RoundCore.
 -/
 
 set_option autoImplicit false
@@ -349,5 +349,143 @@ theorem multiply_value (key digit : StoredRing) :
       (coefficient64_canonical _ _ lane (toWords_canonical key))))[output.val] = _
   rw [Vector.getElem_ofFn, fromWord_denote]
   exact coefficient64_denote key digit output
+
+/-- A key ring converted once for reuse by the children at one row/block. -/
+structure PreparedKey where
+  private mk ::
+  private words : Vector UInt64 ringDegree
+  private canonical : ∀ lane, (words.get lane).toNat < goldilocksModulus
+
+/-- Preserve the complete key ring while preparing its native words. -/
+def prepareKey (key : StoredRing) : PreparedKey where
+  words := toWords key
+  canonical := toWords_canonical key
+
+/-- One child ring prepared once for all key rows. None records the exact
+zero decision; only nonzero children allocate canonical native words. -/
+structure PreparedDigit where
+  private mk ::
+  private words : Option (Vector UInt64 ringDegree)
+
+private theorem allZero_iff (digit : StoredRing) :
+    digit.all (fun value => value == 0) = true ↔
+      ∀ lane : Fin ringDegree, digit.get lane = 0 := by
+  simp only [Vector.all_eq_true, beq_iff_eq]
+  constructor
+  · intro zero lane
+    exact zero lane.val lane.isLt
+  · intro zero index bound
+    exact zero ⟨index, bound⟩
+
+def prepareDigit (digit : StoredRing) : PreparedDigit :=
+  if digit.all (fun value => value == 0) then ⟨none⟩
+  else ⟨some (toWords digit)⟩
+
+/-- One canonical native-word ring accumulator. Its field view is materialized
+only when the caller finishes a partial sum. -/
+structure Accumulator where
+  private mk ::
+  private words : Vector UInt64 ringDegree
+  private canonical : ∀ lane, (words.get lane).toNat < goldilocksModulus
+
+namespace Accumulator
+
+/-- Convert the completed native sum to the existing stored field boundary. -/
+def finish (value : Accumulator) : StoredRing :=
+  Vector.ofFn fun lane => fromWord (value.words.get lane) (value.canonical lane)
+
+private theorem finish_get (value : Accumulator) (lane : Fin ringDegree) :
+    value.finish.get lane = (value.words.get lane).denote := by
+  change (Vector.ofFn (fun index : Fin ringDegree =>
+    fromWord (value.words.get index) (value.canonical index)))[lane.val] = _
+  rw [Vector.getElem_ofFn, fromWord_denote]
+
+/-- Start an empty native ring sum. -/
+def zero : Accumulator where
+  words := Vector.replicate ringDegree 0
+  canonical := by
+    intro lane
+    change ((Vector.replicate ringDegree (0 : UInt64))[lane.val]).toNat < goldilocksModulus
+    rw [Vector.getElem_replicate]
+    decide
+
+theorem zero_value : zero.finish.get = ringFZero := by
+  funext lane
+  rw [finish_get]
+  change ((Vector.replicate ringDegree (0 : UInt64))[lane.val]).denote = (0 : F)
+  rw [Vector.getElem_replicate, zero_denote]
+
+/-- Merge native partial sums without constructing intermediate field values. -/
+def add (left right : Accumulator) : Accumulator where
+  words := Vector.ofFn fun lane => add64 (left.words.get lane) (right.words.get lane)
+  canonical := by
+    intro lane
+    change ((Vector.ofFn (fun index : Fin ringDegree =>
+      add64 (left.words.get index) (right.words.get index)))[lane.val]).toNat < goldilocksModulus
+    rw [Vector.getElem_ofFn]
+    exact add64_canonical _ _ (left.canonical lane) (right.canonical lane)
+
+theorem add_value (left right : Accumulator) :
+    (add left right).finish.get = ringFAdd left.finish.get right.finish.get := by
+  funext lane
+  change (add left right).finish.get lane = left.finish.get lane + right.finish.get lane
+  simp only [finish_get]
+  change ((Vector.ofFn (fun index : Fin ringDegree =>
+    add64 (left.words.get index) (right.words.get index)))[lane.val]).denote = _
+  rw [Vector.getElem_ofFn, add64_denote _ _ (left.canonical lane) (right.canonical lane)]
+
+@[inline] private def addWordProduct (initial : Accumulator) (key : PreparedKey)
+    (digitWords : Vector UInt64 ringDegree) : Accumulator :=
+  let keyWords := key.words
+  let folded := foldedCoefficients64 keyWords digitWords
+  { words := Vector.ofFn fun output =>
+      add64 (initial.words.get output) (coefficient64 keyWords digitWords folded output)
+    canonical := by
+      intro output
+      change ((Vector.ofFn (fun lane : Fin ringDegree =>
+        add64 (initial.words.get lane)
+          (coefficient64 keyWords digitWords folded lane)))[output.val]).toNat < goldilocksModulus
+      rw [Vector.getElem_ofFn]
+      exact add64_canonical _ _ (initial.canonical output)
+        (coefficient64_canonical keyWords digitWords output key.canonical) }
+
+/-- Add the existing complete ring product directly to a native sum. All
+field-valued key and digit inputs retain the generic multiplication path. -/
+def addProduct (initial : Accumulator) (key : PreparedKey) (digit : StoredRing) : Accumulator :=
+  addWordProduct initial key (toWords digit)
+
+/-- Reuse the child's zero decision and native words across key rows. -/
+def addPreparedProduct (initial : Accumulator) (key : PreparedKey)
+    (digit : PreparedDigit) : Accumulator :=
+  match digit.words with
+  | none => initial
+  | some words => addWordProduct initial key words
+
+theorem addPreparedProduct_eq (initial : Accumulator) (key : PreparedKey)
+    (digit : StoredRing) :
+    addPreparedProduct initial key (prepareDigit digit) =
+      if ∀ lane : Fin ringDegree, digit.get lane = 0 then initial
+      else addProduct initial key digit := by
+  unfold prepareDigit addPreparedProduct
+  simp only [allZero_iff]
+  split_ifs <;> rfl
+
+theorem addProduct_value (initial : Accumulator) (key digit : StoredRing) :
+    (addProduct initial (prepareKey key) digit).finish.get =
+      ringFAdd initial.finish.get (ringFMul key.get digit.get) := by
+  funext output
+  change (addProduct initial (prepareKey key) digit).finish.get output =
+    initial.finish.get output + ringFMul key.get digit.get output
+  simp only [finish_get]
+  change ((Vector.ofFn (fun lane : Fin ringDegree =>
+    add64 (initial.words.get lane)
+      (coefficient64 (toWords key) (toWords digit)
+        (foldedCoefficients64 (toWords key) (toWords digit)) lane)))[output.val]).denote = _
+  rw [Vector.getElem_ofFn,
+    add64_denote _ _ (initial.canonical output)
+      (coefficient64_canonical _ _ output (toWords_canonical key)),
+    coefficient64_denote]
+
+end Accumulator
 
 end NightstreamFPrime.Export.Stage1.PiDECNativeProduct

@@ -24,11 +24,18 @@ private abbrev Products := Vector
   (Vector (StoredAssignment ringDegree) productionGlobalParams.k)
   Poseidon2HashChainV1Setup.verifierRows
 
-private def zero : Products := Vector.replicate _
-  (Vector.replicate _ PiDECCommitmentFold.zero)
+private abbrev NativeProducts := Vector
+  (Vector PiDECNativeProduct.Accumulator productionGlobalParams.k)
+  Poseidon2HashChainV1Setup.verifierRows
 
-private def add (left right : Products) : Products :=
-  left.zipWith (fun a b => a.zipWith PiDECCommitmentFold.add b) right
+private def zero : NativeProducts := Vector.replicate _
+  (Vector.replicate _ PiDECNativeProduct.Accumulator.zero)
+
+private def add (left right : NativeProducts) : NativeProducts :=
+  left.zipWith (fun a b => a.zipWith PiDECNativeProduct.Accumulator.add b) right
+
+private def finishProducts (values : NativeProducts) : Products :=
+  values.map (fun row => row.map PiDECNativeProduct.Accumulator.finish)
 
 private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
   match value with
@@ -51,22 +58,27 @@ private def decodeBlock (line : String) :
       else throw "expected 54 parent coefficients"
   | _ => throw "expected parent block and coefficient array"
 
-private def computeBlock (block : Nat) (parent : StoredAssignment ringDegree) :
-    IO Products := do
+private def computeBlock (initial : NativeProducts) (block : Nat)
+    (parent : StoredAssignment ringDegree) : IO NativeProducts := do
   let some children := StoredSplit.splitChecked parent
     | throw (IO.userError s!"parent exceeds the strict B bound at block {block}")
   if live : block < Poseidon2HashChainV1Setup.messageColumns then
-    return Vector.ofFn fun row => PiDECCommitmentBlock.contributions
-      Poseidon2HashChainV1Setup.productionSetup row ⟨block, live⟩ children
+    let preparedChildren := children.map PiDECNativeProduct.prepareDigit
+    return Vector.ofFn fun row => PiDECCommitmentBlock.accumulatePreparedContributions
+      Poseidon2HashChainV1Setup.productionSetup row ⟨block, live⟩ preparedChildren (initial.get row)
   else throw (IO.userError "block is outside the selected fixed key")
 
-private def collect (initial : Products)
-    (tasks : Array (Task (Except IO.Error Products))) : IO Products := do
+private def collect (initial : Array NativeProducts)
+    (tasks : Array (Task (Except IO.Error NativeProducts))) : IO (Array NativeProducts) := do
   let mut result := initial
+  let mut index := 0
   for task in tasks do
     match ← IO.wait task with
-    | .ok value => result := add result value
+    | .ok value =>
+      if slot : index < result.size then result := result.set index value
+      else throw (IO.userError "invalid replay worker slot")
     | .error error => throw error
+    index := index + 1
   return result
 
 private def writeResult (outputPath : System.FilePath) (blocks start finish : Nat)
@@ -144,7 +156,7 @@ private def replay (parentPath outputPath : System.FilePath) (start finish : Nat
   let mut complete := false
   let mut computed := 0
   let mut pending := #[]
-  let mut accumulated := zero
+  let mut accumulated := Array.replicate workers zero
   while !complete do
     let line ← input.getLine
     if line.isEmpty then throw (IO.userError "missing parent terminator")
@@ -155,14 +167,18 @@ private def replay (parentPath outputPath : System.FilePath) (start finish : Nat
         throw (IO.userError "duplicate or out-of-range parent block")
       next := block + 1
       if start ≤ block && block < finish then
-        pending := pending.push (← IO.asTask (computeBlock block values))
+        if slot : pending.size < accumulated.size then
+          pending := pending.push (← IO.asTask
+            (computeBlock accumulated[pending.size] block values))
+        else throw (IO.userError "invalid replay worker slot")
         if pending.size ≥ workers then
           accumulated ← collect accumulated pending
           pending := #[]
         computed := computed + 1
   unless (← input.getLine).isEmpty do throw (IO.userError "extra data after parent terminator")
   accumulated ← collect accumulated pending
-  writeResult outputPath blocks start finish accumulated
+  writeResult outputPath blocks start finish
+    (finishProducts (accumulated.foldl add zero))
   let finished ← IO.monoMsNow
   IO.println s!"pidec_Lean_commitment_range=passed start={start} end={finish} computed_blocks={computed} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} workers={workers} compute_read_write_ms={finished - started}"
   return 0

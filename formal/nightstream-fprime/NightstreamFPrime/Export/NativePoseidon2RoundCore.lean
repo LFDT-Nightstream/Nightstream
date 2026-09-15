@@ -429,14 +429,14 @@ private theorem foldHigh64_denote (value : UInt64) :
         ((low64 value).denote +
           Poseidon2.ofNat radix * (high64 value).denote) := by ring
 
-@[inline] private def reduceWide64 (low high : UInt64) : UInt64 :=
+@[inline] def reduceWide64 (low high : UInt64) : UInt64 :=
   add64 (canonicalize64 low) (foldHigh64 high)
 
-private theorem reduceWide64_canonical (low high : UInt64) :
+theorem reduceWide64_canonical (low high : UInt64) :
     (reduceWide64 low high).toNat < goldilocksModulus :=
   add64_canonical _ _ (canonicalize64_canonical low) (foldHigh64_canonical high)
 
-private theorem reduceWide64_denote (low high : UInt64) :
+theorem reduceWide64_denote (low high : UInt64) :
     (reduceWide64 low high).denote = low.denote +
       (Poseidon2.ofNat radix * Poseidon2.ofNat radix) * high.denote := by
   rw [reduceWide64, add64_denote _ _

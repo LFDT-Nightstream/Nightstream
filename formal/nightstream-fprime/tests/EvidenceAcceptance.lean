@@ -17,3 +17,4 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.PiRLCWitnessReplay by LeanGraph.Targets.piRLCWitnessReplay
 #evidence_closed LeanGraph.Targets.PiDECWitnessReplay by LeanGraph.Targets.piDECWitnessReplay
 #evidence_closed LeanGraph.Targets.PiDECCommitmentReplay by LeanGraph.Targets.piDECCommitmentReplay
+#evidence_closed LeanGraph.Targets.PiDECChildEvaluationReplay by LeanGraph.Targets.piDECChildEvaluationReplay

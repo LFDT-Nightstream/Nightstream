@@ -256,6 +256,29 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "compare-pidec-pad")
+    {
+        assert_eq!(
+            arguments.len(),
+            3,
+            "usage: generate_pi_ccs_fixture compare-pidec-pad <native-children.json> <complete-Lean-Pad.json>"
+        );
+        owned_nifs::pidec_evaluation_replay::compare_pad(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        return;
+    }
+    if arguments
+        .first()
+        .is_some_and(|mode| mode == "compare-pidec-evaluations")
+    {
+        assert_eq!(
+            arguments.len(), 3,
+            "usage: generate_pi_ccs_fixture compare-pidec-evaluations <native-children.json> <complete-Lean-evaluations.json>"
+        );
+        owned_nifs::pidec_evaluation_replay::compare(Path::new(&arguments[1]), Path::new(&arguments[2]));
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "compare-pidec-commitments")
     {
         assert_eq!(

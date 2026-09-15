@@ -49,62 +49,39 @@ Lean's two private ranges took 8.38 and 142.15 seconds. The child message
 calculation uses these same digits. No PiCCS or HyperNova replay is claimed
 by this private digit result.
 
-The commitment kernels now use proved native-word ChaCha and the existing
-proved native-word field operations. Both measured block products match the
-earlier specification-backed outputs. First-use key time includes package
-dimension initialization; it must not be charged to every block.
-`PIDEC_COMMITMENT_PILOT.json` records the measurements. The complete first
-range, `0..74272`, finished in 155.69 seconds at 1,511,560 KiB peak memory.
-Use that measured extent for the remaining ranges. The input partitioner
-copies the original Lean parent lines and records their hashes; missing
-blocks remain exact zero.
+The complete local PiDEC message replay now passes. Lean computes all
+19,008 commitment field words from the same private digits. It also computes
+all 1,728 Pad words and all 24,192 matrix-evaluation words. The 53 disjoint
+matrix ranges cover every selected row in [0,6,377,559); Lean checks the
+complete range coverage and adds the results. All 25,920 evaluation words
+and all 56 common-point words match Rust. The final changed matrix
+coefficient rejects at child 15, matrix 13, lane 53, imaginary component.
+The earlier complete child comparison also checks all 4,320 verifier-derived
+public words on this same trace. `PIDEC_COMPLETE_REPLAY.json` records the
+sources, proof links, commands, coverage and scope. The range reports retain
+the earlier measurements and compiler fixes.
 
-`LeanGraph.Targets.PiDECCommitmentReplay` names the final commitment target.
-Its only premise is the successful checked split of the supplied parent.
-The proved key, product and finite sum yield every child commitment in
-`honestMessages`. The new graph gates require all 64 contiguous ranges,
-all 16 by 22 by 54 commitment coefficients, and changed-target rejection.
-All 64 ranges now pass, covering every one of the 4,685,394 carrier blocks.
-Lean also computes the final sum; Rust only decodes and compares the complete
-values. All 19,008 coefficients match, and a changed coefficient at child 15,
-row 21, lane 53 rejects. Missing ranges, gaps, wrong row counts and noncanonical
-field values reject before Lean emits a result. The ranges took 5,982.10 s in
-total; the largest took 160.41 s at a maximum 1,512,080 KiB peak RSS. The final
-Lean read/sum/write took 376 ms. `PIDEC_COMMITMENT_REPLAY.json` and
-`PIDEC_COMMITMENT_RANGES.json` record the full evidence. Complete child
-evaluations are next; PiCCS and HyperNova replay remain later milestones.
+The exact targets remain `LeanGraph.Targets.PiDECCommitmentReplay` and
+`LeanGraph.Targets.PiDECChildEvaluationReplay`, with successful checked split
+as the kernel premise. The public projection link retains its explicit
+parent-public-opening premise. No claimed Rust commitment or evaluation
+constructs the Lean expected values. The point remains conditional on
+Lean-verified Rust PiCCS messages until independent PiCCS replay is complete.
 
-The next record, `pidec-evaluation-replay`, remains open. Its planned final
-target is `LeanGraph.Targets.PiDECChildEvaluationReplay`, with consumer
-`PiDECEvaluationHonestMessages.family_honestMessages`. For every successful
-stored split and every child, the computed family at `ParentValues.point`
-must equal `honestMessages.evaluations`: separate Pad and all 14 matrices,
-each with all 54 extension-field coefficients. Both field coordinates must
-be compared. Only the point and Lean-generated children enter the
-calculation; parent commitments and claimed evaluations do not.
+The small `pidec-evaluation-comparison` gate rechecks the saved complete
+values and target mutation. It does not establish source-generation
+provenance, package identity, or full proof encoding. The original parent,
+53 source-bound row runs and completed Pad supply the separate local
+calculation evidence. Protected full-generation acceptance and release
+upload/fresh-download verification remain external. Status stays
+`Compiler-closed`.
 
-The block leaf preserves duplicate and cancelling sparse entries. Complete
-selected matrix and Pad row sums now have checked sparse kernels. The kernel
-visits distinct block indices from each row; all omitted blocks are proved
-zero. The selected numeric row interface also proves the complete padded
-suffix is zero. Point-weighted accumulation equals Boolean evaluation,
-including the bounded prefix form. The public
-`ExplicitMatrix.rowRing_eq_sumRange` wrapper reuses the existing Pad proof.
-
-The final `PaperAlgebra.evaluationFamily` and `honestMessages` composition
-and complete value execution remain open. The unchecked consumer draft is
-retained in `PIDEC_EVALUATION_FAMILY_DRAFT.lean.txt`, outside the Lean library.
-`PIDEC_EVALUATION_ROWS.json` records this proof checkpoint. Register the final
-target and full value/mutation gates when the composed kernel is checked.
-The private-witness and commitment targets cannot close this record.
-
-Existing execution evidence remains actual Lean parent block 0 at selected
-Pad rows 1 and 2, all 864 child coefficients each. The first kernel call took
-86 ms; the next took 0 ms at 1 ms resolution. This separates initialization
-from repeated work; it does not bound full evaluation time.
-`PIDEC_EVALUATION_PILOT.json` preserves that measurement. Native evaluation
-targets for the same parent are retained and source-bound in
-`PIDEC_EVALUATION_TARGETS.json`; no producer rerun is required.
+The next computation milestone is PiCCS round one from the original
+17 witnesses and public inputs. The current honest strategy uses
+`Classical.choose`; a computable round polynomial must be connected to the
+existing completion-sum specification before timing the actual first round.
+Rust round messages and final evaluations must enter only comparisons.
+HyperNova replay and complete proof encoding remain subsequent work.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

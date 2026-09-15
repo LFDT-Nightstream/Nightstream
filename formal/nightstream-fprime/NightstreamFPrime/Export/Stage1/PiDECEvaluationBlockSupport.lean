@@ -158,4 +158,93 @@ theorem kernel_eq_fullBlockSum {columns blocks : Nat} (form : SparseForm columns
           (children block) child lane
     _ = _ := (sumRange_eq_finset blocks term).symm
 
+
+open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+
+private theorem entries_fold_eq_sum {Index : Type} (entries : List Index)
+    (term : Index → F) (initial : F) :
+    entries.foldl (fun total entry => total + term entry) initial =
+      initial + (entries.map term).sum := by
+  induction entries generalizing initial with
+  | nil => simp only [List.foldl_nil, List.map_nil, List.sum_nil, add_zero]
+  | cons entry entries inductionHypothesis =>
+      rw [List.foldl_cons, inductionHypothesis, List.map_cons, List.sum_cons]
+      exact add_assoc _ _ _
+
+private theorem evalSparse_eq_entries_sum {columns : Nat}
+    (form : SparseForm columns) (read : Fin columns → F) :
+    form.evalSparse read =
+      (form.entries.map fun entry => entry.coefficient * read entry.column).sum := by
+  simpa only [SparseForm.evalSparse, zero_add] using
+    entries_fold_eq_sum form.entries
+      (fun entry => entry.coefficient * read entry.column) 0
+
+private theorem sum_entries_swap {columns : Nat} (indices : Finset Nat)
+    (entries : List (SparseEntry columns)) (term : Nat → SparseEntry columns → F) :
+    indices.sum (fun block => (entries.map (term block)).sum) =
+      (entries.map fun entry => indices.sum fun block => term block entry).sum := by
+  induction entries with
+  | nil => simp only [List.map_nil, List.sum_nil, Finset.sum_const_zero]
+  | cons entry entries inductionHypothesis =>
+      simp only [List.map_cons, List.sum_cons, Finset.sum_add_distrib, inductionHypothesis]
+
+/-- The complete stored row coefficient is the original sparse form evaluated
+at its Phi81 kernel reads. Each entry selects exactly one support block;
+repeated entries and cancelling coefficients remain unchanged. No width,
+row-validity, support or expected-value premise is required. -/
+theorem kernel_eq_evalSparse {columns : Nat} (form : SparseForm columns)
+    (children : Nat → Vector StoredRing productionGlobalParams.k)
+    (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :
+    ((kernel form children).get child).get output =
+      form.evalSparse (fun column =>
+        CarrierAction.kernelImage
+          ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
+          ((children (column.val / ringDegree)).get child).get output) := by
+  let read : Fin columns → F := fun column =>
+    CarrierAction.kernelImage
+      ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
+      ((children (column.val / ringDegree)).get child).get output
+  let term : Nat → SparseEntry columns → F := fun block entry =>
+    entry.coefficient * (if entry.column.val / ringDegree = block then
+      CarrierAction.kernelImage
+        ⟨entry.column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
+        ((children block).get child).get output
+      else 0)
+  calc
+    _ = ((blockIndices form).map fun block =>
+        ((PiDECEvaluationBlock.rowBlock form block (children block)).get child).get output).sum :=
+      kernel_value form children child output
+    _ = (blockIndices form).toFinset.sum (fun block =>
+        ((PiDECEvaluationBlock.rowBlock form block (children block)).get child).get output) :=
+      (List.sum_toFinset _ (List.nodup_dedup _)).symm
+    _ = (blockIndices form).toFinset.sum (fun block =>
+        (form.entries.map (term block)).sum) := by
+      apply Finset.sum_congr rfl
+      intro block _
+      exact (PiDECEvaluationBlock.rowBlock_value form block
+        (children block) child output).trans (evalSparse_eq_entries_sum form _)
+    _ = (form.entries.map fun entry =>
+        (blockIndices form).toFinset.sum fun block => term block entry).sum :=
+      sum_entries_swap (blockIndices form).toFinset form.entries term
+    _ = (form.entries.map fun entry => entry.coefficient * read entry.column).sum := by
+      apply congrArg List.sum
+      apply List.map_congr_left
+      intro entry member
+      have selected : entry.column.val / ringDegree ∈ (blockIndices form).toFinset := by
+        apply List.mem_toFinset.mpr
+        apply List.mem_dedup.mpr
+        exact List.mem_map.mpr ⟨entry, member, rfl⟩
+      have others : ∀ block ∈ (blockIndices form).toFinset,
+          block ≠ entry.column.val / ringDegree → term block entry = 0 := by
+        intro block _ different
+        dsimp only [term]
+        rw [if_neg (Ne.symm different), Fin.mul_zero]
+      calc
+        _ = term (entry.column.val / ringDegree) entry :=
+          Finset.sum_eq_single_of_mem (entry.column.val / ringDegree) selected others
+        _ = entry.coefficient * read entry.column := by
+          dsimp only [term, read]
+          rw [if_pos rfl]
+    _ = _ := (evalSparse_eq_entries_sum form read).symm
+
 end NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport

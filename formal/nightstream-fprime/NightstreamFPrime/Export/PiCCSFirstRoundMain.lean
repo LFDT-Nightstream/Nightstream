@@ -2,13 +2,14 @@ import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
+import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 /-!
 Compute a first-round pair range from original witnesses and public claims.
 Rust round messages and output evaluations are not inputs. A partial range
 is a measurement/accumulation result, not a complete first round. The runner
-uses prepared basis reads and the existing numeric matrix interpreter.
+aggregates linear carried reads before the existing numeric matrix interpreter.
 -/
 
 set_option autoImplicit false
@@ -53,12 +54,57 @@ private def sources (masks : Array (Array (Nat × Nat))) : Sources :=
 
 private def images (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
-    (tables : FixedArray (FixedArray (ProductionRelation.SparseForm ringDegree) ringDegree) ringDegree)
+    (padBasis matrixBasis : FixedArray (Vector K ringDegree) ringDegree)
+    (blocks : Nat → Vector K ringDegree) (powers : Nat → K)
     (assignments : Sources) (vertex : BooleanVertex cubeVariables) :
-    IO (ProtocolPolynomial.OutputMessage K productionShape) := do
-  let some result := PiCCSSourceImages.images? program sourceRow tables layout assignments vertex
+    IO (ProtocolPolynomial.OutputMessage K productionShape × K × K) := do
+  let some result := PiCCSAggregatedImages.endpoint? program sourceRow layout assignments
+      padBasis matrixBasis blocks powers vertex
     | throw (IO.userError "matrix row failed to load")
   return result
+
+private structure CachedInvocation where
+  firstRow : Nat
+  fresh : Vector Spec.ProductionRelation.RowSemantics.PortValues 94
+  carried : Vector (Vector K Spec.ProductionRelation.matrixCount) 94
+
+private def invocationCache? (program : MatrixProgram.Program)
+    (assignments : Sources) (matrixBasis : FixedArray (Vector K ringDegree) ringDegree)
+    (blocks : Nat → Vector K ringDegree) (index : Nat) : Option CachedInvocation := Id.run do
+  let mut start := 0
+  for block in program.blocks do
+    if index < start + block.rowCount then
+      match block with
+      | .poseidon poseidon =>
+          let some (interface, row) := PiDECPoseidonNumericBlock.loadRow? poseidon
+              PiCCSSourceImages.logicalWidth (index - start) | return none
+          return some {
+            firstRow := index - row.val
+            fresh := PiDECPoseidonNumericRows.stored
+              (PiCCSSourceImages.plainRead (assignments (freshSourceIndex ⟨0, by decide⟩))) interface
+            carried := PiCCSLinearRows.invocation (PiCCSCarriedRead.read matrixBasis blocks) interface }
+      | _ => return none
+    start := start + block.rowCount
+  return none
+
+private def cachedImages (program : MatrixProgram.Program)
+    (sourceRow : Nat → Option R1CS.Row)
+    (padBasis matrixBasis : FixedArray (Vector K ringDegree) ringDegree)
+    (blocks : Nat → Vector K ringDegree) (powers : Nat → K)
+    (assignments : Sources) (cached : Option CachedInvocation)
+    (vertex : BooleanVertex cubeVariables) :
+    IO (Option CachedInvocation × (ProtocolPolynomial.OutputMessage K productionShape × K × K)) := do
+  let index := NumericBooleanDomain.index vertex
+  let reusable := cached.filter fun value =>
+    value.firstRow ≤ index && index < value.firstRow + 94
+  let ready := reusable.orElse fun _ => invocationCache? program assignments matrixBasis blocks index
+  if let some value := ready then
+    if within : value.firstRow ≤ index ∧ index < value.firstRow + 94 then
+      let row : Fin 94 := ⟨index - value.firstRow, by omega⟩
+      let fresh := Vector.ofFn fun port => ((value.fresh.get row).get port)
+      return (ready, PiCCSAggregatedImages.fromRows layout assignments padBasis blocks powers
+        vertex fresh (value.carried.get row))
+  return (none, ← images program sourceRow padBasis matrixBasis blocks powers assignments vertex)
 
 private def replay (publicPath sourcePath outputPath : System.FilePath)
     (first finish : Nat) : IO UInt32 := do
@@ -81,6 +127,8 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
   let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
     (PiCCSFirstRoundPair.powerCount productionShape)
   let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let basis ← IO.wait (Task.spawn fun _ => PiCCSAggregatedImages.prepare tables power)
+  let blocks := PiCCSAggregatedImages.combinedBlock power assignments
   let program ← IO.wait (Task.spawn fun _ =>
     PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
   let cache ← IO.wait (Task.spawn fun _ =>
@@ -88,22 +136,28 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
   report [("event", .str "matrix_basis_ready"),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - preparationStarted))]
   let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
+  let mut cached : Option CachedInvocation := none
   for index in [first:finish] do
     if within : index < 2 ^ 27 then
       let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
       let imageStarted ← IO.monoNanosNow
-      let low ← images program (fun row => cache[row]?) tables assignments
+      let (next, low) ← cachedImages program (fun row => cache[row]?) basis.1 basis.2 blocks power
+        assignments cached
         (PiCCSFirstRound.endpointVertex (by decide) false suffix)
-      let high ← images program (fun row => cache[row]?) tables assignments
+      cached := next
+      let (next, high) ← cachedImages program (fun row => cache[row]?) basis.1 basis.2 blocks power
+        assignments cached
         (PiCCSFirstRound.endpointVertex (by decide) true suffix)
+      cached := next
       let imageNs := (← IO.monoNanosNow) - imageStarted
       let kernelStarted ← IO.monoNanosNow
       let constructed ← IO.wait (Task.spawn fun _ =>
-        PiCCSFirstRoundPair.pairPolynomialWithPowers extensionOps
+        PiCCSFirstRoundPair.pairPolynomialWithTotals extensionOps
           (PiCCSPublicReplay.verifierInput statementInput) power
           (PiCCSFirstRound.equalitySelector extensionOps suffix coins.alpha)
           (PiCCSFirstRound.equalitySelector extensionOps suffix
-            (PiCCSPublicReplay.verifierInput statementInput).priorPoint) low high)
+            (PiCCSPublicReplay.verifierInput statementInput).priorPoint) low.1 high.1
+          low.2.1 high.2.1 low.2.2 high.2.2)
       let term : FixedPolynomial K 9 :=
         PiCCSPublicReplay.degree_eq statementInput ▸ constructed
       total := FixedPolynomial.add extensionOps.toOps total term

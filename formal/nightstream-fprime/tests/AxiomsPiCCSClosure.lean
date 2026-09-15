@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
@@ -369,3 +370,25 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomialWithPowers_prepared
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSourceImages.images_sourceProtocolData
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation.evaluateK_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation.weighted_readsK
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation.weighted_reads
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.prepare_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.evaluateK_eq_coefficients
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.dotK_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.scale_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.combine_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.read_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSLinearRows.row?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSLinearRows.invocation_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSLinearRows.invocation_loaded_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSGammaAggregation.padTotal_power
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSGammaAggregation.matrixTotal_power
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomialWithTotals_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair.pairPolynomialWithTotals_congr
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.row?_nested
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.carriedRead_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.row?_prepared
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.endpoint_images
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages.endpoint_sourceProtocolData

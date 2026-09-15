@@ -79,21 +79,29 @@ upload/fresh-download verification remain external. Status stays
 The active computation milestone is PiCCS round one from the original
 17 witnesses and public inputs. The exact graph target is
 `LeanGraph.Targets.PiCCSFirstRoundReplayKernel`. It combines the complete
-completion-sum formula, the actual original-source image constructor, and
-exact equality of prepared gamma coefficients. `piccs-first-round-kernel`
+completion-sum formula, original and aggregated source constructors,
+prepared coefficient equality, and stored invocation rows. `piccs-first-round-kernel`
 checks its audit, literal target and dependency graph. The producer input
 contains no Rust rounds or newly claimed evaluations.
 
 The first adjacent pair is measured. Reference polynomial construction took
 60.04 seconds; shared gamma powers reduced it to 0.0247 seconds. All ten K
 coefficients (20 field words) remain byte equal. Original-source images take
-about 3.74 seconds per pair. The retained source decoder also preserves the
+about 3.74 seconds per pair on that reference path. The retained source decoder also preserves the
 complete prior PiRLC prefix. Six input rejection cases pass.
 `PICCS_FIRST_ROUND_REPLAY.json` records the exact scope and source hashes.
 
+Source/output weights now move before matrix evaluation. Reusing one complete
+94-row invocation reduced the 47-pair run from 199.1 to 23.5 seconds, including
+input loading. All 20 field words match the reference. Starting inside the
+invocation and crossing its boundary also matches. A changed target coefficient
+is rejected. The endpoint proof includes all original source lanes and both
+canonical carried sums; stored-row equality retains the loader-success premise.
+
 The full first round is still open. A full-domain repetition of the measured
-pair is not an accepted execution plan. The next step is a proved accumulation
-that removes repeated linear image work, followed by complete coefficient,
+pair is not an accepted execution plan. The next step is to share weighted
+original blocks across their repeated reads, then assemble the complete fresh
+CCS and norm contributions. This needs complete coefficient,
 challenge/state and mutation comparisons with Rust. Then replay the remaining
 PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference

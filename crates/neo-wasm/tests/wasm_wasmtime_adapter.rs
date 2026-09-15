@@ -1312,10 +1312,10 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
             continue;
         };
         let mut reader = body.get_operators_reader().expect("operators");
+        let mut pc_before = 0;
         while !reader.eof() {
-            let pc_before = reader.original_position() as u64;
             let operator = reader.read().expect("operator");
-            let pc_after = reader.original_position() as u64;
+            let pc_after = pc_before + 1;
             match operator {
                 wasmparser::Operator::If { .. } => {
                     if_pc = Some(pc_before);
@@ -1332,6 +1332,7 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
                 }
                 _ => {}
             }
+            pc_before = pc_after;
         }
     }
 

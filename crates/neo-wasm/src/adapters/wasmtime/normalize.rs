@@ -92,9 +92,9 @@ struct NormalizedStep {
     memory_pages_after: Option<u32>,
     /// Declared max page count (carried constant), capped at the wasm32 limit.
     max_memory_pages: Option<u32>,
-    /// For `call` instructions: binary offset of the instruction after the call (= return address).
+    /// For `call` instructions: dense PC of the instruction after the call.
     call_return_pc: Option<u64>,
-    /// Byte offset immediately after this instruction's encoding.
+    /// Dense PC immediately after this instruction.
     pc_after_instruction: Option<u64>,
     /// Total number of locals (params + declared) in this frame at this step.
     num_locals: u32,
@@ -278,7 +278,7 @@ pub(crate) fn capture_frame<T>(
     store: &mut StoreContextMut<'_, T>,
     tables: &LoweringTables,
 ) -> Result<WasmtimeTraceStep, WasmBuildError> {
-    let (function, function_index, pc) = match frame
+    let (function, function_index, byte_offset) = match frame
         .wasm_function_index_and_pc(&mut *store)
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime frame function/pc: {err}")))?
     {
@@ -289,9 +289,13 @@ pub(crate) fn capture_frame<T>(
         }
         None => ("<host-or-unknown>".to_string(), None, None),
     };
-    let decoded_opcode = function_index
-        .zip(pc)
-        .and_then(|key| tables.opcode_map.get(&key).cloned());
+    let decoded_opcode = match function_index.zip(byte_offset) {
+        Some(key) => Some(tables.opcode_map.get(&key).cloned().ok_or_else(|| {
+            WasmBuildError::Trace(format!("missing decoded instruction for function/byte offset {key:?}"))
+        })?),
+        None => None,
+    };
+    let pc = decoded_opcode.as_ref().map(|decoded| decoded.pc);
     let current_function_ref = function_index.and_then(|index| {
         tables
             .imported_function_count

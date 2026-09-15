@@ -255,15 +255,7 @@ pub fn preprocess_with_coordinate_limit(
     max_coordinates: usize,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        entry_pc,
-        None,
-        None,
-        Some(max_coordinates),
-    )
+    preprocess_inner(params, profile, artifacts, entry_pc, None, None, Some(max_coordinates))
 }
 
 #[doc(hidden)]
@@ -275,15 +267,7 @@ pub fn preprocess_seeded(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
+    preprocess_inner(params, profile, artifacts, entry_pc, None, Some(seed), None)
 }
 
 #[doc(hidden)]
@@ -318,15 +302,7 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     reject_host_imports(artifacts)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
+    preprocess_inner(params, profile, artifacts, entry_pc, None, Some(seed), None)
 }
 
 /// Host-event preprocessing with an explicit initial commitment state.
@@ -343,6 +319,34 @@ pub fn preprocess_seeded_host_events_test_only(
     initial_comm_chain: CommChainState,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_host_event_program(artifacts, profile.limits)?;
+    preprocess_seeded_host_events_reduced_memory_test_only(
+        params,
+        profile,
+        artifacts,
+        entry_pc,
+        bindings,
+        export_fref,
+        seed,
+        initial_comm_chain,
+    )
+}
+
+/// Reduced-memory fixture with import/export bindings. This does not claim
+/// full WASM page capacity. Imported memories and globals remain rejected;
+/// all accesses still use the same constrained Nebula memory relation.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn preprocess_seeded_host_events_reduced_memory_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    bindings: &HostEventBindings,
+    export_fref: u32,
+    seed: u64,
+    initial_comm_chain: CommChainState,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    reject_imported_state(artifacts)?;
     preprocess_inner(
         params,
         profile,
@@ -364,15 +368,7 @@ pub fn preprocess_seeded_unbounded_profile(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
+    preprocess_inner(params, profile, artifacts, entry_pc, None, Some(seed), None)
 }
 
 fn preprocess_inner(

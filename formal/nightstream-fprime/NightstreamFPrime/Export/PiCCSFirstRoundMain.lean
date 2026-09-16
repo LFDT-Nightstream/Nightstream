@@ -797,68 +797,72 @@ private def saveCarriedPrefix
   let sourceRows : Std.HashMap Nat R1CS.Row ← if pad then pure {} else IO.wait (Task.spawn fun _ =>
     PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  let parts := min workers (finish - first)
+  -- Reuse the measured Pad block and matrix row extents of the original scans.
+  let rangeSize := max 1 (if pad then weights.1.size else weights.1.size / workers)
+  let extent := finish - first
+  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
   let width := if pad then 27 else 1
   let kind := if pad then 0 else 1
   IO.FS.createDirAll outputDirectory
   report [("event", .str "carried_prefix_sources_ready"), ("pad", Lean.toJson pad),
     ("records", Lean.toJson records), ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   let computeStarted ← IO.monoNanosNow
-  let mut tasks : Array (Task (Except IO.Error (K × K × Nat))) := #[]
-  for part in [:parts] do
-    let start := first + (finish - first) * part / parts
-    let stop := first + (finish - first) * (part + 1) / parts
-    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
-      let partStarted ← IO.monoNanosNow
-      let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
-      output.putStrLn ((Value.array [.atom 1, .atom 1, .atom kind, .atom width,
-        .atom bound, .atom start, .atom stop, extensionValue challenge]).render)
-      let mut cached := none
-      let mut low := K.zero
-      let mut high := K.zero
-      for index in [start:stop] do
-        let values ← if pad then pure (PiCCSPadPrefix.foldedBlock basis (blocks index) challenge)
-          else do
-            let mut pair := #[]
-            for row in [2 * index:2 * index + 2] do
-              if row < program.rowCount then
-                let (next, values) ← carriedRows program (fun current => sourceRows[current]?)
-                  basis blocks cached row
-                cached := next
-                pair := pair.push (FiniteSumAlgebra.sumMap extensionOps
-                  (canonicalFinIndices Spec.ProductionRelation.matrixCount) fun slot =>
-                    extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot))
-              else pair := pair.push K.zero
-            pure (PrefixFold.foldOne extensionOps pair challenge)
-        unless values.size == width do throw (IO.userError "carried prefix width differs from selected family")
-        output.putStrLn ((Value.array [.atom index, .array (values.toList.map extensionValue)]).render)
-        for lane in [:values.size] do
-          let position := width * index + lane
-          let contribution := extensionOps.mul (weight (position / 2)) (values.getD lane K.zero)
-          if position % 2 == 0 then low := extensionOps.add low contribution
-          else high := extensionOps.add high contribution
-      output.putStrLn "[]"
-      return (low, high, (← IO.monoNanosNow) - partStarted))
   let mut low := K.zero
   let mut high := K.zero
-  let mut part := 0
-  for task in tasks do
-    let (lo, hi, elapsed) ← match ← IO.wait task with
-      | .ok value => pure value
-      | .error error => throw error
-    low := extensionOps.add low lo
-    high := extensionOps.add high hi
-    report [("event", .str "carried_prefix_range_written"),
-      ("first", Lean.toJson (first + (finish - first) * part / parts)),
-      ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
-      ("elapsed_ns", Lean.toJson elapsed)]
-    part := part + 1
+  for batch in [:(parts + workers - 1) / workers] do
+    let mut tasks : Array (Task (Except IO.Error (K × K × Nat))) := #[]
+    for part in [batch * workers:min parts ((batch + 1) * workers)] do
+      let start := first + (finish - first) * part / parts
+      let stop := first + (finish - first) * (part + 1) / parts
+      tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+        let partStarted ← IO.monoNanosNow
+        let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
+        output.putStrLn ((Value.array [.atom 1, .atom 1, .atom kind, .atom width,
+          .atom bound, .atom start, .atom stop, extensionValue challenge]).render)
+        let mut cached := none
+        let mut low := K.zero
+        let mut high := K.zero
+        for index in [start:stop] do
+          let values ← if pad then pure (PiCCSPadPrefix.foldedBlock basis (blocks index) challenge)
+            else do
+              let mut pair := #[]
+              for row in [2 * index:2 * index + 2] do
+                if row < program.rowCount then
+                  let (next, values) ← carriedRows program (fun current => sourceRows[current]?)
+                    basis blocks cached row
+                  cached := next
+                  pair := pair.push (FiniteSumAlgebra.sumMap extensionOps
+                    (canonicalFinIndices Spec.ProductionRelation.matrixCount) fun slot =>
+                      extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot))
+                else pair := pair.push K.zero
+              pure (PrefixFold.foldOne extensionOps pair challenge)
+          unless values.size == width do throw (IO.userError "carried prefix width differs from selected family")
+          output.putStrLn ((Value.array [.atom index, .array (values.toList.map extensionValue)]).render)
+          for lane in [:values.size] do
+            let position := width * index + lane
+            let contribution := extensionOps.mul (weight (position / 2)) (values.getD lane K.zero)
+            if position % 2 == 0 then low := extensionOps.add low contribution
+            else high := extensionOps.add high contribution
+        output.putStrLn "[]"
+        return (low, high, (← IO.monoNanosNow) - partStarted))
+    let mut part := batch * workers
+    for task in tasks do
+      let (lo, hi, elapsed) ← match ← IO.wait task with
+        | .ok value => pure value
+        | .error error => throw error
+      low := extensionOps.add low lo
+      high := extensionOps.add high hi
+      report [("event", .str "carried_prefix_range_written"),
+        ("first", Lean.toJson (first + (finish - first) * part / parts)),
+        ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+        ("elapsed_ns", Lean.toJson elapsed)]
+      part := part + 1
   IO.FS.writeFile (outputDirectory / "moments.json") ((Value.array [.atom 1, .atom 1,
     .atom kind, .atom (width * first), .atom (width * finish), extensionValue challenge,
     extensionValue low, extensionValue high]).render ++ "\n")
   report [("event", .str "carried_prefix_complete"), ("pad", Lean.toJson pad),
     ("first", Lean.toJson first), ("end", Lean.toJson finish),
-    ("values", Lean.toJson (width * (finish - first))), ("workers", Lean.toJson parts),
+    ("values", Lean.toJson (width * (finish - first))), ("workers", Lean.toJson workers), ("ranges", Lean.toJson parts),
     ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0

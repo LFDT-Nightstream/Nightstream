@@ -10,3 +10,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 #evidence_export LeanGraph.Targets.piCCSNormPrefixKernel
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_pairedCodes
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.code_byte
+
+#evidence_export LeanGraph.Targets.piCCSPrefixNormAccumulation
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.accumulate_append

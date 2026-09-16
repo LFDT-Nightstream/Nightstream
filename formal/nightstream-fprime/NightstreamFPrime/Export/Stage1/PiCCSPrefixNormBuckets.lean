@@ -141,14 +141,73 @@ theorem finish_add {count : Nat} (values : Vector K count)
     lookup_add, extensionLaws.right_distrib, sumMap_add extensionOps extensionLaws,
     delta, sumMap_guard, sumFin_single]
 
+/-- Carry one source's buckets across an ascending numeric range.
+This updates only scalar weights; the caller chooses when to finish. -/
+def accumulate {codeCount : Nat} (buckets : Vector (Vector K codeCount) codeCount)
+    (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
+    Vector (Vector K codeCount) codeCount :=
+  Nat.fold count (fun offset _ accumulated =>
+    add accumulated (low (start + offset)) (high (start + offset))
+      (weight (start + offset))) buckets
+
+/-- Finishing after accumulation equals the original per-pair polynomial loop
+initialized with the old buckets' polynomial. No endpoint pair is omitted. -/
+theorem finish_accumulate {codeCount : Nat} (values : Vector K codeCount)
+    (buckets : Vector (Vector K codeCount) codeCount)
+    (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
+    finish values (accumulate buckets low high weight start count) =
+      Nat.fold count (fun offset _ polynomial =>
+        FixedPolynomial.add extensionOps.toOps polynomial
+          (FixedPolynomial.scale extensionOps.toOps (weight (start + offset))
+            (PiCCSFirstRoundPair.normPair extensionOps
+              (values.get (low (start + offset))) (values.get (high (start + offset))))))
+        (finish values buckets) := by
+  induction count with
+  | zero => rfl
+  | succ count ih =>
+      simpa only [accumulate, Nat.fold_succ, finish_add] using
+        congrArg (fun polynomial => FixedPolynomial.add extensionOps.toOps polynomial
+          (FixedPolynomial.scale extensionOps.toOps (weight (start + count))
+            (PiCCSFirstRoundPair.normPair extensionOps
+              (values.get (low (start + count))) (values.get (high (start + count)))))) ih
+
+/-- Carrying old buckets adds exactly the current original polynomial range.
+This is the same update used by the direct chunk reference. -/
+theorem finish_accumulate_eq_add_range {codeCount : Nat} (values : Vector K codeCount)
+    (buckets : Vector (Vector K codeCount) codeCount)
+    (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
+    finish values (accumulate buckets low high weight start count) =
+      FixedPolynomial.add extensionOps.toOps (finish values buckets)
+        (PiCCSPolynomialRange.range extensionOps start count (fun index =>
+          FixedPolynomial.scale extensionOps.toOps (weight index)
+            (PiCCSFirstRoundPair.normPair extensionOps
+              (values.get (low index)) (values.get (high index))))) := by
+  rw [finish_accumulate]
+  induction count with
+  | zero => exact (PiCCSPolynomialRange.add_zero extensionOps extensionLaws _).symm
+  | succ count ih =>
+      simp only [PiCCSPolynomialRange.range] at ih ⊢
+      rw [Nat.fold_succ, Nat.fold_succ, ih]
+      exact PiCCSPolynomialRange.add_assoc extensionOps extensionLaws _ _ _
+
+/-- Splitting at an adjacent numeric boundary preserves every bucket exactly. -/
+theorem accumulate_append {codeCount : Nat}
+    (buckets : Vector (Vector K codeCount) codeCount)
+    (low high : Nat → Fin codeCount) (weight : Nat → K)
+    (start leftCount rightCount : Nat) :
+    accumulate buckets low high weight start (leftCount + rightCount) =
+      accumulate (accumulate buckets low high weight start leftCount)
+        low high weight (start + leftCount) rightCount := by
+  unfold accumulate
+  rw [Nat.fold_add]
+  simp only [Nat.add_assoc]
+
 /-- Accumulate one source's scalar weights over the complete ascending range,
 then prepare and scale its cached norm cubics once. -/
 def range {codeCount : Nat} (values : Vector K codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
     FixedPolynomial K 3 :=
-  finish values (Nat.fold count (fun offset _ accumulated =>
-    add accumulated (low (start + offset)) (high (start + offset))
-      (weight (start + offset))) (empty codeCount))
+  finish values (accumulate (empty codeCount) low high weight start count)
 
 /-- The implemented bucket loop preserves every coefficient of the original
 per-pair range, including equal endpoints and zero-length ranges. -/
@@ -164,7 +223,7 @@ theorem range_eq_reference {codeCount : Nat} (values : Vector K codeCount)
       change finish values (empty codeCount) = FixedPolynomial.zero extensionOps.toOps 3
       exact finish_empty values
   | succ count ih =>
-      rw [range, Nat.fold_succ, finish_add]
+      rw [range, accumulate, Nat.fold_succ, finish_add]
       change FixedPolynomial.add extensionOps.toOps
         (range values low high weight start count)
         (FixedPolynomial.scale extensionOps.toOps (weight (start + count))

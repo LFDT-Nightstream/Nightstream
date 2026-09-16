@@ -153,7 +153,7 @@ the challenge, both states and all claims; a changed coefficient rejects.
 moments, complete coverage and the final composition. The registered
 `piccs-second-round-comparison` checks the saved complete result and mutation;
 it does not prove generation or close the pending selected source theorem.
-Remaining work is rounds 2–27, final individual evaluations, HyperNova and
+The retained round-one checkpoint leaves later rounds, final individual evaluations, HyperNova and
 complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference
 path. Future sharing must retain the numeric invocation evaluator.
@@ -171,7 +171,24 @@ to compare, and about 1.3 GiB peak RSS. The exact target
 `LeanGraph.Targets.PiCCSNormPrefixKernel` proves decoded-array equality with
 two existing `PrefixFold` operations; file origin and IO remain separate
 execution evidence. This supplies later-round norm inputs. It does not close
-rounds 2–27, final evaluations, encoding, or the pending selected-source proof.
+later rounds, final evaluations, encoding, or the pending selected-source proof.
+
+The complete third round (Q[2]) now matches Rust: all ten coefficients,
+alpha, gamma, the challenge, both transcript states and all claims. A changed
+last coefficient rejects. The fresh, matrix and Pad prefixes were advanced
+through the second Lean challenge; an independent indexed interpolation
+compared all 1,394,698,704 output bytes, including every cross-file pair.
+All 17 norm source streams remain separate. The norm scan validates all
+1,075,297,923 stored codes and covers 31,626,410 pairs per source, including
+the actual odd tail. Its cached/direct small range and tail agree exactly.
+`PICCS_THIRD_ROUND_REPLAY.json` records sources, coverage and measurements.
+The norm run took 181.05 seconds, fresh 33.36 seconds, matrix moments 6.32
+seconds and Pad moments 13.63 seconds on the same Linux host with agents idle.
+`LeanGraph.Targets.PiCCSPrefixNormAccumulation` proves exact chunked norm
+coefficient accumulation and adjacent range composition. The saved-result
+comparison and binary rejection gates remain separate from source provenance.
+Rounds 3–27, individual final evaluations, complete encoding, HyperNova and
+the selected-source proof remain open. Source check11 still needs approval.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

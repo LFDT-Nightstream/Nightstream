@@ -26,6 +26,25 @@ class ConformanceRegistrationTests(unittest.TestCase):
                     with self.subTest(gate=name, argv=argv):
                         self.assertLessEqual(len(argv[3:]), 1)
 
+    def test_second_piccs_round_cannot_reuse_another_round_receipt(self):
+        name = "piccs-second-round-comparison"
+        gate = self.gates[name]
+        positive, negative = gate["commands"]
+        self.assertEqual(positive["argv"][-1], "1")
+        self.assertEqual(negative["argv"][-1], "1")
+        self.assertIn("{input:piccs_saved_lean_second_round}", positive["argv"])
+        self.assertIn(name, self.policy["obligations"]["piccs-first-round-replay"]["gates"])
+        passed = '{"event": "piccs_round_comparison_passed", "round": 1, "matched_fields": []}'
+        completion(passed, positive["completion"])
+        for wrong_round in (0, 10):
+            with self.assertRaises(EvidenceError):
+                completion(passed.replace('"round": 1,', f'"round": {wrong_round},'),
+                           positive["completion"])
+        rejected = "piccs_round_mutation=rejected round=1 coefficient=9 component=0"
+        completion(rejected, negative["completion"])
+        with self.assertRaises(EvidenceError):
+            completion(rejected.replace("round=1", "round=0"), negative["completion"])
+
     def test_pidec_saved_comparison_requires_complete_values_and_mutation(self):
         name = "pidec-evaluation-comparison"
         gate = self.gates[name]

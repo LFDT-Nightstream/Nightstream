@@ -76,12 +76,87 @@ calculation evidence. Protected full-generation acceptance and release
 upload/fresh-download verification remain external. Status stays
 `Compiler-closed`.
 
-The next computation milestone is PiCCS round one from the original
-17 witnesses and public inputs. The current honest strategy uses
-`Classical.choose`; a computable round polynomial must be connected to the
-existing completion-sum specification before timing the actual first round.
-Rust round messages and final evaluations must enter only comparisons.
-HyperNova replay and complete proof encoding remain subsequent work.
+The active computation milestone is PiCCS round one from the original
+17 witnesses and public inputs. The exact graph target is
+`LeanGraph.Targets.PiCCSFirstRoundReplayKernel`. It combines the complete
+completion-sum formula, original and aggregated source constructors,
+prepared coefficient equality, stored invocation rows, and total norm/selector
+cache equality, and the complete prepared norm scan.
+`piccs-first-round-kernel` checks its audit, literal target and
+dependency graph. The producer input
+contains no Rust rounds or newly claimed evaluations.
+
+The first adjacent pair is measured. Reference polynomial construction took
+60.04 seconds; shared gamma powers reduced it to 0.0247 seconds. All ten K
+coefficients (20 field words) remain byte equal. Original-source images take
+about 3.74 seconds per pair on that reference path. The retained source decoder also preserves the
+complete prior PiRLC prefix. Six input rejection cases pass.
+`PICCS_FIRST_ROUND_REPLAY.json` records the exact scope and source hashes.
+
+Source/output weights now move before matrix evaluation. Reusing one complete
+94-row invocation reduced the 47-pair run from 199.1 to 23.5 seconds, including
+input loading. All 20 field words match the reference. Starting inside the
+invocation and crossing its boundary also matches. A changed target coefficient
+is rejected. The endpoint proof includes all original source lanes and both
+canonical carried sums; stored-row equality retains the loader-success premise.
+
+Weighted original blocks now share each requested read within an invocation.
+The cache theorem covers repeated and missing keys. Prepared norm cubics and
+suffix-selector weights also have complete coefficient equalities. Arbitrary
+extension-field values use the original norm constructor on a cache miss.
+The existing graph target includes the exact combined cached pair expression.
+
+The norm contribution is now closed for the complete recorded input. The
+prepared worker sum equals the original norm sum over all 2^27 pairs,
+including the proved zero suffix beyond the complete carrier. The four inner
+K coefficients match the actual Rust CPU norm function on all 17 original
+sources; a changed coefficient rejects. The measured scan fell from 139.93
+to 35.17 seconds, with 1,360,840 KiB peak RSS. `PICCS_NORM_REPLAY.json`
+records inputs, exact scope and the checks. It is not full-Q or transcript
+comparison.
+
+The fresh contribution is also calculated across all 3,188,780 active pairs,
+including row 6,377,558 paired with the first padded row. Exact coefficient
+proofs skip zero monomials and exponent-zero factors. The selected positive
+degree theorem closes the entire remaining Boolean suffix. The Option-preserving
+source constructor is proved equal to the original-source reference sum; its
+IO task and mutable cache loops remain implementation links. The complete run
+took 623.73 seconds and 2,459,352 KiB peak RSS. `PICCS_FRESH_REPLAY.json`
+records its exact scope and source hashes. This is not a full Rust Q comparison.
+
+The complete first-round execution now matches Rust: all ten Q coefficients,
+alpha, gamma, the challenge, both transcript states and the claims. A changed
+coefficient rejects. `PICCS_FIRST_ROUND_REPLAY.json` binds the complete fresh,
+norm and carried contributions to the original sources. The selected
+source-to-whole-polynomial theorem remains an unchecked review patch;
+its eleventh check still requires the requested owner approval.
+
+Later rounds retain the existing `PrefixFold` authority. The generic
+`PiCCSPrefixRound.roundPolynomial_evaluate` identifies the pair sum after any
+challenge prefix with the original completion-sum specification. It does not
+supply the stored endpoint arrays. `PiCCSSignedFirstFold.foldOne_prepare`
+proves the signed-input cache equal to the original fold, including odd tails.
+`PICCS_PREFIX_REPLAY.json` records the measured original-input prefix checks.
+It also records the complete second-round inner norm: all 63,252,819 groups
+and 17 sources match Rust's production fold and norm functions. A changed
+coefficient rejects. The cached kernel is proved equal to the original
+interpolation followed by the norm cubic; equal non-signed endpoints are
+retained. The full Lean scan took 376.15 seconds at 1,362,264 KiB peak RSS.
+The complete second-round fresh contribution is now computed in 49.69 seconds
+from all 3,188,780 saved first-fold rows. Degrees 5–9 match Rust exactly.
+`PICCS_FRESH_PREFIX_REPLAY.json` records the selected source, interpolation
+and polynomial laws, measured runs and changed-challenge rejection. The
+complete second round now matches Rust: all ten coefficients, alpha, gamma,
+the challenge, both states and all claims; a changed coefficient rejects.
+`PICCS_CARRIED_PREFIX_REPLAY.json` records the complete saved Pad prefix
+(126,505,638 values), all 3,188,780 matrix prefix values, their second-round
+moments, complete coverage and the final composition. The registered
+`piccs-second-round-comparison` checks the saved complete result and mutation;
+it does not prove generation or close the pending selected source theorem.
+Remaining work is rounds 2–27, final individual evaluations, HyperNova and
+complete proof encoding. Generic
+`program.row?` row caching was measured and removed: it expands a slow reference
+path. Future sharing must retain the numeric invocation evaluator.
 
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the

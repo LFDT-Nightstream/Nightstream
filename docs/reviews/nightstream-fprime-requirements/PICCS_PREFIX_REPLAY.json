@@ -1,0 +1,446 @@
+{
+  "schema": 1,
+  "source_base_commit": "643e83a833a91390efca14d7b4e00b7ae1cb5f12",
+  "status": "Complete second-round inner norm matches the production Rust kernels. The full second-round Q and later rounds remain open.",
+  "independence": {
+    "inputs": [
+      "original public fields",
+      "all 17 original signed-unit source captures",
+      "Lean-produced and byte-compared first-round polynomial"
+    ],
+    "rust_outputs_used_as_inputs": [],
+    "challenge": "Recomputed by the existing Lean transcript from the Lean polynomial; saved challenge must match."
+  },
+  "specification": "NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldOne",
+  "exact_kernel_theorem": "NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold.foldOne_prepare",
+  "selector_theorem": "NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector.selector_evaluate",
+  "source_support_measurement": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-source-support-1.json",
+    "bytes": 3089,
+    "sha256": "ce2c2b869bbe0f199130456f8a55606b27bd3e31133f7188be1c6e196ce6f194"
+  },
+  "first_range": {
+    "blocks": [
+      0,
+      8192
+    ],
+    "K_values": 3760128,
+    "reference": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-reference-0-8192.log",
+        "bytes": 4118,
+        "sha256": "1434f1467cc6df2f44c9d3ec1ddbc347ce3da727025ba46e30e56c586110765a"
+      },
+      "cap_seconds": 1500,
+      "seconds": 16.441135599045083,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fold-norm-prefix-reference",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-first-fold-reference-0-8192.jsonl",
+        "0",
+        "8192"
+      ],
+      "peak_rss_kib": 1358532,
+      "result": {
+        "compute_ns": 3031949821,
+        "elapsed_ns": 15499397707,
+        "end_block": 8192,
+        "event": "first_norm_fold_complete",
+        "first_block": 0,
+        "reference": true,
+        "sources": 17,
+        "values": 3760128
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-reference-0-8192.jsonl",
+        "bytes": 51850083,
+        "sha256": "7d04bc74791d312fce1ed81ca009bed4ea65b24bf8e9a88b743956406ab07156"
+      }
+    },
+    "cached": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-cached-0-8192.log",
+        "bytes": 4050,
+        "sha256": "2de9385b12d439e46f5ef1fe456a633eb8f444819eb1ecc9c901f7391886b9a3"
+      },
+      "cap_seconds": 1500,
+      "seconds": 17.238776061916724,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fold-norm-prefix",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-first-fold-cached-0-8192.jsonl",
+        "0",
+        "8192"
+      ],
+      "peak_rss_kib": 1357176,
+      "result": {
+        "compute_ns": 461802969,
+        "elapsed_ns": 16299631587,
+        "end_block": 8192,
+        "event": "first_norm_fold_complete",
+        "first_block": 0,
+        "reference": false,
+        "sources": 17,
+        "values": 3760128
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-cached-0-8192.jsonl",
+        "bytes": 51850083,
+        "sha256": "7d04bc74791d312fce1ed81ca009bed4ea65b24bf8e9a88b743956406ab07156"
+      }
+    },
+    "comparison": "cmp passed for every output byte; 51850083 bytes"
+  },
+  "tail": {
+    "blocks": [
+      4685393,
+      4685394
+    ],
+    "K_values": 459,
+    "reference": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-reference-tail.log",
+        "bytes": 4007,
+        "sha256": "b9413a27043b81f65dc3abf74aed5e88f24b54c783d10d2feb27d046044deed1"
+      },
+      "cap_seconds": 1500,
+      "seconds": 16.487313620047644,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fold-norm-prefix-reference",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-first-fold-reference-tail.jsonl",
+        "4685393",
+        "4685394"
+      ],
+      "peak_rss_kib": 1357132,
+      "result": {
+        "compute_ns": 303414689,
+        "elapsed_ns": 15570071183,
+        "end_block": 4685394,
+        "event": "first_norm_fold_complete",
+        "first_block": 4685393,
+        "reference": true,
+        "sources": 17,
+        "values": 459
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-reference-tail.jsonl",
+        "bytes": 4942,
+        "sha256": "3faab2a6d8808512e965d6249f19937dc15cbb2bb5acc4e970869ef38adee42c"
+      }
+    },
+    "cached": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-cached-tail.log",
+        "bytes": 3953,
+        "sha256": "50d800d93c5403bce38ec62554d18b2ac65be244847b18cc9c196ab16f6123ab"
+      },
+      "cap_seconds": 1500,
+      "seconds": 13.38603244884871,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "fold-norm-prefix",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-first-fold-cached-tail.jsonl",
+        "4685393",
+        "4685394"
+      ],
+      "peak_rss_kib": 1357896,
+      "result": {
+        "compute_ns": 316611475,
+        "elapsed_ns": 12492789461,
+        "end_block": 4685394,
+        "event": "first_norm_fold_complete",
+        "first_block": 4685393,
+        "reference": false,
+        "sources": 17,
+        "values": 459
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-fold-cached-tail.jsonl",
+        "bytes": 4942,
+        "sha256": "3faab2a6d8808512e965d6249f19937dc15cbb2bb5acc4e970869ef38adee42c"
+      }
+    },
+    "comparison": "cmp passed for every output byte, including nonzero running-source tail values"
+  },
+  "performance": "Cached interpolation reduced measured compute time from 3.032 to 0.462 seconds on the first range. Whole-run elapsed time did not improve: 16.44 versus 17.24 seconds. Loading and JSON output dominate. These numbers do not predict the full later-round run.",
+  "validation": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-prefix-final-static-1.log",
+      "bytes": 1343,
+      "sha256": "a520c335a7a5cfd99f174d7dd94f482bf3b6fe976c9d48cc11a953c827c520a0"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-prefix-final-build-1.log",
+      "bytes": 173446,
+      "sha256": "63b7ff9b59bb8b868ffdc8e703f693a1861f30228023b024353c49072d97f07f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-prefix-final-axioms-1.log",
+      "bytes": 1121563,
+      "sha256": "40b5db1f6a10b8eddcbfe32ed22bdf2336774ff1ef52ab455cee7c5b010dbc35"
+    }
+  ],
+  "open": [
+    "Complete second-round fresh and carried contributions, rounds 2 through 27, and final evaluations/encoding",
+    "Selected source-to-spec bridge pending the requested extra check",
+    "Release-asset publication and fresh-download reproduction"
+  ],
+  "second_round_norm": {
+    "status": "Complete carrier calculated in Lean and independently in Rust; all four K coefficients agree. A changed target coefficient rejects.",
+    "kernel": "NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm.range_eq_reference",
+    "padding": "PiCCSPrefixNorm.prefix_eq_full proves extension to the Boolean domain from explicit zero-after-bound and prefix-coverage premises.",
+    "input_binding": {
+      "original_inputs": "PICCS_FIRST_ROUND_REPLAY.json inputs",
+      "first_round": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-first-round-independent-1.json",
+        "bytes": 2181,
+        "sha256": "15c5e977ada8fd3510aa5a968fff2af285dffda499138b2a3b210bed52e7af4d"
+      },
+      "source_snapshot": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/SECOND_NORM_SOURCE.json",
+        "bytes": 2498,
+        "sha256": "867fb3f9d29818bbdbdc8013a3abb88b6ebefac050944d74e52a67927e3c40ae"
+      }
+    },
+    "code_review": "An independent read review checked four-scalar order, 54-lane crossings, gamma source indices, alpha.drop 2, carrier tails and target/input separation; it found no concrete defect in the stated inner-cubic scope.",
+    "scope": {
+      "sources": 17,
+      "scalar_carrier": 253011276,
+      "four_scalar_groups": 63252819,
+      "all_tail_lanes": true,
+      "coefficients": 4,
+      "Rust_production_functions": [
+        "prefix::Assignment::new",
+        "prefix::Assignment::fold",
+        "cpu_oracle::norm_coefficients"
+      ]
+    },
+    "cache_rule": "Every endpoint pair contributes, including equal non-signed folded endpoints.",
+    "remaining_factors": "This is the source-gamma-weighted inner cubic. The consumed alpha factor, current alpha affine factor and global gamma shifts remain with Q composition.",
+    "preflight": {
+      "groups": [
+        0,
+        8192
+      ],
+      "reference": {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-reference-0-8192.log",
+          "bytes": 3758,
+          "sha256": "c225b8c3c890ee79ef313800d080f179e1ff8b424b6dd0ce27dec0afb8e0c9ef"
+        },
+        "cap_seconds": 1500,
+        "seconds": 17.291399254929274,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm-after-first-reference",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-first-round-independent-1.json",
+          "/tmp/nightstream-piccs-second-norm-reference-0-8192.json",
+          "0",
+          "8192"
+        ],
+        "peak_rss_kib": 1362520,
+        "result": {
+          "compute_ns": 1263388113,
+          "elapsed_ns": 16377947375,
+          "end": 8192,
+          "event": "second_norm_complete",
+          "first": 0,
+          "reference": true,
+          "sources": 17,
+          "workers": 16
+        }
+      },
+      "cached": {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-cached-0-8192.log",
+          "bytes": 3712,
+          "sha256": "2ca248ab7862266ad77505e8454dca5acc128dbb48289f8664e6586dee828a1e"
+        },
+        "cap_seconds": 1500,
+        "seconds": 16.941654508002102,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm-after-first",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-first-round-independent-1.json",
+          "/tmp/nightstream-piccs-second-norm-cached-0-8192.json",
+          "0",
+          "8192"
+        ],
+        "peak_rss_kib": 1362580,
+        "result": {
+          "compute_ns": 967575120,
+          "elapsed_ns": 16044384263,
+          "end": 8192,
+          "event": "second_norm_complete",
+          "first": 0,
+          "reference": false,
+          "sources": 17,
+          "workers": 16
+        }
+      },
+      "comparison": "cmp returned 0 for every output byte."
+    },
+    "scale_measurement": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-cached-0-131072.log",
+        "bytes": 3744,
+        "sha256": "43ff5b744bdbacbe9359eece1f8f62d28495fc2bb064efc26c31f18ec7c2199b"
+      },
+      "cap_seconds": 1500,
+      "seconds": 14.485898908926174,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "norm-after-first",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-second-norm-cached-0-131072.json",
+        "0",
+        "131072"
+      ],
+      "peak_rss_kib": 1362536,
+      "result": {
+        "compute_ns": 1530157230,
+        "elapsed_ns": 13574987721,
+        "end": 131072,
+        "event": "second_norm_complete",
+        "first": 0,
+        "reference": false,
+        "sources": 17,
+        "workers": 16
+      }
+    },
+    "scale_derivation": "131072 groups = the existing 8192-entry low-weight cycle times the 16 runtime workers. Its 1.530-second compute time predicted about 738 seconds for the full 63252819-group scan, within the existing 1500-second cap. The observed full run took 376.15 seconds.",
+    "complete_lean": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-complete.log",
+        "bytes": 3791,
+        "sha256": "4ee20c8a2986614f950f7355db1d8161b5df9c3c02c077bddc49e5e933b658f3"
+      },
+      "cap_seconds": 1500,
+      "seconds": 376.1504483190365,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+        "norm-after-first",
+        "/tmp/nightstream-piccs-original-public-1.json",
+        "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+        "/tmp/nightstream-piccs-first-round-independent-1.json",
+        "/tmp/nightstream-piccs-second-norm-complete.json",
+        "0",
+        "63252819"
+      ],
+      "peak_rss_kib": 1362264,
+      "result": {
+        "compute_ns": 360123170312,
+        "elapsed_ns": 375252458181,
+        "end": 63252819,
+        "event": "second_norm_complete",
+        "first": 0,
+        "reference": false,
+        "sources": 17,
+        "workers": 16
+      }
+    },
+    "complete_rust_comparison": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-rust-1.log",
+        "bytes": 2305,
+        "sha256": "5197ebd72b433f4cc4623584a6975d53fde0f7eadd549a8c6b83dd296ef5aca7"
+      },
+      "cap_seconds": 300,
+      "seconds": 12.524798307102174,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-reductions",
+        "--release",
+        "--lib",
+        "engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_second_round_inner_norm_matches_lean",
+        "--",
+        "--exact",
+        "--ignored",
+        "--nocapture"
+      ],
+      "peak_rss_kib": 3225112,
+      "result": {
+        "changed_coefficient_rejected": true,
+        "coefficients": [
+          [
+            3866041075063315802,
+            14599370804200324244
+          ],
+          [
+            7584731794385306139,
+            17099359062332518163
+          ],
+          [
+            3884987061090815748,
+            3408413636108880368
+          ],
+          [
+            15170387352288601267,
+            2386504560484120747
+          ]
+        ],
+        "compute_seconds": 4.187212474,
+        "end_pair": 63252819,
+        "event": "pi_ccs_second_round_inner_norm_passed",
+        "first_pair": 0,
+        "load_seconds": 1.697508563,
+        "sources": 17,
+        "total_seconds": 5.884908947
+      }
+    },
+    "output": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-prefix-643e83a8/nightstream-piccs-second-norm-complete.json",
+      "bytes": 233,
+      "sha256": "156ecebc8e6384710fa6be11de75b05246cf88967969effa1e283dca8e205570"
+    },
+    "regression_fixture": "crates/neo-reductions/tests/fixtures/piccs_first_round_norm/lean-second-norm.json",
+    "rust_scope": "Production folding and norm functions are called on each original source in turn; gamma^source is applied after each singleton norm sum. This limits retained dense storage. The resulting full inner cubic is compared, not a substituted proof or sampled coordinates."
+  },
+  "round_theorem": "NightstreamFPrime.Export.Stage1.PiCCSPrefixRound.roundPolynomial_evaluate",
+  "round_theorem_scope": "Original ProtocolPolynomial Q after any challenge prefix. Premises are interpolation laws and the exact dimension; source-array and IO correspondence are not supplied by this theorem."
+}

@@ -663,3 +663,9 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulateContributions_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.Accumulator.addPreparedProduct_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock.accumulatePreparedContributions_eq
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation.sum_value
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.invocation_sparse_value
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.sumInvocationParts_eq_range

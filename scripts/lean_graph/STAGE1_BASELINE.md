@@ -235,6 +235,38 @@ Retain one build queue, the owner's ten-attempt rule, this checkout and
 `nico/f-prime-constraints-cuda-formal` only. Replay gives evidence on tested
 inputs; it does not prove universal Rust correctness.
 
+## Original-source final evaluation checkpoint
+
+The complete original-source Pad family now passes independently. Lean derives
+the point from all 28 saved Lean rounds, validates all 17 original witnesses,
+evaluates all 4,685,394 carrier blocks, and adds the 64 ordered ranges in Lean.
+All 918 K coefficients (1,836 field words), all 56 point words, and the
+consistent changed-target rejection match the required comparison.
+Generation took 847.30 seconds with 1,359,656 KiB peak RSS on stock Lean
+4.30.0 on the original Linux host.
+
+The exact target is `LeanGraph.Targets.PiCCSOriginalEvaluationKernel`.
+It fixes original-mask reads and complete Pad/canonical-matrix evaluation
+against `PaperAlgebra.evaluationFamily` for every source and ring lane.
+Loaded sparse and numeric invocation ranges retain exact loader, selected
+block and bounds premises. Existing product and cached-row owners supply
+the loader links. No split, magnitude or expected-value premise is added.
+
+The three retained matrix cases keep all 77,112 field words byte equal.
+Direct mask reads and dedicated workers reduce calculation time from 27.50
+to 9.77 seconds, and command time from 48.60 to 31.51 seconds. The retained
+Pad range `74272..148544` keeps all 1,836 output words equal to the scalar
+reference: calculation time changes from 210.79 to 20.69 seconds and command
+time from 227.67 to 37.73 seconds. These are retained cases, not a full matrix
+speedup claim. All measured runs were sequential with agents idle; shared
+initialization is recorded separately.
+
+`PICCS_ORIGINAL_EVALUATIONS_REPLAY.json` records the source cut and evidence.
+Synthetic merge checks cover 27,540 field sums and nine rejection cases;
+they are assembly tests, not prover evidence. The full original matrix
+scan, post-output transcript, complete encoding and HyperNova remain open.
+The separate PiCCSCarriedSource check 11 still needs owner approval.
+
 ## Earlier baseline and retained evidence
 
 Owner: the user's September 13 baseline goal. Work only on

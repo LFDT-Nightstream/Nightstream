@@ -18,3 +18,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 #evidence_export LeanGraph.Targets.piCCSRetainedPrefixKernel
 #evidence_export NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldPrefix_evaluate
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.portValues_foldRows
+
+#evidence_export LeanGraph.Targets.piCCSOriginalEvaluationKernel
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.read_eq_preparedRead
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_append
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.sparse_eq_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.invocations_eq_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.range_eq_matrix

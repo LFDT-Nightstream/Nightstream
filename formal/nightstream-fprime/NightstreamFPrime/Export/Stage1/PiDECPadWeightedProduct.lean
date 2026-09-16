@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 /-!
 Combine all 54 Pad basis weights before multiplying the same complete child
 blocks. Two stored base-field bar keys encode the two K components. Each key
-is shared by all sixteen children through the existing product kernel.
+is shared by the complete batch through the existing product kernel.
 -/
 
 set_option autoImplicit false
@@ -103,17 +103,17 @@ private theorem weightedKey_product (weights : Vector F ringDegree)
         else 0) :=
   keyPrefix_product weights ringDegree right output
 
-private def pack (first second : Vector StoredRing productionGlobalParams.k) :
-    Vector MaterializedRingK productionGlobalParams.k :=
+private def pack {count : Nat} (first second : Vector StoredRing count) :
+    Vector MaterializedRingK count :=
   Vector.ofFn fun child => MaterializedRingK.ofRing fun output =>
     ⟨(first.get child).get output, (second.get child).get output⟩
 
-private theorem pack_value
-    (first second : Vector StoredRing productionGlobalParams.k)
-    (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :
+private theorem pack_value {count : Nat}
+    (first second : Vector StoredRing count)
+    (child : Fin count) (output : Fin ringDegree) :
     ((pack first second).get child).toRing output =
       ⟨(first.get child).get output, (second.get child).get output⟩ := by
-  change ((Vector.ofFn (fun selected : Fin productionGlobalParams.k =>
+  change ((Vector.ofFn (fun selected : Fin count =>
     MaterializedRingK.ofRing (fun lane =>
       ⟨(first.get selected).get lane, (second.get selected).get lane⟩)))[child.val]).toRing
       output = _
@@ -121,9 +121,9 @@ private theorem pack_value
 
 /-- Two base-field products per child replace the 54 separately weighted
 basis products. Both keys and both product vectors are computed once. -/
-def products (weights : Vector K ringDegree)
-    (children : Vector StoredRing productionGlobalParams.k) :
-    Vector MaterializedRingK productionGlobalParams.k :=
+def products {count : Nat} (weights : Vector K ringDegree)
+    (children : Vector StoredRing count) :
+    Vector MaterializedRingK count :=
   let first := PiDECCommitmentBlock.products (weightedKey (weights.map K.c0)) children
   let second := PiDECCommitmentBlock.products (weightedKey (weights.map K.c1)) children
   pack first second
@@ -151,9 +151,9 @@ private theorem numericSum_pair (count : Nat) (first second : Nat → F) :
 /-- Every returned K coefficient is exactly the original 54-term weighted
 Pad basis sum. Arbitrary weights and complete child blocks are allowed; no
 norm, expected-output, zero-lane, point or runtime premise is needed. -/
-theorem products_value (weights : Vector K ringDegree)
-    (children : Vector StoredRing productionGlobalParams.k)
-    (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :
+theorem products_value {count : Nat} (weights : Vector K ringDegree)
+    (children : Vector StoredRing count)
+    (child : Fin count) (output : Fin ringDegree) :
     ((products weights children).get child).toRing output =
       numericSum extensionOps ringDegree (fun index =>
         if live : index < ringDegree then

@@ -43,10 +43,6 @@ private def decodeExtension (value : Lean.Json) : Except String K := do
   let words ← PiCCSInputCheck.decodeVector 2 PiCCSInputCheck.decodeField value
   return ⟨words.get 0, words.get 1⟩
 
-private def decodePolynomial (value : Lean.Json) : Except String (FixedPolynomial K 9) := do
-  let values ← PiCCSInputCheck.decodeVector 10 decodeExtension value
-  return ⟨values.toList, Vector.length_toList⟩
-
 private def readJson (path : System.FilePath) : IO Lean.Json := do
   checked (Lean.Json.parse (← IO.FS.readFile path))
 
@@ -59,6 +55,7 @@ private structure Trace where
   state : Transcript.State
   claim : K
   challenges : List K
+  rounds : List (Vector K 10)
 
 /-- Replay saved Lean rounds causally from the original public statement.
 Every trace field is checked; a supplied state or challenge is never trusted. -/
@@ -66,7 +63,7 @@ private def readTrace (publicPath : System.FilePath) (roundPaths : List String) 
     IO Trace := do
   let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
   let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
-  let mut trace : Trace := ⟨input, coins, coins.state, PiCCSPublicReplay.initialClaim input coins.gamma, []⟩
+  let mut trace : Trace := ⟨input, coins, coins.state, PiCCSPublicReplay.initialClaim input coins.gamma, [], []⟩
   for path in roundPaths do
     let saved ← checked ((← readJson path).getArr?)
     unless saved.size == 10 do throw (IO.userError "expected ten Lean round trace fields")
@@ -74,7 +71,8 @@ private def readTrace (publicPath : System.FilePath) (roundPaths : List String) 
     let alpha ← checked (PiCCSInputCheck.decodeVector cubeVariables decodeExtension saved[1]!)
     let gamma ← checked (decodeExtension saved[2]!)
     let before ← checked (decodeState saved[3]!)
-    let polynomial ← checked (decodePolynomial saved[4]!)
+    let round ← checked (PiCCSInputCheck.decodeVector 10 decodeExtension saved[4]!)
+    let polynomial : FixedPolynomial K 9 := ⟨round.toList, Vector.length_toList⟩
     let claimedChallenge ← checked (decodeExtension saved[5]!)
     let after ← checked (decodeState saved[6]!)
     let initial ← checked (decodeExtension saved[7]!)
@@ -94,7 +92,11 @@ private def readTrace (publicPath : System.FilePath) (roundPaths : List String) 
       let claim := polynomial.evaluate extensionOps.toOps challenge
       unless decide (claimedChallenge = challenge ∧ after = state ∧ nextClaim = claim) do
         throw (IO.userError s!"Lean round {index.val} challenge, state or claim differs")
-      trace := { trace with state := state, claim := claim, challenges := trace.challenges ++ [challenge] }
+      trace := { trace with
+        state := state
+        claim := claim
+        challenges := trace.challenges ++ [challenge]
+        rounds := trace.rounds ++ [round] }
     else throw (IO.userError "too many PiCCS rounds")
   return trace
 
@@ -787,6 +789,55 @@ private def mergeOriginal (publicPath outputPath : System.FilePath)
     | throw (IO.userError "merge-original requires -- before all Lean round paths")
   PiCCSOriginalMerge.merge (← finalPoint publicPath rounds) outputPath pads matrices
 
+private def finishOriginal (publicPath evaluationsPath inputPath phasePath wordsPath : System.FilePath)
+    (roundPaths : List String) : IO UInt32 := do
+  let outputs := [inputPath, phasePath, wordsPath]
+  unless outputs.eraseDups.length == outputs.length do
+    throw (IO.userError "duplicate final PiCCS output path")
+  for path in outputs do
+    unless !(← path.pathExists) do throw (IO.userError "output already exists")
+  let trace ← readTrace publicPath roundPaths
+  if complete : trace.rounds.length = 28 ∧ trace.challenges.length = 28 then
+    let fields ← checked ((← readJson evaluationsPath).getArr?)
+    let input ← match fields.toList with
+      | [schema, point, pad, matrix] => do
+          unless (← checked schema.getNat?) == 1 do
+            throw (IO.userError "unexpected complete original evaluation schema")
+          let point ← checked (PiCCSInputCheck.decodeVector 28 decodeExtension point)
+          unless decide (point.toList = trace.challenges) do
+            throw (IO.userError "original evaluation point differs from the Lean transcript")
+          let pad ← checked (PiCCSInputCheck.decodeVector 17
+            (PiCCSInputCheck.decodeVector 54 decodeExtension) pad)
+          let matrix ← checked (PiCCSInputCheck.decodeVector 17
+            (PiCCSInputCheck.decodeVector 14
+              (PiCCSInputCheck.decodeVector 54 decodeExtension)) matrix)
+          pure ({
+            commitment := trace.input.commitment
+            publicInput := trace.input.publicInput
+            rounds := ⟨trace.rounds.toArray, by simpa using complete.1⟩
+            evalK := pad
+            evalA := matrix
+            running := trace.input.running } : PiCCSInputCheck.Input)
+      | _ => throw (IO.userError "expected the complete original Pad and matrix families")
+    let result ← IO.wait (Task.spawn fun _ => PiCCSInputCheck.execute input)
+    unless result.accepted do throw (IO.userError "independent final PiCCS check rejected")
+    unless decide (result.point.coordinates = trace.challenges) do
+      throw (IO.userError "final PiCCS execution point differs from the Lean transcript")
+    let words := Layout.Stage1.PiCCSProofInputs.serializeProofInputs
+      (PiCCSInputCheck.proofValues input)
+    let texts := [(PiCCSInputCheck.inputValue input).render, result.encoded.render ++ "\n",
+      (Value.array (words.map fun word => Value.atom word.val)).render ++ "\n"]
+    for (path, text) in outputs.zip texts do
+      unless !(← path.pathExists) do throw (IO.userError "output already exists")
+      IO.FS.writeFile path text
+    report [("event", .str "independent_piccs_complete"),
+      ("rounds", Lean.toJson trace.rounds.length),
+      ("proof_words", Lean.toJson words.length),
+      ("output_field_words", Lean.toJson (17 * (1 + 14) * 54 * 2)),
+      ("accepted", .bool result.accepted)]
+    return 0
+  else throw (IO.userError "final PiCCS replay requires all 28 Lean rounds")
+
 private def family (name : String) : IO Nat :=
   match name with
   | "pad" => pure 0
@@ -798,6 +849,9 @@ end NightstreamFPrime.Export.PiCCSPrefixReplay
 
 def main (arguments : List String) : IO UInt32 := do
   match arguments with
+  | "finish-original" :: publicPath :: evaluationsPath :: inputPath :: phasePath :: wordsPath :: rounds =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.finishOriginal
+        publicPath evaluationsPath inputPath phasePath wordsPath rounds
   | "merge-original-pad" :: publicPath :: outputPath :: rest =>
       NightstreamFPrime.Export.PiCCSPrefixReplay.mergeOriginalPad publicPath outputPath rest
   | "merge-original" :: publicPath :: outputPath :: rest =>

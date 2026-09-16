@@ -263,8 +263,9 @@ initialization is recorded separately.
 
 `PICCS_ORIGINAL_EVALUATIONS_REPLAY.json` records the source cut and evidence.
 Synthetic merge checks cover 27,540 field sums and nine rejection cases;
-they are assembly tests, not prover evidence. The full original matrix
-scan, post-output transcript, complete encoding and HyperNova remain open.
+they are assembly tests, not prover evidence. The complete original matrix
+scan and PiCCS output encoding now pass as recorded below. Full NIFS encoding
+and HyperNova remain open.
 The separate PiCCSCarriedSource check 11 still needs owner approval.
 
 The original matrix replay now checks all signed masks once and omits a
@@ -305,8 +306,36 @@ with agents idle, and record initialization separately.
 These measurements do not establish a complete-matrix speedup. An initial
 named-attribute experiment did not specialize the captured reader. A separate
 zero-row accumulator change preserved bytes but did not establish a production
-gain; that change was removed. Full matrix coverage and the remaining PiCCS
-closure obligations stay open.
+gain; that change was removed. Full matrix execution is recorded below; the
+selected source-to-whole-polynomial proof remains open.
+
+## Complete original PiCCS output execution
+
+The complete matrix pass now covers all 6,377,559 active rows in 53 ordered
+ranges. Lean combines these with the complete original Pad family. All
+13,770 K values (27,540 field words), the complete point and changed-target
+rejections pass against the two Rust comparison copies. This includes all
+795 fresh nonconstant Pad/matrix values, all zero sources and the final row.
+
+`finish-original` retains the causally validated 28 round vectors and uses
+`PiCCSInputCheck.execute` and `PiCCSProofInputs.serializeProofInputs`. The
+complete 657,063-byte PiCCS input and 450,952-byte phase result match Rust
+byte for byte, including all terminal fields and the outgoing eight-word
+transcript state. The existing package encoder emits exactly 29,288 words;
+all words and their order match an independent flattening of those fields.
+A consistent changed output target and a changed final proof word reject.
+
+`PICCS_COMPLETE_OUTPUT_REPLAY.json` binds the producer sources, original
+inputs, all saved ranges, merge, final encoding and comparison commands.
+Rust proof values enter only the comparison tools. Earlier range outputs
+are reused with their original source cuts and proved arithmetic equality;
+this mixed execution record does not establish a full-matrix speedup.
+
+The selected source-to-whole-polynomial theorem remains the unchanged
+`PICCS_SOURCE_BRIDGE_PENDING.patch`. Check 11 still needs owner approval.
+Full NIFS encoding, composed HyperNova next state/assignment/commitment and
+protected fresh-checkout release reproduction remain separate open work.
+This is complete local PiCCS output execution, not complete proof closure.
 
 ## Earlier baseline and retained evidence
 

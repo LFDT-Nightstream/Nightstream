@@ -12,7 +12,7 @@ Inputs:
 - separate output `Eval_K` and `Eval_A` families.
 
 Outputs:
-- a 29,012-word canonical proof-input encoding;
+- a 29,288-word canonical proof-input encoding;
 - one environment that preserves the pilot prefix and loads that encoding.
 
 Parent coverage:

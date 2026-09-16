@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
+import NightstreamFPrime.Export.Stage1.StoredInstructionExecution
 import NightstreamFPrime.Export.Stage1.StoredPhysicalPlan
 import NightstreamFPrime.Export.Stage1.StoredPermutationExecution
 
@@ -63,18 +65,10 @@ private def compact (templates : Array CompactRowTemplate) (target : Nat)
     throw "compact output differs from its scheduled target"
   requireWrite values target 1
   requireWrite values invocation.localStart template.localColumnCount
-  let output := template.outputRecipe.eval fun input =>
-    asEnv values (compactInputColumn invocation.inputRanges input)
-  let mut result := StoredWitnessExecution.write values target output
-  for row in template.rows do
-    let product := (instantiateCompactCombination invocation row.a).eval (asEnv result) *
-      (instantiateCompactCombination invocation row.b).eval (asEnv result)
-    if let some localIndex := row.outputLocal then
-      unless localIndex < template.localColumnCount do throw "compact local target out of range"
-      result := StoredWitnessExecution.write result (invocation.localStart + localIndex) product
-    unless product == (instantiateCompactCombination invocation row.c).eval (asEnv result) do
-      throw s!"compact row failed at {target}"
-  return result
+  match StoredCompactRowExecution.execute
+      (compactInputColumn invocation.inputRanges) invocation.localStart template values with
+  | some result => return result
+  | none => throw s!"compact row failed at {target}"
 
 private def executeEvent (pilot : CircuitPackage) (templates : Array CompactRowTemplate)
     (event : StoredPhysicalPlan.Event) (values : Array F) : Except String (Array F) := do
@@ -99,9 +93,7 @@ private def executeEvent (pilot : CircuitPackage) (templates : Array CompactRowT
         (batch.start + batch.recipes.length) batch.hints
   | .instruction instruction =>
       requireWrite values instruction.target 1
-      let product := instruction.a.toR1CS.eval (asEnv values) *
-        instruction.b.toR1CS.eval (asEnv values)
-      return StoredWitnessExecution.write values instruction.target product
+      return StoredInstructionExecution.execute instruction values
 
 private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   if ← outputPath.pathExists then throw (IO.userError "physical output already exists")

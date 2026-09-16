@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.StoredInstructionExecution
 import NightstreamFPrime.Export.Stage1.StoredPermutationExecution
 import NightstreamFPrime.Export.Stage1.StoredWitnessExecution
 import tests.AxiomAudit
@@ -11,3 +12,6 @@ import tests.AxiomAudit
 
 #audit_axioms NightstreamFPrime.Export.Stage1.StoredPermutationExecution.execute_size
 #audit_axioms NightstreamFPrime.Export.Stage1.StoredPermutationExecution.execute_eq
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredInstructionExecution.execute_size
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredInstructionExecution.execute_eq

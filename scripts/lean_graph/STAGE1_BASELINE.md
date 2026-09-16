@@ -146,12 +146,15 @@ The complete second-round fresh contribution is now computed in 49.69 seconds
 from all 3,188,780 saved first-fold rows. Degrees 5–9 match Rust exactly.
 `PICCS_FRESH_PREFIX_REPLAY.json` records the selected source, interpolation
 and polynomial laws, measured runs and changed-challenge rejection. The
-carried matrix terms and full second-round composition remain open.
+complete second round now matches Rust: all ten coefficients, alpha, gamma,
+the challenge, both states and all claims; a changed coefficient rejects.
 `PICCS_CARRIED_PREFIX_REPLAY.json` records the complete saved Pad prefix
-(126,505,638 values), exact block-fold law and fused second-round moments.
-The smaller matrix worker batches preserve every byte of the measured prefix.
-Remaining work is the complete later-round execution, final evaluations,
-HyperNova and complete proof encoding. Generic
+(126,505,638 values), all 3,188,780 matrix prefix values, their second-round
+moments, complete coverage and the final composition. The registered
+`piccs-second-round-comparison` checks the saved complete result and mutation;
+it does not prove generation or close the pending selected source theorem.
+Remaining work is rounds 2–27, final individual evaluations, HyperNova and
+complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference
 path. Future sharing must retain the numeric invocation evaluator.
 

@@ -25,6 +25,9 @@ const BLOCKS: usize = PRODUCTION_MESSAGE_COLUMNS as usize;
 #[derive(Deserialize)]
 struct LeanNorm(u64, usize, usize, [[u64; 2]; ROUNDS], [u64; 2], [[u64; 2]; 4]);
 
+#[derive(Deserialize)]
+struct LeanSecondNorm(u64, usize, usize, usize, [u64; 2], [[u64; 2]; 4]);
+
 fn field(words: [u64; 2]) -> Result<K, String> {
     if words.iter().any(|word| *word >= F::ORDER_U64) {
         return Err("noncanonical extension-field word".into());
@@ -174,6 +177,78 @@ fn original_first_round_inner_norm_matches_lean() {
             "first_block": first,
             "end_block": end,
             "sources": SOURCES,
+            "coefficients": actual.map(words),
+            "load_seconds": load_seconds,
+            "compute_seconds": compute_seconds,
+            "total_seconds": started.elapsed().as_secs_f64(),
+            "changed_coefficient_rejected": true
+        })
+    );
+}
+
+#[test]
+#[ignore = "Requires original sources.jsonl, lean-first-round.json and lean-second-norm.json; run under the 300-second cap."]
+fn original_second_round_inner_norm_matches_lean() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/piccs_first_round_norm");
+    let started = Instant::now();
+    let round: serde_json::Value = serde_json::from_reader(BufReader::new(
+        File::open(fixture.join("lean-first-round.json")).expect("Lean first-round trace"),
+    ))
+    .unwrap();
+    let round = round.as_array().expect("first-round trace array");
+    assert_eq!(round.len(), 10, "exact first-round trace schema");
+    assert_eq!(round[0], 1);
+    let alpha_words: [[u64; 2]; ROUNDS] = serde_json::from_value(round[1].clone()).unwrap();
+    let alpha = alpha_words
+        .into_iter()
+        .map(field)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let gamma = field(serde_json::from_value(round[2].clone()).unwrap()).unwrap();
+    let challenge = field(serde_json::from_value(round[5].clone()).unwrap()).unwrap();
+    let LeanSecondNorm(schema, round_index, first, end, saved_challenge, target_words) = serde_json::from_reader(
+        BufReader::new(File::open(fixture.join("lean-second-norm.json")).expect("Lean second-round norm result")),
+    )
+    .expect("exact second-round inner-norm schema");
+    assert_eq!((schema, round_index, first, end), (1, 1, 0, (BLOCKS * D).div_ceil(4)));
+    assert_eq!(field(saved_challenge).unwrap(), challenge);
+    let target = target_words.map(|value| field(value).unwrap());
+    let witnesses = source_range(
+        BufReader::new(File::open(fixture.join("sources.jsonl")).expect("original source capture")),
+        0,
+        BLOCKS,
+    )
+    .expect("complete valid original source capture");
+    let load_seconds = started.elapsed().as_secs_f64();
+    let weights = EqualityWeights::new(&alpha[2..]);
+    let compute_started = Instant::now();
+    let mut actual = [K::ZERO; 4];
+    for (source, witness) in witnesses.iter().enumerate() {
+        // Keep one dense folded source at a time. Both operations below are
+        // the production CPU functions; Lean coefficients never enter them.
+        let mut assignment = Assignment::new(witness, BLOCKS * D);
+        assignment.fold(challenge);
+        let cubic = norm_coefficients(std::slice::from_ref(&assignment), gamma, &weights, 0);
+        let source_weight = super::gamma_power(gamma, source);
+        for coefficient in 0..4 {
+            actual[coefficient] += source_weight * cubic[coefficient];
+        }
+    }
+    let compute_seconds = compute_started.elapsed().as_secs_f64();
+    compare(&actual, &target).unwrap();
+    let mut changed = target;
+    changed[3] += K::ONE;
+    assert!(
+        compare(&actual, &changed).is_err(),
+        "a changed cubic coefficient must reject"
+    );
+    println!(
+        "{}",
+        serde_json::json!({
+            "event": "pi_ccs_second_round_inner_norm_passed",
+            "sources": SOURCES,
+            "first_pair": first,
+            "end_pair": end,
             "coefficients": actual.map(words),
             "load_seconds": load_seconds,
             "compute_seconds": compute_seconds,

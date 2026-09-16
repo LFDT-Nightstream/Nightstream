@@ -337,6 +337,47 @@ Full NIFS encoding, composed HyperNova next state/assignment/commitment and
 protected fresh-checkout release reproduction remain separate open work.
 This is complete local PiCCS output execution, not complete proof closure.
 
+## Independent fresh witness execution
+
+The standalone Lean replay now computes all 29,344,425 physical fields from
+the independently derived recursive caller. Its 1,419,747 write events have
+strictly increasing targets, and all 201,386 explicit assertions pass.
+Stored recipe, hint and permutation procedures have audited equality proofs
+against their existing Lean owners.
+
+The fresh logical assignment uses the same canonical 30-block schedule.
+Cached numeric widths and product metadata preserve the complete source
+packet and schedule by Lean equality. All 253,011,231 logical coefficients
+and 45 zero tail coefficients match the native successor witness. The
+complete 107,246,512-byte witness and 39,448-byte fresh claim also match.
+All 1,188 commitment coefficients use the unchanged production key.
+Native artifacts enter comparison checks only.
+
+The full command for all 30 blocks took 114.64 seconds: 17.12 seconds for
+preparation and 96.99 seconds for block computation and output. Every logical
+byte matched the earlier Lean output, and the complete carrier matched Rust
+again. Peak RSS was 1,691,212 KiB.
+
+The three fresh commitment commands took 281.32 seconds in total, with
+277.148 seconds of recorded computation and 608,048 KiB peak RSS. This is
+one fresh message; it is not a timing for the earlier sixteen-child PiDEC
+scan. The measured range 74272..148544 took 5.695 seconds to compute and
+7.12 seconds for its complete command. No other agents, builds or benchmarks
+ran during those measurements. Initial preparation and compilation are not
+charged to each block.
+
+`FRESH_WITNESS_REPLAY.json` records the complete coverage, source links,
+proof endpoints, command logs and 26 rejection cases. Large data stays
+outside Git. The existing graph now has the literal `FreshWitnessKernels`
+target and the `independent-fresh-witness` data flow, including caller
+derivation, complete byte comparisons and all range guards.
+
+The ordered compact-row lowering connection and whole selected physical
+completion proof remain open. Runtime assertions and byte equality do not
+supply those theorems. The existing PiCCS carried-source obligation still
+needs owner approval for check11, with its ten earlier attempts preserved.
+Protected source-bound reproduction and release delivery remain separate.
+
 ## Independent C/R/D and recursive caller execution
 
 The complete independently generated C input now has exactly the bytes used

@@ -19,7 +19,7 @@ open NightstreamFPrime.Lifecycle (productionShape)
 
 /-- The zero branch precedes all sparse source arithmetic. Each nonzero source
 uses the existing single-source range; flattening preserves every port slot. -/
-def sparse {columns arity count : Nat}
+@[specialize] def sparse {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
@@ -33,7 +33,7 @@ def sparse {columns arity count : Nat}
 
 /-- The zero branch precedes numeric invocation preparation and weighting.
 The stored numeric evaluator and complete output shape remain unchanged. -/
-def invocations {columns arity count : Nat}
+@[specialize] def invocations {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)

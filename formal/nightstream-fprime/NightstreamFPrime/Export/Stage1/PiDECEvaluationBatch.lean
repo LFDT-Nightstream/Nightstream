@@ -42,7 +42,7 @@ theorem add_value {k : Nat} (left right : Vector MaterializedRingK k)
   rw [Vector.getElem_ofFn, MaterializedRingK.toRing_ofRing]
 
 /-- The row producer and point weight each occur once outside the child loop. -/
-def step {arity k : Nat} (point : CubePoint K arity)
+@[specialize] def step {arity k : Nat} (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) (index : Nat)
     (initial : Vector MaterializedRingK k) : Vector MaterializedRingK k :=
   let rowWeight := PiDECEvaluationWeights.weight point index
@@ -63,7 +63,7 @@ theorem step_child {arity k : Nat} (point : CubePoint K arity)
 
 /-- Continue from a stored batch over [start, start + count). Weights always
 use the global row index, including when the range starts after zero. -/
-def foldFrom {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
+@[specialize] def foldFrom {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) (initial : Vector MaterializedRingK k) :
     Vector MaterializedRingK k :=
   Nat.fold count (fun index _ accumulated =>
@@ -107,7 +107,7 @@ theorem foldFrom_value {arity k : Nat} (start count : Nat)
       exact extensionLaws.add_assoc _ _ _
 
 /-- Independently compute one range from zero. -/
-def range {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
+@[specialize] def range {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) : Vector MaterializedRingK k :=
   foldFrom start count point rows (zero k)
 

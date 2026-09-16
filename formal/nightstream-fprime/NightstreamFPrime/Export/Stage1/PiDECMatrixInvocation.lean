@@ -24,7 +24,7 @@ open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
 /-- Materialize all 54 complete numeric invocations once. Each invocation
 stores its 94 original port records, including all output pins. -/
-def prepare {columns : Nat} (read : Fin ringDegree → Fin columns → F)
+@[specialize] def prepare {columns : Nat} (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     Vector (Vector PortValues 94) ringDegree :=
   Vector.ofFn fun output => PiDECPoseidonNumericRows.stored (read output) interface

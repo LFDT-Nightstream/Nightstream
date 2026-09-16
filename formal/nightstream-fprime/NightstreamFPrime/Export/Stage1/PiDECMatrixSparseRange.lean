@@ -29,7 +29,7 @@ private theorem ofFn_get {Alpha : Type} {size : Nat}
   change (Vector.ofFn values)[index.val] = values index
   rw [Vector.getElem_ofFn]
 
-private def row {columns count : Nat} (firstRow : Nat)
+@[specialize] private def row {columns count : Nat} (firstRow : Nat)
     (read : Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count)
     (index : Nat) : Vector StoredRing matrixCount :=
@@ -65,7 +65,7 @@ private theorem row_value {columns count : Nat} (firstRow : Nat)
 
 /-- Compute the loaded rows in global order for one child, including the
 explicit zero matrix port. The read family can use any parent accessor. -/
-def sum {columns arity count : Nat} (firstRow : Nat)
+@[specialize] def sum {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (read : Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count) :
     Vector MaterializedRingK matrixCount :=

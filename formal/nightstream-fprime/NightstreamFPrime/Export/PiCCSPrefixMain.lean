@@ -7,9 +7,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSNormSource
 
 /-!
-Retain the seventeen ordered norm sources after two Lean-derived challenges.
-Each byte is an index into the proved 81-entry table. The reference check
-compares every decoded field byte with two ordinary PrefixFold operations.
+Replay PiCCS contributions from retained ordered fresh, norm and carried
+prefixes. The initial norm bytes index the proved 81-entry table; later
+canonical field files use the existing PrefixFold operations.
 Rust messages and evaluations are not accepted by this executable.
 -/
 
@@ -574,6 +574,176 @@ private def advanceFirst (kind : Nat) (publicPath roundZero roundOne outputDirec
       return 0
   | _ => throw (IO.userError "expected exactly two Lean-derived challenges")
 
+private def normDirectory (directory : System.FilePath) (source : Nat) : System.FilePath :=
+  directory / s!"source-{source}"
+
+/-- Decode the retained signed-source tables and use the existing fold once.
+Full chunks have an even number of inputs; only the true tail is odd. -/
+private def normFieldsAfterTwo
+    (publicPath roundZero roundOne roundTwo directory outputDirectory : System.FilePath)
+    (chunkPairs : Nat) : IO UInt32 := do
+  unless chunkPairs > 0 do throw (IO.userError "zero norm fold chunk size")
+  unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
+  let started ← IO.monoNanosNow
+  let trace ← readTrace publicPath [roundZero.toString, roundOne.toString, roundTwo.toString]
+  readMetadata directory { trace with challenges := trace.challenges.take 2 } 0 groupCount
+  let table := PiCCSPrefixCodeFold.pairedTable
+    (PiCCSPrefixNorm.values (trace.challenges[0]?.getD K.zero))
+    (trace.challenges[1]?.getD K.zero)
+  let challenge := trace.challenges[2]?.getD K.zero
+  let pairs := (groupCount + 1) / 2
+  IO.FS.createDirAll outputDirectory
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  for batch in [:(productionShape.sourceCount + workers - 1) / workers] do
+    let mut tasks : Array (Task (Except IO.Error Unit)) := #[]
+    for source in [batch * workers:min productionShape.sourceCount ((batch + 1) * workers)] do
+      tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+        let input ← IO.FS.Handle.mk (sourcePath directory source) .read
+        let output := normDirectory outputDirectory source
+        IO.FS.createDir output
+        let mut position := 0
+        let mut ranges : Array (Nat × Nat) := #[]
+        while position < pairs do
+          let count := min chunkPairs (pairs - position)
+          let expected := min (2 * count) (groupCount - 2 * position)
+          let codes ← input.read expected.toUSize
+          unless codes.size == expected do throw (IO.userError s!"truncated norm source {source}")
+          let mut values : Array K := #[]
+          for code in codes do
+            if bound : code.toNat < 81 then values := values.push (table.get ⟨code.toNat, bound⟩)
+            else throw (IO.userError s!"invalid norm code in source {source}")
+          let folded := PrefixFold.foldOne extensionOps values challenge
+          let bytes := PiCCSPrefixFiles.fieldBytes folded
+          unless bytes.size == count * 16 do throw (IO.userError "norm fold byte count differs")
+          IO.FS.writeBinFile (output / s!"{position}-{position + count}.bin") bytes
+          ranges := ranges.push (position, position + count)
+          position := position + count
+        unless (← input.read 1).isEmpty do throw (IO.userError s!"extra bytes in norm source {source}")
+        PiCCSPrefixFiles.writeManifest output (3 + source) 1 pairs trace.challenges ranges)
+    for task in tasks do
+      match ← IO.wait task with
+      | .ok _ => pure ()
+      | .error error => throw error
+  report [("event", .str "norm_fields_after_three"), ("sources", Lean.toJson productionShape.sourceCount),
+    ("values_per_source", Lean.toJson pairs), ("bytes", Lean.toJson (pairs * 16 * productionShape.sourceCount)),
+    ("chunk_pairs", Lean.toJson chunkPairs), ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def checkNormDirectory (directory : System.FilePath) : IO Unit := do
+  unless (← directory.readDir).size == productionShape.sourceCount do
+    throw (IO.userError "norm prefix has missing or extra source directories")
+  for source in [:productionShape.sourceCount] do
+    unless (← (normDirectory directory source).isDir) do
+      throw (IO.userError s!"missing norm prefix directory for source {source}")
+
+private def advancePrefix (kind : Nat) (publicPath directory outputDirectory : System.FilePath)
+    (roundPaths : List String) : IO UInt32 := do
+  unless kind ≤ 2 do throw (IO.userError "expected Pad, matrix or fresh prefix family")
+  let started ← IO.monoNanosNow
+  let trace ← readTrace publicPath roundPaths
+  unless 3 ≤ trace.challenges.length do throw (IO.userError "binary prefix advancement needs at least three rounds")
+  let previous := trace.challenges.dropLast
+  let challenge := (trace.challenges.getLast?).getD K.zero
+  let count := foldedCount (if kind == 0 then PiCCSSourceImages.shape.carrierWidth else matrixRows ())
+    previous.length
+  let width := if kind == 2 then Spec.ProductionRelation.matrixCount else 1
+  PiCCSPrefixFiles.foldBinary kind width count directory outputDirectory previous challenge
+  report [("event", .str "binary_prefix_advanced"), ("kind", Lean.toJson kind),
+    ("consumed", Lean.toJson trace.challenges.length), ("rows", Lean.toJson ((count + 1) / 2)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def advanceNorm (publicPath directory outputDirectory : System.FilePath)
+    (roundPaths : List String) : IO UInt32 := do
+  unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
+  let started ← IO.monoNanosNow
+  let trace ← readTrace publicPath roundPaths
+  unless 4 ≤ trace.challenges.length do throw (IO.userError "norm field advancement needs at least four rounds")
+  checkNormDirectory directory
+  let previous := trace.challenges.dropLast
+  let challenge := (trace.challenges.getLast?).getD K.zero
+  let count := foldedCount PiCCSSourceImages.shape.carrierWidth previous.length
+  IO.FS.createDirAll outputDirectory
+  for source in [:productionShape.sourceCount] do
+    PiCCSPrefixFiles.foldBinary (3 + source) 1 count
+      (normDirectory directory source) (normDirectory outputDirectory source) previous challenge
+  report [("event", .str "norm_fields_advanced"), ("sources", Lean.toJson productionShape.sourceCount),
+    ("consumed", Lean.toJson trace.challenges.length), ("values_per_source", Lean.toJson ((count + 1) / 2)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+/-- Calculate each source cubic separately from complete canonical field files.
+All records are decoded even when a requested arithmetic slice is smaller. -/
+private def normFromPrefix (publicPath directory outputPath : System.FilePath)
+    (first finish : Nat) (roundPaths : List String) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let trace ← readTrace publicPath roundPaths
+  checkDepth trace
+  unless 3 ≤ trace.challenges.length do throw (IO.userError "norm field prefix needs at least three challenges")
+  checkNormDirectory directory
+  let consumed := trace.challenges.length
+  let count := foldedCount PiCCSSourceImages.shape.carrierWidth consumed
+  unless first < finish && finish ≤ (count + 1) / 2 do throw (IO.userError "invalid norm field pair range")
+  let tail := trace.coins.alpha.coordinates.drop (consumed + 1)
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let contribution (index : Nat) (low high : K) : FixedPolynomial K 3 :=
+    if first ≤ index && index < finish then
+      FixedPolynomial.scale extensionOps.toOps (weight index)
+        (PiCCSFirstRoundPair.normPair extensionOps low high)
+    else FixedPolynomial.zero extensionOps.toOps 3
+  let mut jobs : Array (Nat × PiCCSPrefixFiles.Chunk × Option (Array K)) := #[]
+  for source in [:productionShape.sourceCount] do
+    let chunks ← PiCCSPrefixFiles.read (normDirectory directory source)
+      (3 + source) 1 count trace.challenges
+    for part in [:chunks.size] do
+      if bound : part < chunks.size then
+        jobs := jobs.push (source, chunks[part]'bound,
+          (chunks[part + 1]?).map PiCCSPrefixFiles.Chunk.firstValues)
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let mut total := FixedPolynomial.zero extensionOps.toOps 3
+  for batch in [:(jobs.size + workers - 1) / workers] do
+    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 3))) := #[]
+    for part in [batch * workers:min jobs.size ((batch + 1) * workers)] do
+      if bound : part < jobs.size then
+        let (source, chunk, nextValues) := jobs[part]'bound
+        tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+          let input ← IO.FS.Handle.mk chunk.path .read
+          let mut previous : Option K := none
+          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 3
+          for index in [chunk.first:chunk.finish] do
+            let values ← binaryRow input 1
+            if index == chunk.first then
+              unless decide (values = chunk.firstValues) do throw (IO.userError "norm first row changed")
+            let value := values.getD 0 K.zero
+            if index % 2 == 0 then previous := some value
+            else if let some low := previous then
+              subtotal := FixedPolynomial.add extensionOps.toOps subtotal
+                (contribution (index / 2) low value)
+              previous := none
+          unless (← input.read 1).isEmpty do throw (IO.userError "extra norm prefix bytes")
+          if let some low := previous then
+            let high := (nextValues.getD #[K.zero]).getD 0 K.zero
+            subtotal := FixedPolynomial.add extensionOps.toOps subtotal
+              (contribution ((chunk.finish - 1) / 2) low high)
+          return FixedPolynomial.scale extensionOps.toOps
+            (TargetPolynomial.power extensionOps.toOps trace.coins.gamma source) subtotal)
+    for task in tasks do
+      let value ← match ← IO.wait task with
+        | .ok value => pure value
+        | .error error => throw error
+      total := FixedPolynomial.add extensionOps.toOps total value
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom consumed, .atom first, .atom finish,
+    .array (trace.challenges.map extensionValue),
+    .array (total.coefficients.map extensionValue)]).render ++ "\n")
+  report [("event", .str "prefix_norm_complete"), ("consumed", Lean.toJson consumed),
+    ("first", Lean.toJson first), ("end", Lean.toJson finish),
+    ("sources", Lean.toJson productionShape.sourceCount),
+    ("validated_values", Lean.toJson (count * productionShape.sourceCount)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 private def family (name : String) : IO Nat :=
   match name with
   | "pad" => pure 0
@@ -585,6 +755,25 @@ end NightstreamFPrime.Export.PiCCSPrefixReplay
 
 def main (arguments : List String) : IO UInt32 := do
   match arguments with
+  | ["norm-fields-after-two", publicPath, roundZero, roundOne, roundTwo,
+      directory, outputDirectory, chunkPairs] =>
+      match chunkPairs.toNat? with
+      | some chunkPairs =>
+          NightstreamFPrime.Export.PiCCSPrefixReplay.normFieldsAfterTwo
+            publicPath roundZero roundOne roundTwo directory outputDirectory chunkPairs
+      | none => throw (IO.userError "expected natural-number norm fold chunk size")
+  | "advance-prefix" :: kind :: publicPath :: directory :: outputDirectory :: rounds =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.advancePrefix
+        (← NightstreamFPrime.Export.PiCCSPrefixReplay.family kind)
+        publicPath directory outputDirectory rounds
+  | "advance-norm" :: publicPath :: directory :: outputDirectory :: rounds =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.advanceNorm publicPath directory outputDirectory rounds
+  | "norm-prefix" :: publicPath :: directory :: outputPath :: first :: finish :: rounds =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSPrefixReplay.normFromPrefix
+            publicPath directory outputPath first finish rounds
+      | _, _ => throw (IO.userError "expected natural-number norm pair bounds")
   | "advance-first" :: kind :: publicPath :: roundZero :: roundOne :: outputDirectory :: directories =>
       NightstreamFPrime.Export.PiCCSPrefixReplay.advanceFirst
         (← NightstreamFPrime.Export.PiCCSPrefixReplay.family kind)

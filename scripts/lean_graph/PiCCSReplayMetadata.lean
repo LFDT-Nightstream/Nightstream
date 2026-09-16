@@ -14,3 +14,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 #evidence_export LeanGraph.Targets.piCCSPrefixNormAccumulation
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.accumulate_append
+
+#evidence_export LeanGraph.Targets.piCCSRetainedPrefixKernel
+#evidence_export NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldPrefix_evaluate
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.portValues_foldRows

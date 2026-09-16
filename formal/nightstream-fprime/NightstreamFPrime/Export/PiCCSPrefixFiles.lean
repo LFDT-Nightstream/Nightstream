@@ -75,6 +75,13 @@ private def manifest (kind width count : Nat) (challenges : List K)
     .array (challenges.map extensionValue),
     .array (ranges.toList.map fun (first, finish) => .array [.atom first, .atom finish])]
 
+/-- Record completed file ranges with the shared manifest encoding.
+The caller owns file completion, geometry and challenge derivation. -/
+def writeManifest (directory : System.FilePath) (kind width count : Nat)
+    (challenges : List K) (ranges : Array (Nat × Nat)) : IO Unit :=
+  IO.FS.writeFile (directory / "manifest.json")
+    ((manifest kind width count challenges ranges).render ++ "\n")
+
 /-- Check exact file identities, ranges, lengths and first rows. The consumer
 must decode the rest of each file to check all field encodings. -/
 def read (directory : System.FilePath) (expectedKind expectedWidth expectedCount : Nat)
@@ -192,17 +199,13 @@ private def legacyChunks (profile : LegacyProfile) (directories : List System.Fi
   unless next == profile.records do throw (IO.userError "legacy prefix coverage is incomplete")
   return chunks
 
-private def pairBytes (profile : LegacyProfile) (challenge : K) (low high : Array K) :
+private def pairBytes (width : Nat) (challenge : K) (low high : Array K) :
     IO ByteArray := do
-  if profile.kind == 2 then
-    if lowSize : low.size = Spec.ProductionRelation.matrixCount then
-      if highSize : high.size = Spec.ProductionRelation.matrixCount then
-        return fieldBytes (PiCCSFreshPrefix.pairRow ⟨low, lowSize⟩ ⟨high, highSize⟩ challenge).toArray
-      else throw (IO.userError "wrong high fresh prefix width")
-    else throw (IO.userError "wrong low fresh prefix width")
-  else
-    unless low.size == 1 && high.size == 1 do throw (IO.userError "wrong scalar prefix width")
-    return fieldBytes #[PrefixFold.interpolate extensionOps challenge (low.getD 0 K.zero) (high.getD 0 K.zero)]
+  if lowSize : low.size = width then
+    if highSize : high.size = width then
+      return fieldBytes (PiCCSFreshPrefix.pairRow ⟨low, lowSize⟩ ⟨high, highSize⟩ challenge).toArray
+    else throw (IO.userError "wrong high prefix width")
+  else throw (IO.userError "wrong low prefix width")
 
 private def foldChunk (profile : LegacyProfile) (chunk : Chunk)
     (nextValues : Option (Array K)) (firstChallenge secondChallenge : K) : IO ByteArray := do
@@ -220,7 +223,7 @@ private def foldChunk (profile : LegacyProfile) (chunk : Chunk)
     if profile.kind == 2 then
       if index % 2 == 0 then pending := some values
       else if let some low := pending then
-        result := result ++ (← pairBytes profile secondChallenge low values)
+        result := result ++ (← pairBytes (outputWidth profile) secondChallenge low values)
         pending := none
     else
       for lane in [:values.size] do
@@ -228,7 +231,7 @@ private def foldChunk (profile : LegacyProfile) (chunk : Chunk)
         let value := #[values.getD lane K.zero]
         if position % 2 == 0 then pending := some value
         else if let some low := pending then
-          result := result ++ (← pairBytes profile secondChallenge low value)
+          result := result ++ (← pairBytes (outputWidth profile) secondChallenge low value)
           pending := none
   unless (← input.getLine).trimAscii.toString == "[]" && (← input.getLine).isEmpty do
     throw (IO.userError "legacy prefix has missing terminator or extra data")
@@ -238,7 +241,7 @@ private def foldChunk (profile : LegacyProfile) (chunk : Chunk)
       | none => do
           unless chunk.finish == profile.records do throw (IO.userError "missing boundary prefix value")
           pure (Array.replicate (outputWidth profile) K.zero)
-    result := result ++ (← pairBytes profile secondChallenge low high)
+    result := result ++ (← pairBytes (outputWidth profile) secondChallenge low high)
   let first := (itemsPerRecord profile * chunk.first + 1) / 2
   let finish := (itemsPerRecord profile * chunk.finish + 1) / 2
   unless result.size == (finish - first) * outputWidth profile * 16 do
@@ -274,7 +277,66 @@ def foldLegacy (kind : Nat) (directories : List System.FilePath)
         IO.FS.writeBinFile (binaryPath outputDirectory first finish) bytes
         ranges := ranges.push (first, finish)
   let count := (itemsPerRecord profile * profile.records + 1) / 2
-  IO.FS.writeFile (outputDirectory / "manifest.json")
-    ((manifest kind (outputWidth profile) count [firstChallenge, secondChallenge] ranges).render ++ "\n")
+  writeManifest outputDirectory kind (outputWidth profile) count [firstChallenge, secondChallenge] ranges
+
+private def foldBinaryChunk (width count : Nat) (chunk : Chunk)
+    (nextValues : Option (Array K)) (challenge : K) : IO ByteArray := do
+  let input ← IO.FS.Handle.mk chunk.path .read
+  let mut pending : Option (Array K) := none
+  let mut result := ByteArray.empty
+  for index in [chunk.first:chunk.finish] do
+    let bytes ← input.read (width * 16).toUSize
+    unless bytes.size == width * 16 do throw (IO.userError "truncated binary prefix row")
+    let values ← checked (decodeFields bytes)
+    if index == chunk.first then
+      unless decide (values = chunk.firstValues) do throw (IO.userError "binary prefix first row changed")
+    if index % 2 == 0 then pending := some values
+    else if let some low := pending then
+      result := result ++ (← pairBytes width challenge low values)
+      pending := none
+  unless (← input.read 1).isEmpty do throw (IO.userError "extra binary prefix bytes")
+  if let some low := pending then
+    let high ← match nextValues with
+      | some values => pure values
+      | none => do
+          unless chunk.finish == count do throw (IO.userError "missing boundary binary prefix row")
+          pure (Array.replicate width K.zero)
+    result := result ++ (← pairBytes width challenge low high)
+  let first := (chunk.first + 1) / 2
+  let finish := (chunk.finish + 1) / 2
+  unless result.size == (finish - first) * width * 16 do
+    throw (IO.userError "folded binary prefix byte count differs from its range")
+  return result
+
+/-- Consume one challenge from a complete binary prefix. Every row is decoded,
+including a leading odd row whose pair belongs to the preceding file.
+Only a missing endpoint beyond count is zero; singleton prefixes still fold. -/
+def foldBinary (kind width count : Nat) (inputDirectory outputDirectory : System.FilePath)
+    (challenges : List K) (nextChallenge : K) : IO Unit := do
+  unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
+  let chunks ← read inputDirectory kind width count challenges
+  IO.FS.createDirAll outputDirectory
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let mut ranges : Array (Nat × Nat) := #[]
+  for batch in [:(chunks.size + workers - 1) / workers] do
+    let mut tasks : Array (Chunk × Task (Except IO.Error ByteArray)) := #[]
+    for index in [batch * workers:min chunks.size ((batch + 1) * workers)] do
+      if bound : index < chunks.size then
+        let chunk := chunks[index]'bound
+        let nextValues := (chunks[index + 1]?).map Chunk.firstValues
+        let task ← IO.asTask (prio := Task.Priority.dedicated) do
+          foldBinaryChunk width count chunk nextValues nextChallenge
+        tasks := tasks.push (chunk, task)
+    for (chunk, task) in tasks do
+      let bytes ← match ← IO.wait task with
+        | .ok bytes => pure bytes
+        | .error error => throw error
+      let first := (chunk.first + 1) / 2
+      let finish := (chunk.finish + 1) / 2
+      if first < finish then
+        IO.FS.writeBinFile (binaryPath outputDirectory first finish) bytes
+        ranges := ranges.push (first, finish)
+  writeManifest outputDirectory kind width ((count + 1) / 2)
+    (challenges ++ [nextChallenge]) ranges
 
 end NightstreamFPrime.Export.PiCCSPrefixFiles

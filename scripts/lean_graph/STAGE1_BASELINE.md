@@ -190,6 +190,26 @@ comparison and binary rejection gates remain separate from source provenance.
 Rounds 3–27, individual final evaluations, complete encoding, HyperNova and
 the selected-source proof remain open. Source check11 still needs approval.
 
+All 28 PiCCS sum-check rounds now independently match the saved Rust result:
+all 280 K coefficients, alpha/gamma, every challenge and transcript state,
+and every claim. Each round's changed last coefficient rejects. The ordered
+fresh, matrix, Pad and 17 separate norm arrays were advanced through all
+28 challenges; every emitted field byte was compared with independent
+indexed interpolation. Singleton prefixes still fold against zero.
+The final 17 norm scalars and 14 fresh matrix constants also match Rust.
+These 31 K values are coefficient-zero fields only. The other individual
+Pad/matrix fields, complete encoding and selected-source proof remain open.
+The pending carried-source check11 still needs owner approval.
+
+`PICCS_ALL_ROUNDS_REPLAY.json` records complete coverage, source hashes,
+commands and measured runs. `LeanGraph.Targets.PiCCSRetainedPrefixKernel`
+states scalar MLE preservation with its exact cube-fit premise and per-port
+fresh fold equality. It proves array interpolation, not saved-file origin
+or complete polynomial-source equality. The full individual-evaluation
+authority must cover all 17 `PaperAlgebra.evaluationFamily` results;
+`messageAt` alone omits fresh nonconstant coefficients. Keep the full
+families separate in the original-source evaluation pass.
+
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the
 PiCCS prover replay is complete. The 17 source witnesses are original inputs;

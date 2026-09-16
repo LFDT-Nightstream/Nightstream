@@ -337,6 +337,34 @@ Full NIFS encoding, composed HyperNova next state/assignment/commitment and
 protected fresh-checkout release reproduction remain separate open work.
 This is complete local PiCCS output execution, not complete proof closure.
 
+## Independent C/R/D and recursive caller execution
+
+The complete independently generated C input now has exactly the bytes used
+by the checked R witness and D range calculations. Those original-source
+scans are retained. The new PiDEC `from-replay` mode loads only complete Lean
+commitments and evaluations, recomputes C/R, checks the derived point and
+bounded parent, derives child public inputs, and requires the existing D
+check before it writes either result.
+
+All 446,185 child bytes and all 4,722,709 complete C/R/D result bytes match
+the retained results. The native comparison checks all 945,983 proof bytes
+with its separate raw Lean-field encoder and passes 55 D mutation cases.
+The existing recursive caller generator consumes these independent results
+and the original iteration2 request. Its 1,446,131 bytes match, including
+177,326 private words,278 public words and the point/transcript links.
+
+`INDEPENDENT_NIFS_CALLER_REPLAY.json` records source and input custody,
+producer commands, comparisons and rejection checks. Both final-output
+commands resolve parent directories before checking distinct destinations;
+the alias case `file.json` versus `./file.json` rejects before writes.
+
+The caller packet is not the full fresh assignment. The earlier successor
+record executes Rust physical/logical witness generation and a reference
+commitment from Lean caller words. The next independent Lean step must
+complete physical values, then reuse the proved canonical logical executor
+and exact production-key commitment kernels. The selected-source Q proof
+still needs owner approval for check11. Release reproduction remains open.
+
 ## Earlier baseline and retained evidence
 
 Owner: the user's September 13 baseline goal. Work only on

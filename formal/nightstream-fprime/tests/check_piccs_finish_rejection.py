@@ -39,7 +39,7 @@ def main():
     rejected = []
 
     def run(name, error, change=None, selected_rounds=None, changed_round=None,
-            duplicate=False, existing=False):
+            duplicate=False, existing=False, alias=False):
         case = directory / name
         case.mkdir()
         selected_evaluations = evaluations
@@ -63,9 +63,12 @@ def main():
         if existing:
             outputs[2].write_bytes(sentinel)
         before = {path: path.read_bytes() if path.exists() else None for path in outputs}
+        output_arguments = list(map(str, outputs))
+        if alias:
+            output_arguments[-1] = str(case) + "/./" + outputs[0].name
         command = ["bash", str(validator), "lean-executable", str(executable),
                    "finish-original", str(public), str(selected_evaluations),
-                   *map(str, outputs), *map(str, selected_rounds)]
+                   *output_arguments, *map(str, selected_rounds)]
         # Match the existing rejection-test cap. The caller also applies the
         # project test guard; no nested graph guard is started here.
         result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
@@ -91,6 +94,7 @@ def main():
     run("changed-causal-round", "Lean round 27 differs from the causal public transcript",
         changed_round=(27, changed))
     run("duplicate-outputs", "duplicate final PiCCS output path", duplicate=True)
+    run("aliased-outputs", "duplicate final PiCCS output path", alias=True)
     # An existing third slot must reject before either earlier output is written.
     run("existing-last-output", "output already exists", existing=True)
     run("schema", "unexpected complete original evaluation schema",

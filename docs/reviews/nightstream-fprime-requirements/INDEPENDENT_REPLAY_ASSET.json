@@ -92,5 +92,7 @@
     "target": "LeanGraph.Targets.PiCCSAllRoundSourceCoefficients",
     "report": "PICCS_PREFIX_SOURCE_REPLAY.json",
     "archive_scope": "The immutable execution archive retains the earlier 0a15c3b0 proof-open status. Later source proofs are recorded in the repository; the producer computations and retained output bytes are unchanged."
-  }
+  },
+  "local_hypernova_closure": "HYPERNOVA_REPLAY_CLOSURE.json",
+  "external_approval_disposition": "Owner chose to leave external approval pending on 2026-09-16. Local selected replay and source/kernel proof closure are complete."
 }

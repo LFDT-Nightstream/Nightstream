@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupportedPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
@@ -717,6 +718,27 @@ def PiCCSCompleteFreshKernel : Prop :=
 
 theorem piCCSCompleteFreshKernel : PiCCSCompleteFreshKernel :=
   PiCCSFreshComplete.freshRange_eq_fullPairSum
+
+/-- The complete first-round coefficients are those of the selected original
+source data. Inputs are only public fields and original signed masks.
+This target makes no IO, cache-loop, file-origin or later-round claim. -/
+def PiCCSFirstRoundSourceCoefficients : Prop :=
+  ∀ (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))),
+    PiCCSFirstRoundComposition.coefficients? input masks =
+      some ((PiCCSFirstRound.firstRound ConcreteCarrier.extensionOps
+        (((ProductionKey.key
+          (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+            Poseidon2HashChainV1Package.fits)
+          Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+          (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+            K.embed ⟨PiCCSNormSource.assignments masks⟩)
+        (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
+        (remaining := 27) (by decide)).coefficients)
+
+theorem piCCSFirstRoundSourceCoefficients : PiCCSFirstRoundSourceCoefficients :=
+  PiCCSFirstRoundComposition.coefficients_eq_firstRound
+
+#audit_axioms piCCSFirstRoundSourceCoefficients
 
 /-- Kernel closure combines complete completion-sum semantics, original-source
 assembly, aggregated endpoints, stored rows, exact cached coefficients and

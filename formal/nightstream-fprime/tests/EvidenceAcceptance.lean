@@ -1,3 +1,4 @@
+import tests.FreshWitnessEvidence
 import tests.EvidenceTargets
 
 /-! Checker-owned invocations of the approved target and metadata checks.
@@ -30,3 +31,5 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.PiCCSRetainedPrefixKernel by LeanGraph.Targets.piCCSRetainedPrefixKernel
 
 #evidence_closed LeanGraph.Targets.PiCCSOriginalEvaluationKernel by LeanGraph.Targets.piCCSOriginalEvaluationKernel
+
+#evidence_closed LeanGraph.Targets.FreshWitnessKernels by LeanGraph.Targets.freshWitnessKernels

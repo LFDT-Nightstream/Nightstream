@@ -1,0 +1,6 @@
+import NightstreamFPrime.Export.Stage1.CachedAssignmentProducts
+import tests.AxiomAudit
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CachedAssignmentProducts.groupValue_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.CachedAssignmentProducts.productValue_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.CachedAssignmentProducts.rawValues_eq

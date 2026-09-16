@@ -269,10 +269,185 @@ fn multi_turn_rejects_an_empty_reentry_template() {
         &[TurnInputs::default(), TurnInputs::default()],
         Default::default(),
     )
-    .expect_err("re-entry without an entry event must be rejected");
+    .expect_err("re-entry without any events must be rejected");
     assert!(error
         .to_string()
-        .contains("requires at least one entry event"));
+        .contains("requires at least one entry or exit event"));
+}
+
+#[test]
+fn exit_only_template_allows_reentry_and_commits_each_return() {
+    let component_bytes = wat::parse_str(zero_local_component_wat()).unwrap();
+    let mut runtime = TracedTestComponent::new(&component_bytes);
+    for expected in [1, 2] {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("tick", &[], &mut result);
+        assert_eq!(result, [ComponentVal::S32(expected)]);
+    }
+    let run = runtime.finish();
+    let fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .unwrap();
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        fref,
+        ExportTemplate {
+            entry: vec![],
+            exit: vec![EventBlock::op(
+                17,
+                slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
+            )],
+            entry_input_count: 0,
+        },
+    );
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &[TurnInputs::default(), TurnInputs::default()],
+        Default::default(),
+    )
+    .unwrap();
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
+    let witnesses = common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
+    common::ccs_check_trace(&trace);
+    let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
+    assert_eq!(
+        events.iter().map(|event| event.words).collect::<Vec<_>>(),
+        vec![[17, 1, 0, 0, 0, 0, 0, 0], [17, 2, 0, 0, 0, 0, 0, 0]]
+    );
+    assert!(trace.last().unwrap().state_after.is_terminal());
+
+    let boundary = trace
+        .iter()
+        .position(|row| row.row_kind.is_turn_boundary())
+        .unwrap();
+    assert_eq!(trace[boundary].host_event_initial_schedule_count, Some(1));
+    assert_eq!(trace[boundary].host_event_exit_schedule_count, Some(1));
+    let mut forged = witnesses[boundary].clone();
+    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "empty entry and exit cannot re-enter");
+
+    // Changing the count and its inverse together must still fail the ROM.
+    let mut forged_rows = witnesses;
+    forged_rows[boundary][neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::from_u64(2);
+    common::assert_satisfied(&forged_rows[boundary], "row-local alternative nonempty count");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    assert!(
+        neo_wasm::memory_semantics::sanity_check_memory_rows(
+            &neo_wasm::build_wasm_relation_layout(),
+            &forged_rows,
+            &preload,
+        )
+        .is_err(),
+        "exit count at re-entry is verifier-bound"
+    );
+
+    let halt = trace
+        .iter()
+        .find(|row| !row.state_before.halted && row.state_after.halted)
+        .unwrap();
+    assert!(
+        !halt.state_after.is_terminal(),
+        "halt must still spend the exit schedule"
+    );
+    let mut forged = build_witness_vector(halt);
+    forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "halt cannot skip its return event");
+}
+
+#[test]
+fn export_advice_preserves_arguments_without_absorbing_them() {
+    use neo_wasm::host_event_bindings::EventSequenceBuilder;
+    let component_bytes = wat::parse_str(
+        r#"
+        (component
+          (type $run-type (func (param "x" s32) (result s32)))
+          (core module $m
+            (func (export "run") (param i32) (result i32)
+              local.get 0))
+          (core instance $i (instantiate $m))
+          (alias core export $i "run" (core func $run))
+          (func (export "run") (type $run-type) (canon lift (core func $run))))
+    "#,
+    )
+    .unwrap();
+    let mut runtime = TracedTestComponent::new(&component_bytes);
+    for x in [7, 35] {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("run", &[ComponentVal::S32(x)], &mut result);
+        assert_eq!(result, [ComponentVal::S32(x)]);
+    }
+    let run = runtime.finish();
+    let fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .unwrap();
+    let template = ExportTemplate {
+        entry: EventSequenceBuilder::advice()
+            .input_local_i32(0, 0)
+            .unwrap()
+            .finish()
+            .unwrap(),
+        exit: EventSequenceBuilder::op(17)
+            .output_i32()
+            .unwrap()
+            .finish()
+            .unwrap(),
+        entry_input_count: 1,
+    };
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(fref, template);
+    let turns = [TurnInputs { entry: vec![7] }, TurnInputs { entry: vec![35] }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &turns,
+        Default::default(),
+    )
+    .unwrap();
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
+    common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
+    common::ccs_check_trace(&trace);
+    let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
+    assert_eq!(
+        events.iter().map(|event| event.words).collect::<Vec<_>>(),
+        vec![[17, 7, 0, 0, 0, 0, 0, 0], [17, 35, 0, 0, 0, 0, 0, 0]]
+    );
+    // Advice policy is part of the verifier's ROM even on non-final slots,
+    // where changing it alone does not violate row-local constraints.
+    let input = trace
+        .iter()
+        .find(|row| {
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == neo_wasm::WasmHostEventSlotKind::InputLocal)
+        })
+        .unwrap();
+    let mut forged = input.clone();
+    forged.host_event_rom_slot.as_mut().unwrap().advice = false;
+    common::assert_satisfied(&build_witness_vector(&forged), "non-final slot before ROM checking");
+    let mut forged_rows: Vec<_> = trace.iter().map(build_witness_vector).collect();
+    forged_rows[input.cycle as usize] = build_witness_vector(&forged);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    assert!(
+        neo_wasm::sanity_check_memory_rows(&neo_wasm::build_wasm_relation_layout(), &forged_rows, &preload,).is_err(),
+        "export advice flag is verifier-bound"
+    );
+    let last_advice = trace
+        .iter()
+        .find(|row| {
+            row.host_event_rom_slot.is_some_and(|rom| rom.advice) && row.state_before.host_events.slot_cursor == 7
+        })
+        .unwrap();
+    let mut forged = build_witness_vector(last_advice);
+    forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
+    common::assert_rejected(&forged, "export advice cannot start absorption");
 }
 
 #[test]
@@ -397,13 +572,13 @@ fn ccs_rejects_forged_turn_boundary() {
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary skipping the next turn's entry schedule");
 
-    // Silent re-entry: a boundary claiming an EMPTY entry template (biased
-    // cell 1, zero events owed) would re-run the export without moving the
-    // transcript. The nonempty-entry guard has no satisfying inverse.
+    // Silent re-entry: both schedules empty would re-run the export without
+    // moving the transcript. The nonempty-template guard has no inverse.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
-    common::assert_rejected(&forged, "boundary re-entering through an empty entry template");
+    common::assert_rejected(&forged, "boundary re-entering through an entirely empty template");
 
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_SP_BEFORE] = neo_math::F::ONE;
@@ -428,6 +603,7 @@ fn ccs_rejects_forged_turn_boundary() {
     forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = undeclared_fref;
     forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] = undeclared_fref;
     forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
 
     // The only row-locally satisfiable assignment loads the poisoned

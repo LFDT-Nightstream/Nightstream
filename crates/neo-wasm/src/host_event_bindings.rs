@@ -63,12 +63,13 @@ pub enum SlotBinding {
     ArgElem { arg: u8, limb: Limb },
     /// A limb of the call's single flat result.
     ResultElem { limb: Limb },
-    /// Export entry templates only: the selected entry input word, absorbed
-    /// AND written to one 32-bit lane of the entry frame's `locals[local]`
+    /// Export entry templates only: the selected entry input word, staged
+    /// and written to one 32-bit lane of the entry frame's `locals[local]`
     /// (the word must fit in 32 bits). This is how export inputs reach the
     /// guest: locals start all-zero and the bootstrap writes them. A `Lo`
     /// write zeroes the hi lane (the write is total); an i64 local takes a
-    /// `Lo` slot followed by a `Hi` slot.
+    /// `Lo` slot followed by a `Hi` slot. In advice blocks the input is an
+    /// existential witness, not an authenticated external input.
     InputLocal { input: u8, local: u8, limb: Limb },
     /// Export exit templates only: a limb of the export's captured result
     /// (the carried simple-output value).
@@ -200,9 +201,10 @@ pub struct ImportTemplate {
 }
 
 /// Static expansion of one exported function's boundary into host-event
-/// blocks: `entry` blocks absorb before the export's first instruction;
-/// `exit` blocks absorb after the halting row and may publish the captured
-/// result. Single-turn V1: one export invocation per trace.
+/// blocks: entry effects run before the first instruction, and exit effects
+/// run after a clean halt. Either phase may mix advice and absorbing blocks.
+/// A nonempty template must absorb in at least one phase so completed turns
+/// remain visible; a completely empty template cannot be entered at a turn boundary.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExportTemplate {
     pub entry: Vec<EventBlock>,
@@ -237,14 +239,22 @@ impl ExportTemplate {
         opaque::validate(&self.entry)?;
         opaque::validate(&self.exit)?;
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
+        // Empty templates may be used for the initial invocation. The circuit's
+        // turn-boundary guard rejects them as targets of subsequent invocations.
+        if (!self.entry.is_empty() || !self.exit.is_empty())
+            && !self
+                .entry
+                .iter()
+                .chain(&self.exit)
+                .any(|event| event.absorb)
+        {
+            return err("export template must absorb at least one entry or exit event".into());
+        }
         let mut written = std::collections::BTreeSet::new();
         for (phase, events) in [(ExportPhase::Entry, &self.entry), (ExportPhase::Exit, &self.exit)] {
             let phase_name = phase.name();
             for (idx, event) in events.iter().enumerate() {
                 let ctx = |what: &str| format!("export template {phase_name} event {idx}: {what}");
-                if !event.absorb {
-                    return err(ctx("export boundary events must absorb; advice events are import-only"));
-                }
                 let check_input_index = |index: u8| {
                     if index >= self.entry_input_count {
                         return err(ctx(&format!(

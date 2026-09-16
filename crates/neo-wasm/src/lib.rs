@@ -36,7 +36,7 @@ pub use adapters::wasmtime::{
     WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use ccs::build_wasm_relation;
-pub use ccs::host_event_chain::write_turn_entry_guard_witness;
+pub use ccs::host_event_chain::write_turn_schedule_guard_witness;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,

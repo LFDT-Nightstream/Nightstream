@@ -26,3 +26,5 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.PiCCSNormPrefixKernel by LeanGraph.Targets.piCCSNormPrefixKernel
 
 #evidence_closed LeanGraph.Targets.PiCCSPrefixNormAccumulation by LeanGraph.Targets.piCCSPrefixNormAccumulation
+
+#evidence_closed LeanGraph.Targets.PiCCSRetainedPrefixKernel by LeanGraph.Targets.piCCSRetainedPrefixKernel

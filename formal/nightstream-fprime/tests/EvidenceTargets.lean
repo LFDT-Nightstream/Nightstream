@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
@@ -782,5 +784,35 @@ theorem piCCSPrefixNormAccumulation : PiCCSPrefixNormAccumulation :=
     @PiCCSPrefixNormBuckets.accumulate_append⟩
 
 #audit_axioms piCCSPrefixNormAccumulation
+
+/-- Retained arrays preserve scalar MLE evaluation after any challenge prefix,
+and each fresh row port has the exact scalar fold. The scalar array must fit
+the full cube. Concrete K interpolation laws are discharged by the witness.
+This target does not prove file origin, source provenance or round polynomials. -/
+def PiCCSRetainedPrefixKernel : Prop :=
+  (∀ (values : Array K) (challenges : List K) (remaining : Nat)
+      (suffix : CubePoint K remaining),
+    values.size ≤ 2 ^ (remaining + challenges.length) →
+    (PrefixFold.zeroExtend ConcreteCarrier.extensionOps remaining
+        (PrefixFold.foldPrefix ConcreteCarrier.extensionOps values challenges)).evaluate
+          ConcreteCarrier.extensionOps suffix =
+      (PrefixFold.zeroExtend ConcreteCarrier.extensionOps
+        (remaining + challenges.length) values).evaluate ConcreteCarrier.extensionOps
+          ⟨challenges ++ suffix.coordinates, by simp [suffix.dimension, Nat.add_comm]⟩) ∧
+  (∀ (matrixCount : Nat) (rows : Array (Vector K matrixCount))
+      (challenge : K) (port : Fin matrixCount),
+    PiCCSFreshPrefix.portValues (PiCCSFreshPrefix.foldRows rows challenge) port =
+      PrefixFold.foldOne ConcreteCarrier.extensionOps
+        (PiCCSFreshPrefix.portValues rows port) challenge)
+
+theorem piCCSRetainedPrefixKernel : PiCCSRetainedPrefixKernel := by
+  constructor
+  · intro values challenges remaining suffix fits
+    exact PrefixFold.foldPrefix_evaluate ConcreteCarrier.extensionOps
+      ConcreteCarrier.extensionLaws values challenges suffix fits
+  · intro matrixCount rows challenge port
+    exact PiCCSFreshPrefix.portValues_foldRows rows challenge port
+
+#audit_axioms piCCSRetainedPrefixKernel
 
 end LeanGraph.Targets

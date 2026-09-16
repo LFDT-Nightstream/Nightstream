@@ -1,3 +1,4 @@
+import tests.AxiomsStoredPhysicalRowCheck
 import tests.AxiomsCompactRowExecution
 import tests.AxiomAudit
 import tests.AxiomsStoredWitnessExecution
@@ -8,7 +9,8 @@ import tests.EvidenceMetadata
 
 /-! Exact procedure and value refinements for the fresh-witness executable.
 Compact completion retains explicit physical geometry and output-scope premises.
-This target does not claim whole-plan row satisfaction. -/
+Final checks of the concrete prepared plan imply all selected physical rows.
+Caller parsing and the separate PiCCS source-polynomial bridge remain outside this target. -/
 
 namespace LeanGraph.Targets
 
@@ -75,6 +77,16 @@ def FreshWitnessKernels : Prop :=
           (Env.set (StoredWitnessExecution.asEnv values) (inputColumn outputInput)
             (recipe.eval (fun input => StoredWitnessExecution.asEnv values (inputColumn input)))))
         (Expr.var outputInput - recipe) inputCount)) ∧
+  (∀ (sources : PreparedPhysicalInputs.Inputs) (env : Env) (workers : Nat),
+    0 < workers →
+    StridedArrayAll.all (StoredPhysicalPlan.ofSources sources).rowEvents
+      (fun event => event.check
+        { (StoredPhysicalPlan.ofSources sources).pilot.val with
+          compactRowTemplates := (StoredPhysicalPlan.ofSources sources).templates.toList }
+        env) workers = true →
+    ((StoredPhysicalPlan.ofSources sources).assertions.all
+      (fun row => StoredPhysicalRowCheck.sparseRow row env)) = true →
+    (Poseidon2HashChainV1Package.package ()).RowsHold env) ∧
   (∀ (program : Lifecycle.Stage1.Application.Program)
       (prepared : CachedAssignmentProducts.Prepared program)
       (base : CachedAssignmentProducts.BaseValues program),
@@ -96,7 +108,12 @@ theorem freshWitnessKernels : FreshWitnessKernels := by
     StoredWitnessExecution.executeHints_eq, StoredPermutationExecution.execute_eq,
     StoredInstructionExecution.execute_eq,
     StoredCompactCompletion.execute_compactTemplate,
-    StoredCompactCompletion.execute_compactConstraintTemplate, ?_, ?_, ?_⟩
+    StoredCompactCompletion.execute_compactConstraintTemplate, ?_, ?_, ?_, ?_⟩
+  · intro sources env workers positive eventChecks assertionChecks
+    rw [StridedArrayAll.all_eq _ _ workers positive,
+      Array.all_eq_true'] at eventChecks
+    rw [Array.all_eq_true'] at assertionChecks
+    exact StoredPhysicalPlan.ofSources_rowsHold sources env eventChecks assertionChecks
   · intro program prepared base
     exact CachedAssignmentProducts.rawValues_eq prepared base
   · intro program widths raw

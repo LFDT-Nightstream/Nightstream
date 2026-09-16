@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.StridedArrayAll
 import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
 import NightstreamFPrime.Export.Stage1.StoredInstructionExecution
 import NightstreamFPrime.Export.Stage1.StoredPhysicalPlan
@@ -100,7 +101,7 @@ private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   let started ← IO.monoNanosNow
   let caller ← checked (Lean.Json.parse (← IO.FS.readFile callerPath))
   let plan ← StoredPhysicalPlan.prepare
-  let pilot ← IO.wait (Task.spawn fun _ => PilotData.circuitPackage ())
+  let pilot := plan.pilot.val
   let mut values ← seed plan.layout caller
   let prepared ← IO.monoNanosNow
   report [("event", .str "physical_plan_ready"),
@@ -116,13 +117,28 @@ private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   let computed ← IO.monoNanosNow
   report [("event", .str "physical_values_ready"), ("fields", Lean.toJson values.size),
     ("compute_ns", Lean.toJson (computed - prepared))]
+  let checkPackage := { pilot with compactRowTemplates := plan.templates.toList }
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let tasks := (Array.range workers).map fun worker =>
+    Task.spawn (fun _ => StridedArrayAll.worker plan.rowEvents
+      (fun event => event.check checkPackage (asEnv values)) workers worker)
+      (prio := Task.Priority.dedicated)
+  let mut eventRowsHold := true
+  for task in tasks do
+    let holds ← IO.wait task
+    eventRowsHold := eventRowsHold && holds
+  unless eventRowsHold do
+    throw (IO.userError "physical event row failed in final array")
+  let rowsChecked ← IO.monoNanosNow
+  report [("event", .str "physical_event_rows_passed"),
+    ("events", Lean.toJson plan.events.size), ("workers", Lean.toJson workers),
+    ("row_check_ns", Lean.toJson (rowsChecked - computed))]
   for row in plan.assertions do
-    unless row.a.toR1CS.eval (asEnv values) * row.b.toR1CS.eval (asEnv values) ==
-        row.c.toR1CS.eval (asEnv values) do
+    unless StoredPhysicalRowCheck.sparseRow row (asEnv values) do
       throw (IO.userError s!"physical assertion failed at row {row.rowIndex}")
   report [("event", .str "physical_assertions_passed"),
     ("assertions", Lean.toJson plan.assertions.size),
-    ("assert_ns", Lean.toJson ((← IO.monoNanosNow) - computed))]
+    ("assert_ns", Lean.toJson ((← IO.monoNanosNow) - rowsChecked))]
   let checkedAt ← IO.monoNanosNow
   let output ← IO.FS.Handle.mk outputPath .write
   for value in values do

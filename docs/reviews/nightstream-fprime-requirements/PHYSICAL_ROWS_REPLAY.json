@@ -1,0 +1,386 @@
+{
+  "schema": 1,
+  "base_sha": "7630775c55f9ae3b1004f0c04e510c47d9f32ff0",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "scope": "Complete conditional physical row soundness for the actual selected prepared plan, with full before/after output bytes. The prior selected-source PiCCS polynomial bridge remains open.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "lean": "4.30.0",
+    "hardware": "original Linux Ryzen 7 7700X, 8 cores/16 threads",
+    "protocol_package_key": "unchanged"
+  },
+  "proofs": {
+    "target": "LeanGraph.Targets.FreshWitnessKernels",
+    "witness": "LeanGraph.Targets.freshWitnessKernels",
+    "plan": "StoredPhysicalPlan.ofSources_rowsHold",
+    "constructor": "StoredPhysicalPlan.ofSources",
+    "coverage": "StoredPhysicalPlan.assemble_sound (private)",
+    "package": "PreparedPhysicalPackageRows.rowsHold",
+    "ordinary_rows": "PreparedPhysicalOrdinary.holds",
+    "worker_coverage": "StridedArrayAll.all_eq",
+    "metadata": {
+      "complete": true,
+      "nodes": 11022,
+      "checked_dependency_names": {
+        "StoredPhysicalPlan.ofSources": true,
+        "StoredPhysicalPlan.assemble_sound": true,
+        "PreparedPhysicalPackageRows.rowsHold": true,
+        "StridedArrayAll.all_eq": true
+      }
+    },
+    "premises": [
+      "Positive runtime worker count.",
+      "Every final row-event check succeeds for the exact plan.ofSources arrays.",
+      "Every final explicit assertion check succeeds."
+    ],
+    "source_identity": "Prepared record indices and erased equality fields are constructed by checked functions. They are not new assumptions about arbitrary IO results.",
+    "scope_limit": "Final-state row satisfaction is conditional on successful checks. This does not prove every caller yields a valid witness, universal Rust semantics, or file/IO origin.",
+    "allowed_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ]
+  },
+  "coverage": {
+    "physical_fields": 29344425,
+    "physical_bytes": 234755400,
+    "events": 1419747,
+    "event_rows": 29024343,
+    "explicit_assertions": 201386,
+    "complete_physical_rows": 29225729,
+    "all_before_after_bytes": "cmp passed"
+  },
+  "inputs": {
+    "caller": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json",
+    "prior_physical": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin"
+  },
+  "output": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin",
+  "rust_outputs_used_by_producer": false,
+  "performance": {
+    "final": {
+      "prepare_ns": 3507804222,
+      "compute_ns": 24807206522,
+      "row_check_ns": 7633222084,
+      "assert_ns": 152130362,
+      "write_ns": 3731443492,
+      "command_seconds": 40.22,
+      "peak_rss_kib": 2696700,
+      "workers": 16,
+      "agents": "idle"
+    },
+    "serial_added_check": {
+      "row_check_ns": 55121141376,
+      "command_seconds": 84.64
+    },
+    "same_certified_plan_default_pool": {
+      "row_check_ns": 30937301803,
+      "command_seconds": 63.15
+    },
+    "meaning": "This is the added final physical row checker. The earlier physical generator without complete final checks took 29.76 seconds. Do not call these PiDEC commitment speedups.",
+    "profile_finding": "Perf samples show two ordinary task-pool threads executing the integrated row checks. Dedicated tasks provide the requested immutable concurrency. Row counts were already balanced.",
+    "discarded_experiment": "Rotation did not remove the bottleneck and was removed; contiguous and rotating drafts remain only as external diagnostic evidence.",
+    "timing_scope": "Compilation and initialization are recorded separately; no cost is attributed to every block. Timings are individual retained runs, not a statistical distribution."
+  },
+  "validation": {
+    "component_proofs": "passed",
+    "concrete_plan_proof": "passed",
+    "exact_target": "passed",
+    "complete_final_bytes": "passed",
+    "rejections": 26,
+    "static": "passed",
+    "full_build": "passed",
+    "axioms": "passed",
+    "metadata": "passed",
+    "literal_acceptance": "passed",
+    "graph_tests": 85,
+    "native_test_build": "passed: cargo test -p neo-fold-clean --release --no-run"
+  },
+  "attempts": {
+    "row_check_core": 2,
+    "event_check": 2,
+    "prepared_sources": 1,
+    "prepared_tasks": 1,
+    "typed_input_and_main_integration": 3,
+    "ordinary_coverage": 1,
+    "package_composition": 1,
+    "template_bounds": 1,
+    "header_context": 2,
+    "array_append": 1,
+    "concrete_plan": 3,
+    "scheduling_across_all_variants": 5,
+    "exact_target": 1
+  },
+  "review": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-review.txt",
+    "result": "No actionable findings in canonical coverage, typed source order, runtime fields or proof premises. Scheduling performance was excluded."
+  },
+  "commands": {
+    "final_physical_run": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\n/usr/bin/time -v timeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh lean-executable .lake/build/bin/replayPhysicalWitness '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-complete-run.log' 2>&1\ncmp '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin'\npython3 -B - <<'PY'\nfrom pathlib import Path\nimport json\np=Path('/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin')\nprint(json.dumps({'status':'passed','byte_comparison':'cmp','physical_fields':29344425,'bytes':p.stat().st_size,'baseline':'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin','output':str(p)}))\nPY\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-complete-run.log'",
+    "required_checks": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind python --cwd . -- python3 -B formal/nightstream-fprime/tests/check_stored_witness_rejection.py '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-rejections' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-rejections.log' 2>&1\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-rejections.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh static >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-static.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-static.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh build >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-build.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-build.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh axioms >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-axioms.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-axioms.log'",
+    "final_checks": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh file tests/EvidenceAcceptance.lean >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-acceptance.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-acceptance.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh file ../../scripts/lean_graph/FreshWitnessMetadata.lean >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-metadata.log' 2>&1\npython3 -B - <<'PY'\nimport json\nfrom pathlib import Path\nfor line in Path('/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-metadata.log').read_text().splitlines():\n if line.startswith('LEAN_GRAPH_METADATA '):\n  d=json.loads(line[len('LEAN_GRAPH_METADATA '):]);print({'root':d['root'],'complete':d['complete'],'nodes':len(d['nodes'])})\n elif line.startswith('{\"outcome\"'): print(line)\nPY\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind python --cwd . -- python3 -B -m unittest discover -s scripts/lean_graph/tests >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-graph-tests.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-graph-tests.log'\nexport RUSTC_WRAPPER=''\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind rust --cwd . -- cargo test -p neo-fold-clean --release --no-run >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-native-test-build.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-native-test-build.log'",
+    "row_census": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; cd /home/nicoarq/develop/Nightstream && python3 -B - <<'PY'\nfrom pathlib import Path\np=Path('/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/PhysicalEventDistribution.lean');s=p.read_text().replace('      let count := rowCost permutationRows compactRows events[index]!','      let some event := events[index]?\\n        | throw (IO.userError \"event index outside its array\")\\n      let count := rowCost permutationRows compactRows event');p.write_text(s)\nPY\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh file '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/PhysicalEventDistribution.lean' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-event-distribution-2.log' 2>&1\nresult=$?\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-event-distribution-2.log'\nexit $result",
+    "profile": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\ntimeout --signal=KILL 300s /lib64/ld-linux-x86-64.so.2 --library-path '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/lib/x86_64-linux-gnu' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/bin/perf' record -e cycles:u -g -o '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified.perf.data' -- python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh lean-executable .lake/build/bin/replayPhysicalWitness '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-profiled.bin' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-run.log' 2>&1\ncmp '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-profiled.bin'\n/lib64/ld-linux-x86-64.so.2 --library-path '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/lib/x86_64-linux-gnu' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/bin/perf' report --stdio --no-children --call-graph none -i '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified.perf.data' --sort comm,dso,symbol >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-report.txt' 2>&1\n/lib64/ld-linux-x86-64.so.2 --library-path '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/lib/x86_64-linux-gnu' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/profiling-tools/root/usr/bin/perf' report --stdio --no-children --call-graph none -i '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified.perf.data' --sort pid,comm >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-threads.txt' 2>&1\nhead -n 40 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-report.txt'\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-threads.txt'"
+  },
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf",
+  "open_items": [
+    "PiCCSCarriedSource check11 still requires owner approval; ten earlier attempts remain counted.",
+    "Protected source-bound reproduction and release delivery remain external.",
+    "Caller parsing and file-origin claims are execution/custody evidence; no universal IO theorem is claimed."
+  ],
+  "pending_source_patch_sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133",
+  "source_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CompactPlanTemplateBounds.lean": {
+      "bytes": 7074,
+      "sha256": "7c0615701ffba8a2e23aa7b9c01075ff0b6a0f50ca4b513137a64188ba02a9f8"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalArray.lean": {
+      "bytes": 1411,
+      "sha256": "7908b49fb10426a449b54ddca87298f5e4a2a1135e4ccf27bb22414962deaf11"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalInputs.lean": {
+      "bytes": 1577,
+      "sha256": "77287eb81652498657b66216ff335a3288cd16db1c2b44eef7295e89cff817b8"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalOrdinary.lean": {
+      "bytes": 5632,
+      "sha256": "76ded5eca29996dc2b715ff9737dc4cfc0cbc63d23d3e04350d03c4aecaaafad"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalPackageRows.lean": {
+      "bytes": 7720,
+      "sha256": "8bbe83e8793fdce1a4109f9c7fbc37ccdacfe33ddc8ef5b859b00fbb85dda1a2"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalSourceTasks.lean": {
+      "bytes": 4538,
+      "sha256": "e76339005bedf0f14664efd278759c421f61f96896396213b173e19a4031ad14"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PreparedPhysicalSources.lean": {
+      "bytes": 5798,
+      "sha256": "bb68dc4302b08d2d1b6f0d9170732c9eb69f3bf8f6f5b94996b638fbe3d76115"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredPhysicalPlan.lean": {
+      "bytes": 17093,
+      "sha256": "c51d56032b8f500cef6e38815de9f9755c493089c43c1026c75a49ca9a6969d7"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredPhysicalRowCheck.lean": {
+      "bytes": 5290,
+      "sha256": "f91ac38ce6cb0879e8842e427058473949f3f854271ebbac08ff54331dbbc837"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredPhysicalRowContext.lean": {
+      "bytes": 5211,
+      "sha256": "d53edb960ea59bb5258288a9410241f37d55ccc01f5bfc65d54c132619d29a89"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StridedArrayAll.lean": {
+      "bytes": 6194,
+      "sha256": "0851ca08373eee45b65f3ac68aeb7d4cd35a8fa9a7bf6a3120968c3ef6367b8b"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/StoredPhysicalReplayMain.lean": {
+      "bytes": 8263,
+      "sha256": "ce705468fc4367afddc77c60de73538f13f8e21975f0401df66010063a56c466"
+    },
+    "formal/nightstream-fprime/lakefile.toml": {
+      "bytes": 7196,
+      "sha256": "2cc75eb5cf1928a7fa7b2ad209127dc28ef3cda10f035027f48ee4f4c1070569"
+    },
+    "formal/nightstream-fprime/tests/AxiomsStoredPhysicalRowCheck.lean": {
+      "bytes": 3021,
+      "sha256": "54945e5ebb018ab5d49cbcdd72b599d2010ae5e8f112d3ca7ce2029fb0f7941c"
+    },
+    "formal/nightstream-fprime/tests/FreshWitnessEvidence.lean": {
+      "bytes": 7217,
+      "sha256": "4dede88091c6969db34b66190c1a61a04b63fe52e88795cf9d460b93ee3ce2f4"
+    },
+    "scripts/lean_graph/STAGE1_BASELINE.md": {
+      "bytes": 37703,
+      "sha256": "c367a8e9aba29a62e2cd685e5a5b0fc513a3d5c6d7573896c5b8d9fefd77b826"
+    },
+    "scripts/lean_graph/obligations.json": {
+      "bytes": 238682,
+      "sha256": "6bfcce8ea4a46cae1a8d8ef39a77b9115763cef5050800b99d0c1e8e175ad935"
+    }
+  },
+  "artifacts": {
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json": {
+      "bytes": 1446131,
+      "sha256": "d7bb65dd4179a009a412498e231471781dc96db739b296d3344fba1cc8890945"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin": {
+      "bytes": 234755400,
+      "sha256": "7e18d6e6e508827368edd262002d0dd6a65bbbd2f5a4adc86be6fc1ca147f80e"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-certified-checked.bin": {
+      "bytes": 234755400,
+      "sha256": "7e18d6e6e508827368edd262002d0dd6a65bbbd2f5a4adc86be6fc1ca147f80e"
+    },
+    "formal/nightstream-fprime/.lake/build/bin/replayPhysicalWitness": {
+      "bytes": 136452112,
+      "sha256": "26f9471eb1fcd33d08e8e1107a01ccb73ac37e1e8b9ea4f440f613a76305f3d7"
+    }
+  },
+  "logs": {
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-row-check-proof-1.log": {
+      "bytes": 19480,
+      "sha256": "d979dc826fd37ecb8561c2d58911c94dda4d6d502271653975e76d5ba9cb959d"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-row-check-proof-2.log": {
+      "bytes": 14491,
+      "sha256": "359ab02869fa5e1db970988917c4425356012de2d6c7e8e8d079fcfc1c46720c"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-event-check-proof-1.log": {
+      "bytes": 132069,
+      "sha256": "4276233030e957ba3ea5d263c4c037ca6a418319346b80da206e7bebe71b83e6"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-event-check-proof-2.log": {
+      "bytes": 126059,
+      "sha256": "94b2002c5d25e6e0e3a19921947561e1aa4b1bf29bcd40c5129837a39e7bf73e"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-physical-sources-proof-1.log": {
+      "bytes": 127011,
+      "sha256": "fc5f6b8e6893433cf547c132f5915a9798c531f187e36370119c9bbc50116838"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-ordinary-chunked-all-proof-1.log": {
+      "bytes": 128254,
+      "sha256": "bec4efd7dd4adc1b66e820efe37ea989ade86131cab94de968739e3497394291"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/chunked-all-proof-2.log": {
+      "bytes": 127310,
+      "sha256": "088eca456edb486f7afc5e8d2a411d7a94c1c4222b1f77fb2e82c87a10cc69b5"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/strided-scheduling-proof-3-array-proof-1.log": {
+      "bytes": 128230,
+      "sha256": "e02d38d4017f0f96522d4de7421e660b68e47e743bb36074c626facb74e08109"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/strided-scheduling-proof-4-package-proof-1.log": {
+      "bytes": 128541,
+      "sha256": "7f9bcdb7948886ac5d52aeefcd0153a41cfc06bc63479d1b71a8de4f0aa3a7a0"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/rotated-scheduling-proof-5.log": {
+      "bytes": 129871,
+      "sha256": "216ee4f14054316cbdf17bf323d9d72f2235670f2339ec06f8cdb803c2144d46"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-physical-source-tasks-build-1.log": {
+      "bytes": 127667,
+      "sha256": "5038f175119a55feffaf238599b77918d0e153f575ab01e79206886b458b4afe"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-physical-inputs-main-build-1.log": {
+      "bytes": 128251,
+      "sha256": "2cf00ee50d6f979f2741d0800693ebf940f9f9970b122a547bc4f8df973b2fe1"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-physical-inputs-main-build-2.log": {
+      "bytes": 128829,
+      "sha256": "e269cba5b05aaa0a93db0a190789782eed2ec9f31e490244931f16c9815af444"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/prepared-physical-inputs-main-build-3.log": {
+      "bytes": 126165,
+      "sha256": "003211be9ab79dd92365067f93a737dc291366bf4e951cc6613c1197b8e59d57"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-row-context-compact-bounds-proof-1.log": {
+      "bytes": 130912,
+      "sha256": "b12c0d68b7a06a0968c54801ce0f3322e6c27e2b9727824c12293e2b220f6305"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-row-context-proof-2.log": {
+      "bytes": 129285,
+      "sha256": "3f5d4f1c5a389e02740a28f4dfca9c29850dafa68927a2daf2cc59668dc06d8e"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-proof-1.log": {
+      "bytes": 129762,
+      "sha256": "1d5b5da29bbe066d03f3c0c30c84b534c95b79c3ac535dcd210260c7e1662fe5"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-proof-2.log": {
+      "bytes": 127360,
+      "sha256": "f85cff2f714311c3610f16b318d3a2c7fb371d35ebd98ea791e1fe0ed9057ae7"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-proof-3.log": {
+      "bytes": 129442,
+      "sha256": "5960e595637fd8466b4b296ba41a6113df978f588ee5f32fa22984b0451ca108"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-rows-target-proof-1.log": {
+      "bytes": 140647,
+      "sha256": "e10dbbcb5c88c6fbff08c77f8f392309a4548b7da98ae013f7ff3068512b0174"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-event-distribution-2.log": {
+      "bytes": 1327,
+      "sha256": "c22fca40a6b7935fcfa666e1eaf20389e610a6af8fa1793eb5a5aeeae34dc294"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-final-check-run.log": {
+      "bytes": 2480,
+      "sha256": "8a3f75ec060a61a4b6c2b15e096abdd3a47a99e4d79a1f437c2e4c493c0be20f"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-parallel-check-run.log": {
+      "bytes": 2503,
+      "sha256": "f2a47387e00620c183c495056f4a645f7b851ad5bc53a6958094d0b5ba4d7c0f"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-strided-check-run.log": {
+      "bytes": 2499,
+      "sha256": "22fd602646554a49d2c537da21692f150d5c88d5b7e06000fdf152bbb65ba001"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-final-run.log": {
+      "bytes": 2507,
+      "sha256": "3dc1fc10cbb23ba0d869330e481df3cab93375b624418d5fade48219bc0b3a3b"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-rotated-final-run.log": {
+      "bytes": 2511,
+      "sha256": "a62b7f80cd6e87055aa923f6e95d2661a84e17d394ab6346611d69b25c76d797"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-dedicated-run.log": {
+      "bytes": 2518,
+      "sha256": "14abb324256496a92528e7f37e1bdcf4448d106265e9e9bb81c867d5e708dc72"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-complete-run.log": {
+      "bytes": 2512,
+      "sha256": "9d1d8422d3d399c7f666222386dc54aae71c8c1a4a890e7d9b58cff006561d6b"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-run.log": {
+      "bytes": 1583,
+      "sha256": "ae3c2eacfa396105b3cbc1d1e0439668ccd0d9f5a6af1e5ac0cdb9f3669feafa"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-report.txt": {
+      "bytes": 299361,
+      "sha256": "b784f17a20ae024926e851c2b954cb4a5cf39989fc381c9cb85c22e80f83b80f"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-perf-threads.txt": {
+      "bytes": 1892,
+      "sha256": "c7716b7a2b0ace66ac8f28ed047a5c0742fe249536a5b8f3c1985056dea9fdc0"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-rejections.log": {
+      "bytes": 1215,
+      "sha256": "34295d075779f25e58aa61265552477c5073a17f366845343caa3a94405f203d"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-static.log": {
+      "bytes": 472,
+      "sha256": "2e3b93412238471a706b138efeee94c10dbd254d167744c102f95f942c666dfb"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-build.log": {
+      "bytes": 172317,
+      "sha256": "6e2f3a2259125f929417e4f9eba607225b3d166f8c91a10eba279cb70ec5c87b"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-required-axioms.log": {
+      "bytes": 1142470,
+      "sha256": "806e80c07b6e9e71447be1d826c18a22224ab1017643bbb8f813a4410da6e04a"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-acceptance.log": {
+      "bytes": 2838,
+      "sha256": "707d03c598afc497db1a2a8ee9d625e4515ed3e874c7ac708ad89c40a9c98ab0"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-target-metadata.log": {
+      "bytes": 81602304,
+      "sha256": "1d1b0a7078728e87d72de16ad0d78476157a1a49b322b29beae7d719140d0fb2"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-graph-tests.log": {
+      "bytes": 456,
+      "sha256": "c28549208622e588f0c35429c75302b0356addd3c44fb58a49e70b9b53863ca6"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-graph-tests-final.log": {
+      "bytes": 456,
+      "sha256": "418996d78ab4d0d77799cd2a7daf43aa0ce6e07819bacce6aae6bf7b6153a72a"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-certified-native-test-build.log": {
+      "bytes": 13407,
+      "sha256": "8c4cee7c15456de2d7db6709484c312fb30cf14198d7bcbfc47f1b558a323169"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/certified-physical-plan-review.txt": {
+      "bytes": 4072,
+      "sha256": "df1c1315c944f5cdee5e9c3c9796244f6cbd81ed72e24c0bb60589464b0d8db9"
+    }
+  }
+}

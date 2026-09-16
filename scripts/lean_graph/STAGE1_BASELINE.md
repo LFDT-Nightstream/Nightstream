@@ -404,6 +404,46 @@ The whole selected physical-plan connection remains open: actual invocation
 geometry and preservation of every canonical row still need proofs.
 The separate PiCCS source check11 remains pending with its prior budget intact.
 
+## Complete final physical row coverage
+
+The physical replay now checks every canonical row against the completed
+array before it writes the result. Typed source records retain the exact
+packet, block and permutation identities through task collection. The pure
+plan constructor keeps canonical row events for checking and sorts a shared
+copy for execution. The coverage proof therefore requires no sorting or
+write-order premise.
+
+StoredPhysicalPlan.ofSources_rowsHold proves that successful checks of the
+concrete constructed arrays imply the selected package's complete RowsHold.
+The FreshWitnessKernels target includes this theorem and exact strided-worker
+coverage. The exported dependency record contains the actual ofSources and
+assemble_sound definitions and the selected-package composition proof.
+The target retains only positive worker count and successful final-check
+premises; it assumes no new source identity, geometry or schedule property.
+
+The executed check covers 29,024,343 event rows and 201,386 explicit
+assertions: all 29,225,729 physical rows. Every one of the 234,755,400 output
+bytes matches the earlier Lean result. The complete logical witness and
+commitment comparisons are reused from that identical physical input.
+
+Profiling found that only two ordinary task-pool threads performed the
+integrated check. Dedicated tasks retain the hardware-derived worker count
+and the same proved immutable predicate. The final check takes 7.63 seconds;
+preparation takes 3.51 seconds, witness computation 24.81 seconds, assertions
+0.15 seconds and output 3.73 seconds. Total command time is 40.22 seconds,
+with 2,696,700 KiB peak RSS. All agents were idle during measured runs.
+A serial implementation of the added check took 55.12 seconds, or 84.64
+seconds for the complete command. These measurements concern physical row
+validation; they are not PiDEC commitment timings.
+
+The rotating-assignment experiment did not fix the thread-pool issue and was
+removed. The final code keeps the simpler proved stride partition.
+PHYSICAL_ROWS_REPLAY.json records the source cut, proofs, measurements,
+rejection checks, and the independent canonical-coverage review. Caller
+parsing and file-origin claims remain separate execution/custody evidence.
+The PiCCS source check11 and external release/reproduction conditions remain
+open. No change to protocol, package, production key, b=2 or k_rho=16 is made.
+
 ## Independent C/R/D and recursive caller execution
 
 The complete independently generated C input now has exactly the bytes used

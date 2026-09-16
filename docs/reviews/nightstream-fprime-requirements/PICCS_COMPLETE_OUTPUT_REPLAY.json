@@ -1,0 +1,392 @@
+{
+  "schema": 1,
+  "milestone": "Complete independent original PiCCS output execution and bytes",
+  "status": "Complete local output execution and byte comparison pass; selected source-to-whole-polynomial proof and composed HyperNova remain open",
+  "base_commit": "191255fc13566687c3a2e29df87802f5f6269baf",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "source_revision": "Final assembly and checkers are committed with this report; exact source hashes below. Matrix ranges retain their original source revisions in the external manifest.",
+  "profile": {
+    "protocol": "selected SuperNeo v1.2 plain path",
+    "b": 2,
+    "k_rho": 16,
+    "Nebula": "inactive",
+    "compiler": "stock Lean4.30.0",
+    "host": "original Linux Ryzen7 7700X,8cores/16threads"
+  },
+  "preserved": [
+    "production key",
+    "package",
+    "protocol",
+    "all original witnesses",
+    "all17 separate sources",
+    "all14 matrix families",
+    "canonical coefficient and byte order"
+  ],
+  "authority": "Pure audited kernels plus source-bound execution. SHA256 records byte custody only. Rust outputs are comparison targets and never enter the Lean producers.",
+  "implementation": {
+    "rounds": "Retain each ten-coefficient vector only after readTrace checks its original-public transcript, endpoints, challenge and states.",
+    "outputs": "Require complete28rounds and challenges, canonical17x54 Pad and17x14x54 matrix values, and equality of the saved evaluation point with every Lean challenge.",
+    "execution": "Use existing PiCCSInputCheck.execute and require accepted plus the same point.",
+    "encoding": "Use existing inputValue, execute.encoded and PiCCSProofInputs.serializeProofInputs. Preserve input without trailing newline and phase/proof-word files with one newline.",
+    "comment": "Correct the existing encoder header from29012 to29288 words; its definition and proofs are unchanged.",
+    "attempts": "Build1 rejected a record-layout syntax error; build2 passed after one-field-per-line formatting. No resource override."
+  },
+  "proof_owners": [
+    "LeanGraph.Targets.PiCCSOriginalEvaluationKernel",
+    "PiCCSOriginalReadsPreservation.read_eq_preparedRead",
+    "PiCCSOriginalMatrixPreservation.matrix_eq_evaluationFamily",
+    "PiCCSOriginalMatrixRange.sparse_eq_range",
+    "PiCCSOriginalMatrixRange.invocations_eq_range",
+    "PiCCSInputCheck.execute_accepted_iff",
+    "PiCCSProofInputs.serializeProofInputs_length",
+    "PiCCSInputs.proofInputColumnCount_eq"
+  ],
+  "proof_boundary": "No new theorem or arithmetic kernel is introduced. Existing original evaluation target retains loader, selected-block and range premises. Saved-file origin and executable IO are connected by retained source-bound runs, not a digest assumption. The old selected original-source Q bridge is not closed by these results.",
+  "coverage": {
+    "matrix_rows": 6377559,
+    "matrix_ranges": 53,
+    "pad_carrier_blocks": 4685394,
+    "pad_ranges": 64,
+    "sources": 17,
+    "ring_lanes": 54,
+    "matrices_per_source": 14,
+    "Pad_K_values": 918,
+    "matrix_K_values": 12852,
+    "total_output_K_values": 13770,
+    "total_output_field_words": 27540,
+    "point_field_words": 56,
+    "fresh_nonconstant_K_values": 795,
+    "rounds": 28,
+    "round_K_coefficients": 280,
+    "proof_input_field_words": 29288,
+    "outgoing_transcript_words": 8,
+    "exact_input_bytes": 657063,
+    "exact_phase_bytes": 450952
+  },
+  "checks": {
+    "complete_original_evaluations": "All27540 field words and point match both Rust comparison copies.",
+    "complete_bytes": "Whole PiCCS input and phase bytes match; all29288 proof words match independent field flattening.",
+    "mutations": "Consistent Pad/matrix target changes, a fresh nonconstant matrix target change, and a final proof-word change reject.",
+    "finish_rejections": "20 cases pass: missing/changed causal rounds, schema/family/dimension/word errors, point mismatch, changed canonical Pad/matrix values, duplicate outputs and an existing final output. Every rejection writes no new output and preserves existing bytes.",
+    "static_build_axioms": "passed",
+    "literal_target": "passed",
+    "metadata": "passed",
+    "graph_tests": "passed85tests",
+    "review": "GPT6xhigh read-only encoding/point/independence review found no concrete correctness issue; root reviewed and ran the separate rejection checker."
+  },
+  "runtime": {
+    "queue": "One root-owned queue; all agents idle during timed production scans.",
+    "timing_scope": "The scan reuses early source-bound ranges from a115f2c and final ranges from191255fc. Old and new kernels were proved equal and retained whole-byte comparisons passed. This record does not establish a full-matrix speedup.",
+    "shared_initialization": "Recorded once per command, separately from range computation; it is not charged to every row.",
+    "batches": [
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-0.log",
+          "bytes": 13469,
+          "sha256": "3e3ffbb8ea1c7bf04a0f0ac1203841c1dcfba81fcb77f31310129effd659ecd4"
+        },
+        "ranges": 4,
+        "rows": 1008996,
+        "command_wall": "16:55.51",
+        "shared_load_ns": 16762402249,
+        "compute_ns": 982612332686,
+        "peak_rss_KiB": 4047956
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-1.log",
+          "bytes": 12598,
+          "sha256": "1fc2b14fc6a7f43a97cf268619faba003839726ffbbec1f7bbc478657188218d"
+        },
+        "ranges": 3,
+        "rows": 1160900,
+        "command_wall": "19:36.99",
+        "shared_load_ns": 19408820936,
+        "compute_ns": 1139184491410,
+        "peak_rss_KiB": 4319680
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-2.log",
+          "bytes": 11721,
+          "sha256": "c420a340e86468388fd7e1402a605f8e2e83f0b514561299dbcb07aa85cba229"
+        },
+        "ranges": 2,
+        "rows": 714776,
+        "command_wall": "12:08.86",
+        "shared_load_ns": 16683551214,
+        "compute_ns": 700346154327,
+        "peak_rss_KiB": 4082224
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-ordinary-first.log",
+          "bytes": 11674,
+          "sha256": "d69cad134a36c3224abb4ebda6897d6f1f3bca21a62a2b50a27c4cd9ad33b6f4"
+        },
+        "ranges": 2,
+        "rows": 16538,
+        "command_wall": "0:31.60",
+        "shared_load_ns": 19227132254,
+        "compute_ns": 7394956029,
+        "peak_rss_KiB": 2437984
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-4.log",
+          "bytes": 16939,
+          "sha256": "4209683e3d9367e971012820b82cb9a147acdab1d06024fc2bec79cb9bb0737c"
+        },
+        "ranges": 8,
+        "rows": 810339,
+        "command_wall": "21:02.70",
+        "shared_load_ns": 19330245416,
+        "compute_ns": 1210609311911,
+        "peak_rss_KiB": 8403476
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-blocks-6-9.log",
+          "bytes": 14222,
+          "sha256": "9b752d6024ca6c7ca300c4c552805799a9d5e4f6ca8ff90483941b696a8fcaf3"
+        },
+        "ranges": 5,
+        "rows": 235303,
+        "command_wall": "2:28.13",
+        "shared_load_ns": 16678611258,
+        "compute_ns": 122879244758,
+        "peak_rss_KiB": 3895916
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-10-first.log",
+          "bytes": 14368,
+          "sha256": "333aa08ed808db0f5ab203443e5c53898ca665302694859cca963f3556fad8bc"
+        },
+        "ranges": 5,
+        "rows": 927180,
+        "command_wall": "14:28.60",
+        "shared_load_ns": 16565657115,
+        "compute_ns": 810275098126,
+        "peak_rss_KiB": 8230672
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-block-10-last.log",
+          "bytes": 12639,
+          "sha256": "ffa064cc156635a11577ffe1478fa35c99f7c60bdc9ffc217c4f679b5bb9dfd0"
+        },
+        "ranges": 3,
+        "rows": 771120,
+        "command_wall": "11:54.29",
+        "shared_load_ns": 19278352592,
+        "compute_ns": 655535546805,
+        "peak_rss_KiB": 11230992
+      },
+      {
+        "log": {
+          "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-matrix-tail.log",
+          "bytes": 23566,
+          "sha256": "0673d8ae2f00bd9b8d9967e0725cc60b4ea099d1bff53d3c59c0245e6f578d52"
+        },
+        "ranges": 16,
+        "rows": 498389,
+        "command_wall": "4:05.42",
+        "shared_load_ns": 16790741570,
+        "compute_ns": 216127952286,
+        "peak_rss_KiB": 4677332
+      }
+    ]
+  },
+  "source_bound_reports": [
+    {
+      "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_ALL_ROUNDS_REPLAY.json",
+      "bytes": 33805,
+      "sha256": "d1a7d907e7640be5fc7d631a7fd6e9712c8b6dca376d602abd023f775806ecce"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_ORIGINAL_EVALUATIONS_REPLAY.json",
+      "bytes": 34501,
+      "sha256": "6d7f42c93e4ab8908a84fda4f650630ec6095a8d53f6ee4f5f7fd569ed174534"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_ORIGINAL_MATRIX_SUPPORT.json",
+      "bytes": 19987,
+      "sha256": "cc6073716d89b2e0cd20d9ee877eb39eb2b03b72247da3580d5177b5b5c4dd68"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_MATRIX_SPECIALIZATION.json",
+      "bytes": 25712,
+      "sha256": "6946ab3472b3200db80667b5c57c12d3c6430e006bd02954c5f45e05f4303ce9"
+    }
+  ],
+  "producer_inputs": [
+    {
+      "path": "/tmp/nightstream-piccs-original-public-1.json",
+      "bytes": 410910,
+      "sha256": "54dc9d56e0b0b2cb6c14d9e3cc5d2d56114132721ff9cb35577946f1f64b5a37"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+      "bytes": 562056218,
+      "sha256": "b4b093059cfb8da5266e9a7188348958a6a93b512e7c854b6157b7ad57fb8619"
+    }
+  ],
+  "lean_round_inputs": "Exact28path/hash bindings and upstream generation are in PICCS_ORIGINAL_EVALUATIONS_REPLAY.json and PICCS_ALL_ROUNDS_REPLAY.json.",
+  "comparison_targets_only": [
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+      "bytes": 657063,
+      "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-ccs-2.phase.json",
+      "bytes": 450952,
+      "sha256": "1433dd4c7b8e25b7ea69c2bab1c82e92f9397f3854743396d466899bfc67d8eb"
+    }
+  ],
+  "sources": [
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSPrefixMain.lean",
+      "bytes": 55739,
+      "sha256": "8fb7013e8bdd14f558c9f2931b5cf469a5c69fb5c13eb8ab479846f7a79d9f52"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/PiCCSProofInputs.lean",
+      "bytes": 60872,
+      "sha256": "bb0551f1d7691786423e4e95646c220b8dec7693103a1214fdc393827d1dc1c5"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_complete_bytes.py",
+      "bytes": 4155,
+      "sha256": "62e80a733016405b7c944a8f78fbeb0f69c726071a060a7179555135498ec72a"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_finish_rejection.py",
+      "bytes": 7309,
+      "sha256": "2d530cd55f8a856ca175b9ffab48b2d0cf14163b603f345ad088206449a852a8"
+    }
+  ],
+  "executable": {
+    "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSPrefix",
+    "bytes": 137732648,
+    "sha256": "a4dac433359a799b1af4b18cf14ce1434479590719c1baf00c816c909d420497"
+  },
+  "generation_manifest": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-generation-manifest.json",
+    "bytes": 106038,
+    "sha256": "fc82bba50c18708c76296f405ac59d9387509ad8deb88952898fcb7065041d66"
+  },
+  "matrix_plan": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/original-matrix-plan.json",
+    "bytes": 40561,
+    "sha256": "c2590b7ea867925248e016394f8f8ed089a75501cc64a619ace38f82c4fc23ef"
+  },
+  "merged_evaluations": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-original-evaluations.json",
+    "bytes": 235307,
+    "sha256": "728c538e19f23526e7174dfe13c847d1e20309ad3fb802cfadcddf3a8501ab80"
+  },
+  "final_outputs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/independent-ccs-input.json",
+      "bytes": 657063,
+      "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/independent-ccs-phase.json",
+      "bytes": 450952,
+      "sha256": "1433dd4c7b8e25b7ea69c2bab1c82e92f9397f3854743396d466899bfc67d8eb"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/independent-ccs-proof-words.json",
+      "bytes": 241654,
+      "sha256": "ced5a0c32682457326bfb0ea8dcda546ca58df178742584acce5d650a528abf1"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-original-merge.log",
+      "bytes": 31556,
+      "sha256": "fa4a9637af6ec3732f0dd07046497cbb3d6c35cfa77807495f0b567cf7d885fc"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/full-original-comparison.log",
+      "bytes": 1076,
+      "sha256": "4da62f6b34d3bd3981f2ad79f49d66a597e1d43e55aa40c57d495e401b7a9116"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/finish-original-build-2.log",
+      "bytes": 126520,
+      "sha256": "60a9672886c5dc36738e8b2ba94bf71ec96ccf11f9391e0808b461d0f00bf1d5"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/finish-original.log",
+      "bytes": 6869,
+      "sha256": "beab98b97057d1177cc024d493dbc0710dd01d07f6d3260368be4243a7b546ba"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/finish-original-byte-comparison.log",
+      "bytes": 1160,
+      "sha256": "736e625ed4b4444100d4c97301b3419acf9b5882b313ce6e18636ed05caf6dee"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/finish-original-rejections.log",
+      "bytes": 4913,
+      "sha256": "d78f30338e50e1042c120dc1bcc58a2d7eb859b6417121b1a59371a0972448e1"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-all.log",
+      "bytes": 1308341,
+      "sha256": "66b3e43ead6df0e7ba76949dd9832755bba5262a01bf03ab1172397f4b8482a9"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-target-build.log",
+      "bytes": 156432,
+      "sha256": "a35c9187e9ebc84d39ba14fdefbd058d05b097f671935be3300e39ad52e7b16f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-target-acceptance.log",
+      "bytes": 2719,
+      "sha256": "ce3e2781ec9592e3fa3f6f0208b3459cec4b7c427f1f9498eda09709fd8bdd08"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-target-metadata.log",
+      "bytes": 654205477,
+      "sha256": "51836e45ea2e489f7aa09e6b8f7f4f0ae2b517d353bc2be58e584c19dcf989d7"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-output-graph-tests.log",
+      "bytes": 456,
+      "sha256": "4eae9c3007448c0d9160b43c682d9f775f3e6af4413719fe0c2ec02f719d18f2"
+    }
+  ],
+  "failed_build_log": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/finish-original-build-1.log",
+    "bytes": 130654,
+    "sha256": "22bd4d34b1c6ae168df27450741196ade26c760cc80adb77778501b6d1372947"
+  },
+  "old_source_bridge": {
+    "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_SOURCE_BRIDGE_PENDING.patch",
+    "bytes": 52591,
+    "sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133",
+    "status": "Ten checks exhausted; check11 owner approval pending. Patch not applied or checked in this milestone."
+  },
+  "open_requirements": [
+    "Owner approval for PiCCSCarriedSource check11 and the existing selected source-to-whole-polynomial bridge. Its ten-attempt budget is not reset.",
+    "Complete full NIFS encoding and composed HyperNova next state, complete fresh assignment and commitment using the independent phase results.",
+    "Publish source-bound evidence and pass protected fresh-checkout reproduction. Large evidence remains outside Git."
+  ],
+  "scheduled_external_review": {
+    "read_at_UTC": "2026-09-16T14:20:15Z",
+    "sha256": "20dc5aaceef7e9ea712cfa71eee65339b31b8fe4f0be6a0167a4cf464db7d11c",
+    "result": "unchanged; the retained Nebula finding is outside this selected inactive-Nebula path",
+    "fable": "absent"
+  },
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e",
+  "caps": {
+    "Lean_seconds": 1500,
+    "native_seconds": 300,
+    "authority": "project policy; each invocation is capped"
+  }
+}

@@ -17,6 +17,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
@@ -531,3 +534,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_empty
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_add
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.range_eq_reference
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.pairRow_get
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.foldRows_size
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.portValues_foldRows
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.foldRows_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.rows?_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.fold_evaluate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial.contribution_prepared

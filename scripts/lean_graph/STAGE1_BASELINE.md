@@ -142,7 +142,11 @@ and 17 sources match Rust's production fold and norm functions. A changed
 coefficient rejects. The cached kernel is proved equal to the original
 interpolation followed by the norm cubic; equal non-signed endpoints are
 retained. The full Lean scan took 376.15 seconds at 1,362,264 KiB peak RSS.
-The fresh and carried contributions still need to be composed for that round.
+The complete second-round fresh contribution is now computed in 49.69 seconds
+from all 3,188,780 saved first-fold rows. Degrees 5–9 match Rust exactly.
+`PICCS_FRESH_PREFIX_REPLAY.json` records the selected source, interpolation
+and polynomial laws, measured runs and changed-challenge rejection. The
+carried terms and full second-round composition remain open.
 Remaining work is the complete later-round execution, final evaluations,
 HyperNova and complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference

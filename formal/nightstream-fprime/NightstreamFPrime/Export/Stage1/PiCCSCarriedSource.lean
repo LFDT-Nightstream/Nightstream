@@ -191,6 +191,17 @@ theorem pad_sourceProtocolData (input : PiCCSPublicReplay.Input)
     padAt witness gamma vertex = originalPad input witness gamma vertex :=
   (endpoint_projections input witness gamma vertex).1
 
+/-- The selected scalar Pad read at a full-carrier column is the original
+local-gamma Pad total at that column's Boolean vertex. -/
+theorem pad_column_sourceProtocolData (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (gamma : K) (column : Fin PiCCSSourceImages.shape.carrierWidth) :
+    PiCCSCarriedRead.read (basis gamma).1 (blocks witness gamma) column =
+      originalPad input witness gamma (selectedLayout.toVertex column) := by
+  have original := pad_sourceProtocolData input witness gamma (selectedLayout.toVertex column)
+  rw [padAt, padRead_toVertex] at original
+  exact original
+
 private theorem fullShape_carrierWidth (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :
     (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth =

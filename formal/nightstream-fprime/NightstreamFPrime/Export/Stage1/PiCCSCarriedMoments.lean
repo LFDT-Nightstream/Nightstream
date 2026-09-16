@@ -242,7 +242,7 @@ def headSelector (ops : InterpolationOps Field) {arity : Nat}
   | [] => FixedPolynomial.zero ops.toOps 1
   | head :: _ => affine ops (ops.sub ops.one head) head
 
-private theorem equalitySelector_factor (ops : InterpolationOps Field)
+theorem equalitySelector_factor (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {arity remaining : Nat}
     (dimension : arity = remaining + 1) (suffix : BooleanVertex remaining)
     (prior : CubePoint Field arity) :

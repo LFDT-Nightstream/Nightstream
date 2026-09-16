@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixComplete
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupportedPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
@@ -911,5 +912,53 @@ theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
       tables masks firstRow point interfaces source port
 
 #audit_axioms piCCSOriginalEvaluationKernel
+
+/-- Complete source coefficient equality for Q0, each nonempty dimension-correct
+prefix Q1 through Q27, and the Q2 bucket constructor. The source is the selected
+key's sourceProtocolData with the original signed-mask assignments. Alpha and
+gamma are derived from the public input. Later challenge prefixes are arbitrary
+inputs of the stated dimension; this is not a transcript or IO theorem.
+The mask bound is the original decoder's allocated block extent. -/
+def PiCCSAllRoundSourceCoefficients : Prop :=
+  PiCCSFirstRoundSourceCoefficients ∧
+  (∀ (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))),
+    masks.size ≤ PiCCSSourceImages.blockCount →
+    ∀ (challenges : List K), challenges ≠ [] →
+    ∀ (remaining : Nat)
+      (dimension : cubeVariables = challenges.length + remaining + 1),
+      PiCCSPrefixComplete.coefficients? input masks challenges remaining =
+        some ((PiCCSPrefixRound.roundPolynomial ConcreteCarrier.extensionOps
+          (((ProductionKey.key
+            (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+              Poseidon2HashChainV1Package.fits)
+            Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+            (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+              K.embed ⟨PiCCSNormSource.assignments masks⟩)
+          (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
+          challenges (remaining := remaining) dimension).coefficients)) ∧
+  (∀ (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat))),
+    masks.size ≤ PiCCSSourceImages.blockCount →
+    ∀ (first second : K) (remaining : Nat)
+      (dimension : cubeVariables = [first, second].length + remaining + 1),
+      PiCCSPrefixComplete.bucketCoefficients? input masks first second remaining =
+        some ((PiCCSPrefixRound.roundPolynomial ConcreteCarrier.extensionOps
+          (((ProductionKey.key
+            (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+              Poseidon2HashChainV1Package.fits)
+            Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+            (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+              K.embed ⟨PiCCSNormSource.assignments masks⟩)
+          (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
+          [first, second] (remaining := remaining) dimension).coefficients))
+
+theorem piCCSAllRoundSourceCoefficients : PiCCSAllRoundSourceCoefficients := by
+  refine ⟨piCCSFirstRoundSourceCoefficients, ?_, ?_⟩
+  · intro input masks loaded challenges nonempty remaining dimension
+    exact PiCCSPrefixComplete.coefficients_eq_roundPolynomial input masks loaded challenges nonempty dimension
+  · intro input masks loaded first second remaining dimension
+    exact PiCCSPrefixComplete.bucketCoefficients_eq_roundPolynomial input masks loaded first second dimension
+
+#audit_axioms piCCSAllRoundSourceCoefficients
+
 
 end LeanGraph.Targets

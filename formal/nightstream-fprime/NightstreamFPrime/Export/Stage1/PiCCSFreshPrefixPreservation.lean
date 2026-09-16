@@ -103,6 +103,20 @@ theorem rows?_value (input : PiCCSPublicReplay.Input)
   rw [action]
   exact Array.ofFnM_pure
 
+private theorem reference_size {arity ports : Nat} (tables : Fin ports → BooleanTable K arity)
+    (count : Nat) (fits : count ≤ 2 ^ arity) :
+    Option.map Array.size (some (reference tables count fits)) = some count := by
+  simp only [Option.map_some, reference, Array.size_ofFn]
+
+/-- Exact active-row extent of the successful selected fresh initializer. -/
+theorem rows?_size (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (source : Fin productionShape.freshCount) :
+    (rows? selectedProgram selectedSource (witness.assignments (freshSourceIndex source))
+      selectedFits).map Array.size = some selectedProgram.rowCount := by
+  exact (congrArg (Option.map Array.size) (rows?_value input witness source)).trans
+    (reference_size _ selectedProgram.rowCount selectedFits)
+
 private theorem table_ext {arity : Nat} (left right : BooleanTable K arity)
     (equal : ∀ vertex, left.valueAt vertex = right.valueAt vertex) : left = right := by
   induction arity with

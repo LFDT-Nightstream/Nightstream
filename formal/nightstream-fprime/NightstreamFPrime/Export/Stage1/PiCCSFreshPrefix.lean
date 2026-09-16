@@ -69,7 +69,7 @@ private theorem zeroRow_get {matrixCount : Nat} (port : Fin matrixCount) :
   change (Vector.replicate matrixCount extensionOps.zero)[port.val] = _
   rw [Vector.getElem_replicate]
 
-private theorem portValues_getD {matrixCount : Nat}
+theorem portValues_getD {matrixCount : Nat}
     (rows : Array (Vector K matrixCount)) (port : Fin matrixCount) (index : Nat) :
     (portValues rows port).getD index extensionOps.zero =
       (rows.getD index (Vector.replicate matrixCount extensionOps.zero)).get port := by

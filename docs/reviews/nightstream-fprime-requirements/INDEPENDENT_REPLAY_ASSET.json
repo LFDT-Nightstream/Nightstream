@@ -29,7 +29,6 @@
   "payload_bytes": 1508622074,
   "fresh_download_verified": true,
   "protected_reproduction": "pending",
-  "pending_source_bridge": "The archive preserves the earlier proof-open checkpoint. The owner removed the attempt limit on 2026-09-16; the source proof repair is in progress.",
   "repository": "LFDT-Nightstream/Nightstream",
   "branch": "nico/f-prime-constraints-cuda-formal",
   "scope": "Complete local C/R/D, recursive caller, fresh witness and commitment evidence, with final physical-row checks. Saved-value continuation is not protected original-source reproduction.",
@@ -42,7 +41,6 @@
   },
   "authentication": "Upload completed through the owner's GitHub CLI sign-in on the Linux host.",
   "open_items": [
-    "Finish and audit the remaining selected-source PiCCS polynomial proofs.",
     "Complete protected source-bound reproduction with the approved checker."
   ],
   "bundle_documents": {
@@ -88,5 +86,11 @@
       }
     ],
     "scope": "Fresh authenticated downloads compared to the exact prepared archives; this is delivery evidence, not protected source reproduction."
+  },
+  "source_bridge": {
+    "status": "Complete selected source-to-coefficient proofs compile for all 28 PiCCS rounds; the exact target and axiom checks pass.",
+    "target": "LeanGraph.Targets.PiCCSAllRoundSourceCoefficients",
+    "report": "PICCS_PREFIX_SOURCE_REPLAY.json",
+    "archive_scope": "The immutable execution archive retains the earlier 0a15c3b0 proof-open status. Later source proofs are recorded in the repository; the producer computations and retained output bytes are unchanged."
   }
 }

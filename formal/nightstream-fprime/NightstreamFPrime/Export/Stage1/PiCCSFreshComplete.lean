@@ -263,7 +263,7 @@ private theorem reference_fresh_zero (input : PiCCSPublicReplay.Input)
     (witness.assignments (freshSourceIndex source)) suffix beyond bit, Option.map_some] at original
   exact (Option.some.inj original).symm.trans (embedded_replicate_zero matrix)
 
-private theorem outerFresh_zero (input : ProtocolPolynomial.VerifierInput K productionShape)
+theorem outerFresh_zero (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) :
     outerFresh input powers (FixedPolynomial.zero extensionOps.toOps
       input.constraintPolynomial.canonicalEqualityGatedDegreeBound) =

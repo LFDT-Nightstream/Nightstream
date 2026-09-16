@@ -34,3 +34,5 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.PiCCSOriginalEvaluationKernel by LeanGraph.Targets.piCCSOriginalEvaluationKernel
 
 #evidence_closed LeanGraph.Targets.FreshWitnessKernels by LeanGraph.Targets.freshWitnessKernels
+
+#evidence_closed LeanGraph.Targets.PiCCSAllRoundSourceCoefficients by LeanGraph.Targets.piCCSAllRoundSourceCoefficients

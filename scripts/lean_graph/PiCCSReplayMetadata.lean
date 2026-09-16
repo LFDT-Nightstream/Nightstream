@@ -2,7 +2,7 @@ import tests.EvidenceTargets
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 
-/-! Exact dependency graph for the first-round replay kernel. -/
+/-! Exact dependency graph for original-source PiCCS replay kernels. -/
 #evidence_export LeanGraph.Targets.piCCSFirstRoundReplayKernel
 #evidence_export LeanGraph.Targets.piCCSFirstRoundSourceCoefficients
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.full_components_eq_firstRound
@@ -26,3 +26,5 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.sparse_eq_range
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.invocations_eq_range
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.range_eq_matrix
+
+#evidence_export LeanGraph.Targets.piCCSAllRoundSourceCoefficients

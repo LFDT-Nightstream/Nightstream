@@ -49,7 +49,8 @@ structure Input where
   evalA : Vector (Vector (Vector K 54) 14) 17
   running : RunningInput
 
-private def decodeVector {Alpha : Type} (length : Nat)
+/-- Decode exactly the declared number of canonical input items. -/
+def decodeVector {Alpha : Type} (length : Nat)
     (decodeItem : Lean.Json → Except String Alpha) (value : Lean.Json) :
     Except String (Vector Alpha length) := do
   let values ← value.getArr?
@@ -58,7 +59,8 @@ private def decodeVector {Alpha : Type} (length : Nat)
   else
     throw s!"expected array length {length}, got {values.size}"
 
-private def decodeField (value : Lean.Json) : Except String F := do
+/-- Decode a canonical Goldilocks input word without modular reduction. -/
+def decodeField (value : Lean.Json) : Except String F := do
   let word ← value.getNat?
   if canonical : word < goldilocksModulus then
     pure ⟨word, canonical⟩
@@ -129,7 +131,8 @@ theorem decodeExtension_rejects_wrong_length (values : Array Lean.Json)
     bind, Except.bind, pure, Except.pure, wrongLength]
   rfl
 
-private def decodeRunning (value : Lean.Json) : Except String RunningInput := do
+/-- Decode the five existing public running-claim fields. -/
+def decodeRunning (value : Lean.Json) : Except String RunningInput := do
   let values ← value.getArr?
   match values.toList with
   | [point, commitments, publicInputs, evalK, evalA] =>

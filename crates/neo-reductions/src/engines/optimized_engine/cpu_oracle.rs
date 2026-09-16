@@ -13,6 +13,42 @@ use crate::engines::pi_ccs_protocol::Challenges;
 use crate::superneo_eval::{weighted_identity_projection, EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
 use crate::PiCcsError;
 
+// The production call uses offset zero. An offset preserves absolute tensor
+// indices for a separately stored contiguous input range.
+fn norm_coefficients(
+    assignments: &[Assignment<'_>],
+    gamma: K,
+    weights: &EqualityWeights,
+    pair_offset: usize,
+) -> [K; 4] {
+    let mut result = [K::ZERO; 4];
+    for (source, table) in assignments.iter().enumerate() {
+        let term = |index| {
+            let (low, high) = table.pair(index);
+            prefix::norm_pair(low, high).map(|value| value * weights.at(pair_offset + index))
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let coefficients = (0..table.len().div_ceil(2))
+            .into_par_iter()
+            .map(term)
+            .reduce(
+                || [K::ZERO; 4],
+                |left, right| std::array::from_fn(|index| left[index] + right[index]),
+            );
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let coefficients = (0..table.len().div_ceil(2))
+            .map(term)
+            .fold([K::ZERO; 4], |left, right| {
+                std::array::from_fn(|index| left[index] + right[index])
+            });
+        let weight = gamma_power(gamma, source);
+        for index in 0..4 {
+            result[index] += weight * coefficients[index];
+        }
+    }
+    result
+}
+
 pub struct OptimizedPaperJointOracle<'a> {
     structure: &'a CcsStructure<F>,
     cache: &'a SuperneoEvalCache,
@@ -195,32 +231,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
     }
 
     fn norm_coefficients(&self, weights: &EqualityWeights) -> [K; 4] {
-        let mut result = [K::ZERO; 4];
-        for (source, table) in self.assignments.iter().enumerate() {
-            let term = |index| {
-                let (low, high) = table.pair(index);
-                prefix::norm_pair(low, high).map(|value| value * weights.at(index))
-            };
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let coefficients = (0..table.len().div_ceil(2))
-                .into_par_iter()
-                .map(term)
-                .reduce(
-                    || [K::ZERO; 4],
-                    |left, right| std::array::from_fn(|index| left[index] + right[index]),
-                );
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let coefficients = (0..table.len().div_ceil(2))
-                .map(term)
-                .fold([K::ZERO; 4], |left, right| {
-                    std::array::from_fn(|index| left[index] + right[index])
-                });
-            let weight = gamma_power(self.challenges.gamma, source);
-            for index in 0..4 {
-                result[index] += weight * coefficients[index];
-            }
-        }
-        result
+        norm_coefficients(&self.assignments, self.challenges.gamma, weights, 0)
     }
 
     fn general_norm(&self, weights: &EqualityWeights, point: K) -> K {
@@ -391,3 +402,7 @@ fn carried_table(
     }
     result
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/piccs_first_round_norm.rs"]
+mod first_round_norm_tests;

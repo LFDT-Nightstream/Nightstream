@@ -283,4 +283,37 @@ import NightstreamFPrime.Export.Stage1.NifsClosure
 import NightstreamFPrime.Export.Stage1.NifsProviderLaw
 import NightstreamFPrime.Export.Stage1.NifsInvalidSource
 
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
+import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector
+import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
+import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
+import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
+import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
+import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
+import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
+import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
+import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSNormSource
+import NightstreamFPrime.Export.Stage1.PiCCSNormScan
+import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
+import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
+import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
+import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
+import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
+
 /-! Export layer root. Lists the modules of this layer explicitly. -/

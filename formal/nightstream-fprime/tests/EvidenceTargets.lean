@@ -1,3 +1,11 @@
+import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
+import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
+import NightstreamFPrime.Export.Stage1.PiCCSNormCache
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
@@ -493,5 +501,237 @@ theorem piDECChildEvaluationReplay : PiDECChildEvaluationReplay := by
   exact PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages
 
 #audit_axioms piDECChildEvaluationReplay
+
+/-- The computable complete first-round polynomial evaluates to the existing
+Q completion sum. This kernel target does not assert source-image loading or
+an executed comparison with Rust. Those remain separate replay obligations. -/
+def PiCCSFirstRoundKernel : Prop :=
+  ∀ (data : ProtocolPolynomial.Data K Lifecycle.productionShape)
+    (alpha : CubePoint K Lifecycle.productionShape.cubeVariables)
+    (gamma value : K),
+    (PiCCSFirstRound.firstRound ConcreteCarrier.extensionOps data alpha gamma
+      (remaining := 27) (by decide)).evaluate ConcreteCarrier.extensionOps.toOps value =
+      Spec.SumCheck.Finite.HypercubeTruth.sumCompletions ConcreteCarrier.extensionOps.toOps
+        (ProtocolPolynomial.polynomial ConcreteCarrier.extensionOps data alpha gamma) [value] 27
+
+/-- The complete sum theorem supplies the exact coefficient-kernel target. -/
+theorem piCCSFirstRoundKernel : PiCCSFirstRoundKernel :=
+  fun data alpha gamma value => PiCCSFirstRound.firstRound_evaluate
+    ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws data alpha gamma (by decide) value
+
+#audit_axioms piCCSFirstRoundKernel
+
+/-- The executable image assembly uses the original complete witnesses and
+returns the existing source-connected protocol message. -/
+def PiCCSOriginalImages : Prop :=
+  let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+    Poseidon2HashChainV1Package.fits
+  ∀ (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (vertex : BooleanVertex cubeVariables),
+    PiCCSSourceImages.images?
+      (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+      (fun row => (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?)
+      (PiDECParentSparseRead.prepare ())
+      (PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout witness.assignments vertex =
+        some (ProtocolPolynomial.vertexMessage
+          (((ProductionKey.key relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+            (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+              K.embed witness) vertex)
+
+theorem piCCSOriginalImages : PiCCSOriginalImages :=
+  PiCCSSourceImages.images_sourceProtocolData
+
+/-- The aggregated constructor, including zeroed unused message fields,
+preserves the complete coefficient object with prepared gamma lookup. -/
+def PiCCSPreparedPairKernel : Prop :=
+  ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (gamma : K)
+    (alphaSelector priorSelector : Spec.SumCheck.Finite.FixedPolynomial K 1)
+    (low high : ProtocolPolynomial.OutputMessage K productionShape),
+    PiCCSFirstRoundPair.pairPolynomialWithTotals ConcreteCarrier.extensionOps input
+      (PiCCSGammaPowers.lookup ConcreteCarrier.extensionOps.toOps gamma
+        (PiCCSGammaPowers.prepare ConcreteCarrier.extensionOps.toOps gamma
+          (PiCCSFirstRoundPair.powerCount productionShape)))
+      alphaSelector priorSelector
+      { low with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero }
+      { high with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero }
+      (FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalPadCoordinates productionShape)
+        (fun coordinate => K.mul
+          (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma coordinate.localGammaExponent)
+          (low.padImage coordinate)))
+      (FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalPadCoordinates productionShape)
+        (fun coordinate => K.mul
+          (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma coordinate.localGammaExponent)
+          (high.padImage coordinate)))
+      (FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalMatrixCoordinates productionShape)
+        (fun coordinate => K.mul
+          (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma coordinate.localGammaExponent)
+          (low.matrixImage coordinate)))
+      (FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalMatrixCoordinates productionShape)
+        (fun coordinate => K.mul
+          (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma coordinate.localGammaExponent)
+          (high.matrixImage coordinate))) =
+        PiCCSFirstRoundPair.pairPolynomial ConcreteCarrier.extensionOps input gamma
+          alphaSelector priorSelector low high
+
+theorem piCCSPreparedPairKernel : PiCCSPreparedPairKernel := by
+  intro input gamma alphaSelector priorSelector low high
+  have powers := funext (PiCCSGammaPowers.lookup_prepare ConcreteCarrier.extensionOps.toOps
+    gamma (PiCCSFirstRoundPair.powerCount productionShape))
+  rw [powers]
+  rw [PiCCSFirstRoundPair.pairPolynomialWithTotals_congr
+    ConcreteCarrier.extensionOps input (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma)
+    alphaSelector priorSelector
+    { low with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero }
+    { high with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero } low high
+    _ _ _ _ rfl rfl rfl rfl]
+  exact PiCCSFirstRoundPair.pairPolynomialWithTotals_eq
+    ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws input _
+      alphaSelector priorSelector low high
+
+/-- The optimized source constructor supplies the selected vertex fields
+and the complete canonical carried sums without image-success premises. -/
+def PiCCSAggregatedEndpoints : Prop :=
+  let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+    Poseidon2HashChainV1Package.fits
+  ∀ (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (gamma : K) (vertex : BooleanVertex cubeVariables),
+    let powers := TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma
+    let prepared := PiCCSAggregatedImages.prepare (PiDECParentSparseRead.prepare ()) powers
+    let message := ProtocolPolynomial.vertexMessage
+      (((ProductionKey.key relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
+        (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
+          K.embed witness) vertex
+    PiCCSAggregatedImages.endpoint?
+      (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+      (fun row => (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?)
+      (PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout witness.assignments
+      prepared.1 prepared.2 (PiCCSAggregatedImages.combinedBlock powers witness.assignments)
+      powers vertex = some (
+        { message with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero },
+        FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalPadCoordinates productionShape)
+          (fun coordinate => K.mul (powers coordinate.localGammaExponent) (message.padImage coordinate)),
+        FiniteSumAlgebra.sumMap ConcreteCarrier.extensionOps (canonicalMatrixCoordinates productionShape)
+          (fun coordinate => K.mul (powers coordinate.localGammaExponent) (message.matrixImage coordinate)))
+
+theorem piCCSAggregatedEndpoints : PiCCSAggregatedEndpoints :=
+  PiCCSAggregatedImages.endpoint_sourceProtocolData
+
+/-- Reused invocation rows have the same block semantics after the existing
+loader succeeds. The runner retains its checked numeric fallback on a miss. -/
+def PiCCSStoredInvocation : Prop :=
+  ∀ (block : Layout.MatrixProgram.Poseidon.Block) (columns : Nat)
+    (index : Fin block.invocationCount)
+    (interface : Layout.ProductionRelation.PoseidonSboxPlan.Interface columns),
+    PiDECPoseidonNumericBlock.loadInvocation? block columns index = some interface →
+    ∀ (basis : PiRLCPartialTrace.FixedArray (Vector K ringDegree) ringDegree)
+      (blocks : Nat → Vector K ringDegree) (row : Fin 94) (port : Fin Spec.ProductionRelation.matrixCount),
+    some (((PiCCSCarriedReadCache.invocation basis blocks interface).get row).get port) =
+      (block.row? columns (Fin.encodeProd (index, row)).val).map (fun forms =>
+        PiCCSSparseEvaluation.evaluateK
+          (match Layout.ProductionRelation.meaningfulPort? port with
+            | some meaningful => forms meaningful
+            | none => Layout.ProductionRelation.SparseForm.empty) (PiCCSCarriedRead.read basis blocks))
+
+theorem piCCSStoredInvocation : PiCCSStoredInvocation := by
+  intro block columns index interface loaded basis blocks row port
+  rw [PiCCSCarriedReadCache.invocation_eq]
+  exact PiCCSLinearRows.invocation_loaded_value block index interface loaded
+    (PiCCSCarriedRead.read basis blocks) row port
+
+/-- The actual norm and selector caches preserve every pair coefficient.
+Endpoints and carried totals are arbitrary; no signedness premise is needed. -/
+def PiCCSCachedPairKernel : Prop :=
+  ∀ (input : ProtocolPolynomial.VerifierInput K productionShape) (powers : Nat → K)
+    (alpha : CubePoint K productionShape.cubeVariables) (suffix : BooleanVertex 27)
+    (low high : ProtocolPolynomial.OutputMessage K productionShape)
+    (padLow padHigh matrixLow matrixHigh : K),
+    PiCCSFirstRoundPair.pairPolynomialWithNorm ConcreteCarrier.extensionOps input powers
+      (PiCCSCachedSelector.equalitySelector ConcreteCarrier.extensionOps suffix alpha
+        (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps alpha.coordinates.tail))
+      (PiCCSCachedSelector.equalitySelector ConcreteCarrier.extensionOps suffix input.priorPoint
+        (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps input.priorPoint.coordinates.tail))
+      low high padLow padHigh matrixLow matrixHigh
+      (PiCCSNormCache.sourceNorm (PiCCSNormCache.prepare powers) powers low high) =
+        PiCCSFirstRoundPair.pairPolynomialWithTotals ConcreteCarrier.extensionOps input powers
+          (PiCCSFirstRound.equalitySelector ConcreteCarrier.extensionOps suffix alpha)
+          (PiCCSFirstRound.equalitySelector ConcreteCarrier.extensionOps suffix input.priorPoint)
+          low high padLow padHigh matrixLow matrixHigh
+
+/-- Compose the total cache equalities at the selected first-coordinate split. -/
+theorem piCCSCachedPairKernel : PiCCSCachedPairKernel := by
+  intro input powers alpha suffix low high padLow padHigh matrixLow matrixHigh
+  rw [PiCCSCachedSelector.equalitySelector_prepare ConcreteCarrier.extensionOps
+      ConcreteCarrier.extensionLaws (by decide) suffix alpha,
+    PiCCSCachedSelector.equalitySelector_prepare ConcreteCarrier.extensionOps
+      ConcreteCarrier.extensionLaws (by decide) suffix input.priorPoint,
+    PiCCSNormCache.sourceNorm_eq,
+    PiCCSFirstRoundPair.pairPolynomialWithNorm_eq]
+
+/-- The prepared and partitioned scan equals the complete norm contribution,
+including the entire zero suffix of the Boolean domain. -/
+def PiCCSCompleteNormKernel : Prop :=
+  ∀
+    (input : ProtocolPolynomial.VerifierInput K productionShape)
+    (gamma : K) (alpha : CubePoint K productionShape.cubeVariables)
+    (masks : Array (Array (Nat × Nat)))
+    (freshLow freshHigh : Nat → Vector F ProductionRelation.matrixCount)
+    (parts : Nat), 0 < parts →
+    let powers := PiCCSGammaPowers.lookup ConcreteCarrier.extensionOps.toOps gamma
+      (PiCCSGammaPowers.prepare ConcreteCarrier.extensionOps.toOps gamma productionShape.sourceCount)
+    let weight := PiCCSTensorWeights.lookup ConcreteCarrier.extensionOps alpha.coordinates.tail
+      (PiCCSTensorWeights.prepare ConcreteCarrier.extensionOps alpha.coordinates.tail)
+    PiCCSNormContribution.normTerm input (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma) (PiCCSNormContribution.headSelector alpha)
+        ((Array.ofFn (fun index : Fin parts =>
+          PiCCSNormBuckets.finish powers
+            (PiCCSNormScan.range weight masks (PiCCSSourceImages.blockCount * index.val / parts)
+              (PiCCSSourceImages.blockCount * (index.val + 1) / parts -
+                PiCCSSourceImages.blockCount * index.val / parts)))).foldl
+          (Spec.SumCheck.Finite.FixedPolynomial.add ConcreteCarrier.extensionOps.toOps) (Spec.SumCheck.Finite.FixedPolynomial.zero ConcreteCarrier.extensionOps.toOps 3)) =
+      PiCCSPolynomialRange.range ConcreteCarrier.extensionOps 0 (2 ^ (productionShape.cubeVariables - 1))
+        (PiCCSNormComplete.numericPairNorm input (TargetPolynomial.power ConcreteCarrier.extensionOps.toOps gamma)
+          alpha masks freshLow freshHigh)
+
+theorem piCCSCompleteNormKernel : PiCCSCompleteNormKernel :=
+  PiCCSNormComplete.prepared_workers_eq_fullPairSum
+
+/-- The original-source fresh scan covers the complete Boolean-domain
+contribution, with optional load failures discharged by selected row semantics. -/
+def PiCCSCompleteFreshKernel : Prop :=
+  ∀ (input : PiCCSPublicReplay.Input)
+    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+    (layout : UnifiedSources.ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
+    (powers : Nat → K) (alpha : CubePoint K cubeVariables),
+    PiCCSFreshComplete.freshRange? input witness layout powers alpha 0
+        PiCCSFreshComplete.activePairs =
+      some (PiCCSPolynomialRange.range ConcreteCarrier.extensionOps 0 (2 ^ (cubeVariables - 1))
+        (PiCCSFreshComplete.referencePair input witness powers alpha))
+
+theorem piCCSCompleteFreshKernel : PiCCSCompleteFreshKernel :=
+  PiCCSFreshComplete.freshRange_eq_fullPairSum
+
+/-- Kernel closure combines complete completion-sum semantics, original-source
+assembly, aggregated endpoints, stored rows, exact cached coefficients and
+the complete prepared norm scan and original-source fresh scan.
+Executed full-round coverage and Rust comparison remain separate requirements. -/
+def PiCCSFirstRoundReplayKernel : Prop :=
+  PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
+    PiCCSAggregatedEndpoints ∧ PiCCSStoredInvocation ∧ PiCCSCachedPairKernel ∧
+    PiCCSCompleteNormKernel ∧ PiCCSCompleteFreshKernel
+
+theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
+  ⟨piCCSFirstRoundKernel, piCCSOriginalImages, piCCSPreparedPairKernel,
+    piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel,
+    piCCSCompleteNormKernel, piCCSCompleteFreshKernel⟩
+
+#audit_axioms piCCSOriginalImages
+#audit_axioms piCCSPreparedPairKernel
+#audit_axioms piCCSAggregatedEndpoints
+#audit_axioms piCCSStoredInvocation
+#audit_axioms piCCSCompleteNormKernel
+#audit_axioms piCCSCompleteFreshKernel
+#audit_axioms piCCSCachedPairKernel
+#audit_axioms piCCSFirstRoundReplayKernel
 
 end LeanGraph.Targets

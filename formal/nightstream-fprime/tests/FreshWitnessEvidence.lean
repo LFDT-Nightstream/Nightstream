@@ -1,3 +1,4 @@
+import tests.AxiomsCompactRowExecution
 import tests.AxiomAudit
 import tests.AxiomsStoredWitnessExecution
 import tests.AxiomsCachedAssignmentPlan
@@ -6,7 +7,8 @@ import tests.AxiomsFreshCommitmentBlock
 import tests.EvidenceMetadata
 
 /-! Exact procedure and value refinements for the fresh-witness executable.
-This target does not claim whole-plan row satisfaction or a compact-row bridge. -/
+Compact completion retains explicit physical geometry and output-scope premises.
+This target does not claim whole-plan row satisfaction. -/
 
 namespace LeanGraph.Targets
 
@@ -28,6 +30,51 @@ def FreshWitnessKernels : Prop :=
     invocation.witnessStart + 592 ≤ values.size →
       StoredWitnessExecution.asEnv (StoredPermutationExecution.execute invocation values) =
         Export.Pilot.completePermutationInvocationEnv invocation (StoredWitnessExecution.asEnv values)) ∧
+  (∀ (instruction : Export.Package.WitnessInstruction) (values : Array F),
+    instruction.target < values.size →
+      StoredWitnessExecution.asEnv (StoredInstructionExecution.execute instruction values) =
+        instruction.execute (StoredWitnessExecution.asEnv values)) ∧
+  (∀ (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
+      (recipe : Expr) (values : Array F),
+    inputColumn outputInput < values.size →
+    localStart + Layout.R1CS.mulCount (Expr.var outputInput - recipe) ≤ values.size →
+    inputCount ≤ localStart →
+    (∀ input, input < inputCount →
+      inputColumn input < localStart ∨
+        localStart + Layout.R1CS.mulCount (Expr.var outputInput - recipe) ≤ inputColumn input) →
+    outputInput < inputCount →
+    recipe.VarsBelow outputInput →
+    (∀ input, input < outputInput → inputColumn input ≠ inputColumn outputInput) →
+    (StoredCompactRowExecution.execute inputColumn localStart
+      (CompactRows.compactTemplate inputCount outputInput recipe) values).map
+        (CompactRowRelocation.pullback inputCount localStart inputColumn ∘
+          StoredWitnessExecution.asEnv) =
+      some (Layout.R1CS.executeExpression
+        (CompactRowRelocation.pullback inputCount localStart inputColumn
+          (Env.set (StoredWitnessExecution.asEnv values) (inputColumn outputInput)
+            (recipe.eval (fun input => StoredWitnessExecution.asEnv values (inputColumn input)))))
+        (Expr.var outputInput - recipe) inputCount)) ∧
+  (∀ (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
+      (recipe : Expr) (values : Array F),
+    inputColumn outputInput < values.size →
+    localStart + Layout.R1CS.constraintFreshCount (Expr.var outputInput - recipe) ≤ values.size →
+    inputCount ≤ localStart →
+    (∀ input, input < inputCount →
+      inputColumn input < localStart ∨
+        localStart + Layout.R1CS.constraintFreshCount (Expr.var outputInput - recipe) ≤
+          inputColumn input) →
+    outputInput < inputCount →
+    recipe.VarsBelow outputInput →
+    (∀ input, input < outputInput → inputColumn input ≠ inputColumn outputInput) →
+    (StoredCompactRowExecution.execute inputColumn localStart
+      (CompactRows.compactConstraintTemplate inputCount outputInput recipe) values).map
+        (CompactRowRelocation.pullback inputCount localStart inputColumn ∘
+          StoredWitnessExecution.asEnv) =
+      some (Layout.R1CS.executeConstraint
+        (CompactRowRelocation.pullback inputCount localStart inputColumn
+          (Env.set (StoredWitnessExecution.asEnv values) (inputColumn outputInput)
+            (recipe.eval (fun input => StoredWitnessExecution.asEnv values (inputColumn input)))))
+        (Expr.var outputInput - recipe) inputCount)) ∧
   (∀ (program : Lifecycle.Stage1.Application.Program)
       (prepared : CachedAssignmentProducts.Prepared program)
       (base : CachedAssignmentProducts.BaseValues program),
@@ -46,7 +93,10 @@ def FreshWitnessKernels : Prop :=
 
 theorem freshWitnessKernels : FreshWitnessKernels := by
   refine ⟨StoredWitnessExecution.executeRecipes_eq,
-    StoredWitnessExecution.executeHints_eq, StoredPermutationExecution.execute_eq, ?_, ?_, ?_⟩
+    StoredWitnessExecution.executeHints_eq, StoredPermutationExecution.execute_eq,
+    StoredInstructionExecution.execute_eq,
+    StoredCompactCompletion.execute_compactTemplate,
+    StoredCompactCompletion.execute_compactConstraintTemplate, ?_, ?_, ?_⟩
   · intro program prepared base
     exact CachedAssignmentProducts.rawValues_eq prepared base
   · intro program widths raw

@@ -1,0 +1,45 @@
+import NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope
+import NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates
+import NightstreamFPrime.Export.Stage1.StoredCompactCompletion
+import NightstreamFPrime.Export.Stage1.CompactRowRelocation
+import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
+import NightstreamFPrime.Export.Stage1.CompactOutputExecution
+import NightstreamFPrime.Export.Stage1.CompactConstraintExecution
+import NightstreamFPrime.Export.Stage1.CompactRowExecution
+import tests.AxiomAudit
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowExecution.run_lowerExpression
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowExecution.run_lowerGenericConstraint
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowExecution.instantiate_abstract_self
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactConstraintExecution.run_lowerConstraint
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactConstraintExecution.run_compactConstraintTemplate
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactOutputExecution.logical_after_output
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactOutputExecution.execute_compactTemplate
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactOutputExecution.execute_compactConstraintTemplate
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactRowExecution.step_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactRowExecution.run_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactRowExecution.execute_eq
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowRelocation.run_relocate
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowRelocation.run_lowerConstraint
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactRowRelocation.outputLocal_bound
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactCompletion.execute_compactTemplate
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactCompletion.execute_compactConstraintTemplate
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates.positionRecipe_varsBelow
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates.valueRecipe_varsBelow
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.combination_outputRecipe
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.firstPosition_recipe
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.laterPosition_recipe
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.firstValue_recipe
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.laterValue_recipe

@@ -289,7 +289,7 @@ theorem laterValueTemplate_getElem? (slot : Nat)
       First54ValueStep.outputCount = slot by omega]
   exact map_finRange_getElem? laterValueTemplate slot bound
 
-private theorem positionRecipe_varsBelow (interface : First54Step.Interface)
+theorem positionRecipe_varsBelow (interface : First54Step.Interface)
     (offset bound : Nat) (slot : Fin First54Step.slotCount)
     (acceptedBelow : (interface.accepted offset).VarsBelow bound)
     (priorBelow : ∀ current, (interface.prior offset current).VarsBelow bound) :
@@ -310,7 +310,7 @@ private theorem positionRecipe_varsBelow (interface : First54Step.Interface)
           (priorBelow (First54Step.previousSlot slot (by omega)))
           acceptedBelow)
 
-private theorem valueRecipe_varsBelow
+theorem valueRecipe_varsBelow
     (interface : First54ValueStep.Interface) (offset bound : Nat)
     (slot : Fin First54ValueStep.outputCount)
     (acceptedBelow : (interface.accepted offset).VarsBelow bound)

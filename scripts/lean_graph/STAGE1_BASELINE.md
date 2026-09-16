@@ -378,6 +378,32 @@ supply those theorems. The existing PiCCS carried-source obligation still
 needs owner approval for check11, with its ten earlier attempts preserved.
 Protected source-bound reproduction and release delivery remain separate.
 
+## Stored compact-row completion proof
+
+The stored compact-row replay now uses the checked executor directly.
+Its guarded Array execution equals the functional row executor, including
+rejection, under the exact local-write bounds. The composed theorems connect
+both canonical template families to the existing expression and constraint
+completion functions after the physical output write. They retain explicit
+array bounds, input/local separation and output/input separation premises.
+All five PiRLC recipe families satisfy their output-scope bounds by structural
+proofs. Ordinary stored instructions also equal their existing executor.
+
+The full physical rerun preserves all 234,755,400 bytes from checkpoint
+20bd388897dad5989008923bcd9b5f71f3c5cd0e. It covers 29,344,425 fields,
+1,419,747 events and all 201,386 explicit assertions. The command took
+29.76 seconds, with 23.04 seconds for computation and 2,513,200 KiB peak RSS.
+Agents were idle. These are regression measurements, not a new speedup claim.
+All 26 existing rejection cases pass with the changed executable.
+
+The exact FreshWitnessKernels target includes both compact completion
+statements and the ordinary instruction refinement. Leaf audits also cover
+the five concrete recipe bounds. COMPACT_WITNESS_EXECUTION.json records the
+source cut, attempts, complete byte comparison and validation logs.
+The whole selected physical-plan connection remains open: actual invocation
+geometry and preservation of every canonical row still need proofs.
+The separate PiCCS source check11 remains pending with its prior budget intact.
+
 ## Independent C/R/D and recursive caller execution
 
 The complete independently generated C input now has exactly the bytes used

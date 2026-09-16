@@ -139,14 +139,14 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
             .iter()
             .map(|slot| slot.candidates().len())
             .sum::<usize>(),
-        76,
+        77,
         "current logical port census"
     );
     let shared = first.iter().filter(|slot| slot.candidates().len() > 1);
     assert_eq!(shared.clone().count(), 14, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        69,
+        70,
         "current shared logical-port census"
     );
 

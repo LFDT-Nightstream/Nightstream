@@ -590,7 +590,8 @@ pub struct WasmVmStep {
     pub host_event_rom_slot: Option<WasmHostEventRomEntry>,
     /// Biased initial-schedule count read when a host-event schedule starts.
     pub host_event_initial_schedule_count: Option<u32>,
-    /// Exit-schedule count read when a clean export halt starts its exit events.
+    /// Exit-schedule count read at clean halt and at re-entry for the
+    /// nonempty-template guard.
     pub host_event_exit_schedule_count: Option<u32>,
 }
 

@@ -561,3 +561,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.quadCodes_size
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.quadCode_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_quadCodes_twoFolds
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.accumulate_append
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range

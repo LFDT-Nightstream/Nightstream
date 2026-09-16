@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
@@ -753,5 +754,33 @@ theorem piCCSNormPrefixKernel : PiCCSNormPrefixKernel :=
   PiCCSPrefixCodeFold.decode_quadCodes_twoFolds
 
 #audit_axioms piCCSNormPrefixKernel
+
+/-- Chunked norm buckets preserve the direct coefficient update and exact
+adjacent range composition. Source decoding and IO remain separate gates. -/
+def PiCCSPrefixNormAccumulation : Prop :=
+  (∀ (codeCount : Nat) (values : Vector K codeCount)
+      (buckets : Vector (Vector K codeCount) codeCount)
+      (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat),
+    PiCCSPrefixNormBuckets.finish values
+        (PiCCSPrefixNormBuckets.accumulate buckets low high weight start count) =
+      Spec.SumCheck.Finite.FixedPolynomial.add ConcreteCarrier.extensionOps.toOps
+        (PiCCSPrefixNormBuckets.finish values buckets)
+        (PiCCSPolynomialRange.range ConcreteCarrier.extensionOps start count (fun index =>
+          Spec.SumCheck.Finite.FixedPolynomial.scale ConcreteCarrier.extensionOps.toOps
+            (weight index) (PiCCSFirstRoundPair.normPair ConcreteCarrier.extensionOps
+              (values.get (low index)) (values.get (high index)))))) ∧
+  (∀ (codeCount : Nat) (buckets : Vector (Vector K codeCount) codeCount)
+      (low high : Nat → Fin codeCount) (weight : Nat → K)
+      (start leftCount rightCount : Nat),
+    PiCCSPrefixNormBuckets.accumulate buckets low high weight start (leftCount + rightCount) =
+      PiCCSPrefixNormBuckets.accumulate
+        (PiCCSPrefixNormBuckets.accumulate buckets low high weight start leftCount)
+        low high weight (start + leftCount) rightCount)
+
+theorem piCCSPrefixNormAccumulation : PiCCSPrefixNormAccumulation :=
+  ⟨@PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range,
+    @PiCCSPrefixNormBuckets.accumulate_append⟩
+
+#audit_axioms piCCSPrefixNormAccumulation
 
 end LeanGraph.Targets

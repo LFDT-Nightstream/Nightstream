@@ -8,6 +8,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSNormScan
+import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 /-!
@@ -350,11 +352,360 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def carriedRows (program : MatrixProgram.Program)
+    (sourceRow : Nat → Option R1CS.Row)
+    (basis : FixedArray (Vector K ringDegree) ringDegree)
+    (blocks : Nat → Vector K ringDegree)
+    (cached : Option (Nat × Array (Option (Vector K Spec.ProductionRelation.matrixCount))))
+    (index : Nat) (cacheSparse : Bool := true) :
+    IO (Option (Nat × Array (Option (Vector K Spec.ProductionRelation.matrixCount))) ×
+      Vector K Spec.ProductionRelation.matrixCount) := do
+  if let some (firstRow, values) := cached then
+    if within : firstRow ≤ index ∧ index < firstRow + values.size then
+      let some value := values[index - firstRow]'(by omega)
+        | throw (IO.userError "carried retained row failed to load")
+      return (cached, value)
+  let mut firstRow := 0
+  for block in program.blocks do
+    if index < firstRow + block.rowCount then
+      match block with
+      | .poseidon poseidon =>
+          let some (interface, row) := PiDECPoseidonNumericBlock.loadRow? poseidon
+              PiCCSSourceImages.logicalWidth (index - firstRow)
+            | throw (IO.userError "carried Poseidon row failed to load")
+          let values := PiCCSCarriedReadCache.invocation basis blocks interface
+          return (some (index - row.val, values.toArray.map some), values.get row)
+      | .phi81Product product =>
+          if cacheSparse then
+            let localRow := index - firstRow
+            let some descriptor := MatrixProgram.Phi81Product.descriptor?
+                product.families (localRow / 34)
+              | throw (IO.userError "carried product descriptor failed to load")
+            let some interface := PiDECProductInterface.interface? product
+                PiCCSSourceImages.logicalWidth descriptor
+              | throw (IO.userError "carried product interface failed to load")
+            let values := PiCCSCarriedReadCache.productInvocation basis blocks interface
+            let row : Fin 34 := ⟨localRow % 34, Nat.mod_lt _ (by decide)⟩
+            let some value := values.get row
+              | throw (IO.userError "carried product row failed to load")
+            return (some (index - row.val, values.toArray), value)
+          else
+            let some values := PiCCSLinearRows.row? program
+                (columns := PiCCSSourceImages.logicalWidth) sourceRow
+                (PiCCSCarriedRead.read basis blocks) index
+              | throw (IO.userError "carried product row failed to load")
+            return (none, values)
+      | .ordinary _ | .pin _ | .multiplicationGrid _ =>
+          let loaded := if cacheSparse then
+              PiCCSCarriedReadCache.row? program
+                (columns := PiCCSSourceImages.logicalWidth) sourceRow basis blocks index
+            else PiCCSLinearRows.row? program
+              (columns := PiCCSSourceImages.logicalWidth) sourceRow
+              (PiCCSCarriedRead.read basis blocks) index
+          let some values := loaded
+            | throw (IO.userError "carried sparse row failed to load")
+          return (none, values)
+    firstRow := firstRow + block.rowCount
+  throw (IO.userError "carried matrix row exceeds active rows")
+
+private def replayCarriedMatrix (publicPath sourcePath outputPath : System.FilePath)
+    (first finish : Nat) (cacheSparse : Bool := true) : IO UInt32 := do
+  unless first < finish do throw (IO.userError "invalid carried row range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let assignments := sources masks
+  report [("event", .str "carried_sources_ready"), ("records", Lean.toJson records),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let tail := (PiCCSPublicReplay.verifierInput input).priorPoint.coordinates.tail
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let tables ← IO.wait (Task.spawn fun _ => PiDECParentSparseRead.prepare ())
+  let basis ← IO.wait (Task.spawn fun _ => (PiCCSAggregatedImages.prepare tables power).2)
+  let blocks := PiCCSAggregatedImages.combinedBlock power assignments
+  let program ← IO.wait (Task.spawn fun _ =>
+    PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+  unless finish ≤ program.rowCount do throw (IO.userError "carried range exceeds active rows")
+  let cache ← IO.wait (Task.spawn fun _ =>
+    PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  -- One full low-weight cycle was measured across the runtime workers.
+  let extent := finish - first
+  let rangeSize := max 1 ((2 * weights.1.size) / workers)
+  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+  let computeStarted ← IO.monoNanosNow
+  let mut low := K.zero
+  let mut high := K.zero
+  for batch in [:(parts + workers - 1) / workers] do
+    let batchFirst := batch * workers
+    let batchEnd := min parts (batchFirst + workers)
+    let mut tasks : Array (Task (Except IO.Error (K × K × Nat))) := #[]
+    for part in [batchFirst:batchEnd] do
+      let start := first + (finish - first) * part / parts
+      let stop := first + (finish - first) * (part + 1) / parts
+      tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+        let rangeStarted ← IO.monoNanosNow
+        let mut low := K.zero
+        let mut high := K.zero
+        let mut retained := none
+        for index in [start:stop] do
+          if index / 2 < 2 ^ 27 then
+            let (next, values) ← carriedRows program (fun row => cache[row]?) basis blocks retained index cacheSparse
+            retained := next
+            let combined := FiniteSumAlgebra.sumMap extensionOps
+              (canonicalFinIndices Spec.ProductionRelation.matrixCount) fun slot =>
+                extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot)
+            let contribution := extensionOps.mul (weight (index / 2)) combined
+            if index % 2 == 0 then low := extensionOps.add low contribution
+            else high := extensionOps.add high contribution
+          else throw (IO.userError "carried row exceeds Boolean domain")
+        return (low, high, (← IO.monoNanosNow) - rangeStarted))
+    let mut part := batchFirst
+    for task in tasks do
+      let (lo, hi, rangeNs) ← match ← IO.wait task with
+        | .ok result => pure result
+        | .error error => throw error
+      low := extensionOps.add low lo
+      high := extensionOps.add high hi
+      report [("event", .str "carried_matrix_range_accumulated"),
+        ("first", Lean.toJson (first + (finish - first) * part / parts)),
+        ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+        ("range_ns", Lean.toJson rangeNs),
+        ("low", .arr #[Lean.toJson lo.c0.val, Lean.toJson lo.c1.val]),
+        ("high", .arr #[Lean.toJson hi.c0.val, Lean.toJson hi.c1.val])]
+      part := part + 1
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom first, .atom finish,
+    extensionValue low, extensionValue high]).render ++ "\n")
+  report [("event", .str "carried_matrix_complete"), ("first", Lean.toJson first),
+    ("end", Lean.toJson finish), ("workers", Lean.toJson workers),
+    ("ranges", Lean.toJson parts),
+    ("cached_sparse", Lean.toJson cacheSparse),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def replayCarriedPad (publicPath sourcePath outputPath : System.FilePath)
+    (first finish : Nat) : IO UInt32 := do
+  unless first < finish && finish ≤ PiCCSSourceImages.blockCount do
+    throw (IO.userError "invalid carried Pad block range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let assignments := sources masks
+  report [("event", .str "carried_pad_sources_ready"), ("records", Lean.toJson records),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let tail := (PiCCSPublicReplay.verifierInput input).priorPoint.coordinates.tail
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let tables ← IO.wait (Task.spawn fun _ => PiDECParentSparseRead.prepare ())
+  let basis ← IO.wait (Task.spawn fun _ => (PiCCSAggregatedImages.prepare tables power).1)
+  let blocks := PiCCSAggregatedImages.combinedBlock power assignments
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  -- The measured 8192-block preflight is the existing low-weight table size.
+  -- Batches retain the measured extent and existing dedicated worker count.
+  -- The default runtime pool ran this workload on one CPU in the preflight.
+  let extent := finish - first
+  let rangeSize := max 1 weights.1.size
+  let parts := min extent (max workers ((extent + rangeSize - 1) / rangeSize))
+  let computeStarted ← IO.monoNanosNow
+  let mut low := K.zero
+  let mut high := K.zero
+  for batch in [:(parts + workers - 1) / workers] do
+    let batchFirst := batch * workers
+    let batchEnd := min parts (batchFirst + workers)
+    let mut tasks : Array (Task (Except IO.Error (K × K × Nat))) := #[]
+    for part in [batchFirst:batchEnd] do
+      let start := first + (finish - first) * part / parts
+      let stop := first + (finish - first) * (part + 1) / parts
+      tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+        let rangeStarted ← IO.monoNanosNow
+        let mut low := K.zero
+        let mut high := K.zero
+        for block in [start:stop] do
+          let source := blocks block
+          let values := PiCCSPadBlockMoment.blockMoment basis weight block source
+          low := extensionOps.add low values.1
+          high := extensionOps.add high values.2
+        return (low, high, (← IO.monoNanosNow) - rangeStarted))
+    let mut part := batchFirst
+    for task in tasks do
+      let (lo, hi, rangeNs) ← match ← IO.wait task with
+        | .ok result => pure result
+        | .error error => throw error
+      low := extensionOps.add low lo
+      high := extensionOps.add high hi
+      report [("event", .str "carried_pad_range_accumulated"),
+        ("first_block", Lean.toJson (first + (finish - first) * part / parts)),
+        ("end_block", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+        ("range_ns", Lean.toJson rangeNs),
+      ("low", .arr #[Lean.toJson lo.c0.val, Lean.toJson lo.c1.val]),
+      ("high", .arr #[Lean.toJson hi.c0.val, Lean.toJson hi.c1.val])]
+      part := part + 1
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom first, .atom finish,
+    extensionValue low, extensionValue high]).render ++ "\n")
+  report [("event", .str "carried_pad_complete"), ("first_block", Lean.toJson first),
+    ("end_block", Lean.toJson finish), ("workers", Lean.toJson workers),
+    ("ranges", Lean.toJson parts),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def composeExtension (value : Lean.Json) : Except String K := do
+  let words ← PiCCSInputCheck.decodeVector 2 PiCCSInputCheck.decodeField value
+  return ⟨words.get 0, words.get 1⟩
+
+private def composePolynomial (degree : Nat) (value : Lean.Json) :
+    Except String (FixedPolynomial K degree) := do
+  let values ← PiCCSInputCheck.decodeVector (degree + 1) composeExtension value
+  return ⟨values.toList, Vector.length_toList⟩
+
+private def composeRead (path : System.FilePath) : IO Lean.Json := do
+  checked (Lean.Json.parse (← IO.FS.readFile path))
+
+private def composeFresh (expectedEnd : Nat) (value : Lean.Json) :
+    Except String (FixedPolynomial K 9) := do
+  match (← value.getArr?).toList with
+  | [schema, first, finish, coefficients] =>
+      unless (← schema.getNat?) == 1 && (← first.getNat?) == 0 &&
+          (← finish.getNat?) == expectedEnd do
+        throw "fresh contribution must cover the complete active pair prefix"
+      composePolynomial 9 coefficients
+  | _ => throw "expected four fresh contribution fields"
+
+private def composeNorm (expectedEnd : Nat) (expectedAlpha : List K)
+    (expectedGamma : K) (value : Lean.Json) : Except String (FixedPolynomial K 3) := do
+  match (← value.getArr?).toList with
+  | [schema, first, finish, alphaValue, gammaValue, coefficients] =>
+      unless (← schema.getNat?) == 1 && (← first.getNat?) == 0 &&
+          (← finish.getNat?) == expectedEnd do
+        throw "norm contribution must cover the complete carrier"
+      let alpha ← PiCCSInputCheck.decodeVector cubeVariables composeExtension alphaValue
+      let gamma ← composeExtension gammaValue
+      unless decide (alpha.toList = expectedAlpha ∧ gamma = expectedGamma) do
+        throw "norm public coins differ from the original public input"
+      composePolynomial 3 coefficients
+  | _ => throw "expected six inner norm contribution fields"
+
+private def composeMoment (value : Lean.Json) : Except String (Nat × Nat × K × K) := do
+  match (← value.getArr?).toList with
+  | [schema, first, finish, low, high] =>
+      unless (← schema.getNat?) == 1 do throw "expected moment schema 1"
+      return (← first.getNat?, ← finish.getNat?, ← composeExtension low, ← composeExtension high)
+  | _ => throw "expected five carried moment fields"
+
+/-- File order is the declared range order. No sorting or duplicate removal
+can turn gaps, overlaps or repeated ranges into accepted coverage. -/
+private def composeMoments (kind : String) (expectedEnd : Nat) (paths : List String) :
+    IO (K × K) := do
+  let mut next := 0
+  let mut low := K.zero
+  let mut high := K.zero
+  for path in paths do
+    let (first, finish, pieceLow, pieceHigh) ← checked (composeMoment (← composeRead path))
+    unless first == next && first < finish && finish ≤ expectedEnd do
+      throw (IO.userError s!"{kind} moments have a gap, overlap, reversed order or invalid extent: {path}")
+    low := extensionOps.add low pieceLow
+    high := extensionOps.add high pieceHigh
+    next := finish
+  unless next == expectedEnd do
+    throw (IO.userError s!"{kind} moments do not cover the complete selected range")
+  return (low, high)
+
+/-- Compose independently computed Lean contributions. The file bindings to
+original sources remain in external execution evidence; no proof target is read. -/
+private def composeRound (publicPath freshPath normPath outputPath : System.FilePath)
+    (matrixPaths padPaths : List String) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let statementInput ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre statementInput)
+  let input := PiCCSPublicReplay.verifierInput statementInput
+  let matrixRows := (PerApplicationMatrixProgram.matrixProgram
+    Poseidon2HashChainV1Package.application).rowCount
+  let carrierBlocks := PiCCSSourceImages.blockCount
+  let fresh ← checked (composeFresh ((matrixRows + 1) / 2) (← composeRead freshPath))
+  let norm ← checked (composeNorm carrierBlocks coins.alpha.coordinates coins.gamma
+    (← composeRead normPath))
+  let matrix ← composeMoments "matrix" matrixRows matrixPaths
+  let pad ← composeMoments "Pad" carrierBlocks padPaths
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let alphaHead := PiCCSCarriedMoments.headSelector extensionOps coins.alpha
+  let priorHead := PiCCSCarriedMoments.headSelector extensionOps input.priorPoint
+  let normTerm : FixedPolynomial K 9 :=
+    FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
+      (FixedPolynomial.scale extensionOps.toOps (power productionShape.freshCount)
+        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 9)
+          (FixedPolynomial.mul extensionOps.toOps alphaHead norm)))
+  let carried : FixedPolynomial K 9 :=
+    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 9) priorHead
+      (power productionShape.matrixEvaluationOffset) pad.1 pad.2 matrix.1 matrix.2
+  let polynomial := FixedPolynomial.add extensionOps.toOps carried
+    (FixedPolynomial.add extensionOps.toOps fresh normTerm)
+  let initial := PiCCSPublicReplay.initialClaim statementInput coins.gamma
+  let endpoints := extensionOps.add
+    (polynomial.evaluate extensionOps.toOps K.zero)
+    (polynomial.evaluate extensionOps.toOps K.one)
+  unless decide (endpoints = initial) do
+    throw (IO.userError s!"first-round endpoint sum differs from the initial claim: sum={((extensionValue endpoints).render)}, initial={((extensionValue initial).render)}")
+  let (challenge, nextState) := PiCCSPublicReplay.firstRound coins.state polynomial
+  let nextClaim := polynomial.evaluate extensionOps.toOps challenge
+  let stateValue := fun state : Transcript.State => Value.array (state.map (fun word => .atom word.val))
+  -- Trace schema 1: alpha, gamma, pre-state, ten q coefficients, challenge,
+  -- post-squeeze state, initial claim, q(0)+q(1), and q(challenge).
+  let encoded := Value.array [.atom 1,
+    .array (coins.alpha.coordinates.map extensionValue), extensionValue coins.gamma,
+    stateValue coins.state, .array (polynomial.coefficients.map extensionValue),
+    extensionValue challenge, stateValue nextState, extensionValue initial,
+    extensionValue endpoints, extensionValue nextClaim]
+  IO.FS.writeFile outputPath (encoded.render ++ "\n")
+  report [("event", .str "first_round_composed"), ("coefficients", Lean.toJson polynomial.coefficients.length),
+    ("matrix_rows", Lean.toJson matrixRows), ("carrier_blocks", Lean.toJson carrierBlocks),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | "compose" :: publicPath :: freshPath :: normPath :: outputPath :: momentPaths =>
+      let (matrixPaths, rest) := momentPaths.span (fun path => path != "pad")
+      match rest with
+      | "pad" :: padPaths =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.composeRound
+            publicPath freshPath normPath outputPath matrixPaths padPaths
+      | _ => throw (IO.userError "compose requires matrix moment paths followed by pad and Pad moment paths")
+
+  | ["carried-pad", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayCarriedPad
+            publicPath sourcePath outputPath first finish
+      | _, _ => throw (IO.userError "block bounds must be natural numbers")
+  | ["carried-matrix-reference", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayCarriedMatrix
+            publicPath sourcePath outputPath first finish false
+      | _, _ => throw (IO.userError "row bounds must be natural numbers")
+  | ["carried-matrix", publicPath, sourcePath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayCarriedMatrix
+            publicPath sourcePath outputPath first finish
+      | _, _ => throw (IO.userError "row bounds must be natural numbers")
   | ["fresh-reference", publicPath, sourcePath, outputPath, first, finish] =>
       match first.toNat?, finish.toNat? with
       | some first, some finish =>
@@ -384,4 +735,8 @@ def main (arguments : List String) : IO UInt32 := do
       IO.eprintln "       replayPiCCSFirstRound norm <public-input> <original-sources> <new-output> <first-block> <end-block>"
       IO.eprintln "       replayPiCCSFirstRound fresh <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
       IO.eprintln "       replayPiCCSFirstRound fresh-reference <public-input> <original-sources> <new-output> <first-pair> <end-pair>"
+      IO.eprintln "       replayPiCCSFirstRound carried-matrix <public-input> <original-sources> <new-output> <first-row> <end-row>"
+      IO.eprintln "       replayPiCCSFirstRound carried-matrix-reference <public-input> <original-sources> <new-output> <first-row> <end-row>"
+      IO.eprintln "       replayPiCCSFirstRound carried-pad <public-input> <original-sources> <new-output> <first-block> <end-block>"
+      IO.eprintln "       replayPiCCSFirstRound compose <public-input> <fresh> <norm> <new-output> <matrix-moment>... pad <Pad-moment>..."
       return 2

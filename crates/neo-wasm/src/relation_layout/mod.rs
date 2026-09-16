@@ -1013,14 +1013,28 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
-        // Exit latch: the export's exit-event count. Raw (no presence
-        // bias): the turn's export fref was bound at entry.
-        rom_read_spec(
-            WasmMemoryId::HostEventExportExitScheduleCount,
-            vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
-            Column(COL_HOST_EVENT_EXIT_SCHEDULE_COUNT),
-            active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
-        ),
+        MemorySpec {
+            id: WasmMemoryId::HostEventExportExitScheduleCount,
+            kind: MemoryKind::Rom,
+            ports: vec![
+                // Exit latch: the export's exit-event count. Raw (no presence
+                // bias): the turn's export fref was bound at entry.
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_TURN_EXPORT_FREF_BEFORE)]),
+                    value_column: COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
+                },
+                // Turn boundary: bind the next export's exit count so the
+                // nonempty-template guard can accept an empty entry schedule.
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
+                    value_column: COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_TURN_BOUNDARY)),
+                },
+            ],
+        },
         MemorySpec {
             id: WasmMemoryId::PcRom,
             kind: MemoryKind::Rom,

@@ -556,7 +556,10 @@ fn validation_rejects_unresolvable_templates() {
         entry: vec![EventBlock::advice([ZERO; 8])],
         ..Default::default()
     };
-    assert!(template.validate(1, 0).is_err(), "export events must absorb");
+    assert!(
+        template.validate(1, 0).is_err(),
+        "an advice-only export must be rejected"
+    );
 
     // Argument 0 after the result push (its stack slot holds the result).
     let template = ImportTemplate {
@@ -674,6 +677,40 @@ fn export_entry_validation_and_expansion_rules() {
     assert_eq!(blocks, vec![[9, 7, 0, 0, 0, 0, 0, 0]]);
     assert!(expand_export_entry(&template, &[]).is_err());
     assert!(expand_export_entry(&template, &[1 << 32]).is_err());
+}
+
+#[test]
+fn export_advice_requires_an_absorbing_entry_or_exit() {
+    let advice = EventSequenceBuilder::advice()
+        .input_local_i32(0, 0)
+        .unwrap()
+        .finish()
+        .unwrap();
+    let mut template = ExportTemplate {
+        entry: advice,
+        exit: vec![],
+        entry_input_count: 1,
+    };
+    assert!(template.validate(1, 0).is_err());
+    template.exit = vec![EventBlock::op(17, [ZERO; 7])];
+    template.validate(1, 0).expect("exit binds invocation");
+    let expanded = expand_export_entry(&template, &[42]).unwrap();
+    assert!(absorbed_blocks(&template.entry, &expanded)
+        .unwrap()
+        .is_empty());
+    template.entry[0].absorb = true;
+    template.exit[0].absorb = false;
+    template.validate(1, 0).expect("entry binds invocation");
+    template.entry.clear();
+    template.entry_input_count = 0;
+    assert!(template.validate(1, 0).is_err(), "advice-only exit");
+    template.exit[0].absorb = true;
+    template
+        .validate(1, 0)
+        .expect("empty entry with absorbing exit");
+    ExportTemplate::default()
+        .validate(0, 0)
+        .expect("single-shot empty template");
 }
 
 #[test]

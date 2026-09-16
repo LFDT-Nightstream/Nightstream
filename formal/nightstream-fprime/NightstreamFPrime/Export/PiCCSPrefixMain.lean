@@ -791,7 +791,9 @@ private def mergeOriginal (publicPath outputPath : System.FilePath)
 
 private def finishOriginal (publicPath evaluationsPath inputPath phasePath wordsPath : System.FilePath)
     (roundPaths : List String) : IO UInt32 := do
-  let outputs := [inputPath, phasePath, wordsPath]
+  let outputs ← [inputPath, phasePath, wordsPath].mapM fun path => do
+    let some name := path.fileName | throw (IO.userError "expected a final output file name")
+    return (← IO.FS.realPath (path.parent.getD ".")) / name
   unless outputs.eraseDups.length == outputs.length do
     throw (IO.userError "duplicate final PiCCS output path")
   for path in outputs do

@@ -1,0 +1,424 @@
+{
+  "schema": 1,
+  "milestone": "selected-first-round-source-coefficient-equality",
+  "source_base": "f9389081b544388a349e7e5701060d0baf09b758",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "status": "Pure first-round source theorem, exact target, audits and local validation passed. Later-round source composition remains open.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "protocol_package_key": "unchanged"
+  },
+  "owner_override": {
+    "date": "2026-09-16",
+    "request": "done also i removed that cap of 10 attempts to fix this. take as many as required to fix it",
+    "effect": "Attempt-count cap removed for this repair. The ten earlier checks remain in the history. Lean1500s and native300s invocation caps remain."
+  },
+  "target": {
+    "proposition": "LeanGraph.Targets.PiCCSFirstRoundSourceCoefficients",
+    "witness": "LeanGraph.Targets.piCCSFirstRoundSourceCoefficients",
+    "parameters": [
+      "PiCCSPublicReplay.Input",
+      "original signed-source masks"
+    ],
+    "source": "The exact selected ProductionKey statement.sourceProtocolData with K.embed and PiCCSNormSource.assignments masks.",
+    "coins": "PiCCSPublicReplay.pre input supplies alpha and gamma.",
+    "result": "The complete computed Option coefficient list is some of the existing PiCCSFirstRound.firstRound coefficient list.",
+    "additional_correctness_premises": []
+  },
+  "proofs": {
+    "source_module": "PiCCSCarriedSource",
+    "carried_sum": "PiCCSCarriedComplete.selected_moment",
+    "complete_coefficients": "PiCCSFirstRoundComposition.coefficients_eq_firstRound",
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "resource_overrides": []
+  },
+  "coverage": {
+    "first_round_coefficients": 10,
+    "sources": 17,
+    "Boolean_variables": 28,
+    "first_round_pairs": 134217728,
+    "matrix_padding": "Zero from the selected active matrix row count through the full Boolean domain.",
+    "Pad_padding": "Zero only after the full carrier width; running tails remain covered.",
+    "norm": "Each source cubic remains separate before the gamma-weighted source sum.",
+    "failed_loads": "Option failures remain in the computed kernels. Successful selected loads are derived from source ownership, not assumed."
+  },
+  "attempts": {
+    "source": "Earlier checks1\u201310 retained; check11 passed in4.421909434022382s.",
+    "composition": "Five target invocations: first fixed the carried source summation proof, then dimension annotations and coefficient congruence. The fifth passed.",
+    "changes": "Added fromRows_value; used an explicit Option reduction and direct finite-index congruence; made prefix dimensions explicit; transported norm equality by polynomial congruence."
+  },
+  "byte_evidence": {
+    "runtime_producer_function_bodies": "unchanged",
+    "scope": "Reused unchanged source-bound execution artifacts and reran saved-output comparisons. No source scan or benchmark was repeated for this proof-only change.",
+    "Q0_Q1": "All ten coefficients, alpha, gamma, transcript states, challenge and claims match; Q0 changed coefficient rejects.",
+    "complete_PiCCS": {
+      "rounds": 28,
+      "output_field_words": 27540,
+      "proof_input_field_words": 29288,
+      "input_bytes": 657063,
+      "phase_bytes": 450952,
+      "changed_target_and_proof_word": "rejected"
+    },
+    "complete_C_R_D_and_caller": {
+      "children_bytes": 446185,
+      "result_bytes": 4722709,
+      "caller_bytes": 1446131,
+      "changed_target": "rejected"
+    },
+    "prior_full_witness_evidence": [
+      "FRESH_WITNESS_REPLAY.json",
+      "COMPACT_WITNESS_EXECUTION.json",
+      "PHYSICAL_ROWS_REPLAY.json"
+    ]
+  },
+  "metadata": {
+    "root": "LeanGraph.Targets.piCCSFirstRoundSourceCoefficients",
+    "complete": true,
+    "nodes": 15166,
+    "required_source_dependencies_present": [
+      "NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition.coefficients_eq_firstRound",
+      "NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition.coefficients?",
+      "NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete.selected_moment",
+      "NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.matrix_sourceProtocolData",
+      "NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.pad_sourceProtocolData"
+    ]
+  },
+  "validation": {
+    "source-check-11.log": {
+      "outcome": "passed",
+      "seconds": 4.421909434022382,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "NightstreamFPrime.Export.Stage1.PiCCSCarriedSource"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/source-check-11.log",
+        "bytes": 126276,
+        "sha256": "7faf40c4bfc8c1b4c54396ffe890d10147858c8df5a6b3ead14d6255c83afbff"
+      }
+    },
+    "first-round-composition-5.log": {
+      "outcome": "passed",
+      "seconds": 2.7188046749215573,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/first-round-composition-5.log",
+        "bytes": 127614,
+        "sha256": "12cb7f8a0a667e658dcdf3e033cdaf6970fc1c4cd99b6782ec264d78bd174eba"
+      }
+    },
+    "source-target-build-1.log": {
+      "outcome": "passed",
+      "seconds": 2.9193185928743333,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "tests.EvidenceTargets"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/source-target-build-1.log",
+        "bytes": 157688,
+        "sha256": "1fac5232bf4beff0761cdfe9949d5303e5d2ddcfeda88f437b4c3c110b326b24"
+      }
+    },
+    "required-static.log": {
+      "outcome": "passed",
+      "seconds": 9.928707560990006,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/required-static.log",
+        "bytes": 472,
+        "sha256": "7fb031e933884f1f27d3b3ce5bbe5bc8e3a91d63b0ca2d33ce65c511c70e940b"
+      }
+    },
+    "required-build.log": {
+      "outcome": "passed",
+      "seconds": 3.9213979819323868,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/required-build.log",
+        "bytes": 172418,
+        "sha256": "683b6b3b6f56af8b72e6d7f127cfcdeaf17358ea879d250cdac96e62de57776e"
+      }
+    },
+    "required-axioms.log": {
+      "outcome": "passed",
+      "seconds": 6.275407548993826,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/required-axioms.log",
+        "bytes": 1144079,
+        "sha256": "1bc543c37fefee68c84c72b55118d500629f4b4da372cbcfee077fe997f7da72"
+      }
+    },
+    "target-acceptance.log": {
+      "outcome": "passed",
+      "seconds": 2.1673153350129724,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "tests/EvidenceAcceptance.lean"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/target-acceptance.log",
+        "bytes": 2986,
+        "sha256": "8ac71b9ca7645279b581072f45014bbe03fae7226ec3bc4412d27c571dc4ddf2"
+      }
+    },
+    "target-metadata.log": {
+      "outcome": "passed",
+      "seconds": 142.943620756967,
+      "cap_seconds": 1500,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "../../scripts/lean_graph/PiCCSReplayMetadata.lean"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/target-metadata.log",
+        "bytes": 804690048,
+        "sha256": "d9e161787cf1c1652621919880c42c5446edde119acf5cda20bca9c4c4251959"
+      }
+    },
+    "graph-tests.log": {
+      "outcome": "passed",
+      "seconds": 5.973045649006963,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/lean_graph/tests"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/graph-tests.log",
+        "bytes": 456,
+        "sha256": "3553889968b87ab33f3adb7ceb109890a4e88b6b3750926fc6d6247a1d88fdbf"
+      }
+    },
+    "native-test-build.log": {
+      "outcome": "passed",
+      "seconds": 0.26401883619837463,
+      "cap_seconds": 300,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--no-run"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/native-test-build.log",
+        "bytes": 13408,
+        "sha256": "fbd4d2d4d3d9803cbb08be6c4ea46d7d2320b65b20cdbe5fb9bce72a22e8fc23"
+      }
+    },
+    "q0-comparison.log": {
+      "outcome": "passed",
+      "seconds": 0.03160119918175042,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "formal/nightstream-fprime/scripts/compare-piccs-first-round.py",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/inputs/original-public.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/rounds/round-0.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-input.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-phase.json"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/q0-comparison.log",
+        "bytes": 1269,
+        "sha256": "8adb9681d102e099dc019d400abe00ff6c4eb172cca3c2b9fad1d4521dedcd92"
+      }
+    },
+    "q0-mutation.log": {
+      "outcome": "passed",
+      "seconds": 0.06365002086386085,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "formal/nightstream-fprime/tests/check_piccs_first_round_mutation.py",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/inputs/original-public.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/rounds/round-0.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-input.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-phase.json"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/q0-mutation.log",
+        "bytes": 908,
+        "sha256": "05503b1a212928ae33e1cd86061ef80c3e70d95f43172326d2a3be29ed2ec171"
+      }
+    },
+    "q1-comparison.log": {
+      "outcome": "passed",
+      "seconds": 0.031587263103574514,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "formal/nightstream-fprime/scripts/compare-piccs-first-round.py",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/inputs/original-public.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/rounds/round-1.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-input.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-phase.json",
+        "1"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/q1-comparison.log",
+        "bytes": 1269,
+        "sha256": "745c9909dc8c6bb542128547a4b6b36dbd5ecd28d9f1eac21dd569e31b1ca7bc"
+      }
+    },
+    "complete-c-bytes.log": {
+      "outcome": "passed",
+      "seconds": 0.11380133219063282,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "formal/nightstream-fprime/tests/check_piccs_complete_bytes.py",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/input.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/phase.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/piccs/proof-words.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-input.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/piccs-phase.json"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/complete-c-bytes.log",
+        "bytes": 1379,
+        "sha256": "2927982230101729976a038cfeeb8b034f5594dca94bd1ac640e3b0882b46742"
+      }
+    },
+    "complete-nifs-caller-bytes.log": {
+      "outcome": "passed",
+      "seconds": 0.11396586801856756,
+      "cap_seconds": 300,
+      "command": [
+        "python3",
+        "-B",
+        "formal/nightstream-fprime/tests/check_independent_nifs_bytes.py",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/nifs/children.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/nifs/result.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/lean/nifs/recursive-caller.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/nifs/children.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/nifs-result.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/targets/recursive-caller.json"
+      ],
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/complete-nifs-caller-bytes.log",
+        "bytes": 1481,
+        "sha256": "13c702dbe59e7d8756580d88a44e6cd5eec0f4316265eb90766fbc6580284649"
+      }
+    }
+  },
+  "graph_tests": 85,
+  "independent_review": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/first-round-independent-review.md",
+    "bytes": 5444,
+    "sha256": "1cf5ad2f24eb498e1bf2621349c81851acf15bb6e96cdf1d018403177268a626"
+  },
+  "source_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean": {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean",
+      "bytes": 25121,
+      "sha256": "b54470def5f17b867294b5c714089774957c2c06ff7a6dac69f5581eb7d3bb08"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedSource.lean": {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedSource.lean",
+      "bytes": 17864,
+      "sha256": "42ed7350d8159b63c36a73b32470417af942a8e2eae0f30272ccbb5dd9360dc1"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedComplete.lean": {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedComplete.lean",
+      "bytes": 15162,
+      "sha256": "2a89c6193d38b72d6d0e90ad07482e872afdf896552049977e10808d7c543235"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundComposition.lean": {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundComposition.lean",
+      "bytes": 17408,
+      "sha256": "1c220d72db573f3d3c1c2e123b4c9e6131549025ba64634df142975d1cc2ed9b"
+    },
+    "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean": {
+      "path": "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean",
+      "bytes": 50558,
+      "sha256": "3f64196c41bbf8a8f21fce2bc16c3a6ed5a758eab10a1d087f136d41c185039c"
+    },
+    "formal/nightstream-fprime/tests/EvidenceTargets.lean": {
+      "path": "formal/nightstream-fprime/tests/EvidenceTargets.lean",
+      "bytes": 55938,
+      "sha256": "0819336cb42e635fc9e5daad4423d7fb4e318827892536020cb1bb92d905bb45"
+    },
+    "formal/nightstream-fprime/tests/EvidenceAcceptance.lean": {
+      "path": "formal/nightstream-fprime/tests/EvidenceAcceptance.lean",
+      "bytes": 2290,
+      "sha256": "adb9b7def87b1b1f700e318797393878b31274463c974ecfd9f7f76762898969"
+    },
+    "scripts/lean_graph/PiCCSReplayMetadata.lean": {
+      "path": "scripts/lean_graph/PiCCSReplayMetadata.lean",
+      "bytes": 1788,
+      "sha256": "5c8f8938984e574cd748ee06ba2451c1a4ac1944dd1a71c871092d6908890825"
+    },
+    "scripts/lean_graph/obligations.json": {
+      "path": "scripts/lean_graph/obligations.json",
+      "bytes": 238541,
+      "sha256": "1547332d32171f8f8f6aa1743cf038a5ce1e894496fd4481298b4f018e1f83d6"
+    }
+  },
+  "historical_patch": {
+    "path": "docs/reviews/nightstream-fprime-requirements/PICCS_SOURCE_BRIDGE_PENDING.patch",
+    "bytes": 52591,
+    "sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133"
+  },
+  "release_delivery": {
+    "record": "INDEPENDENT_REPLAY_ASSET.json",
+    "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/tag/stage1-replay-0a15c3b0",
+    "archives_uploaded": 2,
+    "fresh_download_and_complete_archive_byte_comparison": "passed"
+  },
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy",
+  "remaining": [
+    "Connect later-round retained values and complete contribution sums to PiCCSPrefixRound.roundPolynomial on the same original source and challenge prefix.",
+    "Complete protected source-bound reproduction using the uploaded original inputs.",
+    "IO scheduling, mutable cache loops, file-origin and universal Rust semantics are not claims of this pure theorem."
+  ]
+}

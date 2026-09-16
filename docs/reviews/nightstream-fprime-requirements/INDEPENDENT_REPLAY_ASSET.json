@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "source_commit": "0a15c3b09ba05e0f116dfce25f0709ee5897081f",
-  "status": "prepared; release upload and fresh-download verification pending",
+  "status": "uploaded; fresh-download hashes and complete archive byte comparisons passed",
   "archive": {
     "path": "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/download/NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst",
     "file": "NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst",
@@ -9,7 +9,7 @@
     "sha256": "a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e",
     "members": 185,
     "validation": "Every regular file streamed from the compressed archive and matched SHA256SUMS; no links or unexpected members.",
-    "download_url": null
+    "download_url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/stage1-replay-0a15c3b0/NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst"
   },
   "manifest": {
     "path": "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/nightstream-replay-0a15c3b0/MANIFEST.json",
@@ -21,18 +21,17 @@
     "bytes": 644154701,
     "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
     "local_checksum_verified": true,
-    "download_url": null,
+    "download_url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/stage1-replay-0a15c3b0/PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
     "local_path": "/home/nicoarq/develop/nightstream-stage1-evidence/PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
     "asset_record": "PIRLC_WITNESS_REPLAY_ASSET.json",
     "required_for": "Original 17 witnesses and source-mask capture."
   },
   "payload_bytes": 1508622074,
-  "fresh_download_verified": false,
+  "fresh_download_verified": true,
   "protected_reproduction": "pending",
-  "pending_source_bridge": "PiCCSCarriedSource check11 requires owner approval; no check run.",
+  "pending_source_bridge": "The archive preserves the earlier proof-open checkpoint. The owner removed the attempt limit on 2026-09-16; the source proof repair is in progress.",
   "repository": "LFDT-Nightstream/Nightstream",
   "branch": "nico/f-prime-constraints-cuda-formal",
-  "proposed_release_tag": "stage1-replay-0a15c3b0",
   "scope": "Complete local C/R/D, recursive caller, fresh witness and commitment evidence, with final physical-row checks. Saved-value continuation is not protected original-source reproduction.",
   "recipe": "REPLAY.md inside the archive gives the existing independent-fresh-witness graph commands with bundle paths. Original source generation remains in the retained producer reports and recipes.",
   "validation": {
@@ -41,10 +40,9 @@
     "elapsed_seconds": 5.273161759134382,
     "scope": "Local archive member checksums and dependency archive SHA-256 only; no replay or benchmark was repeated."
   },
-  "authentication": "Linux has no gh executable and neither GH_TOKEN nor GITHUB_TOKEN in this session. No release upload was attempted.",
+  "authentication": "Upload completed through the owner's GitHub CLI sign-in on the Linux host.",
   "open_items": [
-    "Owner approval for PiCCSCarriedSource check11; ten earlier attempts remain counted.",
-    "Upload both assets, record their release URLs, and verify fresh downloads.",
+    "Finish and audit the remaining selected-source PiCCS polynomial proofs.",
     "Complete protected source-bound reproduction with the approved checker."
   ],
   "bundle_documents": {
@@ -64,5 +62,31 @@
       "bytes": 21744,
       "sha256": "68c6b12f18cfccda139cc61ccdcc0a2d06d5d939a501d54a96d1c14cecae41fd"
     }
+  },
+  "release_tag": "stage1-replay-0a15c3b0",
+  "release_url": "https://github.com/LFDT-Nightstream/Nightstream/releases/tag/stage1-replay-0a15c3b0",
+  "remote_validation": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/fresh-download-validation.json",
+    "sha256": "a104b9b27e944caa927d193df7525e4d6663f91e71cafc52d5be650d3309c73c",
+    "command": "timeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind python --cwd . -- python3 -B /home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/verify_fresh_download.py",
+    "outcome": "passed",
+    "elapsed_seconds": 0.8654342759400606,
+    "whole_file_comparisons": [
+      {
+        "file": "NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst",
+        "bytes": 375680946,
+        "sha256": "a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e",
+        "whole_file_comparison": "passed",
+        "downloaded_path": "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/fresh-download.gFWaw7/NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst"
+      },
+      {
+        "file": "PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
+        "bytes": 644154701,
+        "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
+        "whole_file_comparison": "passed",
+        "downloaded_path": "/home/nicoarq/develop/nightstream-stage1-evidence/replay-release-0a15c3b0.kboa75mi/fresh-download.gFWaw7/PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip"
+      }
+    ],
+    "scope": "Fresh authenticated downloads compared to the exact prepared archives; this is delivery evidence, not protected source reproduction."
   }
 }

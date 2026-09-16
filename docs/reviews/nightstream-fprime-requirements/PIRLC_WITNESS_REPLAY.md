@@ -14,9 +14,10 @@ milestone. This is evidence for the tested inputs, not universal Rust equivalenc
 
 `PIRLC_WITNESS_REPLAY.json` records source hashes, source-opening evidence,
 range hashes, measured time/memory and local gates. `PIRLC_WITNESS_REPLAY_ASSET.json`
-identifies the archive outside Git. Upload and fresh-download verification are
-pending; no remote availability is claimed. The archive contains the original
-inputs as regular files and the independently computed Lean ranges. It does
+identifies the archive outside Git and its GitHub release URL. Upload,
+fresh-download SHA-256 and complete archive byte comparison passed.
+The archive contains the original inputs as regular files and the independently
+computed Lean ranges. It does
 not require the earlier temporary-directory symlinks.
 
 After obtaining the archive, check its SHA-256 against the asset record and

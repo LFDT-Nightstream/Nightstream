@@ -379,16 +379,16 @@ theorem endpoint_images (program : MatrixProgram.Program)
         · exact pad_value forms layout assignments powers vertex
         · rfl
 
-private abbrev selectedRelation := PerApplicationFixedPoint.relation
+abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
-private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
+abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
   Poseidon2HashChainV1Package.application
-private abbrev selectedSource := fun (row : Nat) =>
+abbrev selectedSource := fun (row : Nat) =>
   (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?
-private abbrev selectedLayout :=
+abbrev selectedLayout :=
   (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
 
-private noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
+noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (vertex : BooleanVertex cubeVariables) :=
   ProtocolPolynomial.vertexMessage

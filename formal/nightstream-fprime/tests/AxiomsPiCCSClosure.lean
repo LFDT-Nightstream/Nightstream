@@ -1,3 +1,6 @@
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
+import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupportPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupportedPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
@@ -613,3 +616,13 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_isZero_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_isZero_source_port
+
+-- Selected original-source carried values and complete first-round coefficients.
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.matrix_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.pad_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.blockCount_eq_authority
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.pad_block_sourceProtocolData
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.originalMatrix_padding
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.originalPad_padding
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete.selected_moment
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition.coefficients_eq_firstRound

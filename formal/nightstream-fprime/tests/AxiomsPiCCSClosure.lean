@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSNormSource
@@ -548,3 +549,15 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_size
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_getD
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_getD_of_outside
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.pairedTable_pair
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_pairedCodes
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.pairedTable_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.firstTable_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_secondFold
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.secondTable_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.quadCode_val
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.code_byte
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.quadCodes_size
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.quadCode_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_quadCodes_twoFolds

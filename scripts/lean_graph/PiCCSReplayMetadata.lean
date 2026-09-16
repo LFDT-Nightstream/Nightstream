@@ -6,3 +6,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 #evidence_export LeanGraph.Targets.piCCSFirstRoundReplayKernel
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.full_components_eq_firstRound
 #evidence_export NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation.moment_of_exact_row_callbacks
+
+#evidence_export LeanGraph.Targets.piCCSNormPrefixKernel
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_pairedCodes
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.code_byte

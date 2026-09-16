@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
@@ -733,5 +734,24 @@ theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
 #audit_axioms piCCSCompleteFreshKernel
 #audit_axioms piCCSCachedPairKernel
 #audit_axioms piCCSFirstRoundReplayKernel
+
+/-- Norm table decoding equals two ordinary folds of the same signed source
+range. Input-file origin and execution coverage are separate replay gates. -/
+def PiCCSNormPrefixKernel : Prop :=
+  ∀ (firstChallenge secondChallenge : K) (codes : Nat → Fin 3) (start count : Nat),
+    PiCCSPrefixCodeFold.decode
+        (PiCCSPrefixCodeFold.pairedTable (PiCCSPrefixNorm.values firstChallenge) secondChallenge)
+        (PiCCSPrefixCodeFold.quadCodes codes start count) =
+      PrefixFold.foldOne ConcreteCarrier.extensionOps
+        (PrefixFold.foldOne ConcreteCarrier.extensionOps
+          (Array.ofFn fun index : Fin (4 * count) =>
+            K.embed (PiCCSNormCache.signedValue (codes (4 * start + index.val))))
+          firstChallenge)
+        secondChallenge
+
+theorem piCCSNormPrefixKernel : PiCCSNormPrefixKernel :=
+  PiCCSPrefixCodeFold.decode_quadCodes_twoFolds
+
+#audit_axioms piCCSNormPrefixKernel
 
 end LeanGraph.Targets

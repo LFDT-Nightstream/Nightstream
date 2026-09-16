@@ -8,6 +8,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSNormScan
+import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
+import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
@@ -675,11 +678,170 @@ private def composeRound (publicPath freshPath normPath outputPath : System.File
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def savedFirstChallenge
+    (coins : FiatShamir.PreSumcheck K Transcript.State productionShape)
+    (roundPath : System.FilePath) : IO K := do
+  let saved ← checked ((← composeRead roundPath).getArr?)
+  unless saved.size == 10 do throw (IO.userError "expected complete Lean round-zero result")
+  let some encoded ← pure saved[4]? | throw (IO.userError "missing Lean polynomial")
+  let polynomial ← checked (composePolynomial 9 encoded)
+  let (challenge, _) := PiCCSPublicReplay.firstRound coins.state polynomial
+  let some encodedChallenge ← pure saved[5]? | throw (IO.userError "missing saved challenge")
+  let savedChallenge ← checked (composeExtension encodedChallenge)
+  unless decide (challenge = savedChallenge) do
+    throw (IO.userError "saved challenge differs from the independently replayed transcript")
+  return challenge
+
+private def replayFirstNormFold
+    (publicPath sourcePath roundPath outputPath : System.FilePath)
+    (first finish : Nat) (reference : Bool) : IO UInt32 := do
+  unless first < finish && finish ≤ PiCCSSourceImages.blockCount do
+    throw (IO.userError "invalid norm fold block range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let challenge ← savedFirstChallenge coins roundPath
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let table := PiCCSSignedFirstFold.prepare challenge
+  let count := (finish - first) * ringDegree
+  let width := ringDegree / 2
+  let output ← IO.FS.Handle.mk outputPath .write
+  output.putStrLn ((Value.array [.atom 1, .atom productionShape.sourceCount,
+    .atom first, .atom finish, extensionValue challenge]).render)
+  report [("event", .str "first_norm_fold_sources_ready"), ("records", Lean.toJson records),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let mut computeNs := 0
+  for sourceIndex in [:productionShape.sourceCount] do
+    if sourceBound : sourceIndex < productionShape.sourceCount then
+      let source : Fin productionShape.sourceCount := ⟨sourceIndex, sourceBound⟩
+      let code := fun index : Nat =>
+        let column := first * ringDegree + index
+        PiCCSNormSource.sourceCode (masks[column / ringDegree]?.getD #[]) source
+          ⟨column % ringDegree, Nat.mod_lt _ (by decide)⟩
+      let computeStarted ← IO.monoNanosNow
+      let values ← IO.wait (Task.spawn fun _ =>
+        if reference then
+          PrefixFold.foldOne extensionOps
+            (Array.ofFn fun index : Fin count =>
+              let column := first * ringDegree + index.val
+              K.embed (SignedUnitSourceInput.scalar
+                (masks[column / ringDegree]?.getD #[]) ⟨sourceIndex, sourceBound⟩
+                ⟨column % ringDegree, Nat.mod_lt _ (by decide)⟩)) challenge
+        else PiCCSSignedFirstFold.foldOne table count code)
+      let elapsed := (← IO.monoNanosNow) - computeStarted
+      computeNs := computeNs + elapsed
+      unless values.size == (finish - first) * width do
+        throw (IO.userError "unexpected folded source width")
+      for block in [:(finish - first)] do
+        let coefficients := (values.extract (block * width) ((block + 1) * width)).toList
+        output.putStrLn ((Value.array [.atom sourceIndex, .atom ((first + block) * width),
+          .array (coefficients.map extensionValue)]).render)
+      report [("event", .str "first_norm_fold_source_written"),
+        ("source", Lean.toJson sourceIndex), ("values", Lean.toJson values.size),
+        ("compute_ns", Lean.toJson elapsed)]
+  output.putStrLn "[]"
+  report [("event", .str "first_norm_fold_complete"), ("reference", Lean.toJson reference),
+    ("first_block", Lean.toJson first), ("end_block", Lean.toJson finish),
+    ("sources", Lean.toJson productionShape.sourceCount),
+    ("values", Lean.toJson (productionShape.sourceCount * (finish - first) * width)),
+    ("compute_ns", Lean.toJson computeNs),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def replayNormAfterFirst
+    (publicPath sourcePath roundPath outputPath : System.FilePath)
+    (first finish : Nat) (reference : Bool) : IO UInt32 := do
+  let groups := (PiCCSSourceImages.blockCount * ringDegree + 3) / 4
+  unless first < finish && finish ≤ groups do
+    throw (IO.userError "invalid second-round norm pair range")
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let challenge ← savedFirstChallenge coins roundPath
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let tail := coins.alpha.coordinates.drop 2
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  report [("event", .str "second_norm_sources_ready"), ("records", Lean.toJson records),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let computeStarted ← IO.monoNanosNow
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let mut total := FixedPolynomial.zero extensionOps.toOps 3
+  for batch in [:(productionShape.sourceCount + workers - 1) / workers] do
+    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 3 × Nat))) := #[]
+    for sourceIndex in [batch * workers:min productionShape.sourceCount ((batch + 1) * workers)] do
+      if sourceBound : sourceIndex < productionShape.sourceCount then
+        let source : Fin productionShape.sourceCount := ⟨sourceIndex, sourceBound⟩
+        tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+          let sourceStarted ← IO.monoNanosNow
+          let code := fun column : Nat =>
+            PiCCSNormSource.sourceCode (masks[column / ringDegree]?.getD #[]) source
+              ⟨column % ringDegree, Nat.mod_lt _ (by decide)⟩
+          let scalar := fun column : Nat =>
+            K.embed (SignedUnitSourceInput.scalar (masks[column / ringDegree]?.getD #[])
+              source ⟨column % ringDegree, Nat.mod_lt _ (by decide)⟩)
+          let cubic := if reference then
+              PiCCSPolynomialRange.range extensionOps first (finish - first) fun group =>
+                FixedPolynomial.scale extensionOps.toOps (weight group)
+                  (PiCCSFirstRoundPair.normPair extensionOps
+                    (PrefixFold.interpolate extensionOps challenge (scalar (4 * group)) (scalar (4 * group + 1)))
+                    (PrefixFold.interpolate extensionOps challenge (scalar (4 * group + 2)) (scalar (4 * group + 3))))
+            else
+              PiCCSPrefixNorm.range challenge code weight first (finish - first)
+          return (FixedPolynomial.scale extensionOps.toOps (power source.val) cubic,
+            (← IO.monoNanosNow) - sourceStarted))
+    let mut sourceIndex := batch * workers
+    for task in tasks do
+      let (cubic, elapsed) ← match ← IO.wait task with
+        | .ok result => pure result
+        | .error error => throw error
+      total := FixedPolynomial.add extensionOps.toOps total cubic
+      report [("event", .str "second_norm_source_complete"),
+        ("source", Lean.toJson sourceIndex), ("compute_ns", Lean.toJson elapsed)]
+      sourceIndex := sourceIndex + 1
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom 1, .atom first, .atom finish,
+    extensionValue challenge, .array (total.coefficients.map extensionValue)]).render ++ "\n")
+  report [("event", .str "second_norm_complete"), ("first", Lean.toJson first),
+    ("end", Lean.toJson finish), ("reference", Lean.toJson reference),
+    ("sources", Lean.toJson productionShape.sourceCount), ("workers", Lean.toJson workers),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | ["norm-after-first", publicPath, sourcePath, roundPath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayNormAfterFirst
+            publicPath sourcePath roundPath outputPath first finish false
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
+  | ["norm-after-first-reference", publicPath, sourcePath, roundPath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayNormAfterFirst
+            publicPath sourcePath roundPath outputPath first finish true
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
+  | ["fold-norm-prefix", publicPath, sourcePath, roundPath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayFirstNormFold
+            publicPath sourcePath roundPath outputPath first finish false
+      | _, _ => throw (IO.userError "block bounds must be natural numbers")
+  | ["fold-norm-prefix-reference", publicPath, sourcePath, roundPath, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.replayFirstNormFold
+            publicPath sourcePath roundPath outputPath first finish true
+      | _, _ => throw (IO.userError "block bounds must be natural numbers")
   | "compose" :: publicPath :: freshPath :: normPath :: outputPath :: momentPaths =>
       let (matrixPaths, rest) := momentPaths.span (fun path => path != "pad")
       match rest with
@@ -739,4 +901,6 @@ def main (arguments : List String) : IO UInt32 := do
       IO.eprintln "       replayPiCCSFirstRound carried-matrix-reference <public-input> <original-sources> <new-output> <first-row> <end-row>"
       IO.eprintln "       replayPiCCSFirstRound carried-pad <public-input> <original-sources> <new-output> <first-block> <end-block>"
       IO.eprintln "       replayPiCCSFirstRound compose <public-input> <fresh> <norm> <new-output> <matrix-moment>... pad <Pad-moment>..."
+      IO.eprintln "       replayPiCCSFirstRound fold-norm-prefix[-reference] <public-input> <original-sources> <Lean-round-zero> <new-output> <first-block> <end-block>"
+      IO.eprintln "       replayPiCCSFirstRound norm-after-first[-reference] <public-input> <original-sources> <Lean-round-zero> <new-output> <first-pair> <end-pair>"
       return 2

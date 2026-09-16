@@ -124,14 +124,27 @@ IO task and mutable cache loops remain implementation links. The complete run
 took 623.73 seconds and 2,459,352 KiB peak RSS. `PICCS_FRESH_REPLAY.json`
 records its exact scope and source hashes. This is not a full Rust Q comparison.
 
-The full first round is still open. The next step is to calculate complete
-carried Pad/matrix moments, compose the three contributions, and compare all
-ten Q coefficients and the next challenge/state with Rust. Later rounds reuse
-the existing checked `PrefixFold` kernel once Lean-derived image prefixes are
-retained; the current fresh runner stores only its final coefficients.
-This needs complete coefficient, challenge/state and mutation comparisons
-with Rust. Then replay the remaining
-PiCCS rounds/final evaluations, HyperNova and complete proof encoding. Generic
+The complete first-round execution now matches Rust: all ten Q coefficients,
+alpha, gamma, the challenge, both transcript states and the claims. A changed
+coefficient rejects. `PICCS_FIRST_ROUND_REPLAY.json` binds the complete fresh,
+norm and carried contributions to the original sources. The selected
+source-to-whole-polynomial theorem remains an unchecked review patch;
+its eleventh check still requires the requested owner approval.
+
+Later rounds retain the existing `PrefixFold` authority. The generic
+`PiCCSPrefixRound.roundPolynomial_evaluate` identifies the pair sum after any
+challenge prefix with the original completion-sum specification. It does not
+supply the stored endpoint arrays. `PiCCSSignedFirstFold.foldOne_prepare`
+proves the signed-input cache equal to the original fold, including odd tails.
+`PICCS_PREFIX_REPLAY.json` records the measured original-input prefix checks.
+It also records the complete second-round inner norm: all 63,252,819 groups
+and 17 sources match Rust's production fold and norm functions. A changed
+coefficient rejects. The cached kernel is proved equal to the original
+interpolation followed by the norm cubic; equal non-signed endpoints are
+retained. The full Lean scan took 376.15 seconds at 1,362,264 KiB peak RSS.
+The fresh and carried contributions still need to be composed for that round.
+Remaining work is the complete later-round execution, final evaluations,
+HyperNova and complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference
 path. Future sharing must retain the numeric invocation evaluator.
 

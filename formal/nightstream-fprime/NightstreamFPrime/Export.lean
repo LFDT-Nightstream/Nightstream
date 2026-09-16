@@ -287,6 +287,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
 import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
+import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
+import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation

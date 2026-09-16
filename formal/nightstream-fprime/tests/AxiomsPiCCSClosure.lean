@@ -11,6 +11,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPadding
 import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
+import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
+import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
@@ -487,3 +491,23 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.numericPairFresh?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange_eq_fullPairSum
+
+-- Complete carried branch reduced to its two original-source moments.
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.sum_carriedPair
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.complete_carried_sum
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.pairPolynomialWithNorm_split
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment.blockMoment_value
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder.numericSum_eq_finSum
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder.numericSum_group
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder.numericSum_parity
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder.numericSum_prefix_parity_eq_finSum
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation.blockMoments_eq_flat_sum
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation.moment_of_exact_row_callbacks
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.sparseRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.row?_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.productInvocation_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.carriedPair_combined
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.full_components_eq_firstRound

@@ -1,0 +1,857 @@
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean
+index 1bcf89ce..7e971ccd 100644
+--- a/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSAggregatedImagesPreservation.lean
+@@ -379,16 +379,16 @@ theorem endpoint_images (program : MatrixProgram.Program)
+         · exact pad_value forms layout assignments powers vertex
+         · rfl
+-
++
+-private abbrev selectedRelation := PerApplicationFixedPoint.relation
++abbrev selectedRelation := PerApplicationFixedPoint.relation
+   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
+-private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
++abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
+   Poseidon2HashChainV1Package.application
+-private abbrev selectedSource := fun (row : Nat) =>
++abbrev selectedSource := fun (row : Nat) =>
+   (PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)[row]?
+-private abbrev selectedLayout :=
++abbrev selectedLayout :=
+   (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
+-
++
+-private noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
++noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
+     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
+     (vertex : BooleanVertex cubeVariables) :=
+   ProtocolPolynomial.vertexMessage
+--- /dev/null
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedSource.lean
+@@ -0,0 +1,285 @@
++import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
++import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
++
++/-! Proof-only source values for the two carried accumulators. Matrix and Pad
++values are projections of the checked original-source endpoint constructor.
++The scalar fold ordering and worker merge belong to the complete-sum proof. -/
++
++set_option autoImplicit false
++
++namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
++
++open NightstreamFPrime.Spec
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
++open NightstreamFPrime.Lifecycle
++open NightstreamFPrime.Layout
++open PiRLCPartialTrace
++open FiniteSumAlgebra (sumMap)
++
++open PiCCSAggregatedImages
++  (selectedRelation selectedProgram selectedSource selectedLayout selectedMessage)
++
++private abbrev powers (gamma : K) := TargetPolynomial.power extensionOps.toOps gamma
++private abbrev basis (gamma : K) :=
++  PiCCSAggregatedImages.prepare (PiDECParentSparseRead.prepare ()) (powers gamma)
++private abbrev blocks
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) := PiCCSAggregatedImages.combinedBlock (powers gamma) witness.assignments
++
++/-- The same slot sum used by replayCarriedMatrix, before its global shift. -/
++def slotTotal (gamma : K) (values : Vector K ProductionRelation.matrixCount) : K :=
++  sumMap extensionOps (canonicalFinIndices productionShape.matrixCount) fun slot =>
++    extensionOps.mul (powers gamma (productionShape.runningCount * slot.val)) (values.get slot)
++
++/-- The numeric matrix lookup has the same zero suffix as the endpoint. -/
++def matrixAt?
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) : Option (Vector K ProductionRelation.matrixCount) :=
++  if NumericBooleanDomain.index vertex < selectedProgram.rowCount then
++    PiCCSLinearRows.row? selectedProgram (columns := PiCCSSourceImages.logicalWidth) selectedSource
++      (PiCCSCarriedRead.read (basis gamma).2 (blocks witness gamma)) (NumericBooleanDomain.index vertex)
++  else some (Vector.replicate ProductionRelation.matrixCount K.zero)
++
++private def padRead {columns : Nat} (layout : ColumnLayout cubeVariables columns)
++    (prepared : FixedArray (Vector K ringDegree) ringDegree)
++    (blockValues : Nat → Vector K ringDegree) (vertex : BooleanVertex cubeVariables) : K :=
++  match layout.toColumn? vertex with
++  | some column => PiCCSCarriedRead.read prepared blockValues column
++  | none => K.zero
++
++private theorem padRead_toVertex {columns : Nat} (layout : ColumnLayout cubeVariables columns)
++    (prepared : FixedArray (Vector K ringDegree) ringDegree)
++    (blockValues : Nat → Vector K ringDegree) (column : Fin columns) :
++    padRead layout prepared blockValues (layout.toVertex column) =
++      PiCCSCarriedRead.read prepared blockValues column := by
++  rw [padRead, layout.toColumn_toVertex]
++
++private theorem padRead_none {columns : Nat} (layout : ColumnLayout cubeVariables columns)
++    (prepared : FixedArray (Vector K ringDegree) ringDegree)
++    (blockValues : Nat → Vector K ringDegree) (vertex : BooleanVertex cubeVariables)
++    (outside : layout.toColumn? vertex = none) :
++    padRead layout prepared blockValues vertex = K.zero := by
++  rw [padRead, outside]
++
++/-- The decoded full-carrier Pad value, before its suffix weight. -/
++def padAt
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) : K :=
++  padRead selectedLayout (basis gamma).1 (blocks witness gamma) vertex
++
++noncomputable def originalPad (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) : K :=
++  sumMap extensionOps (canonicalPadCoordinates productionShape) fun coordinate =>
++    extensionOps.mul (powers gamma coordinate.localGammaExponent)
++      ((selectedMessage input witness vertex).padImage coordinate)
++
++noncomputable def originalMatrix (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) : K :=
++  sumMap extensionOps (canonicalMatrixCoordinates productionShape) fun coordinate =>
++    extensionOps.mul (powers gamma coordinate.localGammaExponent)
++      ((selectedMessage input witness vertex).matrixImage coordinate)
++
++private theorem join_projections {Fresh Values Message : Type}
++    (fresh : Option Fresh) (values : Option Values) (makeMessage : Fresh → Message)
++    (pad : K) (total : Values → K) (wanted : Message) (wantedPad wantedMatrix : K)
++    (returned : (do
++      let fresh ← fresh
++      let values ← values
++      pure (makeMessage fresh, pad, total values)) = some (wanted, wantedPad, wantedMatrix)) :
++    pad = wantedPad ∧ values.map total = some wantedMatrix := by
++  cases fresh with
++  | none => cases returned
++  | some fresh =>
++      cases values with
++      | none => cases returned
++      | some values =>
++          have same : (makeMessage fresh, pad, total values) = (wanted, wantedPad, wantedMatrix) :=
++            Option.some.inj returned
++          exact ⟨congrArg (fun value => value.2.1) same,
++            congrArg some (congrArg (fun value => value.2.2) same)⟩
++
++private theorem fromRows_value
++    (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
++    (assignments : Fin productionShape.sourceCount → Phi81Relation.Assignment PiCCSSourceImages.shape)
++    (padBasis : FixedArray (Vector K ringDegree) ringDegree)
++    (blockValues : Nat → Vector K ringDegree) (power : Nat → K)
++    (vertex : BooleanVertex cubeVariables)
++    (fresh : Vector F ProductionRelation.matrixCount)
++    (matrices : Vector K ProductionRelation.matrixCount) :
++    PiCCSAggregatedImages.fromRows layout assignments padBasis blockValues power vertex fresh matrices =
++      (PiCCSAggregatedImages.nonlinearMessage layout assignments vertex fresh,
++       padRead layout padBasis blockValues vertex,
++       sumMap extensionOps (canonicalFinIndices productionShape.matrixCount) (fun slot =>
++         extensionOps.mul (power (productionShape.runningCount * slot.val)) (matrices.get slot))) := by
++  cases decoded : layout.toColumn? vertex with
++  | none => simp only [PiCCSAggregatedImages.fromRows, padRead, decoded]
++  | some column => simp only [PiCCSAggregatedImages.fromRows, padRead, decoded]
++
++private theorem endpoint_projections_generic
++    (program : MatrixProgram.Program) (sourceRow : Nat → Option R1CS.Row)
++    (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
++    (assignments : Fin productionShape.sourceCount → Phi81Relation.Assignment PiCCSSourceImages.shape)
++    (padBasis matrixBasis : FixedArray (Vector K ringDegree) ringDegree)
++    (blockValues : Nat → Vector K ringDegree) (power : Nat → K)
++    (vertex : BooleanVertex cubeVariables) (wanted : ProtocolPolynomial.OutputMessage K productionShape)
++    (wantedPad wantedMatrix : K)
++    (returned : PiCCSAggregatedImages.endpoint? program sourceRow layout assignments
++      padBasis matrixBasis blockValues power vertex = some (wanted, wantedPad, wantedMatrix)) :
++    padRead layout padBasis blockValues vertex = wantedPad ∧
++    (if NumericBooleanDomain.index vertex < program.rowCount then
++      PiCCSLinearRows.row? program (columns := PiCCSSourceImages.logicalWidth) sourceRow
++        (PiCCSCarriedRead.read matrixBasis blockValues) (NumericBooleanDomain.index vertex)
++     else some (Vector.replicate ProductionRelation.matrixCount K.zero)).map
++      (fun values => sumMap extensionOps (canonicalFinIndices productionShape.matrixCount)
++        (fun slot => extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot))) =
++      some wantedMatrix := by
++  by_cases active : NumericBooleanDomain.index vertex < program.rowCount
++  · simp only [PiCCSAggregatedImages.endpoint?, if_pos active, fromRows_value] at returned
++    simp only [if_pos active]
++    exact join_projections
++      (PiCCSSourceImages.freshMatrixImage? program sourceRow
++        (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex)
++      (PiCCSLinearRows.row? program (columns := PiCCSSourceImages.logicalWidth) sourceRow
++        (PiCCSCarriedRead.read matrixBasis blockValues) (NumericBooleanDomain.index vertex))
++      (fun fresh => PiCCSAggregatedImages.nonlinearMessage layout assignments vertex fresh)
++      (padRead layout padBasis blockValues vertex)
++      (fun values => sumMap extensionOps (canonicalFinIndices productionShape.matrixCount)
++        (fun slot => extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot)))
++      wanted wantedPad wantedMatrix returned
++  · simp only [PiCCSAggregatedImages.endpoint?, if_neg active, fromRows_value] at returned
++    simp only [if_neg active]
++    exact join_projections
++      (PiCCSSourceImages.freshMatrixImage? program sourceRow
++        (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex)
++      (some (Vector.replicate ProductionRelation.matrixCount K.zero))
++      (fun fresh => PiCCSAggregatedImages.nonlinearMessage layout assignments vertex fresh)
++      (padRead layout padBasis blockValues vertex)
++      (fun values => sumMap extensionOps (canonicalFinIndices productionShape.matrixCount)
++        (fun slot => extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot)))
++      wanted wantedPad wantedMatrix returned
++
++private theorem endpoint_projections (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) :
++    padAt witness gamma vertex = originalPad input witness gamma vertex ∧
++      (matrixAt? witness gamma vertex).map (slotTotal gamma) =
++        some (originalMatrix input witness gamma vertex) := by
++  have original := PiCCSAggregatedImages.endpoint_sourceProtocolData input witness gamma vertex
++  dsimp only [padAt, matrixAt?, slotTotal]
++  exact endpoint_projections_generic selectedProgram selectedSource selectedLayout witness.assignments
++    (basis gamma).1 (basis gamma).2 (blocks witness gamma) (powers gamma) vertex
++    { (selectedMessage input witness vertex) with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero }
++    (originalPad input witness gamma vertex) (originalMatrix input witness gamma vertex) original
++
++/-- Every numeric matrix slot sum is the original full local-gamma total.
++The Option equation discharges successful loads without a validity premise. -/
++theorem matrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) :
++    (matrixAt? witness gamma vertex).map (slotTotal gamma) =
++      some (originalMatrix input witness gamma vertex) :=
++  (endpoint_projections input witness gamma vertex).2
++
++/-- Every decoded Pad value is the original full local-gamma total. -/
++theorem pad_sourceProtocolData (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables) :
++    padAt witness gamma vertex = originalPad input witness gamma vertex :=
++  (endpoint_projections input witness gamma vertex).1
++
++private theorem fullShape_carrierWidth (logicalWidth : Nat)
++    (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :
++    (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth =
++      Phi81CarrierLayout.carrierWidth logicalWidth := rfl
++
++/-- Transport a selected block index to the exact carrier-column owner's
++block type without evaluating the selected logical-width expression. -/
++theorem blockCount_eq_authority : PiCCSSourceImages.blockCount =
++    Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth) := by
++  exact congrArg Phi81ColumnLayout.blockCount
++    (fullShape_carrierWidth PiCCSSourceImages.logicalWidth PiCCSSourceImages.publicFits)
++
++private theorem read_carrierColumn {logicalWidth : Nat}
++    (prepared : FixedArray (Vector K ringDegree) ringDegree) (blockValues : Nat → Vector K ringDegree)
++    (block : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
++    (lane : Fin ringDegree) :
++    PiCCSCarriedRead.read prepared blockValues
++        (Phi81CarrierLayout.carrierColumn (logicalWidth := logicalWidth) block lane) =
++      PiCCSWeightedBasis.dotK (prepared.get lane) (blockValues block.val).get := by
++  have decoded := Phi81CarrierLayout.decode_carrierColumn (logicalWidth := logicalWidth) block lane
++  have blockIndex :
++      (Phi81CarrierLayout.carrierColumn (logicalWidth := logicalWidth) block lane).val / ringDegree = block.val :=
++    congrArg (fun value => value.1.val) decoded
++  have laneIndex :
++      (⟨(Phi81CarrierLayout.carrierColumn (logicalWidth := logicalWidth) block lane).val % ringDegree,
++        Nat.mod_lt _ (by decide)⟩ : Fin ringDegree) = lane := congrArg Prod.snd decoded
++  simp only [PiCCSCarriedRead.read, blockIndex, laneIndex]
++
++/-- The direct block/lane dot product in replayCarriedPad is exactly the
++original Pad total at that full-carrier column. Running tails are included. -/
++theorem pad_block_sourceProtocolData (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K)
++    (block : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth)))
++    (lane : Fin ringDegree) :
++    PiCCSWeightedBasis.dotK ((basis gamma).1.get lane) (blocks witness gamma block.val).get =
++      originalPad input witness gamma (selectedLayout.toVertex
++        (Phi81CarrierLayout.carrierColumn (logicalWidth := PiCCSSourceImages.logicalWidth) block lane)) := by
++  have original := pad_sourceProtocolData input witness gamma (selectedLayout.toVertex
++    (Phi81CarrierLayout.carrierColumn (logicalWidth := PiCCSSourceImages.logicalWidth) block lane))
++  rw [padAt, padRead_toVertex] at original
++  exact (read_carrierColumn (basis gamma).1 (blocks witness gamma) block lane).symm.trans original
++
++private theorem weighted_zero_vector (count : Nat) (weight : Fin count → K) :
++    sumMap extensionOps (canonicalFinIndices count) (fun slot =>
++      extensionOps.mul (weight slot) ((Vector.replicate count K.zero).get slot)) = extensionOps.zero := by
++  have zeroGet (slot : Fin count) : (Vector.replicate count K.zero).get slot = extensionOps.zero := by
++    change (Vector.replicate count K.zero)[slot.val] = extensionOps.zero
++    rw [Vector.getElem_replicate]
++    rfl
++  simp only [zeroGet, extensionLaws.mul_zero, FiniteSumAlgebra.sumMap_zero extensionOps extensionLaws]
++
++/-- Matrix completion past the active program is zero for every assignment. -/
++theorem originalMatrix_padding (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables)
++    (beyond : selectedProgram.rowCount ≤ NumericBooleanDomain.index vertex) :
++    originalMatrix input witness gamma vertex = extensionOps.zero := by
++  have original := matrix_sourceProtocolData input witness gamma vertex
++  have outside : ¬ NumericBooleanDomain.index vertex < selectedProgram.rowCount := by omega
++  rw [matrixAt?, if_neg outside, Option.map_some] at original
++  have zeroTotal : slotTotal gamma (Vector.replicate ProductionRelation.matrixCount K.zero) =
++      extensionOps.zero := by
++    exact weighted_zero_vector ProductionRelation.matrixCount
++      (fun slot => powers gamma (productionShape.runningCount * slot.val))
++  exact (Option.some.inj original).symm.trans zeroTotal
++
++private theorem relationLayout_none {logicalWidth : Nat}
++    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
++    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (vertex : BooleanVertex cubeVariables)
++    (beyond : Phi81CarrierLayout.carrierWidth logicalWidth ≤ NumericBooleanDomain.index vertex) :
++    (Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation).cubeLayout.toColumn? vertex = none := by
++  exact (Folding.PiCCS.CanonicalRowLayout.toColumn?_eq_none_iff cubeVariables
++    (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits vertex).2 beyond
++
++/-- Pad completion begins after the complete carrier, not after the matrix
++row count. No retained tail coordinate is dropped. -/
++theorem originalPad_padding (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (vertex : BooleanVertex cubeVariables)
++    (beyond : PiCCSSourceImages.shape.carrierWidth ≤ NumericBooleanDomain.index vertex) :
++    originalPad input witness gamma vertex = extensionOps.zero := by
++  have width : PiCCSSourceImages.shape.carrierWidth =
++      Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth :=
++    fullShape_carrierWidth PiCCSSourceImages.logicalWidth PiCCSSourceImages.publicFits
++  have decoded : selectedLayout.toColumn? vertex = none :=
++    relationLayout_none selectedRelation vertex (by rw [← width]; exact beyond)
++  have original := pad_sourceProtocolData input witness gamma vertex
++  rw [padAt, padRead_none selectedLayout (basis gamma).1 (blocks witness gamma) vertex decoded] at original
++  exact original.symm
++
++end NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
+--- /dev/null
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSCarriedComplete.lean
+@@ -0,0 +1,266 @@
++import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
++import NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
++
++/-! Selected carried accumulation from original assignments. The Pad block
++kernel and optional numeric matrix reads produce the two full moments.
++This is a pure kernel theorem, not a proof of the IO task or cache loop. -/
++
++set_option autoImplicit false
++
++namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
++
++open NightstreamFPrime.Spec
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
++open NightstreamFPrime.Lifecycle
++open NumericCompletionSum (numericSum)
++
++private abbrev selectedRelation := PerApplicationFixedPoint.relation
++  Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
++private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
++  Poseidon2HashChainV1Package.application
++private abbrev selectedLayout :=
++  (Lifecycle.PiRLC.v1_1.InputBinding.relationSource selectedRelation).cubeLayout
++private noncomputable abbrev selectedStatement (input : PiCCSPublicReplay.Input) :=
++  (ProductionKey.key selectedRelation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
++    (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)
++private noncomputable abbrev sourceData (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth) :=
++  (selectedStatement input).sourceProtocolData K.embed witness
++private abbrev powers (gamma : K) := TargetPolynomial.power extensionOps.toOps gamma
++private abbrev basis (gamma : K) :=
++  PiCCSAggregatedImages.prepare (PiDECParentSparseRead.prepare ()) (powers gamma)
++private abbrev blocks
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) := PiCCSAggregatedImages.combinedBlock (powers gamma) witness.assignments
++private def weight (input : PiCCSPublicReplay.Input) : Nat → K :=
++  NumericBooleanDomain.tensorWeightCoordinates extensionOps
++    (PiCCSPublicReplay.verifierInput input).priorPoint.coordinates.tail
++
++private def atRow (value : BooleanVertex cubeVariables → K) (row : Nat) : K :=
++  if inside : row < 2 ^ cubeVariables then
++    value (NumericBooleanDomain.vertex cubeVariables ⟨row, inside⟩)
++  else extensionOps.zero
++
++private noncomputable def padRow (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) : Nat → K := atRow (PiCCSCarriedSource.originalPad input witness gamma)
++private noncomputable def matrixRow (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) : Nat → K := atRow (PiCCSCarriedSource.originalMatrix input witness gamma)
++
++private theorem source_prior (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth) :
++    (sourceData input witness).priorPoint = (PiCCSPublicReplay.verifierInput input).priorPoint := by
++  have source := StrongReduction.Statement.sourceProtocolData_toVerifierInput
++    K.embed (selectedStatement input) witness
++  have public := PiCCSPublicReplay.verifierInput_eq_key input selectedRelation
++    Poseidon2HashChainV1Setup.productionAjtaiKey
++  exact congrArg (fun value : ProtocolPolynomial.VerifierInput K productionShape => value.priorPoint)
++    (source.trans public.symm)
++
++private theorem fullShape_carrierWidth (logicalWidth : Nat)
++    (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :
++    (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth =
++      Phi81CarrierLayout.carrierWidth logicalWidth := rfl
++
++private theorem carrier_count : PiCCSSourceImages.blockCount * ringDegree =
++    Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth := by
++  rw [PiCCSCarriedSource.blockCount_eq_authority, Phi81CarrierLayout.blockCount_carrierWidth,
++    ← Phi81CarrierLayout.carrierWidth_eq]
++
++private theorem rows_fit : selectedProgram.rowCount ≤ 2 ^ cubeVariables := by
++  rw [PerApplicationMatrixProgram.matrixProgram_rowCount_eq_structuralPlan
++    Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits]
++  exact PerApplicationFixedPoint.structuralPlan_rowCount_le
++    Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
++
++private theorem atRow_toVertex {columns : Nat} (covered : columns ≤ 2 ^ cubeVariables)
++    (value : BooleanVertex cubeVariables → K) (column : Fin columns) :
++    atRow value column.val =
++      value ((Folding.PiCCS.CanonicalRowLayout.layout cubeVariables columns covered).toVertex column) := by
++  rw [atRow, dif_pos (Nat.lt_of_lt_of_le column.isLt covered)]
++  rfl
++
++private theorem carrierColumn_val {logicalWidth : Nat}
++    (block : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
++    (lane : Fin ringDegree) :
++    (Phi81CarrierLayout.carrierColumn (logicalWidth := logicalWidth) block lane).val =
++      block.val * ringDegree + lane.val := rfl
++
++private theorem pad_dot (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (block : Nat) (live : block < PiCCSSourceImages.blockCount) (lane : Fin ringDegree) :
++    PiCCSWeightedBasis.dotK ((basis gamma).1.get lane) (blocks witness gamma block).get =
++      padRow input witness gamma (block * ringDegree + lane.val) := by
++  let typedBlock := Fin.cast PiCCSCarriedSource.blockCount_eq_authority (⟨block, live⟩ : Fin PiCCSSourceImages.blockCount)
++  have source := PiCCSCarriedSource.pad_block_sourceProtocolData input witness gamma typedBlock lane
++  have flat := atRow_toVertex selectedRelation.cubeFits
++    (PiCCSCarriedSource.originalPad input witness gamma)
++    (Phi81CarrierLayout.carrierColumn (logicalWidth := PiCCSSourceImages.logicalWidth) typedBlock lane)
++  rw [carrierColumn_val] at flat
++  exact source.trans flat.symm
++
++/-- The same complete-block kernel used by the Pad runner, projected to one
++of its two parity accumulators. The zero-block branch remains proved. -/
++def padMoment (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (bit : Fin 2) : K :=
++  numericSum extensionOps PiCCSSourceImages.blockCount fun block =>
++    let value := PiCCSPadBlockMoment.blockMoment (basis gamma).1 (weight input) block (blocks witness gamma block)
++    if bit.val = 0 then value.1 else value.2
++
++private theorem padMoment_value (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (bit : Fin 2) :
++    padMoment input witness gamma bit =
++      numericSum extensionOps (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth) (fun row =>
++        if row % 2 = bit.val then extensionOps.mul (weight input (row / 2)) (padRow input witness gamma row)
++        else extensionOps.zero) := by
++  have flat := PiCCSCarriedAccumulation.blockMoments_eq_flat_sum
++    (basis gamma).1 (weight input) (blocks witness gamma) PiCCSSourceImages.blockCount bit
++    (padRow input witness gamma) (pad_dot input witness gamma)
++  rw [carrier_count] at flat
++  exact flat
++
++/-- One actual numeric matrix row, with a failure retained as none. The
++selected row bound keeps every accumulated index inside the Boolean domain. -/
++def matrixRow?
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (row : Nat) : Option K :=
++  if inside : row < 2 ^ cubeVariables then
++    (PiCCSCarriedSource.matrixAt? witness gamma
++      (NumericBooleanDomain.vertex cubeVariables ⟨row, inside⟩)).map (PiCCSCarriedSource.slotTotal gamma)
++  else none
++
++private theorem matrixRow?_value (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (row : Nat) (inside : row < 2 ^ cubeVariables) :
++    matrixRow? witness gamma row = some (matrixRow input witness gamma row) := by
++  rw [matrixRow?, dif_pos inside, matrixRow, atRow, dif_pos inside]
++  exact PiCCSCarriedSource.matrix_sourceProtocolData input witness gamma _
++
++/-- Scalar projection of the complete optional matrix-row accumulation.
++It uses the same slot sum and absolute row parity as the runner. -/
++def matrixMoment? (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (bit : Fin 2) : Option K :=
++  Nat.fold selectedProgram.rowCount (fun row _ previous => do
++    let total ← previous
++    let value ← matrixRow? witness gamma row
++    pure (extensionOps.add total (if row % 2 = bit.val then
++      extensionOps.mul (weight input (row / 2)) value else extensionOps.zero)))
++    (some extensionOps.zero)
++
++private theorem optionalSum_value (action : Nat → Option K) (transform : Nat → K → K)
++    (value : Nat → K) (count : Nat) :
++    (∀ row, row < count → action row = some (value row)) →
++    Nat.fold count (fun row _ previous => do
++      let total ← previous
++      let returned ← action row
++      pure (extensionOps.add total (transform row returned))) (some extensionOps.zero) =
++      some (numericSum extensionOps count (fun row => transform row (value row))) := by
++  induction count with
++  | zero => intro _; rfl
++  | succ count ih =>
++      intro returned
++      have previous := ih (fun row inside => returned row (Nat.lt_trans inside (Nat.lt_succ_self count)))
++      rw [Nat.fold_succ, previous, returned count (Nat.lt_succ_self count)]
++      simp only [numericSum, Nat.fold_succ]
++
++private theorem matrixMoment?_value (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (bit : Fin 2) :
++    matrixMoment? input witness gamma bit =
++      some (numericSum extensionOps selectedProgram.rowCount (fun row =>
++        if row % 2 = bit.val then extensionOps.mul (weight input (row / 2)) (matrixRow input witness gamma row)
++        else extensionOps.zero)) := by
++  apply optionalSum_value
++  intro row inside
++  exact matrixRow?_value input witness gamma row (Nat.lt_of_lt_of_le inside rows_fit)
++
++private theorem endpoint_bound (pair : Fin (2 ^ 27)) (bit : Fin 2) :
++    2 * pair.val + bit.val < 2 ^ cubeVariables := by
++  have pairBound := pair.isLt
++  have bitBound := bit.isLt
++  change 2 * pair.val + bit.val < 268435456
++  change pair.val < 134217728 at pairBound
++  omega
++
++private theorem endpoint_vertex (pair : Fin (2 ^ 27)) (bit : Fin 2) :
++    PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) (bit.val == 1)
++        (NumericBooleanDomain.vertex 27 pair) =
++      NumericBooleanDomain.vertex cubeVariables ⟨2 * pair.val + bit.val, endpoint_bound pair bit⟩ := by
++  let vertex := PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) (bit.val == 1)
++    (NumericBooleanDomain.vertex 27 pair)
++  have indexed : NumericBooleanDomain.index vertex = 2 * pair.val + bit.val := by
++    have casesBit : bit.val = 0 ∨ bit.val = 1 := by have bound := bit.isLt; omega
++    rcases casesBit with low | high
++    · simp only [vertex, low, show (0 == 1) = false by decide]
++      change 0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 27 pair) = 2 * pair.val + 0
++      rw [NumericBooleanDomain.index_vertex]
++      omega
++    · simp only [vertex, high, show (1 == 1) = true by decide]
++      change 1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex 27 pair) = 2 * pair.val + 1
++      rw [NumericBooleanDomain.index_vertex]
++      omega
++  calc
++    _ = NumericBooleanDomain.vertex cubeVariables
++        ⟨NumericBooleanDomain.index vertex, NumericBooleanDomain.index_lt_twoPow vertex⟩ :=
++      (NumericBooleanDomain.vertex_index vertex).symm
++    _ = _ := by congr 1; exact Fin.ext indexed
++
++private theorem padRow_zero (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (row : Nat)
++    (lower : Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth ≤ row)
++    (upper : row < 2 ^ cubeVariables) : padRow input witness gamma row = extensionOps.zero := by
++  rw [padRow, atRow, dif_pos upper]
++  apply PiCCSCarriedSource.originalPad_padding
++  rw [NumericBooleanDomain.index_vertex]
++  have width := fullShape_carrierWidth PiCCSSourceImages.logicalWidth PiCCSSourceImages.publicFits
++  change PiCCSSourceImages.shape.carrierWidth = _ at width
++  rw [width]
++  exact lower
++
++private theorem matrixRow_zero (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (row : Nat) (lower : selectedProgram.rowCount ≤ row) (upper : row < 2 ^ cubeVariables) :
++    matrixRow input witness gamma row = extensionOps.zero := by
++  rw [matrixRow, atRow, dif_pos upper]
++  apply PiCCSCarriedSource.originalMatrix_padding
++  simpa only [NumericBooleanDomain.index_vertex] using lower
++
++/-- The selected computed Pad and optional matrix accumulators give the
++complete original-source carried moment. No source-correctness, row-coverage,
++or assignment-validity hypothesis remains. The optional result retains all
++matrix lookup failures, which the selected source theorem rules out. -/
++theorem selected_moment (input : PiCCSPublicReplay.Input)
++    (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
++    (gamma : K) (bit : Fin 2) :
++    (matrixMoment? input witness gamma bit).map (fun matrix =>
++      extensionOps.add (padMoment input witness gamma bit)
++        (extensionOps.mul (powers gamma productionShape.matrixEvaluationOffset) matrix)) =
++      some (PiCCSCarriedMoments.moment extensionOps (sourceData input witness) gamma
++        (by decide : productionShape.cubeVariables = 27 + 1) (bit.val == 1)) := by
++  rw [matrixMoment?_value, Option.map_some, padMoment_value]
++  apply congrArg some
++  have complete := PiCCSCarriedAccumulation.moment_of_exact_row_callbacks extensionOps extensionLaws
++    (sourceData input witness) gamma (by decide : productionShape.cubeVariables = 27 + 1)
++    (padRow input witness gamma) (matrixRow input witness gamma)
++    (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth) selectedProgram.rowCount bit
++    selectedRelation.cubeFits rows_fit
++    (padRow_zero input witness gamma) (matrixRow_zero input witness gamma)
++    (by
++      intro pair
++      rw [padRow, atRow, dif_pos (endpoint_bound pair bit), ← endpoint_vertex pair bit]
++      rfl)
++    (by
++      intro pair
++      rw [matrixRow, atRow, dif_pos (endpoint_bound pair bit), ← endpoint_vertex pair bit]
++      rfl)
++  rw [source_prior input witness] at complete
++  exact complete
++
++end NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
+--- /dev/null
++++ b/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSFirstRoundComposition.lean
+@@ -0,0 +1,269 @@
++import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
++import NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
++import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
++
++/-! Proof-only composition of the existing complete contribution kernels.
++No decoded artifact, expected value, source-validity assumption or runtime
++import of this module is needed. The final target is stated separately. -/
++
++set_option autoImplicit false
++
++namespace NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
++
++open NightstreamFPrime.Spec
++open NightstreamFPrime.Spec.SumCheck.Finite
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
++open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
++open NightstreamFPrime.Lifecycle
++
++private abbrev selectedRelation := PerApplicationFixedPoint.relation
++  Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
++
++/-- The existing witness type, with exactly the captured complete assignments. -/
++def witness (masks : Array (Array (Nat × Nat))) :
++    StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth :=
++  ⟨PiCCSNormSource.assignments masks⟩
++
++noncomputable def sourceData (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) : ProtocolPolynomial.Data K productionShape :=
++  ((ProductionKey.key selectedRelation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
++    (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
++      K.embed (witness masks)
++
++/-- Use the actual existing optional fresh/matrix kernels and total Pad/norm
++kernels. Failed row loads remain failed computations, not caller premises. -/
++def coefficients? (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) : Option (List K) := do
++  let coins := PiCCSPublicReplay.pre input
++  let verifier := PiCCSPublicReplay.verifierInput input
++  let powers := TargetPolynomial.power extensionOps.toOps coins.gamma
++  let fresh ← PiCCSFreshComplete.freshRange? input (witness masks)
++    (PiCCSNormSource.canonicalLayout ()) powers coins.alpha 0 PiCCSFreshComplete.activePairs
++  let matrixLow ← PiCCSCarriedComplete.matrixMoment? input (witness masks) coins.gamma ⟨0, by decide⟩
++  let matrixHigh ← PiCCSCarriedComplete.matrixMoment? input (witness masks) coins.gamma ⟨1, by decide⟩
++  let padLow := PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨0, by decide⟩
++  let padHigh := PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨1, by decide⟩
++  let innerNorm := PiCCSNormBuckets.finish powers
++    (PiCCSNormScan.range
++      (NumericBooleanDomain.tensorWeightCoordinates extensionOps coins.alpha.coordinates.tail)
++      masks 0 PiCCSSourceImages.blockCount)
++  let carried := PiCCSCarriedMoments.carriedPair extensionOps
++    (show 2 ≤ verifier.sumcheckDegreeBound from Nat.le_trans (by decide) (Nat.le_max_right _ _))
++    (PiCCSCarriedMoments.headSelector extensionOps verifier.priorPoint)
++    (powers productionShape.matrixEvaluationOffset) padLow padHigh matrixLow matrixHigh
++  let norm := PiCCSNormContribution.normTerm verifier powers
++    (PiCCSCarriedMoments.headSelector extensionOps coins.alpha) innerNorm
++  return (FixedPolynomial.add extensionOps.toOps carried
++    (FixedPolynomial.add extensionOps.toOps fresh norm)).coefficients
++
++-- Append in namespace PiCCSFirstRoundComposition, after coefficients?.
++
++private def freshTerm (input : ProtocolPolynomial.VerifierInput K productionShape)
++    (data : ProtocolPolynomial.Data K productionShape) (alpha : CubePoint K cubeVariables)
++    (gamma : K) (index : Fin (2 ^ 27)) : FixedPolynomial K input.sumcheckDegreeBound :=
++  let suffix := NumericBooleanDomain.vertex 27 index
++  PiCCSFreshComplete.outerFresh input (TargetPolynomial.power extensionOps.toOps gamma)
++    (PiCCSFirstRoundPair.ccsPolynomialWithPowers extensionOps input
++      (TargetPolynomial.power extensionOps.toOps gamma)
++      (PiCCSFirstRound.equalitySelector extensionOps suffix alpha)
++      (ProtocolPolynomial.vertexMessage data
++        (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) false suffix))
++      (ProtocolPolynomial.vertexMessage data
++        (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) true suffix)))
++
++private def normTerm (input : ProtocolPolynomial.VerifierInput K productionShape)
++    (data : ProtocolPolynomial.Data K productionShape) (alpha : CubePoint K cubeVariables)
++    (gamma : K) (index : Fin (2 ^ 27)) : FixedPolynomial K input.sumcheckDegreeBound :=
++  let suffix := NumericBooleanDomain.vertex 27 index
++  PiCCSNormContribution.normTerm input (TargetPolynomial.power extensionOps.toOps gamma)
++    (PiCCSFirstRound.equalitySelector extensionOps suffix alpha)
++    (PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps
++      (TargetPolynomial.power extensionOps.toOps gamma)
++      (ProtocolPolynomial.vertexMessage data
++        (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) false suffix))
++      (ProtocolPolynomial.vertexMessage data
++        (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) true suffix)))
++
++private def components (input : ProtocolPolynomial.VerifierInput K productionShape)
++    (data : ProtocolPolynomial.Data K productionShape) (alpha : CubePoint K cubeVariables) (gamma : K) :
++    FixedPolynomial K input.sumcheckDegreeBound :=
++  FixedPolynomial.add extensionOps.toOps
++    (FixedPolynomial.widen extensionOps.toOps (show 2 ≤ input.sumcheckDegreeBound from
++      Nat.le_trans (by decide) (Nat.le_max_right _ _))
++      (FixedPolynomial.mul extensionOps.toOps
++        (PiCCSCarriedMoments.headSelector extensionOps input.priorPoint)
++        (FixedPolynomial.affine
++          (PiCCSCarriedMoments.moment extensionOps data gamma (by decide) false)
++          (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data gamma (by decide) true)
++            (PiCCSCarriedMoments.moment extensionOps data gamma (by decide) false)))))
++    (FixedPolynomial.add extensionOps.toOps
++      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (freshTerm input data alpha gamma))
++      (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (normTerm input data alpha gamma)))
++
++-- Transport the verifier input while it is a symbolic variable. This avoids
++-- reducing the selected key or comparing differently indexed polynomials.
++private theorem components_coefficients
++    (input : ProtocolPolynomial.VerifierInput K productionShape)
++    (data : ProtocolPolynomial.Data K productionShape)
++    (agreement : input = data.toVerifierInput)
++    (alpha : CubePoint K cubeVariables) (gamma : K) :
++    (components input data alpha gamma).coefficients =
++      (PiCCSFirstRound.firstRound extensionOps data alpha gamma (remaining := 27) (by decide)).coefficients := by
++  subst input
++  exact congrArg FixedPolynomial.coefficients
++    (PiCCSCarriedMoments.full_components_eq_firstRound extensionOps extensionLaws data alpha gamma
++      (remaining := 27) (by decide))
++
++private theorem input_agreement (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) :
++    PiCCSPublicReplay.verifierInput input = (sourceData input masks).toVerifierInput := by
++  exact PiCCSFreshComplete.verifierInput_eq_sourceProtocolData input (witness masks)
++
++private theorem fresh_reference (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K)
++    (index : Fin (2 ^ 27)) :
++    PiCCSFreshComplete.referencePair input (witness masks)
++        (TargetPolynomial.power extensionOps.toOps gamma) alpha index.val =
++      freshTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma index := by
++  simp only [PiCCSFreshComplete.referencePair, dif_pos index.isLt]
++  rfl
++
++private theorem fresh_value (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K) :
++    PiCCSFreshComplete.freshRange? input (witness masks) (PiCCSNormSource.canonicalLayout ())
++        (TargetPolynomial.power extensionOps.toOps gamma) alpha 0 PiCCSFreshComplete.activePairs =
++      some (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27))
++        (freshTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma)) := by
++  rw [PiCCSFreshComplete.freshRange_eq_fullPairSum,
++    PiCCSPolynomialRange.range_eq_sum extensionOps extensionLaws]
++  apply congrArg some
++  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)))
++  funext index
++  simpa only [Nat.zero_add] using fresh_reference input masks alpha gamma index
++
++private theorem nonlinear_norm_fields
++    (layout : UnifiedSources.ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
++    (assignments : Fin productionShape.sourceCount → Phi81Relation.Assignment PiCCSSourceImages.shape)
++    (vertex : BooleanVertex cubeVariables) (fresh : Vector F ProductionRelation.matrixCount)
++    (wanted : ProtocolPolynomial.OutputMessage K productionShape)
++    (fields : ∀ source, K.embed (PiCCSSourceImages.assignmentValue layout (assignments source) vertex) =
++      wanted.sourceAssignment source) :
++    (PiCCSAggregatedImages.nonlinearMessage layout assignments vertex fresh).sourceAssignment =
++      wanted.sourceAssignment := by
++  funext source
++  exact fields source
++
++private theorem norm_fields (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) (vertex : BooleanVertex cubeVariables)
++    (fresh : Vector F ProductionRelation.matrixCount) :
++    (PiCCSAggregatedImages.nonlinearMessage (PiCCSNormSource.canonicalLayout ())
++      (PiCCSNormSource.assignments masks) vertex fresh).sourceAssignment =
++      (ProtocolPolynomial.vertexMessage (sourceData input masks) vertex).sourceAssignment := by
++  apply nonlinear_norm_fields
++  intro source
++  exact PiCCSSourceImages.assignment_sourceProtocolData input (witness masks) source vertex
++
++private theorem norm_congr (powers : Nat → K)
++    (low high low' high' : ProtocolPolynomial.OutputMessage K productionShape)
++    (lowFields : low.sourceAssignment = low'.sourceAssignment)
++    (highFields : high.sourceAssignment = high'.sourceAssignment) :
++    PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps powers low high =
++      PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps powers low' high' := by
++  unfold PiCCSFirstRoundPair.normPolynomialWithPowers
++  rw [lowFields, highFields]
++
++private theorem norm_reference (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K)
++    (index : Fin (2 ^ 27)) :
++    PiCCSNormComplete.numericPairNorm (PiCCSPublicReplay.verifierInput input)
++        (TargetPolynomial.power extensionOps.toOps gamma) alpha masks
++        (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F))
++        (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F)) index.val =
++      normTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma index := by
++  simp only [PiCCSNormComplete.numericPairNorm, dif_pos index.isLt, normTerm]
++  apply congrArg (PiCCSNormContribution.normTerm (PiCCSPublicReplay.verifierInput input)
++    (TargetPolynomial.power extensionOps.toOps gamma)
++    (PiCCSFirstRound.equalitySelector extensionOps (NumericBooleanDomain.vertex 27 index) alpha))
++  exact norm_congr _ _ _ _ _ (norm_fields input masks _ _) (norm_fields input masks _ _)
++
++private theorem headSelector_agreement (alpha : CubePoint K cubeVariables) :
++    PiCCSCarriedMoments.headSelector extensionOps alpha = PiCCSNormContribution.headSelector alpha := by
++  rcases alpha with ⟨coordinates, length⟩
++  cases coordinates <;> rfl
++
++private theorem norm_value (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) (alpha : CubePoint K cubeVariables) (gamma : K) :
++    PiCCSNormContribution.normTerm (PiCCSPublicReplay.verifierInput input)
++        (TargetPolynomial.power extensionOps.toOps gamma)
++        (PiCCSCarriedMoments.headSelector extensionOps alpha)
++        (PiCCSNormBuckets.finish (TargetPolynomial.power extensionOps.toOps gamma)
++          (PiCCSNormScan.range
++            (NumericBooleanDomain.tensorWeightCoordinates extensionOps alpha.coordinates.tail)
++            masks 0 PiCCSSourceImages.blockCount)) =
++      FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27))
++        (normTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma) := by
++  rw [headSelector_agreement]
++  rw [PiCCSNormComplete.finished_norm_eq_fullPairSum
++    (PiCCSPublicReplay.verifierInput input) gamma alpha masks
++    (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F))
++    (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F)),
++    PiCCSPolynomialRange.range_eq_sum extensionOps extensionLaws]
++  apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)))
++  funext index
++  simpa only [Nat.zero_add] using norm_reference input masks alpha gamma index
++
++/-- Every coefficient of the actual complete constructor is the original
++source first-round coefficient, using the Lean-derived public pre-coins.
++No expected artifact or contribution/witness-validity hypothesis is accepted. -/
++theorem coefficients_eq_firstRound (input : PiCCSPublicReplay.Input)
++    (masks : Array (Array (Nat × Nat))) :
++    coefficients? input masks =
++      some ((PiCCSFirstRound.firstRound extensionOps (sourceData input masks)
++        (PiCCSPublicReplay.pre input).alpha (PiCCSPublicReplay.pre input).gamma
++        (remaining := 27) (by decide)).coefficients) := by
++  let coins := PiCCSPublicReplay.pre input
++  let verifier := PiCCSPublicReplay.verifierInput input
++  let power := TargetPolynomial.power extensionOps.toOps coins.gamma
++  let data := sourceData input masks
++  have lowMoment :
++      (PiCCSCarriedComplete.matrixMoment? input (witness masks) coins.gamma ⟨0, by decide⟩).map
++        (fun matrix => extensionOps.add
++          (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨0, by decide⟩)
++          (extensionOps.mul (power productionShape.matrixEvaluationOffset) matrix)) =
++        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide) false) := by
++    exact PiCCSCarriedComplete.selected_moment input (witness masks) coins.gamma ⟨0, by decide⟩
++  have highMoment :
++      (PiCCSCarriedComplete.matrixMoment? input (witness masks) coins.gamma ⟨1, by decide⟩).map
++        (fun matrix => extensionOps.add
++          (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨1, by decide⟩)
++          (extensionOps.mul (power productionShape.matrixEvaluationOffset) matrix)) =
++        some (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide) true) := by
++    exact PiCCSCarriedComplete.selected_moment input (witness masks) coins.gamma ⟨1, by decide⟩
++  obtain ⟨matrixLow, lowLoaded, lowEqual⟩ := Option.map_eq_some_iff.mp lowMoment
++  obtain ⟨matrixHigh, highLoaded, highEqual⟩ := Option.map_eq_some_iff.mp highMoment
++  have carried :
++      PiCCSCarriedMoments.carriedPair extensionOps
++          (show 2 ≤ verifier.sumcheckDegreeBound from Nat.le_trans (by decide) (Nat.le_max_right _ _))
++          (PiCCSCarriedMoments.headSelector extensionOps verifier.priorPoint)
++          (power productionShape.matrixEvaluationOffset)
++          (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨0, by decide⟩)
++          (PiCCSCarriedComplete.padMoment input (witness masks) coins.gamma ⟨1, by decide⟩)
++          matrixLow matrixHigh =
++        FixedPolynomial.widen extensionOps.toOps
++          (show 2 ≤ verifier.sumcheckDegreeBound from Nat.le_trans (by decide) (Nat.le_max_right _ _))
++          (FixedPolynomial.mul extensionOps.toOps
++            (PiCCSCarriedMoments.headSelector extensionOps verifier.priorPoint)
++            (FixedPolynomial.affine
++              (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide) false)
++              (extensionOps.sub (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide) true)
++                (PiCCSCarriedMoments.moment extensionOps data coins.gamma (by decide) false)))) := by
++    rw [PiCCSCarriedMoments.carriedPair_combined extensionOps extensionLaws, lowEqual, highEqual]
++  unfold coefficients?
++  dsimp only
++  rw [fresh_value input masks coins.alpha coins.gamma, lowLoaded, highLoaded]
++  simp only [bind, Option.bind]
++  apply congrArg some
++  rw [carried, norm_value input masks coins.alpha coins.gamma]
++  exact components_coefficients verifier data (input_agreement input masks) coins.alpha coins.gamma
++
++end NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition

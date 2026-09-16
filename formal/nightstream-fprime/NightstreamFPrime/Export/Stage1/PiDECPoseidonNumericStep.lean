@@ -24,7 +24,7 @@ private theorem materialize_get (state : Layer.FState) :
   rw [Vector.getElem_ofFn]
 
 /-- Materialize the eight input values without constructing new row forms. -/
-def stateValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
+@[specialize] def stateValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (state : PoseidonSboxPlan.State logicalWidth) : Vector F 8 :=
   Vector.ofFn fun lane => (state lane).evalSparse read
 
@@ -43,7 +43,7 @@ theorem stateValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
 
 /-- Read the same retained form as the symbolic compiler, including its
 existing zero result outside the retained S-box domain. -/
-def retainedValue {logicalWidth : Nat} (read : Fin logicalWidth → F)
+@[inline] def retainedValue {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (index : Nat) : F :=
   (PoseidonSboxPlan.sboxOutputAt interface index).evalSparse read
 
@@ -221,7 +221,7 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
       exact fullRowValues_value read interface Spec.Poseidon2.terminalConstants
         round nextSbox state
 
-private def fullStepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
+@[specialize] private def fullStepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
     (state : Vector F 8) : List PortValues × Vector F 8 :=
@@ -246,7 +246,7 @@ private theorem fullStepValues_value {logicalWidth : Nat}
 
 /-- Compute each retained output once, then share it between the existing
 row values and the stored next state. Missing retained indices still read zero. -/
-def stepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
+@[specialize] def stepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 8) : Permutation.Step → List PortValues × Vector F 8
   | .initialLayer => ([], Vector.ofFn (Layer.externalF state.get))

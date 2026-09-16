@@ -68,7 +68,7 @@ theorem rowsFrom_value {columns : Nat} (read : Fin columns → F)
 
 /-- Carry the final stored state with the row list. The paired step shares
 its retained reads between row construction and the next linear state. -/
-def rowsWithState {columns : Nat} (read : Fin columns → F)
+@[specialize] def rowsWithState {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     Nat → Vector F 8 → List Permutation.Step → List PortValues × Vector F 8
   | _, state, [] => ([], state)
@@ -143,7 +143,7 @@ private theorem pinValues_value {columns : Nat} (read : Fin columns → F)
 
 /-- Compute all 94 existing port-value records. The final eight pins reuse
 the stored final state, so every retained S-box output is evaluated once. -/
-def values {columns : Nat} (read : Fin columns → F)
+@[specialize] def values {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : List PortValues :=
   let produced := rowsWithState read interface 0
     (stateValues read interface.input) Permutation.schedule
@@ -179,7 +179,7 @@ theorem values_length {columns : Nat} (read : Fin columns → F)
   rw [values_eq_rows, List.length_map, PoseidonSboxPlan.rows_length]
 
 /-- Store the complete invocation result for constant-time indexed reads. -/
-def stored {columns : Nat} (read : Fin columns → F)
+@[inline] def stored {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 94 :=
   ⟨(values read interface).toArray, by simp only [List.size_toArray, values_length]⟩
 

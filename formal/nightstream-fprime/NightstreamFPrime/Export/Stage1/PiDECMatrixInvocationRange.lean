@@ -19,7 +19,7 @@ open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
 /-- Compute each loaded interface once in invocation order for one child.
 The Nat branch outside the vector is never visited by the counted sum. -/
-def sum {columns arity count : Nat} (firstRow : Nat)
+@[specialize] def sum {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (read : Fin ringDegree → Fin columns → F)
     (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) :
     Vector MaterializedRingK matrixCount :=

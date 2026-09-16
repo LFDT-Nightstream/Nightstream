@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 /-- Execute only stored entries; no logical-column enumeration is built. -/
-def evalSparse {columns : Nat} (form : SparseForm columns)
+@[specialize] def evalSparse {columns : Nat} (form : SparseForm columns)
     (assignment : Assignment F columns) : F :=
   form.entries.foldl (fun total entry =>
     total + entry.coefficient * assignment entry.column) 0

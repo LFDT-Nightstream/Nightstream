@@ -285,6 +285,29 @@ malformed input before writing any result. These are source-selection tests,
 not production proof evidence. `PICCS_ORIGINAL_MATRIX_SUPPORT.json` records
 the exact source and measurements. Full matrix execution remains open.
 
+The matrix replay now specializes its captured readers through both numeric
+invocations and sparse row accumulation. The source change is 15 bare
+`specialize` attributes and two `inline` attributes across eight files;
+definition bodies and theorem statements are unchanged. Generated C confirms
+direct reader calls in both hot sparse-entry loops.
+
+On 150,400 Poseidon rows, the first 11 annotations reduce profiled calculation
+time from 252.19 to 148.66 seconds and command time from 278.56 to 174.01 seconds.
+On 80,750 product rows, the final six annotations reduce unprofiled calculation
+time from 241.09 to 75.52 seconds and command time from 262.89 to 97.37 seconds,
+compared with the saved 11-annotation executable. Each larger comparison
+checks all 25,704 field words and complete file bytes, and rejects a changed
+target. Peak memory is about 2.4 GiB and 2.9 GiB respectively. The three
+retained cases also remain byte equal. All measured runs use the same host
+with agents idle, and record initialization separately.
+
+`PICCS_MATRIX_SPECIALIZATION.json` records the exact source cuts and scope.
+These measurements do not establish a complete-matrix speedup. An initial
+named-attribute experiment did not specialize the captured reader. A separate
+zero-row accumulator change preserved bytes but did not establish a production
+gain; that change was removed. Full matrix coverage and the remaining PiCCS
+closure obligations stay open.
+
 ## Earlier baseline and retained evidence
 
 Owner: the user's September 13 baseline goal. Work only on

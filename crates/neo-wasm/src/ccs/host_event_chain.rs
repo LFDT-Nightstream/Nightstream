@@ -96,7 +96,7 @@ define_column_region! {
         GMEM_OUTPUT: Boolean => "memory pointer comes from the captured export output",
         GMEM_BYTE: Boolean => "byte-width host-event memory slot",
         GMEM_HALF: Boolean => "half-width host-event memory slot",
-        INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
+        TURN_SCHEDULE_COUNT_INV: Field => "turn-boundary nonempty-template inverse witness",
         OBJECT_ROOT_LANE: [Boolean; 4] => "opaque root copy-back lane selectors",
         OBJECT_SAVED_LANE: [Boolean; 4] => "suspended outer prefix lane selectors",
     ]
@@ -373,7 +373,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
-        // if col_turn_boundary then template_len != 0
+        // if col_turn_boundary then entry_len + exit_len != 0
         //
         // TODO: there may be a cleaner solution to this problem?
         //
@@ -383,13 +383,21 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // otherwise there would be no way of differentiating a proof of f^n
         // from a proof of f^m (and the final state may not reflect it either)
         //
+        // Template validation requires a nonempty entry/exit pair to include
+        // an absorbing event. That event may be in the exit schedule.
+        //
         // note that if there is no-reentrancy then the template doesn't matter,
         // so the case of proving a single function is fine
         b.push_row(
-            // 0 means no template, 1 is empty (template len is x - 1)
-            [(INITIAL_SCHEDULE_COUNT, F::ONE), (COL_ONE, -F::ONE)],
-            [(INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV, F::ONE)],
-            // if this is 1, INITIAL_SCHEDULE_COUNT must have an inverse, so it is non zero
+            // Entry: 0 means no template, 1 is empty (entry len is x - 1).
+            // The exit count is raw, so the sum below is entry_len + exit_len.
+            [
+                (INITIAL_SCHEDULE_COUNT, F::ONE),
+                (COL_ONE, -F::ONE),
+                (EXIT_SCHEDULE_COUNT, F::ONE),
+            ],
+            [(TURN_SCHEDULE_COUNT_INV, F::ONE)],
+            // If this is 1, the total count must have an inverse, so it is nonzero.
             [(COL_TURN_BOUNDARY, F::ONE)],
         );
 
@@ -585,8 +593,8 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // through the U32-checked locals value columns range-proves it. Lo
         // rows also write the hi lane to zero, so a lone Lo write is total;
         // a Hi row (validated to follow its local's Lo row) overwrites the
-        // hi lane with the input word. The word itself is free at the row
-        // level — the final-chain transcript check binds it globally.
+        // hi lane with the input word. Advice words remain existential;
+        // absorbing slots bind them through the final transcript.
         b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_INPUT_LOCAL, -F::ONE)]);
         b.push_row(
             [(GK_INPUT_LOCAL, F::ONE)],
@@ -1101,12 +1109,13 @@ fn push_perm_row_shape_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-/// Recompute the turn-boundary entry-guard inverse from the named columns.
+/// Recompute the turn-boundary schedule-guard inverse from the named columns.
 /// Derived-only (like the range-check bits), so witness-tampering helpers can
 /// keep it consistent with caller-mutated declared columns.
-pub fn write_turn_entry_guard_witness(wit: &mut [F]) {
-    let delta = wit[super::super::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] - F::ONE;
-    wit[INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
+pub fn write_turn_schedule_guard_witness(wit: &mut [F]) {
+    let delta = wit[super::super::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] - F::ONE
+        + wit[super::super::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT];
+    wit[TURN_SCHEDULE_COUNT_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
         delta.try_inverse().unwrap_or(F::ZERO)
     } else {
         F::ZERO
@@ -1154,7 +1163,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     }
     // Host-call arg pops: HOST_CALL_ACTIVE · ROM-bound param count.
     wit[GHC_PARAMS] = wit[super::super::layout::COL_HOST_CALL_ACTIVE] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
-    write_turn_entry_guard_witness(wit);
+    write_turn_schedule_guard_witness(wit);
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];

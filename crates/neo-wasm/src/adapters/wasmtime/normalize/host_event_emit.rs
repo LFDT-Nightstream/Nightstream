@@ -521,7 +521,7 @@ pub(super) fn plan_export_blocks(
                         variant,
                         immediate0: 0,
                         immediate1: 0,
-                        advice: false,
+                        advice: !event.absorb,
                     };
                     let base_slot_row = |rom| EventSlotRow {
                         value,
@@ -543,7 +543,7 @@ pub(super) fn plan_export_blocks(
                             variant: WasmHostEventRomVariant::None,
                             immediate0: constant as u32,
                             immediate1: (constant >> 32) as u32,
-                            advice: false,
+                            advice: !event.absorb,
                         }),
                         SlotBinding::InputLocal { local, limb, .. } => {
                             // expand_export_entry rejects words over 32 bits.
@@ -575,7 +575,7 @@ pub(super) fn plan_export_blocks(
                                     variant,
                                     immediate0: byte_offset,
                                     immediate1: 0,
-                                    advice: false,
+                                    advice: !event.absorb,
                                 })
                             }
                         }
@@ -612,7 +612,7 @@ pub(super) fn plan_export_blocks(
                                     variant,
                                     immediate0: byte_offset,
                                     immediate1: u32::from(input),
-                                    advice: false,
+                                    advice: !event.absorb,
                                 })
                             }
                         }
@@ -622,7 +622,10 @@ pub(super) fn plan_export_blocks(
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(EventBlockPlan { rows, absorb: true })
+            Ok(EventBlockPlan {
+                rows,
+                absorb: event.absorb,
+            })
         })
         .collect()
 }

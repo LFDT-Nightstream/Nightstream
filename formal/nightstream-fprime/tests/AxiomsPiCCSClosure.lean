@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupportPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupportedPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
@@ -604,3 +606,10 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.invocations_eq_range
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.range_eq_matrix
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport.assignment_eq_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport.read_eq_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_isZero_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_isZero_source_port

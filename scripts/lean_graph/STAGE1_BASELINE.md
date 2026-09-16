@@ -267,6 +267,24 @@ they are assembly tests, not prover evidence. The full original matrix
 scan, post-output transcript, complete encoding and HyperNova remain open.
 The separate PiCCSCarriedSource check 11 still needs owner approval.
 
+The original matrix replay now checks all signed masks once and omits a
+source's arithmetic only when that complete check proves it is zero. All
+17 output positions remain present. The selected capture has seven active
+sources and ten zero sources; these indices are not built into the code.
+The sparse and numeric invocation guards are proved equal to the previous
+complete batches for every source, port and lane. The exact graph target
+includes both equalities.
+
+On the same three retained production ranges, calculation time falls from
+9.77 to 4.27 seconds (2.29 times faster), and command time from 31.51 to
+26.01 seconds. Shared initialization takes 16.93 seconds, including the
+0.50-second support check. All 77,112 field words and complete output bytes
+match the previous executable. Synthetic tests also keep source 16 active,
+check the last carrier block, compare nine complete ranges, and reject
+malformed input before writing any result. These are source-selection tests,
+not production proof evidence. `PICCS_ORIGINAL_MATRIX_SUPPORT.json` records
+the exact source and measurements. Full matrix execution remains open.
+
 ## Earlier baseline and retained evidence
 
 Owner: the user's September 13 baseline goal. Work only on

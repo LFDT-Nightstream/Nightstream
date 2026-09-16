@@ -1,6 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
@@ -85,6 +87,13 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
   report [("event", .str "original_sources_ready"), ("records", Lean.toJson records),
     ("blocks", Lean.toJson masks.size),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - sourceStarted))]
+  let supportStarted ← IO.monoNanosNow
+  let zeroSources ← IO.wait (Task.spawn fun _ =>
+    Vector.ofFn fun source : Fin productionShape.sourceCount =>
+      PiCCSOriginalSupport.isZero masks source)
+  report [("event", .str "original_source_support"),
+    ("zero_sources", Lean.toJson (List.ofFn fun source => zeroSources.get source)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - supportStarted))]
   let tablesStarted ← IO.monoNanosNow
   let tables ← IO.wait (Task.spawn fun _ => PiDECParentSparseRead.prepare ())
   report [("event", .str "basis_ready"),
@@ -128,7 +137,7 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
               if reference then referenceBatch fun source =>
                 PiDECMatrixInvocationRange.sum (first + 94 * lo) point (read source)
                   (interfaces.extract lo hi)
-              else PiCCSOriginalMatrixBatch.sumInvocations (first + 94 * lo) point read
+              else PiCCSOriginalMatrixSupported.invocations zeroSources.get (first + 94 * lo) point read
                 (interfaces.extract lo hi))
         | .phi81Product block => do
             if aligned : firstRow % 34 = 0 ∧ lastRow % 34 = 0 then
@@ -152,7 +161,7 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
               pure (count, fun lo hi =>
                 if reference then referenceBatch fun source =>
                   PiDECMatrixSparseRange.sum (first + lo) point (read source) (forms.extract lo hi)
-                else PiCCSOriginalMatrixBatch.sum (first + lo) point read (forms.extract lo hi))
+                else PiCCSOriginalMatrixSupported.sparse zeroSources.get (first + lo) point read (forms.extract lo hi))
             else throw (IO.userError "Phi81 range must contain complete 34-row invocations")
         | other => do
             let cache ← IO.wait (Task.spawn fun _ =>
@@ -165,7 +174,7 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
             pure (count, fun lo hi =>
               if reference then referenceBatch fun source =>
                 PiDECMatrixSparseRange.sum (first + lo) point (read source) (forms.extract lo hi)
-              else PiCCSOriginalMatrixBatch.sum (first + lo) point read (forms.extract lo hi))
+              else PiCCSOriginalMatrixSupported.sparse zeroSources.get (first + lo) point read (forms.extract lo hi))
       report [("event", .str "range_begin"), ("block", Lean.toJson request.blockIndex),
         ("start", Lean.toJson first), ("end", Lean.toJson finish),
         ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]

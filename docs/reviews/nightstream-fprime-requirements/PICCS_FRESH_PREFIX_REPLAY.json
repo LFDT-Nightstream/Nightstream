@@ -11,8 +11,8 @@
     "comparison_target": "captured Rust PiCCS round index 1"
   },
   "proofs": {
-    "source_rows": "PiCCSFreshPrefixPreservation.rows?_value",
-    "prefix_mle": "PiCCSFreshPrefixPreservation.fold_evaluate (dimension premise only)",
+    "source_rows": "PiCCSFreshPrefix.rows?_value",
+    "prefix_mle": "PiCCSFreshPrefix.fold_evaluate (dimension premise only)",
     "per_port_fold": "PiCCSFreshPrefix.portValues_foldRows",
     "polynomial": "PiCCSFreshPrefixPolynomial.contribution_prepared"
   },

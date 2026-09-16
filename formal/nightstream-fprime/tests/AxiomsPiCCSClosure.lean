@@ -23,6 +23,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
+import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
@@ -541,3 +542,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.rows?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.fold_evaluate
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial.contribution_prepared
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.blockValues_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.blockValues_getD
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_size
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_getD
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPadPrefix.foldedBlock_getD_of_outside

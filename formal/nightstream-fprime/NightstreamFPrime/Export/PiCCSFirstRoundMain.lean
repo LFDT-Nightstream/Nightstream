@@ -14,6 +14,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
+import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
@@ -767,6 +768,101 @@ private def saveFreshPrefix
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def saveCarriedPrefix
+    (publicPath sourcePath roundPath outputDirectory : System.FilePath)
+    (first finish : Nat) (pad : Bool) : IO UInt32 := do
+  unless first < finish do throw (IO.userError "empty or reversed carried prefix range")
+  unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let challenge ← savedFirstChallenge coins roundPath
+  let program ← IO.wait (Task.spawn fun _ =>
+    PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+  let bound := if pad then PiCCSSourceImages.blockCount else (program.rowCount + 1) / 2
+  unless finish ≤ bound do throw (IO.userError "carried prefix range exceeds selected extent")
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let assignments := sources masks
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let tail := (PiCCSPublicReplay.verifierInput input).priorPoint.coordinates.drop 2
+  let weights := PiCCSTensorWeights.prepare extensionOps tail
+  let weight := PiCCSTensorWeights.lookup extensionOps tail weights
+  let tables ← IO.wait (Task.spawn fun _ => PiDECParentSparseRead.prepare ())
+  let basis ← IO.wait (Task.spawn fun _ =>
+    if pad then (PiCCSAggregatedImages.prepare tables power).1
+    else (PiCCSAggregatedImages.prepare tables power).2)
+  let blocks := PiCCSAggregatedImages.combinedBlock power assignments
+  let sourceRows : Std.HashMap Nat R1CS.Row ← if pad then pure {} else IO.wait (Task.spawn fun _ =>
+    PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let parts := min workers (finish - first)
+  let width := if pad then 27 else 1
+  let kind := if pad then 0 else 1
+  IO.FS.createDirAll outputDirectory
+  report [("event", .str "carried_prefix_sources_ready"), ("pad", Lean.toJson pad),
+    ("records", Lean.toJson records), ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let computeStarted ← IO.monoNanosNow
+  let mut tasks : Array (Task (Except IO.Error (K × K × Nat))) := #[]
+  for part in [:parts] do
+    let start := first + (finish - first) * part / parts
+    let stop := first + (finish - first) * (part + 1) / parts
+    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+      let partStarted ← IO.monoNanosNow
+      let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
+      output.putStrLn ((Value.array [.atom 1, .atom 1, .atom kind, .atom width,
+        .atom bound, .atom start, .atom stop, extensionValue challenge]).render)
+      let mut cached := none
+      let mut low := K.zero
+      let mut high := K.zero
+      for index in [start:stop] do
+        let values ← if pad then pure (PiCCSPadPrefix.foldedBlock basis (blocks index) challenge)
+          else do
+            let mut pair := #[]
+            for row in [2 * index:2 * index + 2] do
+              if row < program.rowCount then
+                let (next, values) ← carriedRows program (fun current => sourceRows[current]?)
+                  basis blocks cached row
+                cached := next
+                pair := pair.push (FiniteSumAlgebra.sumMap extensionOps
+                  (canonicalFinIndices Spec.ProductionRelation.matrixCount) fun slot =>
+                    extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot))
+              else pair := pair.push K.zero
+            pure (PrefixFold.foldOne extensionOps pair challenge)
+        unless values.size == width do throw (IO.userError "carried prefix width differs from selected family")
+        output.putStrLn ((Value.array [.atom index, .array (values.toList.map extensionValue)]).render)
+        for lane in [:values.size] do
+          let position := width * index + lane
+          let contribution := extensionOps.mul (weight (position / 2)) (values.getD lane K.zero)
+          if position % 2 == 0 then low := extensionOps.add low contribution
+          else high := extensionOps.add high contribution
+      output.putStrLn "[]"
+      return (low, high, (← IO.monoNanosNow) - partStarted))
+  let mut low := K.zero
+  let mut high := K.zero
+  let mut part := 0
+  for task in tasks do
+    let (lo, hi, elapsed) ← match ← IO.wait task with
+      | .ok value => pure value
+      | .error error => throw error
+    low := extensionOps.add low lo
+    high := extensionOps.add high hi
+    report [("event", .str "carried_prefix_range_written"),
+      ("first", Lean.toJson (first + (finish - first) * part / parts)),
+      ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+      ("elapsed_ns", Lean.toJson elapsed)]
+    part := part + 1
+  IO.FS.writeFile (outputDirectory / "moments.json") ((Value.array [.atom 1, .atom 1,
+    .atom kind, .atom (width * first), .atom (width * finish), extensionValue challenge,
+    extensionValue low, extensionValue high]).render ++ "\n")
+  report [("event", .str "carried_prefix_complete"), ("pad", Lean.toJson pad),
+    ("first", Lean.toJson first), ("end", Lean.toJson finish),
+    ("values", Lean.toJson (width * (finish - first))), ("workers", Lean.toJson parts),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 private structure FreshPrefixChunk where
   path : System.FilePath
   first : Nat
@@ -886,6 +982,99 @@ private def freshAfterFirst (publicPath roundPath directory outputPath : System.
     ("row_count", Lean.toJson rowCount),
     ("chunks", Lean.toJson chunks.size), ("workers", Lean.toJson workers),
     ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private def prefixPolynomial (path : System.FilePath) (degree expectedEnd : Nat)
+    (challenge : K) : IO (FixedPolynomial K degree) := do
+  let value ← composeRead path
+  checked (do
+    match (← value.getArr?).toList with
+    | [schema, consumed, first, finish, coin, coefficients] =>
+        unless (← schema.getNat?) == 1 && (← consumed.getNat?) == 1 &&
+            (← first.getNat?) == 0 && (← finish.getNat?) == expectedEnd do
+          throw "prefix polynomial does not cover the selected extent"
+        unless decide ((← composeExtension coin) = challenge) do
+          throw "prefix polynomial challenge differs from the Lean transcript"
+        composePolynomial degree coefficients
+    | _ => throw "expected six prefix polynomial fields")
+
+private def prefixMoments (paths : List String) (kind expectedEnd : Nat)
+    (challenge : K) : IO (K × K) := do
+  let mut ranges : Array (Nat × Nat × K × K) := #[]
+  for path in paths do
+    let value ← composeRead path
+    let entry ← checked (do
+      match (← value.getArr?).toList with
+      | [schema, consumed, family, first, finish, coin, low, high] =>
+          unless (← schema.getNat?) == 1 && (← consumed.getNat?) == 1 &&
+              (← family.getNat?) == kind do throw "carried prefix family or schema differs"
+          unless decide ((← composeExtension coin) = challenge) do
+            throw "carried prefix challenge differs from the Lean transcript"
+          pure (← first.getNat?, ← finish.getNat?, ← composeExtension low, ← composeExtension high)
+      | _ => throw "expected eight carried prefix moment fields")
+    ranges := ranges.push entry
+  ranges := ranges.qsort (fun left right => decide (left.1 < right.1))
+  let mut next := 0
+  let mut low := K.zero
+  let mut high := K.zero
+  for (first, finish, lo, hi) in ranges do
+    unless first == next && first < finish && finish ≤ expectedEnd do
+      throw (IO.userError "carried prefix coverage has a gap, overlap or excessive range")
+    low := extensionOps.add low lo
+    high := extensionOps.add high hi
+    next := finish
+  unless next == expectedEnd do throw (IO.userError "carried prefix coverage is incomplete")
+  return (low, high)
+
+private def composeSecond (publicPath roundPath freshPath normPath outputPath : System.FilePath)
+    (matrixPaths padPaths : List String) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let publicInput ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre publicInput)
+  let challenge ← savedFirstChallenge coins roundPath
+  let saved ← checked ((← composeRead roundPath).getArr?)
+  let previous ← checked (composePolynomial 9 (saved[4]?.getD .null))
+  let (_, state) := PiCCSPublicReplay.firstRound coins.state previous
+  let input := PiCCSPublicReplay.verifierInput publicInput
+  let rows := (PerApplicationMatrixProgram.matrixProgram
+    Poseidon2HashChainV1Package.application).rowCount
+  let fresh ← prefixPolynomial freshPath 9 (((rows + 1) / 2 + 1) / 2) challenge
+  let norm ← prefixPolynomial normPath 3 ((PiCCSSourceImages.shape.carrierWidth + 3) / 4) challenge
+  let matrix ← prefixMoments matrixPaths 1 ((rows + 1) / 2) challenge
+  let pad ← prefixMoments padPaths 0 (27 * PiCCSSourceImages.blockCount) challenge
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let head := fun target : CubePoint K cubeVariables =>
+    FixedPolynomial.scale extensionOps.toOps
+      (PiCCSPrefixSelector.consumedFactor extensionOps [challenge] target)
+      (PiCCSCarriedMoments.headSelector extensionOps (PiCCSPrefixSelector.dropPoint target 1))
+  let normTerm : FixedPolynomial K 9 :=
+    FixedPolynomial.scale extensionOps.toOps (power productionShape.constraintOffset)
+      (FixedPolynomial.scale extensionOps.toOps (power productionShape.freshCount)
+        (FixedPolynomial.widen extensionOps.toOps (by decide : 4 ≤ 9)
+          (FixedPolynomial.mul extensionOps.toOps (head coins.alpha) norm)))
+  let carried : FixedPolynomial K 9 :=
+    PiCCSCarriedMoments.carriedPair extensionOps (by decide : 2 ≤ 9) (head input.priorPoint)
+      (power productionShape.matrixEvaluationOffset) pad.1 pad.2 matrix.1 matrix.2
+  let polynomial := FixedPolynomial.add extensionOps.toOps carried
+    (FixedPolynomial.add extensionOps.toOps fresh normTerm)
+  let initial := previous.evaluate extensionOps.toOps challenge
+  let endpoints := extensionOps.add (polynomial.evaluate extensionOps.toOps K.zero)
+    (polynomial.evaluate extensionOps.toOps K.one)
+  unless decide (endpoints = initial) do throw (IO.userError "second-round sum differs from the first-round claim")
+  let index : Fin productionShape.cubeVariables := ⟨1, by decide⟩
+  let absorbed := Transcript.piCcsOracle.transcript.absorbRound state index polynomial.toMessage
+  let (nextChallenge, nextState) := Transcript.piCcsOracle.transcript.squeeze absorbed (.sumcheck index)
+  let stateValue := fun current : Transcript.State => Value.array (current.map (fun word => .atom word.val))
+  IO.FS.writeFile outputPath ((Value.array [.atom 1,
+    .array (coins.alpha.coordinates.map extensionValue), extensionValue coins.gamma,
+    stateValue state, .array (polynomial.coefficients.map extensionValue),
+    extensionValue nextChallenge, stateValue nextState, extensionValue initial,
+    extensionValue endpoints, extensionValue (polynomial.evaluate extensionOps.toOps nextChallenge)]).render ++ "\n")
+  report [("event", .str "second_round_composed"), ("coefficients", .num 10),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
@@ -1015,6 +1204,25 @@ end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | "compose-second" :: publicPath :: roundPath :: freshPath :: normPath :: outputPath :: paths =>
+      let (matrixPaths, rest) := paths.span (fun path => path != "pad")
+      match rest with
+      | "pad" :: padPaths =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.composeSecond
+            publicPath roundPath freshPath normPath outputPath matrixPaths padPaths
+      | _ => throw (IO.userError "compose-second requires matrix moment paths, pad, and Pad moment paths")
+  | ["carried-pad-prefix", publicPath, sourcePath, roundPath, directory, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.saveCarriedPrefix
+            publicPath sourcePath roundPath directory first finish true
+      | _, _ => throw (IO.userError "block bounds must be natural numbers")
+  | ["carried-matrix-prefix", publicPath, sourcePath, roundPath, directory, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.saveCarriedPrefix
+            publicPath sourcePath roundPath directory first finish false
+      | _, _ => throw (IO.userError "row-pair bounds must be natural numbers")
   | ["fresh-after-first", publicPath, roundPath, directory, outputPath] =>
       NightstreamFPrime.Export.PiCCSFirstRoundReplay.freshAfterFirst
         publicPath roundPath directory outputPath

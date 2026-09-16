@@ -264,7 +264,7 @@ pub fn assert_satisfied(z: &[F], label: &str) {
     // Keep aux bits consistent with any caller-mutated declared columns.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
-    neo_wasm::write_turn_entry_guard_witness(&mut z);
+    neo_wasm::write_turn_schedule_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
 }
@@ -276,7 +276,7 @@ pub fn assert_rejected(z: &[F], label: &str) {
     // Keep aux bits consistent so in-range forgeries exercise semantic rows.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
-    neo_wasm::write_turn_entry_guard_witness(&mut z);
+    neo_wasm::write_turn_schedule_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
         check_ccs_rowwise_zero(ccs, x, w).is_err(),

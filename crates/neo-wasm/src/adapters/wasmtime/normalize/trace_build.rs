@@ -1072,6 +1072,7 @@ pub(super) fn build_trace(
             out.push(WasmVmStep {
                 // Export entry-count cell carries the presence bias.
                 host_event_initial_schedule_count: Some(entry_count + 1),
+                host_event_exit_schedule_count: Some(setup.template.exit.len() as u32),
                 ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
             });
             turn_done = false;

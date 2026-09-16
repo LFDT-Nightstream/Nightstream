@@ -36,9 +36,9 @@ pub(super) fn setup_turn<'g>(
         memory,
     )?;
     let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &memory_accesses)?;
-    if re_entered && entry_plans.is_empty() {
+    if re_entered && entry_plans.is_empty() && template.exit.is_empty() {
         return Err(WasmBuildError::Trace(format!(
-            "re-entered export fref {fref} requires at least one entry event"
+            "re-entered export fref {fref} requires at least one entry or exit event"
         )));
     }
 

@@ -1,0 +1,220 @@
+{
+  "schema": 1,
+  "source_base_commit": "5772360b1c2f30d4d3b576f62dd9acf60d82260e",
+  "status": "Complete second-round fresh contribution computed from original witnesses; degrees 5 through 9 match Rust. Full second-round composition remains open.",
+  "independence": {
+    "inputs": [
+      "original public fields and all 17 original witnesses (PICCS_FIRST_ROUND_REPLAY.json)",
+      "Lean-computed first round; its challenge is recomputed and checked"
+    ],
+    "rust_outputs_used_as_inputs": [],
+    "comparison_target": "captured Rust PiCCS round index 1"
+  },
+  "proofs": {
+    "source_rows": "PiCCSFreshPrefixPreservation.rows?_value",
+    "prefix_mle": "PiCCSFreshPrefixPreservation.fold_evaluate (dimension premise only)",
+    "per_port_fold": "PiCCSFreshPrefix.portValues_foldRows",
+    "polynomial": "PiCCSFreshPrefixPolynomial.contribution_prepared"
+  },
+  "complete_first_prefix": {
+    "active_original_rows": 6377559,
+    "folded_rows": 3188780,
+    "matrix_ports": 14,
+    "K_values": 44642920,
+    "bytes": 539567525,
+    "files": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/FRESH_PREFIX_FILES.json",
+      "bytes": 4643,
+      "sha256": "d8b6c5c1045e325c68982eb2d05393c872b976692a9312e8d72b785c8eecd723"
+    },
+    "run": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-fresh-prefix-complete-1.log",
+      "bytes": 3993,
+      "sha256": "0efc859673360b91fa7de14f8a39c5e6ec0d677805587c574af05eb54bd544d2",
+      "run": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 571.7627661058214,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "fresh-prefix",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-first-round-independent-1.json",
+          "/tmp/nightstream-piccs-fresh-prefix-complete-1",
+          "0",
+          "3188780"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 2452728
+    },
+    "producer_snapshot": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/PRODUCER_SOURCE.json",
+      "bytes": 2122,
+      "sha256": "8d0772a759ca78395aca44b3f654b264ee86e2836206c54cebad57807f95c3c0"
+    }
+  },
+  "second_fresh": {
+    "pairs": 1594390,
+    "output": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-second-fresh-complete.json",
+      "bytes": 491,
+      "sha256": "61b7c1b169db17eaca250af82921f784614cbc42a2fc26445803c084cc2410cf"
+    },
+    "run": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-second-fresh-complete.log",
+      "bytes": 3387,
+      "sha256": "49f8f6ab58f2e839f99481c13aced2159969fd273884121074e148a29a27b305",
+      "run": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 49.689785216003656,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "fresh-after-first",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-piccs-first-round-independent-1.json",
+          "/tmp/nightstream-piccs-fresh-prefix-complete-1",
+          "/tmp/nightstream-piccs-second-fresh-complete.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 391868
+    },
+    "consumer_snapshot": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/CONSUMER_SOURCE.json",
+      "bytes": 1856,
+      "sha256": "ed35bd9d9d13d405edccdc31f60915c94172bd5e42cdbe58aca3887b59dbdecd"
+    }
+  },
+  "comparison": {
+    "checked_degrees": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "reason": "Norm degree is at most 4 and carried degree is at most 2, so these coefficients are solely fresh. This does not compare the lower coefficients.",
+    "log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-second-fresh-high-coefficients.log",
+      "bytes": 188,
+      "sha256": "e630faf2fc020259c0adc43e1f44d65b9f236c98ceb83fdf65dbdec78de9d498"
+    }
+  },
+  "negative": {
+    "case": "Change the saved prefix challenge; actual Lean consumer rejects before accepting the file.",
+    "expected_exit": 1,
+    "run": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-second-fresh-bad-challenge-1.log",
+      "bytes": 2296,
+      "sha256": "9695257cd2b838bff54e0f51d1a2bed9529dbd98fdee8c1e5ae6326762372b5d",
+      "run": {
+        "outcome": "failed",
+        "exit": 1,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.372630377998576,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "fresh-after-first",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-piccs-first-round-independent-1.json",
+          "/tmp/nightstream-piccs-fresh-prefix-bad-challenge-1",
+          "/tmp/nightstream-piccs-second-fresh-bad-challenge-1.json"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 360508
+    }
+  },
+  "validation": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-fresh-prefix-final-static-1.log",
+      "bytes": 1343,
+      "sha256": "2d66997cac3448766c89e1e75d320270e7d0ea9ad43e0f65ffd064ab51352e28",
+      "run": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 9.878110432997346,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "static"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 19484
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-fresh-prefix-final-build-1.log",
+      "bytes": 173379,
+      "sha256": "bac5952a094e722da069f94f577d935f036a6b8d6afaa6acb15a5c38d05dcca4",
+      "run": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 5.62428173283115,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3790460
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-fresh-prefix-final-axioms-1.log",
+      "bytes": 1122591,
+      "sha256": "5ad2d910760af29922fc45ad7f0b907b52aa3da59e98781425f686e0dd4be100",
+      "run": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 6.325488450936973,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "axioms"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3835328
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-fresh-prefix-5772360b/nightstream-piccs-fresh-prefix-registrations-1.log",
+      "bytes": 936,
+      "sha256": "38f0c13d155660d08dcbe718aeb8c8569af432f6d640ba2bb5aa7e3a1579e35c",
+      "result": "17 registration tests passed"
+    }
+  ],
+  "scope": [
+    "The pure selected source and interpolation laws are checked. File decoding, writes and mutable IO loops are execution evidence, not a proved IO refinement.",
+    "The producer snapshot records that its Lean Main source was reconstructed by removing only the later consumer addition; the original compiled C, trace and executable are retained.",
+    "The package, protocol, profile and Rust code are unchanged."
+  ],
+  "open": [
+    "Complete second-round carried terms and Q composition; later rounds, final evaluations and encoding.",
+    "Selected source-to-whole-polynomial bridge remains pending owner approval of check 11.",
+    "Release-asset publication and fresh-checkout reproduction."
+  ]
+}

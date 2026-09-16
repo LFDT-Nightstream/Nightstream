@@ -11,6 +11,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormScan
 import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
+import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
@@ -692,6 +694,201 @@ private def savedFirstChallenge
     throw (IO.userError "saved challenge differs from the independently replayed transcript")
   return challenge
 
+private def saveFreshPrefix
+    (publicPath sourcePath roundPath outputDirectory : System.FilePath)
+    (first finish : Nat) (reference : Bool := false) : IO UInt32 := do
+  unless !(← outputDirectory.pathExists) do throw (IO.userError "output directory already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let challenge ← savedFirstChallenge coins roundPath
+  let program ← IO.wait (Task.spawn fun _ =>
+    PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application)
+  let pairs := (program.rowCount + 1) / 2
+  unless first < finish && finish ≤ pairs do throw (IO.userError "invalid fresh prefix pair range")
+  let (masks, records) ← SignedUnitSourceInput.read sourcePath PiCCSSourceImages.blockCount
+  let assignments := sources masks
+  let sourceRows ← IO.wait (Task.spawn fun _ =>
+    PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)
+  let loadRow cached vertex := do
+    if reference then
+      let some values := PiCCSSourceImages.freshMatrixImage? program (fun row => sourceRows[row]?)
+          (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex
+        | throw (IO.userError "fresh prefix reference row failed to load")
+      pure (none, values)
+    else freshRows program (fun row => sourceRows[row]?) assignments cached vertex
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let parts := min workers (finish - first)
+  IO.FS.createDirAll outputDirectory
+  report [("event", .str "fresh_prefix_sources_ready"), ("records", Lean.toJson records),
+    ("rows", Lean.toJson program.rowCount),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  let computeStarted ← IO.monoNanosNow
+  let mut tasks : Array (Task (Except IO.Error Nat)) := #[]
+  for part in [:parts] do
+    let start := first + (finish - first) * part / parts
+    let stop := first + (finish - first) * (part + 1) / parts
+    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+      let rangeStarted ← IO.monoNanosNow
+      let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
+      output.putStrLn ((Value.array [.atom 1, .atom 1, .atom Spec.ProductionRelation.matrixCount,
+        .atom program.rowCount, .atom start, .atom stop, extensionValue challenge]).render)
+      let mut cached := none
+      for index in [start:stop] do
+        if within : index < 2 ^ 27 then
+          let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
+          let (next, low) ← loadRow cached
+            (PiCCSFirstRound.endpointVertex (by decide) false suffix)
+          cached := next
+          let (next, high) ← loadRow cached
+            (PiCCSFirstRound.endpointVertex (by decide) true suffix)
+          cached := next
+          let values := PiCCSFreshPrefix.pairRow (low.map K.embed) (high.map K.embed) challenge
+          output.putStrLn ((Value.array [.atom index,
+            .array (values.toList.map extensionValue)]).render)
+        else throw (IO.userError "fresh prefix index exceeds Boolean domain")
+      output.putStrLn "[]"
+      return (← IO.monoNanosNow) - rangeStarted)
+  let mut part := 0
+  for task in tasks do
+    let elapsed ← match ← IO.wait task with
+      | .ok elapsed => pure elapsed
+      | .error error => throw error
+    report [("event", .str "fresh_prefix_range_written"),
+      ("first", Lean.toJson (first + (finish - first) * part / parts)),
+      ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
+      ("elapsed_ns", Lean.toJson elapsed)]
+    part := part + 1
+  report [("event", .str "fresh_prefix_complete"), ("first", Lean.toJson first),
+    ("end", Lean.toJson finish), ("matrices", Lean.toJson Spec.ProductionRelation.matrixCount),
+    ("reference", Lean.toJson reference),
+    ("consumed_challenges", Lean.toJson (1 : Nat)), ("workers", Lean.toJson parts),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
+private structure FreshPrefixChunk where
+  path : System.FilePath
+  first : Nat
+  finish : Nat
+  firstValues : Vector K Spec.ProductionRelation.matrixCount
+
+private def prefixRow (value : Lean.Json) (expected : Nat) :
+    Except String (Vector K Spec.ProductionRelation.matrixCount) := do
+  match (← value.getArr?).toList with
+  | [index, row] =>
+      unless (← index.getNat?) == expected do throw "fresh prefix row index is not consecutive"
+      PiCCSInputCheck.decodeVector Spec.ProductionRelation.matrixCount composeExtension row
+  | _ => throw "expected indexed fresh prefix row"
+
+private def prefixChunks (directory : System.FilePath) (rowCount : Nat) (challenge : K)
+    (expectedFirst expectedEnd : Nat) :
+    IO (Array FreshPrefixChunk) := do
+  let mut chunks := #[]
+  for entry in ← directory.readDir do
+    let input ← IO.FS.Handle.mk entry.path .read
+    let value ← checked (Lean.Json.parse (← input.getLine))
+    let (first, finish) ← checked (do
+      match (← value.getArr?).toList with
+      | [schema, consumed, ports, rows, first, finish, encodedChallenge] =>
+          unless (← schema.getNat?) == 1 && (← consumed.getNat?) == 1 &&
+              (← ports.getNat?) == Spec.ProductionRelation.matrixCount &&
+              (← rows.getNat?) == rowCount do throw "fresh prefix profile differs from the selected input"
+          unless decide ((← composeExtension encodedChallenge) = challenge) do
+            throw "fresh prefix challenge differs from the Lean transcript"
+          pure (← first.getNat?, ← finish.getNat?)
+      | _ => throw "expected seven fresh prefix header fields")
+    unless first < finish do throw (IO.userError "empty or reversed fresh prefix chunk")
+    let firstValues ← checked (prefixRow (← checked (Lean.Json.parse (← input.getLine))) first)
+    chunks := chunks.push ⟨entry.path, first, finish, firstValues⟩
+  chunks := chunks.qsort (fun left right => decide (left.first < right.first))
+  let mut next := expectedFirst
+  for chunk in chunks do
+    unless chunk.first == next && chunk.finish ≤ expectedEnd do
+      throw (IO.userError "fresh prefix chunks have a gap, overlap or excessive range")
+    next := chunk.finish
+  unless next == expectedEnd do throw (IO.userError "fresh prefix is incomplete")
+  return chunks
+
+private def freshAfterFirst (publicPath roundPath directory outputPath : System.FilePath)
+    (interval : Option (Nat × Nat) := none) : IO UInt32 := do
+  unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
+  let started ← IO.monoNanosNow
+  let input ← checked (PiCCSPublicReplay.parse (← IO.FS.readFile publicPath))
+  let coins ← IO.wait (Task.spawn fun _ => PiCCSPublicReplay.pre input)
+  let challenge ← savedFirstChallenge coins roundPath
+  let rowCount := (PerApplicationMatrixProgram.matrixProgram
+    Poseidon2HashChainV1Package.application).rowCount
+  let fullEnd := (rowCount + 1) / 2
+  let first := (interval.map Prod.fst).getD 0
+  let finish := (interval.map Prod.snd).getD fullEnd
+  unless first < finish && finish ≤ fullEnd && first % 2 == 0 &&
+      (finish % 2 == 0 || finish == fullEnd) do
+    throw (IO.userError "fresh scan range must contain complete adjacent pairs")
+  let chunks ← prefixChunks directory rowCount challenge first finish
+  let challenges := [challenge]
+  let powers := PiCCSGammaPowers.prepare extensionOps.toOps coins.gamma
+    (PiCCSFirstRoundPair.powerCount productionShape)
+  let power := PiCCSGammaPowers.lookup extensionOps.toOps coins.gamma powers
+  let weights := PiCCSTensorWeights.prepare extensionOps
+    (PiCCSPrefixSelector.dropPoint coins.alpha challenges.length).coordinates.tail
+  let contribution (index : Nat) (low high : Vector K Spec.ProductionRelation.matrixCount) :
+      IO (FixedPolynomial K 9) := do
+    if inside : index < 2 ^ 26 then
+      let value := PiCCSFreshPrefixPolynomial.contribution (PiCCSPublicReplay.verifierInput input)
+        coins.alpha challenges (NumericBooleanDomain.vertex 26 ⟨index, inside⟩) power weights low high
+      pure (PiCCSPublicReplay.degree_eq input ▸ value)
+    else throw (IO.userError "fresh prefix pair exceeds the second-round domain")
+  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
+  let computeStarted ← IO.monoNanosNow
+  let mut total := FixedPolynomial.zero extensionOps.toOps 9
+  for batch in [:(chunks.size + workers - 1) / workers] do
+    let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 9 × Nat))) := #[]
+    for part in [batch * workers:min chunks.size ((batch + 1) * workers)] do
+      if found : part < chunks.size then
+        let chunk := chunks[part]'found
+        let nextValues := (chunks[part + 1]?).map FreshPrefixChunk.firstValues
+        tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
+          let partStarted ← IO.monoNanosNow
+          let stream ← IO.FS.Handle.mk chunk.path .read
+          let _ ← stream.getLine
+          let mut previous := none
+          let mut subtotal := FixedPolynomial.zero extensionOps.toOps 9
+          for index in [chunk.first:chunk.finish] do
+            let values ← checked (prefixRow (← checked (Lean.Json.parse (← stream.getLine))) index)
+            if index == chunk.first then
+              unless decide (values = chunk.firstValues) do
+                throw (IO.userError "fresh prefix first row changed after header validation")
+            if index % 2 == 0 then previous := some values
+            else if let some low := previous then
+              subtotal := FixedPolynomial.add extensionOps.toOps subtotal
+                (← contribution (index / 2) low values)
+              previous := none
+          unless ((← stream.getLine).trimAscii.toString == "[]") && (← stream.getLine).isEmpty do
+            throw (IO.userError "fresh prefix has missing terminator or extra data")
+          if let some low := previous then
+            let high := nextValues.getD (Vector.replicate Spec.ProductionRelation.matrixCount K.zero)
+            subtotal := FixedPolynomial.add extensionOps.toOps subtotal
+              (← contribution ((chunk.finish - 1) / 2) low high)
+          return (subtotal, (← IO.monoNanosNow) - partStarted))
+    for task in tasks do
+      let (subtotal, elapsed) ← match ← IO.wait task with
+        | .ok value => pure value
+        | .error error => throw error
+      total := FixedPolynomial.add extensionOps.toOps total subtotal
+      report [("event", .str "second_fresh_chunk_complete"), ("elapsed_ns", Lean.toJson elapsed)]
+  IO.FS.writeFile outputPath ((Value.array [.atom 1, .atom 1, .atom (first / 2),
+    .atom ((finish + 1) / 2), extensionValue challenge,
+    .array (total.coefficients.map extensionValue)]).render ++ "\n")
+  report [("event", .str (if first == 0 && finish == fullEnd then
+    "second_fresh_complete" else "second_fresh_range_complete")),
+    ("first_pair", Lean.toJson (first / 2)), ("end_pair", Lean.toJson ((finish + 1) / 2)),
+    ("row_count", Lean.toJson rowCount),
+    ("chunks", Lean.toJson chunks.size), ("workers", Lean.toJson workers),
+    ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
+    ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
+  return 0
+
 private def replayFirstNormFold
     (publicPath sourcePath roundPath outputPath : System.FilePath)
     (first finish : Nat) (reference : Bool) : IO UInt32 := do
@@ -818,6 +1015,27 @@ end NightstreamFPrime.Export.PiCCSFirstRoundReplay
 def main (arguments : List String) : IO UInt32 := do
   let arguments := if arguments.head? == some "--" then arguments.tail else arguments
   match arguments with
+  | ["fresh-after-first", publicPath, roundPath, directory, outputPath] =>
+      NightstreamFPrime.Export.PiCCSFirstRoundReplay.freshAfterFirst
+        publicPath roundPath directory outputPath
+  | ["fresh-after-first-range", publicPath, roundPath, directory, outputPath, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.freshAfterFirst
+            publicPath roundPath directory outputPath (some (first, finish))
+      | _, _ => throw (IO.userError "prefix bounds must be natural numbers")
+  | ["fresh-prefix", publicPath, sourcePath, roundPath, outputDirectory, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.saveFreshPrefix
+            publicPath sourcePath roundPath outputDirectory first finish
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
+  | ["fresh-prefix-reference", publicPath, sourcePath, roundPath, outputDirectory, first, finish] =>
+      match first.toNat?, finish.toNat? with
+      | some first, some finish =>
+          NightstreamFPrime.Export.PiCCSFirstRoundReplay.saveFreshPrefix
+            publicPath sourcePath roundPath outputDirectory first finish true
+      | _, _ => throw (IO.userError "pair bounds must be natural numbers")
   | ["norm-after-first", publicPath, sourcePath, roundPath, outputPath, first, finish] =>
       match first.toNat?, finish.toNat? with
       | some first, some finish =>
@@ -903,4 +1121,7 @@ def main (arguments : List String) : IO UInt32 := do
       IO.eprintln "       replayPiCCSFirstRound compose <public-input> <fresh> <norm> <new-output> <matrix-moment>... pad <Pad-moment>..."
       IO.eprintln "       replayPiCCSFirstRound fold-norm-prefix[-reference] <public-input> <original-sources> <Lean-round-zero> <new-output> <first-block> <end-block>"
       IO.eprintln "       replayPiCCSFirstRound norm-after-first[-reference] <public-input> <original-sources> <Lean-round-zero> <new-output> <first-pair> <end-pair>"
+      IO.eprintln "       replayPiCCSFirstRound fresh-prefix[-reference] <public-input> <original-sources> <Lean-round-zero> <new-output-directory> <first-pair> <end-pair>"
+      IO.eprintln "       replayPiCCSFirstRound fresh-after-first <public-input> <Lean-round-zero> <fresh-prefix-directory> <new-output>"
+      IO.eprintln "       replayPiCCSFirstRound fresh-after-first-range <public-input> <Lean-round-zero> <fresh-prefix-directory> <new-output> <first-row> <end-row>"
       return 2

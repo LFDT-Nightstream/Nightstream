@@ -72,6 +72,11 @@ root = "NightstreamFPrime.Export.PiCCSFirstRoundMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "replayPiCCSPrefix"
+root = "NightstreamFPrime.Export.PiCCSPrefixMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "replayPiRLCWitness"
 root = "NightstreamFPrime.Export.PiRLCWitnessReplayMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

@@ -158,6 +158,21 @@ complete proof encoding. Generic
 `program.row?` row caching was measured and removed: it expands a slow reference
 path. Future sharing must retain the numeric invocation evaluator.
 
+The complete ordered norm prefix after two Lean-derived challenges is now
+retained for all 17 sources. Its 1,075,297,923 one-byte codes decode to the
+original two-fold values. The complete comparison checks 17,204,766,768
+canonical field bytes against the original scalar reader and the ordinary
+fold on all 81 possible signed four-scalar inputs. A direct-array check also
+passes on the retained small range. The final-tail change rejects at source
+16, group 63,252,818. No zero source is removed or renumbered.
+`PICCS_NORM_PREFIX_REPLAY.json` records the source hashes, complete coverage,
+rejection cases and measured runs: 124.60 seconds to generate, 64.86 seconds
+to compare, and about 1.3 GiB peak RSS. The exact target
+`LeanGraph.Targets.PiCCSNormPrefixKernel` proves decoded-array equality with
+two existing `PrefixFold` operations; file origin and IO remain separate
+execution evidence. This supplies later-round norm inputs. It does not close
+rounds 2–27, final evaluations, encoding, or the pending selected-source proof.
+
 For PiRLC, Lean checks the supplied PiCCS proof and derives all mixing
 challenges. The PiCCS messages and final claims are Rust inputs until the
 PiCCS prover replay is complete. The 17 source witnesses are original inputs;

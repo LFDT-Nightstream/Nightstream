@@ -75,7 +75,7 @@ def sum {arity : Nat} (start : Nat) (point : CubePoint K arity)
     Vector MaterializedRingK matrixCount :=
   PiDECEvaluationBatch.range start 94 point (row prepared start)
 
-private theorem sum_value {arity : Nat} (start : Nat) (point : CubePoint K arity)
+theorem sum_value {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : Vector (Vector PortValues 94) ringDegree)
     (matrix : Fin matrixCount) (output : Fin ringDegree) :
     ((sum start point prepared).get matrix).toRing output =

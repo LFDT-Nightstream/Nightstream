@@ -50,17 +50,17 @@ theorem keyBlock_value {verifierRows messageColumns : Nat}
     (keyBlock setup row block).get = setup.verifierKey row block :=
   NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value setup row block
 
-/-- Share one materialized key across the sixteen child products. -/
-def products (key : StoredRing) (children : Vector StoredRing productionGlobalParams.k) :
-    Vector StoredRing productionGlobalParams.k :=
+/-- Share one materialized key across the stored block products. -/
+def products {count : Nat} (key : StoredRing) (children : Vector StoredRing count) :
+    Vector StoredRing count :=
   Vector.ofFn fun child => multiplyChild key (children.get child)
 
 /-- Each stored product has the same key and child as the ring specification. -/
-theorem products_value (key : StoredRing)
-    (children : Vector StoredRing productionGlobalParams.k)
-    (child : Fin productionGlobalParams.k) :
+theorem products_value {count : Nat} (key : StoredRing)
+    (children : Vector StoredRing count)
+    (child : Fin count) :
     ((products key children).get child).get = ringFMul key.get (children.get child).get := by
-  change ((Vector.ofFn (fun selected : Fin productionGlobalParams.k =>
+  change ((Vector.ofFn (fun selected : Fin count =>
     multiplyChild key (children.get selected)))[child.val]).get = _
   rw [Vector.getElem_ofFn, multiplyChild_value]
 

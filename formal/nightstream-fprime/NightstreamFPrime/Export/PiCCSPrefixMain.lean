@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.PiCCSOriginalMerge
+import NightstreamFPrime.Export.PiCCSOriginalEvaluation
 import NightstreamFPrime.Export.PiCCSPrefixFiles
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
@@ -744,6 +746,47 @@ private def normFromPrefix (publicPath directory outputPath : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
+private def finalPoint (publicPath : System.FilePath) (rounds : List String) :
+    IO PaperAlgebra.Point := do
+  let trace ← readTrace publicPath rounds
+  if complete : trace.challenges.length = cubeVariables then
+    return ⟨trace.challenges, complete⟩
+  else throw (IO.userError "original final evaluations require all 28 Lean rounds")
+
+private def originalMatrix (publicPath sourcePath : System.FilePath)
+    (arguments : List String) (reference : Bool) : IO UInt32 := do
+  let (rangeArguments, roundArguments) := arguments.span (fun argument => argument != "--")
+  let "--" :: rounds := roundArguments
+    | throw (IO.userError "original-matrix requires -- before all Lean round paths")
+  let requests ← checked (PiCCSOriginalEvaluation.parseRangeRequests rangeArguments)
+  PiCCSOriginalEvaluation.matrixRanges (← finalPoint publicPath rounds) sourcePath requests reference
+
+private def originalPad (publicPath sourcePath : System.FilePath)
+    (arguments : List String) (reference : Bool) : IO UInt32 := do
+  let (rangeArguments, roundArguments) := arguments.span (fun argument => argument != "--")
+  let "--" :: rounds := roundArguments
+    | throw (IO.userError "original-pad requires -- before all Lean round paths")
+  let requests ← checked (PiCCSOriginalEvaluation.parsePadRequests rangeArguments)
+  PiCCSOriginalEvaluation.padRanges (← finalPoint publicPath rounds) sourcePath requests reference
+
+
+private def mergeOriginalPad (publicPath outputPath : System.FilePath)
+    (arguments : List String) : IO UInt32 := do
+  let (pads, roundArguments) := arguments.span (fun argument => argument != "--")
+  let "--" :: rounds := roundArguments
+    | throw (IO.userError "merge-original-pad requires -- before all Lean round paths")
+  PiCCSOriginalMerge.mergePad (← finalPoint publicPath rounds) outputPath pads
+
+private def mergeOriginal (publicPath outputPath : System.FilePath)
+    (arguments : List String) : IO UInt32 := do
+  let (pads, rest) := arguments.span (fun argument => argument != "--")
+  let "--" :: remaining := rest
+    | throw (IO.userError "merge-original requires -- after Pad paths")
+  let (matrices, roundArguments) := remaining.span (fun argument => argument != "--")
+  let "--" :: rounds := roundArguments
+    | throw (IO.userError "merge-original requires -- before all Lean round paths")
+  PiCCSOriginalMerge.merge (← finalPoint publicPath rounds) outputPath pads matrices
+
 private def family (name : String) : IO Nat :=
   match name with
   | "pad" => pure 0
@@ -755,6 +798,18 @@ end NightstreamFPrime.Export.PiCCSPrefixReplay
 
 def main (arguments : List String) : IO UInt32 := do
   match arguments with
+  | "merge-original-pad" :: publicPath :: outputPath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.mergeOriginalPad publicPath outputPath rest
+  | "merge-original" :: publicPath :: outputPath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.mergeOriginal publicPath outputPath rest
+  | "original-pad" :: publicPath :: sourcePath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.originalPad publicPath sourcePath rest false
+  | "original-pad-reference" :: publicPath :: sourcePath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.originalPad publicPath sourcePath rest true
+  | "original-matrix" :: publicPath :: sourcePath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.originalMatrix publicPath sourcePath rest false
+  | "original-matrix-reference" :: publicPath :: sourcePath :: rest =>
+      NightstreamFPrime.Export.PiCCSPrefixReplay.originalMatrix publicPath sourcePath rest true
   | ["norm-fields-after-two", publicPath, roundZero, roundOne, roundTwo,
       directory, outputDirectory, chunkPairs] =>
       match chunkPairs.toNat? with

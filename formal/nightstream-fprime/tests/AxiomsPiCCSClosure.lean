@@ -1,3 +1,8 @@
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
@@ -566,3 +571,36 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.accumulate_append
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.blockAt_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.blockAt_lane
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.read_eq_kernelRead
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch.sum_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch.prepareInvocation_source
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch.sumInvocation_source_port
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch.sumInvocations_source_port
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_value
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_eq_rows
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.complete_eq_evaluationFamily
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.maskEval_eq_evalSparse
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.read_eq_preparedRead
+
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixPreservation.matrix_eq_evaluationFamily
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_append
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.sparse_eq_range
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.invocations_eq_range
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.range_eq_matrix

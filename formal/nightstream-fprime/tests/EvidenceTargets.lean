@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
+import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
@@ -814,5 +816,45 @@ theorem piCCSRetainedPrefixKernel : PiCCSRetainedPrefixKernel := by
     exact PiCCSFreshPrefix.portValues_foldRows rows challenge port
 
 #audit_axioms piCCSRetainedPrefixKernel
+
+
+/-- Exact original-mask reads and complete Pad/matrix evaluation kernels.
+Runtime matrix ranges retain their separate successful-load and bounds
+premises. File provenance, complete execution and whole-PiCCS closure are
+separate obligations. All seventeen sources and all ring lanes are present. -/
+def PiCCSOriginalEvaluationKernel : Prop :=
+  (∀ (columns : Nat) (masks : Array (Array (Nat × Nat)))
+      (source : Fin productionShape.sourceCount) (output : Fin ringDegree),
+    (PiCCSOriginalReads.read (PiDECParentSparseRead.prepare ()) masks source output :
+      Fin columns → F) =
+      PiCCSSourceImages.kernelRead (PiCCSOriginalReads.assignment masks source) output) ∧
+  (∀ (point : PaperAlgebra.Point) (masks : Array (Array (Nat × Nat)))
+      (source : Fin productionShape.sourceCount),
+    ((PiCCSOriginalPad.range 0 PiCCSSourceImages.blockCount point masks).get source).toRing =
+      (PaperAlgebra.evaluationFamily
+        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation)
+        (PiCCSOriginalReads.assignment masks source) point).pad) ∧
+  (∀ (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
+      (source : Fin productionShape.sourceCount) (port : Fin Spec.ProductionRelation.matrixCount),
+    ((PiCCSOriginalMatrixRange.originalRange masks point 0
+      (PerApplicationMatrixProgram.matrixProgram Poseidon2HashChainV1Package.application).rowCount
+        source).get port).toRing =
+      (PaperAlgebra.evaluationFamily
+        (Lifecycle.PiRLC.v1_1.InputBinding.relationSource
+          (PerApplicationFixedPoint.relation
+            Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits))
+        (PiCCSOriginalReads.assignment masks source) point).matrix port)
+
+theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro columns masks source output
+    exact PiCCSOriginalReads.read_eq_kernelRead masks source output
+  · intro point masks source
+    exact PiCCSOriginalPad.complete_eq_evaluationFamily point masks source
+  · intro masks point source port
+    exact (PiCCSOriginalMatrixRange.range_eq_matrix masks point source port).trans
+      (PiCCSOriginalMatrixPreservation.matrix_eq_evaluationFamily masks point source port)
+
+#audit_axioms piCCSOriginalEvaluationKernel
 
 end LeanGraph.Targets

@@ -126,7 +126,7 @@ private theorem program_selected_row (program : MatrixProgram.Program)
       exact transport
     _ = _ := MatrixProgram.Program.cons_first_row? _ _ columns source ordinal live
 
-private theorem invocation_sparse_value {columns : Nat}
+theorem invocation_sparse_value {columns : Nat}
     (program : MatrixProgram.Program) (source : Nat → Option R1CS.Row)
     (read : Fin columns → F) (blockIndex : Nat) (block : Poseidon.Block)
     (selected : program.blocks[blockIndex]? = some (.poseidon block))
@@ -309,7 +309,7 @@ theorem selectedIntInvocation_eq_range
   exact selectedInvocation_eq_range parents point blockIndex block selected
     invocation interface loaded rangeFits child port
 
-private theorem sumInvocationParts_eq_range {arity ports children : Nat}
+theorem sumInvocationParts_eq_range {arity ports children : Nat}
     (first count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing children)
     (parts : Nat → Vector PiRLCPartialTrace.MaterializedRingK ports)

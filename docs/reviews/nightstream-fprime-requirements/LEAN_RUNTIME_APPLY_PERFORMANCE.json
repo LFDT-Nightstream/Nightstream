@@ -1,0 +1,603 @@
+{
+  "schema": 1,
+  "nightstream_commit": "27c08b1d82b413debb37f08ca9dd5067fd31bfa9",
+  "lean_fork_commit": "a6f47234088e5b35c7a5b1b336db6372f797d998",
+  "lean_fork_baseline": "14f2fed9c9782048e896c924f424624585acd772",
+  "scope": "Selected static runtime; no complete Lean bootstrap or full fresh-loop speedup claim. Same generated project objects and arithmetic. All comparisons use complete bytes.",
+  "source": {
+    "script/apply.lean": {
+      "bytes": 7649,
+      "sha256": "7c913a832b4aa9a58f6af8fe5d4096309410f7a8bde883651af9bdbccf51c26e"
+    },
+    "src/runtime/apply.cpp": {
+      "bytes": 75508,
+      "sha256": "e59fbb1014bad7eea15b05a02468fae12f730a0d5bee37d802ea67400a87cc58"
+    },
+    "tests/misc_dir/persistent_apply/apply.c": {
+      "bytes": 4502,
+      "sha256": "45598cff6db23f6aa0e717a26f003351886390e50a1680a1a27f2e3dff1a9a7d"
+    },
+    "tests/misc_dir/persistent_apply/run_test.sh": {
+      "bytes": 185,
+      "sha256": "a0658ed2fd3d60d2a06b7f2b38d7ceec78666626eaf2b76bb8d1238a878dc0da"
+    }
+  },
+  "build": {
+    "baseline": {
+      "overlay": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/lean-baseline",
+      "compile_argv": [
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/bin/clang",
+        "-x",
+        "c++",
+        "-std=c++20",
+        "-O3",
+        "-DNDEBUG",
+        "-DLEAN_USE_GMP",
+        "-DLEAN_MMAP",
+        "-DLEAN_MULTI_THREAD",
+        "-DLEAN_BUILD_TYPE=\"Release\"",
+        "-DLEAN_EXPORTING",
+        "-D__CLANG__",
+        "-fPIC",
+        "-ftls-model=local-exec",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+        "-nostdinc++",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/profile-tools/root/usr/lib/llvm-19/include/c++/v1",
+        "-isystem",
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/include/clang",
+        "-I",
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/include",
+        "-I",
+        "/home/nicoarq/develop/Nightstream/external/lean4/src",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include/x86_64-linux-gnu",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include",
+        "-c",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-apply.cpp",
+        "-o",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-build/apply.cpp.o"
+      ],
+      "source_sha256": "b87e1216184886cbd5f0a53071ba62edc8c324fedbdfbb80fb1c17f1c777c3c9",
+      "object_sha256": "b7404764f91fc5f88521e7a1684b68e3f152ece9cc2682d39abd418a3d8055aa",
+      "archive_sha256": "11dcfdd2da9c88b8061822b4fffa6e048e548f28a2de1b6dca4f32632b38f1f0"
+    },
+    "candidate": {
+      "overlay": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/lean-candidate",
+      "compile_argv": [
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/bin/clang",
+        "-x",
+        "c++",
+        "-std=c++20",
+        "-O3",
+        "-DNDEBUG",
+        "-DLEAN_USE_GMP",
+        "-DLEAN_MMAP",
+        "-DLEAN_MULTI_THREAD",
+        "-DLEAN_BUILD_TYPE=\"Release\"",
+        "-DLEAN_EXPORTING",
+        "-D__CLANG__",
+        "-fPIC",
+        "-ftls-model=local-exec",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+        "-nostdinc++",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/profile-tools/root/usr/lib/llvm-19/include/c++/v1",
+        "-isystem",
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/include/clang",
+        "-I",
+        "/home/nicoarq/.elan/toolchains/leanprover--lean4---v4.30.0/include",
+        "-I",
+        "/home/nicoarq/develop/Nightstream/external/lean4/src",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include/x86_64-linux-gnu",
+        "-isystem",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include",
+        "-c",
+        "/home/nicoarq/develop/Nightstream/external/lean4/src/runtime/apply.cpp",
+        "-o",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-build/apply.cpp.o"
+      ],
+      "source_sha256": "e59fbb1014bad7eea15b05a02468fae12f730a0d5bee37d802ea67400a87cc58",
+      "object_sha256": "5a7ea6a82ca74e7a04115e2d22e7e06f06355654d464d3626b0299ded220bf97",
+      "archive_sha256": "1d6e01f1fd4672a9dccef8d39004163f77a5911544be114a0d01199cfc9a2e35"
+    },
+    "scope": "Matched compilation; same 14f2fed9c9 mpz/object baseline, only apply.cpp.o differs.",
+    "glibc_header_package": {
+      "metadata_url": "https://security.ubuntu.com/ubuntu/dists/jammy-security/main/binary-amd64/Packages.xz",
+      "metadata_sha256": "65ef9182fd2244032112fd6c2552a38f68e87ba107d6f8230952058e264dddfc",
+      "package_url": "https://security.ubuntu.com/ubuntu/pool/main/g/glibc/libc6-dev_2.35-0ubuntu3.15_amd64.deb",
+      "package": "libc6-dev",
+      "version": "2.35-0ubuntu3.15",
+      "architecture": "amd64",
+      "sha256_expected": "ce51ae233a9f800a040de2d0cd5983ef86f558c623b342c80942301d7f453f48",
+      "sha256_actual": "ce51ae233a9f800a040de2d0cd5983ef86f558c623b342c80942301d7f453f48",
+      "size": 2100232,
+      "package_path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/libc6-dev_2.35-0ubuntu3.15_amd64.deb",
+      "extract_path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot",
+      "include_paths": [
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-mpz-move/headers/sysroot/usr/include/x86_64-linux-gnu"
+      ],
+      "verification": "SHA256, size, package name, version and architecture match official Packages metadata"
+    }
+  },
+  "archive": {
+    "matched_runtime_members_changed": [
+      "apply.cpp.o"
+    ],
+    "distribution_runtime_members_changed": [
+      "mpz.cpp.o",
+      "object.cpp.o",
+      "apply.cpp.o"
+    ],
+    "compiler_and_proof_checker_unchanged": true
+  },
+  "selected_runtime": {
+    "fork_commit": "a6f47234088e5b35c7a5b1b336db6372f797d998",
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/lean-4.30.0-runtime-a6f4723408",
+    "files": {
+      "bin/lean": "3e0d0d3d801675359f2d4cf9815bfdb417b20b92fdd9d48b3b14c95bbae28bbf",
+      "lib/lean/libleanshared.so": "86c5222603b164cd1c0dee1aeea9624a1ece9ce724ee2ed36e427a4259f8834b",
+      "lib/lean/libleanrt.a": "1d6e01f1fd4672a9dccef8d39004163f77a5911544be114a0d01199cfc9a2e35"
+    },
+    "build_record": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/build.json",
+    "archive_check": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/archive-check.json"
+  },
+  "fresh_pairs": [
+    {
+      "baseline": {
+        "command_seconds": 27.02790183504112,
+        "peak_rss_kib": 394992,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 27.02790183504112,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-matched-replayPiCCSPrefix",
+            "fresh-prefix",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/fresh-after-3",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-fresh-3.json",
+            "0",
+            "398598",
+            "/tmp/nightstream-piccs-first-round-independent-1.json",
+            "/tmp/nightstream-piccs-second-round-independent-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        }
+      },
+      "candidate": {
+        "command_seconds": 26.063338440144435,
+        "peak_rss_kib": 392784,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 26.063338440144435,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-matched-replayPiCCSPrefix",
+            "fresh-prefix",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/fresh-after-3",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-split-fresh-3.json",
+            "0",
+            "398598",
+            "/tmp/nightstream-piccs-first-round-independent-1.json",
+            "/tmp/nightstream-piccs-second-round-independent-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        }
+      },
+      "scope": "Complete fresh-polynomial contribution to PiCCS round3. Same existing production-derived prefixes and challenges, same objects and 16 workers. Performance evidence, not a substitute for fresh-loop output.",
+      "bytes": 571,
+      "sha256": "4b81f13abafa4977cc5f38e93c138fd7669248d5398abde053d2b155203e12b5",
+      "previous_record": "docs/reviews/nightstream-fprime-requirements/PICCS_ALL_ROUNDS_REPLAY.json"
+    },
+    {
+      "candidate": {
+        "command_seconds": 26.250157175119966,
+        "peak_rss_kib": 395056,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 26.250157175119966,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-matched-replayPiCCSPrefix",
+            "fresh-prefix",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/fresh-after-3",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-repeat-fresh-3.json",
+            "0",
+            "398598",
+            "/tmp/nightstream-piccs-first-round-independent-1.json",
+            "/tmp/nightstream-piccs-second-round-independent-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        }
+      },
+      "baseline": {
+        "command_seconds": 26.75889751012437,
+        "peak_rss_kib": 395376,
+        "guard": {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 26.75889751012437,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-matched-replayPiCCSPrefix",
+            "fresh-prefix",
+            "/tmp/nightstream-piccs-original-public-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/fresh-after-3",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-repeat-fresh-3.json",
+            "0",
+            "398598",
+            "/tmp/nightstream-piccs-first-round-independent-1.json",
+            "/tmp/nightstream-piccs-second-round-independent-1.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        }
+      },
+      "scope": "Complete fresh-polynomial contribution to PiCCS round3. Same existing production-derived prefixes and challenges, same objects and 16 workers. Performance evidence, not a substitute for fresh-loop output.",
+      "bytes": 571,
+      "sha256": "4b81f13abafa4977cc5f38e93c138fd7669248d5398abde053d2b155203e12b5",
+      "previous_record": "docs/reviews/nightstream-fprime-requirements/PICCS_ALL_ROUNDS_REPLAY.json"
+    }
+  ],
+  "matrix": {
+    "scope": "Same production-input prefix, generated Lean objects, compiler flags, 16 workers and original input files. All agents idle. Complete byte comparison, including equality to the previous native-dot checkpoint.",
+    "baseline": {
+      "command_seconds": 30.71313251601532,
+      "compute_seconds": 10.441791581,
+      "peak_rss_kib": 2456480,
+      "command": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 30.71313251601532,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-matched-replayPiCCSFirstRound",
+          "carried-matrix-prefix",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/public.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/sources.jsonl",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/rounds/round-0.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/baseline-prefix",
+          "1518288",
+          "1534672"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    "candidate": {
+      "command_seconds": 30.121379147050902,
+      "compute_seconds": 10.480188442,
+      "peak_rss_kib": 2458156,
+      "command": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 30.121379147050902,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-matched-replayPiCCSFirstRound",
+          "carried-matrix-prefix",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/public.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/sources.jsonl",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/rounds/round-0.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/candidate-prefix",
+          "1518288",
+          "1534672"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      }
+    },
+    "files": [
+      {
+        "file": "1518288-1518800.jsonl",
+        "bytes": 28240,
+        "sha256": "f6d1255eaf1dd08991a70c734eadb45c5c01a3cdd602636b62c656d93c00880b"
+      },
+      {
+        "file": "1518800-1519312.jsonl",
+        "bytes": 28240,
+        "sha256": "af2ed01c17a2536c9b319471da4577f9332cf23468a1616b3c77e2bc9d6299df"
+      },
+      {
+        "file": "1519312-1519824.jsonl",
+        "bytes": 28240,
+        "sha256": "e0b8f51e4efe4c462a52795c14ded841c87956ab9b3a46f680f5c2a8083b0e30"
+      },
+      {
+        "file": "1519824-1520336.jsonl",
+        "bytes": 28240,
+        "sha256": "9f7de67279ab28a532523ebfcf60a7c00662d052941dbbd6694c4e448f57ddfd"
+      },
+      {
+        "file": "1520336-1520848.jsonl",
+        "bytes": 28240,
+        "sha256": "525c7e9497d595fe9fa7942f7b70d591137966da1f1aa5336959e92cdc6de9ea"
+      },
+      {
+        "file": "1520848-1521360.jsonl",
+        "bytes": 28240,
+        "sha256": "f280c2dcac72c6343bf88370f8c73f850771f1828ed42dabb2958ff782a8e990"
+      },
+      {
+        "file": "1521360-1521872.jsonl",
+        "bytes": 28240,
+        "sha256": "240fc0359277e42e898f766e082ea288da6d4910d6a0941d068019ea0b445610"
+      },
+      {
+        "file": "1521872-1522384.jsonl",
+        "bytes": 28240,
+        "sha256": "eff2538c4ca027cc21fb212f96f8f4a3dd6779267205ac030d56b1cbfd9a5a97"
+      },
+      {
+        "file": "1522384-1522896.jsonl",
+        "bytes": 28240,
+        "sha256": "6ff6e85c6dc72acb872b7f8ba9186ce91f3f34d2000ed52a1addfa344143b2bb"
+      },
+      {
+        "file": "1522896-1523408.jsonl",
+        "bytes": 28240,
+        "sha256": "a3f22b507b06058adac3aea9a4860a3d346abc406dbe3a70de0413d472848c37"
+      },
+      {
+        "file": "1523408-1523920.jsonl",
+        "bytes": 28240,
+        "sha256": "df983b99dd74f1d897798f1c59c8fbd8aa2b5849c782b5d7496d28ec0096af1f"
+      },
+      {
+        "file": "1523920-1524432.jsonl",
+        "bytes": 28240,
+        "sha256": "5fa78af4d4d84d746345f07b0aea709b311a5eea748d1fdc1084d836b4242256"
+      },
+      {
+        "file": "1524432-1524944.jsonl",
+        "bytes": 28240,
+        "sha256": "c8ea05c33bc8e898063de41a04d49c968b46f918777b7f534c1835f2a2a12204"
+      },
+      {
+        "file": "1524944-1525456.jsonl",
+        "bytes": 28240,
+        "sha256": "349a1b6e5dbe8a9d9b932675e0a2177e6fa2e4b62142ae332a9ce9991f78a000"
+      },
+      {
+        "file": "1525456-1525968.jsonl",
+        "bytes": 28224,
+        "sha256": "316b59eacb9e3148eddd3885fee014737c424dce657b9da4fa7601f0ff963507"
+      },
+      {
+        "file": "1525968-1526480.jsonl",
+        "bytes": 27935,
+        "sha256": "e58d1f58dd63a5b2c1a269107711c08c93865e51b25fb0c9fdd0f6d45585a446"
+      },
+      {
+        "file": "1526480-1526992.jsonl",
+        "bytes": 27938,
+        "sha256": "8bfaa805a07c2849191ed5533eb720176090dab5e66f78bc55ba483f9439ad1f"
+      },
+      {
+        "file": "1526992-1527504.jsonl",
+        "bytes": 27936,
+        "sha256": "6d54e2a01063f8e226a4a6ed5520595cb953bea803e7891268ff5004395c9a49"
+      },
+      {
+        "file": "1527504-1528016.jsonl",
+        "bytes": 27937,
+        "sha256": "e9e21cde290d9c555182ddf021500abe0335f31f9a23d022d413b7102ee2a7e6"
+      },
+      {
+        "file": "1528016-1528528.jsonl",
+        "bytes": 27938,
+        "sha256": "59940294d3cfb10a3418bca26713c1ebe7bffa17445623db1cc0cba9609952ab"
+      },
+      {
+        "file": "1528528-1529040.jsonl",
+        "bytes": 27930,
+        "sha256": "6133fa034e5fd62474e6a9e35067c2fc3dff9e062e41be974a2df81d2d841e33"
+      },
+      {
+        "file": "1529040-1529552.jsonl",
+        "bytes": 27930,
+        "sha256": "b162c1fc1162ed6afb8d97d734de5874ea4a957c02c9b9e8c98278eedaafa19b"
+      },
+      {
+        "file": "1529552-1530064.jsonl",
+        "bytes": 27945,
+        "sha256": "728ac357ef0a163859e0f81f425178eae0ed3f36124fc513fa63d373ebdd4cc5"
+      },
+      {
+        "file": "1530064-1530576.jsonl",
+        "bytes": 27938,
+        "sha256": "ed153862d6c7a322959857b9434688685542636677c0d249a734bcb937d30069"
+      },
+      {
+        "file": "1530576-1531088.jsonl",
+        "bytes": 27939,
+        "sha256": "a573bcd686c5d3208e0d40d66306cdbc8020bd4768e603796d66f445981deb07"
+      },
+      {
+        "file": "1531088-1531600.jsonl",
+        "bytes": 27936,
+        "sha256": "5a95c1a119d2a6e7f30eb6ab6d63331efb81c4f609393748ced4798b578cc7ce"
+      },
+      {
+        "file": "1531600-1532112.jsonl",
+        "bytes": 27940,
+        "sha256": "0ee27e3f7d00c7e61c8ff5f9faf7b71378e4a8ead6a619aa3bead3058efc6cb4"
+      },
+      {
+        "file": "1532112-1532624.jsonl",
+        "bytes": 27932,
+        "sha256": "1af1438bc6cfe1f853312bef47c6cce371e2a38eaccc284ad7f4770611f2c547"
+      },
+      {
+        "file": "1532624-1533136.jsonl",
+        "bytes": 27938,
+        "sha256": "3ef0532dcf474a415f5c0d2ed20f0f2bdc6ab94408e2bcf44a9cd4ccc6f6e3e6"
+      },
+      {
+        "file": "1533136-1533648.jsonl",
+        "bytes": 27936,
+        "sha256": "462c23a960262b09c8de3a2b90dc01cc6dd745b728e48b64035b25de1ef06e89"
+      },
+      {
+        "file": "1533648-1534160.jsonl",
+        "bytes": 27926,
+        "sha256": "6cc52b136fbf5f55e2c3d5f82fdf551ddb081254fed02ace3686f6f68d1af3b4"
+      },
+      {
+        "file": "1534160-1534672.jsonl",
+        "bytes": 27942,
+        "sha256": "8f6a193628fac8d3b8ed0732e2b544352d9b4e3986c1bbe8dbb8ec798830cdc7"
+      },
+      {
+        "file": "moments.json",
+        "bytes": 151,
+        "sha256": "2dc22edf51d785eeed9de5632445a2e0f29c6f20c1bed2b5327a2472375a66cc"
+      }
+    ]
+  },
+  "package": {
+    "package.json": {
+      "bytes": 128098921,
+      "sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+      "direct_byte_comparison": "passed",
+      "expected": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
+    },
+    "binding.json": {
+      "bytes": 1599,
+      "sha256": "5282669f120cefbb2c08ebbc2ed682733224b0b7e47f7288d974059146ee4899",
+      "direct_byte_comparison": "passed",
+      "expected": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-binding-v1.json"
+    }
+  },
+  "closure_regressions": {
+    "baseline_and_candidate_match_expected": true,
+    "outputs": {
+      "closure_bug1": {
+        "bytes": 66,
+        "sha256": "31ff49fc472064db46afdde104e5ff7f32c13d64e3137df26eacec3f63c4dc6b"
+      },
+      "closure_bug2": {
+        "bytes": 60,
+        "sha256": "09bbcf0af0b744f36259df91a8211beb2cc79b0d644b7bfe793b3160d0b06ba6"
+      },
+      "closure_bug3": {
+        "bytes": 56,
+        "sha256": "36aef137127f48ea028136ff476fb30b585d13d0572db81d8016f99ee1056951"
+      },
+      "closure_bug4": {
+        "bytes": 52,
+        "sha256": "8f21ef3ad05b5b0f3af3836f3b9285f6147da08522f5826048cbae575f5d0b61"
+      },
+      "closure_bug5": {
+        "bytes": 48,
+        "sha256": "8ab71a2c340ec3281bc3f409d2c5552082674c43b760c13aefc2cca92dae26c2"
+      },
+      "closure_bug6": {
+        "bytes": 25,
+        "sha256": "063f624df52d347e91710e7680de71afdce2252110ebca51b3a8871ccc0db537"
+      },
+      "closure_bug7": {
+        "bytes": 22,
+        "sha256": "6d9cbea18d1b11f053f451bf61b30cbd5620b46e8548b0df2493b83a8dba0b30"
+      },
+      "closure_bug8": {
+        "bytes": 19,
+        "sha256": "401dff6c83903f4bbc0b89d92dd23a289fc17fcff70ad8e42ae0c4a22a8c9ab3"
+      },
+      "large_closure_bug": {
+        "bytes": 2,
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    }
+  },
+  "logs": {
+    "generate-split.log": {
+      "bytes": 606,
+      "sha256": "59f75222f87d83323d4aeb9c67a9852c47a130e8c023505848f59dc7432c4434"
+    },
+    "build-split.log": {
+      "bytes": 600,
+      "sha256": "009778954d439bb9d30503c82bf4c329ba783c7bf8f79ff80dd91cf6e1a34474"
+    },
+    "check-2.log": {
+      "bytes": 18875,
+      "sha256": "b194f6acf99ed7d27ed204e088b8a4eedd9bd8f4c8a693ae267120193d2acdd4"
+    },
+    "identity.log": {
+      "bytes": 1091,
+      "sha256": "13887dc0802adcf7d63cca3f63ef1ed7861476844e859b100f5d92fb356de543"
+    },
+    "identity-check.log": {
+      "bytes": 96,
+      "sha256": "1cf6ea6ca9a87bad3d62b0c026ebb98adb67967ac4051c83babe16f764160682"
+    },
+    "package.log": {
+      "bytes": 1140,
+      "sha256": "4551925914213044961c5add255f56f3f411485e524b9a0f018552d0d0496569"
+    }
+  },
+  "recipes": {
+    "build.py": {
+      "bytes": 1646,
+      "sha256": "2f13bc8d43e73f83c5ebca4c0e38ccc8bcb28c710a6e732c197fe3e80185d0b8"
+    },
+    "check.py": {
+      "bytes": 1711,
+      "sha256": "6054d69cc747ce8dadb439b475206d14e384e6e51d0a2d67c892f0ae457ac561"
+    },
+    "link.py": {
+      "bytes": 1744,
+      "sha256": "2769afc73f5eb5d7b41b1d696755aaff5425368a041e83431274c44a6a3f28e9"
+    },
+    "benchmark.py": {
+      "bytes": 3190,
+      "sha256": "aa835dabbecb89a1b1ef0a7e78b36b4e4f64c3956f7dc09a196f59c80ac34e05"
+    },
+    "fresh-benchmark.py": {
+      "bytes": 2880,
+      "sha256": "9887bb0fd156eb0cff491bfab2e1be0d3a3520a67a33e62307f1fe168ed65016"
+    },
+    "fresh-reverse.py": {
+      "bytes": 2762,
+      "sha256": "1ecd3b4430a1602f57fdc10478c3ee2ffd3248a51dd15b782927791f6d7f8294"
+    }
+  },
+  "retained_evidence": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply",
+  "rejected_trials": "GMP copy/move changes and inline unary fast path gave no measured gain; source and evidence retained outside Git."
+}

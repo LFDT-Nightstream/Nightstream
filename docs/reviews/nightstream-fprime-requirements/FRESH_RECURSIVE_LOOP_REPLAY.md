@@ -120,7 +120,7 @@ process these requests sequentially and release range-local working data.
 Arithmetic code and the complete Lean–Rust byte comparisons are unchanged.
 The scheduling test checks that the complete request/output sequences match.
 
-The Linux runtime uses the existing fork commit
+The initial Linux runtime used the existing fork commit
 `14f2fed9c9782048e896c924f424624585acd772`. Only `mpz.cpp.o` in a separate
 copy of the official Lean 4.30.0 `libleanrt.a` changes. All other archive
 members match byte for byte; the compiler and proof checker are unchanged.
@@ -142,3 +142,14 @@ input vectors. The same production prefix takes 30.91 seconds versus
 Static, build, axioms, identity, boundary and changed-coefficient checks pass.
 The fresh replay retains its completed outputs across an explicit source
 transition; this optimization does not close the full-loop record.
+
+The next selected runtime is fork commit
+`a6f47234088e5b35c7a5b1b336db6372f797d998`. Its persistent unary closure
+fast path reduces the measured fresh-polynomial command time by 1.9–3.6%;
+matrix computation time is effectively unchanged. Full package, binding,
+fresh-polynomial and matrix-prefix output bytes match. The ownership and
+existing closure tests pass. `LEAN_REPLAY_PERFORMANCE.md` and
+`LEAN_RUNTIME_APPLY_PERFORMANCE.json` state the exact scope and measurements.
+Resume preserves the completed stage outputs, checks their saved identities,
+archives obsolete build receipts, and records the native-dot and runtime
+source transition. Each new command uses the current project execution caps.

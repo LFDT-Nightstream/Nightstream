@@ -1,0 +1,103 @@
+# Fresh recursive-loop replay
+
+Status: implementation and preflight validation; full execution pending.
+
+This record covers a stronger local replay than the selected staged result at
+`6c3c8c0f`. Start with the original accepted iteration-2 state and its 17
+witnesses. Generate the full iteration-3 successor, use its exact returned
+state and witnesses as the next input, complete iteration 4, then run the
+existing terminal verifier and rejection checks.
+
+Both folds preserve the selected production package, key and transcript:
+Goldilocks, `b = 2`, `k_rho = 16`, 16 children and 14 matrices. Nebula is
+inactive. Rust results are comparison targets for Lean. The second Lean source
+projection reads only the first Lean fresh witness, fresh claim, child claims
+and complete private digit ranges.
+
+## Checked composition
+
+`LeanGraph.Targets.CheckedRecursiveReplay` is the literal registered target.
+`CheckedReplayComposition.accepted_and_handoff` derives acceptance of the
+actual successor and of its literal reconstruction as the next prior.
+
+The premises are initial terminal acceptance, a nonwrapping iteration, actual
+C/R sampling and public-parent results, returned R blocks, successful D split
+and acceptance, successful canonical row checks, and exact source/evaluation/
+carrier/input/context custody. Parent validity, child openings, row validity,
+norm and successor acceptance are conclusions.
+
+`FreshRowsCheck.checkBlock_of_workerRanges` proves complete coverage for the
+hardware-count ceiling ranges used by the executable. Each Poseidon unit keeps
+one complete 94-row invocation. The other units are scalar canonical rows.
+Every block uses the same existing numeric matrix evaluator and fixed
+production polynomial. Padding rows are zero by a checked theorem.
+`FreshCommitmentFold.completeRow_value` connects complete block accumulation
+to the semantic commitment of the same carrier.
+
+File parsing, task execution, ABI transport and compiler/runtime execution
+remain explicit implementation boundaries. A receipt digest detects changed
+files; it does not establish a protocol value or semantic acceptance.
+
+## Execution and reproduction
+
+Use the recorded Linux host and the source checkpoint for this run. Keep one
+build/test queue. Subagents must be idle during measured scans.
+
+The new run directory is outside Git:
+
+```text
+/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll
+```
+
+Its `original-sources/` contains the original envelope, fresh claim, fresh
+witness, 16 digit witnesses and `next-message-input.json`.
+`original-package.json` is the exact selected package.
+`original-inputs.json` records the copied input bytes. The application message
+for both steps is `[7, 11, 13, 17]`; the next state is derived from the generated
+successor, never substituted from an old result.
+
+From the repository root:
+
+```sh
+python3 -B formal/nightstream-fprime/scripts/replay_recursive_loop.py \
+  /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll \
+  2 all
+```
+
+For a new reproduction directory, copy only the pinned original inputs and
+package into the same relative locations. Do not copy computed intermediates.
+The coordinator records source and input identities before running. It fails
+on changed or failed checkpoints, missing outputs, changed bytes, or changed
+directory members.
+
+Every child invocation uses the existing guard and caps: 1,500 seconds for
+Lean and 300 seconds for native checks. The coordinator sequences these
+commands outside the graph lock. It builds each Lean executable before the
+measured stages. Individual checkpoints are `build`, `prepare`,
+`native`, `ccs`, `reductions`, `successor` and `terminal`. The `all` command
+completes both successors before final terminal verification.
+
+## Preflight evidence
+
+These measurements are on the same Linux host, with subagents idle:
+
+- Removing the duplicate Rust matrix-capacity scan reduced the complete native
+  C command from 240.62 to 202.43 seconds. All bytes of the proof, C input and
+  phase output match. Peak memory was essentially unchanged.
+- The initial row checker timed out at 1,500 seconds. Proved worker ranges
+  completed the same full retained carrier in 496.49 seconds, with
+  1,698,180 KiB peak RSS. All 6,377,559 active rows, 14 ports, 270 public fields
+  and 45 zero tail coefficients passed. Block 10 used 434.84 seconds.
+- Eight row-check rejection cases passed, including changed public/private
+  values, malformed encodings, nonzero tail and existing output.
+- The source projection and coordinator have 21 passing contract tests.
+  The existing graph suite has 85 passing tests. Exact target closure and
+  allowed-axiom checks passed.
+
+The retained-carrier scan is a preflight, not fresh-loop evidence. Full C/R/D
+generation, byte comparisons, both new carrier checks, exact feedback and final
+terminal acceptance/rejections remain required before this record can close.
+
+Protected external acceptance remains pending by owner choice. This record
+does not claim a production SNARK backend `prove → verify` run or universal
+proof of the filesystem, compiler or Rust runtime.

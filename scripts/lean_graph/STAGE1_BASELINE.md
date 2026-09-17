@@ -582,3 +582,21 @@ This work excludes constraint reduction, new profiles, protocol changes,
 new proof backends, Stage 2 and general cryptographic research. Required
 correctness repairs must retain the appropriate preservation and package
 checks. External production approval remains separate from local evidence.
+
+
+## Fresh two-fold recursive replay
+
+The stronger selected run regenerates every C/R/D intermediate from the original
+17 openings, produces the complete fresh assignment and commitment, and repeats
+the fold with the first Lean result as its source. The final iteration-4 carrier
+must pass the scalar canonical-row checker before terminal acceptance.
+
+`fresh-recursive-loop` registers the literal accepted-successor/next-prior target
+and the source-adapter/coordinator contract tests. Exact source, evaluation,
+returned-block, carrier and ABI custody remain explicit in the target. Neither a
+receipt digest nor an old comparison artifact supplies those semantic values.
+
+Full two-fold execution evidence is pending. Each producer runs outside the graph
+lock through the existing guard, with the existing 1,500-second Lean and
+300-second native caps. The graph gates do not launch the multi-hour coordinator
+as one command and do not record a successful production replay from unit tests.

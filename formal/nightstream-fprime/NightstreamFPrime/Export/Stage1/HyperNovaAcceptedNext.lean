@@ -41,7 +41,7 @@ private theorem completeAssignment_eq_extend {program : Program} (raw : RawValue
   · simp only [RawValues.completeAssignment, Phi81CarrierLayout.extendAssignment,
       Phi81CarrierLayout.logicalColumn?, dif_neg below]
 
-private theorem freshHolds_of_rows
+theorem freshHolds_of_rows
     (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow28 program)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
       (publicFits := PerApplicationFixedPoint.publicFits program))
@@ -74,7 +74,7 @@ private theorem freshHolds_of_rows
         { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai assignment
           publicInputs := fun _ => encHash raw.outputDigest }) assignment) completed) member
 
-private theorem terminal_of_memberships
+theorem terminal_of_memberships
     (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow28 program)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup program)
     (statement : TerminalStatement AppState)

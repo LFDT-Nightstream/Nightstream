@@ -1,9 +1,66 @@
 use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::{
-    build_superneo_eval_cache, SuperneoCompactRowOffsets, SuperneoEvalCacheBuilder, SuperneoZBlocks,
+    build_superneo_eval_cache, SuperneoCompactRowOffsets, SuperneoEvalCache, SuperneoEvalCacheBuilder, SuperneoZBlocks,
 };
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+fn assert_offsets_equal(left: SuperneoCompactRowOffsets<'_>, right: SuperneoCompactRowOffsets<'_>) {
+    use SuperneoCompactRowOffsets::*;
+    match (left, right) {
+        (Empty, Empty) => {}
+        (U24(left), U24(right)) => assert_eq!(left, right),
+        (U32(left), U32(right)) => assert_eq!(left, right),
+        (
+            U16Chunked {
+                chunk_offsets: a,
+                local_offsets: b,
+                chunk_rows: c,
+            },
+            U16Chunked {
+                chunk_offsets: x,
+                local_offsets: y,
+                chunk_rows: z,
+            },
+        ) => assert_eq!((a, b, c), (x, y, z)),
+        _ => panic!("capacity hints changed offset encoding"),
+    }
+}
+
+fn assert_cache_parts_equal(left: &SuperneoEvalCache, right: &SuperneoEvalCache) {
+    assert_eq!(left.relation_shape(), right.relation_shape());
+    for (left, right) in left.matrix_caches().iter().zip(right.matrix_caches()) {
+        let a = left.compact_device_parts().unwrap();
+        let b = right.compact_device_parts().unwrap();
+        assert_offsets_equal(a.row_offsets, b.row_offsets);
+        assert_offsets_equal(a.geometric_row_offsets, b.geometric_row_offsets);
+        assert_eq!(
+            (
+                a.row_blocks,
+                a.dense_row_blocks,
+                a.dense_offsets,
+                a.dense_locals,
+                a.geometric_runs,
+                a.identity
+            ),
+            (
+                b.row_blocks,
+                b.dense_row_blocks,
+                b.dense_offsets,
+                b.dense_locals,
+                b.geometric_runs,
+                b.identity
+            )
+        );
+        let bytes = |values: &[F]| {
+            values
+                .iter()
+                .flat_map(|value| value.as_canonical_u64().to_le_bytes())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bytes(a.dense_coefficients), bytes(b.dense_coefficients));
+    }
+}
 
 #[test]
 fn row_source_matches_matrix_derived_cache_and_implicit_zero_slot() {
@@ -77,11 +134,10 @@ fn row_source_matches_matrix_derived_cache_and_implicit_zero_slot() {
                     .unwrap();
             }
         }
+        let reserved = reserved.finish().unwrap();
+        assert_cache_parts_equal(&actual, &reserved);
         assert_eq!(
-            reserved
-                .finish()
-                .unwrap()
-                .eval_ring_linear_forms_for_real_z_blocks(&weights, rows, &witnesses),
+            reserved.eval_ring_linear_forms_for_real_z_blocks(&weights, rows, &witnesses),
             wanted
         );
     }

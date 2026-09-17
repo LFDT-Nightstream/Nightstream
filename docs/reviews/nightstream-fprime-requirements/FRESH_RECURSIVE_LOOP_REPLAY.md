@@ -91,7 +91,7 @@ These measurements are on the same Linux host, with subagents idle:
   and 45 zero tail coefficients passed. Block 10 used 434.84 seconds.
 - Eight row-check rejection cases passed, including changed public/private
   values, malformed encodings, nonzero tail and existing output.
-- The source projection and coordinator checks passed 22 contract tests.
+- The source projection and coordinator checks passed 23 contract tests.
   The graph suite has 86 passing tests, including owner-authorized deadline removal. Exact target closure and
   allowed-axiom checks passed.
 
@@ -109,3 +109,11 @@ checkpoints retain their original commands, deadlines and byte identities. One
 producer completed while its active Bash wrapper was edited; the wrapper then
 failed with exit 127. That attempt is retained separately and is regenerated
 under the new source pin. It is not counted as a passed checkpoint.
+
+When deadlines are disabled, the coordinator gives all original C matrix
+requests to one existing multi-range invocation, and all D matrix requests
+to another. This preserves request order, ranges and output files while
+removing 11 C and 38 D repeated source loads per fold. Both executables already
+process these requests sequentially and release range-local working data.
+Arithmetic code and the complete Lean–Rust byte comparisons are unchanged.
+The scheduling test checks that the complete request/output sequences match.

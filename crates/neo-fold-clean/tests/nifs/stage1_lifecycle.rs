@@ -2,7 +2,7 @@
 
 use std::{
     fs,
-    io::BufWriter,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -475,7 +475,7 @@ fn complete_fixture(fixture: Fixture, digit_directory: &Path, output_directory: 
     assert_eq!(json!(packet.output_digest()), fixture.expected[4][1]);
     assert_eq!(json!(packet.next_public_input()), fixture.expected[4][2]);
     check_next_metadata(&packet, &fixture.proof);
-    drop((encoded, expected_private, expected_public));
+    drop((expected_private, expected_public));
     let expected_running = packet.next_running().clone();
     let expected_state = packet.next_state();
     let digits = (0..16)
@@ -600,15 +600,29 @@ fn complete_fixture(fixture: Fixture, digit_directory: &Path, output_directory: 
         started.elapsed()
     );
 
-    // Independent input is the Lean caller packet, not the native constructor.
-    let private: Vec<u64> = serde_json::from_value(fixture.expected[2].clone()).unwrap();
-    let public: Vec<u64> = serde_json::from_value(fixture.expected[3].clone()).unwrap();
-    let physical = fixture.loaded.execute_witness(&private, &public).unwrap();
+    // Execute the Rust-derived caller inputs; Lean's packet was only compared above.
+    let physical = fixture
+        .loaded
+        .execute_witness(encoded.private_values(), encoded.public_values())
+        .unwrap();
+    drop(encoded);
     let logical = fixture
         .loaded
         .execute_logical_assignment(&physical)
         .unwrap();
-    drop(physical);
+    fs::create_dir(output_directory).unwrap();
+    let mut physical_output = BufWriter::new(fs::File::create(output_directory.join("physical.bin")).unwrap());
+    for word in physical
+        .private_values()
+        .iter()
+        .copied()
+        .chain(std::iter::once(1))
+        .chain(physical.public_values().iter().copied())
+    {
+        physical_output.write_all(&word.to_le_bytes()).unwrap();
+    }
+    physical_output.flush().unwrap();
+    drop((physical_output, physical));
     let fresh = envelope.fresh().unwrap();
     assert!(fresh.witness.w.is_empty());
     assert!(fresh.claim.adv.is_none());
@@ -653,7 +667,6 @@ fn complete_fixture(fixture: Fixture, digit_directory: &Path, output_directory: 
         );
     }
 
-    fs::create_dir(output_directory).unwrap();
     serde_json::to_writer(
         BufWriter::new(fs::File::create(output_directory.join("fresh-witness.json")).unwrap()),
         &fresh.witness.Z,

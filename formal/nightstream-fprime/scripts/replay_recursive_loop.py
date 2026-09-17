@@ -438,9 +438,12 @@ class Replay:
         successor = self.out("native-successor")
         self.rust("native-successor", "complete-later-envelope", self.native_sources,
                   self.out("native-nifs"), caller, self.out("native-material"), successor,
-                  outputs=[successor / "envelope.json", successor / "fresh-claim.json", successor / "fresh-witness.json"])
+                  outputs=[successor / "envelope.json", successor / "fresh-claim.json",
+                           successor / "fresh-witness.json", successor / "physical.bin"])
         physical = self.out("physical.bin")
         self.lean("physical", "replayPhysicalWitness", caller, physical, outputs=[physical])
+        self.run("physical-witness-bytes", "static", REPO,
+                 ["cmp", physical, successor / "physical.bin"])
         assignment = self.out("fresh-assignment")
         self.lean("assignment", "replayFreshAssignment", physical, assignment, 0, 30, outputs=[assignment])
         self.python("assignment-comparison", "tests/check_fresh_assignment_bytes.py",

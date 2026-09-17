@@ -22,6 +22,7 @@ class RunnerTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.runner = loop.Replay.__new__(loop.Replay)
         self.runner.no_timeout = False
+        self.enterContext(patch.dict(loop.os.environ, {"LEAN_SYSROOT": ""}))
         self.runner.root = self.root
         self.runner.directory = self.root / "step-2-to-3"
         self.runner.logs = self.runner.directory / "logs"
@@ -163,6 +164,28 @@ class RunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "producer sources changed"):
                     loop.pin_sources(self.root)
                 changed.write_text(old)
+
+    def test_selected_runtime_bytes_are_pinned(self):
+        (self.root / "original-sources").mkdir()
+        (self.root / "original-package.json").write_text("package")
+        runtime = self.root / "runtime"
+        files = [runtime / name for name in
+                 ("bin/lean", "lib/lean/libleanshared.so", "lib/lean/libleanrt.a")]
+        for path in files:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("original")
+        with patch.object(loop, "producer_sources", side_effect=lambda: {"source": "unchanged"}), \
+                patch.object(loop.subprocess, "check_output", return_value="source-commit"), \
+                patch.dict(loop.os.environ, {"LEAN_SYSROOT": str(runtime)}):
+            loop.pin_sources(self.root)
+            for path in files:
+                path.write_text("modified")
+                with self.assertRaisesRegex(ValueError, "producer sources changed"):
+                    loop.pin_sources(self.root)
+                path.write_text("original")
+            with patch.dict(loop.os.environ, {"LEAN_SYSROOT": ""}):
+                with self.assertRaisesRegex(ValueError, "producer sources changed"):
+                    loop.pin_sources(self.root)
 
     def test_extra_prefix_directory_changes_identity(self):
         output = self.root / "prefix"

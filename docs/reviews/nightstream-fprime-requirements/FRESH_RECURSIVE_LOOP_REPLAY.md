@@ -59,6 +59,8 @@ successor, never substituted from an old result.
 From the repository root:
 
 ```sh
+export LEAN_SYSROOT=/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/lean-4.30.0-runtime-14f2fed9c9
+export PATH="$LEAN_SYSROOT/bin:$PATH"
 python3 -B formal/nightstream-fprime/scripts/replay_recursive_loop.py \
   /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll \
   2 all --no-timeout
@@ -91,7 +93,7 @@ These measurements are on the same Linux host, with subagents idle:
   and 45 zero tail coefficients passed. Block 10 used 434.84 seconds.
 - Eight row-check rejection cases passed, including changed public/private
   values, malformed encodings, nonzero tail and existing output.
-- The source projection and coordinator checks passed 23 contract tests.
+- The source projection and coordinator checks passed 24 contract tests.
   The graph suite has 86 passing tests, including owner-authorized deadline removal. Exact target closure and
   allowed-axiom checks passed.
 
@@ -117,3 +119,18 @@ removing 11 C and 38 D repeated source loads per fold. Both executables already
 process these requests sequentially and release range-local working data.
 Arithmetic code and the complete Lean–Rust byte comparisons are unchanged.
 The scheduling test checks that the complete request/output sequences match.
+
+The Linux runtime uses the existing fork commit
+`14f2fed9c9782048e896c924f424624585acd772`. Only `mpz.cpp.o` in a separate
+copy of the official Lean 4.30.0 `libleanrt.a` changes. All other archive
+members match byte for byte; the compiler and proof checker are unchanged.
+The build recipe, compiler/header identities and native conversion tests are
+retained in the run directory. The coordinator also pins the selected runtime
+archive, compiler and shared library, so a later runtime change fails resume.
+
+A matched production-source matrix-prefix range `1518288..1534672` used all
+16 workers, with all subagents idle. Command time fell from 52.85 to 47.43
+seconds; compute time fell from 32.483 to 27.717 seconds. Peak RSS was
+2,461,264 and 2,456,944 KiB. All 33 files, totaling 898,651 bytes, match exactly.
+This is one range measurement, not a complete-loop speedup. The complete
+new-loop comparisons and final verification remain required.

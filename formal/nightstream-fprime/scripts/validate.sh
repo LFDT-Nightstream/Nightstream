@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bounded validation. Every Lean invocation runs under the 1500 s hard cap.
+# Validation defaults to the project cap; an owner-authorized zero disables it.
 #   validate.sh static            boundary checks only (no Lean)
 #   validate.sh build [target]    lake build (default: the two libraries)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
@@ -54,8 +54,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 CAP="${LEAN_TIMEOUT_SECONDS:-1500}"
-if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 1 || CAP > 1500 )); then
-  echo "LEAN_TIMEOUT_SECONDS must be between 1 and 1500" >&2; exit 2
+if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 0 || CAP > 1500 )); then
+  echo "LEAN_TIMEOUT_SECONDS must be 0 (owner-authorized no timeout) or between 1 and 1500" >&2; exit 2
 fi
 LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-$(getconf _NPROCESSORS_ONLN)}"
 if [[ ! "$LEAN_NUM_THREADS" =~ ^[0-9]+$ ]] || (( LEAN_NUM_THREADS < 1 )); then
@@ -65,12 +65,21 @@ export LEAN_NUM_THREADS
 echo "[parallel] LEAN_NUM_THREADS=${LEAN_NUM_THREADS}"
 
 capped() {
-  echo "[bounded ${CAP}s] $*"
   local start=$SECONDS
-  # -k kills hard 10 s after the cap; exit 124 marks a timeout.
-  timeout -k 10 "$CAP" "$@"
+  if (( CAP == 0 )); then
+    echo "[no timeout] $*"
+    "$@"
+  else
+    echo "[bounded ${CAP}s] $*"
+    # -k kills hard 10 s after the cap; exit 124 marks a timeout.
+    timeout -k 10 "$CAP" "$@"
+  fi
   local rc=$?
-  echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
+  if (( CAP == 0 )); then
+    echo "[no timeout] exit=$rc elapsed=$((SECONDS - start))s"
+  else
+    echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
+  fi
   if (( rc == 124 )); then echo "[bounded] TIMEOUT is a failed gate" >&2; fi
   return $rc
 }

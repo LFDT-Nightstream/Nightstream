@@ -7,6 +7,7 @@ The successful production run and original-source provenance are separate.
 
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -70,7 +71,7 @@ def main():
                    "from-replay", *package, *map(str, selected), *output_arguments]
         # Project rejection-test cap. The caller supplies the outer graph guard;
         # this child uses validate.sh directly and starts no nested graph guard.
-        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
+        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
         log = result.stdout + result.stderr
         (case / "run.log").write_bytes(log)
         for path, content in before.items():

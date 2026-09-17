@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run an ordinary development command under the shared build lock and cap."""
+"""Run an ordinary development command under the shared build lock and optional deadline."""
 
 from __future__ import annotations
 
@@ -56,17 +56,17 @@ def check_build_processes():
         raise EvidenceError("an unmanaged Lean or Rust process is active: " + "; ".join(found))
 
 
-def run(command, kind, cwd):
+def run(command, kind, cwd, no_timeout=False):
     if not command or kind not in CAPS:
         raise EvidenceError("a command and its kind are required")
     if kind == "lean" and command[:2] != ["bash", "scripts/validate.sh"]:
         raise EvidenceError("Lean commands must use scripts/validate.sh")
     if kind == "rust" and (command[0] != "cargo" or "--release" not in command):
         raise EvidenceError("Rust commands must use Cargo in release mode")
-    cap = CAPS[kind]
+    cap = None if no_timeout else CAPS[kind]
     environment = dict(os.environ, RUSTC_WRAPPER="")
-    if kind == "lean":
-        environment["LEAN_TIMEOUT_SECONDS"] = str(cap)
+    if kind == "lean" or no_timeout:
+        environment["LEAN_TIMEOUT_SECONDS"] = "0" if no_timeout else str(cap)
     with build_lock():
         check_build_processes()
         started = time.monotonic()
@@ -103,11 +103,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kind", choices=CAPS, required=True)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument("--no-timeout", action="store_true",
+                        help="disable invocation deadlines when explicitly authorized by the owner")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     try:
-        result = run(command, args.kind, args.cwd.resolve())
+        result = run(command, args.kind, args.cwd.resolve(), args.no_timeout)
         print(json.dumps(result), file=sys.stderr)
         return result["exit"]
     except (EvidenceError, OSError, subprocess.SubprocessError) as error:

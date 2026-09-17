@@ -21,6 +21,7 @@ class RunnerTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.runner = loop.Replay.__new__(loop.Replay)
+        self.runner.no_timeout = False
         self.runner.root = self.root
         self.runner.directory = self.root / "step-2-to-3"
         self.runner.logs = self.runner.directory / "logs"
@@ -50,6 +51,17 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("--signal=KILL", command)
                 self.assertEqual(command[command.index("--kind") + 1], kind)
                 self.assertEqual(command[command.index("--") + 1:], argv)
+
+    def test_owner_no_timeout_keeps_guard_without_deadline(self):
+        self.runner.no_timeout = True
+        self.runner.run("owner-no-timeout", "lean", self.root,
+                        ["bash", "scripts/validate.sh", "lean-executable", "producer"])
+        command = self.execute.call_args.args[0]
+        self.assertNotIn("timeout", command)
+        self.assertIn("--no-timeout", command)
+        self.assertIn(str(self.root / "scripts/lean_graph/guard.py"), command)
+        saved = loop.read(self.runner.logs / "owner-no-timeout.json")
+        self.assertIsNone(saved["cap_seconds"])
 
     def test_failed_checkpoint_does_not_resume(self):
         output = self.root / "partial.json"
@@ -163,7 +175,7 @@ class RunnerTests(unittest.TestCase):
     def test_full_loop_completes_both_successors_before_terminal(self):
         events = []
         class RecordedReplay:
-            def __init__(self, root, iteration):
+            def __init__(self, root, iteration, no_timeout=False):
                 self.iteration = iteration
             def __getattr__(self, name):
                 return lambda: events.append((self.iteration, name))

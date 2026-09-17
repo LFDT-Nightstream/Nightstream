@@ -7,6 +7,7 @@ This check does not run a successful finish or claim source-bridge coverage.
 
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -71,7 +72,7 @@ def main():
                    *output_arguments, *map(str, selected_rounds)]
         # Match the existing rejection-test cap. The caller also applies the
         # project test guard; no nested graph guard is started here.
-        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
+        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
         log = result.stdout + result.stderr
         (case / "run.log").write_bytes(log)
         # Check the files before the error text so partial output is always reported.

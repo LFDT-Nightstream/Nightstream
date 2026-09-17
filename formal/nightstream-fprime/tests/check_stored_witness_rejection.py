@@ -5,6 +5,7 @@ Run from the repository root under the native graph guard.
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -35,7 +36,7 @@ def main():
         result = subprocess.run(
             ["bash", "scripts/validate.sh", "lean-executable",
              str(formal / ".lake/build/bin" / executable), *map(str, arguments)],
-            cwd=formal, capture_output=True, timeout=300)
+            cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
         log = result.stdout + result.stderr
         (directory / (name + ".log")).write_bytes(log)
         require(result.returncode != 0, name + ": malformed input accepted")

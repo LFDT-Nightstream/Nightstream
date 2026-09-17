@@ -1,3 +1,5 @@
+import tests.RecursiveLoopEvidence
+import tests.CheckedReplayEvidence
 import tests.FreshWitnessEvidence
 import tests.EvidenceTargets
 
@@ -36,3 +38,7 @@ Candidate declarations cannot omit these invocations from an acceptance run.
 #evidence_closed LeanGraph.Targets.FreshWitnessKernels by LeanGraph.Targets.freshWitnessKernels
 
 #evidence_closed LeanGraph.Targets.PiCCSAllRoundSourceCoefficients by LeanGraph.Targets.piCCSAllRoundSourceCoefficients
+
+#evidence_closed LeanGraph.Targets.CheckedReplayNifsResult by LeanGraph.Targets.checkedReplayNifsResult
+
+#evidence_closed LeanGraph.Targets.CheckedRecursiveReplay by LeanGraph.Targets.checkedRecursiveReplay

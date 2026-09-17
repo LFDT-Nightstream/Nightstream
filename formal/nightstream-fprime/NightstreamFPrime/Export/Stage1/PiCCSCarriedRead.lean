@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis
+import NightstreamFPrime.Export.Stage1.PiCCSNativeDot
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
 /-! Aggregate original running sources and Phi81 output weights before a

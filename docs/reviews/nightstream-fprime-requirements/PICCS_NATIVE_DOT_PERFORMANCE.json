@@ -1,0 +1,302 @@
+{
+  "scope": {
+    "source_commit": "dfa4589de51483eb594937dbb07152459bbce0c1",
+    "target": "PiCCSWeightedBasis.dotK",
+    "criterion": "same production source and challenge; complete output bytes equal; measured wall time and peak RSS",
+    "runtime_commit": "14f2fed9c9782048e896c924f424624585acd772",
+    "selected_range": [
+      1518288,
+      1534672
+    ],
+    "range_authority": "Previously measured production-input runtime-prefix range; same range for baseline and candidate",
+    "evidence_scope": "Optimization range only; does not close the full recursive loop",
+    "full_recursive_loop": "in progress; no whole-loop speedup or completion claim"
+  },
+  "before": {
+    "command_seconds": 48.239492481108755,
+    "compute_seconds": 28.241896175,
+    "peak_rss_kib": 2455360,
+    "guard_command": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 48.239492481108755,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/baseline-replayPiCCSFirstRound",
+        "carried-matrix-prefix",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/public.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/sources.jsonl",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/rounds/round-0.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/before",
+        "1518288",
+        "1534672"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only"
+    }
+  },
+  "after": {
+    "command_seconds": 30.909094574162737,
+    "compute_seconds": 10.46329966,
+    "peak_rss_kib": 2458456,
+    "guard_command": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 30.909094574162737,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        ".lake/build/bin/replayPiCCSFirstRound",
+        "carried-matrix-prefix",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/public.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/sources/sources.jsonl",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/step-2-to-3/rounds/round-0.json",
+        "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/after",
+        "1518288",
+        "1534672"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only"
+    }
+  },
+  "elapsed_reduction_percent": 35.925746759738075,
+  "compute_reduction_percent": 62.95114324065034,
+  "byte_comparison": "Every complete file byte matched; comparison reads the actual bytes, not digest equality.",
+  "files": [
+    {
+      "path": "1518288-1518800.jsonl",
+      "bytes": 28240,
+      "sha256": "f6d1255eaf1dd08991a70c734eadb45c5c01a3cdd602636b62c656d93c00880b"
+    },
+    {
+      "path": "1518800-1519312.jsonl",
+      "bytes": 28240,
+      "sha256": "af2ed01c17a2536c9b319471da4577f9332cf23468a1616b3c77e2bc9d6299df"
+    },
+    {
+      "path": "1519312-1519824.jsonl",
+      "bytes": 28240,
+      "sha256": "e0b8f51e4efe4c462a52795c14ded841c87956ab9b3a46f680f5c2a8083b0e30"
+    },
+    {
+      "path": "1519824-1520336.jsonl",
+      "bytes": 28240,
+      "sha256": "9f7de67279ab28a532523ebfcf60a7c00662d052941dbbd6694c4e448f57ddfd"
+    },
+    {
+      "path": "1520336-1520848.jsonl",
+      "bytes": 28240,
+      "sha256": "525c7e9497d595fe9fa7942f7b70d591137966da1f1aa5336959e92cdc6de9ea"
+    },
+    {
+      "path": "1520848-1521360.jsonl",
+      "bytes": 28240,
+      "sha256": "f280c2dcac72c6343bf88370f8c73f850771f1828ed42dabb2958ff782a8e990"
+    },
+    {
+      "path": "1521360-1521872.jsonl",
+      "bytes": 28240,
+      "sha256": "240fc0359277e42e898f766e082ea288da6d4910d6a0941d068019ea0b445610"
+    },
+    {
+      "path": "1521872-1522384.jsonl",
+      "bytes": 28240,
+      "sha256": "eff2538c4ca027cc21fb212f96f8f4a3dd6779267205ac030d56b1cbfd9a5a97"
+    },
+    {
+      "path": "1522384-1522896.jsonl",
+      "bytes": 28240,
+      "sha256": "6ff6e85c6dc72acb872b7f8ba9186ce91f3f34d2000ed52a1addfa344143b2bb"
+    },
+    {
+      "path": "1522896-1523408.jsonl",
+      "bytes": 28240,
+      "sha256": "a3f22b507b06058adac3aea9a4860a3d346abc406dbe3a70de0413d472848c37"
+    },
+    {
+      "path": "1523408-1523920.jsonl",
+      "bytes": 28240,
+      "sha256": "df983b99dd74f1d897798f1c59c8fbd8aa2b5849c782b5d7496d28ec0096af1f"
+    },
+    {
+      "path": "1523920-1524432.jsonl",
+      "bytes": 28240,
+      "sha256": "5fa78af4d4d84d746345f07b0aea709b311a5eea748d1fdc1084d836b4242256"
+    },
+    {
+      "path": "1524432-1524944.jsonl",
+      "bytes": 28240,
+      "sha256": "c8ea05c33bc8e898063de41a04d49c968b46f918777b7f534c1835f2a2a12204"
+    },
+    {
+      "path": "1524944-1525456.jsonl",
+      "bytes": 28240,
+      "sha256": "349a1b6e5dbe8a9d9b932675e0a2177e6fa2e4b62142ae332a9ce9991f78a000"
+    },
+    {
+      "path": "1525456-1525968.jsonl",
+      "bytes": 28224,
+      "sha256": "316b59eacb9e3148eddd3885fee014737c424dce657b9da4fa7601f0ff963507"
+    },
+    {
+      "path": "1525968-1526480.jsonl",
+      "bytes": 27935,
+      "sha256": "e58d1f58dd63a5b2c1a269107711c08c93865e51b25fb0c9fdd0f6d45585a446"
+    },
+    {
+      "path": "1526480-1526992.jsonl",
+      "bytes": 27938,
+      "sha256": "8bfaa805a07c2849191ed5533eb720176090dab5e66f78bc55ba483f9439ad1f"
+    },
+    {
+      "path": "1526992-1527504.jsonl",
+      "bytes": 27936,
+      "sha256": "6d54e2a01063f8e226a4a6ed5520595cb953bea803e7891268ff5004395c9a49"
+    },
+    {
+      "path": "1527504-1528016.jsonl",
+      "bytes": 27937,
+      "sha256": "e9e21cde290d9c555182ddf021500abe0335f31f9a23d022d413b7102ee2a7e6"
+    },
+    {
+      "path": "1528016-1528528.jsonl",
+      "bytes": 27938,
+      "sha256": "59940294d3cfb10a3418bca26713c1ebe7bffa17445623db1cc0cba9609952ab"
+    },
+    {
+      "path": "1528528-1529040.jsonl",
+      "bytes": 27930,
+      "sha256": "6133fa034e5fd62474e6a9e35067c2fc3dff9e062e41be974a2df81d2d841e33"
+    },
+    {
+      "path": "1529040-1529552.jsonl",
+      "bytes": 27930,
+      "sha256": "b162c1fc1162ed6afb8d97d734de5874ea4a957c02c9b9e8c98278eedaafa19b"
+    },
+    {
+      "path": "1529552-1530064.jsonl",
+      "bytes": 27945,
+      "sha256": "728ac357ef0a163859e0f81f425178eae0ed3f36124fc513fa63d373ebdd4cc5"
+    },
+    {
+      "path": "1530064-1530576.jsonl",
+      "bytes": 27938,
+      "sha256": "ed153862d6c7a322959857b9434688685542636677c0d249a734bcb937d30069"
+    },
+    {
+      "path": "1530576-1531088.jsonl",
+      "bytes": 27939,
+      "sha256": "a573bcd686c5d3208e0d40d66306cdbc8020bd4768e603796d66f445981deb07"
+    },
+    {
+      "path": "1531088-1531600.jsonl",
+      "bytes": 27936,
+      "sha256": "5a95c1a119d2a6e7f30eb6ab6d63331efb81c4f609393748ced4798b578cc7ce"
+    },
+    {
+      "path": "1531600-1532112.jsonl",
+      "bytes": 27940,
+      "sha256": "0ee27e3f7d00c7e61c8ff5f9faf7b71378e4a8ead6a619aa3bead3058efc6cb4"
+    },
+    {
+      "path": "1532112-1532624.jsonl",
+      "bytes": 27932,
+      "sha256": "1af1438bc6cfe1f853312bef47c6cce371e2a38eaccc284ad7f4770611f2c547"
+    },
+    {
+      "path": "1532624-1533136.jsonl",
+      "bytes": 27938,
+      "sha256": "3ef0532dcf474a415f5c0d2ed20f0f2bdc6ab94408e2bcf44a9cd4ccc6f6e3e6"
+    },
+    {
+      "path": "1533136-1533648.jsonl",
+      "bytes": 27936,
+      "sha256": "462c23a960262b09c8de3a2b90dc01cc6dd745b728e48b64035b25de1ef06e89"
+    },
+    {
+      "path": "1533648-1534160.jsonl",
+      "bytes": 27926,
+      "sha256": "6cc52b136fbf5f55e2c3d5f82fdf551ddb081254fed02ace3686f6f68d1af3b4"
+    },
+    {
+      "path": "1534160-1534672.jsonl",
+      "bytes": 27942,
+      "sha256": "8f6a193628fac8d3b8ed0732e2b544352d9b4e3986c1bbe8dbb8ec798830cdc7"
+    },
+    {
+      "path": "moments.json",
+      "bytes": 151,
+      "sha256": "2dc22edf51d785eeed9de5632445a2e0f29c6f20c1bed2b5327a2472375a66cc"
+    }
+  ],
+  "negative_check": {
+    "positive_exit": 0,
+    "changed_coefficient_exit": 1,
+    "mismatch_file": "1518288-1518800.jsonl",
+    "mismatch_output": "Files /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/before/1518288-1518800.jsonl and /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/changed-coefficient/1518288-1518800.jsonl differ",
+    "target_only": true
+  },
+  "boundary_check": {
+    "comparisons": 19683,
+    "log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/boundaries-3.log",
+      "bytes": 505,
+      "sha256": "26f971ea6b93419b3d270e92ec0a3610aa04882f48f06c66d71c8d0a59f81ceb"
+    }
+  },
+  "gates": {
+    "static": {
+      "elapsed_seconds": 10.380742918001488,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/static-2.log",
+        "bytes": 472,
+        "sha256": "fbbb1d8ed829bbb710f346f2be461ee8baef2c8877e16e27ab8b320ed3226263"
+      }
+    },
+    "build": {
+      "elapsed_seconds": 1.016613065963611,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/build-2.log",
+        "bytes": 172316,
+        "sha256": "94cc938d4a8b2401f50aaef1968f53f7ec6ee5eacf915e630ebafc63ecefa838"
+      }
+    },
+    "axioms": {
+      "elapsed_seconds": 49.26323014404625,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/axioms.log",
+        "bytes": 1161209,
+        "sha256": "71d463f0d294cac0c7cb378dc0b7f75f6b12f7a404acbd5341122109cddfe783"
+      }
+    },
+    "identity": {
+      "elapsed_seconds": 93.41175260092132,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/piccs-native-dot/identity.log",
+        "bytes": 125965,
+        "sha256": "2e09a65aa3fe40e11ce7ac9499f12823dcf81691195971a0a62b0f0d643e764c"
+      }
+    }
+  },
+  "proof": {
+    "specification": "NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.dotK",
+    "equalities": [
+      "NightstreamFPrime.Export.Stage1.PiCCSNativeDot.dotK_eq_spec",
+      "NightstreamFPrime.Export.Stage1.PiCCSNativeDot.dotK_eq_native"
+    ],
+    "axioms": [
+      "propext",
+      "Quot.sound"
+    ]
+  },
+  "original_input_manifest": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/original-inputs.json",
+    "bytes": 6371,
+    "sha256": "9efe3de50e5162bd37f3004cae852657140da0be1eb6c2419cc2e2954f4a52b9"
+  }
+}

@@ -427,6 +427,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.prepare_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.evaluateK_eq_coefficients
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis.dotK_prepare
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNativeDot.dotK_eq_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNativeDot.dotK_eq_native
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.scale_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.combine_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedRead.read_prepare

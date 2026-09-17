@@ -63,6 +63,40 @@ class RunnerTests(unittest.TestCase):
         saved = loop.read(self.runner.logs / "owner-no-timeout.json")
         self.assertIsNone(saved["cap_seconds"])
 
+    def test_no_timeout_reuses_matrix_sources_without_changing_ranges(self):
+        self.runner.public = self.root / "public.json"
+        self.runner.sources = self.root / "sources.jsonl"
+        self.runner.rounds = self.root / "rounds"
+        self.runner.package = self.root / "package.json"
+        original_read = loop.read
+        def input_record(path):
+            if Path(path).name == "manifest.json":
+                return {"outputs": [{"path": str(self.root / "parent-part.jsonl"),
+                                     "start": 74272, "end": loop.BLOCKS}]}
+            return original_read(path)
+        for method, prefix, offset in [("ccs", "c-matrix-batch-", 5),
+                                       ("reductions", "d-matrix-batch-", 4)]:
+            with self.subTest(stage=method):
+                variants = []
+                for no_timeout in (False, True):
+                    self.runner.no_timeout = no_timeout
+                    with patch.object(self.runner, "lean") as lean, \
+                            patch.object(self.runner, "python"), \
+                            patch.object(self.runner, "rust"), \
+                            patch.object(loop, "read", side_effect=input_record):
+                        getattr(self.runner, method)()
+                    variants.append([call for call in lean.call_args_list
+                                     if call.args[0].startswith(prefix)])
+                separate, shared = variants
+                self.assertGreater(len(separate), 1)
+                self.assertEqual(len(shared), 1)
+                def requests(calls):
+                    return [word for call in calls
+                            for word in call.args[offset:call.args.index("--")]]
+                self.assertEqual(requests(shared), requests(separate))
+                self.assertEqual(shared[0].kwargs["outputs"],
+                                 [path for call in separate for path in call.kwargs["outputs"]])
+
     def test_failed_checkpoint_does_not_resume(self):
         output = self.root / "partial.json"
         output.write_text("partial")

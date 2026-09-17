@@ -324,6 +324,9 @@ class Replay:
                    range(34, 37), range(37, 53)]
         if sorted(index for batch in batches for index in batch) != list(range(len(matrix_ranges))):
             raise ValueError("original matrix batch geometry changed")
+        # With no deadline, reuse one source load and retain every request.
+        if self.no_timeout:
+            batches = [tuple(index for batch in batches for index in batch)]
         for batch_index, indices in enumerate(batches):
             requests, outputs = [], []
             for index in indices:
@@ -397,7 +400,10 @@ class Replay:
         # batches, so each original parent is loaded once per measured group.
         for index, record in enumerate(matrix_ranges):
             batches.setdefault(record["log"]["path"], []).append(index)
-        for batch_index, indices in enumerate(batches.values()):
+        groups = list(batches.values())
+        if self.no_timeout:
+            groups = [[index for group in groups for index in group]]
+        for batch_index, indices in enumerate(groups):
             requests, outputs = [], []
             for index in indices:
                 record, output = matrix_ranges[index], matrices[index]

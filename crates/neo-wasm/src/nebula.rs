@@ -173,6 +173,20 @@ impl WasmNebulaProfile {
         }
     }
 
+    /// Caller-chosen memory geometry, program limits and instruction batch.
+    /// Smaller limits shrink the RAM plan, which is sized by the limits rather
+    /// than by the trace, and the batch size sets how many normalized rows one
+    /// application step carries.
+    #[doc(hidden)]
+    pub fn with_schedule(memory: NebulaParams, limits: WasmNebulaLimits, batch_size: usize) -> Self {
+        assert!(batch_size > 0, "WASM Nebula batch size must be nonzero");
+        Self {
+            memory: batched_memory_geometry(memory, batch_size),
+            limits,
+            batch_size,
+        }
+    }
+
     pub fn memory(&self) -> &NebulaParams {
         &self.memory
     }

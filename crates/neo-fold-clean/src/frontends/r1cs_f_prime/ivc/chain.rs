@@ -27,6 +27,7 @@ use crate::paper::f_prime::r1cs::{
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::NifsVCircuitMessages;
+use crate::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim};
 
@@ -104,9 +105,18 @@ impl<'a> R1csIvc<'a> {
     }
 
     pub fn extend(&mut self, assignment: Vec<F>) -> Result<(), R1csIvcError> {
+        self.extend_with_nifs_adapter(&mut OptimizedCpuNifsProver, assignment)
+    }
+
+    /// Extend the same recursive relation with a caller-owned prover backend.
+    pub fn extend_with_nifs_adapter(
+        &mut self,
+        adapter: &mut dyn NifsProverAdapter,
+        assignment: Vec<F>,
+    ) -> Result<(), R1csIvcError> {
         self.prep.app.is_satisfied_by(&assignment)?;
         let semantic = semantic_values(&self.prep.plan, &assignment)?;
-        let prepared = self.prepare_step(semantic.input, semantic.output)?;
+        let prepared = self.prepare_step(adapter, semantic.input, semantic.output)?;
         let instance = self.synthesize_instance(&prepared, &assignment)?;
         self.deposit(prepared, instance)?;
         Ok(())
@@ -130,6 +140,7 @@ impl<'a> R1csIvc<'a> {
 
     fn prepare_step(
         &mut self,
+        adapter: &mut dyn NifsProverAdapter,
         semantic_input: Option<[F; 4]>,
         semantic_output: Option<[F; 4]>,
     ) -> Result<PreparedStep, R1csIvcError> {
@@ -179,14 +190,15 @@ impl<'a> R1csIvc<'a> {
             R1csIvcBranch::Recursive
         };
         let pending = if let Some(output) = semantic_output {
-            crate::lifecycle::prove::extend_with_semantic_state(
+            crate::lifecycle::prove::extend_with_semantic_state_and_nifs_adapter(
                 &self.prep.prep,
+                adapter,
                 audit,
                 vec![placeholder],
                 digest_fields_as_digest32(output),
             )?
         } else {
-            lifecycle::extend(&self.prep.prep, audit, vec![placeholder])?
+            lifecycle::extend_with_nifs_adapter(&self.prep.prep, adapter, audit, vec![placeholder])?
         };
         let nifs = match &pending
             .steps

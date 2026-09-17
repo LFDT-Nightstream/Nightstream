@@ -130,3 +130,49 @@ fn increment_assignment(input: u64) -> Vec<F> {
 fn semantic_digest(value: u64) -> [F; 4] {
     encode_poseidon_trace(&build_semantic_state_preimage_fields(&[F::from_u64(value)])).digest_native
 }
+
+#[test]
+#[ignore = "recursive preprocessing; run explicitly with --release --ignored"]
+fn generic_ivc_uses_the_supplied_nifs_adapter() {
+    use neo_fold_clean::paper::nifs::{Error, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
+
+    #[derive(Default)]
+    struct RejectingAdapter {
+        called: bool,
+    }
+
+    impl NifsProverAdapter for RejectingAdapter {
+        fn prove(&mut self, _request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+            self.called = true;
+            Err(Error::BackendFailure {
+                backend: "test",
+                phase: "dispatch",
+                reason: "adapter reached".into(),
+            })
+        }
+    }
+
+    let mut app = increment_r1cs();
+    app.m_in = 1;
+    let initial = encode_poseidon_trace(&build_semantic_state_preimage_fields(&[F::ONE, F::ONE])).digest_native;
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        app.m(),
+        app.m_in,
+        vec![0, 1],
+        vec![0, 2],
+        Some(digest_fields_as_digest32(initial)),
+    );
+    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C009)
+        .expect("compile adapter dispatch fixture");
+    let mut adapter = RejectingAdapter::default();
+    let mut chain = R1csIvc::new(&prep);
+    chain
+        .extend_with_nifs_adapter(&mut adapter, increment_assignment(1))
+        .expect("base step does not fold");
+    assert!(!adapter.called);
+    let error = chain
+        .extend_with_nifs_adapter(&mut adapter, increment_assignment(2))
+        .expect_err("recursive step must use the supplied adapter");
+    assert!(adapter.called);
+    assert!(error.to_string().contains("adapter reached"), "{error}");
+}

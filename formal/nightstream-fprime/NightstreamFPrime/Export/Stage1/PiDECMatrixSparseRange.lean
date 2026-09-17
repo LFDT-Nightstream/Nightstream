@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
+import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
 /-!
 Evaluate a contiguous vector of existing sparse matrix rows. Each row and
@@ -40,7 +41,8 @@ private theorem ofFn_get {Alpha : Type} {size : Nat}
         let form := match meaningfulPort? port with
           | some meaningful => selected meaningful
           | none => SparseForm.empty
-        Vector.ofFn fun output => form.evalSparse (read output)
+        Vector.ofFn fun output =>
+          PiDECNativeSparseEvaluation.nativeEvalSparse form (read output)
     else Vector.replicate matrixCount (Vector.replicate ringDegree 0)
   else Vector.replicate matrixCount (Vector.replicate ringDegree 0)
 
@@ -57,7 +59,7 @@ private theorem row_value {columns count : Nat} (firstRow : Nat)
   have lower : firstRow ≤ firstRow + index := by omega
   rw [row, if_pos lower, Nat.add_sub_cancel_left]
   by_cases live : index < count
-  · simp only [dif_pos live, ofFn_get]
+  · simp only [dif_pos live, ofFn_get, PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec]
   · rw [dif_neg live, dif_neg live]
     change ((Vector.replicate matrixCount
       (Vector.replicate ringDegree (0 : F)))[port.val])[output.val] = 0

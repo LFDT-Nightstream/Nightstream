@@ -175,3 +175,14 @@ existing closure tests pass. `LEAN_REPLAY_PERFORMANCE.md` and
 Resume preserves the completed stage outputs, checks their saved identities,
 archives obsolete build receipts, and records the native-dot and runtime
 source transition. Each new command uses the current project execution caps.
+
+The subsequent PiDEC sparse replay change is recorded in
+`PIDEC_NATIVE_SPARSE_PERFORMANCE.md`. Native field accumulation has a generic
+equality theorem. Constructing the same parent reader before evaluator
+specialization removes repeated closure calls from the generated sparse loop.
+Two measured sparse ranges take 9.18 seconds after loading versus 29.88 seconds;
+all bytes match, including a separate complete Poseidon invocation. Parent
+loading remains a separate cost. The fresh run has completed the third-round
+components and next-prefix generation; its next pending check is
+`norm-after3-bytes`. Completed outputs remain in place across the recorded
+source transition.

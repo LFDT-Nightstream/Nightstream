@@ -82,3 +82,67 @@ The sibling `pirlc-generated-fixtures-f721ae23-p60zobnw` directory records how
 the accepted public fixture was obtained from the repository evidence archive.
 Every Lean command used the repository's 1,500-second cap; native test commands
 used its 300-second cap. All builds and tests used one queue.
+
+## Linux runtime checkpoint — 2026-09-17
+
+Lean fork commit `a6f47234088e5b35c7a5b1b336db6372f797d998`, on
+`nico/lean-performance`, adds a direct call for persistent unary closures.
+Such a closure has no captured arguments and its reference-count decrement
+is a no-op. The generic dispatcher remains unchanged in a separate function.
+The Lean generator and generated C++ are updated together. No arithmetic,
+protocol or package definition changes.
+
+The measured Nightstream source is `27c08b1d`. The host is the Linux
+Ryzen 7 7700X with 16 workers. Both variants use the same generated Lean
+objects, compiler flags and inputs; only `apply.cpp.o` differs between their
+runtime archives. The native compiler and proof checker are unchanged.
+
+| Workload | Baseline | Candidate | Result |
+| --- | ---: | ---: | --- |
+| Complete round-three fresh-polynomial contribution | 27.0279 s | 26.0633 s | 3.6% less time |
+| Same contribution, reverse measurement order | 26.7589 s | 26.2502 s | 1.9% less time |
+| Matrix prefix `1518288..1534672`, complete command | 30.7131 s | 30.1214 s | Loading time varies |
+| Same matrix prefix, computation only | 10.4418 s | 10.4802 s | Effectively unchanged |
+
+Peak RSS for the fresh-polynomial runs was 392,784–395,376 KiB. There is no
+claimed memory reduction or complete-loop speedup. The fresh-polynomial
+input covers all 398,598 pairs in that round, from existing production-derived
+prefixes. It is performance evidence, not a replacement for fresh-loop output.
+
+Validation passed:
+
+- Direct comparison of all 571 fresh-polynomial output bytes and all 33
+  matrix-prefix files, totaling 898,651 bytes.
+- Direct comparison of all 128,098,921 package bytes and all 1,599 canonical
+  binding bytes. Structural, package and verifier-key pins match Rust.
+- A new runtime ownership test covers persistent, exclusive, shared and
+  multithreaded closures, captured and partial applications, and erased proofs.
+  All nine existing closure regression programs also match their expected bytes.
+- The source generator reproduces the checked-in C++.
+
+The selected runtime is a static-library overlay. Relative to the installed
+Lean 4.30.0 archive, three members differ: the existing fork's `mpz.cpp.o`,
+an unchanged-source rebuild of `object.cpp.o`, and the new `apply.cpp.o`.
+All other archive members were compared directly. The compiler executable
+and shared library remain the original installed files. This validates the
+selected native replay runtime; it is not a complete bootstrap test of Lean.
+
+The earlier GMP move/copy trials reduced allocation counts without reducing
+the measured replay time. They were removed from the fork. Their patches,
+tests and measurements remain outside Git. A unary fast path inside the
+generic function also gave no measured gain; separating its call frame is
+the retained change.
+
+`LEAN_RUNTIME_APPLY_PERFORMANCE.json` records commands, output identities,
+measurements, archive membership checks and the validation logs. Raw evidence
+is retained under
+`nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/runtime-persistent-apply/`.
+SHA-256 values record custody; exact comparisons check the output bytes.
+The fork's ownership test runs from `tests/misc_dir/persistent_apply` with
+`bash run_test.sh`, using the selected Lean toolchain on `PATH`.
+
+This runtime change is separate from the larger, proved native dot-product
+improvement recorded in `PICCS_NATIVE_DOT_PERFORMANCE.md`. Completed fresh-loop
+outputs remain valid evidence through the recorded source transition. The
+full recursive loop remains open until its later comparisons and terminal
+verification pass.

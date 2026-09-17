@@ -596,7 +596,23 @@ and the source-adapter/coordinator contract tests. Exact source, evaluation,
 returned-block, carrier and ABI custody remain explicit in the target. Neither a
 receipt digest nor an old comparison artifact supplies those semantic values.
 
-Full two-fold execution evidence is pending. The owner removed time limits
-for this goal on 2026-09-17. The current replay uses `--no-timeout` and retains
-the existing guard and single command queue. The graph gates do not launch the multi-hour coordinator
-as one command and do not record a successful production replay from unit tests.
+Full two-fold execution evidence is pending. The active owner goal is to finish
+both fresh successors, feed the exact first result into the second fold, and
+run terminal acceptance and rejection checks on iteration 4. Complete independent
+Lean/Rust outputs, checked composition with its explicit premises, and retrievable
+pinned evidence are required. The narrower staged result remains separate.
+
+The native dot-product equality and Lean fork `a6f4723408` are measured
+optimizations already in the run. Keep the protocol, constraints, package and
+all output bytes fixed. If measured work is slow, address the specific cost
+before extending that work: prove changed Lean kernels equal to their existing
+specifications, compare complete baseline/candidate outputs, and record time
+and memory. Do not turn a timing example into a target or security parameter.
+
+The current replay uses the project caps (1,500 seconds per Lean invocation,
+300 seconds per native test), the existing guard and one command queue.
+Earlier deadline-free receipts retain their original scope. The coordinator
+runs outside the graph lock; graph unit tests do not establish a completed
+production trace. Source transitions preserve and verify completed outputs.
+Reports and identities belong in Git; evidence archives use this repository's
+GitHub release assets. Protected production-backend acceptance stays separate.

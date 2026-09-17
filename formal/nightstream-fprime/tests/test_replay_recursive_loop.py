@@ -242,6 +242,32 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(events, [(2, "build")] + [(iteration, phase) for iteration in (2, 3)
             for phase in ("prepare", "native", "ccs", "reductions", "successor")] + [(3, "terminal")])
 
+    def test_successor_compares_complete_physical_bytes(self):
+        self.runner.native_sources = self.root / "native-sources"
+        self.runner.request = self.root / "next-message-input.json"
+        events = []
+        def record(kind):
+            def called(*args, **kwargs):
+                events.append((kind, args, kwargs))
+            return called
+        with patch.object(self.runner, "lean", side_effect=record("lean")), \
+                patch.object(self.runner, "rust", side_effect=record("rust")), \
+                patch.object(self.runner, "python", side_effect=record("python")), \
+                patch.object(self.runner, "run", side_effect=record("run")), \
+                patch.object(self.runner, "handoff"):
+            self.runner.successor()
+        native = next(event for event in events if event[1][0] == "native-successor")
+        physical = self.runner.out("physical.bin")
+        expected = self.runner.out("native-successor/physical.bin")
+        self.assertIn(expected, native[2]["outputs"])
+        comparison = next(event for event in events if event[1][0] == "physical-witness-bytes")
+        self.assertEqual(comparison[1], ("physical-witness-bytes", "static", self.root,
+                                         ["cmp", physical, expected]))
+        names = [event[1][0] for event in events]
+        self.assertLess(names.index("native-successor"), names.index("physical-witness-bytes"))
+        self.assertLess(names.index("physical"), names.index("physical-witness-bytes"))
+        self.assertLess(names.index("physical-witness-bytes"), names.index("assignment"))
+
     def test_failed_invocation_records_failure(self):
         self.execute.return_value = SimpleNamespace(returncode=7)
         with self.assertRaisesRegex(RuntimeError, "failed: inspect"):

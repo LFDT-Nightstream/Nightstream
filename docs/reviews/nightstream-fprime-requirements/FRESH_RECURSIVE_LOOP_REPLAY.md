@@ -34,6 +34,25 @@ production polynomial. Padding rows are zero by a checked theorem.
 `FreshCommitmentFold.completeRow_value` connects complete block accumulation
 to the semantic commitment of the same carrier.
 
+Each successor command now retains Rust's physical assignment as headerless
+little-endian `u64` words: private values, the constant one, then public values.
+Rust executes its own encoded caller inputs; Lean's caller packet is used only
+for comparison. The coordinator compares this complete file with Lean's
+`physical.bin` before comparing the logical assignment. The runner regression
+fails if the physical output or this comparison is removed. Passing that
+regression does not substitute for the two actual physical comparisons.
+The default release test build, the selected fixture-producer build, and the
+ordered static/build/axiom gates pass for this change. Its before/after
+regression and gate logs are retained in `physical-comparison-handoff/` in
+the run directory. The active run paused after `norm-after2-check`; the next
+command met the held queue before computation. No completed output was removed.
+
+Initial acceptance uses the successful iteration-2 terminal record in
+`NATIVE_TERMINAL_EVIDENCE.zip`. Its manifest and child-witness manifest match
+this run's copied envelope, fresh claim, fresh witness and all 16 children.
+The successful accepted invocation took 267.164 seconds; the separate failed
+311-second attempt supplies no acceptance evidence.
+
 File parsing, task execution, ABI transport and compiler/runtime execution
 remain explicit implementation boundaries. A receipt digest detects changed
 files; it does not establish a protocol value or semantic acceptance.
@@ -59,11 +78,12 @@ successor, never substituted from an old result.
 From the repository root:
 
 ```sh
-export LEAN_SYSROOT=/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/lean-4.30.0-runtime-14f2fed9c9
+export LEAN_SYSROOT=/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/lean-4.30.0-runtime-a6f4723408
 export PATH="$LEAN_SYSROOT/bin:$PATH"
+export LAKE_ARTIFACT_CACHE=false
 python3 -B formal/nightstream-fprime/scripts/replay_recursive_loop.py \
   /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll \
-  2 all --no-timeout
+  2 all
 ```
 
 For a new reproduction directory, copy only the pinned original inputs and
@@ -72,9 +92,11 @@ The coordinator records source and input identities before running. It fails
 on changed or failed checkpoints, missing outputs, changed bytes, or changed
 directory members.
 
-The owner removed all time limits for this goal on 2026-09-17. The current
-run uses `--no-timeout`, including nested Lean rejection checks. The shared
-guard and one-command queue remain in force. The coordinator sequences these
+Earlier receipts include owner-approved deadline-free runs. Current commands
+use the project caps: 1,500 seconds for Lean and 300 seconds for native tests.
+If measured work is too slow, optimize that computation with exact output
+equality before extending it. The shared guard and one-command queue remain
+in force. The coordinator sequences these
 commands outside the graph lock. It builds each Lean executable before the
 measured stages. Individual checkpoints are `build`, `prepare`,
 `native`, `ccs`, `reductions`, `successor` and `terminal`. The `all` command

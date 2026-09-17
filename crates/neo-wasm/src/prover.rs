@@ -4,9 +4,34 @@
 //! only the prover-side choice between CPU, Metal, and CUDA.
 
 use neo_fold_clean::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver};
+use neo_fold_clean::FinalWitnessOpeningBackend;
 
-use crate::nebula::{prove_with_nifs_adapter, WasmNebulaError, WasmNebulaPreprocessing, WasmNebulaProof};
+use crate::ir::WasmStepState;
+use crate::nebula::{
+    prove_with_nifs_adapter, verify, verify_with_witness_opening_backend, WasmNebulaError, WasmNebulaPreprocessing,
+    WasmNebulaProof,
+};
 use crate::WasmVmStep;
+
+/// One owned prover session: a NIFS adapter that may also serve the
+/// verifier's final witness openings on the same accelerator.
+trait ProverSession: NifsProverAdapter {
+    fn final_witness_opening_backend(&mut self) -> Option<&mut dyn FinalWitnessOpeningBackend> {
+        None
+    }
+}
+
+impl ProverSession for OptimizedCpuNifsProver {}
+
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+impl ProverSession for neo_prover_metal::MetalNifsProver {
+    fn final_witness_opening_backend(&mut self) -> Option<&mut dyn FinalWitnessOpeningBackend> {
+        neo_prover_metal::MetalNifsProver::final_witness_opening_backend(self)
+    }
+}
+
+#[cfg(feature = "cuda")]
+impl ProverSession for neo_prover_cuda::CudaNifsProver {}
 
 /// Prover implementation selected for the next proof.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,7 +69,7 @@ impl WasmProverBackend {
 /// ```
 pub struct WasmProver {
     backend: WasmProverBackend,
-    adapter: Box<dyn NifsProverAdapter>,
+    adapter: Box<dyn ProverSession>,
     automatic: bool,
     fallback_reason: Option<String>,
 }
@@ -171,7 +196,24 @@ impl WasmProver {
         result
     }
 
-    fn new(backend: WasmProverBackend, adapter: impl NifsProverAdapter + 'static, automatic: bool) -> Self {
+    /// Verify a proof, computing the final witness openings on this prover's
+    /// accelerator when it offers them; otherwise on the CPU.
+    ///
+    /// The proof format and acceptance are backend-independent; this only
+    /// moves the verifier's largest linear-algebra step onto the same session.
+    pub fn verify(
+        &mut self,
+        prep: &WasmNebulaPreprocessing,
+        proof: &WasmNebulaProof,
+        claimed_final_state: WasmStepState,
+    ) -> Result<(), WasmNebulaError> {
+        match self.adapter.final_witness_opening_backend() {
+            Some(backend) => verify_with_witness_opening_backend(prep, proof, claimed_final_state, backend),
+            None => verify(prep, proof, claimed_final_state),
+        }
+    }
+
+    fn new(backend: WasmProverBackend, adapter: impl ProverSession + 'static, automatic: bool) -> Self {
         Self {
             backend,
             adapter: Box::new(adapter),

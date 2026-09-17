@@ -15,7 +15,6 @@ use neo_fold_clean::paper::nifs::{
     OptimizedNifsProverAdapter,
 };
 use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme, Structure};
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 use neo_fold_clean::FinalWitnessOpeningBackend;
 use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::ring::Rq;
@@ -93,6 +92,21 @@ impl MetalNifsProver {
     /// Wrap this complete Metal selection in an optimized-CPU NIFS crosscheck.
     pub fn crosschecked(self) -> AcceleratorCrosscheckNifsProver<Self> {
         AcceleratorCrosscheckNifsProver::new(self)
+    }
+
+    /// The Metal session as a verifier-side final witness opening backend.
+    ///
+    /// `None` when the Metal shaders are not compiled in; the caller then
+    /// verifies with the canonical CPU openings.
+    pub fn final_witness_opening_backend(&mut self) -> Option<&mut dyn FinalWitnessOpeningBackend> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            Some(self)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            None
+        }
     }
 
     /// Prepare verifier-owned Metal state before the online fold loop.

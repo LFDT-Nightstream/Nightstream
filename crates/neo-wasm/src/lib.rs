@@ -56,7 +56,9 @@ pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec,
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_id::WasmMemoryId;
-pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
+pub use memory_semantics::{
+    preload_from_program_artifacts, preload_host_event_tables, sanity_check_memory_rows, WasmMemoryPreload,
+};
 pub use nebula::{
     preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing, WasmNebulaProfile,
     WasmNebulaProof,

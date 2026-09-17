@@ -8,6 +8,7 @@ Large outputs and command records belong in the supplied external run directory.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -90,6 +91,12 @@ def pin_sources(root):
     sources = producer_sources()
     sources["original-sources"] = identity(root / "original-sources")
     sources["original-package"] = identity(root / "original-package.json")
+    if selected := os.environ.get("LEAN_SYSROOT"):
+        sysroot = Path(selected).resolve(strict=True)
+        sources["selected-lean-runtime"] = {
+            "path": str(sysroot),
+            "files": {name: identity(sysroot / name) for name in
+                      ("bin/lean", "lib/lean/libleanshared.so", "lib/lean/libleanrt.a")}}
     if path.exists():
         if read(path)["files"] != sources:
             raise ValueError("producer sources changed since this fresh run began")

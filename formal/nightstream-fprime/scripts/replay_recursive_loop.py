@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Run one fresh recursive replay checkpoint through the existing bounded queue.
+"""Run one fresh recursive replay checkpoint through the shared command queue.
 
-Each stage is a separate capped invocation. This coordinator is not a verifier:
+Each stage uses the guard; owner authorization can disable its deadline.
+This coordinator is not a verifier:
 the existing Lean/Rust checks remain the authorities for the values they check.
 Large outputs and command records belong in the supplied external run directory.
 """
@@ -98,7 +99,8 @@ def pin_sources(root):
 
 
 class Replay:
-    def __init__(self, root, iteration):
+    def __init__(self, root, iteration, no_timeout=False):
+        self.no_timeout = no_timeout
         self.root = root.resolve(strict=True)
         pin_sources(self.root)
         check_saved_outputs(self.root)
@@ -130,10 +132,15 @@ class Replay:
                 raise ValueError(f"changed or failed checkpoint: {record}")
             check_outputs(saved)
             return
-        cap = 1500 if kind == "lean" else 300  # AGENTS.md, enforced by guard.py too.
-        command = ["/usr/bin/time", "-v", "timeout", "--signal=TERM", f"{cap}s",
-                   "python3", "-B", str(REPO / "scripts/lean_graph/guard.py"),
-                   "--kind", kind, "--cwd", str(cwd), "--", *argv]
+        cap = None if self.no_timeout else (1500 if kind == "lean" else 300)
+        command = ["/usr/bin/time", "-v"]
+        if cap is not None:
+            command += ["timeout", "--signal=TERM", f"{cap}s"]
+        command += ["python3", "-B", str(REPO / "scripts/lean_graph/guard.py"),
+                    "--kind", kind, "--cwd", str(cwd)]
+        if self.no_timeout:
+            command.append("--no-timeout")
+        command += ["--", *argv]
         started = time.time()
         print(json.dumps({"event": "stage_started", "stage": name, "cap_seconds": cap}), flush=True)
         with (self.logs / f"{name}.log").open("x") as log:
@@ -524,6 +531,8 @@ class Replay:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-timeout", action="store_true",
+                        help="disable command deadlines when explicitly authorized by the owner")
     parser.add_argument("root", type=Path)
     parser.add_argument("iteration", type=int, choices=(2, 3))
     parser.add_argument("checkpoint", choices=("build", "prepare", "native", "ccs", "reductions", "successor", "terminal", "all"))
@@ -532,14 +541,14 @@ def main():
         if args.iteration != 2:
             parser.error("the selected complete loop starts at iteration 2")
         for iteration in (2, 3):
-            replay = Replay(args.root, iteration)
+            replay = Replay(args.root, iteration, no_timeout=args.no_timeout)
             if iteration == 2:
                 replay.build()
             for checkpoint in ("prepare", "native", "ccs", "reductions", "successor"):
                 getattr(replay, checkpoint)()
         replay.terminal()
     else:
-        replay = Replay(args.root, args.iteration)
+        replay = Replay(args.root, args.iteration, no_timeout=args.no_timeout)
         getattr(replay, args.checkpoint)()
 
 

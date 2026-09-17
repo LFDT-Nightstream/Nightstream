@@ -61,7 +61,7 @@ From the repository root:
 ```sh
 python3 -B formal/nightstream-fprime/scripts/replay_recursive_loop.py \
   /home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll \
-  2 all
+  2 all --no-timeout
 ```
 
 For a new reproduction directory, copy only the pinned original inputs and
@@ -70,8 +70,9 @@ The coordinator records source and input identities before running. It fails
 on changed or failed checkpoints, missing outputs, changed bytes, or changed
 directory members.
 
-Every child invocation uses the existing guard and caps: 1,500 seconds for
-Lean and 300 seconds for native checks. The coordinator sequences these
+The owner removed all time limits for this goal on 2026-09-17. The current
+run uses `--no-timeout`, including nested Lean rejection checks. The shared
+guard and one-command queue remain in force. The coordinator sequences these
 commands outside the graph lock. It builds each Lean executable before the
 measured stages. Individual checkpoints are `build`, `prepare`,
 `native`, `ccs`, `reductions`, `successor` and `terminal`. The `all` command
@@ -90,8 +91,8 @@ These measurements are on the same Linux host, with subagents idle:
   and 45 zero tail coefficients passed. Block 10 used 434.84 seconds.
 - Eight row-check rejection cases passed, including changed public/private
   values, malformed encodings, nonzero tail and existing output.
-- The source projection and coordinator have 21 passing contract tests.
-  The existing graph suite has 85 passing tests. Exact target closure and
+- The source projection and coordinator checks passed 22 contract tests.
+  The graph suite has 86 passing tests, including owner-authorized deadline removal. Exact target closure and
   allowed-axiom checks passed.
 
 The retained-carrier scan is a preflight, not fresh-loop evidence. Full C/R/D
@@ -101,3 +102,10 @@ terminal acceptance/rejections remain required before this record can close.
 Protected external acceptance remains pending by owner choice. This record
 does not claim a production SNARK backend `prove → verify` run or universal
 proof of the filesystem, compiler or Rust runtime.
+
+The deadline-control change preserves every Lean and Rust arithmetic source.
+The run retains both source pins and an explicit transition record. Completed
+checkpoints retain their original commands, deadlines and byte identities. One
+producer completed while its active Bash wrapper was edited; the wrapper then
+failed with exit 127. That attempt is retained separately and is regenerated
+under the new source pin. It is not counted as a passed checkpoint.

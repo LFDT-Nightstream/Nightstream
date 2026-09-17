@@ -596,7 +596,7 @@ and the source-adapter/coordinator contract tests. Exact source, evaluation,
 returned-block, carrier and ABI custody remain explicit in the target. Neither a
 receipt digest nor an old comparison artifact supplies those semantic values.
 
-Full two-fold execution evidence is pending. Each producer runs outside the graph
-lock through the existing guard, with the existing 1,500-second Lean and
-300-second native caps. The graph gates do not launch the multi-hour coordinator
+Full two-fold execution evidence is pending. The owner removed time limits
+for this goal on 2026-09-17. The current replay uses `--no-timeout` and retains
+the existing guard and single command queue. The graph gates do not launch the multi-hour coordinator
 as one command and do not record a successful production replay from unit tests.

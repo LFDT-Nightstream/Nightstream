@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ def main():
         result = subprocess.run(
             ["bash", "scripts/validate.sh", "lean-executable",
              ".lake/build/bin/checkFreshRows", str(source), str(caller_source), str(output)],
-            cwd=formal, capture_output=True, timeout=300)
+            cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
         log = result.stdout + result.stderr
         (directory / (name + ".log")).write_bytes(log)
         if result.returncode == 0 or reason.encode() not in log:

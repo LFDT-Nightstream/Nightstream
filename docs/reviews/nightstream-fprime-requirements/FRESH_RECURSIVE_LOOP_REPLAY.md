@@ -134,3 +134,11 @@ seconds; compute time fell from 32.483 to 27.717 seconds. Peak RSS was
 2,461,264 and 2,456,944 KiB. All 33 files, totaling 898,651 bytes, match exactly.
 This is one range measurement, not a complete-loop speedup. The complete
 new-loop comparisons and final verification remain required.
+
+The subsequent native dot-product change is recorded in
+`PICCS_NATIVE_DOT_PERFORMANCE.md`. Its equality theorem covers arbitrary
+input vectors. The same production prefix takes 30.91 seconds versus
+48.24 seconds with the saved baseline; all 33 files match byte for byte.
+Static, build, axioms, identity, boundary and changed-coefficient checks pass.
+The fresh replay retains its completed outputs across an explicit source
+transition; this optimization does not close the full-loop record.

@@ -130,9 +130,16 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       let first := blockStart + firstRow
       let finish := blockStart + lastRow
       unless finish ≤ program.rowCount do throw (IO.userError "range exceeds matrix row domain")
+      let readChild := fun (child : Fin productionGlobalParams.k)
+          (output : Fin ringDegree) (column : Fin logicalWidth) =>
+        if live : column.val / ringDegree < Poseidon2HashChainV1Setup.messageColumns then
+          PiDECParentIntRead.sparseRead tables
+            (parents.get ⟨column.val / ringDegree, live⟩)
+            ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
+        else 0
       let loadStarted ← IO.monoNanosNow
       let (unitCount, evaluate) : Nat × (Nat → Nat →
-          (Fin ringDegree → Fin logicalWidth → F) →
+          Fin productionGlobalParams.k →
           Vector MaterializedRingK matrixCount) ← match selectedEq : selected with
         | .poseidon block => do
             unless firstRow % 94 = 0 && lastRow % 94 = 0 do
@@ -149,8 +156,8 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
                   block logicalWidth ⟨firstRow / 94 + index.val, invBound⟩
                 | throw (IO.userError "selected invocation interface rejected")
               pure interface
-            pure (invocations, fun lo hi read =>
-              PiDECMatrixInvocationRange.sum (first + 94 * lo) phase.point read
+            pure (invocations, fun lo hi child =>
+              PiDECMatrixInvocationRange.sum (first + 94 * lo) phase.point (readChild child)
                 (interfaces.extract lo hi))
         | .phi81Product block => do
             if aligned : firstRow % 34 = 0 ∧ lastRow % 34 = 0 then
@@ -171,8 +178,8 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
                     (interfaces.get ⟨index.val / 34, groupBound⟩) (index.val % 34)
                   | throw (IO.userError "selected product row rejected")
                 pure row.meaningfulForm
-              pure (count, fun lo hi read =>
-                PiDECMatrixSparseRange.sum (first + lo) phase.point read
+              pure (count, fun lo hi child =>
+                PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
                   (forms.extract lo hi))
             else throw (IO.userError "Phi81 range must contain complete 34-row invocations")
         | other => do
@@ -183,8 +190,8 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               let some row := other.row? logicalWidth source (firstRow + index.val)
                 | throw (IO.userError "selected sparse row rejected")
               pure row
-            pure (count, fun lo hi read =>
-              PiDECMatrixSparseRange.sum (first + lo) phase.point read
+            pure (count, fun lo hi child =>
+              PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
                 (forms.extract lo hi))
       report ([("event", .str "range_begin"), ("block", Lean.toJson blockIndex),
         ("block_rows", Lean.toJson selected.rowCount),
@@ -206,18 +213,12 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
         unless maximum < 2 ^ child.val do
           let parts := min unitCount (max 1
             (workers / activeCount + if activeRank < workers % activeCount then 1 else 0))
-          let read := fun (output : Fin ringDegree) (column : Fin logicalWidth) =>
-            if live : column.val / ringDegree < Poseidon2HashChainV1Setup.messageColumns then
-              PiDECParentIntRead.sparseRead tables
-                (parents.get ⟨column.val / ringDegree, live⟩)
-                ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
-            else 0
           for slice in [:parts] do
             let lo := unitCount * slice / parts
             let hi := unitCount * (slice + 1) / parts
             childTasks := childTasks.push (← IO.asTask do
               let sliceStarted ← IO.monoNanosNow
-              let values ← IO.wait (Task.spawn fun _ => evaluate lo hi read)
+              let values ← IO.wait (Task.spawn fun _ => evaluate lo hi child)
               let sliceFinished ← IO.monoNanosNow
               return (values, sliceStarted, sliceFinished))
           activeRank := activeRank + 1

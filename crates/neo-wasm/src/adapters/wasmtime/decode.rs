@@ -73,7 +73,8 @@ pub(crate) enum ControlFrameKind {
 pub(crate) struct ControlFrame {
     pub(crate) kind: ControlFrameKind,
     pub(crate) branch_target: Option<u64>,
-    pub(crate) pending_to_end: Vec<u64>,
+    /// Deferred (source PC, branch choice) edges to the end of this frame.
+    pub(crate) pending_to_end: Vec<(u64, u64)>,
     pub(crate) pending_if_false: Option<u64>,
 }
 

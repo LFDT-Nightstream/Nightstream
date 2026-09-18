@@ -642,15 +642,15 @@ impl ParsedWasmArtifactsBuilder {
                             if let Some(if_pc) = frame.pending_if_false.take() {
                                 self.push_pc_rom_edge(if_pc, 0, pc_after);
                             }
-                            frame.pending_to_end.push(pc_before);
+                            frame.pending_to_end.push((pc_before, 0));
                         }
                         wasmparser::Operator::End => {
                             if let Some(mut frame) = control_stack.pop() {
                                 if let Some(if_pc) = frame.pending_if_false.take() {
                                     self.push_pc_rom_edge(if_pc, 0, pc_after);
                                 }
-                                for edge_pc in frame.pending_to_end.drain(..) {
-                                    self.push_pc_rom_edge(edge_pc, 0, pc_after);
+                                for (edge_pc, choice) in frame.pending_to_end.drain(..) {
+                                    self.push_pc_rom_edge(edge_pc, choice, pc_after);
                                 }
                                 self.push_pc_rom_edge(pc_before, 0, pc_after);
                             }
@@ -667,7 +667,7 @@ impl ParsedWasmArtifactsBuilder {
                             if let Some(target) = target_frame.branch_target {
                                 self.push_pc_rom_edge(pc_before, 1, target);
                             } else {
-                                target_frame.pending_to_end.push(pc_before);
+                                target_frame.pending_to_end.push((pc_before, 1));
                             }
                         }
                         wasmparser::Operator::Br { relative_depth } => {
@@ -681,7 +681,7 @@ impl ParsedWasmArtifactsBuilder {
                             if let Some(target) = target_frame.branch_target {
                                 self.push_pc_rom_edge(pc_before, 0, target);
                             } else {
-                                target_frame.pending_to_end.push(pc_before);
+                                target_frame.pending_to_end.push((pc_before, 0));
                             }
                         }
                         wasmparser::Operator::BrTable { targets } => {
@@ -698,7 +698,9 @@ impl ParsedWasmArtifactsBuilder {
                                 if let Some(target) = target_frame.branch_target {
                                     self.push_pc_rom_edge(pc_before, choice_index as u64 + 1, target);
                                 } else {
-                                    target_frame.pending_to_end.push(pc_before);
+                                    target_frame
+                                        .pending_to_end
+                                        .push((pc_before, choice_index as u64 + 1));
                                 }
                             }
                             let default_depth = targets.default() as usize;
@@ -711,7 +713,7 @@ impl ParsedWasmArtifactsBuilder {
                             if let Some(target) = target_frame.branch_target {
                                 self.push_pc_rom_edge(pc_before, 0, target);
                             } else {
-                                target_frame.pending_to_end.push(pc_before);
+                                target_frame.pending_to_end.push((pc_before, 0));
                             }
                         }
                         wasmparser::Operator::Call { function_index }
